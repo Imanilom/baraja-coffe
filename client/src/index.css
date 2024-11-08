@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* #app-bg {
+  background-color: rgb(236, 236, 236);
+  background: linear-gradient(336deg, rgba(236, 236, 236, 1) 33%, rgba(241, 246, 227, 1) 71%);
+  transition: background-color 2000ms ease !important;
+}
+
+.dark #app-bg {
+  background-color: rgb(110, 112, 105);
+  background: radial-gradient(circle, rgba(110, 112, 105, 1) 29%, rgba(82, 82, 82, 1) 79%);
+  transition: background-color 2000ms ease !important;
+} */
+
+#app-bg {
+  background: rgb(236, 236, 236);
+  background: linear-gradient(336deg, rgba(236, 236, 236, 1) 33%, rgba(241, 246, 227, 1) 71%);
+  transition-property: background-color;
+  transition-duration: 700ms;
+}
+
+.dark #app-bg {
+  background: rgb(110, 112, 105);
+  background: radial-gradient(circle, rgba(110, 112, 105, 1) 29%, rgba(82, 82, 82, 1) 79%);
+  transition-property: background-color;
+  transition-duration: 700ms;
+}
+
+#main-button:hover {
+background-color:antiquewhite;
+}
+
+#cart-circle {
+  background-color: #9CD175;
+}
+
+#footer-icon:hover {
+  color: #9CD175;
+}
+
+#lime-text {
+  color: #628949;
+}
+
+.dark #lime-text {
+  color: #3b6e1c;
+}
+
+#name-text {
+  color: #628949;
+}
+
+.dark #name-text {
+  color: #b0e390;
+}
+
+#spin-logo {
+  animation: rotation 1.5s infinite linear;
+}
+
+#en-flag {
+  background-image: "/public/assets/images/en01.png";;
+}
+
+#de-flag {
+  background-image: "/public/assets/images/de01.png";
+  ;
+}
+
+@keyframes rotation {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(359deg);
+  }
+}
+
+@keyframes slideInFromTop {
+  0% {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 768px) {
+  #bean-boxes {
+    display:none;
+  }
+    .slide-in-left {
+      animation: slideInFromLeft 1s ease;
+    }
+    .slide-in-top {
+      animation: slideInFromTop 1s ease;
+      display: none;
+    }
+    #cart-image {
+      display: none;
+    }
+}
+
+@media (min-width: 768px) {
+
+
+  .slide-in-left {
+    animation: slideInFromLeft 1s ease;
+    display: none;
+  }
+
+  .slide-in-top {
+    animation: slideInFromTop 1s ease;
+  }
+}
