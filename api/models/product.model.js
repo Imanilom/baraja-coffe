@@ -31,12 +31,12 @@ const productSchema = new mongoose.Schema({
     productPicture: {
         type: String,
         default:
-          'https://img.freepik.com/premium-vector/man-avatar-profile-picture-vector-illustration_268834-538.jpg',
+          'https://via.placeholder.com/1200x1200.jpg',
       },
     productBanner: {
         type: String,
         default:
-          'https://img.freepik.com/premium-vector/man-avatar-profile-picture-vector-illustration_268834-538.jpg',
+          'https://via.placeholder.com/1200x400.jpg',
       },
       customizationOptions: [
         {

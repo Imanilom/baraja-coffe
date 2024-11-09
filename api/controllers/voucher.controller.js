@@ -31,6 +31,28 @@ export const getAllVouchers = async (req, res) => {
     }
 };
 
+export const getVoucherById = async (req, res) => {
+    const { id } = req.params; // Mengambil ID dari parameter URL
+  
+    try {
+      // Mencari produk berdasarkan ID
+      const voucher = await Voucher.findById(id);
+      // Jika produk tidak ditemukan
+      if (!Voucher) {
+        return res.status(404).json({ message: 'Voucher not found.' });
+      }
+  
+      // Jika produk ditemukan, kembalikan data produk
+      return res.status(200).json({ voucher });
+    } catch (error) {
+      // Jika ada kesalahan
+      return res.status(500).json({ message: 'Error fetching Voucher', error: error.message });
+    }
+  };
+  
+
+
+
 // Memperbarui voucher berdasarkan ID
 export const updateVoucher = async (req, res) => {
     const { id } = req.params;

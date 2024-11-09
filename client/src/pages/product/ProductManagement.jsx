@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Modal from '../../components/Modal';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { handleFileUpload } from '../../components/firebaseUpload'; // Adjust the import path as necessary
 
 const ManageProductForm = () => {
@@ -12,6 +12,10 @@ const ManageProductForm = () => {
   const [stock, setStock] = useState('');
   const [prodcutPictureFile, setProdcutPictureFile] = useState(null);
   const [productBannerFile, setProductBannerFile] = useState(null);
+  const [prodcutPictureURL, setProdcutPictureURL] = useState('');
+  const [productBannerURL, setProductBannerURL] = useState('');
+  const fileRefProdcut = useRef(null);
+  const fileRefBanner = useRef(null);
   const [customizationOptions, setCustomizationOptions] = useState([{ key: '', values: [''] }]);
   const navigate = useNavigate();
 
@@ -72,7 +76,6 @@ const ManageProductForm = () => {
         setModalType('error');
       }
       setIsModalOpen(true);
-
     } catch (error) {
       setModalMessage('An unexpected error occurred.');
       setModalType('error');
@@ -117,11 +120,15 @@ const ManageProductForm = () => {
   };
 
   const handleProdcutPictureChange = (e) => {
-    setProdcutPictureFile(e.target.files[0]);
+    const file = e.target.files[0];
+    setProdcutPictureFile(file);
+    setProdcutPictureURL(URL.createObjectURL(file)); // Preview the image
   };
 
   const handleProductBannerChange = (e) => {
-    setProductBannerFile(e.target.files[0]);
+    const file = e.target.files[0];
+    setProductBannerFile(file);
+    setProductBannerURL(URL.createObjectURL(file)); // Preview the banner
   };
 
   return (
@@ -202,13 +209,21 @@ const ManageProductForm = () => {
             />
           </div>
 
-          <div className="flex flex-col">
+          <div className="flex flex-col mb-4">
             <label htmlFor="prodcutPicture" className="text-sm font-medium">Product Picture</label>
             <input
               id="prodcutPicture"
               type="file"
+              ref={fileRefProdcut}
+              hidden
+              accept="image/*"
               onChange={handleProdcutPictureChange}
-              className="p-2 border border-gray-300 rounded-md"
+            />
+            <img
+              src={prodcutPictureURL || 'https://via.placeholder.com/1200x1200.jpg'}
+              alt="Product"
+              className="h-36 w-36 self-center cursor-pointer rounded-md object-cover mt-2"
+              onClick={() => fileRefProdcut.current.click()}
             />
             {prodcutPicturePercent > 0 && prodcutPicturePercent < 100 && (
               <p className="text-gray-500">Uploading product picture: {prodcutPicturePercent}%</p>
@@ -218,13 +233,21 @@ const ManageProductForm = () => {
             )}
           </div>
 
-          <div className="flex flex-col">
+          <div className="flex flex-col mb-4">
             <label htmlFor="productBanner" className="text-sm font-medium">Product Banner</label>
             <input
               id="productBanner"
               type="file"
+              ref={fileRefBanner}
+              hidden
+              accept="image/*"
               onChange={handleProductBannerChange}
-              className="p-2 border border-gray-300 rounded-md"
+            />
+            <img
+              src={productBannerURL || 'https://via.placeholder.com/1200x400.jpg'}
+              alt="Banner"
+              className="w-full h-48 self-center cursor-pointer rounded-md object-cover mt-2"
+              onClick={() => fileRefBanner.current.click()}
             />
             {productBannerPercent > 0 && productBannerPercent < 100 && (
               <p className="text-gray-500">Uploading product banner: {productBannerPercent}%</p>

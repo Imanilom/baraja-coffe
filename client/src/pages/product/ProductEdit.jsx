@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Modal from '../../components/Modal';
 import { useNavigate, useParams } from 'react-router-dom';
 import { handleFileUpload } from '../../components/firebaseUpload'; // Adjust the import path as necessary
@@ -13,8 +13,12 @@ const EditProductForm = () => {
   const [stock, setStock] = useState('');
   const [productPictureFile, setProductPictureFile] = useState(null);
   const [productBannerFile, setProductBannerFile] = useState(null);
+  const [productPictureURL, setProductPictureURL] = useState('');
+  const [productBannerURL, setProductBannerURL] = useState('');
   const [customizationOptions, setCustomizationOptions] = useState([{ key: '', values: [''] }]);
   const navigate = useNavigate();
+  const fileRefProdcut = useRef(null);
+  const fileRefBanner = useRef(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
@@ -44,6 +48,10 @@ const EditProductForm = () => {
             values: option.values || ['']
           }))
         );
+        
+        // Set existing image URLs for previews
+        setProductPictureURL(product.product.productPicture || '');
+        setProductBannerURL(product.product.productBanner || '');
       } catch (error) {
         setModalMessage('Error fetching product details');
         setModalType('error');
@@ -58,8 +66,8 @@ const EditProductForm = () => {
     e.preventDefault();
 
     try {
-      let productPictureURL = '';
-      let productBannerURL = '';
+      let productPictureURL = productPictureURL; // Keep the existing URL if no new file is uploaded
+      let productBannerURL = productBannerURL; // Keep the existing URL if no new file is uploaded
 
       if (productPictureFile) {
         productPictureURL = await handleFileUpload(productPictureFile, setProductPicturePercent, setProductPictureError);
@@ -76,8 +84,8 @@ const EditProductForm = () => {
         price,
         discount,
         stock,
-        productPicture: productPictureURL || '',
-        productBanner: productBannerURL || '',
+        productPicture: productPictureURL,
+        productBanner: productBannerURL,
         customizationOptions: customizationOptions.map((option) => ({
           option: option.key,
           values: option.values.filter((value) => value.trim() !== ''),
@@ -102,7 +110,6 @@ const EditProductForm = () => {
         setModalType('error');
       }
       setIsModalOpen(true);
-
     } catch (error) {
       setModalMessage('An unexpected error occurred.');
       setModalType('error');
@@ -147,11 +154,15 @@ const EditProductForm = () => {
   };
 
   const handleProductPictureChange = (e) => {
-    setProductPictureFile(e.target.files[0]);
+    const file = e.target.files[0];
+    setProductPictureFile(file);
+    setProductPictureURL(URL.createObjectURL(file)); // Preview the image
   };
 
   const handleProductBannerChange = (e) => {
-    setProductBannerFile(e.target.files[0]);
+    const file = e.target.files[0];
+    setProductBannerFile(file);
+    setProductBannerURL(URL.createObjectURL(file)); // Preview the banner
   };
 
   return (
@@ -232,13 +243,22 @@ const EditProductForm = () => {
             />
           </div>
 
-          <div className="flex flex-col">
+          <div className="flex flex-col mb-4">
             <label htmlFor="productPicture" className="text-sm font-medium">Product Picture</label>
             <input
               id="productPicture"
               type="file"
               onChange={handleProductPictureChange}
               className="p-2 border border-gray-300 rounded-md"
+              ref={fileRefProdcut}
+              hidden
+              accept="image/*"
+            />
+            <img
+              src={productPictureURL || 'https://via.placeholder.com/150'}
+              alt="Product"
+              className="h-24 w-24 self-center cursor-pointer rounded-md object-cover mt-2"
+              onClick={() => fileRefProdcut.current.click()}
             />
             {productPicturePercent > 0 && productPicturePercent < 100 && (
               <p className="text-gray-500">Uploading product picture: {productPicturePercent}%</p>
@@ -248,13 +268,23 @@ const EditProductForm = () => {
             )}
           </div>
 
-          <div className="flex flex-col">
+          <div className="flex flex-col mb-4">
             <label htmlFor="productBanner" className="text-sm font-medium">Product Banner</label>
             <input
               id="productBanner"
               type="file"
               onChange={handleProductBannerChange}
               className="p-2 border border-gray-300 rounded-md"
+              ref={fileRefBanner}
+              hidden
+              accept="image/*"
+              
+            />
+            <img
+              src={productBannerURL || 'https://via.placeholder.com/1200x400'}
+              alt="Banner"
+              className="w-full h-48 self-center cursor-pointer rounded-md object-cover mt-2"
+              onClick={() => fileRefBanner.current.click()}
             />
             {productBannerPercent > 0 && productBannerPercent < 100 && (
               <p className="text-gray-500">Uploading product banner: {productBannerPercent}%</p>
