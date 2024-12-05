@@ -1,37 +1,35 @@
-import mongoose from 'mongoose';
-
-const voucherSchema = new mongoose.Schema({
-    code: {
-        type: String,
-        required: true,
-        unique: true
+const VoucherSchema = new mongoose.Schema({
+    code: { 
+        type: String, 
+        required: true, 
+        unique: true 
     },
-    name: {
-        type: String,
-        required: true,
+    description: { 
+        type: String 
     },
-    description: {
-        type: String,
+    discountAmount: { 
+        type: Number, 
+        required: true 
     },
-    discountAmount: {
-        type: Number,
-        required: true
+    minimumOrder: { 
+        type: Number, 
+        default: 0 
     },
-    claimedBy: [
-        {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User'
-        }
-    ],
-    expirationDate: {
-        type: Date,
-        required: true
+    startDate: { 
+        type: Date 
     },
-    voucherPicture: {
-        type: String,
-        default:
-          'https://via.placeholder.com/1200x400.jpg',
-      },
-}, { timestamps: true });
-
-export default mongoose.model('Voucher', voucherSchema);
+    endDate: { 
+        type: Date 
+    },
+    isActive: { 
+        type: Boolean, 
+        default: true 
+    },
+    maxClaims: { 
+        type: Number, 
+        required: true 
+    }, 
+  }, { timestamps: true });
+  
+  export const Voucher = mongoose.model('Voucher', VoucherSchema);
+  

@@ -9,7 +9,7 @@ import { verifyToken } from '../utils/verifyUser.js';
 const router = express.Router();
 
 router.get('/', test);
-router.post('/update/:id', verifyToken(["user", "admin", "superadmin"]), updateUser);
-router.delete('/delete/:id', verifyToken(["user", "admin", "superadmin"]), deleteUser);
+router.post('/update/:id', verifyToken(["customer", "admin", "superadmin"]), updateUser);
+router.delete('/delete/:id', verifyToken(["customer", "admin", "superadmin"]), deleteUser);
 
 export default router;

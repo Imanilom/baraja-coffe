@@ -1,108 +1,159 @@
-import Order from '../models/order.model.js';
-import User from '../models/user.model.js';
-import Product from '../models/product.model.js';
+import { Order } from '../models/Order.model.js';
+import Payment from '../models/Payment.model.js';
 import midtransClient from 'midtrans-client';
 
-// Configure Midtrans Snap API
+// Initialize Midtrans API client
 const snap = new midtransClient.Snap({
-    isProduction: false,
-    serverKey: process.env.MIDTRANS_SERVER_KEY,
-    clientKey: process.env.MIDTRANS_CLIENT_KEY,
+  isProduction: false, // Change to true for production
+  serverKey: process.env.MIDTRANS_SERVER_KEY,
+  clientKey: process.env.MIDTRANS_CLIENT_KEY,
 });
 
-// Function to generate a 16-digit order ID
-const generateOrderId = () => {
-    return Math.floor(1000000000000000 + Math.random() * 9000000000000000);
+// Create an order
+export const createOrder = async (req, res) => {
+  try {
+    const { user, items, totalPrice, orderType, deliveryAddress, tableNumber, voucher } = req.body;
+
+    // Create the order
+    const order = new Order({
+      user,
+      items,
+      totalPrice,
+      orderType,
+      deliveryAddress,
+      tableNumber,
+      voucher,
+    });
+
+    const savedOrder = await order.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      data: savedOrder,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create order',
+      error: error.message,
+    });
+  }
 };
 
-// Controller to create an order with Midtrans payment integration
-export const createOrder = async (req, res) => {
-    try {
-        let totalPriceBeforeDiscount = 0;
-        let totalPrice = 0;
-        let discount = 0;
+// Initiate payment
+export const initiatePayment = async (req, res) => {
+  try {
+    const { orderId } = req.params;
 
-        // Fetch user and check for available vouchers
-        const user = await User.findById(req.userId);
-        if (!user) return res.status(404).json({ message: "Pengguna tidak ditemukan" });
+    const order = await Order.findById(orderId).populate('user');
 
-        const availableVoucher = user.vouchers.find(voucher => !voucher.isUsed);
-        if (availableVoucher) {
-            discount = availableVoucher.discountAmount;
-        }
-
-        // Calculate total price based on products
-        const productsWithDetails = await Promise.all(
-            req.body.products.map(async (item) => {
-                const product = await Product.findById(item.productId);
-                if (!product) {
-                    throw new Error(`Produk dengan ID ${item.productId} tidak ditemukan`);
-                }
-
-                const discountedPrice = product.price * (1 - product.discount / 100);
-                const itemTotalPrice = discountedPrice * item.quantity;
-                totalPriceBeforeDiscount += itemTotalPrice;
-
-                return {
-                    productId: item.productId,
-                    quantity: item.quantity,
-                    customization: item.customization,
-                    price: discountedPrice,
-                };
-            })
-        );
-
-        // Apply voucher discount
-        totalPrice = totalPriceBeforeDiscount - discount;
-        if (totalPrice < 0) totalPrice = 0;
-
-        // Create new order
-        const order = new Order({
-            order_id: generateOrderId(),
-            products: productsWithDetails,
-            totalPrice,
-            discount,
-            customerName: req.body.customerName,
-            status: req.body.status || 'pending',
-        });
-
-        await order.save();
-
-        // Mark voucher as used if applicable
-        if (availableVoucher) {
-            availableVoucher.isUsed = true;
-            await user.save();
-        }
-
-        // Add points to user based on total price before discount
-        const pointsEarned = Math.floor(totalPriceBeforeDiscount / 100);
-        user.point += pointsEarned;
-        await user.save();
-
-        // Create Midtrans payment transaction
-        const midtransParams = {
-            transaction_details: {
-                order_id: order.order_id.toString(),
-                gross_amount: totalPrice,
-            },
-            customer_details: {
-                first_name: user.name,
-                email: user.email,
-            },
-            credit_card: {
-                secure: true,
-            },
-        };
-
-        const transaction = await snap.createTransaction(midtransParams);
-
-        // Send order and transaction URL to complete payment
-        res.status(201).json({
-            order,
-            pointsEarned,
-            redirectUrl: transaction.redirect_url, // Midtrans payment URL
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found',
+      });
     }
+
+    // Midtrans transaction parameters
+    const parameter = {
+      transaction_details: {
+        order_id: `ORDER-${order._id}`,
+        gross_amount: order.totalPrice,
+      },
+      customer_details: {
+        email: order.user.email,
+        first_name: order.user.name,
+      },
+      item_details: order.items.map(item => ({
+        id: item.menuItem,
+        price: item.subtotal / item.quantity,
+        quantity: item.quantity,
+        name: `MenuItem - ${item.menuItem}`,
+      })),
+    };
+
+    const transaction = await snap.createTransaction(parameter);
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment initiated successfully',
+      paymentUrl: transaction.redirect_url,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to initiate payment',
+      error: error.message,
+    });
+  }
+};
+
+// Handle Midtrans notifications
+export const handleNotification = async (req, res) => {
+  try {
+    const notification = req.body;
+
+    const statusResponse = await snap.transaction.notification(notification);
+
+    const { order_id, transaction_status, gross_amount, payment_type } = statusResponse;
+
+    // Extract Order ID from transaction ID
+    const orderId = order_id.replace('ORDER-', '');
+
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found for notification',
+      });
+    }
+
+    // Update payment status
+    const payment = new Payment({
+      order: orderId,
+      amount: gross_amount,
+      paymentDate: new Date(),
+      paymentMethod: payment_type,
+      status: transaction_status === 'capture' || transaction_status === 'settlement' ? 'Success' : 'Failed',
+    });
+
+    await payment.save();
+
+    // Update order status based on payment success
+    order.status = transaction_status === 'capture' || transaction_status === 'settlement' ? 'Completed' : 'Pending';
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Notification handled successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to handle notification',
+      error: error.message,
+    });
+  }
+};
+
+// Get user orders
+export const getUserOrders = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const orders = await Order.find({ user: userId }).populate('items.menuItem').populate('items.toppings');
+
+    res.status(200).json({
+      success: true,
+      data: orders,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch orders',
+      error: error.message,
+    });
+  }
 };

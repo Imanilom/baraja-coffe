@@ -8,10 +8,7 @@ import cors from 'cors';
 // Route
 import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
-import productRoutes from './routes/product.route.js';
-import orderRoutes from './routes/order.route.js';
-import voucherRoutes from './routes/voucher.admin.route.js';
-import voucherUserRoutes from './routes/voucher.user.route.js';
+
 
 dotenv.config();
 
@@ -45,10 +42,6 @@ app.listen(3000, () => {
 
 app.use('/api/user', userRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/product', productRoutes);
-app.use('/api/order', orderRoutes);
-app.use('/api/voucher', voucherRoutes);
-app.use('/api/voucherUser', voucherUserRoutes);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
