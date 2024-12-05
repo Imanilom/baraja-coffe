@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+
 const OutletSchema = new mongoose.Schema({
     name: { type: String, required: true },
     location: { type: String },

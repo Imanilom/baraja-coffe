@@ -8,7 +8,11 @@ import cors from 'cors';
 // Route
 import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
-
+import orderRoutes from './routes/order.routes.js';
+import menuRoutes from './routes/menu.routes.js';
+import promotionRoutes from './routes/promotion.rotues.js';
+import storageRoutes from './routes/storage.routes.js';
+import voucherRoutes from './routes/voucher.routes.js';
 
 dotenv.config();
 
@@ -42,6 +46,11 @@ app.listen(3000, () => {
 
 app.use('/api/user', userRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api', orderRoutes);
+app.use('/api', menuRoutes);
+app.use('/api/promotion', promotionRoutes);
+app.use('/api/voucher', voucherRoutes);
+app.use('/api/storage', storageRoutes);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;

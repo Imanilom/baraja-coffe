@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+
 const OrderItemSchema = new mongoose.Schema({
     menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem', required: true },
     toppings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }],

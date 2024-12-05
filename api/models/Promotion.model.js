@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
-const PromotionSchema = new mongoose.Schema({
+// Check if the model is already registered
+const Promotion = mongoose.models.Promotion || mongoose.model('Promotion', new mongoose.Schema({
   title: {
     type: String,
     required: true,
@@ -28,8 +29,6 @@ const PromotionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'MenuItem',
   }],
-}, { timestamps: true });
-
-const Promotion = mongoose.model('Promotion', PromotionSchema);
+}, { timestamps: true }));
 
 export default Promotion;

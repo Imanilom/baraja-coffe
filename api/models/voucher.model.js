@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+
 const VoucherSchema = new mongoose.Schema({
     code: { 
         type: String, 

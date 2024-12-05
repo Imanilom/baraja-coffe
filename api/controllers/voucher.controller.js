@@ -1,5 +1,5 @@
 import { Voucher } from '../models/Voucher.model.js';
-import UserVoucher from '../models/UserVoucher.model.js';
+import { UserVoucher } from '../models/UserVoucher.model.js';
 
 // Claim a voucher
 export const claimVoucher = async (req, res) => {

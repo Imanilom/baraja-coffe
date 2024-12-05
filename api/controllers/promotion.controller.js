@@ -1,4 +1,4 @@
-import Promotion from '../models/promotion.model.js';
+import Promotion from "../models/Promotion.model.js";
 
 // Create a new promotion
 export const createPromotion = async (req, res) => {

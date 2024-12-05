@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+
 const UserVoucherSchema = new mongoose.Schema({
     userId: { 
         type: mongoose.Schema.Types.ObjectId, ref: 'User', 

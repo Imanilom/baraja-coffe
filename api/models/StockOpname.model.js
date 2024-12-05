@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+
 const StockOpnameSchema = new mongoose.Schema({
     itemType: { type: String, enum: ['MenuItem', 'RawMaterial', 'Packaging'], required: true },
     itemId: { type: mongoose.Schema.Types.ObjectId, required: true },

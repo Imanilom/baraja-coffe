@@ -1,6 +1,7 @@
 import { MenuItem } from '../models/MenuItem.model.js';
 import { Topping } from '../models/Topping.model.js';
 import Promotion from '../models/promotion.model.js';
+import AddOn from '../models/Addons.model.js';
 
 // Create a new menu item
 export const createMenuItem = async (req, res) => {
@@ -201,4 +202,100 @@ export const deleteTopping = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to delete topping', error: error.message });
   }
 };
+
+
+
+
+// Create a new add-on
+export const createAddOn = async (req, res) => {
+  try {
+    const { menuItemId, name, type, options } = req.body;
+
+    // Periksa apakah menu item ada
+    const menuItem = await MenuItem.findById(menuItemId);
+    if (!menuItem) {
+      return res.status(404).json({ success: false, message: 'Menu item not found' });
+    }
+
+    // Buat add-on baru
+    const addOn = new AddOn({
+      name,
+      type,
+      options,
+    });
+
+    // Simpan add-on ke database
+    const savedAddOn = await addOn.save();
+
+    // Tambahkan add-on ke menu item (jika ada relasi seperti `menuItem.addOns`)
+    if (!menuItem.addOns) menuItem.addOns = [];
+    menuItem.addOns.push(savedAddOn._id);
+    await menuItem.save();
+
+    res.status(201).json({ success: true, data: savedAddOn });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to create add-on', error: error.message });
+  }
+};
+
+// Get a single addon by ID
+export const getAddOnById = async (req, res) => {
+  try {
+    const addOn = await AddOn.findById(req.params.id);
+    if (!addOn) {
+      return res.status(404).json({ success: false, message: 'Addon not found' });
+    }
+    res.status(200).json({ success: true, data: addOn });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch addon', error: error.message });
+  }
+};
+
+// Get all addons
+export const getAllAddOns = async (req, res) => {
+  try {
+    const addOns = await AddOn.find();
+    res.status(200).json({ success: true, data: addOns });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch addons', error: error.message });
+  }
+};
+
+
+// Update an addon
+export const updateAddOn = async (req, res) => {
+  try {
+    const { name, type, options } = req.body;
+    const updatedAddOn = await AddOn.findByIdAndUpdate(
+      req.params.id,
+      { name, type, options },
+      { new: true } // This option returns the updated document
+    );
+    
+    if (!updatedAddOn) {
+      return res.status(404).json({ success: false, message: 'Addon not found' });
+    }
+
+    res.status(200).json({ success: true, data: updatedAddOn });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to update addon', error: error.message });
+  }
+};
+
+// Delete an addon
+export const deleteAddOn = async (req, res) => {
+  try {
+    const deletedAddOn = await AddOn.findByIdAndDelete(req.params.id);
+    if (!deletedAddOn) {
+      return res.status(404).json({ success: false, message: 'Addon not found' });
+    }
+    
+    res.status(200).json({ success: true, message: 'Addon deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to delete addon', error: error.message });
+  }
+};
+
+
+
 

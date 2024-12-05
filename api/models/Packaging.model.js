@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+
 const PackagingSchema = new mongoose.Schema({
     type: { type: String, required: true },
     size: { type: String },
