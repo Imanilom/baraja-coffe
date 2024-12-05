@@ -8,18 +8,11 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import PrivateRoute from './components/PrivateRoute';
 
-// Product
-import ProductList from './pages/product/ProductList';
-import Productadd from './pages/product/ProductManagement';
-import Productedit from './pages/product/ProductEdit';
+// menu
+import CreateMenu from './pages/menu/CreateMenu';
+import UpdateMenu from './pages/menu/UpdateMenu';
+import DeleteMenu from './pages/menu/DeleteMenu';
 
-// Voucher 
-import VoucherList from './pages/voucher/VoucherList';
-import Voucheradd from './pages/voucher/VoucherManagement';
-import Voucheredit from './pages/voucher/VoucherEdit';
-
-// Order
-import Order from './pages/order/Order';
 export default function App() {
   return (
     <BrowserRouter>
@@ -32,19 +25,12 @@ export default function App() {
             <Route path='/about' element={<About />} />
             <Route path='/sign-in' element={<SignIn />} />
             <Route path='/sign-up' element={<SignUp />} />
-      
+            <Route path="/create-menu" element={<CreateMenu />} />
+            <Route path="/update-menu/:id" element={<UpdateMenu />} />
+            <Route path="/delete-menu/:id" element={<DeleteMenu />} />
             <Route element={<PrivateRoute />}>
               <Route path='/profile' element={<Profile />} />
-              {/* Routes Product manajement */}
-              <Route path='/product' element={<ProductList />} />
-              <Route path='/add-product' element={<Productadd />} />
-              <Route path='/edit-product/:id' element={<Productedit />} />
-              {/* Routes Voucher manajement */}
-              <Route path='/voucher' element={<VoucherList />} />
-              <Route path='/add-voucher' element={<Voucheradd />} />
-              <Route path='/edit-voucher/:id' element={<Voucheredit />} />
-              {/* Order */}
-              <Route path='/order' element={<Order />} />
+
             </Route>
           </Routes>
         </main>
