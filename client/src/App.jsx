@@ -9,9 +9,21 @@ import Footer from './components/Footer';
 import PrivateRoute from './components/PrivateRoute';
 
 // menu
-import CreateMenu from './pages/menu/CreateMenu';
-import UpdateMenu from './pages/menu/UpdateMenu';
-import DeleteMenu from './pages/menu/DeleteMenu';
+import Menumanagement from './pages/menu/index';
+import Menucreate from './pages/menu/create';
+import Menuupdate from './pages/menu/update';
+
+// Topping
+import ToppingManagement from './pages/topping/index';
+import CreateTopping from './pages/topping/create';
+import UpdateTopping from './pages/topping/update';
+import DeleteTopping from './pages/topping/delete';
+
+// addons
+import AddonManagement from './pages/addons/index';
+import CreateAddon from './pages/addons/create';
+import UpdateAddon from './pages/addons/update';
+import DeleteAddon from './pages/addons/delete';
 
 export default function App() {
   return (
@@ -25,12 +37,9 @@ export default function App() {
             <Route path='/about' element={<About />} />
             <Route path='/sign-in' element={<SignIn />} />
             <Route path='/sign-up' element={<SignUp />} />
-            <Route path="/create-menu" element={<CreateMenu />} />
-            <Route path="/update-menu/:id" element={<UpdateMenu />} />
-            <Route path="/delete-menu/:id" element={<DeleteMenu />} />
             <Route element={<PrivateRoute />}>
               <Route path='/profile' element={<Profile />} />
-
+              <Route path='/menu' element={<CreateAddon />} />
             </Route>
           </Routes>
         </main>

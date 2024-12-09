@@ -11,6 +11,11 @@ import {
   getToppingById,
   updateTopping,
   deleteTopping,
+  createAddOn,
+  getAddOnById,
+  getAllAddOns,
+  updateAddOn,
+  deleteAddOn,
 } from '../controllers/menu.controller.js';
 
 const router = express.Router();
@@ -31,5 +36,12 @@ router.get('/toppings', getToppings); // Get all Toppings
 router.get('/toppings/:id', getToppingById); // Get a specific Topping by ID
 router.put('/toppings/:id', adminAccess, updateTopping); // Update a specific Topping
 router.delete('/toppings/:id', adminAccess, deleteTopping); // Delete a specific Topping
+
+// AddOn Routes
+router.post('/addons', adminAccess, createAddOn); // Create a new AddOn
+router.get('/addons', getAllAddOns); // Get all AddOns
+router.get('/addons/:id', getAddOnById); // Get a specific AddOn by ID
+router.put('/addons/:id', adminAccess, updateAddOn); // Update a specific AddOn
+router.delete('/addons/:id', adminAccess, deleteAddOn); // Delete a specific AddOn
 
 export default router;

@@ -34,32 +34,6 @@ export default function Header() {
           </button>
         </div>
         <ul className='hidden md:flex gap-4 relative'>
-          <li
-            className='relative'
-            onMouseEnter={() => setProductDropdownOpen(true)}
-            onMouseLeave={() => setProductDropdownOpen(false)}
-          >
-            <span className='cursor-pointer'>Products</span>
-            {isProductDropdownOpen && (
-              <div className='absolute bg-white border border-gray-300 shadow-lg mt-1 rounded-md z-10'>
-                <Link to='/product' className='block px-4 py-2 hover:bg-gray-100'>View Products</Link>
-                <Link to='/add-product' className='block px-4 py-2 hover:bg-gray-100'>Add Product</Link>
-              </div>
-            )}
-          </li>
-          <li
-            className='relative'
-            onMouseEnter={() => setVoucherDropdownOpen(true)}
-            onMouseLeave={() => setVoucherDropdownOpen(false)}
-          >
-            <span className='cursor-pointer'>Vouchers</span>
-            {isVoucherDropdownOpen && (
-              <div className='absolute bg-white border border-gray-300 shadow-lg mt-1 rounded-md z-10'>
-                <Link to='/voucher' className='block px-4 py-2 hover:bg-gray-100'>View Vouchers</Link>
-                <Link to='/add-voucher' className='block px-4 py-2 hover:bg-gray-100'>Add Voucher</Link>
-              </div>
-            )}
-          </li>
           <Link to='/'>
             <li>Home</li>
           </Link>
@@ -91,24 +65,8 @@ export default function Header() {
               <Link to='/about'>
                 <li>About</li>
               </Link>
-              <li className='relative'>
-                <span className='cursor-pointer' onClick={toggleSidebarProductDropdown}>Products</span>
-                {isSidebarProductDropdownOpen && (
-                  <div className='ml-4 mt-1'>
-                    <Link to='/product' className='block px-4 py-2 hover:bg-gray-100'>View Products</Link>
-                    <Link to='/add-product' className='block px-4 py-2 hover:bg-gray-100'>Add Product</Link>
-                  </div>
-                )}
-              </li>
-              <li className='relative'>
-                <span className='cursor-pointer' onClick={toggleSidebarVoucherDropdown}>Vouchers</span>
-                {isSidebarVoucherDropdownOpen && (
-                  <div className='ml-4 mt-1'>
-                    <Link to='/voucher' className='block px-4 py-2 hover:bg-gray-100'>View Vouchers</Link>
-                    <Link to='/add-voucher' className='block px-4 py-2 hover:bg-gray-100'>Add Voucher</Link>
-                  </div>
-                )}
-              </li>
+             
+              
               <Link to='/profile'>
                 {currentUser ? (
                   <li>Profile</li>
