@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const OrderItemSchema = new mongoose.Schema({
     menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem', required: true },
+    addons: [{ type: mongoose.Schema.Types.ObjectId, ref: 'AddOn' }],
     toppings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }],
     quantity: { type: Number, required: true },
     subtotal: { type: Number, required: true },
