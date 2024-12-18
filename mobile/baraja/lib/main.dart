@@ -10,6 +10,8 @@ void main() {
 }
 
 class BarajaCoffeeApp extends StatelessWidget {
+  const BarajaCoffeeApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -42,7 +44,10 @@ class BarajaCoffeeApp extends StatelessWidget {
 }
 
 class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
   @override
+  // ignore: library_private_types_in_public_api
   _SplashScreenState createState() => _SplashScreenState();
 }
 
