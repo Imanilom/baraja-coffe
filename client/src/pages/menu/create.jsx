@@ -18,13 +18,15 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
     const fetchData = async () => {
       try {
         const [toppingsRes, addOnsRes] = await Promise.all([
-          axios.get("/api/toppings"),
-          axios.get("/api/addons"),
+          axios.get("http://localhost:3000/api/toppings"),
+          axios.get("http://localhost:3000/api/addons"),
         ]);
-        setToppings(toppingsRes.data);
-        setAddOns(addOnsRes.data);
+        setToppings(Array.isArray(toppingsRes.data) ? toppingsRes.data : []);
+        setAddOns(Array.isArray(addOnsRes.data) ? addOnsRes.data : []);
       } catch (error) {
         console.error("Error fetching data:", error);
+        setToppings([]);
+        setAddOns([]);
       }
     };
     fetchData();
@@ -47,7 +49,7 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("/api/menu", formData);
+      await axios.post("http://localhost:3000/api/menu", formData);
       fetchMenuItems();
       onCancel();
     } catch (error) {
@@ -101,30 +103,38 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
 
         <div className="mb-4">
           <label className="block text-gray-700">Toppings</label>
-          {toppings.map((topping) => (
-            <div key={topping._id} className="flex items-center">
-              <input
-                type="checkbox"
-                value={topping._id}
-                onChange={(e) => handleCheckboxChange(e, "toppings")}
-              />
-              <label className="ml-2">{topping.name}</label>
-            </div>
-          ))}
+          {toppings.length > 0 ? (
+            toppings.map((topping) => (
+              <div key={topping._id} className="flex items-center">
+                <input
+                  type="checkbox"
+                  value={topping._id}
+                  onChange={(e) => handleCheckboxChange(e, "toppings")}
+                />
+                <label className="ml-2">{topping.name}</label>
+              </div>
+            ))
+          ) : (
+            <p>No toppings available</p>
+          )}
         </div>
 
         <div className="mb-4">
           <label className="block text-gray-700">Add-Ons</label>
-          {addOns.map((addOn) => (
-            <div key={addOn._id} className="flex items-center">
-              <input
-                type="checkbox"
-                value={addOn._id}
-                onChange={(e) => handleCheckboxChange(e, "addOns")}
-              />
-              <label className="ml-2">{addOn.name}</label>
-            </div>
-          ))}
+          {addOns.length > 0 ? (
+            addOns.map((addOn) => (
+              <div key={addOn._id} className="flex items-center">
+                <input
+                  type="checkbox"
+                  value={addOn._id}
+                  onChange={(e) => handleCheckboxChange(e, "addOns")}
+                />
+                <label className="ml-2">{addOn.name}</label>
+              </div>
+            ))
+          ) : (
+            <p>No add-ons available</p>
+          )}
         </div>
 
         <div className="flex justify-end space-x-4">

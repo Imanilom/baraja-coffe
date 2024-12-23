@@ -7,13 +7,28 @@ import DeleteAddon from "./delete";
 const AddonManagement = () => {
   const [addons, setAddons] = useState([]);
   const [editingAddon, setEditingAddon] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
 
   const fetchAddons = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const response = await axios.get("/api/addons");
-      setAddons(response.data);
-    } catch (error) {
-      console.error("Error fetching addons:", error);
+      const response = await axios.get("http://localhost:3000/api/addons");
+      // Access nested data
+      const addonsArray = response.data?.data;
+      if (Array.isArray(addonsArray)) {
+        setAddons(addonsArray);
+      } else {
+        console.error("Unexpected API response format:", response.data);
+        setAddons([]);
+      }
+    } catch (err) {
+      console.error("Error fetching toppings:", err);
+      setError("Failed to load toppings. Please try again later.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -26,7 +41,10 @@ const AddonManagement = () => {
       <h1 className="text-3xl font-bold mb-6">Add-On Management</h1>
 
       {/* Create Addon Form */}
-      <CreateAddon fetchAddons={fetchAddons} />
+      <a href="/addons-create">
+      <button className="bg-blue-500 text-white px-2 py-1 rounded mr-2">Add Addons </button>
+      </a>
+    
 
       {/* Addon Table */}
       <table className="min-w-full bg-white shadow-md rounded mt-6">

@@ -21,7 +21,7 @@ const CreateTopping = ({ fetchToppings }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 bg-white shadow-md rounded">
+    <form onSubmit={handleSubmit} className="max-w-4xl mx-auto p-6 mt-6 bg-white shadow-md rounded">
       <h2 className="text-xl font-bold mb-4">Add Topping</h2>
       <div className="mb-4">
         <label className="block text-gray-700">Name</label>

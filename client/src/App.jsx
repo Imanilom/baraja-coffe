@@ -39,7 +39,11 @@ export default function App() {
             <Route path='/sign-up' element={<SignUp />} />
             <Route element={<PrivateRoute />}>
               <Route path='/profile' element={<Profile />} />
-              <Route path='/menu' element={<CreateAddon />} />
+              <Route path='/toppings' element={<ToppingManagement />} />
+              <Route path='/topping-create' element={<CreateTopping />} />
+
+              <Route path='/addons' element={<AddonManagement />} />
+              <Route path='/addons-create' element={<CreateAddon />} />
             </Route>
           </Routes>
         </main>

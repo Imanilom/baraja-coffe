@@ -9,7 +9,7 @@ const Menu = () => {
 
   const fetchMenuItems = async () => {
     try {
-      const response = await axios.get("/api/menu");
+      const response = await axios.get("http://localhost:3000/api/menu");
       setMenuItems(response.data);
     } catch (error) {
       console.error("Error fetching menu items:", error);
