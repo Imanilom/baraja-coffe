@@ -26,7 +26,7 @@ export const createOrderAndPayment = async (req, res) => {
     const qrCode = new QRCode();
 
     let paymentResult;
-    if (['ovo', 'gopay', 'shopeepay'].includes(paymentMethod)) {
+    if (['ovo', 'gopay', 'shopeepay', 'dana'].includes(paymentMethod)) {
       // E-Wallet Payment
       paymentResult = await eWallet.createPayment({
         externalID: `order-${order._id}`,
