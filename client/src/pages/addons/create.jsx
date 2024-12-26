@@ -8,6 +8,7 @@ const CreateAddon = ({ fetchAddons }) => {
     options: [],
   });
   const [option, setOption] = useState({ label: "", price: "" });
+  const [error, setError] = useState("");
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -20,29 +21,35 @@ const CreateAddon = ({ fetchAddons }) => {
   };
 
   const addOption = () => {
-    if (option.label && option.price) {
-      setFormData({
-        ...formData,
-        options: [...formData.options, option],
-      });
-      setOption({ label: "", price: "" });
-    }
+    // if (!option.label || option.price === "" || parseFloat(option.price) <= -0) {
+    //   setError("Please enter a valid label and price for the option.");
+    //   return;
+    // }
+    setError("");
+    setFormData({
+      ...formData,
+      options: [...formData.options, option],
+    });
+    setOption({ label: "", price: "" });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
     try {
       await axios.post("/api/addons", formData);
       setFormData({ name: "", type: "size", options: [] });
       fetchAddons();
     } catch (error) {
-      console.error("Error creating addon:", error);
+      setError("Error creating add-on. Please try again.");
+      console.error("Error creating add-on:", error);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="p-4 bg-white shadow-md rounded">
       <h2 className="text-xl font-bold mb-4">Add Add-On</h2>
+      {error && <p className="text-red-500 mb-4">{error}</p>}
       <div className="mb-4">
         <label className="block text-gray-700">Name</label>
         <input
@@ -87,6 +94,7 @@ const CreateAddon = ({ fetchAddons }) => {
             value={option.price}
             onChange={handleOptionChange}
             className="border rounded px-3 py-2 w-20"
+            min="0"
           />
           <button
             type="button"
@@ -96,10 +104,10 @@ const CreateAddon = ({ fetchAddons }) => {
             Add
           </button>
         </div>
-        <ul>
+        <ul className="list-disc pl-5">
           {formData.options.map((opt, index) => (
-            <li key={index}>
-              {opt.label} - ${opt.price}
+            <li key={index} className="text-gray-700">
+              {opt.label} - IDR {opt.price}
             </li>
           ))}
         </ul>

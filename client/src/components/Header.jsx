@@ -4,80 +4,100 @@ import { useState } from 'react';
 
 export default function Header() {
   const { currentUser } = useSelector((state) => state.user);
-  const [isProductDropdownOpen, setProductDropdownOpen] = useState(false);
-  const [isVoucherDropdownOpen, setVoucherDropdownOpen] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
-  const [isSidebarProductDropdownOpen, setSidebarProductDropdownOpen] = useState(false);
-  const [isSidebarVoucherDropdownOpen, setSidebarVoucherDropdownOpen] = useState(false);
 
   const toggleSidebar = () => {
     setSidebarOpen(!isSidebarOpen);
   };
 
-  const toggleSidebarProductDropdown = () => {
-    setSidebarProductDropdownOpen(!isSidebarProductDropdownOpen);
-  };
-
-  const toggleSidebarVoucherDropdown = () => {
-    setSidebarVoucherDropdownOpen(!isSidebarVoucherDropdownOpen);
-  };
-
   return (
-    <div className='bg-slate-200'>
-      <div className='flex justify-between items-center max-w-6xl mx-auto p-3'>
-        <Link to='/'>
-          <h1 className='font-bold'>Baraja Coffee</h1>
-        </Link>
-        <div className='md:hidden'>
-          <button onClick={toggleSidebar} className='text-xl'>
-            {isSidebarOpen ? '✖' : '☰'}
-          </button>
+    <header className="bg-white shadow-md">
+      <div className="max-w-6xl mx-auto flex justify-between items-center p-4">
+        {/* Logo */}
+        <div className="flex items-center space-x-2">
+          <img src="https://placehold.co/600x400/png" alt="Logo" className="h-8 w-8" />
+          <span className="text-xl font-semibold text-green-700">Baraja Coffee</span>
         </div>
-        <ul className='hidden md:flex gap-4 relative'>
-          <Link to='/'>
-            <li>Home</li>
+
+        {/* Navigation Menu */}
+        <nav className="hidden md:flex items-center space-x-6">
+          <Link to="/" className="text-green-700 hover:underline">
+            Tentang
           </Link>
-          <Link to='/about'>
-            <li>About</li>
+          <Link to="/menu" className="text-green-700 hover:underline">
+            Menu
           </Link>
-          <Link to='/profile'>
-            {currentUser ? (
-              <img src={currentUser.profilePicture} alt='profile' className='h-7 w-7 rounded-full object-cover' />
-            ) : (
-              <li>Sign In</li>
-            )}
+          <Link to="/collaboration" className="text-green-700 hover:underline">
+            Kolaborasi
           </Link>
-        </ul>
+          <Link to="/store" className="text-green-700 hover:underline">
+            Store
+          </Link>
+          <Link to="/news" className="text-green-700 hover:underline">
+            News
+          </Link>
+          <Link to="/career" className="text-green-700 hover:underline">
+            Karir
+          </Link>
+          <Link to="/contact" className="text-green-700 hover:underline">
+            Hubungi Kami
+          </Link>
+        
+        </nav>
+
+        {/* Call to Action Button */}
+        <Link
+          to="/download"
+          className="hidden md:block px-4 py-2 border border-green-700 text-green-700 rounded-full hover:bg-green-700 hover:text-white transition"
+        >
+          Download App
+        </Link>
+
+        {/* Mobile Menu Toggle */}
+        <button onClick={toggleSidebar} className="md:hidden text-green-700 text-xl">
+          {isSidebarOpen ? '✖' : '☰'}
+        </button>
       </div>
 
-      {/* Sidebar for mobile and tablet views */}
+      {/* Sidebar for Mobile View */}
       {isSidebarOpen && (
-        <div className='fixed inset-0 bg-gray-800 bg-opacity-50 z-20 md:hidden' onClick={toggleSidebar}>
+        <div className="fixed inset-0 bg-gray-800 bg-opacity-50 z-20 md:hidden">
           <div
-            className='fixed top-0 right-0 w-64 h-full bg-white shadow-lg z-30 p-4'
-            onClick={(e) => e.stopPropagation()} // Prevents sidebar from closing when clicking inside
+            className="fixed top-0 right-0 w-64 h-full bg-white shadow-lg z-30 p-4"
+            onClick={(e) => e.stopPropagation()}
           >
-            <h2 className='font-bold text-xl mb-4'>Menu</h2>
-            <ul className='flex flex-col gap-2'>
-              <Link to='/'>
-                <li>Home</li>
+            <ul className="flex flex-col gap-4">
+              <Link to="/" className="text-green-700 hover:underline">
+                Tentang
               </Link>
-              <Link to='/about'>
-                <li>About</li>
+              <Link to="/menu" className="text-green-700 hover:underline">
+                Menu
               </Link>
-             
-              
-              <Link to='/profile'>
-                {currentUser ? (
-                  <li>Profile</li>
-                ) : (
-                  <li>Sign In</li>
-                )}
+              <Link to="/collaboration" className="text-green-700 hover:underline">
+                Kolaborasi
+              </Link>
+              <Link to="/store" className="text-green-700 hover:underline">
+                Store
+              </Link>
+              <Link to="/news" className="text-green-700 hover:underline">
+                News
+              </Link>
+              <Link to="/career" className="text-green-700 hover:underline">
+                Karir
+              </Link>
+              <Link to="/contact" className="text-green-700 hover:underline">
+                Hubungi Kami
+              </Link>
+              <Link
+                to="/download"
+                className="block px-4 py-2 border border-green-700 text-green-700 rounded-full hover:bg-green-700 hover:text-white transition"
+              >
+                Download App
               </Link>
             </ul>
           </div>
         </div>
       )}
-    </div>
+    </header>
   );
 }

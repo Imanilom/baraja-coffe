@@ -6,24 +6,57 @@ import AddOn from '../models/Addons.model.js';
 // Create a new menu item
 export const createMenuItem = async (req, res) => {
   try {
-    const { name, price, description, category, stock, imageURL, toppings } = req.body;
+    const { name, price, description, category, stock, imageURL, toppings, addons } = req.body;
+
+    // Validate required fields
+    if (!name || !price || !category || !imageURL) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, price, category, and imageURL are required fields.',
+      });
+    }
+
+    // Validate toppings and addons are arrays of IDs
+    if (toppings && !Array.isArray(toppings)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Toppings must be an array of IDs.',
+      });
+    }
+    if (addons && !Array.isArray(addons)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Add-ons must be an array of IDs.',
+      });
+    }
 
     const menuItem = new MenuItem({
       name,
       price,
-      description,
+      description: description || '',
       category,
-      stock,
+      stock: stock || 0,
       imageURL,
-      toppings,
+      toppings: toppings || [],
+      addons: addons || [],
     });
 
     const savedMenuItem = await menuItem.save();
-    res.status(201).json({ success: true, data: savedMenuItem });
+
+    res.status(201).json({
+      success: true,
+      message: 'Menu item created successfully.',
+      data: savedMenuItem,
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to create menu item', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create menu item.',
+      error: error.message,
+    });
   }
 };
+
 
 
 // Get all menu items
@@ -104,21 +137,41 @@ export const getMenuItemById = async (req, res) => {
 // Update a menu item
 export const updateMenuItem = async (req, res) => {
   try {
-    const { name, price, description, category, stock, imageURL, toppings } = req.body;
+    const { name, price, description, category, stock, imageURL, toppings, addOns } = req.body;
+
+    // Ensure toppings and addOns are arrays
+    const sanitizedToppings = Array.isArray(toppings) ? toppings : [];
+    const sanitizedAddOns = Array.isArray(addOns) ? addOns : [];
 
     const updatedMenuItem = await MenuItem.findByIdAndUpdate(
       req.params.id,
-      { name, price, description, category, stock, imageURL, toppings },
-      { new: true }
+      {
+        name,
+        price,
+        description: description || '',
+        category,
+        stock: stock || 0,
+        imageURL: imageURL || '', // Ensure imageURL defaults to an empty string if not provided
+        toppings: sanitizedToppings,
+        addOns: sanitizedAddOns, // Use addOns instead of addons for consistency
+      },
+      { new: true } // Return the updated document
     );
 
-    if (!updatedMenuItem) return res.status(404).json({ success: false, message: 'Menu item not found' });
+    if (!updatedMenuItem) {
+      return res.status(404).json({ success: false, message: 'Menu item not found' });
+    }
 
     res.status(200).json({ success: true, data: updatedMenuItem });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to update menu item', error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update menu item', 
+      error: error.message 
+    });
   }
 };
+
 
 // Delete a menu item
 export const deleteMenuItem = async (req, res) => {
@@ -209,14 +262,7 @@ export const deleteTopping = async (req, res) => {
 // Create a new add-on
 export const createAddOn = async (req, res) => {
   try {
-    const { menuItemId, name, type, options } = req.body;
-
-    // Periksa apakah menu item ada
-    const menuItem = await MenuItem.findById(menuItemId);
-    if (!menuItem) {
-      return res.status(404).json({ success: false, message: 'Menu item not found' });
-    }
-
+    const { name, type, options } = req.body;
     // Buat add-on baru
     const addOn = new AddOn({
       name,
@@ -226,11 +272,6 @@ export const createAddOn = async (req, res) => {
 
     // Simpan add-on ke database
     const savedAddOn = await addOn.save();
-
-    // Tambahkan add-on ke menu item (jika ada relasi seperti `menuItem.addOns`)
-    if (!menuItem.addOns) menuItem.addOns = [];
-    menuItem.addOns.push(savedAddOn._id);
-    await menuItem.save();
 
     res.status(201).json({ success: true, data: savedAddOn });
   } catch (error) {

@@ -1,18 +1,89 @@
-import React, { useEffect, useState } from "react";
+import React, { useRef, useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import axios from "axios";
+import {
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytesResumable,
+} from "firebase/storage";
+import { app } from "../../firebase";
+import { Link } from "react-router-dom";
 
-const UpdateMenu = ({ menuItem, fetchMenuItems, onCancel }) => {
+const UpdateMenu = ({ fetchMenuItems, onCancel }) => {
+  const { id } = useParams(); // Get the ID from the URL
   const [formData, setFormData] = useState({
-    name: menuItem.name || "",
-    price: menuItem.price || "",
-    description: menuItem.description || "",
-    category: menuItem.category || "",
-    stock: menuItem.stock || 0,
-    toppings: menuItem.toppings || [],
-    addOns: menuItem.addOns || [],
+    name: "",
+    price: "",
+    description: "",
+    category: "",
+    stock: 0,
+    toppings: [],
+    addOns: [],
+    imageURL: "", // Added imageURL
   });
   const [toppings, setToppings] = useState([]);
   const [addOns, setAddOns] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fileRef = useRef(null);
+  const [image, setImage] = useState(undefined);
+  const [imagePercent, setImagePercent] = useState(0);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (image) {
+      handleFileUpload(image);
+    }
+  }, [image]);
+
+  const handleFileUpload = async (image) => {
+    const storage = getStorage(app);
+    const fileName = new Date().getTime() + image.name;
+    const storageRef = ref(storage, fileName);
+    const uploadTask = uploadBytesResumable(storageRef, image);
+    uploadTask.on(
+      "state_changed",
+      (snapshot) => {
+        const progress =
+          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setImagePercent(Math.round(progress));
+      },
+      (error) => {
+        setImageError(true);
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) =>
+          setFormData((prevData) => ({ ...prevData, imageURL: downloadURL }))
+        );
+      }
+    );
+  };
+
+  // Fetch the menu item data by ID
+  useEffect(() => {
+    const fetchMenuItem = async () => {
+      try {
+        const response = await axios.get(`/api/menu-items/${id}`);
+        const menuItem = response.data.data;
+        setFormData({
+          name: menuItem.name || "",
+          price: menuItem.price || "",
+          description: menuItem.description || "",
+          category: menuItem.category || "",
+          stock: menuItem.stock || 0,
+          toppings: menuItem.toppings.map((topping) => topping._id) || [],
+          addOns: menuItem.addOns.map((addOn) => addOn._id) || [],
+          imageURL: menuItem.imageURL || "", // Populate imageURL
+        });
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error fetching menu item:", error);
+        setIsLoading(false);
+      }
+    };
+    fetchMenuItem();
+  }, [id]);
 
   // Fetch available toppings and add-ons
   useEffect(() => {
@@ -22,8 +93,8 @@ const UpdateMenu = ({ menuItem, fetchMenuItems, onCancel }) => {
           axios.get("/api/toppings"),
           axios.get("/api/addons"),
         ]);
-        setToppings(toppingsRes.data);
-        setAddOns(addOnsRes.data);
+        setToppings(toppingsRes.data?.data || []);
+        setAddOns(addOnsRes.data?.data || []);
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -38,23 +109,33 @@ const UpdateMenu = ({ menuItem, fetchMenuItems, onCancel }) => {
 
   const handleCheckboxChange = (e, listName) => {
     const { value, checked } = e.target;
-    const updatedList = checked
-      ? [...formData[listName], value]
-      : formData[listName].filter((id) => id !== value);
-
-    setFormData({ ...formData, [listName]: updatedList });
+    setFormData((prevState) => ({
+      ...prevState,
+      [listName]: checked
+        ? [...prevState[listName], value]
+        : prevState[listName].filter((id) => id !== value),
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`/api/menu/${menuItem._id}`, formData);
+      const payload = {
+        ...formData,
+        toppings: formData.toppings.map((id) => id.toString()),
+        addOns: formData.addOns.map((id) => id.toString()),
+      };
+      await axios.put(`/api/menu-items/${id}`, payload);
       fetchMenuItems();
       onCancel();
     } catch (error) {
       console.error("Error updating menu item:", error);
     }
   };
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
@@ -63,6 +144,22 @@ const UpdateMenu = ({ menuItem, fetchMenuItems, onCancel }) => {
         className="bg-white p-6 rounded shadow-md w-full max-w-lg"
       >
         <h2 className="text-xl font-bold mb-4">Update Menu Item</h2>
+
+        <div className="mb-4">
+          <label className="block text-gray-700">Image</label>
+          <img
+            src={formData.imageURL}
+            alt="Uploaded"
+            className="h-24 w-24 object-cover rounded mb-2"
+            onClick={() => fileRef.current.click()}
+          />
+          <input
+            ref={fileRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => setImage(e.target.files[0])}
+          />
+        </div>
 
         <div className="mb-4">
           <label className="block text-gray-700">Name</label>
@@ -142,13 +239,13 @@ const UpdateMenu = ({ menuItem, fetchMenuItems, onCancel }) => {
         </div>
 
         <div className="flex justify-end space-x-4">
-          <button
-            type="button"
-            onClick={onCancel}
+          <Link
+            to={`/menu`}
             className="bg-gray-500 text-white px-4 py-2 rounded"
           >
-            Cancel
-          </button>
+            Edit
+          </Link>
+         
           <button
             type="submit"
             className="bg-blue-500 text-white px-4 py-2 rounded"
