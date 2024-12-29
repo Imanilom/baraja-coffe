@@ -14,14 +14,15 @@ export default function Header() {
     <header className="bg-white shadow-md">
       <div className="max-w-6xl mx-auto flex justify-between items-center p-4">
         {/* Logo */}
-        <div className="flex items-center space-x-2">
-          <img src="https://placehold.co/600x400/png" alt="Logo" className="h-8 w-8" />
-          <span className="text-xl font-semibold text-green-700">Baraja Coffee</span>
-        </div>
-
+         <Link to="/">
+          <div className="flex items-center space-x-2">
+            <img src="https://placehold.co/600x400/png" alt="Logo" className="h-8 w-8" />
+            <span className="text-xl font-semibold text-green-700">Baraja Coffee</span>
+          </div>
+        </Link>
         {/* Navigation Menu */}
         <nav className="hidden md:flex items-center space-x-6">
-          <Link to="/" className="text-green-700 hover:underline">
+          <Link to="/about" className="text-green-700 hover:underline">
             Tentang
           </Link>
           <Link to="/menu" className="text-green-700 hover:underline">

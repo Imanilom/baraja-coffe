@@ -4,6 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/login.dart';
 import 'pages/register.dart';
 import 'pages/home_screen.dart'; // Tambahkan halaman HomeScreen
+import 'pages/menu_list.dart';
+import 'pages/menu_detail.dart';
+import 'pages/checkout_screen.dart';
+import 'pages/payment_screen.dart';
 
 void main() {
   runApp(BarajaCoffeeApp());
@@ -38,6 +42,10 @@ class BarajaCoffeeApp extends StatelessWidget {
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
         '/home': (context) => HomeScreen(), // Rute ke HomeScreen
+        '/menu': (context) => MenuScreen(),
+        '/menu-detail': (context) => MenuDetailScreen(),
+        '/checkout': (context) => CheckoutPage(),
+        
       },
     );
   }

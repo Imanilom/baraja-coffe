@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../assets/component/bottom_navigation.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -11,6 +12,7 @@ class MenuScreen extends StatefulWidget {
 class _MenuScreenState extends State<MenuScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  List<Map<String, String>> cartItems = []; // List untuk menyimpan item keranjang
 
   @override
   void initState() {
@@ -35,6 +37,7 @@ class _MenuScreenState extends State<MenuScreen>
             child: TabBar(
               controller: _tabController,
               indicatorColor: Color(0xFF076A3B),
+              indicatorSize: TabBarIndicatorSize.tab,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.black,
               indicator: BoxDecoration(
@@ -48,7 +51,7 @@ class _MenuScreenState extends State<MenuScreen>
               ],
             ),
           ),
-          SizedBox(height: 8.0),
+          SizedBox(height: 8.0, width: 10),
 
           // Location Selector
           ListTile(
@@ -67,6 +70,7 @@ class _MenuScreenState extends State<MenuScreen>
             child: TabBar(
               indicatorColor: Color(0xFF076A3B),
               labelColor: Colors.white,
+              indicatorSize: TabBarIndicatorSize.tab,
               unselectedLabelColor: Colors.black,
               indicator: BoxDecoration(
                 color: Color(0xFF076A3B),
@@ -79,7 +83,7 @@ class _MenuScreenState extends State<MenuScreen>
               ],
             ),
           ),
-          SizedBox(height: 10),
+          SizedBox(height: 10, width: 10,),
 
           // ListView untuk item menu
           Expanded(
@@ -88,40 +92,52 @@ class _MenuScreenState extends State<MenuScreen>
                 buildMenuItem(
                   'Hell Braun Coffee',
                   'Rp 25.000',
-                  'assets/images/hell_braun_coffee.png',
+                  'https://placehold.co/600x400',
                 ),
                 buildMenuItem(
                   'Dunkel Braun Coffee',
                   'Rp 28.000',
-                  'assets/images/dunkel_braun_coffee.png',
+                  'https://placehold.co/600x400',
                 ),
                 buildMenuItem(
                   'Latte Coffee',
                   'Rp 30.000',
-                  'assets/images/latte_coffee.png',
+                  'https://placehold.co/600x400',
                 ),
                 buildMenuItem(
                   'Irish Coffee',
                   'Rp 35.000',
-                  'assets/images/irish_coffee.png',
+                  'https://placehold.co/600x400',
                 ),
               ],
             ),
           ),
+
+          // Jika keranjang tidak kosong, tampilkan tab keranjang
+          if (cartItems.isNotEmpty)
+            Container(
+              color: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Keranjang (${cartItems.length})',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Navigasi ke halaman keranjang
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => CartScreen(cartItems: cartItems)));
+                    },
+                    child: Text('Lihat Keranjang'),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        selectedItemColor: Color(0xFF076A3B),
-        unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed,
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Order'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
+      bottomNavigationBar: BottomNavigation(),
     );
   }
 
@@ -138,7 +154,7 @@ class _MenuScreenState extends State<MenuScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             image: DecorationImage(
-              image: AssetImage(imagePath),
+              image: NetworkImage(imagePath),
               fit: BoxFit.cover,
             ),
           ),
@@ -153,7 +169,37 @@ class _MenuScreenState extends State<MenuScreen>
         ),
         trailing: Icon(Icons.add_circle_outline, color: Color(0xFF076A3B)),
         onTap: () {
-          // Tambahkan aksi untuk add item
+          // Tambahkan item ke keranjang
+          setState(() {
+            cartItems.add({'title': title, 'price': price});
+          });
+        },
+      ),
+    );
+  }
+}
+
+// Halaman Keranjang
+class CartScreen extends StatelessWidget {
+  final List<Map<String, String>> cartItems;
+
+  const CartScreen({super.key, required this.cartItems});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Keranjang'),
+        backgroundColor: Colors.green,
+      ),
+      body: ListView.builder(
+        itemCount: cartItems.length,
+        itemBuilder: (context, index) {
+          final item = cartItems[index];
+          return ListTile(
+            title: Text(item['title']!),
+            subtitle: Text(item['price']!),
+          );
         },
       ),
     );

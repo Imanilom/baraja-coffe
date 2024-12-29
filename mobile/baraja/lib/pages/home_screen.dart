@@ -7,10 +7,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Home Screen'),
-        backgroundColor: Color(0xFF076A3B), // Warna AppBar sesuai tema
-      ),
+     
       body: SingleChildScrollView(
         child: Center(
           child: Column(
@@ -18,10 +15,7 @@ class HomeScreen extends StatelessWidget {
             children: [
               // Header Welcome Text
               SizedBox(height: 20),
-              Text(
-                'Welcome to Home Screen!',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              
               SizedBox(height: 10),
 
               // Banner Carousel atau Content Lainnya
