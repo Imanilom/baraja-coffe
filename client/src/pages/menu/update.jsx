@@ -243,7 +243,7 @@ const UpdateMenu = ({ fetchMenuItems, onCancel }) => {
             to={`/menu`}
             className="bg-gray-500 text-white px-4 py-2 rounded"
           >
-            Edit
+            Cancel
           </Link>
          
           <button

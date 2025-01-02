@@ -1,40 +1,30 @@
 import React from 'react';
+import { Carousel } from 'react-responsive-carousel';
+import 'react-responsive-carousel/lib/styles/carousel.min.css';
 
 export default function Home() {
   return (
     <div className="px-4 py-12 max-w-2xl mx-auto">
-      
       {/* Carousel */}
-      <div id="carouselExample" className="carousel slide mb-8">
-        <div className="carousel-inner">
-          <div className="carousel-item active">
-            <img src="https://placehold.co/600x400/png" className="d-block w-100" alt="Slide 1" />
+      <div className="mb-8">
+        <Carousel
+          showArrows={true}
+          showThumbs={false}
+          infiniteLoop={true}
+          autoPlay={true}
+          interval={5000}
+          dynamicHeight={true}
+        > 
+          <div>
+            <img src="https://placehold.co/600x400/png" alt="Slide 1" />
           </div>
-          <div className="carousel-item">
-            <img src="https://placehold.co/600x400/png" className="d-block w-100" alt="Slide 2" />
+          <div>
+            <img src="https://placehold.co/600x400/png" alt="Slide 2" />
           </div>
-          <div className="carousel-item">
-            <img src="https://placehold.co/600x400/png" className="d-block w-100" alt="Slide 3" />
+          <div>
+            <img src="https://placehold.co/600x400/png" alt="Slide 3" />
           </div>
-        </div>
-        <button
-          className="carousel-control-prev"
-          type="button"
-          data-bs-target="#carouselExample"
-          data-bs-slide="prev"
-        >
-          <span className="carousel-control-prev-icon" aria-hidden="true"></span>
-          <span className="visually-hidden">Previous</span>
-        </button>
-        <button
-          className="carousel-control-next"
-          type="button"
-          data-bs-target="#carouselExample"
-          data-bs-slide="next"
-        >
-          <span className="carousel-control-next-icon" aria-hidden="true"></span>
-          <span className="visually-hidden">Next</span>
-        </button>
+        </Carousel>
       </div>
 
       {/* Description */}

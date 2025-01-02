@@ -13,6 +13,7 @@ import menuRoutes from './routes/menu.routes.js';
 import promotionRoutes from './routes/promotion.rotues.js';
 import storageRoutes from './routes/storage.routes.js';
 import voucherRoutes from './routes/voucher.routes.js';
+import contentRoutes from './routes/content.routes.js';
 
 dotenv.config();
 
@@ -51,6 +52,7 @@ app.use('/api', menuRoutes);
 app.use('/api/promotion', promotionRoutes);
 app.use('/api/voucher', voucherRoutes);
 app.use('/api/storage', storageRoutes);
+app.use('/api/content', contentRoutes);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;

@@ -18,6 +18,7 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
     imageURL: "",
     toppings: [],
     addOns: [],
+    rawMaterials: [],
   });
 
   const fileRef = useRef(null);
@@ -27,6 +28,7 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
 
   const [toppings, setToppings] = useState([]);
   const [addOns, setAddOns] = useState([]);
+  const [rawMaterials, setRawMaterials] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -34,6 +36,27 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
       handleFileUpload(image);
     }
   }, [image]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [toppingsRes, addOnsRes, rawMaterialsRes] = await Promise.all([
+          axios.get("/api/toppings"),
+          axios.get("/api/addons"),
+          axios.get("/api/storage/raw-material"),
+        ]);
+        setToppings(toppingsRes.data?.data || []);
+        setAddOns(addOnsRes.data?.data || []);
+        setRawMaterials(rawMaterialsRes.data?.data || []);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        setToppings([]);
+        setAddOns([]);
+        setRawMaterials([]);
+      }
+    };
+    fetchData();
+  }, []);
 
   const handleFileUpload = async (image) => {
     const storage = getStorage(app);
@@ -58,24 +81,6 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
     );
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [toppingsRes, addOnsRes] = await Promise.all([
-          axios.get("/api/toppings"),
-          axios.get("/api/addons"),
-        ]);
-        setToppings(toppingsRes.data?.data || []);
-        setAddOns(addOnsRes.data?.data || []);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        setToppings([]);
-        setAddOns([]);
-      }
-    };
-    fetchData();
-  }, []);
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -91,14 +96,53 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
     }));
   };
 
+  const handleRawMaterialChange = (e, materialId) => {
+    const { value } = e.target;
+    setFormData((prevData) => {
+      const updatedRawMaterials = prevData.rawMaterials.map((material) => {
+        if (material.materialId === materialId) {
+          return { ...material, quantityRequired: value };
+        }
+        return material;
+      });
+      return { ...prevData, rawMaterials: updatedRawMaterials };
+    });
+  };
+
+  const handleRawMaterialSelect = (e) => {
+    const { value } = e.target;
+    const materialExists = formData.rawMaterials.some(
+      (material) => material.materialId === value
+    );
+
+    if (!materialExists) {
+      setFormData((prevData) => ({
+        ...prevData,
+        rawMaterials: [
+          ...prevData.rawMaterials,
+          { materialId: value, quantityRequired: 1 },
+        ],
+      }));
+    }
+  };
+
+  const handleRemoveRawMaterial = (materialId) => {
+    setFormData((prevData) => ({
+      ...prevData,
+      rawMaterials: prevData.rawMaterials.filter(
+        (material) => material.materialId !== materialId
+      ),
+    }));
+  };
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // Prevent page refresh
     setLoading(true);
     console.log(formData)
     try {
       await axios.post("/api/menu-items", formData);
-      fetchMenuItems(); // Refresh menu list
-      onCancel(); // Close the modal
+      fetchMenuItems();
+      onCancel();
     } catch (error) {
       console.error("Error creating menu item:", error);
     } finally {
@@ -185,6 +229,8 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
             className="hidden"
             onChange={(e) => setImage(e.target.files[0])}
           />
+          {imagePercent > 0 && <div>Upload Progress: {imagePercent}%</div>}
+          {imageError && <div className="text-red-500">Image upload failed</div>}
         </div>
 
         <div className="mb-4">
@@ -217,20 +263,55 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
           ))}
         </div>
 
-        <div className="flex justify-end space-x-4">
+        <div className="mb-4">
+          <label className="block text-gray-700">Raw Materials</label>
+          <select
+            onChange={handleRawMaterialSelect}
+            className="w-full border rounded px-3 py-2 mb-2"
+          >
+            <option value="">Select Raw Material</option>
+            {rawMaterials.map((rawMaterial) => (
+              <option key={rawMaterial._id} value={rawMaterial._id}>
+                {rawMaterial.name}
+              </option>
+            ))}
+          </select>
+          {formData.rawMaterials.map((material, index) => (
+            <div key={index} className="flex items-center mb-2">
+              <label className="w-2/3 text-gray-700">
+                {rawMaterials.find((item) => item._id === material.materialId)?.name}
+              </label>
+              <input
+                type="number"
+                value={material.quantityRequired}
+                onChange={(e) => handleRawMaterialChange(e, material.materialId)}
+                className="w-20 border rounded px-3 py-2 mr-2"
+                placeholder="Quantity"
+                min="1"
+              />
+              <button
+                type="button"
+                onClick={() => handleRemoveRawMaterial(material.materialId)}
+                className="bg-red-500 text-white px-3 py-1 rounded"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-between">
           <button
             type="button"
             onClick={onCancel}
-            className="bg-gray-500 text-white px-4 py-2 rounded"
+            className="bg-gray-400 text-white px-4 py-2 rounded"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className={`${
-              loading ? "bg-blue-300" : "bg-blue-500"
-            } text-white px-4 py-2 rounded`}
             disabled={loading}
+            className="bg-blue-500 text-white px-4 py-2 rounded"
           >
             {loading ? "Saving..." : "Save"}
           </button>
