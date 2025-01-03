@@ -64,7 +64,7 @@ const AddonManagement = () => {
               <td className="py-2 px-4">
                 {addon.options.map((opt, index) => (
                   <div key={index}>
-                    {opt.label} - ${opt.price}
+                    {opt.label} - IDR {opt.price}
                   </div>
                 ))}
               </td>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 
 const CreateAddon = ({ fetchAddons }) => {
@@ -6,9 +6,11 @@ const CreateAddon = ({ fetchAddons }) => {
     name: "",
     type: "size",
     options: [],
+    rawMaterials: []
   });
   const [option, setOption] = useState({ label: "", price: "" });
   const [error, setError] = useState("");
+  const [rawMaterials, setRawMaterials] = useState([]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -19,6 +21,59 @@ const CreateAddon = ({ fetchAddons }) => {
     const { name, value } = e.target;
     setOption({ ...option, [name]: value });
   };
+
+    // Fetch available raw materials on mount
+  useEffect(() => {
+    const fetchRawMaterials = async () => {
+      try {
+        const response = await axios.get("/api/storage/raw-material");
+          setRawMaterials(response.data?.data || []);
+        } catch (error) {
+          console.error("Error fetching raw materials:", error);
+        }
+      };
+  
+      fetchRawMaterials();
+    }, []);
+
+    const handleRawMaterialChange = (e, materialId) => {
+      const { value } = e.target;
+      setFormData((prevData) => {
+        const updatedRawMaterials = prevData.rawMaterials.map((material) => {
+          if (material.materialId === materialId) {
+            return { ...material, quantityRequired: value };
+          }
+          return material;
+        });
+        return { ...prevData, rawMaterials: updatedRawMaterials };
+      });
+    };
+  
+    const handleRawMaterialSelect = (e) => {
+      const { value } = e.target;
+      const materialExists = formData.rawMaterials.some(
+        (material) => material.materialId === value
+      );
+  
+      if (!materialExists) {
+        setFormData((prevData) => ({
+          ...prevData,
+          rawMaterials: [
+            ...prevData.rawMaterials,
+            { materialId: value, quantityRequired: 1 },
+          ],
+        }));
+      }
+    };
+  
+    const handleRemoveRawMaterial = (materialId) => {
+      setFormData((prevData) => ({
+        ...prevData,
+        rawMaterials: prevData.rawMaterials.filter(
+          (material) => material.materialId !== materialId
+        ),
+      }));
+    };
 
   const addOption = () => {
     // if (!option.label || option.price === "" || parseFloat(option.price) <= -0) {
@@ -38,7 +93,7 @@ const CreateAddon = ({ fetchAddons }) => {
     setError("");
     try {
       await axios.post("/api/addons", formData);
-      setFormData({ name: "", type: "size", options: [] });
+      setFormData({ name: "", type: "size", options: [], rawMaterials: [] });
       fetchAddons();
     } catch (error) {
       setError("Error creating add-on. Please try again.");
@@ -112,6 +167,43 @@ const CreateAddon = ({ fetchAddons }) => {
           ))}
         </ul>
       </div>
+
+      <div className="mb-4">
+          <label className="block text-gray-700">Raw Materials</label>
+          <select
+            onChange={handleRawMaterialSelect}
+            className="w-full border rounded px-3 py-2 mb-2"
+          >
+            <option value="">Select Raw Material</option>
+            {rawMaterials.map((rawMaterial) => (
+              <option key={rawMaterial._id} value={rawMaterial._id}>
+                {rawMaterial.name}
+              </option>
+            ))}
+          </select>
+          {formData.rawMaterials.map((material, index) => (
+            <div key={index} className="flex items-center mb-2">
+              <label className="w-2/3 text-gray-700">
+                {rawMaterials.find((item) => item._id === material.materialId)?.name}
+              </label>
+              <input
+                type="number"
+                value={material.quantityRequired}
+                onChange={(e) => handleRawMaterialChange(e, material.materialId)}
+                className="w-20 border rounded px-3 py-2 mr-2"
+                placeholder="Quantity"
+                min="1"
+              />
+              <button
+                type="button"
+                onClick={() => handleRemoveRawMaterial(material.materialId)}
+                className="bg-red-500 text-white px-3 py-1 rounded"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
       <button
         type="submit"
         className="bg-green-500 text-white px-4 py-2 rounded"

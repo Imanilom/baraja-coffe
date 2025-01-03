@@ -30,8 +30,9 @@ import CreateVoucher from './pages/voucher/create';
 // import Promotionmanagement from './pages/promotion/index';
 // import CreatePromotion from './pages/promotion/create';
 
-// // order
-// // import Order from './pages/order/index';
+// order
+import Order from './pages/order/index';
+import Outlet from './pages/Outlet';
 
 // storage
 import Storagemanagement from './pages/storage/index';
@@ -54,7 +55,8 @@ export default function App() {
           <Route path="/download" element={<Download />} />
           <Route path="/sign-in" element={<SignIn />} />
           <Route path="/sign-up" element={<SignUp />} />
-  
+          <Route path="/order" element={<Order />} />
+          <Route path="/outlet" element={<Outlet />} />
           {/* Routes with restricted access */}
           <Route element={<PrivateRoute allowedRoles={['cashier', 'superadmin']} />}>
             <Route path="/admin" element={<AdminDashboard />} />

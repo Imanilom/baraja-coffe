@@ -68,7 +68,7 @@ const ToppingManagement = () => {
               toppings.map((topping) => (
                 <tr key={topping._id} className="border-t">
                   <td className="py-2 px-4">{topping.name}</td>
-                  <td className="py-2 px-4">{topping.price}</td>
+                  <td className="py-2 px-4">IDR {topping.price}</td>
                   <td className="py-2 px-4">
                     <button
                       onClick={() => setEditingTopping(topping)}

@@ -31,7 +31,7 @@ export default function Header() {
           <Link to="/collaboration" className="text-green-700 hover:underline">
             Kolaborasi
           </Link>
-          <Link to="/store" className="text-green-700 hover:underline">
+          <Link to="/outlet" className="text-green-700 hover:underline">
             Store
           </Link>
           <Link to="/news" className="text-green-700 hover:underline">
