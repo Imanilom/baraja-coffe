@@ -6,12 +6,24 @@ const contentSchema = new mongoose.Schema({
     enum: ['banner', 'promo', 'voucher'],
     required: true,
   },
-  imageUrl: {
-    type: String,
-    required: true,
+  imageUrls: {
+    type: [String],
+    default: ['https://placehold.co/600x400/png'], 
   },
   description: {
     type: String,
+    required: true,
+  },
+  createdBy: { // Menyimpan informasi tentang siapa yang membuat konten
+    type: String, 
+    required: true,
+  },
+  startDate: { // Kapan konten mulai berlaku
+    type: Date,
+    required: true,
+  },
+  endDate: { // Kapan konten berakhir
+    type: Date,
     required: true,
   },
 }, { timestamps: true });

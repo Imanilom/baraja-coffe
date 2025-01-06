@@ -3,9 +3,17 @@ import Content from '../models/content.model.js';
 // Create new content
 export const createContent = async (req, res) => {
   try {
-    const { type, imageUrl, description } = req.body;
+    const { type, imageUrls, description, createdBy, startDate, endDate } = req.body;
 
-    const newContent = new Content({ type, imageUrl, description });
+    const newContent = new Content({
+      type,
+      imageUrls,
+      description,
+      createdBy,
+      startDate: new Date(startDate), 
+      endDate: new Date(endDate),
+    });
+
     await newContent.save();
 
     res.status(201).json({ message: 'Content created successfully', data: newContent });
@@ -42,11 +50,18 @@ export const getContentById = async (req, res) => {
 export const updateContent = async (req, res) => {
   try {
     const { id } = req.params;
-    const { type, imageUrl, description } = req.body;
+    const { type, imageUrls, description, createdBy, startDate, endDate } = req.body;
 
     const updatedContent = await Content.findByIdAndUpdate(
       id,
-      { type, imageUrl, description },
+      {
+        type,
+        imageUrls,
+        description,
+        createdBy,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      },
       { new: true }
     );
 

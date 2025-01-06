@@ -14,6 +14,7 @@ import promotionRoutes from './routes/promotion.rotues.js';
 import storageRoutes from './routes/storage.routes.js';
 import voucherRoutes from './routes/voucher.routes.js';
 import contentRoutes from './routes/content.routes.js';
+import OutletRoutes from './routes/outlet.routes.js';
 
 dotenv.config();
 
@@ -53,6 +54,7 @@ app.use('/api/promotion', promotionRoutes);
 app.use('/api/voucher', voucherRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/outlet', OutletRoutes);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;

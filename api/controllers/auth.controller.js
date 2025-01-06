@@ -2,21 +2,26 @@ import User from '../models/user.model.js';
 import bcryptjs from 'bcryptjs';
 import { errorHandler } from '../utils/error.js';
 import jwt from 'jsonwebtoken';
-import firebaseAdmin from 'firebase-admin';
+import admin from 'firebase-admin';
 
 
-firebaseAdmin.initializeApp({
-  credential: firebaseAdmin.credential.cert(require('../path/to/your/serviceAccountKey.json')), 
-});
+// Initialize Firebase Admin
+// admin.initializeApp({
+//   credential: admin.credential.cert({
+//     projectId: "import.meta.env.VITE_FIREBASE_PROJECT_ID",
+//     clientEmail: "import.meta.env.VITE_FIREBASE_CLIENT_EMAIL",
+//     privateKey: "import.meta.env.VITE_FIREBASE_PRIVATE_KEY"?.replace(/\\n/g, '\n'),
+//   }),
+//   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+// });
 
 export const sendOTP = async (req, res, next) => {
   const { phoneNumber } = req.body;
 
   try {
-    const verificationId = await firebaseAdmin.auth().createSessionCookie(phoneNumber, { 
-      // Opsional: konfigurasikan waktu kadaluarsa atau lainnya
-    });
-    res.status(200).json({ verificationId }); 
+    // Kirim OTP menggunakan Firebase Authentication
+    const sessionInfo = await admin.auth().createCustomToken(phoneNumber);
+    res.status(200).json({ sessionInfo });
   } catch (error) {
     next(errorHandler(500, 'Failed to send OTP'));
   }
@@ -26,26 +31,23 @@ export const verifyOTP = async (req, res, next) => {
   const { phoneNumber, otpCode } = req.body;
 
   try {
-    const verificationResult = await firebaseAdmin.auth().verifyIdToken(otpCode);
+    // Verifikasi OTP
+    const decodedToken = await admin.auth().verifyIdToken(otpCode);
 
-    if (verificationResult) {
-  
+    if (decodedToken.phone_number === phoneNumber) {
       const user = await User.findOne({ phoneNumber });
-      if (!user) {
-        return next(errorHandler(404, 'User not found'));
-      }
+      if (!user) return next(errorHandler(404, 'User not found'));
 
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
       const { password: hashedPassword, ...rest } = user._doc;
-      const expiryDate = new Date(Date.now() + 3600000); // 1 hour
 
       res
         .cookie('access_token', token, {
           httpOnly: true,
-          expires: expiryDate,
+          maxAge: 3600000, // 1 hour
         })
         .status(200)
-        .json(rest); 
+        .json(rest);
     } else {
       return next(errorHandler(400, 'Invalid OTP'));
     }
@@ -54,12 +56,12 @@ export const verifyOTP = async (req, res, next) => {
   }
 };
 
-
 export const signup = async (req, res, next) => {
   const { username, email, password } = req.body;
-  const hashedPassword = bcryptjs.hashSync(password, 10);
-  const newUser = new User({ username, email, password: hashedPassword });
   try {
+    const hashedPassword = bcryptjs.hashSync(password, 10);
+    const newUser = new User({ username, email, password: hashedPassword });
+
     await newUser.save();
     res.status(201).json({ message: 'User created successfully' });
   } catch (error) {
@@ -69,16 +71,22 @@ export const signup = async (req, res, next) => {
 
 export const signin = async (req, res, next) => {
   const { email, password } = req.body;
+
   try {
-    const validUser = await User.findOne({ email });
-    if (!validUser) return next(errorHandler(404, 'User not found'));
-    const validPassword = bcryptjs.compareSync(password, validUser.password);
-    if (!validPassword) return next(errorHandler(401, 'wrong credentials'));
-    const token = jwt.sign({ id: validUser._id }, process.env.JWT_SECRET);
-    const { password: hashedPassword, ...rest } = validUser._doc;
-    const expiryDate = new Date(Date.now() + 3600000); // 1 hour
+    const user = await User.findOne({ email });
+    if (!user) return next(errorHandler(404, 'User not found'));
+
+    const isValidPassword = bcryptjs.compareSync(password, user.password);
+    if (!isValidPassword) return next(errorHandler(401, 'Wrong credentials'));
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const { password: hashedPassword, ...rest } = user._doc;
+
     res
-      .cookie('access_token', token, { httpOnly: true, expires: expiryDate })
+      .cookie('access_token', token, {
+        httpOnly: true,
+        maxAge: 3600000, // 1 hour
+      })
       .status(200)
       .json(rest);
   } catch (error) {
@@ -89,38 +97,38 @@ export const signin = async (req, res, next) => {
 export const google = async (req, res, next) => {
   try {
     const user = await User.findOne({ email: req.body.email });
+
     if (user) {
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
       const { password: hashedPassword, ...rest } = user._doc;
-      const expiryDate = new Date(Date.now() + 3600000); // 1 hour
+
       res
         .cookie('access_token', token, {
           httpOnly: true,
-          expires: expiryDate,
+          maxAge: 3600000, // 1 hour
         })
         .status(200)
         .json(rest);
     } else {
-      const generatedPassword =
-        Math.random().toString(36).slice(-8) +
-        Math.random().toString(36).slice(-8);
-      const hashedPassword = bcryptjs.hashSync(generatedPassword, 10);
+      const randomPassword = Math.random().toString(36).slice(-8);
+      const hashedPassword = bcryptjs.hashSync(randomPassword, 10);
+
       const newUser = new User({
-        username:
-          req.body.name.split(' ').join('').toLowerCase() +
-          Math.random().toString(36).slice(-8),
+        username: `${req.body.name.replace(/\s/g, '').toLowerCase()}${Math.random().toString(36).slice(-4)}`,
         email: req.body.email,
         password: hashedPassword,
         profilePicture: req.body.photo,
       });
+
       await newUser.save();
-      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
+
+      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
       const { password: hashedPassword2, ...rest } = newUser._doc;
-      const expiryDate = new Date(Date.now() + 3600000); // 1 hour
+
       res
         .cookie('access_token', token, {
           httpOnly: true,
-          expires: expiryDate,
+          maxAge: 3600000, // 1 hour
         })
         .status(200)
         .json(rest);
