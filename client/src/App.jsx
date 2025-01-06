@@ -60,6 +60,7 @@ export default function App() {
           {/* Routes with restricted access */}
           <Route element={<PrivateRoute allowedRoles={['cashier', 'superadmin']} />}>
             <Route path="/admin" element={<AdminDashboard />} />
+            
             <Route path="/menu" element={<Menumanagement />} />
             <Route path="/menu-create" element={<Menucreate />} />
             <Route path="/menu-update/:id" element={<MenuUpdate />} />

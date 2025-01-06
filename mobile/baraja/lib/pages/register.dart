@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import './otp_screen.dart';
 
 class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Menambahkan controller untuk input nomor handphone
+    final TextEditingController _phoneController = TextEditingController();
+    
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -32,11 +36,13 @@ class RegisterScreen extends StatelessWidget {
                 ),
                 SizedBox(height: 16),
                 TextFormField(
+                  controller: _phoneController, // Menambahkan controller untuk nomor handphone
                   decoration: InputDecoration(
                     labelText: 'Nomor Handphone',
                     hintText: 'Masukkan nomor handphone',
                     prefixText: '+62 ',
                   ),
+                  keyboardType: TextInputType.phone,
                 ),
                 SizedBox(height: 16),
                 TextFormField(
@@ -69,7 +75,15 @@ class RegisterScreen extends StatelessWidget {
                     backgroundColor: Color(0xFF076A3B),
                     minimumSize: Size(double.infinity, 50),
                   ),
-                  onPressed: () {},
+                  onPressed: () {
+                    // Navigasi ke halaman OTP setelah klik daftar
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => OTPPage(phoneNumber: _phoneController.text),
+                      ),
+                    );
+                  },
                   child: Text('Daftar', style: TextStyle(color: Colors.white)),
                 ),
                 SizedBox(height: 16),

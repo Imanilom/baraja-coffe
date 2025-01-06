@@ -2,6 +2,58 @@ import User from '../models/user.model.js';
 import bcryptjs from 'bcryptjs';
 import { errorHandler } from '../utils/error.js';
 import jwt from 'jsonwebtoken';
+import firebaseAdmin from 'firebase-admin';
+
+
+firebaseAdmin.initializeApp({
+  credential: firebaseAdmin.credential.cert(require('../path/to/your/serviceAccountKey.json')), 
+});
+
+export const sendOTP = async (req, res, next) => {
+  const { phoneNumber } = req.body;
+
+  try {
+    const verificationId = await firebaseAdmin.auth().createSessionCookie(phoneNumber, { 
+      // Opsional: konfigurasikan waktu kadaluarsa atau lainnya
+    });
+    res.status(200).json({ verificationId }); 
+  } catch (error) {
+    next(errorHandler(500, 'Failed to send OTP'));
+  }
+};
+
+export const verifyOTP = async (req, res, next) => {
+  const { phoneNumber, otpCode } = req.body;
+
+  try {
+    const verificationResult = await firebaseAdmin.auth().verifyIdToken(otpCode);
+
+    if (verificationResult) {
+  
+      const user = await User.findOne({ phoneNumber });
+      if (!user) {
+        return next(errorHandler(404, 'User not found'));
+      }
+
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+      const { password: hashedPassword, ...rest } = user._doc;
+      const expiryDate = new Date(Date.now() + 3600000); // 1 hour
+
+      res
+        .cookie('access_token', token, {
+          httpOnly: true,
+          expires: expiryDate,
+        })
+        .status(200)
+        .json(rest); 
+    } else {
+      return next(errorHandler(400, 'Invalid OTP'));
+    }
+  } catch (error) {
+    next(errorHandler(500, 'Failed to verify OTP'));
+  }
+};
+
 
 export const signup = async (req, res, next) => {
   const { username, email, password } = req.body;
