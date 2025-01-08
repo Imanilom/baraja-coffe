@@ -92,12 +92,9 @@ export const getMenuItems = async (req, res) => {
 
     // Fetch active promotions
     const currentDate = new Date();
-    const activePromotions = await Promotion.find({
-      startDate: { $lte: currentDate },
-      endDate: { $gte: currentDate },
-    }).populate('applicableItems');
+    const activePromotions = await Promotion.find().populate('applicableItems');
 
-    // Adjust prices for items in promotions
+    // Adjust prices for items based on promotions
     const updatedMenuItems = menuItems.map((item) => {
       const promotion = activePromotions.find((promo) =>
         promo.applicableItems.some((applicableItem) => applicableItem._id.toString() === item._id.toString())
@@ -107,20 +104,28 @@ export const getMenuItems = async (req, res) => {
         const discount = (item.price * promotion.discountPercentage) / 100;
         return {
           ...item.toObject(),
-          originalPrice: item.price,
+          discount: promotion.discountPercentage,
           discountedPrice: parseFloat((item.price - discount).toFixed(2)),
-          promotion: promotion.title,
+          promotionTitle: promotion.title, // Ensure the title is passed
+      
         };
       }
 
-      return { ...item.toObject(), discountedPrice: item.price };
+      // If no promotion, remove discountedPrice
+      const { discountedPrice, promotionTitle, ...itemWithoutDiscountedPrice } = item.toObject();
+      return itemWithoutDiscountedPrice;
     });
 
     res.status(200).json({ success: true, data: updatedMenuItems });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch menu items', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch menu items',
+      error: error.message,
+    });
   }
 };
+
 
 // Get a single menu item by ID
 export const getMenuItemById = async (req, res) => {

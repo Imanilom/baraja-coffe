@@ -26,9 +26,9 @@ import CreateAddon from './pages/addons/create';
 import Vouchermanagement from './pages/voucher/index';
 import CreateVoucher from './pages/voucher/create';
 
-// // promotion
-// import Promotionmanagement from './pages/promotion/index';
-// import CreatePromotion from './pages/promotion/create';
+// promotion
+import Promotionmanagement from './pages/promotion/index';
+import CreatePromotion from './pages/promotion/create';
 
 // order
 import Order from './pages/order/index';
@@ -40,10 +40,12 @@ import CreateStrorage from './pages/storage/RawMaterial';
 
 // Admin
 import AdminDashboard from './pages/admin/index';
+import OutletManagementPage from './pages/outlet/index';
 
 export default function App() {
 
   return (
+    
 
     <BrowserRouter>
     <div className="flex flex-col min-h-screen">
@@ -60,7 +62,7 @@ export default function App() {
           {/* Routes with restricted access */}
           <Route element={<PrivateRoute allowedRoles={['cashier', 'superadmin']} />}>
             <Route path="/admin" element={<AdminDashboard />} />
-            
+            <Route path="/toko" element={<OutletManagementPage />} />
             <Route path="/menu" element={<Menumanagement />} />
             <Route path="/menu-create" element={<Menucreate />} />
             <Route path="/menu-update/:id" element={<MenuUpdate />} />
@@ -70,8 +72,8 @@ export default function App() {
             <Route path="/topping-create" element={<CreateTopping />} />
             <Route path="/addons" element={<AddonManagement />} />
             <Route path="/addons-create" element={<CreateAddon />} />
-            {/* <Route path="/promotion" element={<Promotionmanagement />} />
-            <Route path="/promotion-create" element={<CreatePromotion />} /> */}
+            <Route path="/promotion" element={<Promotionmanagement />} />
+            <Route path="/promotion-create" element={<CreatePromotion />} />
             <Route path="/storage" element={<Storagemanagement />} />
             <Route path="/storage-create" element={<CreateStrorage />} />
           </Route>

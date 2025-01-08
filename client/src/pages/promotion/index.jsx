@@ -9,7 +9,7 @@ const PromotionManagement = () => {
 
   const fetchPromotions = async () => {
     try {
-      const response = await axios.get("/api/promotions");
+      const response = await axios.get("/api/promotion");
       setPromotions(response.data);
     } catch (error) {
       console.error("Error fetching promotions:", error);
@@ -19,7 +19,7 @@ const PromotionManagement = () => {
   const deletePromotion = async (id) => {
     if (!window.confirm("Are you sure you want to delete this promotion?")) return;
     try {
-      await axios.delete(`/api/promotions/${id}`);
+      await axios.delete(`/api/promotion/${id}`);
       fetchPromotions();
     } catch (error) {
       console.error("Error deleting promotion:", error);

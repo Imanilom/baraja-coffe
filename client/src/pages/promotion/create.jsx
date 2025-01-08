@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 
 const CreatePromotion = ({ fetchPromotions }) => {
@@ -11,15 +11,44 @@ const CreatePromotion = ({ fetchPromotions }) => {
     applicableItems: [],
   });
 
+  const [menuItems, setMenuItems] = useState([]); // To store the list of items
+  const [loadingItems, setLoadingItems] = useState(true);
+
+  // Fetch menu items from the backend
+  useEffect(() => {
+    const fetchMenuItems = async () => {
+      try {
+        const response = await axios.get("/api/menu-items");
+
+        setMenuItems(response.data?.data || []);
+        setLoadingItems(false);
+      } catch (error) {
+        console.error("Error fetching menu items:", error);
+        setLoadingItems(false);
+      }
+    };
+
+    fetchMenuItems();
+  }, []);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleCheckboxChange = (e) => {
+    const { value, checked } = e.target;
+    const updatedItems = checked
+      ? [...formData.applicableItems, value]
+      : formData.applicableItems.filter((itemId) => itemId !== value);
+
+    setFormData({ ...formData, applicableItems: updatedItems });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("/api/promotions", formData);
+      await axios.post("/api/promotion", formData);
       fetchPromotions();
       setFormData({
         title: "",
@@ -91,6 +120,29 @@ const CreatePromotion = ({ fetchPromotions }) => {
           className="w-full border rounded px-3 py-2"
           required
         />
+      </div>
+      <div className="mb-4">
+        <label className="block text-gray-700">Applicable Items</label>
+        {loadingItems ? (
+          <p>Loading items...</p>
+        ) : (
+          <div className="border rounded p-3">
+            {menuItems.map((item) => (
+              <div key={item._id} className="mb-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    value={item._id}
+                    checked={formData.applicableItems.includes(item._id)}
+                    onChange={handleCheckboxChange}
+                    className="mr-2"
+                  />
+                  {item.name}
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <button
         type="submit"

@@ -9,12 +9,13 @@ const Menu = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [editingMenu, setEditingMenu] = useState(null);
-  const itemsPerPage = 6; // Jumlah item per halaman
+  const itemsPerPage = 6; // Number of items per page
 
   const fetchMenuItems = async () => {
     try {
       const response = await axios.get("/api/menu-items");
       setMenuItems(response.data?.data || []);
+   
       const uniqueCategories = [
         "all",
         ...new Set(response.data?.data.map((item) => item.category)),
@@ -26,7 +27,9 @@ const Menu = () => {
   };
 
   const deleteMenuItem = async (id) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this menu item?");
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this menu item?"
+    );
     if (!confirmDelete) return;
 
     try {
@@ -56,7 +59,7 @@ const Menu = () => {
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Menu Items</h1>
 
-      {/* Filter berdasarkan kategori */}
+      {/* Filter by category */}
       <div className="mb-4">
         <label className="mr-2 font-medium">Filter by Category:</label>
         <select
@@ -72,7 +75,7 @@ const Menu = () => {
         </select>
       </div>
 
-      {/* Tombol untuk membuat item baru */}
+      {/* Button to create a new item */}
       <button
         onClick={() => setEditingMenu("create")}
         className="bg-blue-500 text-white px-4 py-2 rounded mb-4"
@@ -87,7 +90,7 @@ const Menu = () => {
         />
       )}
 
-      {/* Grid untuk menampilkan kartu */}
+      {/* Grid to display items */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {currentItems.map((item) => (
           <div
@@ -101,9 +104,25 @@ const Menu = () => {
             />
             <h2 className="text-lg font-bold">{item.name}</h2>
             <p className="text-gray-600">{item.description}</p>
-            <p className="text-gray-800 font-medium mt-2">Price: ${item.price}</p>
+            <p className="text-gray-800 font-medium mt-2">
+            Price:{" "}IDR {""}
+              {item.promotionTitle ? (
+                <>
+                  <span className="line-through text-gray-500">
+                  {item.price}
+                  </span>{" "}
+                  <span className="text-green-500">{item.discountedPrice}</span>
+                </>
+              ) : (
+                item.price
+              )}
+            </p>
+            {item.promotionTitle && (
+              <p className="bg-green-100 text-green-700 px-2 py-1 rounded text-sm mt-2">
+                Promotion: {item.promotionTitle} ({item.discount}% off)
+              </p>
+            )}
             <p className="text-gray-500 text-sm">Category: {item.category}</p>
-            <p className="text-gray-500 text-sm">Stock: {item.stock}</p>
             <div className="flex justify-between mt-4">
               <Link
                 to={`/menu-update/${item._id}`}

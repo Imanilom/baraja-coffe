@@ -8,7 +8,7 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
     discountPercentage: promotion.discountPercentage || "",
     startDate: promotion.startDate ? promotion.startDate.split("T")[0] : "",
     endDate: promotion.endDate ? promotion.endDate.split("T")[0] : "",
-    applicableItems: promotion.applicableItems || [],
+    applicableItems: new Set(promotion.applicableItems || []),
   });
 
   const [menuItems, setMenuItems] = useState([]);
@@ -16,7 +16,7 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
   const fetchMenuItems = async () => {
     try {
       const response = await axios.get("/api/menu-items");
-      setMenuItems(response.data);
+      setMenuItems(response.data?.data || []);
     } catch (error) {
       console.error("Error fetching menu items:", error);
     }
@@ -28,20 +28,28 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleCheckboxChange = (id) => {
-    const updatedApplicableItems = formData.applicableItems.includes(id)
-      ? formData.applicableItems.filter((item) => item !== id)
-      : [...formData.applicableItems, id];
-    setFormData({ ...formData, applicableItems: updatedApplicableItems });
+    setFormData((prev) => {
+      const updatedItems = new Set(prev.applicableItems);
+      if (updatedItems.has(id)) {
+        updatedItems.delete(id); // Remove item if unchecked
+      } else {
+        updatedItems.add(id); // Add item if checked
+      }
+      return { ...prev, applicableItems: updatedItems };
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`/api/promotions/${promotion._id}`, formData);
+      await axios.put(`/api/promotion/${promotion._id}`, {
+        ...formData,
+        applicableItems: Array.from(formData.applicableItems), // Convert Set to array
+      });
       fetchPromotions();
       onClose();
     } catch (error) {
@@ -54,6 +62,7 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
       <div className="bg-white p-6 rounded shadow-md w-full max-w-md">
         <h2 className="text-lg font-bold mb-4">Update Promotion</h2>
         <form onSubmit={handleSubmit}>
+          {/* Title */}
           <div className="mb-4">
             <label className="block text-gray-700">Title</label>
             <input
@@ -65,6 +74,8 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
               required
             />
           </div>
+
+          {/* Description */}
           <div className="mb-4">
             <label className="block text-gray-700">Description</label>
             <textarea
@@ -74,6 +85,8 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
               className="w-full border rounded px-3 py-2"
             />
           </div>
+
+          {/* Discount Percentage */}
           <div className="mb-4">
             <label className="block text-gray-700">Discount Percentage</label>
             <input
@@ -87,6 +100,8 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
               required
             />
           </div>
+
+          {/* Start Date */}
           <div className="mb-4">
             <label className="block text-gray-700">Start Date</label>
             <input
@@ -98,6 +113,8 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
               required
             />
           </div>
+
+          {/* End Date */}
           <div className="mb-4">
             <label className="block text-gray-700">End Date</label>
             <input
@@ -109,6 +126,8 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
               required
             />
           </div>
+
+          {/* Applicable Items */}
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">Applicable Items</label>
             <div className="max-h-40 overflow-y-scroll border rounded p-2">
@@ -116,7 +135,7 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
                 <label key={item._id} className="flex items-center mb-2">
                   <input
                     type="checkbox"
-                    checked={formData.applicableItems.includes(item._id)}
+                    checked={formData.applicableItems.has(item._id)}
                     onChange={() => handleCheckboxChange(item._id)}
                     className="mr-2"
                   />
@@ -125,6 +144,8 @@ const UpdatePromotion = ({ promotion, onClose, fetchPromotions }) => {
               ))}
             </div>
           </div>
+
+          {/* Buttons */}
           <div className="flex justify-end">
             <button
               type="button"

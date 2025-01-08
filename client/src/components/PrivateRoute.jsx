@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 
 const PrivateRoute = ({ allowedRoles }) => {
   const { currentUser } = useSelector((state) => state.user);
+
   if (!currentUser) {
     // Redirect to sign-in if the user is not authenticated
     return <Navigate to="/sign-in" replace />;
