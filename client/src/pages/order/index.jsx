@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { Link } from "react-router-dom";
 
 const outlets = [
   { id: 1, name: "Outlet 1", image: "https://placehold.co/300x200/png" },
@@ -6,59 +8,32 @@ const outlets = [
   { id: 3, name: "Outlet 3", image: "https://placehold.co/300x200/png" },
 ];
 
-const menuItems = [
-  {
-    id: 1,
-    name: "Cappuccino",
-    price: 30000,
-    category: "Coffee",
-    image: "https://placehold.co/600x400/png",
-    toppings: [
-      { id: 1, name: "Whipped Cream", price: 8000 },
-      { id: 2, name: "Caramel Drizzle", price: 9000 },
-    ],
-    addons: [
-      { id: 1, name: "Extra Shot", price: 10000 },
-      { id: 2, name: "Oat Milk", price: 8000 },
-    ],
-  },
-  {
-    id: 2,
-    name: "Latte",
-    price: 28000,
-    category: "Coffee",
-    image: "https://placehold.co/600x400/png",
-    toppings: [
-      { id: 3, name: "Vanilla Syrup", price: 6000 },
-      { id: 4, name: "Chocolate Chips", price: 8000 },
-    ],
-    addons: [
-      { id: 3, name: "Soy Milk", price: 8000 },
-      { id: 4, name: "Cinnamon Sprinkle", price: 4000 },
-    ],
-  },
-  {
-    id: 3,
-    name: "Snacks",
-    price: 28000,
-    category: "Snacks",
-    image: "https://placehold.co/600x400/png",
-    toppings: [
-      { id: 3, name: "Vanilla Syrup", price: 6000 },
-      { id: 4, name: "Chocolate Chips", price: 8000 },
-    ],
-    addons: [
-      { id: 3, name: "Soy Milk", price: 8000 },
-      { id: 4, name: "Cinnamon Sprinkle", price: 4000 },
-    ],
-  },
-];
-
 export default function OrderPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedOutlet, setSelectedOutlet] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState(null);  // Added for category selection
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [cart, setCart] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+
+  const fetchMenuItems = async () => {
+    try {
+      const response = await axios.get("/api/menu-items");
+      setMenuItems(response.data?.data || []);
+      console.log(menuItems)
+      const uniqueCategories = [
+        "all",
+        ...new Set(response.data?.data.map((item) => item.category)),
+      ];
+      setCategories(uniqueCategories);
+    } catch (error) {
+      console.error("Error fetching menu items:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchMenuItems();
+  }, []);
 
   const handleBack = () => {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
@@ -91,7 +66,7 @@ export default function OrderPage() {
       <MenuSelection
         selectedOutlet={selectedOutlet}
         selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}  // Pass the category state
+        setSelectedCategory={setSelectedCategory}
         menuItems={menuItems}
         onAddToCart={handleAddToCart}
         setCurrentStep={setCurrentStep}
@@ -128,14 +103,13 @@ const OutletSelection = ({ outlets, setSelectedOutlet, setCurrentStep }) => (
 );
 
 const MenuSelection = ({ selectedOutlet, selectedCategory, setSelectedCategory, menuItems, onAddToCart, setCurrentStep, handleBack }) => {
-  const categories = [...new Set(menuItems.map(item => item.category))];  // Extract unique categories
+  const categories = [...new Set(menuItems.map(item => item.category))];
   const categorizedMenu = menuItems.filter(item => !selectedCategory || item.category === selectedCategory);
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4 text-center">Menu - {selectedOutlet?.name}</h1>
       
-      {/* Category Selector */}
       <div className="mb-6 flex overflow-x-auto">
         {categories.map((category) => (
           <button
@@ -150,7 +124,6 @@ const MenuSelection = ({ selectedOutlet, selectedCategory, setSelectedCategory, 
         ))}
       </div>
 
-      {/* Menu Items */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {categorizedMenu.length > 0 ? (
           categorizedMenu.map((menuItem) => (
@@ -190,7 +163,7 @@ const MenuItemCard = ({ menuItem, onAddToCart }) => {
 
   return (
     <div className="p-4 border rounded shadow-md bg-white">
-      <img src={menuItem.image} alt={menuItem.name} className="w-full h-40 object-cover rounded mb-4" />
+      <img src={menuItem.imageURL} alt={menuItem.name} className="w-full h-40 object-cover rounded mb-4" />
       <h3 className="font-semibold text-lg">{menuItem.name}</h3>
       <p className="text-gray-900">Price: Rp{menuItem.price.toLocaleString()}</p>
 
@@ -207,7 +180,7 @@ const MenuItemCard = ({ menuItem, onAddToCart }) => {
 
       <div className="mt-2">
         <h4 className="text-sm font-medium">Toppings</h4>
-        {menuItem.toppings.map((topping) => (
+        {menuItem.toppings?.map((topping) => (
           <div key={topping.id}>
             <label className="inline-flex items-center">
               <input
@@ -229,7 +202,7 @@ const MenuItemCard = ({ menuItem, onAddToCart }) => {
 
       <div className="mt-2">
         <h4 className="text-sm font-medium">Add-ons</h4>
-        {menuItem.addons.map((addon) => (
+        {menuItem.addons?.map((addon) => (
           <div key={addon.id}>
             <label className="inline-flex items-center">
               <input
@@ -365,7 +338,6 @@ const PaymentPage = ({ handleBack }) => (
   <div>
     <h1 className="text-2xl font-bold mb-4 text-center">Payment</h1>
     <p className="text-center">Please choose your payment method:</p>
-    {/* Payment options can go here */}
     <div className="mt-4 flex justify-center">
       <button
         className="px-6 py-2 bg-gray-800 text-white rounded hover:bg-gray-900 shadow-md"

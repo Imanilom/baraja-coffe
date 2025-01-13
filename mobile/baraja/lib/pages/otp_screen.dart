@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class OTPPage extends StatefulWidget {
   final String phoneNumber; // Nomor telepon yang didaftarkan
 
-  OTPPage({required this.phoneNumber});
+  const OTPPage({super.key, required this.phoneNumber});
 
   @override
   _OTPPageState createState() => _OTPPageState();
@@ -32,7 +32,7 @@ class _OTPPageState extends State<OTPPage> {
     child: TextField(
       controller: TextEditingController(text: otp[index]),
       onChanged: (value) {
-        if (value.isNotEmpty && value != null) {
+        if (value.isNotEmpty) {
           // Hanya menerima angka
           if (RegExp(r'^[0-9]$').hasMatch(value)) {
             otp[index] = value;

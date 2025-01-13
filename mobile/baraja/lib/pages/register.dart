@@ -7,7 +7,7 @@ class RegisterScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Menambahkan controller untuk input nomor handphone
-    final TextEditingController _phoneController = TextEditingController();
+    final TextEditingController phoneController = TextEditingController();
     
     return Scaffold(
       body: SafeArea(
@@ -36,7 +36,7 @@ class RegisterScreen extends StatelessWidget {
                 ),
                 SizedBox(height: 16),
                 TextFormField(
-                  controller: _phoneController, // Menambahkan controller untuk nomor handphone
+                  controller: phoneController, // Menambahkan controller untuk nomor handphone
                   decoration: InputDecoration(
                     labelText: 'Nomor Handphone',
                     hintText: 'Masukkan nomor handphone',
@@ -80,7 +80,7 @@ class RegisterScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => OTPPage(phoneNumber: _phoneController.text),
+                        builder: (context) => OTPPage(phoneNumber: phoneController.text),
                       ),
                     );
                   },

@@ -10,7 +10,7 @@ const Footer = () => {
         <div className="flex flex-col items-start">
           <img 
             src="https://via.placeholder.com/100x50" 
-            alt="Fore Coffee Logo" 
+            alt="Baraja Coffee Logo" 
             className="mb-4"
           />
           <p className="text-sm">© 2023 Baraja Coffee, All Rights Reserved</p>

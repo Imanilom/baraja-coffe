@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import {
   getDownloadURL,
@@ -8,7 +8,6 @@ import {
   uploadBytesResumable,
 } from "firebase/storage";
 import { app } from "../../firebase";
-import { Link } from "react-router-dom";
 
 const UpdateMenu = ({ fetchMenuItems, onCancel }) => {
   const { id } = useParams(); // Get the ID from the URL
@@ -125,6 +124,7 @@ const UpdateMenu = ({ fetchMenuItems, onCancel }) => {
         toppings: formData.toppings.map((id) => id.toString()),
         addOns: formData.addOns.map((id) => id.toString()),
       };
+      console.log('Payload:', payload);
       await axios.put(`/api/menu-items/${id}`, payload);
       fetchMenuItems();
       onCancel();

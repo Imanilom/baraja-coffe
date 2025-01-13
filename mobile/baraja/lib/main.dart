@@ -7,7 +7,6 @@ import 'pages/home_screen.dart'; // Tambahkan halaman HomeScreen
 import 'pages/menu_list.dart';
 import 'pages/menu_detail.dart';
 import 'pages/checkout_screen.dart';
-import 'pages/payment_screen.dart';
 
 void main() {
   runApp(BarajaCoffeeApp());

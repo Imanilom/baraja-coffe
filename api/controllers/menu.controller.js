@@ -168,7 +168,8 @@ export const getMenuItemById = async (req, res) => {
 export const updateMenuItem = async (req, res) => {
   try {
     const { name, price, description, category, stock, imageURL, toppings, addons, rawMaterials } = req.body;
-
+    const { id } = req.params;
+ 
     // Validate rawMaterials
     if (rawMaterials && !Array.isArray(rawMaterials)) {
       return res.status(400).json({
@@ -210,7 +211,7 @@ export const updateMenuItem = async (req, res) => {
 
 
     const updatedMenuItem = await MenuItem.findByIdAndUpdate(
-      req.params.id,
+     id,
       {
         name,
         price,
