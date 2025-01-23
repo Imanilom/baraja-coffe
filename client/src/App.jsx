@@ -21,7 +21,6 @@ import CreateTopping from './pages/topping/create';
 import AddonManagement from './pages/addons/index';
 import CreateAddon from './pages/addons/create';
 
-
 // Voucher
 import Vouchermanagement from './pages/voucher/index';
 import CreateVoucher from './pages/voucher/create';
@@ -41,6 +40,11 @@ import CreateStrorage from './pages/storage/RawMaterial';
 // Admin
 import AdminDashboard from './pages/admin/index';
 import OutletManagementPage from './pages/outlet/index';
+
+// content
+import ContentManagement from './pages/content/index';
+import CreateContent from './pages/content/create';
+import UpdateContent from './pages/content/update';
 
 export default function App() {
 
@@ -76,6 +80,9 @@ export default function App() {
             <Route path="/promotion-create" element={<CreatePromotion />} />
             <Route path="/storage" element={<Storagemanagement />} />
             <Route path="/storage-create" element={<CreateStrorage />} />
+            <Route path="/content" element={<ContentManagement />} />
+            <Route path="/content-create" element={<CreateContent />} />
+            <Route path="/content-update/:id" element={<UpdateContent />} />
           </Route>
   
           {/* Routes for authenticated users */}
