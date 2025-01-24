@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 
-class BottomNavigation extends StatelessWidget {
-  const BottomNavigation({super.key});
+class BottomNavigation extends StatefulWidget {
+  @override
+  _BottomNavigationState createState() => _BottomNavigationState();
+}
+
+class _BottomNavigationState extends State<BottomNavigation> {
+  int _currentIndex = 0; // Indeks awal
+
+  // Daftar rute tujuan berdasarkan indeks
+  final List<String> _routes = ['/home', '/menu', '/history', '/profile'];
 
   @override
   Widget build(BuildContext context) {
@@ -9,11 +17,14 @@ class BottomNavigation extends StatelessWidget {
       type: BottomNavigationBarType.fixed,
       selectedItemColor: Color(0xFF076A3B),
       unselectedItemColor: Colors.grey,
-      currentIndex: 0, // Index aktif saat ini
+      currentIndex: _currentIndex, // Indeks tab aktif
       onTap: (index) {
-        // Tambahkan aksi saat menu bottom navigation ditekan
+        setState(() {
+          _currentIndex = index; // Perbarui indeks tab aktif
+        });
+        Navigator.pushNamed(context, _routes[index]); // Navigasi ke halaman tujuan
       },
-      items: [
+      items: const [
         BottomNavigationBarItem(
           icon: Icon(Icons.home),
           label: 'Home',

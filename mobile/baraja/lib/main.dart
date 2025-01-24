@@ -37,6 +37,7 @@ class BarajaCoffeeApp extends StatelessWidget {
         ),
       ),
       home: SplashScreen(), // Mulai dari SplashScreen
+
       routes: {
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
@@ -88,7 +89,7 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset('assets/images/splash.png', width: 150, height: 150), // Logo Splash
+            Image.asset('../lib/assets/images/splash.png', width: 180, height: 180), // Logo Splash
             SizedBox(height: 20),
             CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),

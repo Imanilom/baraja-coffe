@@ -27,7 +27,7 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset('/images/splash.png', width: 150, height: 150),
+            Image.asset('./lib/images/splash.png', width: 150, height: 150),
             SizedBox(height: 20),
             CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white), // Warna indikator loading (putih)

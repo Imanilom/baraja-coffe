@@ -76,11 +76,14 @@ class _OTPPageState extends State<OTPPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(height: 30),
-                Text(
-                  'Baraja Coffee',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                 Center(
+                  child: Image.asset(
+                    '../lib/assets/images/logo.png', // Update with your image path
+                    width: 180, // Adjust size as needed
+                    height: 180, // Adjust size as needed
+                  ),
                 ),
+               
                 SizedBox(height: 30),
                 Text(
                   'Verifikasi OTP',

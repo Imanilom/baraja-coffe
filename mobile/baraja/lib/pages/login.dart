@@ -13,15 +13,15 @@ class LoginScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                'Baraja Coffee',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              // Add the image above the "Baraja Coffee" text
+              Center(
+                child: Image.asset(
+                  '../lib/assets/images/logo.png', // Update with your image path
+                  width: 180, // Adjust size as needed
+                  height: 180, // Adjust size as needed
+                ),
               ),
-              SizedBox(height: 30),
-              Text(
-                'Masuk',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
+          
               SizedBox(height: 16),
               TextFormField(
                 decoration: InputDecoration(

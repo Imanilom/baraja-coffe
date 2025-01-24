@@ -32,10 +32,10 @@ class _MenuDetailScreenState extends State<MenuDetailScreen> {
           children: [
             // Gambar Produk
             Center(
-              child: Image.asset(
-                'assets/images/hell_braun_coffee.png',
-                height: 200,
-                width: 200,
+              child: Image.network(
+                'https://placehold.co/600x400/png',
+                height: 300,
+                width: 300,
                 fit: BoxFit.contain,
               ),
             ),
