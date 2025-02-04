@@ -11,6 +11,7 @@ const PromotionManagement = () => {
     try {
       const response = await axios.get("/api/promotion");
       setPromotions(response.data);
+      
     } catch (error) {
       console.error("Error fetching promotions:", error);
     }

@@ -19,8 +19,9 @@ export const sendOTP = async (req, res, next) => {
   const { phoneNumber } = req.body;
 
   try {
+    const formattedPhoneNumber = `+62${phoneNumber.replace(/^0+/, '')}`;
     // Kirim OTP menggunakan Firebase Authentication
-    const sessionInfo = await admin.auth().createCustomToken(phoneNumber);
+    const sessionInfo = await admin.auth().createCustomToken(formattedPhoneNumber);
     res.status(200).json({ sessionInfo });
   } catch (error) {
     next(errorHandler(500, 'Failed to send OTP'));
@@ -87,7 +88,7 @@ export const signin = async (req, res, next) => {
         maxAge: 3600000, // 1 hour
       })
       .status(200)
-      .json(rest);
+      .json(...rest, token);
   } catch (error) {
     next(error);
   }

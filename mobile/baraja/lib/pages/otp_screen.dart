@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class OTPPage extends StatefulWidget {
   final String phoneNumber; // Nomor telepon yang didaftarkan
 
-  const OTPPage({super.key, required this.phoneNumber});
+  const OTPPage({super.key, required this.phoneNumber, required Map<String, String> userData});
 
   @override
   _OTPPageState createState() => _OTPPageState();

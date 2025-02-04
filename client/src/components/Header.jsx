@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useState } from 'react';
+import logo from '../components/images/logo.png';
 
 export default function Header() {
   const { currentUser } = useSelector((state) => state.user);
@@ -16,7 +17,7 @@ export default function Header() {
         {/* Logo */}
          <Link to="/">
           <div className="flex items-center space-x-2">
-            <img src="https://placehold.co/600x400/png" alt="Logo" className="h-8 w-8" />
+            <img src={logo} alt="Logo" className="h-8 w-8" />
             <span className="text-xl font-semibold text-green-700">Baraja Coffee</span>
           </div>
         </Link>
@@ -25,7 +26,7 @@ export default function Header() {
           <Link to="/about" className="text-green-700 hover:underline">
             Tentang
           </Link>
-          <Link to="/menu" className="text-green-700 hover:underline">
+          <Link to="/order" className="text-green-700 hover:underline">
             Menu
           </Link>
           <Link to="/collaboration" className="text-green-700 hover:underline">

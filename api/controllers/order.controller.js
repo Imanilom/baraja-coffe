@@ -4,83 +4,123 @@ import { MenuItem } from "../models/MenuItem.model.js";
 import { Topping } from "../models/Topping.model.js";
 import  AddOn from "../models/Addons.model.js";
 import { RawMaterial } from "../models/RawMaterial.model.js";
-
-import { EWallet, Card } from '../utils/xenditConfig.js';
+import midtransClient from 'midtrans-client';
 
 // Helper function to update raw material storage
 const updateStorage = async (materialId, quantity) => {
   const storage = await RawMaterial.findOne({ materialId });
-  if (!storage || storage.quantity < quantity) {
-    throw new Error(`Insufficient stock for raw material: ${materialId}`);
+  if (!storage) {
+    throw new Error(`Raw material not found: ${materialId}`);
   }
+  
+  if (quantity > 0 && storage.quantity < quantity) {
+    throw new Error(`Insufficient stock for ${storage.name || materialId}`);
+  }
+  
   storage.quantity -= quantity;
   await storage.save();
 };
 
-// Process Order Items
-const processOrderItems = async (items) => {
+// Midtrans Configuration
+const snap = new midtransClient.Snap({
+  isProduction: process.env.NODE_ENV === 'production',
+  serverKey: process.env.MIDTRANS_SERVER_KEY,
+  clientKey: process.env.MIDTRANS_CLIENT_KEY
+});
+
+// Stock Validation Logic
+const validateStock = async (items) => {
   for (const item of items) {
-    const menuItem = await MenuItem.findById(item.menuItem);
-    if (!menuItem) {
-      throw new Error(`Menu item not found: ${item.menuItem}`);
-    }
+    const menuItem = await MenuItem.findById(item.menuItem).populate('rawMaterials');
+    if (!menuItem) throw new Error(`Menu item not found: ${item.menuItem}`);
 
-    // Update raw materials for the menu item
+    // Validate main ingredients
     for (const material of menuItem.rawMaterials) {
-      const requiredQuantity = material.quantity * item.quantity;
-      await updateStorage(material.materialId, requiredQuantity);
+      const required = material.quantity * item.quantity;
+      const stock = await RawMaterial.findOne({ materialId: material.materialId });
+      if (!stock || stock.quantity < required) {
+        throw new Error(`Insufficient ${stock?.name || material.materialId}`);
+      }
     }
 
-       // Deduct raw materials for toppings
-      for (const toppingId of item.toppings) {
-        const topping = await Topping.findById(toppingId).populate("rawMaterials");
-        if (!topping) {
-          throw new Error(`Topping not found: ${toppingId}`);
-        }
-        for (const material of topping.rawMaterials) {
-          const requiredQuantity = material.quantityRequired * item.quantity;
-          await updateStorage(material.materialId, requiredQuantity);
+    // Validate toppings
+    for (const toppingId of item.toppings) {
+      const topping = await Topping.findById(toppingId).populate('rawMaterials');
+      if (!topping) throw new Error(`Topping not found: ${toppingId}`);
+      
+      for (const material of topping.rawMaterials) {
+        const required = material.quantityRequired * item.quantity;
+        const stock = await RawMaterial.findOne({ materialId: material.materialId });
+        if (!stock || stock.quantity < required) {
+          throw new Error(`Insufficient ${stock?.name || material.materialId}`);
         }
       }
+    }
 
-    // Check addons and adjust cup usage
+    // Validate addons
     for (const addonId of item.addons) {
       const addon = await AddOn.findById(addonId);
-      if (addon && addon.adjustCupSize) {
-        const cupsToReduce = addon.adjustCupSize === 'large' ? 1 : 0.5;
-        const cupMaterial = await RawMaterial.findOne({ name: 'Cup' });
-        if (!cupMaterial || cupMaterial.quantity < cupsToReduce * item.quantity) {
-          throw new Error('Insufficient cups in stock');
+      if (addon?.adjustCupSize) {
+        const cupsNeeded = addon.adjustCupSize === 'large' ? 1 : 0.5;
+        const cupStock = await RawMaterial.findOne({ name: 'Cup' });
+        if (!cupStock || cupStock.quantity < cupsNeeded * item.quantity) {
+          throw new Error('Insufficient cups');
         }
-        cupMaterial.quantity -= cupsToReduce * item.quantity;
+      }
+    }
+  }
+};
+
+// Process Order Items (Deduct Stock)
+const processOrderItems = async (items) => {
+  for (const item of items) {
+    const menuItem = await MenuItem.findById(item.menuItem).populate('rawMaterials');
+    
+    // Process main ingredients
+    for (const material of menuItem.rawMaterials) {
+      await updateStorage(material.materialId, material.quantity * item.quantity);
+    }
+
+    // Process toppings
+    for (const toppingId of item.toppings) {
+      const topping = await Topping.findById(toppingId).populate('rawMaterials');
+      for (const material of topping.rawMaterials) {
+        await updateStorage(material.materialId, material.quantityRequired * item.quantity);
+      }
+    }
+
+    // Process addons
+    for (const addonId of item.addons) {
+      const addon = await AddOn.findById(addonId);
+      if (addon?.adjustCupSize) {
+        const cupsNeeded = addon.adjustCupSize === 'large' ? 1 : 0.5;
+        const cupMaterial = await RawMaterial.findOne({ name: 'Cup' });
+        cupMaterial.quantity -= cupsNeeded * item.quantity;
         await cupMaterial.save();
       }
     }
   }
 };
 
-// Cancel Order and Restock Materials
+// Cancel Order Controller
 export const cancelOrder = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id).populate("items.menuItem items.toppings items.addons");
+    const order = await Order.findById(req.params.id)
+      .populate('items.menuItem items.toppings items.addons');
 
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
-    }
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
     // Restock materials
     for (const item of order.items) {
-      const menuItem = await MenuItem.findById(item.menuItem).populate("rawMaterials");
+      const menuItem = await MenuItem.findById(item.menuItem).populate('rawMaterials');
       for (const material of menuItem.rawMaterials) {
-        const quantityToRestock = material.quantity * item.quantity;
-        await updateStorage(material.materialId, -quantityToRestock);
+        await updateStorage(material.materialId, -material.quantity * item.quantity);
       }
 
       for (const toppingId of item.toppings) {
-        const topping = await Topping.findById(toppingId).populate("rawMaterials");
+        const topping = await Topping.findById(toppingId).populate('rawMaterials');
         for (const material of topping.rawMaterials) {
-          const quantityToRestock = material.quantityRequired * item.quantity;
-          await updateStorage(material.materialId, -quantityToRestock);
+          await updateStorage(material.materialId, -material.quantityRequired * item.quantity);
         }
       }
     }
@@ -88,33 +128,22 @@ export const cancelOrder = async (req, res) => {
     order.status = "Canceled";
     await order.save();
 
-    res.status(200).json({ success: true, message: "Order canceled and materials restocked", order });
+    res.status(200).json({ success: true, message: "Order canceled", order });
   } catch (error) {
-    console.error(error);
-    res.status(400).json({ success: false, message: error.message });
+    console.error('Cancel Error:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-
-// Create Order and Initialize Payment
+// Create Order Controller
 export const createOrderAndPayment = async (req, res) => {
   try {
-    const {
-      user,
-      items,
-      totalPrice,
-      orderType,
-      deliveryAddress,
-      tableNumber,
-      paymentMethod,
-      cardDetails,
-      phoneNumber,
-    } = req.body;
+    const { user, items, totalPrice, orderType, deliveryAddress, tableNumber, paymentMethod, phoneNumber } = req.body;
 
-    // Validate and process order items
-    await processOrderItems(items);
+    // Validate stock availability
+    await validateStock(items);
 
-    // Create Order
+    // Create order record
     const order = new Order({
       user,
       items,
@@ -123,109 +152,183 @@ export const createOrderAndPayment = async (req, res) => {
       deliveryAddress,
       tableNumber,
       paymentMethod,
+      status: 'Pending'
     });
     await order.save();
 
-    let paymentResult;
-    let paymentStatus = 'Pending';
-
-    // Handle Payment Using Xendit
-    if (paymentMethod === 'Cash') {
-      paymentResult = { message: 'Payment will be made in cash upon delivery or at the counter.' };
-      paymentStatus = 'Success'; // Assume cash payment is always successful
-    } else if (paymentMethod === 'E-Wallet') {
-      if (!phoneNumber) {
-        return res.status(400).json({ message: 'Phone number is required for E-Wallet payment' });
-      }
-      const eWallet = new EWallet();
-      paymentResult = await eWallet.createPayment({
-        externalID: `order-${order._id}`,
+    // Handle cash payment
+    if (paymentMethod.toLowerCase() === 'cash') {
+      const payment = new Payment({
+        order: order._id,
         amount: totalPrice,
-        phone: phoneNumber,
-        ewalletType: paymentMethod.toUpperCase(),
+        paymentMethod,
+        status: 'Pending',
       });
-    } else if (paymentMethod === 'Card') {
-      if (!cardDetails || !cardDetails.cardHolderName || !cardDetails.cardNumber || !cardDetails.expirationDate || !cardDetails.cvv) {
-        return res.status(400).json({ message: 'Card details are required for card payment' });
-      }
-      const card = new Card();
-      paymentResult = await card.createCharge({
-        token: await card.createToken(cardDetails),
-        externalID: `order-${order._id}`,
-        amount: totalPrice,
+      await payment.save();
+      
+      return res.status(200).json({ 
+        order, 
+        payment,
+        message: 'Cash payment pending confirmation' 
       });
-    } else {
-      return res.status(400).json({ message: 'Invalid payment method' });
     }
 
-    // Save Payment Data
+    // Midtrans payment processing
+    const transactionDetails = {
+      order_id: `ORDER-${order._id}-${Date.now()}`,
+      gross_amount: totalPrice
+    };
+
+    const customerDetails = {
+      first_name: user.name.split(' ')[0],
+      last_name: user.name.split(' ')[1] || '',
+      email: user.email,
+      phone: phoneNumber || user.phone
+    };
+
+    const params = {
+      transaction_details: transactionDetails,
+      customer_details: customerDetails,
+    };
+
+    // Payment method specific config
+    switch (paymentMethod.toLowerCase()) {
+      case 'ovo':
+        if (!phoneNumber) throw new Error('Phone number required for OVO');
+        params.payment_type = 'ewallet';
+        params.ewallet = { channel: 'ovo', mobile: phoneNumber };
+        break;
+
+      case 'gopay':
+        params.payment_type = 'gopay';
+        break;
+
+      case 'shopeepay':
+        params.payment_type = 'shopeepay';
+        break;
+
+      case 'qris':
+        params.payment_type = 'qris';
+        params.qris = { acquirer: 'gopay' };
+        break;
+
+      default:
+        throw new Error('Unsupported payment method');
+    }
+
+    // Create Midtrans transaction
+    const paymentResult = await snap.createTransaction(params);
+
+    // Save payment record
     const payment = new Payment({
       order: order._id,
       amount: totalPrice,
       paymentMethod,
-      status: paymentStatus,
+      status: 'Pending',
+      midtransResponse: paymentResult
     });
     await payment.save();
 
-    res.status(200).json({
+    // Prepare response
+    const response = {
       order,
       payment,
-      message: paymentResult.message,
-      paymentLink: paymentResult.actions?.mobile_deeplink || paymentResult.qr_string,
-      transactionId: paymentResult.id || null,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to create order and payment', error });
-  }
-};
-
-
-
-// Update Payment Status
-export const updatePaymentStatus = async (req, res) => {
-  try {
-    const { paymentId } = req.params;
-    const { status } = req.body;
-
-    const payment = await Payment.findById(paymentId);
-    if (!payment) return res.status(404).json({ message: 'Payment not found' });
-
-    payment.status = status;
-    await payment.save();
-
-    // Update Order Status if Payment is Successful
-    if (status === 'Success') {
-      const order = await Order.findById(payment.order);
-      if (order) {
-        order.status = 'Completed';
-        await order.save();
+      paymentDetails: {
+        method: paymentMethod,
+        transactionId: paymentResult.transaction_id,
+        status: 'Pending'
       }
+    };
+
+    // Add payment specific details
+    if (paymentMethod.toLowerCase() === 'qris') {
+      response.paymentDetails.qrCode = {
+        url: paymentResult.actions.find(a => a.name === 'qr-code')?.url,
+        raw: paymentResult.qr_string
+      };
+    } else if (['ovo', 'gopay', 'shopeepay'].includes(paymentMethod.toLowerCase())) {
+      response.paymentDetails.deepLink = paymentResult.actions.find(a => a.name === 'deeplink-redirect')?.url;
     }
 
-    res.status(200).json({ message: 'Payment status updated', payment });
+    res.status(200).json(response);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to update payment status', error });
+    console.error('Order Error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message,
+      errorDetails: error.ApiResponse || null 
+    });
   }
 };
 
-// Get user orders
+// Midtrans Webhook Handler
+export const handleMidtransNotification = async (req, res) => {
+  try {
+    const notification = req.body;
+    const statusResponse = await snap.transaction.notification(notification);
+    
+    // Validate critical parameters
+    if (!statusResponse.order_id || !statusResponse.transaction_status) {
+      return res.status(400).json({ message: 'Invalid notification' });
+    }
+
+    // Find related payment
+    const payment = await Payment.findOne({ 
+      'midtransResponse.order_id': statusResponse.order_id 
+    }).populate('order');
+
+    if (!payment) return res.status(404).json({ message: 'Payment not found' });
+
+    // Determine new status
+    let newStatus;
+    switch (statusResponse.transaction_status.toLowerCase()) {
+      case 'capture':
+        newStatus = statusResponse.fraud_status === 'challenge' ? 'Challenge' : 'Success';
+        break;
+      case 'settlement':
+        newStatus = 'Success';
+        break;
+      case 'pending':
+        newStatus = 'Pending';
+        break;
+      case 'deny':
+      case 'cancel':
+      case 'expire':
+        newStatus = 'Failed';
+        break;
+      default:
+        newStatus = 'Pending';
+    }
+
+    // Update payment status
+    payment.status = newStatus;
+    await payment.save();
+
+    // Update order status and process stock
+    if (newStatus === 'Success' && payment.order.status !== 'Completed') {
+      await processOrderItems(payment.order.items);
+      payment.order.status = 'Completed';
+      await payment.order.save();
+    }
+
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('Webhook Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get User Orders
 export const getUserOrders = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const orders = await Order.find({ user: req.params.userId })
+      .populate('items.menuItem')
+      .populate('items.toppings')
+      .sort({ createdAt: -1 });
 
-    const orders = await Order.find({ user: userId }).populate('items.menuItem').populate('items.toppings');
-
-    res.status(200).json({
-      success: true,
-      data: orders,
-    });
+    res.status(200).json({ success: true, data: orders });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch orders',
-      error: error.message,
-    });
+    console.error('Get Orders Error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch orders' });
   }
 };
