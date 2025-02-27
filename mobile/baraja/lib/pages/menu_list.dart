@@ -1,5 +1,5 @@
+import 'package:baraja/pages/order_screen.dart';
 import 'package:flutter/material.dart';
-import '../assets/component/bottom_navigation.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -136,7 +136,6 @@ class _MenuScreenState extends State<MenuScreen>
             ),
         ],
       ),
-      bottomNavigationBar: BottomNavigation(),
     );
   }
 
@@ -274,9 +273,15 @@ class CartScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
-              onPressed: () {
-                // Logika untuk melanjutkan pesanan
-              },
+             onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => OrderScreen(cartItems: cartItems),
+                ),
+              );
+            },
+
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF076A3B),
                 shape: RoundedRectangleBorder(

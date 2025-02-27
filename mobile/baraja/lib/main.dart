@@ -1,12 +1,11 @@
+import 'package:baraja/widgets/bottom_nav_screen.dart';
 import 'package:flutter/material.dart';
-import 'dart:async'; // Untuk Timer
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'pages/login.dart';
 import 'pages/register.dart';
-import 'pages/home_screen.dart'; // Tambahkan halaman HomeScreen
-import 'pages/menu_list.dart';
-import 'pages/menu_detail.dart';
-import 'pages/checkout_screen.dart';
+// Tambahkan ini
 
 void main() {
   runApp(BarajaCoffeeApp());
@@ -37,15 +36,10 @@ class BarajaCoffeeApp extends StatelessWidget {
         ),
       ),
       home: SplashScreen(), // Mulai dari SplashScreen
-
       routes: {
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
-        '/home': (context) => HomeScreen(), // Rute ke HomeScreen
-        '/menu': (context) => MenuScreen(),
-        '/menu-detail': (context) => MenuDetailScreen(),
-        '/checkout': (context) => CheckoutPage(),
-        
+        '/main': (context) => BottomNavScreen(), // Wrapper dengan BottomNavigation
       },
     );
   }
@@ -55,7 +49,6 @@ class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _SplashScreenState createState() => _SplashScreenState();
 }
 
@@ -63,7 +56,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkSession(); // Pengecekan session
+    _checkSession();
   }
 
   void _checkSession() async {
@@ -72,10 +65,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
     Timer(Duration(seconds: 3), () {
       if (isLoggedIn) {
-        // Jika sudah login, ke halaman home
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/main'); // Pergi ke halaman utama
       } else {
-        // Jika belum login, ke halaman login
         Navigator.pushReplacementNamed(context, '/login');
       }
     });
@@ -89,7 +80,7 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset('../lib/assets/images/splash.png', width: 180, height: 180), // Logo Splash
+            Image.asset('../lib/assets/images/splash.png', width: 180, height: 180),
             SizedBox(height: 20),
             CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),

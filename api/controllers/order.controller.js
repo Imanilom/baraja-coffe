@@ -23,7 +23,7 @@ const updateStorage = async (materialId, quantity) => {
 
 // Midtrans Configuration
 const snap = new midtransClient.Snap({
-  isProduction: process.env.NODE_ENV === 'production',
+  isProduction: process.env.NODE_ENV === 'sandbox',
   serverKey: process.env.MIDTRANS_SERVER_KEY,
   clientKey: process.env.MIDTRANS_CLIENT_KEY
 });

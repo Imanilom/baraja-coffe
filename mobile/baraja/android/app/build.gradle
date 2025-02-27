@@ -8,8 +8,7 @@ plugins {
 android {
     namespace = "com.example.baraja"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
-
+    ndkVersion = flutter.minSdkVersion
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
