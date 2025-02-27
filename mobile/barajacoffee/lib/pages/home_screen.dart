@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import '../assets/component/store_screen.dart';
+import '../utils/nearest_store.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -8,6 +9,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      
       backgroundColor: Colors.grey[200], // Background utama abu muda
       body: SingleChildScrollView(
         child: Column(
@@ -123,7 +125,8 @@ class HomeScreen extends StatelessWidget {
             ),
 
             // Grid Menu Menarik
-            Padding(
+            Container(
+              color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: GridView.count(
                 shrinkWrap: true,
@@ -201,7 +204,7 @@ class HomeScreen extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => StoreListScreen(orderType: title)),
+            MaterialPageRoute(builder: (context) => StoreScreen(orderType: title)),
           );
         },
         child: Card(

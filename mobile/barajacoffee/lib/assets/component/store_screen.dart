@@ -1,132 +1,125 @@
+import 'package:barajacoffee/utils/nearest_store.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
-class StoreListScreen extends StatefulWidget {
-  final String orderType;
+class StoreScreen extends StatefulWidget {
+  final String orderType; // Tambahkan parameter ini agar bisa menerima nilai dari halaman sebelumnya
 
-  const StoreListScreen({super.key, required this.orderType});
+  const StoreScreen({super.key, required this.orderType});
 
   @override
-  _StoreListScreenState createState() => _StoreListScreenState();
+  _StoreScreenState createState() => _StoreScreenState();
 }
 
-class _StoreListScreenState extends State<StoreListScreen> {
+class _StoreScreenState extends State<StoreScreen> {
   late String selectedOrderType;
+  Map<String, dynamic>? nearestStore;
+  String currentAddress = "Mendeteksi lokasi...";
 
   @override
   void initState() {
     super.initState();
-    selectedOrderType = widget.orderType;
+    selectedOrderType = widget.orderType; // Gunakan nilai yang diterima dari halaman sebelumnya
+    getLocationAndStore();
   }
 
-  final List<Map<String, String>> stores = [
-    {
-      'name': 'Baraja Coffee - Sudirman',
-      'address': 'Jl. Jend Sudirman No. 10, Jakarta',
-      'distance': '1.2 km',
-      'hours': '08:00 - 22:00',
-    },
-    {
-      'name': 'Baraja Coffee - Thamrin',
-      'address': 'Jl. MH Thamrin No. 15, Jakarta',
-      'distance': '2.5 km',
-      'hours': '07:30 - 21:30',
-    },
-    {
-      'name': 'Baraja Coffee - Senayan',
-      'address': 'Jl. Asia Afrika No. 30, Jakarta',
-      'distance': '3.1 km',
-      'hours': '09:00 - 23:00',
-    },
-  ];
+  Future<void> getLocationAndStore() async {
+    Position? position = await getUserLocation();
+    if (position != null) {
+      Map<String, dynamic>? store = findNearestStore(position);
+      setState(() {
+        nearestStore = store;
+        currentAddress = "Lat: ${position.latitude}, Lon: ${position.longitude}";
+      });
+    } else {
+      setState(() {
+        currentAddress = "Lokasi tidak tersedia";
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-     appBar: AppBar(
-        title: Text("Store"),
+      appBar: AppBar(
+        title: Text("Menu"),
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.black),
       ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            color: Colors.white,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Icon(Icons.storefront, color: Colors.green, size: 30),
-                DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: selectedOrderType,
-                    icon: const Icon(Icons.keyboard_arrow_down, color: Colors.green),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedOrderType = newValue!;
-                      });
-                    },
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black),
-                    dropdownColor: Colors.white,
-                    items: ['Dine-in', 'Delivery', 'Pickup'].map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
+      backgroundColor: Colors.grey[200],
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 40),
+
+            // Hero Section Menampilkan Info Order dan Lokasi
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              color: Colors.white,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selectedOrderType, // Pastikan order type yang dipilih ditampilkan
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 5),
+                  Text(
+                    nearestStore != null
+                        ? "${nearestStore!["name"]}, ${nearestStore!["distance"]?.toStringAsFixed(1)} km. Terdekat"
+                        : "Mencari toko terdekat...",
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Lokasimu saat ini",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    currentAddress,
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const Divider(height: 2, color: Colors.grey),
-          Expanded(
-            child: ListView.builder(
-              itemCount: stores.length,
+
+            const SizedBox(height: 10),
+
+            // Menu Categories
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16.0),
+              color: Colors.white,
+              child: const Text(
+                'Kategori Menu',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.left,
+              ),
+            ),
+
+            // List Menu (Tambahkan ListView untuk menampilkan menu)
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 5, // Ganti dengan jumlah menu yang tersedia
               itemBuilder: (context, index) {
-                final store = stores[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  child: Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(16),
-                      title: Text(store['name']!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(store['address']!, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.location_on, color: Colors.green, size: 16),
-                                  const SizedBox(width: 4),
-                                  Text(store['distance']!, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              Row(
-                                children: [
-                                  const Icon(Icons.access_time, color: Colors.green, size: 16),
-                                  const SizedBox(width: 4),
-                                  Text(store['hours']!, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                return ListTile(
+                  leading: Icon(Icons.fastfood, color: Colors.brown[700]),
+                  title: Text("Menu ${index + 1}"),
+                  subtitle: Text("Deskripsi singkat menu"),
+                  trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    // Navigasi ke detail menu jika perlu
+                  },
                 );
               },
             ),
-          ),
-        ],
+
+            const SizedBox(height: 30),
+          ],
+        ),
       ),
     );
   }
