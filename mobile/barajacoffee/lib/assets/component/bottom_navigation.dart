@@ -11,7 +11,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
   int _currentIndex = 0; // Indeks awal
 
   // Daftar rute tujuan berdasarkan indeks
-  final List<String> _routes = ['/home', '/menu', '/history', '/profile'];
+  final List<String> _routes = ['/home', '/voucher', '/history', '/profile'];
 
   @override
   Widget build(BuildContext context) {
@@ -32,8 +32,8 @@ class _BottomNavigationState extends State<BottomNavigation> {
           label: 'Home',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.shopping_cart),
-          label: 'Order',
+          icon: Icon(Icons.percent),
+          label: 'Voucher',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.history),

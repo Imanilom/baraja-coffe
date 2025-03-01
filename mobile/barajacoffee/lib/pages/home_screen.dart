@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import '../assets/component/store_screen.dart';
+import 'store_screen.dart';
 import '../utils/nearest_store.dart';
 
 class HomeScreen extends StatelessWidget {

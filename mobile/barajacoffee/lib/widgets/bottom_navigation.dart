@@ -20,8 +20,8 @@ class BottomNavigation extends StatelessWidget {
           label: 'Home',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.shopping_cart),
-          label: 'Order',
+          icon: Icon(Icons.percent),
+          label: 'Voucher',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.history),

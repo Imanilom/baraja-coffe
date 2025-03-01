@@ -1,5 +1,5 @@
 import 'package:barajacoffee/widgets/level_widget.dart';
-import 'package:barajacoffee/widgets/voucher_screen.dart';
+import 'package:barajacoffee/pages/voucher_screen.dart';
 import 'package:flutter/material.dart';
 
 class ProfileScreen extends StatelessWidget {
