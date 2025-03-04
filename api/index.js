@@ -19,7 +19,7 @@ import OutletRoutes from './routes/outlet.routes.js';
 dotenv.config();
 
 mongoose
-  .connect(process.env.MONGO)
+  .connect("mongodb+srv://barajacoffee:MwkbCFpvkDtopVR3@baraja.zbyaf.mongodb.net/?retryWrites=true&w=majority&appName=Baraja")
   .then(() => {
     console.log('Connected to MongoDB');
   })

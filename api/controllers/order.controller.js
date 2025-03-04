@@ -2,7 +2,7 @@ import { Order } from '../models/Order.model.js';
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
 import { Topping } from "../models/Topping.model.js";
-import  AddOn from "../models/Addons.model.js";
+import AddOn from "../models/Addons.model.js";
 import { RawMaterial } from "../models/RawMaterial.model.js";
 import midtransClient from 'midtrans-client';
 
@@ -12,11 +12,11 @@ const updateStorage = async (materialId, quantity) => {
   if (!storage) {
     throw new Error(`Raw material not found: ${materialId}`);
   }
-  
+
   if (quantity > 0 && storage.quantity < quantity) {
     throw new Error(`Insufficient stock for ${storage.name || materialId}`);
   }
-  
+
   storage.quantity -= quantity;
   await storage.save();
 };
@@ -47,7 +47,7 @@ const validateStock = async (items) => {
     for (const toppingId of item.toppings) {
       const topping = await Topping.findById(toppingId).populate('rawMaterials');
       if (!topping) throw new Error(`Topping not found: ${toppingId}`);
-      
+
       for (const material of topping.rawMaterials) {
         const required = material.quantityRequired * item.quantity;
         const stock = await RawMaterial.findOne({ materialId: material.materialId });
@@ -75,7 +75,7 @@ const validateStock = async (items) => {
 const processOrderItems = async (items) => {
   for (const item of items) {
     const menuItem = await MenuItem.findById(item.menuItem).populate('rawMaterials');
-    
+
     // Process main ingredients
     for (const material of menuItem.rawMaterials) {
       await updateStorage(material.materialId, material.quantity * item.quantity);
@@ -165,11 +165,11 @@ export const createOrderAndPayment = async (req, res) => {
         status: 'Pending',
       });
       await payment.save();
-      
-      return res.status(200).json({ 
-        order, 
+
+      return res.status(200).json({
+        order,
         payment,
-        message: 'Cash payment pending confirmation' 
+        message: 'Cash payment pending confirmation'
       });
     }
 
@@ -253,10 +253,10 @@ export const createOrderAndPayment = async (req, res) => {
     res.status(200).json(response);
   } catch (error) {
     console.error('Order Error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: error.message,
-      errorDetails: error.ApiResponse || null 
+      errorDetails: error.ApiResponse || null
     });
   }
 };
@@ -266,15 +266,15 @@ export const handleMidtransNotification = async (req, res) => {
   try {
     const notification = req.body;
     const statusResponse = await snap.transaction.notification(notification);
-    
+
     // Validate critical parameters
     if (!statusResponse.order_id || !statusResponse.transaction_status) {
       return res.status(400).json({ message: 'Invalid notification' });
     }
 
     // Find related payment
-    const payment = await Payment.findOne({ 
-      'midtransResponse.order_id': statusResponse.order_id 
+    const payment = await Payment.findOne({
+      'midtransResponse.order_id': statusResponse.order_id
     }).populate('order');
 
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
