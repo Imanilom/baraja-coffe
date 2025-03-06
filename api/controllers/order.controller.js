@@ -28,16 +28,59 @@ const snap = new midtransClient.Snap({
   clientKey: process.env.MIDTRANS_CLIENT_KEY
 });
 
-// Stock Validation Logic
+// // Stock Validation Logic
+// const validateStock = async (items) => {
+//   for (const item of items) {
+//     const menuItem = await MenuItem.findById(item.menuItem).populate('rawMaterials');
+//     if (!menuItem) throw new Error(`Menu item not found: ${item.menuItem}`);
+
+//     // Validate main ingredients
+//     for (const material of menuItem.rawMaterials) {
+//       const required = material.quantity * item.quantity;
+//       const stock = await RawMaterial.findOne({ materialId: material.materialId });
+//       if (!stock || stock.quantity < required) {
+//         throw new Error(`Insufficient ${stock?.name || material.materialId}`);
+//       }
+//     }
+
+//     // Validate toppings
+//     for (const toppingId of item.toppings) {
+//       const topping = await Topping.findById(toppingId).populate('rawMaterials');
+//       if (!topping) throw new Error(`Topping not found: ${toppingId}`);
+
+//       for (const material of topping.rawMaterials) {
+//         const required = material.quantityRequired * item.quantity;
+//         const stock = await RawMaterial.findOne({ materialId: material.materialId });
+//         if (!stock || stock.quantity < required) {
+//           throw new Error(`Insufficient ${stock?.name || material.materialId}`);
+//         }
+//       }
+//     }
+
+//     // Validate addons
+//     for (const addonId of item.addons) {
+//       const addon = await AddOn.findById(addonId);
+//       if (addon?.adjustCupSize) {
+//         const cupsNeeded = addon.adjustCupSize === 'large' ? 1 : 0.5;
+//         const cupStock = await RawMaterial.findOne({ name: 'Cup' });
+//         if (!cupStock || cupStock.quantity < cupsNeeded * item.quantity) {
+//           throw new Error('Insufficient cups');
+//         }
+//       }
+//     }
+//   }
+// };
+
 const validateStock = async (items) => {
   for (const item of items) {
     const menuItem = await MenuItem.findById(item.menuItem).populate('rawMaterials');
     if (!menuItem) throw new Error(`Menu item not found: ${item.menuItem}`);
+    // console.log(menuItem.rawMaterials);
 
     // Validate main ingredients
     for (const material of menuItem.rawMaterials) {
-      const required = material.quantity * item.quantity;
-      const stock = await RawMaterial.findOne({ materialId: material.materialId });
+      const required = material.quantityRequired * item.quantity;  // Adjusted 'quantity' to 'quantityRequired' if needed
+      const stock = await RawMaterial.findById(material.materialId);
       if (!stock || stock.quantity < required) {
         throw new Error(`Insufficient ${stock?.name || material.materialId}`);
       }
@@ -45,6 +88,7 @@ const validateStock = async (items) => {
 
     // Validate toppings
     for (const toppingId of item.toppings) {
+      if (!toppingId) continue;  // Skip empty topping IDs
       const topping = await Topping.findById(toppingId).populate('rawMaterials');
       if (!topping) throw new Error(`Topping not found: ${toppingId}`);
 
@@ -59,6 +103,7 @@ const validateStock = async (items) => {
 
     // Validate addons
     for (const addonId of item.addons) {
+      if (!addonId) continue;  // Skip empty addon IDs
       const addon = await AddOn.findById(addonId);
       if (addon?.adjustCupSize) {
         const cupsNeeded = addon.adjustCupSize === 'large' ? 1 : 0.5;
@@ -70,6 +115,7 @@ const validateStock = async (items) => {
     }
   }
 };
+
 
 // Process Order Items (Deduct Stock)
 const processOrderItems = async (items) => {
