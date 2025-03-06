@@ -18,9 +18,12 @@ const RawMaterialPage = () => {
   const fetchRawMaterials = async () => {
     try {
       const response = await axios.get('/api/storage/raw-material');
-      setRawMaterials(response.data.data);
+      setRawMaterials(response.data.data || []);
+      setError(null);
     } catch (err) {
+      console.error('Fetch error:', err);
       setError('Failed to fetch raw materials');
+      setRawMaterials([]);
     }
   };
 
@@ -34,26 +37,26 @@ const RawMaterialPage = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+  // Reset form
+  const resetForm = () => {
+    setFormData({ name: '', quantity: '', unit: '', minimumStock: '', supplier: '' });
+    setIsEditing(false);
+    setEditId(null);
+  };
+
   // Handle create or update
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       if (isEditing) {
         await axios.put(`/api/storage/raw-material/${editId}`, formData);
-        setIsEditing(false);
-        setEditId(null);
       } else {
         await axios.post('/api/storage/raw-material', formData);
       }
-      setFormData({
-        name: '',
-        quantity: '',
-        unit: '',
-        minimumStock: '',
-        supplier: '',
-      });
+      resetForm();
       fetchRawMaterials();
     } catch (err) {
+      console.error('Save error:', err);
       setError('Failed to save raw material');
     }
   };
@@ -65,73 +68,41 @@ const RawMaterialPage = () => {
     setEditId(material._id);
   };
 
-  // Handle delete
+  // Handle delete with confirmation
   const handleDelete = async (id) => {
-    try {
-      await axios.delete(`/api/storage/raw-material/${id}`);
-      fetchRawMaterials();
-    } catch (err) {
-      setError('Failed to delete raw material');
+    if (window.confirm('Are you sure you want to delete this material?')) {
+      try {
+        await axios.delete(`/api/storage/raw-material/${id}`);
+        fetchRawMaterials();
+      } catch (err) {
+        console.error('Delete error:', err);
+        setError('Failed to delete raw material');
+      }
     }
   };
 
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Raw Material Management</h1>
-      {error && <div className="text-red-500">{error}</div>}
+      {error && <div className="text-red-500 mb-4">{error}</div>}
       <form onSubmit={handleSubmit} className="mb-4 p-4 border rounded-md shadow-md">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            placeholder="Name"
-            className="border p-2 rounded-md"
-            required
-          />
-          <input
-            type="number"
-            name="quantity"
-            value={formData.quantity}
-            onChange={handleChange}
-            placeholder="Quantity"
-            className="border p-2 rounded-md"
-            required
-          />
-          <input
-            type="text"
-            name="unit"
-            value={formData.unit}
-            onChange={handleChange}
-            placeholder="Unit"
-            className="border p-2 rounded-md"
-            required
-          />
-          <input
-            type="number"
-            name="minimumStock"
-            value={formData.minimumStock}
-            onChange={handleChange}
-            placeholder="Minimum Stock"
-            className="border p-2 rounded-md"
-            required
-          />
-          <input
-            type="text"
-            name="supplier"
-            value={formData.supplier}
-            onChange={handleChange}
-            placeholder="Supplier"
-            className="border p-2 rounded-md"
-          />
+          <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Name" className="border p-2 rounded-md" required />
+          <input type="number" name="quantity" value={formData.quantity} onChange={handleChange} placeholder="Quantity" className="border p-2 rounded-md" required />
+          <input type="text" name="unit" value={formData.unit} onChange={handleChange} placeholder="Unit" className="border p-2 rounded-md" required />
+          <input type="number" name="minimumStock" value={formData.minimumStock} onChange={handleChange} placeholder="Minimum Stock" className="border p-2 rounded-md" required />
+          <input type="text" name="supplier" value={formData.supplier} onChange={handleChange} placeholder="Supplier" className="border p-2 rounded-md" />
         </div>
-        <button
-          type="submit"
-          className="bg-blue-500 text-white px-4 py-2 rounded-md mt-4"
-        >
-          {isEditing ? 'Update Material' : 'Add Material'}
-        </button>
+        <div className="flex gap-2 mt-4">
+          <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded-md">
+            {isEditing ? 'Update Material' : 'Add Material'}
+          </button>
+          {isEditing && (
+            <button type="button" onClick={resetForm} className="bg-gray-500 text-white px-4 py-2 rounded-md">
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
 
       <div className="overflow-x-auto">
@@ -158,16 +129,10 @@ const RawMaterialPage = () => {
                   <td className="border p-2">{material.minimumStock}</td>
                   <td className="border p-2">{material.supplier || 'N/A'}</td>
                   <td className="border p-2">
-                    <button
-                      onClick={() => handleEdit(material)}
-                      className="bg-yellow-500 text-white px-2 py-1 rounded-md mr-2"
-                    >
+                    <button onClick={() => handleEdit(material)} className="bg-yellow-500 text-white px-2 py-1 rounded-md mr-2">
                       Edit
                     </button>
-                    <button
-                      onClick={() => handleDelete(material._id)}
-                      className="bg-red-500 text-white px-2 py-1 rounded-md"
-                    >
+                    <button onClick={() => handleDelete(material._id)} className="bg-red-500 text-white px-2 py-1 rounded-md">
                       Delete
                     </button>
                   </td>

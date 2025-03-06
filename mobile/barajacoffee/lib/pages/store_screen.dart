@@ -13,85 +13,27 @@ class StoreScreen extends StatefulWidget {
   _StoreScreenState createState() => _StoreScreenState();
 }
 
-class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStateMixin {
+class _StoreScreenState extends State<StoreScreen> {
   late String selectedOrderType;
   Map<String, dynamic>? nearestStore;
   String currentAddress = "Mendeteksi lokasi...";
   Map<String, int> cartItems = {};
+  List<String> categories = ["Coffee", "Non Coffee", "Main Course", "Rice & Noodles", "Light Meals"];
+  String selectedCategory = "Coffee";
+
   List<Map<String, dynamic>> menuItems = [
-    {
-      'title': 'Hell Braun Coffee',
-      'price': 'Rp 25.000',
-      'imageUrl': 'https://placehold.co/600x400/png',
-      'category': 'Coffee'
-    },
-    {
-      'title': 'Dunkel Braun Coffee',
-      'price': 'Rp 28.000',
-      'imageUrl': 'https://placehold.co/600x400/png',
-      'category': 'Coffee'
-    },
-    {
-      'title': 'Latte Coffee',
-      'price': 'Rp 30.000',
-      'imageUrl': 'https://placehold.co/600x400/png',
-      'category': 'Coffee'
-    },
-    {
-      'title': 'Irish Coffee',
-      'price': 'Rp 35.000',
-      'imageUrl': 'https://placehold.co/600x400/png',
-      'category': 'Coffee'
-    },
-    {
-      'title': 'Green Tea Latte',
-      'price': 'Rp 28.000',
-      'imageUrl': 'https://placehold.co/600x400/png',
-      'category': 'Non Coffee'
-    },
-    {
-      'title': 'Chocolate Frappe',
-      'price': 'Rp 32.000',
-      'imageUrl': 'https://placehold.co/600x400/png',
-      'category': 'Non Coffee'
-    },
-    {
-      'title': 'Sandwich',
-      'price': 'Rp 40.000',
-      'imageUrl': 'https://placehold.co/600x400/png',
-      'category': 'Food'
-    },
-    {
-      'title': 'Croissant',
-      'price': 'Rp 35.000',
-      'imageUrl': 'https://placehold.co/600x400/png',
-      'category': 'Food'
-    },
+    {'title': 'Hell Braun Coffee', 'price': 'Rp 25.000', 'imageUrl': 'https://placehold.co/600x400/png', 'category': 'Coffee'},
+    {'title': 'Green Tea Latte', 'price': 'Rp 28.000', 'imageUrl': 'https://placehold.co/600x400/png', 'category': 'Non Coffee'},
+    {'title': 'Nasi Goreng Special', 'price': 'Rp 45.000', 'imageUrl': 'https://placehold.co/600x400/png', 'category': 'Rice & Noodles'},
+    {'title': 'Chicken Steak', 'price': 'Rp 60.000', 'imageUrl': 'https://placehold.co/600x400/png', 'category': 'Main Course'},
+    {'title': 'French Fries', 'price': 'Rp 25.000', 'imageUrl': 'https://placehold.co/600x400/png', 'category': 'Light Meals'},
   ];
-  String selectedCategory = 'Coffee';
-  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     selectedOrderType = widget.orderType;
-    _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(_handleTabSelection);
     getLocationAndStore();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  void _handleTabSelection() {
-    if (_tabController.indexIsChanging) {
-      setState(() {
-        selectedCategory = ['Coffee', 'Non Coffee', 'Food'][_tabController.index];
-      });
-    }
   }
 
   Future<void> getLocationAndStore() async {
@@ -134,65 +76,63 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Menu", style: TextStyle(color: Colors.white)),
-        backgroundColor: Color(0xFF076A3B),
-        elevation: 0,
-        iconTheme: IconThemeData(color: Colors.white),
+        title: const Text("Menu", style: TextStyle(color: Colors.black)),
+        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
       ),
-      backgroundColor: Colors.grey[200],
       body: Column(
         children: [
-          // Store Info Section
-            Container(
-            padding: EdgeInsets.all(16),
+          // Store Info
+          Container(
+            padding: const EdgeInsets.all(16),
             color: Colors.white,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  selectedOrderType,
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  nearestStore != null
-                      ? "${nearestStore!["name"]}, ${nearestStore!["distance"]?.toStringAsFixed(1)} km. Terdekat"
-                      : "Mencari toko terdekat...",
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  "Lokasimu saat ini",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  currentAddress,
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
+                Text(selectedOrderType, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 5),
+                Text(nearestStore != null ? "${nearestStore!["name"]}, ${nearestStore!["distance"]?.toStringAsFixed(1)} km. Terdekat" : "Mencari toko terdekat..."),
+                const SizedBox(height: 10),
+                const Text("Lokasimu saat ini", style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(currentAddress),
               ],
             ),
           ),
-          // Category Tabs
-          SizedBox(height: 10), 
+
+          // Categories - Scrollable
           Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabController,
-              indicatorColor: Color(0xFF076A3B),
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.black,
-              indicator: BoxDecoration(
-                color: Color(0xFF076A3B),
-                
-                borderRadius: BorderRadius.circular(8.0),
-              ),
-              tabs: [
-                Tab(text: 'Coffee'),
-                Tab(text: 'Non Coffee'),
-                Tab(text: 'Food'),
-              ],
+            height: 50,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              children: categories.map((category) {
+                bool isSelected = category == selectedCategory;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: GestureDetector(
+                    onTap: () => setState(() => selectedCategory = category),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF076A3B) : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF076A3B)),
+                      ),
+                      child: Center(
+                        child: Text(
+                          category,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : const Color(0xFF076A3B),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
+
           // Menu List
           Expanded(
             child: ListView.builder(
@@ -203,38 +143,19 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
                 int quantity = cartItems[title] ?? 0;
 
                 return Card(
-                  margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  elevation: 3,
+                  margin: const EdgeInsets.all(10),
                   child: ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.network(item['imageUrl'], width: 50, height: 50, fit: BoxFit.cover),
-                    ),
-                    title: Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(item['price'], style: TextStyle(color: Colors.grey[600])),
+                    leading: Image.network(item['imageUrl'], width: 50, height: 50, fit: BoxFit.cover),
+                    title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(item['price']),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (quantity > 0) ...[
-                          IconButton(
-                            icon: Icon(Icons.remove, color: Color(0xFF076A3B)),
-                            onPressed: () => setState(() {
-                              if (cartItems[title] == 1) {
-                                cartItems.remove(title);
-                              } else {
-                                cartItems[title] = quantity - 1;
-                              }
-                            }),
-                          ),
-                          Text('$quantity', style: TextStyle(color: Color(0xFF076A3B))),
+                          IconButton(icon: const Icon(Icons.remove), onPressed: () => setState(() => cartItems[title] = quantity > 1 ? quantity - 1 : 0)),
+                          Text('$quantity'),
                         ],
-                        IconButton(
-                          icon: Icon(Icons.add, color: Color(0xFF076A3B)),
-                          onPressed: () => setState(() => cartItems[title] = (quantity) + 1),
-                        ),
+                        IconButton(icon: const Icon(Icons.add), onPressed: () => setState(() => cartItems[title] = quantity + 1)),
                       ],
                     ),
                     onTap: () => _navigateToDetail(item),
@@ -243,25 +164,24 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
               },
             ),
           ),
-
-          // Cart Summary
+             // Cart Summary
           if (cartItems.isNotEmpty)
             Container(
               color: Colors.white,
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     'Total Items: ${cartItems.values.reduce((a, b) => a + b)}',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF076A3B)),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF076A3B)),
                   ),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF076A3B),
+                      backgroundColor: const Color(0xFF076A3B),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     ),
                     onPressed: () => Navigator.push(
                       context,
@@ -269,7 +189,7 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
                         builder: (context) => OrderScreen(cartItems: cartItems),
                       ),
                     ),
-                    child: Text('Checkout', style: TextStyle(color: Colors.white)),
+                    child: const Text('Checkout', style: TextStyle(color: Colors.white)),
                   ),
                 ],
               ),

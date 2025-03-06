@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'store_screen.dart';
-import '../utils/nearest_store.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -43,7 +42,7 @@ class HomeScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Card(
                 margin: const EdgeInsets.only(top: 5),
-                elevation: 6,
+                elevation: 2,
                 shadowColor: Colors.black26,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
@@ -64,15 +63,15 @@ class HomeScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                      Row(
+                      const Row(
                         children: [
-                          const Icon(Icons.wallet_giftcard, color: Color(0xFF076A3B)),
-                          const SizedBox(width: 6),
-                          const Text('5', style: TextStyle(fontSize: 16)),
-                          const SizedBox(width: 16),
-                          const Icon(Icons.emoji_events, color: Colors.orange),
-                          const SizedBox(width: 6),
-                          const Text('150', style: TextStyle(fontSize: 16)),
+                          Icon(Icons.wallet_giftcard, color: Color(0xFF076A3B)),
+                          SizedBox(width: 6),
+                          Text('5', style: TextStyle(fontSize: 16)),
+                          SizedBox(width: 16),
+                          Icon(Icons.emoji_events, color: Colors.orange),
+                          SizedBox(width: 6),
+                          Text('150', style: TextStyle(fontSize: 16)),
                         ],
                       ),
                     ],

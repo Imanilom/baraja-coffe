@@ -1,5 +1,7 @@
 import 'package:barajacoffee/widgets/level_widget.dart';
 import 'package:barajacoffee/pages/voucher_screen.dart';
+import 'package:barajacoffee/pages/history_screen.dart';
+import 'package:barajacoffee/widgets/payment_method_screen.dart';
 import 'package:flutter/material.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -16,12 +18,12 @@ class ProfileScreen extends StatelessWidget {
           children: [
             // Header Profil
             Container(
-              padding: EdgeInsets.symmetric(vertical: 20),
+              padding: const EdgeInsets.symmetric(vertical: 20),
               child: Column(
                 children: [
                   Stack(
                     children: [
-                      CircleAvatar(
+                      const CircleAvatar(
                         radius: 50,
                         backgroundImage: AssetImage('../lib/assets/images/logo.png'),
                       ),
@@ -35,20 +37,19 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  SizedBox(height: 10),
-                  Text(
+                  const SizedBox(height: 10),
+                  const Text(
                     "Iman Baraja",
                     style: TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                  Text("iman.baraja@example.com", style: TextStyle(color: Colors.black)),
                 ],
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Statistik Pengguna dengan Navigasi ke Voucher dan Points
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -56,7 +57,7 @@ class ProfileScreen extends StatelessWidget {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => VoucherScreen()),
+                        MaterialPageRoute(builder: (context) => const VoucherScreen()),
                       );
                     },
                     child: buildStatCard("Voucher", "5", Icons.card_giftcard, Colors.blue),
@@ -66,19 +67,28 @@ class ProfileScreen extends StatelessWidget {
                       showModalBottomSheet(
                         context: context,
                         builder: (context) => Padding(
-                          padding: EdgeInsets.all(16.0),
+                          padding: const EdgeInsets.all(16.0),
                           child: LevelWidget(points: userPoints),
                         ),
                       );
                     },
                     child: buildStatCard("Points", userPoints.toString(), Icons.star, Colors.orange),
                   ),
-                  buildStatCard("Transaction", "3", Icons.shopping_cart, Colors.red),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const VoucherScreen()),
+                      );
+                    },
+                    child: buildStatCard("Transaction", "3", Icons.shopping_cart, Colors.red),
+                  ),
+                  
                 ],
               ),
             ),
 
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Informasi Tambahan
             Padding(
@@ -87,14 +97,19 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   buildInfoTile("Edit Profile", Icons.edit, () {}),
                   buildInfoTile("Change Password", Icons.lock, () {}),
-                  buildInfoTile("Payment Methods", Icons.credit_card, () {}),
+                   buildInfoTile("Payment Methods", Icons.credit_card, () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const PaymentMethodsScreen()),
+                    );
+                  }),
                   buildInfoTile("Settings", Icons.settings, () {}),
                   buildInfoTile("Help & Support", Icons.help, () {}),
                 ],
               ),
             ),
 
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Tombol Logout
             Padding(
@@ -103,12 +118,12 @@ class ProfileScreen extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     backgroundColor: Colors.redAccent,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: () {},
-                  child: Text("Logout", style: TextStyle(fontSize: 16, color: Colors.white)),
+                  child: const Text("Logout", style: TextStyle(fontSize: 16, color: Colors.white)),
                 ),
               ),
             ),
@@ -125,13 +140,13 @@ class ProfileScreen extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         width: 100,
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Icon(icon, color: color, size: 30),
-            SizedBox(height: 6),
-            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 4),
+            const SizedBox(height: 6),
+            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
             Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
           ],
         ),
@@ -144,8 +159,8 @@ class ProfileScreen extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: Icon(icon, color: Colors.green[700]),
-        title: Text(title, style: TextStyle(fontSize: 16)),
-        trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+        title: Text(title, style: const TextStyle(fontSize: 16)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
         onTap: onTap,
       ),
     );

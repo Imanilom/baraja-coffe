@@ -68,35 +68,55 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> with SingleTick
 
   Widget buildOrderList(String category) {
     List<Map<String, dynamic>> orders = [
-      {
-        "id": "#1234",
-        "status": "On Process",
-        "date": "12 Feb 2025",
-        "total": "Rp 150.000",
-        "items": [
-          {"name": "Burger", "quantity": 2, "price": "50.000"},
-          {"name": "French Fries", "quantity": 1, "price": "50.000"},
-        ],
-      },
-      {
-        "id": "#5678",
-        "status": "Completed",
-        "date": "10 Feb 2025",
-        "total": "Rp 200.000",
-        "items": [
-          {"name": "Pizza", "quantity": 1, "price": "100.000"},
-          {"name": "Soft Drink", "quantity": 2, "price": "50.000"},
-        ],
-      },
-      {
-        "id": "#9101",
-        "status": "Cancelled",
-        "date": "8 Feb 2025",
-        "total": "Rp 50.000",
-        "items": [
-          {"name": "Coffee", "quantity": 1, "price": "50.000"},
-        ],
-      },
+  {
+    "id": "#1234",
+    "status": "On Process",
+    "date": "12 Feb 2025",
+    "total": "Rp 150.000",
+    "payment_method": "Credit Card",
+    "location": "Jakarta",
+    "voucher": "DISKON20",
+    "discount": "Rp 30.000",
+    "final_total": "Rp 120.000",
+    "rating": 5,
+    "items": [
+      { "name": "Burger", "quantity": 2, "price": "50.000" },
+      { "name": "French Fries", "quantity": 1, "price": "50.000" }
+    ]
+  },
+  {
+    "id": "#5678",
+    "status": "Completed",
+    "date": "10 Feb 2025",
+    "total": "Rp 200.000",
+    "payment_method": "Cash",
+    "location": "Surabaya",
+    "voucher": "-",
+    "discount": "Rp 0",
+    "final_total": "Rp 200.000",
+    "rating": 4.5,
+    "items": [
+      { "name": "Pizza", "quantity": 1, "price": "100.000" },
+      { "name": "Soft Drink", "quantity": 2, "price": "50.000" }
+    ]
+  },
+  {
+    "id": "#9101",
+    "status": "Cancelled",
+    "date": "8 Feb 2025",
+    "total": "Rp 50.000",
+    "payment_method": "E-Wallet",
+    "location": "Bandung",
+    "voucher": "FREECOFFEE",
+    "discount": "Rp 50.000",
+    "final_total": "Rp 0",
+    "rating": 5,
+    "items": [
+      { "name": "Coffee", "quantity": 1, "price": "50.000" }
+    ]
+  }
+
+
     ];
 
     List<Map<String, dynamic>> filteredOrders = orders.where((order) {
