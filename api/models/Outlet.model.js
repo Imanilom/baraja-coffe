@@ -7,8 +7,8 @@ const OutletSchema = new mongoose.Schema({
   location: { type: String, required: true },
   latitude: { type: Number, required: true },
   longitude: { type: Number, required: true },
-  contactNumber: { type: String, required: true }, // Dijadikan wajib
-  manager: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Manager yang mengelola outlet
+  contactNumber: { type: String, required: true },
+  manager: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   outletPictures: {
     type: [String],
     default: ['https://placehold.co/600x400/png'],
