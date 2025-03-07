@@ -6,9 +6,10 @@ import { StockOpname } from '../models/StockOpname.model.js';
 // Add a new raw material
 export const createRawMaterial = async (req, res) => {
   try {
-    const { name, quantity, unit, minimumStock, supplier } = req.body;
+    const { outlet, name, quantity, unit, minimumStock, supplier } = req.body;
 
     const rawMaterial = new RawMaterial({
+      outlet,
       name,
       quantity,
       unit,

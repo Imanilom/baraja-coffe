@@ -10,7 +10,7 @@ import { verifyToken } from '../utils/verifyUser.js';
 const router = express.Router();
 
 // Route untuk membuat order dan pembayaran
-router.post('/order', verifyToken(['customer']), createOrderAndPayment);
+router.post('/order', createOrderAndPayment);
 
 // Route untuk membatalkan order
 router.put('/order/:id/cancel', verifyToken(['customer']), cancelOrder);
@@ -19,6 +19,6 @@ router.put('/order/:id/cancel', verifyToken(['customer']), cancelOrder);
 router.post('/midtrans/notification', handleMidtransNotification);
 
 // Route untuk mendapatkan daftar order berdasarkan user
-router.get('/orders/:userId', verifyToken(['customer']),  getUserOrders);
+router.get('/orders/:userId', verifyToken(['customer']), getUserOrders);
 
 export default router;

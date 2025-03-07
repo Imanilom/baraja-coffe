@@ -34,19 +34,15 @@ export const loginOutlet = async (req, res) => {
 // Create new outlet
 export const createOutlet = async (req, res) => {
   try {
-    const { name, username, password, location, contactNumber, latitude, longitude, outletPictures } = req.body;
-
-    const salt = await bcrypt.genSalt();
-    const hashPassword = await bcrypt.hash(password, salt);
+    const { name, location, contactNumber, latitude, longitude, manager, outletPictures } = req.body;
 
     const newOutlet = new Outlet({
       name,
-      username,
-      password: hashPassword,
       location,
       contactNumber,
       latitude,
       longitude,
+      manager,
       outletPictures,
     });
 

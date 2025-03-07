@@ -59,7 +59,6 @@ export const createMenuItem = async (req, res) => {
       price,
       description: description || '',
       category,
-      stock: stock || 0,
       imageURL,
       toppings: toppings || [],
       addons: addons || [],
@@ -107,7 +106,7 @@ export const getMenuItems = async (req, res) => {
           discount: promotion.discountPercentage,
           discountedPrice: parseFloat((item.price - discount).toFixed(2)),
           promotionTitle: promotion.title, // Ensure the title is passed
-      
+
         };
       }
 
@@ -169,7 +168,7 @@ export const updateMenuItem = async (req, res) => {
   try {
     const { name, price, description, category, stock, imageURL, toppings, addons, rawMaterials } = req.body;
     const { id } = req.params;
- 
+
     // Validate rawMaterials
     if (rawMaterials && !Array.isArray(rawMaterials)) {
       return res.status(400).json({
@@ -211,7 +210,7 @@ export const updateMenuItem = async (req, res) => {
 
 
     const updatedMenuItem = await MenuItem.findByIdAndUpdate(
-     id,
+      id,
       {
         name,
         price,
@@ -339,8 +338,8 @@ export const updateTopping = async (req, res) => {
   try {
     const { name, price, rawMaterials } = req.body;
 
-     // Validate rawMaterials
-     if (rawMaterials && !Array.isArray(rawMaterials)) {
+    // Validate rawMaterials
+    if (rawMaterials && !Array.isArray(rawMaterials)) {
       return res.status(400).json({
         success: false,
         message: 'Raw materials must be an array of objects with material ID and quantity.',
@@ -573,7 +572,7 @@ export const deleteAddOn = async (req, res) => {
     if (!deletedAddOn) {
       return res.status(404).json({ success: false, message: 'Addon not found' });
     }
-    
+
     res.status(200).json({ success: true, message: 'Addon deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete addon', error: error.message });

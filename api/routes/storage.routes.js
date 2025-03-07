@@ -1,14 +1,14 @@
 import express from 'express';
-import { 
-  createRawMaterial, 
-  getRawMaterials, 
-  updateRawMaterial, 
-  deleteRawMaterial, 
-  createStockOpname, 
-  getStockOpnames, 
-  getStockOpnameById, 
-  updateStockOpname, 
-  deleteStockOpname 
+import {
+  createRawMaterial,
+  getRawMaterials,
+  updateRawMaterial,
+  deleteRawMaterial,
+  createStockOpname,
+  getStockOpnames,
+  getStockOpnameById,
+  updateStockOpname,
+  deleteStockOpname
 } from '../controllers/storage.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 

@@ -88,7 +88,8 @@ export const signin = async (req, res, next) => {
         maxAge: 3600000, // 1 hour
       })
       .status(200)
-      .json(...rest, token);
+      // .json(...rest, token);
+      .json({ ...rest, token });
   } catch (error) {
     next(error);
   }
