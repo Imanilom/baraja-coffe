@@ -10,7 +10,7 @@ class BottomNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
-      selectedItemColor: Color(0xFF076A3B),
+      selectedItemColor: const Color(0xFF076A3B),
       unselectedItemColor: Colors.grey,
       currentIndex: currentIndex,
       onTap: onTap, // Gunakan callback untuk navigasi tanpa stack menumpuk

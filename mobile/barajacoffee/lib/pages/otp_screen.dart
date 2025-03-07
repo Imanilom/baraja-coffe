@@ -22,7 +22,7 @@ class _OTPPageState extends State<OTPPage> {
     } else {
       // Jika OTP salah
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('OTP salah!')),
+        const SnackBar(content: Text('OTP salah!')),
       );
     }
   }
@@ -52,15 +52,15 @@ class _OTPPageState extends State<OTPPage> {
       },
       textInputAction: TextInputAction.next,
       maxLength: 1,
-      keyboardType: TextInputType.numberWithOptions(signed: false, decimal: false), // Hanya angka
-      decoration: InputDecoration(
+      keyboardType: const TextInputType.numberWithOptions(signed: false, decimal: false), // Hanya angka
+      decoration: const InputDecoration(
         counterText: '',
         border: OutlineInputBorder(),
         focusedBorder: OutlineInputBorder(
           borderSide: BorderSide(color: Color(0xFF076A3B)),
         ),
       ),
-      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
       textAlign: TextAlign.center, // Memastikan angka di tengah
     ),
   );
@@ -85,43 +85,43 @@ class _OTPPageState extends State<OTPPage> {
                   ),
                 ),
                
-                SizedBox(height: 30),
-                Text(
+                const SizedBox(height: 30),
+                const Text(
                   'Verifikasi OTP',
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Text(
                   'Masukkan kode OTP yang dikirim ke +62 ${widget.phoneNumber}',
-                  style: TextStyle(fontSize: 16),
+                  style: const TextStyle(fontSize: 16),
                 ),
-                SizedBox(height: 30),
+                const SizedBox(height: 30),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: List.generate(4, (index) => buildOTPField(index)),
                 ),
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF076A3B),
-                    minimumSize: Size(double.infinity, 50),
+                    backgroundColor: const Color(0xFF076A3B),
+                    minimumSize: const Size(double.infinity, 50),
                   ),
                   onPressed: _verifyOTP,
-                  child: Text('Verifikasi OTP', style: TextStyle(color: Colors.white)),
+                  child: const Text('Verifikasi OTP', style: TextStyle(color: Colors.white)),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Center(
                   child: RichText(
                     text: TextSpan(
                       text: 'Tidak menerima kode? ',
-                      style: TextStyle(color: Colors.black),
+                      style: const TextStyle(color: Colors.black),
                       children: [
                         WidgetSpan(
                           child: GestureDetector(
                             onTap: () {
                               // Resend OTP logic
                             },
-                            child: Text(
+                            child: const Text(
                               'Kirim ulang',
                               style: TextStyle(
                                 color: Color(0xFF076A3B),

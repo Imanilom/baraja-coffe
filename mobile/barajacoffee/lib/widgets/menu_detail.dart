@@ -20,7 +20,7 @@ class _MenuDetailScreenState extends State<MenuDetailScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.close, color: Colors.black),
+          icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () {
             Navigator.pop(context);
           },
@@ -39,7 +39,7 @@ class _MenuDetailScreenState extends State<MenuDetailScreen> {
                 fit: BoxFit.contain,
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Nama Produk dan Deskripsi
             Padding(
@@ -47,40 +47,40 @@ class _MenuDetailScreenState extends State<MenuDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     "Hell Braun Coffee",
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 5),
+                  const SizedBox(height: 5),
                   Text(
                     "Deskripsi singkat produk",
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
                   // Opsi Cupsize
-                  Text(
+                  const Text(
                     "Cupsize",
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       _buildOptionButton("Reg"),
-                      SizedBox(width: 10),
+                      const SizedBox(width: 10),
                       _buildOptionButton("Large"),
                     ],
                   ),
                 ],
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Harga dan Jumlah
             Padding(
@@ -89,7 +89,7 @@ class _MenuDetailScreenState extends State<MenuDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Harga
-                  Text(
+                  const Text(
                     "Rp 25.000",
                     style: TextStyle(
                       fontSize: 18,
@@ -100,7 +100,7 @@ class _MenuDetailScreenState extends State<MenuDetailScreen> {
                   Row(
                     children: [
                       IconButton(
-                        icon: Icon(Icons.remove_circle_outline),
+                        icon: const Icon(Icons.remove_circle_outline),
                         onPressed: () {
                           setState(() {
                             if (_quantity > 1) _quantity--;
@@ -109,10 +109,10 @@ class _MenuDetailScreenState extends State<MenuDetailScreen> {
                       ),
                       Text(
                         '$_quantity',
-                        style: TextStyle(fontSize: 18),
+                        style: const TextStyle(fontSize: 18),
                       ),
                       IconButton(
-                        icon: Icon(Icons.add_circle_outline),
+                        icon: const Icon(Icons.add_circle_outline),
                         onPressed: () {
                           setState(() {
                             _quantity++;
@@ -124,23 +124,23 @@ class _MenuDetailScreenState extends State<MenuDetailScreen> {
                 ],
               ),
             ),
-            SizedBox(height: 30),
+            const SizedBox(height: 30),
 
             // Tombol Tambah ke Keranjang
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF076A3B),
+                  backgroundColor: const Color(0xFF076A3B),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  minimumSize: Size(double.infinity, 50),
+                  minimumSize: const Size(double.infinity, 50),
                 ),
                 onPressed: () {
                   // Tambahkan aksi untuk tambah ke keranjang
                 },
-                child: Text(
+                child: const Text(
                   "Tambah ke keranjang",
                   style: TextStyle(fontSize: 16, color: Colors.white),
                 ),
@@ -161,10 +161,10 @@ class _MenuDetailScreenState extends State<MenuDetailScreen> {
         });
       },
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
         decoration: BoxDecoration(
           color: _selectedCupSize == title
-              ? Color(0xFF076A3B)
+              ? const Color(0xFF076A3B)
               : Colors.grey[200],
           borderRadius: BorderRadius.circular(8),
         ),

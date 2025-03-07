@@ -1,6 +1,5 @@
 import 'package:barajacoffee/widgets/level_widget.dart';
 import 'package:barajacoffee/pages/voucher_screen.dart';
-import 'package:barajacoffee/pages/history_screen.dart';
 import 'package:barajacoffee/widgets/payment_method_screen.dart';
 import 'package:flutter/material.dart';
 

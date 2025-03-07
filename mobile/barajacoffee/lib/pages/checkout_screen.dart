@@ -28,13 +28,13 @@
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: Text(
+          title: const Text(
             "Search Address",
             style: TextStyle(color: Colors.black),
           ),
           centerTitle: true,
           leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: Colors.black),
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
             onPressed: () {
               Navigator.pop(context);
             },
@@ -76,16 +76,16 @@
               padding: const EdgeInsets.all(16.0),
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF076A3B),
+                  backgroundColor: const Color(0xFF076A3B),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  minimumSize: Size(double.infinity, 50),
+                  minimumSize: const Size(double.infinity, 50),
                 ),
                 onPressed: () {
                   // Aksi untuk memilih metode pembayaran
                 },
-                child: Text(
+                child: const Text(
                   "Select Payment",
                   style: TextStyle(fontSize: 16, color: Colors.white),
                 ),
@@ -106,9 +106,9 @@
           });
         },
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
           decoration: BoxDecoration(
-            color: isSelected ? Color(0xFF076A3B) : Colors.grey[100],
+            color: isSelected ? const Color(0xFF076A3B) : Colors.grey[100],
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
@@ -130,10 +130,10 @@
           borderRadius: BorderRadius.circular(10),
         ),
         child: ListTile(
-          leading: Icon(Icons.location_pin, color: Color(0xFF076A3B)),
+          leading: const Icon(Icons.location_pin, color: Color(0xFF076A3B)),
           title: Text(
             address.split(" - ").first,
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           subtitle: Text(
             address.contains(" - ") ? address.split(" - ").last : "",

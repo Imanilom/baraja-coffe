@@ -42,7 +42,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
             if (savedPayments.isNotEmpty) ...[
               const Text("Metode Tersimpan", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              ...savedPayments.map((payment) => _buildSavedPaymentCard(payment)).toList(),
+              ...savedPayments.map((payment) => _buildSavedPaymentCard(payment)),
               const SizedBox(height: 20),
             ],
             const Text("Pilih Metode Pembayaran", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),

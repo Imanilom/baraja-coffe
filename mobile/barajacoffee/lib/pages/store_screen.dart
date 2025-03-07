@@ -99,7 +99,7 @@ class _StoreScreenState extends State<StoreScreen> {
           ),
 
           // Categories - Scrollable
-          Container(
+          SizedBox(
             height: 50,
             child: ListView(
               scrollDirection: Axis.horizontal,

@@ -22,34 +22,34 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> with SingleTick
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("History"),
+        title: const Text("History"),
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.black),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       backgroundColor: Colors.grey[200],
       body: SafeArea(
         child: Column(
           children: [
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
               child: TabBar(
                 controller: _tabController,
-                indicatorColor: Color(0xFF076A3B),
+                indicatorColor: const Color(0xFF076A3B),
                 indicatorSize: TabBarIndicatorSize.tab,
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.black,
                 indicator: BoxDecoration(
-                  color: Color(0xFF076A3B),
+                  color: const Color(0xFF076A3B),
                   borderRadius: BorderRadius.circular(8.0),
                 ),
-                tabs: [
+                tabs: const [
                   Tab(text: "On Process"),
                   Tab(text: "History"),
                 ],
               ),
             ),
-            SizedBox(height: 8.0),
+            const SizedBox(height: 8.0),
 
             Expanded(
               child: TabBarView(
@@ -128,9 +128,9 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> with SingleTick
     }).toList();
 
     return filteredOrders.isEmpty
-        ? Center(child: Text("No orders found", style: TextStyle(color: Colors.grey)))
+        ? const Center(child: Text("No orders found", style: TextStyle(color: Colors.grey)))
         : ListView.builder(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             itemCount: filteredOrders.length,
             itemBuilder: (context, index) {
               var order = filteredOrders[index];
@@ -142,16 +142,16 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> with SingleTick
   Widget buildOrderCard(Map<String, dynamic> order) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 8),
       elevation: 3,
       color: Colors.white,
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(order["id"], style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            SizedBox(height: 4),
+            Text(order["id"], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -159,9 +159,9 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> with SingleTick
                 buildStatusChip(order["status"]),
               ],
             ),
-            SizedBox(height: 8),
-            Text("Total: ${order["total"]}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-            SizedBox(height: 10),
+            const SizedBox(height: 8),
+            Text("Total: ${order["total"]}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
@@ -188,7 +188,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> with SingleTick
     if (status == "On Process") {
       color = Colors.orange;
     } else if (status == "Completed") {
-      color = Color(0xFF076A3B);
+      color = const Color(0xFF076A3B);
     } else {
       color = Colors.red;
     }

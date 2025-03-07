@@ -104,7 +104,7 @@ class _VoucherScreenState extends State<VoucherScreen> with SingleTickerProvider
                   ),
                   Chip(
                     label: Text(voucher['category'].toUpperCase(),
-                        style: TextStyle(color: Colors.white)),
+                        style: const TextStyle(color: Colors.white)),
                     backgroundColor: mainColor,
                   ),
                 ],

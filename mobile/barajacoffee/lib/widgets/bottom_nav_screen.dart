@@ -16,10 +16,10 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = [
-    HomeScreen(),
-    VoucherScreen(),
-    OrderHistoryScreen(),
-    ProfileScreen(),
+    const HomeScreen(),
+    const VoucherScreen(),
+    const OrderHistoryScreen(),
+    const ProfileScreen(),
   ];
 
   void _onTabTapped(int index) {

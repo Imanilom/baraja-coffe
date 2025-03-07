@@ -167,7 +167,7 @@ class HomeScreen extends StatelessWidget {
                     icon: const Icon(Icons.phone),
                     label: const Text('Hubungi Kami'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF076A3B),
+                      backgroundColor: const Color(0xFF076A3B),
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -213,7 +213,7 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Column(
               children: [
-                Icon(icon, size: 30, color: Color(0xFF076A3B)),
+                Icon(icon, size: 30, color: const Color(0xFF076A3B)),
                 const SizedBox(height: 6),
                 Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
@@ -234,7 +234,7 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 40, color: Color(0xFF076A3B)),
+            Icon(icon, size: 40, color: const Color(0xFF076A3B)),
             const SizedBox(height: 2),
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
             Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12), textAlign: TextAlign.center),

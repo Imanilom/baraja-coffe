@@ -19,13 +19,12 @@ const RawMaterialPage = () => {
     try {
       const response = await axios.get('/api/storage/raw-material');
       setRawMaterials(response.data.data || []);
-      setError(null);
     } catch (err) {
-      console.error('Fetch error:', err);
-      setError('Failed to fetch raw materials');
-      setRawMaterials([]);
+      console.error('Fetch error:', err.response?.data || err.message);
     }
   };
+  
+  
 
   useEffect(() => {
     fetchRawMaterials();

@@ -24,36 +24,36 @@ class _MenuScreenState extends State<MenuScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Menu"),
+        title: const Text("Menu"),
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.black),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: Column(
         children: [
           // Tabs
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: TabBar(
               controller: _tabController,
-              indicatorColor: Color(0xFF076A3B),
+              indicatorColor: const Color(0xFF076A3B),
               indicatorSize: TabBarIndicatorSize.tab,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.black,
               indicator: BoxDecoration(
-                color: Color(0xFF076A3B),
+                color: const Color(0xFF076A3B),
                 borderRadius: BorderRadius.circular(8.0),
               ),
-              tabs: [
+              tabs: const [
                 Tab(text: 'Dine in'),
                 Tab(text: 'Pickup'),
                 Tab(text: 'Delivery'),
               ],
             ),
           ),
-          SizedBox(height: 8.0, width: 10),
+          const SizedBox(height: 8.0, width: 10),
 
-          ListTile(
+          const ListTile(
             leading: Icon(Icons.location_on, color: Colors.grey),
             title: Text(
               "Baraja Amphitheater, Tuparev",
@@ -61,27 +61,27 @@ class _MenuScreenState extends State<MenuScreen>
             ),
             trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
           ),
-          Divider(),
+          const Divider(),
 
           DefaultTabController(
             length: 3,
             child: TabBar(
-              indicatorColor: Color(0xFF076A3B),
+              indicatorColor: const Color(0xFF076A3B),
               labelColor: Colors.white,
               indicatorSize: TabBarIndicatorSize.tab,
               unselectedLabelColor: Colors.black,
               indicator: BoxDecoration(
-                color: Color(0xFF076A3B),
+                color: const Color(0xFF076A3B),
                 borderRadius: BorderRadius.circular(8.0),
               ),
-              tabs: [
+              tabs: const [
                 Tab(text: 'Coffee'),
                 Tab(text: 'Non Coffee'),
                 Tab(text: 'Food'),
               ],
             ),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
 
           // ListView untuk item menu
           Expanded(
@@ -99,20 +99,20 @@ class _MenuScreenState extends State<MenuScreen>
           if (cartItems.isNotEmpty)
             Container(
               color: Colors.white,
-              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     'Keranjang (${cartItems.values.reduce((a, b) => a + b)})',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                ElevatedButton(
                   onPressed: () {
                     showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
-                      shape: RoundedRectangleBorder(
+                      shape: const RoundedRectangleBorder(
                         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                       ),
                       builder: (_) => DraggableScrollableSheet(
@@ -129,7 +129,7 @@ class _MenuScreenState extends State<MenuScreen>
                       ),
                     );
                   },
-                  child: Text('Lihat Keranjang'),
+                  child: const Text('Lihat Keranjang'),
                 ),
 
                 ],
@@ -146,7 +146,7 @@ Widget buildMenuItem(String title, String price, String imageUrl) {
   int quantity = cartItems[title] ?? 0; // Jumlah item dalam keranjang
 
   return Card(
-    margin: EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+    margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     elevation: 2,
     child: InkWell(
@@ -171,7 +171,7 @@ Widget buildMenuItem(String title, String price, String imageUrl) {
       }
     },
       child: ListTile(
-        contentPadding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: Image.network(
@@ -183,18 +183,18 @@ Widget buildMenuItem(String title, String price, String imageUrl) {
         ),
         title: Text(
           title,
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         subtitle: Text(
           price,
-          style: TextStyle(fontSize: 14, color: Colors.black54),
+          style: const TextStyle(fontSize: 14, color: Colors.black54),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (quantity > 0)
               IconButton(
-                icon: Icon(Icons.remove_circle_outline, color: Colors.red),
+                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
                 onPressed: () {
                   // Kurangi jumlah item
                   setState(() {
@@ -209,10 +209,10 @@ Widget buildMenuItem(String title, String price, String imageUrl) {
             if (quantity > 0)
               Text(
                 '$quantity',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             IconButton(
-              icon: Icon(Icons.add_circle_outline, color: Color(0xFF076A3B)),
+              icon: const Icon(Icons.add_circle_outline, color: Color(0xFF076A3B)),
               onPressed: () {
                 // Tambahkan item ke keranjang
                 setState(() {
@@ -238,7 +238,7 @@ class CartScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white70,
         
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -248,7 +248,7 @@ class CartScreen extends StatelessWidget {
         children: [
           Center(
             child: Container(
-              margin: EdgeInsets.symmetric(vertical: 10),
+              margin: const EdgeInsets.symmetric(vertical: 10),
               width: 50,
               height: 5,
               decoration: BoxDecoration(
@@ -257,8 +257,8 @@ class CartScreen extends StatelessWidget {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
               'Keranjang',
               style: TextStyle(
@@ -268,7 +268,7 @@ class CartScreen extends StatelessWidget {
               ),
             ),
           ),
-          Divider(),
+          const Divider(),
           Expanded(
             child: ListView.builder(
               controller: scrollController,
@@ -276,21 +276,21 @@ class CartScreen extends StatelessWidget {
               itemBuilder: (context, index) {
                 String title = cartItems.keys.elementAt(index);
                 return ListTile(
-                  leading: Icon(Icons.shopping_basket, color: Color(0xFF076A3B)),
+                  leading: const Icon(Icons.shopping_basket, color: Color(0xFF076A3B)),
                   title: Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   subtitle: Text(
                     'Jumlah: ${cartItems[title]}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.black54,
                     ),
                   ),
-                  trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                 );
               },
             ),
@@ -308,13 +308,13 @@ class CartScreen extends StatelessWidget {
             },
 
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF076A3B),
+                backgroundColor: const Color(0xFF076A3B),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                padding: EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: Center(
+              child: const Center(
                 child: Text(
                   'Buat Pesanan',
                   style: TextStyle(

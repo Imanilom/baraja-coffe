@@ -17,7 +17,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
   Widget build(BuildContext context) {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
-      selectedItemColor: Color(0xFF076A3B),
+      selectedItemColor: const Color(0xFF076A3B),
       unselectedItemColor: Colors.grey,
       currentIndex: _currentIndex, // Indeks tab aktif
       onTap: (index) {
