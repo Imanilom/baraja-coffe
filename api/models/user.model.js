@@ -1,11 +1,11 @@
 import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
-  name: { type: String, required: true },
+  username: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  phone: { type: String, required: true },
+  phone: { type: String, required: false },
   password: { type: String, required: true },
-  address: { type: String, default: '' },
+  address: { type: String, default: [] },
   profilePicture: {
     type: String,
     default: 'https://img.freepik.com/premium-vector/man-avatar-profile-picture-vector-illustration_268834-538.jpg',
@@ -13,10 +13,11 @@ const UserSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['Admin', 'Manager', 'Customer', 'Staff', 'Cashier'],
-    required: true
+    required: true,
+    default: 'Customer'
   },
-  outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
-  workstation: { type: mongoose.Schema.Types.ObjectId, ref: 'Workstation', default: null },
+  // outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
+  // workstation: { type: mongoose.Schema.Types.ObjectId, ref: 'Workstation', default: null },
   claimedVouchers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' }],
   loyaltyPoints: { type: Number, required: true, default: 0 },
 }, { timestamps: true });
