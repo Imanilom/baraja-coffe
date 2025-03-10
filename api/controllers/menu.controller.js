@@ -89,6 +89,7 @@ export const getMenuItems = async (req, res) => {
     // Fetch all menu items
     const menuItems = await MenuItem.find().populate('toppings').populate('addOns');
 
+    console.log('menuItems:', menuItems);
     // Fetch active promotions
     const currentDate = new Date();
     const activePromotions = await Promotion.find().populate('applicableItems');

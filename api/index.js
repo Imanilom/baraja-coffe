@@ -20,7 +20,7 @@ import posRoutes from './routes/pos.routes.js';
 dotenv.config();
 
 mongoose
-  .connect("mongodb+srv://barajacoffee:MwkbCFpvkDtopVR3@baraja.zbyaf.mongodb.net/?retryWrites=true&w=majority&appName=Baraja")
+  .connect(process.env.MONGO)
   .then(() => {
     console.log('Connected to MongoDB');
   })
@@ -48,9 +48,10 @@ app.listen(3000, () => {
 });
 
 app.use('/api/user', userRoutes);
+app.use('/api/staff', posRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', orderRoutes);
-app.use('/api', menuRoutes);
+app.use('/api/menu', menuRoutes);
 app.use('/api/promotion', promotionRoutes);
 app.use('/api/voucher', voucherRoutes);
 app.use('/api/storage', storageRoutes);
