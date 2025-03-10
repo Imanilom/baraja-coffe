@@ -30,16 +30,18 @@ export default function SignIn() {
         body: JSON.stringify(formData),
       });
       const data = await res.json();
-      if (data.success === false) {
-        dispatch(signInFailure(data));
-        return;
+  
+      if (!res.ok) {
+        throw new Error(data.message || 'Sign-in failed');
       }
+  
       dispatch(signInSuccess(data));
       navigate('/');
-    } catch (error) {
-      dispatch(signInFailure(error));
+    } catch (err) {
+      dispatch(signInFailure({ message: err.message })); // Pastikan error berbentuk objek
     }
   };
+  
   return (
     <div className='p-3 max-w-lg mx-auto'>
       <h1 className='text-3xl text-center font-semibold my-7'>Sign In</h1>
@@ -73,8 +75,9 @@ export default function SignIn() {
         </Link>
       </div>
       <p className='text-red-700 mt-5'>
-        {error ? error.message || 'Something went wrong!' : ''}
+        {error && typeof error === 'object' ? error.message || 'Something went wrong!' : ''}
       </p>
+
     </div>
   );
 }

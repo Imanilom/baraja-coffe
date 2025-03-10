@@ -268,13 +268,31 @@ export const createTopping = async (req, res) => {
     }
 
     if (rawMaterials) {
-      // Ensure each raw material has `materialId` and `quantityRequired`
+      // Validate each raw material
       for (let i = 0; i < rawMaterials.length; i++) {
         const { materialId, quantityRequired } = rawMaterials[i];
+        
+        // Check existence of required fields
         if (!materialId || quantityRequired === undefined) {
           return res.status(400).json({
             success: false,
             message: `Raw material at index ${i} is missing 'materialId' or 'quantityRequired'.`,
+          });
+        }
+
+        // Validate quantity type and value
+        const quantity = Number(quantityRequired);
+        if (isNaN(quantity)) {
+          return res.status(400).json({
+            success: false,
+            message: `Quantity must be a number for raw material at index ${i}.`,
+          });
+        }
+
+        if (quantity <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: `Quantity must be greater than 0 for raw material at index ${i}.`,
           });
         }
       }
@@ -302,7 +320,10 @@ export const createTopping = async (req, res) => {
     const topping = new Topping({
       name,
       price,
-      rawMaterials: rawMaterials || [], // Save raw materials associated with the topping
+      rawMaterials: rawMaterials.map(rm => ({
+        materialId: rm.materialId,
+        quantityRequired: Number(rm.quantityRequired)
+      })) || [],
     });
 
     const savedTopping = await topping.save();
@@ -311,6 +332,7 @@ export const createTopping = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to create topping', error: error.message });
   }
 };
+
 
 // Get all toppings
 export const getToppings = async (req, res) => {
