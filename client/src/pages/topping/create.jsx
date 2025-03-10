@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Navigate } from "react-router-dom";
 
 const CreateTopping = ({ fetchToppings, onCancel }) => {
+  const navigate = useNavigate(); 
   const [formData, setFormData] = useState({ name: "", price: "", rawMaterials: [] });
   const [rawMaterials, setRawMaterials] = useState([]);
 
@@ -26,25 +28,29 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
   };
 
   const handleRawMaterialChange = (e, materialId) => {
-    const { value } = e.target;
+    let quantity = parseInt(e.target.value, 10);
+    if (isNaN(quantity) || quantity < 1) {
+      quantity = 1;
+    }
     setFormData((prevData) => {
       const updatedRawMaterials = prevData.rawMaterials.map((material) => {
         if (material.materialId === materialId) {
-          return { ...material, quantityRequired: value };
+          return { ...material, quantityRequired: quantity };
         }
         return material;
       });
       return { ...prevData, rawMaterials: updatedRawMaterials };
     });
   };
+  
 
   const handleRawMaterialSelect = (e) => {
     const { value } = e.target;
     const materialExists = formData.rawMaterials.some(
       (material) => material.materialId === value
     );
-
-    if (!materialExists) {
+  
+    if (!materialExists && value) {
       setFormData((prevData) => ({
         ...prevData,
         rawMaterials: [
@@ -54,6 +60,7 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
       }));
     }
   };
+  
 
   const handleRemoveRawMaterial = (materialId) => {
     setFormData((prevData) => ({
@@ -70,8 +77,8 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
     try {
       await axios.post("/api/toppings", formData);
       setFormData({ name: "", price: "", rawMaterials: [] });
-      Navigate("/toppings");
-      onCancel();
+      navigate("/toppings");
+      if (onCancel) onCancel();
     } catch (error) {
       console.error("Error creating topping:", error);
     }
@@ -130,7 +137,8 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
                 className="w-20 border rounded px-3 py-2 mr-2"
                 placeholder="Quantity"
                 min="1"
-              />
+                step="1"
+              />  
               <button
                 type="button"
                 onClick={() => handleRemoveRawMaterial(material.materialId)}

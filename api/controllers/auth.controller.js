@@ -81,18 +81,21 @@ export const signin = async (req, res, next) => {
     if (!isValidPassword) return next(errorHandler(401, 'Wrong credentials'));
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    const { password: hashedPassword, ...rest } = user._doc;
+
+    const { password: _, ...userData } = user._doc;
+
     res
       .cookie('access_token', token, {
         httpOnly: true,
-        maxAge: 3600000, // 1 hour
+        maxAge: 3600000, // 1 jam
       })
       .status(200)
-      .json(...rest, token);
+      .json({ ...userData, token });
   } catch (error) {
     next(error);
   }
 };
+
 
 export const google = async (req, res, next) => {
   try {

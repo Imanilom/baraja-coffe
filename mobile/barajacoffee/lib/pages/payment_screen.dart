@@ -25,13 +25,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(
+        title: const Text(
           "Payment",
           style: TextStyle(color: Colors.black),
         ),
         centerTitle: true,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () {
             Navigator.pop(context);
           },
@@ -43,7 +43,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
             child: Container(
-              padding: EdgeInsets.symmetric(vertical: 12.0),
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
               decoration: BoxDecoration(
                 color: Colors.grey[200],
                 borderRadius: BorderRadius.circular(8.0),
@@ -51,7 +51,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               child: Center(
                 child: Text(
                   "Rp ${widget.totalAmount.toStringAsFixed(3)}",
-                  style: TextStyle(fontSize: 20.0, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: 20.0, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -66,7 +66,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 itemBuilder: (context, index) {
                   final payment = paymentMethods[index];
                   return Card(
-                    margin: EdgeInsets.symmetric(vertical: 8.0),
+                    margin: const EdgeInsets.symmetric(vertical: 8.0),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -78,7 +78,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       ),
                       title: Text(
                         payment["name"]!,
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       trailing: Radio<String>(
                         value: payment["name"]!,
@@ -106,11 +106,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF076A3B),
+                backgroundColor: const Color(0xFF076A3B),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                minimumSize: Size(double.infinity, 50),
+                minimumSize: const Size(double.infinity, 50),
               ),
               onPressed: selectedPaymentMethod != null
                   ? () {
@@ -119,7 +119,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         context: context,
                         builder: (context) {
                           return AlertDialog(
-                            title: Text("Payment Successful"),
+                            title: const Text("Payment Successful"),
                             content: Text(
                                 "You have successfully paid using $selectedPaymentMethod."),
                             actions: [
@@ -127,7 +127,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                 onPressed: () {
                                   Navigator.pop(context);
                                 },
-                                child: Text("OK"),
+                                child: const Text("OK"),
                               ),
                             ],
                           );
@@ -135,7 +135,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       );
                     }
                   : null,
-              child: Text(
+              child: const Text(
                 "Pay",
                 style: TextStyle(fontSize: 16, color: Colors.white),
               ),
