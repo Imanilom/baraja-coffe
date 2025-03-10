@@ -87,7 +87,7 @@ export const createMenuItem = async (req, res) => {
 export const getMenuItems = async (req, res) => {
   try {
     // Fetch all menu items
-    const menuItems = await MenuItem.find().populate('toppings');
+    const menuItems = await MenuItem.find().populate('toppings').populate('addOns');
 
     // Fetch active promotions
     const currentDate = new Date();
@@ -166,7 +166,7 @@ export const getMenuItemById = async (req, res) => {
 // Update a menu item
 export const updateMenuItem = async (req, res) => {
   try {
-    const { name, price, description, category, stock, imageURL, toppings, addons, rawMaterials } = req.body;
+    const { name, price, description, category, stock, imageURL, toppings, addOns, rawMaterials } = req.body;
     const { id } = req.params;
 
     // Validate rawMaterials
@@ -219,7 +219,7 @@ export const updateMenuItem = async (req, res) => {
         stock: stock || 0,
         imageURL: imageURL || '',
         toppings: toppings || [],
-        addons: addons || [],
+        addOns: addOns || [],
         rawMaterials: rawMaterials || [],
       },
       { new: true }
