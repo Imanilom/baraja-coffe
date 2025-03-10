@@ -1,13 +1,15 @@
 import 'package:barajacoffee/widgets/bottom_nav_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:hive_flutter/hive_flutter.dart';
 import 'pages/login.dart';
 import 'pages/register.dart';
-// Tambahkan ini
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter(); // Inisialisasi Hive
+  await Hive.openBox('session'); // Membuka box untuk menyimpan sesi login
+
   runApp(const BarajaCoffeeApp());
 }
 
@@ -60,8 +62,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _checkSession() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    var box = Hive.box('session');
+    bool isLoggedIn = box.get('isLoggedIn', defaultValue: false);
 
     Timer(const Duration(seconds: 3), () {
       if (isLoggedIn) {
