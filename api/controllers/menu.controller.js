@@ -176,7 +176,7 @@ export const getMenuItemById = async (req, res) => {
 // Update a menu item
 export const updateMenuItem = async (req, res) => {
   try {
-    const { name, price, description, category, stock, imageURL, toppings, addons, rawMaterials } = req.body;
+    const { name, price, description, category, stock, imageURL, toppings, addOns, rawMaterials } = req.body;
     const { id } = req.params;
 
     // Validate rawMaterials
@@ -229,7 +229,7 @@ export const updateMenuItem = async (req, res) => {
         stock: stock || 0,
         imageURL: imageURL || '',
         toppings: toppings || [],
-        addons: addons || [],
+        addOns: addOns || [],
         rawMaterials: rawMaterials || [],
       },
       { new: true }

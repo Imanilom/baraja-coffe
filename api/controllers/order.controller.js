@@ -184,14 +184,16 @@ export const cancelOrder = async (req, res) => {
 // Create Order Controller
 export const createOrderAndPayment = async (req, res) => {
   try {
-    const { user, items, totalPrice, orderType, deliveryAddress, tableNumber, paymentMethod, phoneNumber } = req.body;
+    const { customerId, customer, cashier, items, totalPrice, orderType, deliveryAddress, tableNumber, paymentMethod, phoneNumber } = req.body;
 
     // Validate stock availability
     await validateStock(items);
 
     // Create order record
     const order = new Order({
-      user,
+      customerId,
+      customer,
+      cashier,
       items,
       totalPrice,
       orderType,

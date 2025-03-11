@@ -9,7 +9,9 @@ const OrderItemSchema = new mongoose.Schema({
 });
 
 const OrderSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  customer: { type: String },
+  cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   items: [OrderItemSchema],
   totalPrice: { type: Number, required: true },
   status: { type: String, enum: ['Pending', 'Completed', 'Canceled'], default: 'Pending' },
