@@ -1,6 +1,4 @@
 import { Outlet } from '../models/Outlet.model.js';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 
 export const createOutlet = async (req, res) => {
   try {

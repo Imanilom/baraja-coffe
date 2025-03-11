@@ -28,7 +28,6 @@ export const createRawMaterial = async (req, res) => {
 export const getRawMaterials = async (req, res) => {
   try {
     const rawMaterials = await RawMaterial.find();
-    console.log("Raw Materials from DB:", rawMaterials); // Tambahkan log ini
     if (!rawMaterials || rawMaterials.length === 0) {
       return res.status(404).json({ success: false, message: 'No raw materials found' });
     }
