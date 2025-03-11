@@ -15,6 +15,7 @@ import storageRoutes from './routes/storage.routes.js';
 import voucherRoutes from './routes/voucher.routes.js';
 import contentRoutes from './routes/content.routes.js';
 import OutletRoutes from './routes/outlet.routes.js';
+import posRoutes from './routes/pos.routes.js';
 
 dotenv.config();
 
@@ -47,14 +48,16 @@ app.listen(3000, () => {
 });
 
 app.use('/api/user', userRoutes);
+app.use('/api/staff', posRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', orderRoutes);
-app.use('/api', menuRoutes);
+app.use('/api/menu', menuRoutes);
 app.use('/api/promotion', promotionRoutes);
 app.use('/api/voucher', voucherRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/outlet', OutletRoutes);
+app.use('/api/workstation', posRoutes);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
