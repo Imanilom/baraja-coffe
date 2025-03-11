@@ -100,7 +100,6 @@ export const signin = async (req, res, next) => {
   try {
     const { identifier, password } = req.body;
 
-
     if (!identifier || !password) {
       return next(errorHandler(400, "Identifier and password are required"));
     }
@@ -114,7 +113,7 @@ export const signin = async (req, res, next) => {
       user = await User.findOne({ email: identifier });
       if (!user || user.role !== "customer") {
         return next(errorHandler(403, "Access denied"));
-      }
+      } 
       tokenExpiry = "7d";
     } else {
       user = await User.findOne({ username: identifier })

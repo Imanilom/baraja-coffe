@@ -82,31 +82,43 @@ export const createMenuItem = async (req, res) => {
   }
 };
 
-
 // Get all menu items
 export const getMenuItems = async (req, res) => {
   try {
-    // Fetch all menu items
+    // Fetch all menu items dengan populate yang benar
     const menuItems = await MenuItem.find()
-      .populate({
-        path: 'addOns',
-        populate: {
-          path: 'rawMaterials.materialId',
-          model: 'RawMaterial'
+      .populate([
+        {
+          path: 'addOns',
+          populate: {
+            path: 'rawMaterials.materialId',
+            model: 'RawMaterial'
+          }
+        },
+        {
+          path: 'toppings'
+        },
+        {
+          path: 'rawMaterials.materialId'
+        },
+        {
+          path: 'availableAt'
         }
-      })
-      .populate('toppings')
-      .populate('rawMaterials.materialId');
-    // console.log(JSON.stringify(menuItems, null, 2));
-    // console.log('menuItems:', menuItems);
-    // Fetch active promotions
-    const currentDate = new Date();
-    const activePromotions = await Promotion.find().populate('applicableItems');
+      ]);
 
-    // Adjust prices for items based on promotions
+    // Filter promosi aktif berdasarkan tanggal
+    const currentDate = new Date();
+    const activePromotions = await Promotion.find({
+      startDate: { $lte: currentDate },
+      endDate: { $gte: currentDate }
+    }).populate('applicableItems');
+
+    // Adjust prices for items based on active promotions
     const updatedMenuItems = menuItems.map((item) => {
       const promotion = activePromotions.find((promo) =>
-        promo.applicableItems.some((applicableItem) => applicableItem._id.toString() === item._id.toString())
+        promo.applicableItems.some(applicableItem => 
+          applicableItem._id.toString() === item._id.toString()
+        )
       );
 
       if (promotion) {
@@ -115,17 +127,15 @@ export const getMenuItems = async (req, res) => {
           ...item.toObject(),
           discount: promotion.discountPercentage,
           discountedPrice: parseFloat((item.price - discount).toFixed(2)),
-          promotionTitle: promotion.title, // Ensure the title is passed
-
+          promotionTitle: promotion.title
         };
       }
 
-      // If no promotion, remove discountedPrice
-      const { discountedPrice, promotionTitle, ...itemWithoutDiscountedPrice } = item.toObject();
-      return itemWithoutDiscountedPrice;
+      return item.toObject();
     });
 
     res.status(200).json({ success: true, data: updatedMenuItems });
+    console.log('Menu items fetched successfully');
   } catch (error) {
     res.status(500).json({
       success: false,
