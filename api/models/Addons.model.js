@@ -11,8 +11,8 @@ const addOnSchema = new mongoose.Schema({
   ],
   rawMaterials: [
     {
-      materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
-      quantityRequired: { type: Number, required: true }
+      materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial', required: true },
+      quantityRequired: { type: Number, required: true, min: 1 } // Tambahkan ini
     }
   ],
   isActive: { type: Boolean, default: true },

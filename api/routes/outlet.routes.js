@@ -5,8 +5,7 @@ import {
   getOutletById,
   updateOutlet,
   deleteOutlet,
-  findNearestOutlet,
-  loginOutlet,
+  findNearestOutlet
 } from '../controllers/outlet.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -18,7 +17,6 @@ const adminAccess = verifyToken(['admin', 'superadmin']);
 // router.post('/', adminAccess, createOutlet);
 router.post('/createOutlet', createOutlet);
 
-router.post('/loginOutlet', loginOutlet);
 
 // Get all outlets
 router.get('/', getOutlets);
