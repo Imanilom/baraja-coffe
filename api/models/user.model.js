@@ -12,9 +12,9 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['Admin', 'Customer', 'Staff'],
+    enum: ['admin', 'customer', 'staff', 'cashier junior', 'cashier senior', 'akuntan', 'inventory'],
     required: true,
-    default: 'Customer',
+    default: 'customer',
   },
   // outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' }, // Kasir & Staff harus terkait dengan outlet
   // claimedVouchers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' }],

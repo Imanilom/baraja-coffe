@@ -72,7 +72,7 @@ router.get('/cashier', verifyToken, authorizeCashier(['bar', 'bar-outlet-2', 'ba
 });
 
 // POS Routes
-router.get('/kitchen', billKitchen);
-router.get('/bar', billBar);
+router.get('/kitchen/:id', billKitchen);
+router.get('/bar/:id', billBar);
 
 export default router;
