@@ -8,7 +8,7 @@ const contentSchema = new mongoose.Schema({
   },
   imageUrls: {
     type: [String],
-    default: ['https://placehold.co/600x400/png'], 
+    default: ['https://placehold.co/1920x1080/png'], 
   },
   description: {
     type: String,

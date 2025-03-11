@@ -42,6 +42,22 @@ const UserSchema = new mongoose.Schema({
     required: true,
     default: 0
   },
+  level: { 
+    type: Number, 
+    required: true, 
+    default: 1, // Level awal
+    min: 1 
+  },
+  experiencePoints: { 
+    type: Number, 
+    required: true, 
+    default: 0, // XP yang diperlukan sebelum naik level
+    min: 0
+  },
+  referralCode: { 
+    type: String, 
+    unique: true 
+  },
 }, { timestamps: true });
 
 const User = mongoose.model('User', UserSchema);

@@ -6,17 +6,20 @@ const OrderItemSchema = new mongoose.Schema({
     toppings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }],
     quantity: { type: Number, required: true },
     subtotal: { type: Number, required: true },
+    isPrinted: { type: Boolean, default: false },
   });
   
   const OrderSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    user: { type: String, required: true },
+    cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     items: [OrderItemSchema],
     totalPrice: { type: Number, required: true },
-    status: { type: String, enum: ['Pending', 'Completed', 'Canceled'], default: 'Pending' },
+    status: { type: String, enum: ['Pending','OnProcess', 'Completed', 'Canceled'], default: 'Pending' },
     paymentMethod: { type: String, enum: ['Cash', 'Card', 'E-Wallet', 'Debit'], required: true },
     orderType: { type: String, enum: ['Dine-In', 'Pickup', 'Delivery'], required: true },
     deliveryAddress: { type: String },
-    tableNumber: { type: Number },
+    tableNumber: { type: String },
+    type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
     voucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
   }, { timestamps: true });
   

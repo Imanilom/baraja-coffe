@@ -31,6 +31,10 @@ const VoucherSchema = new mongoose.Schema({
         type: Number, 
         required: true 
     }, 
+    image: { 
+        type: String,
+        default: 'https://placehold.co/1920x1080/png',
+    },
   }, { timestamps: true });
   
   export const Voucher = mongoose.model('Voucher', VoucherSchema);
