@@ -2,11 +2,12 @@ import mongoose from 'mongoose';
 
 const addOnSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
-  type: { type: String, enum: ['size', 'temperature', 'spiciness', 'custom'], required: true },
+  type: { type: String, required: true }, // Tidak lagi terbatas pada enum untuk fleksibilitas
   options: [
     {
       label: { type: String, required: true },
-      price: { type: Number, required: true, min: 0 }
+      price: { type: Number, required: true, min: 0 },
+      metadata: { type: mongoose.Schema.Types.Mixed } // Untuk menyimpan data tambahan jika diperlukan
     }
   ],
   rawMaterials: [
@@ -19,6 +20,8 @@ const addOnSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// Indeks untuk pencarian lebih cepat
+addOnSchema.index({ name: 1, type: 1 });
 
 const AddOn = mongoose.model('AddOn', addOnSchema);
 
