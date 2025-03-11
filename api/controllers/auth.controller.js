@@ -3,7 +3,7 @@ import bcryptjs from 'bcryptjs';
 import { errorHandler } from '../utils/error.js';
 import jwt from 'jsonwebtoken';
 import admin from 'firebase-admin';
-
+import { verifyToken } from '../utils/verifyUser.js';
 
 // Initialize Firebase Admin
 // admin.initializeApp({
@@ -70,31 +70,90 @@ export const signup = async (req, res, next) => {
   }
 };
 
-export const signin = async (req, res, next) => {
-  const { email, password } = req.body;
+// export const signin = async (req, res, next) => {
+//   const { email, password } = req.body;
 
+//   try {
+//     const user = await User.findOne({ email });
+//     if (!user) return next(errorHandler(404, 'User not found'));
+
+//     const isValidPassword = bcryptjs.compareSync(password, user.password);
+//     if (!isValidPassword) return next(errorHandler(401, 'Wrong credentials'));
+
+//     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+//     const { password: hashedPassword, ...rest } = user._doc;
+//     res
+//       .cookie('access_token', token, {
+//         httpOnly: true,
+//         maxAge: 3600000, // 1 hour
+//       })
+//       .status(200)
+//       // .json(...rest, token);
+//       .json({ ...rest, token });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
+
+export const signin = async (req, res, next) => {
   try {
-    const user = await User.findOne({ email });
-    if (!user) return next(errorHandler(404, 'User not found'));
+    const { identifier, password } = req.body;
+
+
+    if (!identifier || !password) {
+      return next(errorHandler(400, "Identifier and password are required"));
+    }
+
+    let user = null;
+    let tokenExpiry = "1h";
+
+
+    if (typeof identifier === "string" && identifier.includes("@")) {
+
+      user = await User.findOne({ email: identifier });
+      if (!user || user.role !== "customer") {
+        return next(errorHandler(403, "Access denied"));
+      }
+      tokenExpiry = "7d";
+    } else {
+      user = await User.findOne({ username: identifier })
+        .populate({
+          path: "outlet.outletId",
+          select: ["name", "admin"],
+          populate: { path: "admin", select: "name" }
+
+        });
+      if (!user || !["superadmin", "admin", "staff", "cashier"].includes(user.role)) {
+        return next(errorHandler(403, "Access denied"));
+      }
+      tokenExpiry = "1d";
+    }
+
+    if (!user) return next(errorHandler(404, "User not found"));
+
 
     const isValidPassword = bcryptjs.compareSync(password, user.password);
-    if (!isValidPassword) return next(errorHandler(401, 'Wrong credentials'));
+    if (!isValidPassword) return next(errorHandler(401, "Wrong credentials"));
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    const { password: _, ...userData } = user._doc;
+    const token = jwt.sign(
+      { id: user._id, role: user.role, cashierType: user.cashierType },
+      process.env.JWT_SECRET,
+      { expiresIn: tokenExpiry }
+    );
+    const { password: hashedPassword, ...rest } = user._doc;
+    res.cookie("access_token", token, {
+      httpOnly: true,
+      maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 7 hari atau 1 hari dalam ms
+    }).status(200).json({ ...rest, token });
 
-    res
-      .cookie('access_token', token, {
-        httpOnly: true,
-        maxAge: 3600000, // 1 jam
-      })
-      .status(200)
-      .json({ ...userData, token });
   } catch (error) {
     next(error);
   }
 };
+
+
 
 
 export const google = async (req, res, next) => {
@@ -144,3 +203,4 @@ export const google = async (req, res, next) => {
 export const signout = (req, res) => {
   res.clearCookie('access_token').status(200).json('Signout success!');
 };
+

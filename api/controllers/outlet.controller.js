@@ -1,6 +1,7 @@
 import { Outlet } from '../models/Outlet.model.js';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
-// Create new outlet
 export const createOutlet = async (req, res) => {
   try {
     const { name, address, city, latitude, longitude, contactNumber, manager, outletPictures } = req.body;
@@ -16,14 +17,12 @@ export const createOutlet = async (req, res) => {
       outletPictures,
     });
 
-    await newOutlet.save();
-    res.status(201).json({ message: 'Outlet created successfully', data: newOutlet });
+    res.status(201).json({ message: 'Outlets created successfully', data: newOutlets });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to create outlet', error: error.message });
+    res.status(500).json({ message: 'Failed to create outlets', error: error.message });
   }
 };
 
-// Get all outlets
 export const getOutlets = async (req, res) => {
   try {
     const outlets = await Outlet.find().populate('manager', 'name email');

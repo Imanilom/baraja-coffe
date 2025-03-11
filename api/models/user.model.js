@@ -25,40 +25,28 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: 'https://img.freepik.com/premium-vector/man-avatar-profile-picture-vector-illustration_268834-538.jpg',
   },
-  role: { 
-    type: String, 
-    default: 'customer',
-    enum: ['admin', 'customer', 'staff'], 
-    required: true 
-  },
-  claimedVouchers: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Voucher',
-    },
-  ],
-  loyaltyPoints: { 
-    type: Number, 
+  role: {
+    type: String,
+    enum: ['admin', 'customer', 'staff', 'cashier junior', 'cashier senior', 'akuntan', 'inventory'],
     required: true,
-    default: 0
+    default: 'customer',
   },
-  level: { 
-    type: Number, 
-    required: true, 
-    default: 1, // Level awal
-    min: 1 
+  cashierType: {
+    type: String,
+    enum: [null, 'bar-1-amphi', 'bar-2-amphi', 'bar-3-amphi', 'bar-tp', 'bar-dp', 'drive-thru'],
+    required: function () { return this.role === 'cashier'; },
+    default: null
   },
-  experiencePoints: { 
-    type: Number, 
-    required: true, 
-    default: 0, // XP yang diperlukan sebelum naik level
-    min: 0
-  },
-  referralCode: { 
-    type: String, 
-    unique: true 
-  },
+  outlet: [
+    {
+      outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', required: false },
+    }
+  ],
+  // outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' }, // Kasir & Staff harus terkait dengan outlet
+  claimedVouchers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' }],
+  loyaltyPoints: { type: Number, required: true, default: 0 },
 }, { timestamps: true });
+
 
 const User = mongoose.model('User', UserSchema);
 
