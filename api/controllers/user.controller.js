@@ -8,6 +8,35 @@ export const test = (req, res) => {
   });
 };
 
+// create user
+
+export const createUser = async (req, res) => {
+  try {
+    const { name, username, password, role, cashierType, phone, email } = req.body;
+
+    if (role === 'cashier' && !cashierType) {
+      return res.status(400).json({ message: "Cashier must have a cashierType" });
+    }
+
+    const hashedPassword = await bcryptjs.hash(password, 10);
+
+    const newUser = new User({
+      name,
+      username,
+      password: hashedPassword,
+      role,
+      cashierType: role === 'cashier' ? cashierType : null,
+      phone,
+      email,
+    });
+
+    await newUser.save();
+    res.status(201).json({ message: "User created successfully", user: newUser });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // update user
 
 export const updateUser = async (req, res, next) => {

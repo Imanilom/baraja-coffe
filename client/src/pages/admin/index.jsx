@@ -45,7 +45,7 @@ const AdminDashboard = () => {
 
           {/* Outlet Management */}
           <Link
-            to="/outlet"
+            to="/toko"
             className="p-6 bg-white shadow-md rounded-lg hover:shadow-lg transition-shadow"
           >
             <h2 className="text-xl font-semibold text-gray-700">Outlet Management</h2>

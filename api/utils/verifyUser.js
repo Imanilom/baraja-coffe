@@ -27,3 +27,33 @@ export const verifyToken = (roles) => {
         }
     };
 };
+
+// // Middleware tambahan untuk membatasi akses peran tertentu
+// export const authorizeRole = (allowedRoles) => {
+//     return (req, res, next) => {
+//         if (!allowedRoles.includes(req.user.role)) {
+//             return res.status(403).json({ message: "Forbidden: Access denied" });
+//         }
+//         next();
+//     };
+// };
+
+// export const authorizeAdmin = (req, res, next) => {
+//     if (req.user.role !== 'admin') {
+//         return res.status(403).json({ message: "Forbidden: Only admin can perform this action" });
+//     }
+//     next();
+// };
+
+// export const authorizeCashier = (allowedTypes) => {
+//     return (req, res, next) => {
+//         if (req.user.role !== 'cashier') {
+//             return res.status(403).json({ message: "Forbidden: Only cashiers allowed" });
+//         }
+//         if (!allowedTypes.includes(req.user.cashierType)) {
+//             return res.status(403).json({ message: "Forbidden: Cashier type not authorized" });
+//         }
+//         next();
+//     };
+// };
+

@@ -2,7 +2,7 @@ import { Order } from '../models/Order.model.js';
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
 import { Topping } from "../models/Topping.model.js";
-import  AddOn from "../models/Addons.model.js";
+import AddOn from "../models/Addons.model.js";
 import { RawMaterial } from "../models/RawMaterial.model.js";
 import midtransClient from 'midtrans-client';
 
@@ -12,11 +12,11 @@ const updateStorage = async (materialId, quantity) => {
   if (!storage) {
     throw new Error(`Raw material not found: ${materialId}`);
   }
-  
+
   if (quantity > 0 && storage.quantity < quantity) {
     throw new Error(`Insufficient stock for ${storage.name || materialId}`);
   }
-  
+
   storage.quantity -= quantity;
   await storage.save();
 };
@@ -28,16 +28,59 @@ const snap = new midtransClient.Snap({
   clientKey: process.env.MIDTRANS_CLIENT_KEY
 });
 
-// Stock Validation Logic
+// // Stock Validation Logic
+// const validateStock = async (items) => {
+//   for (const item of items) {
+//     const menuItem = await MenuItem.findById(item.menuItem).populate('rawMaterials');
+//     if (!menuItem) throw new Error(`Menu item not found: ${item.menuItem}`);
+
+//     // Validate main ingredients
+//     for (const material of menuItem.rawMaterials) {
+//       const required = material.quantity * item.quantity;
+//       const stock = await RawMaterial.findOne({ materialId: material.materialId });
+//       if (!stock || stock.quantity < required) {
+//         throw new Error(`Insufficient ${stock?.name || material.materialId}`);
+//       }
+//     }
+
+//     // Validate toppings
+//     for (const toppingId of item.toppings) {
+//       const topping = await Topping.findById(toppingId).populate('rawMaterials');
+//       if (!topping) throw new Error(`Topping not found: ${toppingId}`);
+
+//       for (const material of topping.rawMaterials) {
+//         const required = material.quantityRequired * item.quantity;
+//         const stock = await RawMaterial.findOne({ materialId: material.materialId });
+//         if (!stock || stock.quantity < required) {
+//           throw new Error(`Insufficient ${stock?.name || material.materialId}`);
+//         }
+//       }
+//     }
+
+//     // Validate addons
+//     for (const addonId of item.addons) {
+//       const addon = await AddOn.findById(addonId);
+//       if (addon?.adjustCupSize) {
+//         const cupsNeeded = addon.adjustCupSize === 'large' ? 1 : 0.5;
+//         const cupStock = await RawMaterial.findOne({ name: 'Cup' });
+//         if (!cupStock || cupStock.quantity < cupsNeeded * item.quantity) {
+//           throw new Error('Insufficient cups');
+//         }
+//       }
+//     }
+//   }
+// };
+
 const validateStock = async (items) => {
   for (const item of items) {
     const menuItem = await MenuItem.findById(item.menuItem).populate('rawMaterials');
     if (!menuItem) throw new Error(`Menu item not found: ${item.menuItem}`);
+    // console.log(menuItem.rawMaterials);
 
     // Validate main ingredients
     for (const material of menuItem.rawMaterials) {
-      const required = material.quantity * item.quantity;
-      const stock = await RawMaterial.findOne({ materialId: material.materialId });
+      const required = material.quantityRequired * item.quantity;  // Adjusted 'quantity' to 'quantityRequired' if needed
+      const stock = await RawMaterial.findById(material.materialId);
       if (!stock || stock.quantity < required) {
         throw new Error(`Insufficient ${stock?.name || material.materialId}`);
       }
@@ -45,9 +88,10 @@ const validateStock = async (items) => {
 
     // Validate toppings
     for (const toppingId of item.toppings) {
+      if (!toppingId) continue;  // Skip empty topping IDs
       const topping = await Topping.findById(toppingId).populate('rawMaterials');
       if (!topping) throw new Error(`Topping not found: ${toppingId}`);
-      
+
       for (const material of topping.rawMaterials) {
         const required = material.quantityRequired * item.quantity;
         const stock = await RawMaterial.findOne({ materialId: material.materialId });
@@ -59,6 +103,7 @@ const validateStock = async (items) => {
 
     // Validate addons
     for (const addonId of item.addons) {
+      if (!addonId) continue;  // Skip empty addon IDs
       const addon = await AddOn.findById(addonId);
       if (addon?.adjustCupSize) {
         const cupsNeeded = addon.adjustCupSize === 'large' ? 1 : 0.5;
@@ -71,11 +116,12 @@ const validateStock = async (items) => {
   }
 };
 
+
 // Process Order Items (Deduct Stock)
 const processOrderItems = async (items) => {
   for (const item of items) {
     const menuItem = await MenuItem.findById(item.menuItem).populate('rawMaterials');
-    
+
     // Process main ingredients
     for (const material of menuItem.rawMaterials) {
       await updateStorage(material.materialId, material.quantity * item.quantity);
@@ -138,14 +184,16 @@ export const cancelOrder = async (req, res) => {
 // Create Order Controller
 export const createOrderAndPayment = async (req, res) => {
   try {
-    const { user, items, totalPrice, orderType, deliveryAddress, tableNumber, paymentMethod, phoneNumber } = req.body;
+    const { customerId, customer, cashier, items, totalPrice, orderType, deliveryAddress, tableNumber, paymentMethod, phoneNumber } = req.body;
 
     // Validate stock availability
     await validateStock(items);
 
     // Create order record
     const order = new Order({
-      user,
+      customerId,
+      customer,
+      cashier,
       items,
       totalPrice,
       orderType,
@@ -165,11 +213,11 @@ export const createOrderAndPayment = async (req, res) => {
         status: 'Pending',
       });
       await payment.save();
-      
-      return res.status(200).json({ 
-        order, 
+
+      return res.status(200).json({
+        order,
         payment,
-        message: 'Cash payment pending confirmation' 
+        message: 'Cash payment pending confirmation'
       });
     }
 
@@ -253,10 +301,10 @@ export const createOrderAndPayment = async (req, res) => {
     res.status(200).json(response);
   } catch (error) {
     console.error('Order Error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: error.message,
-      errorDetails: error.ApiResponse || null 
+      errorDetails: error.ApiResponse || null
     });
   }
 };
@@ -266,15 +314,15 @@ export const handleMidtransNotification = async (req, res) => {
   try {
     const notification = req.body;
     const statusResponse = await snap.transaction.notification(notification);
-    
+
     // Validate critical parameters
     if (!statusResponse.order_id || !statusResponse.transaction_status) {
       return res.status(400).json({ message: 'Invalid notification' });
     }
 
     // Find related payment
-    const payment = await Payment.findOne({ 
-      'midtransResponse.order_id': statusResponse.order_id 
+    const payment = await Payment.findOne({
+      'midtransResponse.order_id': statusResponse.order_id
     }).populate('order');
 
     if (!payment) return res.status(404).json({ message: 'Payment not found' });

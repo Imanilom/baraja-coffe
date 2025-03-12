@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
-  name: { 
+  username: { 
     type: String, 
     required: true 
   },
@@ -25,23 +25,28 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: 'https://img.freepik.com/premium-vector/man-avatar-profile-picture-vector-illustration_268834-538.jpg',
   },
-  role: { 
-    type: String, 
-    enum: ['Admin', 'Customer', 'Staff'], 
-    required: true 
-  },
-  claimedVouchers: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Voucher',
-    },
-  ],
-  loyaltyPoints: { 
-    type: Number, 
+  role: {
+    type: String,
+    enum: ['admin', 'customer', 'staff', 'cashier junior', 'cashier senior', 'akuntan', 'inventory'],
     required: true,
-    default: 0
+    default: 'customer',
   },
+  cashierType: {
+    type: String,
+    enum: [null, 'bar-1-amphi', 'bar-2-amphi', 'bar-3-amphi', 'bar-tp', 'bar-dp', 'drive-thru'],
+    required: function () { return this.role === 'cashier'; },
+    default: null
+  },
+  outlet: [
+    {
+      outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', required: false },
+    }
+  ],
+  // outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' }, // Kasir & Staff harus terkait dengan outlet
+  claimedVouchers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' }],
+  loyaltyPoints: { type: Number, required: true, default: 0 },
 }, { timestamps: true });
+
 
 const User = mongoose.model('User', UserSchema);
 

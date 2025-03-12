@@ -131,7 +131,7 @@ const OutletManagementPage = () => {
             {outlets.map((outlet) => (
               <tr key={outlet._id} className="bg-white border-b">
                 <td className="px-6 py-4">{outlet.name}</td>
-                <td className="px-6 py-4">{outlet.location}</td>
+                <td className="px-6 py-4">{outlet.address}</td>
                 <td className="px-6 py-4">{outlet.contactNumber}</td>
                 <td className="px-6 py-4">
                   <button

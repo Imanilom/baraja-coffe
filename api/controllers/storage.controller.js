@@ -6,9 +6,10 @@ import { StockOpname } from '../models/StockOpname.model.js';
 // Add a new raw material
 export const createRawMaterial = async (req, res) => {
   try {
-    const { name, quantity, unit, minimumStock, supplier } = req.body;
+    const { outlet, name, quantity, unit, minimumStock, supplier } = req.body;
 
     const rawMaterial = new RawMaterial({
+      outlet,
       name,
       quantity,
       unit,
@@ -27,11 +28,16 @@ export const createRawMaterial = async (req, res) => {
 export const getRawMaterials = async (req, res) => {
   try {
     const rawMaterials = await RawMaterial.find();
+    if (!rawMaterials || rawMaterials.length === 0) {
+      return res.status(404).json({ success: false, message: 'No raw materials found' });
+    }
     res.status(200).json({ success: true, data: rawMaterials });
   } catch (error) {
+    console.error("Database fetch error:", error);
     res.status(500).json({ success: false, message: 'Failed to fetch raw materials', error: error.message });
   }
 };
+
 
 // Update a raw material by ID
 export const updateRawMaterial = async (req, res) => {
