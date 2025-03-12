@@ -59,7 +59,6 @@ export const createMenuItem = async (req, res) => {
       price,
       description: description || '',
       category,
-      stock: stock || 0,
       imageURL,
       toppings: toppings || [],
       addons: addons || [],
@@ -83,21 +82,43 @@ export const createMenuItem = async (req, res) => {
   }
 };
 
-
 // Get all menu items
 export const getMenuItems = async (req, res) => {
   try {
-    // Fetch all menu items
-    const menuItems = await MenuItem.find().populate('toppings');
+    // Fetch all menu items dengan populate yang benar
+    const menuItems = await MenuItem.find()
+      .populate([
+        {
+          path: 'addOns',
+          populate: {
+            path: 'rawMaterials.materialId',
+            model: 'RawMaterial'
+          }
+        },
+        {
+          path: 'toppings'
+        },
+        {
+          path: 'rawMaterials.materialId'
+        },
+        {
+          path: 'availableAt'
+        }
+      ]);
 
-    // Fetch active promotions
+    // Filter promosi aktif berdasarkan tanggal
     const currentDate = new Date();
-    const activePromotions = await Promotion.find().populate('applicableItems');
+    const activePromotions = await Promotion.find({
+      startDate: { $lte: currentDate },
+      endDate: { $gte: currentDate }
+    }).populate('applicableItems');
 
-    // Adjust prices for items based on promotions
+    // Adjust prices for items based on active promotions
     const updatedMenuItems = menuItems.map((item) => {
       const promotion = activePromotions.find((promo) =>
-        promo.applicableItems.some((applicableItem) => applicableItem._id.toString() === item._id.toString())
+        promo.applicableItems.some(applicableItem => 
+          applicableItem._id.toString() === item._id.toString()
+        )
       );
 
       if (promotion) {
@@ -106,17 +127,15 @@ export const getMenuItems = async (req, res) => {
           ...item.toObject(),
           discount: promotion.discountPercentage,
           discountedPrice: parseFloat((item.price - discount).toFixed(2)),
-          promotionTitle: promotion.title, // Ensure the title is passed
-      
+          promotionTitle: promotion.title
         };
       }
 
-      // If no promotion, remove discountedPrice
-      const { discountedPrice, promotionTitle, ...itemWithoutDiscountedPrice } = item.toObject();
-      return itemWithoutDiscountedPrice;
+      return item.toObject();
     });
 
     res.status(200).json({ success: true, data: updatedMenuItems });
+    console.log('Menu items fetched successfully');
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -167,9 +186,9 @@ export const getMenuItemById = async (req, res) => {
 // Update a menu item
 export const updateMenuItem = async (req, res) => {
   try {
-    const { name, price, description, category, stock, imageURL, toppings, addons, rawMaterials } = req.body;
+    const { name, price, description, category, stock, imageURL, toppings, addOns, rawMaterials } = req.body;
     const { id } = req.params;
- 
+
     // Validate rawMaterials
     if (rawMaterials && !Array.isArray(rawMaterials)) {
       return res.status(400).json({
@@ -211,7 +230,7 @@ export const updateMenuItem = async (req, res) => {
 
 
     const updatedMenuItem = await MenuItem.findByIdAndUpdate(
-     id,
+      id,
       {
         name,
         price,
@@ -220,7 +239,7 @@ export const updateMenuItem = async (req, res) => {
         stock: stock || 0,
         imageURL: imageURL || '',
         toppings: toppings || [],
-        addons: addons || [],
+        addOns: addOns || [],
         rawMaterials: rawMaterials || [],
       },
       { new: true }
@@ -268,13 +287,31 @@ export const createTopping = async (req, res) => {
     }
 
     if (rawMaterials) {
-      // Ensure each raw material has `materialId` and `quantityRequired`
+      // Validate each raw material
       for (let i = 0; i < rawMaterials.length; i++) {
         const { materialId, quantityRequired } = rawMaterials[i];
+        
+        // Check existence of required fields
         if (!materialId || quantityRequired === undefined) {
           return res.status(400).json({
             success: false,
             message: `Raw material at index ${i} is missing 'materialId' or 'quantityRequired'.`,
+          });
+        }
+
+        // Validate quantity type and value
+        const quantity = Number(quantityRequired);
+        if (isNaN(quantity)) {
+          return res.status(400).json({
+            success: false,
+            message: `Quantity must be a number for raw material at index ${i}.`,
+          });
+        }
+
+        if (quantity <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: `Quantity must be greater than 0 for raw material at index ${i}.`,
           });
         }
       }
@@ -302,7 +339,10 @@ export const createTopping = async (req, res) => {
     const topping = new Topping({
       name,
       price,
-      rawMaterials: rawMaterials || [], // Save raw materials associated with the topping
+      rawMaterials: rawMaterials.map(rm => ({
+        materialId: rm.materialId,
+        quantityRequired: Number(rm.quantityRequired)
+      })) || [],
     });
 
     const savedTopping = await topping.save();
@@ -311,6 +351,7 @@ export const createTopping = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to create topping', error: error.message });
   }
 };
+
 
 // Get all toppings
 export const getToppings = async (req, res) => {
@@ -339,8 +380,8 @@ export const updateTopping = async (req, res) => {
   try {
     const { name, price, rawMaterials } = req.body;
 
-     // Validate rawMaterials
-     if (rawMaterials && !Array.isArray(rawMaterials)) {
+    // Validate rawMaterials
+    if (rawMaterials && !Array.isArray(rawMaterials)) {
       return res.status(400).json({
         success: false,
         message: 'Raw materials must be an array of objects with material ID and quantity.',
@@ -411,23 +452,23 @@ export const deleteTopping = async (req, res) => {
   }
 };
 
-
-
-
 export const createAddOn = async (req, res) => {
   try {
     const { name, type, options, rawMaterials } = req.body;
 
-    // Validate rawMaterials
+    const validTypes = ['size', 'temperature', 'spiciness', 'custom'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid type value' });
+    }
+
     if (rawMaterials && !Array.isArray(rawMaterials)) {
       return res.status(400).json({
         success: false,
-        message: 'Raw materials must be an array of objects with material ID and quantity.',
+        message: 'Raw materials must be an array of objects with materialId and quantityRequired.',
       });
     }
 
-    if (rawMaterials) {
-      // Ensure each raw material has `materialId` and `quantityRequired`
+    if (rawMaterials && rawMaterials.length > 0) {
       for (let i = 0; i < rawMaterials.length; i++) {
         const { materialId, quantityRequired } = rawMaterials[i];
         if (!materialId || quantityRequired === undefined) {
@@ -437,40 +478,100 @@ export const createAddOn = async (req, res) => {
           });
         }
       }
+
+      const rawMaterialPromises = rawMaterials.map(async ({ materialId, quantityRequired }) => {
+        const rawMaterial = await RawMaterial.findById(materialId);
+        if (!rawMaterial) {
+          throw new Error(`Raw material with ID ${materialId} not found.`);
+        }
+        if (rawMaterial.stock < quantityRequired) {
+          throw new Error(`Insufficient stock for raw material: ${rawMaterial.name}`);
+        }
+        return rawMaterial;
+      });
+
+      try {
+        await Promise.all(rawMaterialPromises);
+      } catch (error) {
+        return res.status(404).json({ success: false, message: error.message });
+      }
     }
 
-    // Check raw material stock availability
-    const rawMaterialPromises = rawMaterials.map(async ({ materialId, quantityRequired }) => {
-      const rawMaterial = await RawMaterial.findById(materialId);
-      if (!rawMaterial) {
-        throw new Error(`Raw material with ID ${materialId} not found.`);
-      }
-      if (rawMaterial.stock < quantityRequired) {
-        throw new Error(`Insufficient stock for raw material: ${rawMaterial.name}`);
-      }
-      return rawMaterial;
-    });
-
-    try {
-      await Promise.all(rawMaterialPromises);
-    } catch (error) {
-      return res.status(404).json({ success: false, message: error.message });
-    }
-
-    // Create the add-on
     const addOn = new AddOn({
       name,
       type,
       options: options || [],
-      rawMaterials: rawMaterials || [], // Save raw materials associated with the add-on
+      rawMaterials: rawMaterials || [],
     });
 
     const savedAddOn = await addOn.save();
+    await savedAddOn.populate('rawMaterials.materialId');
+
     res.status(201).json({ success: true, data: savedAddOn });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to create add-on', error: error.message });
   }
 };
+
+
+
+// export const createAddOn = async (req, res) => {
+//   try {
+//     const { name, type, options, rawMaterials } = req.body;
+
+//     // Validate rawMaterials
+//     if (rawMaterials && !Array.isArray(rawMaterials)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Raw materials must be an array of objects with material ID and quantity.',
+//       });
+//     }
+
+//     if (rawMaterials) {
+//       // Ensure each raw material has `materialId` and `quantityRequired`
+//       for (let i = 0; i < rawMaterials.length; i++) {
+//         const { materialId, quantityRequired } = rawMaterials[i];
+//         if (!materialId || quantityRequired === undefined) {
+//           return res.status(400).json({
+//             success: false,
+//             message: `Raw material at index ${i} is missing 'materialId' or 'quantityRequired'.`,
+//           });
+//         }
+//       }
+//     }
+
+//     // Check raw material stock availability
+//     const rawMaterialPromises = rawMaterials.map(async ({ materialId, quantityRequired }) => {
+//       const rawMaterial = await RawMaterial.findById(materialId);
+//       if (!rawMaterial) {
+//         throw new Error(`Raw material with ID ${materialId} not found.`);
+//       }
+//       if (rawMaterial.stock < quantityRequired) {
+//         throw new Error(`Insufficient stock for raw material: ${rawMaterial.name}`);
+//       }
+//       return rawMaterial;
+//     });
+
+//     try {
+//       await Promise.all(rawMaterialPromises);
+//     } catch (error) {
+//       return res.status(404).json({ success: false, message: error.message });
+//     }
+
+//     // Create the add-on
+//     const addOn = new AddOn({
+//       name,
+//       type,
+//       options: options || [],
+//       rawMaterials: rawMaterials || [], // Save raw materials associated with the add-on
+//     });
+
+//     const savedAddOn = await addOn.save();
+//     res.status(201).json({ success: true, data: savedAddOn });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: 'Failed to create add-on', error: error.message });
+//   }
+// };
 
 
 
@@ -573,7 +674,7 @@ export const deleteAddOn = async (req, res) => {
     if (!deletedAddOn) {
       return res.status(404).json({ success: false, message: 'Addon not found' });
     }
-    
+
     res.status(200).json({ success: true, message: 'Addon deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete addon', error: error.message });
