@@ -1,10 +1,11 @@
+import 'package:barajapos/services/api_response_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:barajapos/configs/app_config.dart';
 
 class AuthService {
   final Dio _dio = Dio(
     BaseOptions(baseUrl: AppConfig.baseUrl),
-  ); // Ganti URL API kamu
+  );
 
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
@@ -15,9 +16,13 @@ class AuthService {
           "password": password,
         },
       );
+      print('response awal: $response');
+      print('response data awal: ${response.data}');
       return response.data;
-    } catch (e) {
-      throw Exception("Login gagal: ${e.toString()}");
+    } on DioException catch (e) {
+      final error = ApiResponseHandler.handleError(e);
+      print('response error awal: $error');
+      throw error;
     }
   }
 
