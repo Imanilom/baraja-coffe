@@ -16,6 +16,7 @@ import {
   getAllAddOns,
   updateAddOn,
   deleteAddOn,
+  getSimpleMenuItems,
 } from '../controllers/menu.controller.js';
 
 const router = express.Router();
@@ -26,6 +27,7 @@ const adminAccess = verifyToken(['admin', 'superadmin']);
 // MenuItem Routes
 router.post('/menu-items', createMenuItem); // Create a new MenuItem
 router.get('/menu-items', getMenuItems); // Get all MenuItems
+router.get('/simple-menus', getSimpleMenuItems); // Get all MenuItems
 router.get('/menu-items/:id', getMenuItemById); // Get a specific MenuItem by ID
 router.put('/menu-items/:id', adminAccess, updateMenuItem); // Update a specific MenuItem
 router.delete('/menu-items/:id', adminAccess, deleteMenuItem); // Delete a specific MenuItem
