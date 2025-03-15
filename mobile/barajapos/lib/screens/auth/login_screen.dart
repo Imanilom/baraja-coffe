@@ -14,7 +14,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>(); // Untuk validasi form
-  bool _isLoading = false; // Untuk mencegah multiple click
+  bool _isLoading = false;
+  DateTime? lastPressed;
+  bool canPop = false;
 
   // Menampilkan snackbar
   void _showSnackBar(BuildContext context, String message) {

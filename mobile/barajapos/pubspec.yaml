@@ -27,6 +27,7 @@ dependencies:
   hive_ce_flutter: ^2.1.0
   flutter_dotenv: ^5.2.1
   jwt_decoder: ^2.0.1
+  fluttertoast: ^8.2.12
 
 assets:
   - .env
