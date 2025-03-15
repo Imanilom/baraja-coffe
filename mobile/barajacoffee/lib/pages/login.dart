@@ -36,10 +36,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://your-api-url/api/auth/signin'),
+        Uri.parse('https://bcc4-36-83-134-204.ngrok-free.app/api/auth/signin'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'email': _emailController.text,
+          'identifier': _emailController.text,
           'password': _passwordController.text,
         }),
       );
@@ -51,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await authBox.put('auth_token', responseData['token']);
 
         // Navigasi ke home screen
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/main');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(responseData['message'] ?? 'Login failed')),
