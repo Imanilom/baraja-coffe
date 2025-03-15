@@ -82,6 +82,40 @@ export const createMenuItem = async (req, res) => {
   }
 };
 
+export const getSimpleMenuItems = async (req, res) => {
+  try {
+    const menuItems = await MenuItem.find().select('name price category imageURL rawMaterials');
+
+    // Cek stok bahan baku untuk setiap menu
+    const updatedMenuItems = await Promise.all(menuItems.map(async (menu) => {
+      let isAvailable = true;
+
+      for (const item of menu.rawMaterials) {
+        const material = await RawMaterial.find().find({ _id: item.materialId });
+        if (!material || material.quantity < item.quantityRequired) {
+          isAvailable = false;
+          break;
+        }
+      }
+
+      return {
+        id: menu._id,
+        name: menu.name,
+        price: menu.price,
+        category: menu.category,
+        imageURL: menu.imageURL,
+        isAvailable
+      };
+    }));
+
+    res.status(200).json({ success: true, data: updatedMenuItems });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch menu items', error: error.message });
+  }
+};
+
+
+
 // Get all menu items
 export const getMenuItems = async (req, res) => {
   try {
@@ -116,7 +150,7 @@ export const getMenuItems = async (req, res) => {
     // Adjust prices for items based on active promotions
     const updatedMenuItems = menuItems.map((item) => {
       const promotion = activePromotions.find((promo) =>
-        promo.applicableItems.some(applicableItem => 
+        promo.applicableItems.some(applicableItem =>
           applicableItem._id.toString() === item._id.toString()
         )
       );
@@ -146,11 +180,90 @@ export const getMenuItems = async (req, res) => {
 };
 
 
-// Get a single menu item by ID
+// // Get a single menu item by ID
+// export const getMenuItemById = async (req, res) => {
+//   try {
+//     // Fetch the menu item and populate related fields
+//     const menuItem = await MenuItem.findById(req.params.id)
+//       .populate('toppings')
+//       .populate('addOns')
+//       .populate('rawMaterials.materialId')
+//       .populate('availableAt');
+
+//     if (!menuItem) {
+//       return res.status(404).json({ success: false, message: 'Menu item not found' });
+//     }
+
+//     // Fetch active promotions
+//     const currentDate = new Date();
+//     const activePromotions = await Promotion.find({
+//       startDate: { $lte: currentDate },
+//       endDate: { $gte: currentDate },
+//     }).populate('applicableItems');
+
+//     // Check if the item is part of a promotion
+//     const promotion = activePromotions.find((promo) =>
+//       promo.applicableItems.some((applicableItem) => applicableItem._id.toString() === menuItem._id.toString())
+//     );
+
+//     const response = {
+//       ...menuItem.toObject(),
+//       discountedPrice: menuItem.price,
+//     };
+
+//     if (promotion) {
+//       const discount = (menuItem.price * promotion.discountPercentage) / 100;
+//       response.originalPrice = menuItem.price;
+//       response.discountedPrice = parseFloat((menuItem.price - discount).toFixed(2));
+//       response.promotion = promotion.title;
+//     }
+
+//     res.status(200).json({ success: true, data: response });
+//   } catch (error) {
+//     console.error('Error fetching menu item:', error); // Log the error for debugging
+//     res.status(500).json({ success: false, message: 'Failed to fetch menu item', error: error.message });
+//   }
+// };
+
+
 export const getMenuItemById = async (req, res) => {
   try {
-    const menuItem = await MenuItem.findById(req.params.id).populate('toppings');
-    if (!menuItem) return res.status(404).json({ success: false, message: 'Menu item not found' });
+    // Fetch the menu item and populate related fields
+    const menuItem = await MenuItem.findById(req.params.id)
+      .populate('toppings')
+      .populate('addOns')
+      .populate('rawMaterials.materialId')
+      .populate('availableAt');
+
+    if (!menuItem) {
+      return res.status(404).json({ success: false, message: 'Menu item not found' });
+    }
+
+    // Function to check stock availability
+    const checkStockAvailability = async (rawMaterials) => {
+      for (const item of rawMaterials) {
+        const material = await RawMaterial.findById(item.materialId);
+        if (!material || material.quantity < item.quantityRequired) {
+          return false; // Stock tidak mencukupi
+        }
+      }
+      return true; // Stock mencukupi
+    };
+
+    // Cek ketersediaan bahan baku utama
+    const isMainAvailable = await checkStockAvailability(menuItem.rawMaterials);
+
+    // Cek ketersediaan bahan baku dalam toppings
+    const toppingsWithAvailability = await Promise.all(menuItem.toppings.map(async (topping) => ({
+      ...topping.toObject(),
+      isAvailable: await checkStockAvailability(topping.rawMaterials || [])
+    })));
+
+    // Cek ketersediaan bahan baku dalam addOns
+    const addOnsWithAvailability = await Promise.all(menuItem.addOns.map(async (addOn) => ({
+      ...addOn.toObject(),
+      isAvailable: await checkStockAvailability(addOn.rawMaterials || [])
+    })));
 
     // Fetch active promotions
     const currentDate = new Date();
@@ -164,9 +277,18 @@ export const getMenuItemById = async (req, res) => {
       promo.applicableItems.some((applicableItem) => applicableItem._id.toString() === menuItem._id.toString())
     );
 
+    // Struktur data response dengan isAvailable
     const response = {
-      ...menuItem.toObject(),
+      id: menuItem._id,
+      name: menuItem.name,
+      price: menuItem.price,
+      category: menuItem.category,
+      imageURL: menuItem.imageURL,
+      isAvailable: isMainAvailable, // Menentukan apakah menu utama tersedia
+      toppings: toppingsWithAvailability,
+      addOns: addOnsWithAvailability,
       discountedPrice: menuItem.price,
+      availableAt: menuItem.availableAt,
     };
 
     if (promotion) {
@@ -178,10 +300,10 @@ export const getMenuItemById = async (req, res) => {
 
     res.status(200).json({ success: true, data: response });
   } catch (error) {
+    console.error('Error fetching menu item:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch menu item', error: error.message });
   }
 };
-
 
 // Update a menu item
 export const updateMenuItem = async (req, res) => {
@@ -290,7 +412,7 @@ export const createTopping = async (req, res) => {
       // Validate each raw material
       for (let i = 0; i < rawMaterials.length; i++) {
         const { materialId, quantityRequired } = rawMaterials[i];
-        
+
         // Check existence of required fields
         if (!materialId || quantityRequired === undefined) {
           return res.status(400).json({

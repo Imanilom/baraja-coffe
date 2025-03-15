@@ -10,14 +10,14 @@ const MenuItemSchema = new mongoose.Schema({
   addOns: [{ type: mongoose.Schema.Types.ObjectId, ref: 'AddOn' }],
   rawMaterials: [
     {
+      _id: false,  // Tambahkan ini agar tidak ada `_id` otomatis di dalam subdokumen
       materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
       quantityRequired: { type: Number, required: true, min: 0 }
     }
   ],
-  availableAt: [
-    { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', required: true }
-  ], // Menyimpan daftar outlet tempat menu tersedia
+  availableAt: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' }]
 }, { timestamps: true });
+
 
 // Middleware: Validasi apakah bahan baku cukup sebelum menyimpan menu baru
 MenuItemSchema.pre('save', async function (next) {
