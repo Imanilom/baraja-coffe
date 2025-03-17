@@ -7,6 +7,7 @@ class SavedOrderScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return const Scaffold(
+      backgroundColor: Colors.grey,
       body: Center(
         child: Text('Pesanan Tersimpan'),
       ),

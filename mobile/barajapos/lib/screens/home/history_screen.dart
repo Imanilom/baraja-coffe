@@ -6,10 +6,8 @@ class HistoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return const Scaffold(
-      body: Center(
-        child: Text('Riwayat Pesanan'),
-      ),
+    return const Center(
+      child: Text('Riwayat Pesanan'),
     );
   }
 }

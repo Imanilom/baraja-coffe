@@ -13,7 +13,7 @@ class MenuItemCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Image.network(menuItem.imageURL,
+          Image.network(menuItem.imageURL!,
               height: 100, width: double.infinity, fit: BoxFit.cover),
           Padding(
             padding: const EdgeInsets.all(8.0),

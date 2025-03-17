@@ -2,25 +2,25 @@ class MenuItemModel {
   final String id;
   final String name;
   final double price;
-  final String description;
-  final String category;
-  final String imageURL;
-  final List<ToppingModel> toppings;
-  final List<AddOnModel> addOns;
-  final String createdAt;
-  final String updatedAt;
+  final String? description;
+  final String? category;
+  final String? imageURL;
+  final List<ToppingModel>? toppings;
+  final List<AddOnModel?>? addOns;
+  final String? createdAt;
+  final String? updatedAt;
 
   MenuItemModel({
     required this.id,
     required this.name,
     required this.price,
-    required this.description,
-    required this.category,
-    required this.imageURL,
-    required this.toppings,
-    required this.addOns,
-    required this.createdAt,
-    required this.updatedAt,
+    this.description,
+    this.category,
+    this.imageURL,
+    this.toppings,
+    this.addOns,
+    this.createdAt,
+    this.updatedAt,
   });
 
   // Factory method untuk parsing JSON ke MenuItemModel
@@ -54,8 +54,8 @@ class MenuItemModel {
       'description': description,
       'category': category,
       'imageURL': imageURL,
-      'toppings': toppings.map((topping) => topping.toJson()).toList(),
-      'addOns': addOns.map((addOn) => addOn.toJson()).toList(),
+      'toppings': toppings?.map((topping) => topping.toJson()).toList() ?? [],
+      'addOns': addOns?.map((addOn) => addOn?.toJson()).toList() ?? [],
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
@@ -66,13 +66,13 @@ class ToppingModel {
   final String id;
   final String name;
   final double price;
-  final String createdAt;
+  final String? createdAt;
 
   ToppingModel({
     required this.id,
     required this.name,
     required this.price,
-    required this.createdAt,
+    this.createdAt,
   });
 
   // Factory method untuk parsing JSON ke ToppingModel
@@ -81,7 +81,7 @@ class ToppingModel {
       id: json['_id'],
       name: json['name'],
       price: json['price'].toDouble(),
-      createdAt: json['createdAt'],
+      createdAt: json['createdAt'] ?? '',
     );
   }
 
@@ -101,17 +101,35 @@ class AddOnModel {
   final String name;
   final String type;
   final List<AddOnOptionModel> options;
-  final bool isActive;
-  final String createdAt;
+  final bool? isActive;
+  final String? createdAt;
 
   AddOnModel({
     required this.id,
     required this.name,
     required this.type,
     required this.options,
-    required this.isActive,
-    required this.createdAt,
+    this.isActive,
+    this.createdAt,
   });
+
+  AddOnModel copyWith({
+    String? id,
+    String? name,
+    String? type,
+    List<AddOnOptionModel>? options,
+    bool? isActive,
+    String? createdAt,
+  }) {
+    return AddOnModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      options: options ?? this.options,
+      isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 
   // Factory method untuk parsing JSON ke AddOnModel
   factory AddOnModel.fromJson(Map<String, dynamic> json) {
@@ -122,8 +140,8 @@ class AddOnModel {
       options: (json['options'] as List)
           .map((option) => AddOnOptionModel.fromJson(option))
           .toList(),
-      isActive: json['isActive'],
-      createdAt: json['createdAt'],
+      isActive: json['isActive'] ?? false,
+      createdAt: json['createdAt'] ?? '',
     );
   }
 
@@ -141,22 +159,22 @@ class AddOnModel {
 }
 
 class AddOnOptionModel {
+  final String id;
   final String label;
   final double price;
-  final String id;
 
   AddOnOptionModel({
+    required this.id,
     required this.label,
     required this.price,
-    required this.id,
   });
 
   // Factory method untuk parsing JSON ke AddOnOptionModel
   factory AddOnOptionModel.fromJson(Map<String, dynamic> json) {
     return AddOnOptionModel(
+      id: json['_id'],
       label: json['label'],
       price: json['price'].toDouble(),
-      id: json['_id'],
     );
   }
 
