@@ -20,7 +20,8 @@ class OrderOptionDialogs extends StatefulWidget {
 
 class OrderOptionDialogsState extends State<OrderOptionDialogs> {
   List<ToppingModel> selectedToppings = [];
-  List<AddOnOptionModel> selectedAddons = [];
+  List<AddOnModel> selectedAddons = [];
+  int quantity = 1;
 
   @override
   Widget build(BuildContext context) {
@@ -28,10 +29,50 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
       title: Text('Pilih Topping & Addon untuk ${widget.menuItem.name}'),
       content: SingleChildScrollView(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Pilih Topping
-            const Text('Topping:',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            // Counter Quantity
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove),
+                    onPressed: () {
+                      setState(() {
+                        if (quantity > 1) {
+                          quantity--; // Kurangi quantity
+                        }
+                      });
+                    },
+                  ),
+                  Text(
+                    '$quantity',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () {
+                      setState(() {
+                        quantity++; // Tambah quantity
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            // Pilih Topping,
+            if (widget.menuItem.toppings!.isNotEmpty)
+              const Text(
+                'Topping',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+
             ..._buildToppingList(selectedToppings, (ToppingModel topping) {
               setState(() {
                 if (selectedToppings.contains(topping)) {
@@ -43,12 +84,17 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
             }),
 
             // Pilih Addon
-            ..._buildAddonList(selectedAddons, (AddOnOptionModel addon) {
+            ..._buildAddonList(selectedAddons, (addon, selectedOption) {
               setState(() {
-                if (selectedAddons.contains(addon)) {
-                  selectedAddons.remove(addon);
+                final index =
+                    selectedAddons.indexWhere((a) => a.id == addon.id);
+                if (index != -1) {
+                  // Jika addon sudah dipilih, update opsi yang dipilih
+                  selectedAddons[index] =
+                      addon.copyWith(options: [selectedOption]);
                 } else {
-                  selectedAddons.add(addon);
+                  // Jika addon belum dipilih, tambahkan ke daftar
+                  selectedAddons.add(addon.copyWith(options: [selectedOption]));
                 }
               });
             }),
@@ -65,10 +111,14 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
         TextButton(
           onPressed: () {
             // Buat OrderItem dan panggil callback
+            print(
+              'OrderItem: ${selectedToppings.map((topping) => topping.name)}, ${selectedAddons.map((addon) => addon.name)}',
+            );
             final orderItem = OrderItemModel(
               menuItem: widget.menuItem,
               selectedToppings: selectedToppings,
               selectedAddons: selectedAddons,
+              quantity: quantity,
             );
             widget.onAddToOrder(orderItem);
             Navigator.pop(context);
@@ -86,7 +136,7 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
     // data toping diambil dari menu item itu sendiri
     final toppings = widget.menuItem.toppings;
 
-    return toppings.map((topping) {
+    return toppings!.map((topping) {
       return CheckboxListTile(
         title: Text(topping.name),
         subtitle: Text(formatRupiah(topping.price)),
@@ -99,24 +149,38 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
   }
 
   // Build daftar addon
-  List<Widget> _buildAddonList(List<AddOnOptionModel> selectedAddons,
-      Function(AddOnOptionModel) onAddonSelected) {
+  List<Widget> _buildAddonList(List<AddOnModel> selectedAddons,
+      Function(AddOnModel, AddOnOptionModel) onAddonSelected) {
     // Contoh data addon (bisa diganti dengan data dari API)
-    final addons = widget.menuItem.addOns;
-
+    final addons = widget.menuItem.addOns!;
+    print(addons);
     return addons.map((addon) {
-      return ExpansionTile(
-        title: Text(addon.name),
-        children: addon.options.map((option) {
-          return CheckboxListTile(
-            title: Text(option.label),
-            subtitle: Text(formatRupiah(option.price)),
-            value: selectedAddons.contains(option),
-            onChanged: (value) {
-              onAddonSelected(option);
-            },
-          );
-        }).toList(),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(addon!.name,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          ...addon.options.map((option) {
+            return RadioListTile<AddOnOptionModel>(
+              title: Text(option.label),
+              subtitle: Text(formatRupiah(option.price)),
+              value: option,
+              groupValue: selectedAddons
+                  .firstWhere((a) => a.id == addon.id,
+                      orElse: () =>
+                          AddOnModel(id: '', name: '', type: '', options: []))
+                  .options
+                  .firstOrNull,
+              onChanged: (value) {
+                if (value != null) {
+                  onAddonSelected(addon, value);
+                }
+              },
+              //letakkan radiobuttonnya di kanan,
+              controlAffinity: ListTileControlAffinity.trailing,
+            );
+          }),
+        ],
       );
     }).toList();
   }

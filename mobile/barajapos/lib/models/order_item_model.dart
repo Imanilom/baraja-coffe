@@ -3,8 +3,8 @@ import 'package:barajapos/models/menu_item_model.dart';
 class OrderItemModel {
   final MenuItemModel menuItem;
   final List<ToppingModel> selectedToppings;
-  final List<AddOnOptionModel> selectedAddons;
-  final int quantity;
+  final List<AddOnModel> selectedAddons;
+  int quantity;
   // final double subtotal;
   // final String note = '';
 
@@ -17,12 +17,32 @@ class OrderItemModel {
   });
 
   double get subTotalPrice {
-    double total = menuItem.price * quantity;
-    total += selectedToppings.fold(
-        0, (sum, topping) => sum + topping.price * quantity);
-    total +=
-        selectedAddons.fold(0, (sum, option) => sum + option.price * quantity);
-    return total;
+    double total = menuItem.price;
+    total += selectedToppings.fold(0, (sum, topping) => sum + topping.price);
+    total += selectedAddons.fold(
+        0.0,
+        (sum, addon) =>
+            sum + addon.options.fold(0.0, (sum, option) => sum + option.price));
+    return total * quantity;
+  }
+
+  void incrementQuantity(int newQuantity) {
+    quantity += newQuantity;
+  }
+
+  OrderItemModel copyWith({
+    MenuItemModel? menuItem,
+    int? quantity,
+    List<ToppingModel>? selectedToppings,
+    List<AddOnModel>? selectedAddons,
+    double? subTotalPrice,
+  }) {
+    return OrderItemModel(
+      menuItem: menuItem ?? this.menuItem,
+      quantity: quantity ?? this.quantity,
+      selectedToppings: selectedToppings ?? this.selectedToppings,
+      selectedAddons: selectedAddons ?? this.selectedAddons,
+    );
   }
 
   Map<String, dynamic> toJson() {

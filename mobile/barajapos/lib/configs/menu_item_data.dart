@@ -15,7 +15,11 @@ List<MenuItemModel> dummyMenuItems = [
           price: 2000,
           createdAt: "2024-03-01"),
       ToppingModel(
-          id: "102", name: "Bacon", price: 3000, createdAt: "2024-03-02"),
+        id: "102",
+        name: "Bacon",
+        price: 3000,
+        createdAt: "2024-03-02",
+      ),
     ],
     addOns: [
       AddOnModel(
