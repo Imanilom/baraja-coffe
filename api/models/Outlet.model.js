@@ -9,7 +9,7 @@ const OutletSchema = new mongoose.Schema({
   latitude: { type: Number, required: true },
   longitude: { type: Number, required: true },
   contactNumber: { type: String, required: true },
-  manager: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  admin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   isActive: { type: Boolean, default: true },
   outletPictures: {
     type: [String],
