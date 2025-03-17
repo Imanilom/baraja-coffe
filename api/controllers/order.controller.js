@@ -1,14 +1,14 @@
 import { Order } from '../models/Order.model.js';
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
-import  Topping  from "../models/Topping.model.js";
+import Topping from "../models/Topping.model.js";
 import { RawMaterial } from "../models/RawMaterial.model.js";
 import midtransClient from 'midtrans-client';
 import mongoose from 'mongoose';
 
 // Midtrans Configuration
 const snap = new midtransClient.Snap({
-  isProduction: process.env.NODE_ENV === 'sandbox',
+  isProduction: false,
   serverKey: process.env.MIDTRANS_SERVER_KEY,
   clientKey: process.env.MIDTRANS_CLIENT_KEY
 });
@@ -16,15 +16,14 @@ const snap = new midtransClient.Snap({
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
-
+  
   try {
-    const { user, cashier, items, paymentMethod, orderType, deliveryAddress, tableNumber, type, voucher } = req.body;
-    console.log("Full Request Body:", JSON.stringify(req.body, null, 2));
+    const orderData = req.body.order;
+    const { user, cashier, items, paymentMethod, orderType, deliveryAddress, tableNumber, type, voucher } = orderData;
 
-
-    // Pastikan items adalah array
-    if (!Array.isArray(items)) {
-      throw new Error("Items must be an array");
+    // Validasi dasar
+    if (!items || items.length === 0) {
+      throw new Error("Order items cannot be empty");
     }
 
     // Hitung total harga dan validasi item
@@ -32,20 +31,12 @@ export const createOrder = async (req, res) => {
     const orderItems = [];
 
     for (const item of items) {
-      // Validasi item
-      if (!item.menuItem || !item.quantity) {
-        throw new Error("Each item must have menuItem and quantity");
-      }
-
       const menuItem = await MenuItem.findById(item.menuItem).session(session);
       if (!menuItem) {
         throw new Error(`Menu item ${item.menuItem} not found`);
       }
 
-      // Ambil  toppings
       const toppings = await Topping.find({ _id: { $in: item.toppings || [] } }).session(session);
-
-      // Hitung subtotal
       const toppingsTotal = toppings.reduce((sum, topping) => sum + (topping.price || 0), 0);
       const subtotal = (menuItem.price + toppingsTotal) * item.quantity;
 
@@ -53,7 +44,7 @@ export const createOrder = async (req, res) => {
         menuItem: item.menuItem,
         toppings: item.toppings || [],
         quantity: item.quantity,
-        subtotal: subtotal,
+        subtotal,
         isPrinted: false,
       });
 
@@ -79,9 +70,10 @@ export const createOrder = async (req, res) => {
 
     // Proses pembayaran
     let paymentResponse = {};
+    let payment;
+    
     if (paymentMethod === "Cash") {
-      // Jika pembayaran tunai
-      const payment = new Payment({
+      payment = new Payment({
         order: order._id,
         amount: totalPrice,
         paymentMethod,
@@ -90,28 +82,41 @@ export const createOrder = async (req, res) => {
       await payment.save({ session });
       paymentResponse = { cashPayment: "Pending confirmation" };
     } else {
-      // Jika pembayaran digital (E-Wallet, QRIS, dll.)
+      // Konfigurasi pembayaran digital
       const parameter = {
         transaction_details: {
-          order_id: order._id.toString(), // Gunakan order ID sebagai referensi
+          order_id: order._id.toString(),
           gross_amount: totalPrice,
         },
-        payment_type: paymentMethod === 'QRIS' ? 'qris' : paymentMethod.toLowerCase(),
-        customer_details: {
-          user: user,
+        credit_card: {
+          secure: true,
         },
+        customer_details: {
+          first_name: user.name || 'Customer', // Asumsikan user memiliki properti name
+          email: user.email || 'customer@example.com',
+        }
       };
 
-      // Tambahkan opsi khusus untuk E-Wallet (GoPay, OVO, dll.)
-      if (['E-Wallet', 'QRIS'].includes(paymentMethod)) {
-        parameter.enabled_payments = [paymentMethod === 'QRIS' ? 'qris' : 'gopay'];
+      // Set payment type berdasarkan metode pembayaran
+      switch(paymentMethod.toLowerCase()) {
+        case 'qris':
+          parameter.enabled_payments = ['qris'];
+          break;
+        case 'gopay':
+          parameter.enabled_payments = ['gopay'];
+          break;
+        case 'credit_card':
+          parameter.enabled_payments = ['credit_card'];
+          break;
+        default:
+          throw new Error('Unsupported payment method');
       }
 
-      // Buat transaksi Midtrans
+      // Create Midtrans transaction
       const midtransTransaction = await snap.createTransaction(parameter);
 
       // Simpan detail pembayaran
-      const payment = new Payment({
+      payment = new Payment({
         order: order._id,
         amount: totalPrice,
         paymentMethod,
@@ -120,19 +125,27 @@ export const createOrder = async (req, res) => {
         transactionId: midtransTransaction.transaction_id,
         paymentDetails: midtransTransaction,
       });
+      
       await payment.save({ session });
-
       paymentResponse = midtransTransaction;
     }
 
-    // Update stok bahan baku
+    // Update stok bahan baku (asumsi fungsi ini sudah ada)
     await updateStock(order, session);
 
     await session.commitTransaction();
-    res.status(201).json({ order, payment: paymentResponse });
+    res.status(201).json({ 
+      success: true,
+      order: order.toJSON(),
+      payment: paymentResponse 
+    });
   } catch (error) {
     await session.abortTransaction();
-    res.status(400).json({ error: error.message });
+    console.error('Order Error:', error);
+    res.status(400).json({ 
+      success: false,
+      error: error.message 
+    });
   } finally {
     session.endSession();
   }
