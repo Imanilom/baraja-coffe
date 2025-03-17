@@ -18,7 +18,7 @@ const CreatePromotion = ({ fetchPromotions }) => {
   useEffect(() => {
     const fetchMenuItems = async () => {
       try {
-        const response = await axios.get("/api/menu-items");
+        const response = await axios.get("/api/menu/menu-items");
 
         setMenuItems(response.data?.data || []);
         setLoadingItems(false);

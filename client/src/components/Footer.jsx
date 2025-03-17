@@ -9,7 +9,7 @@ const Footer = () => {
         {/* Logo and Copyright */}
         <div className="flex flex-col items-start">
           <img 
-            src="https://via.placeholder.com/100x50" 
+            src="https://placehold.co/120x40/png" 
             alt="Baraja Coffee Logo" 
             className="mb-4"
           />

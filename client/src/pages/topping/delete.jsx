@@ -4,7 +4,7 @@ import axios from "axios";
 const DeleteTopping = ({ id, fetchToppings }) => {
   const handleDelete = async () => {
     try {
-      await axios.delete(`/api/toppings/${id}`);
+      await axios.delete(`/api/menu/toppings/${id}`);
       fetchToppings();
     } catch (error) {
       console.error("Error deleting topping:", error);

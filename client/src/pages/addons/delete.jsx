@@ -4,7 +4,7 @@ import axios from "axios";
 const DeleteAddon = ({ id, fetchAddons }) => {
   const handleDelete = async () => {
     try {
-      await axios.delete(`/api/addons/${id}`);
+      await axios.delete(`/api/menu/addons/${id}`);
       fetchAddons();
     } catch (error) {
       console.error("Error deleting addon:", error);
