@@ -13,6 +13,7 @@ const MenuItemSchema = new mongoose.Schema({
   toppings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }],
   rawMaterials: [
     {
+      _id: false,  // Tambahkan ini agar tidak ada `_id` otomatis di dalam subdokumen
       materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
       quantityRequired: { type: Number, required: true, min: 0 }
     }
@@ -32,6 +33,7 @@ const MenuItemSchema = new mongoose.Schema({
     { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', required: true }
   ], // Menyimpan daftar outlet tempat menu tersedia
 }, { timestamps: true });
+
 
 // Middleware: Validasi apakah bahan baku cukup sebelum menyimpan menu baru
 MenuItemSchema.pre('save', async function (next) {
