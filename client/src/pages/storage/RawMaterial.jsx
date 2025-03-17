@@ -1,49 +1,68 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import dayjs from 'dayjs';
 
 const RawMaterialPage = () => {
   const [rawMaterials, setRawMaterials] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
-    quantity: '',
+    category: '',
+    quantity: 0,
     unit: '',
-    minimumStock: '',
+    minimumStock: 0,
+    maximumStock: 0,
+    costPerUnit: 0,
     supplier: '',
+    expiryDate: null,
   });
   const [error, setError] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
 
-  // Fetch raw materials
+  useEffect(() => {
+    fetchRawMaterials();
+  }, []);
+
   const fetchRawMaterials = async () => {
     try {
       const response = await axios.get('/api/storage/raw-material');
       setRawMaterials(response.data.data || []);
     } catch (err) {
-      console.error('Fetch error:', err.response?.data || err.message);
+      console.error('Fetch error:', err);
+      setError('Failed to fetch raw materials');
     }
   };
-  
-  
 
-  useEffect(() => {
-    fetchRawMaterials();
-  }, []);
-
-  // Handle input change
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    const { name, value, type, checked } = e.target;
+    const val = type === 'checkbox' ? checked : (name === 'expiryDate' ? e.target.value : value);
+    setFormData({
+      ...formData,
+      [name]: name === 'expiryDate' 
+        ? (val === '' ? null : dayjs(val).toISOString()) 
+        : (name in [ 'quantity', 'minimumStock', 'maximumStock', 'costPerUnit' ] 
+          ? parseInt(val) 
+          : val)
+    });
   };
 
-  // Reset form
   const resetForm = () => {
-    setFormData({ name: '', quantity: '', unit: '', minimumStock: '', supplier: '' });
+    setFormData({
+      name: '',
+      category: '',
+      quantity: 0,
+      unit: '',
+      minimumStock: 0,
+      maximumStock: 0,
+      costPerUnit: 0,
+      supplier: '',
+      expiryDate: null,
+    });
     setIsEditing(false);
     setEditId(null);
+    setError(null);
   };
 
-  // Handle create or update
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -54,20 +73,22 @@ const RawMaterialPage = () => {
       }
       resetForm();
       fetchRawMaterials();
+      setError(null);
     } catch (err) {
       console.error('Save error:', err);
       setError('Failed to save raw material');
     }
   };
 
-  // Handle edit
   const handleEdit = (material) => {
-    setFormData(material);
+    setFormData({
+      ...material,
+      expiryDate: material.expiryDate ? dayjs(material.expiryDate).format('YYYY-MM-DD') : null,
+    });
     setIsEditing(true);
     setEditId(material._id);
   };
 
-  // Handle delete with confirmation
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this material?')) {
       try {
@@ -81,65 +102,220 @@ const RawMaterialPage = () => {
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Raw Material Management</h1>
-      {error && <div className="text-red-500 mb-4">{error}</div>}
-      <form onSubmit={handleSubmit} className="mb-4 p-4 border rounded-md shadow-md">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Name" className="border p-2 rounded-md" required />
-          <input type="number" name="quantity" value={formData.quantity} onChange={handleChange} placeholder="Quantity" className="border p-2 rounded-md" required />
-          <input type="text" name="unit" value={formData.unit} onChange={handleChange} placeholder="Unit" className="border p-2 rounded-md" required />
-          <input type="number" name="minimumStock" value={formData.minimumStock} onChange={handleChange} placeholder="Minimum Stock" className="border p-2 rounded-md" required />
-          <input type="text" name="supplier" value={formData.supplier} onChange={handleChange} placeholder="Supplier" className="border p-2 rounded-md" />
+    <div className="p-8 max-w-7xl mx-auto">
+      <h1 className="text-3xl font-bold mb-8 text-center">Bahan Baku Manajemen</h1>
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-800 px-4 py-3 rounded mb-4">
+          {error}
         </div>
-        <div className="flex gap-2 mt-4">
-          <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded-md">
-            {isEditing ? 'Update Material' : 'Add Material'}
+      )}
+
+      <form 
+        onSubmit={handleSubmit}
+        className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-8"
+      >
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Nama Bahan
+          </label>
+          <input
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Kategori
+          </label>
+          <select
+            name="category"
+            value={formData.category}
+            onChange={handleChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          >
+            <option value="">Pilih Kategori</option>
+            <option value="kemasan">Kemasan</option>
+            <option value="bahan_makanan">Bahan Makanan</option>
+            <option value="peralatan">Peralatan</option>
+          </select>
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Jumlah Stok
+          </label>
+          <input
+            type="number"
+            name="quantity"
+            value={formData.quantity}
+            onChange={handleChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Satuan
+          </label>
+          <input
+            type="text"
+            name="unit"
+            value={formData.unit}
+            onChange={handleChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Stok Minimum
+          </label>
+          <input
+            type="number"
+            name="minimumStock"
+            value={formData.minimumStock}
+            onChange={handleChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Stok Maksimum
+          </label>
+          <input
+            type="number"
+            name="maximumStock"
+            value={formData.maximumStock}
+            onChange={handleChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Harga Per Unit
+          </label>
+          <input
+            type="number"
+            name="costPerUnit"
+            value={formData.costPerUnit}
+            onChange={handleChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Pemasok
+          </label>
+          <input
+            type="text"
+            name="supplier"
+            value={formData.supplier}
+            onChange={handleChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Tanggal Kadaluarsa
+          </label>
+          <input
+            type="date"
+            name="expiryDate"
+            value={formData.expiryDate ? dayjs(formData.expiryDate).format('YYYY-MM-DD') : ''}
+            onChange={handleChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          />
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2"
+          >
+            {isEditing ? 'Perbarui Bahan' : 'Tambah Bahan'}
           </button>
           {isEditing && (
-            <button type="button" onClick={resetForm} className="bg-gray-500 text-white px-4 py-2 rounded-md">
-              Cancel
+            <button
+              type="button"
+              onClick={resetForm}
+              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded"
+            >
+              Batal
             </button>
           )}
         </div>
       </form>
 
-      <div className="overflow-x-auto">
-        {rawMaterials.length === 0 ? (
-          <p className="text-gray-500">No raw materials available</p>
-        ) : (
-          <table className="table-auto w-full border-collapse border border-gray-200">
-            <thead>
-              <tr>
-                <th className="border p-2">Name</th>
-                <th className="border p-2">Quantity</th>
-                <th className="border p-2">Unit</th>
-                <th className="border p-2">Minimum Stock</th>
-                <th className="border p-2">Supplier</th>
-                <th className="border p-2">Actions</th>
+      <div className="overflow-x-auto shadow-md sm:rounded-lg">
+        <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+          <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+            <tr>
+              <th scope="col" className="px-6 py-3">
+                Nama
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Kategori
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Stok
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Satuan
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Stok Minimum
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Harga/Unit
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Kadaluarsa
+              </th>
+              <th scope="col" className="px-6 py-3">
+                Aksi
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rawMaterials.map(material => (
+              <tr 
+                key={material._id} 
+                className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-100"
+              >
+                <td className="px-6 py-4">{material.name}</td>
+                <td className="px-6 py-4">{material.category}</td>
+                <td className="px-6 py-4">{material.quantity}</td>
+                <td className="px-6 py-4">{material.unit}</td>
+                <td className="px-6 py-4">{material.minimumStock}</td>
+                <td className="px-6 py-4">{material.costPerUnit}</td>
+                <td className="px-6 py-4">
+                  {material.expiryDate 
+                    ? dayjs(material.expiryDate).format('DD/MM/YYYY') 
+                    : '-'}
+                </td>
+                <td className="px-6 py-4 flex space-x-2">
+                  <button
+                    onClick={() => handleEdit(material)}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(material._id)}
+                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  >
+                    Hapus
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rawMaterials.map((material) => (
-                <tr key={material._id} className="hover:bg-gray-100">
-                  <td className="border p-2">{material.name}</td>
-                  <td className="border p-2">{material.quantity}</td>
-                  <td className="border p-2">{material.unit}</td>
-                  <td className="border p-2">{material.minimumStock}</td>
-                  <td className="border p-2">{material.supplier || 'N/A'}</td>
-                  <td className="border p-2">
-                    <button onClick={() => handleEdit(material)} className="bg-yellow-500 text-white px-2 py-1 rounded-md mr-2">
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(material._id)} className="bg-red-500 text-white px-2 py-1 rounded-md">
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
