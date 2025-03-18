@@ -14,7 +14,7 @@ const ToppingManagement = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get("/api/toppings");
+      const response = await axios.get("/api/menu/toppings");
       // Access nested data
       const toppingsArray = response.data?.data;
       if (Array.isArray(toppingsArray)) {
@@ -59,6 +59,7 @@ const ToppingManagement = () => {
           <thead>
             <tr>
               <th className="py-2 px-4 bg-gray-200 text-gray-700">Name</th>
+              <th className="py-2 px-4 bg-gray-200 text-gray-700">Category</th>
               <th className="py-2 px-4 bg-gray-200 text-gray-700">Price</th>
               <th className="py-2 px-4 bg-gray-200 text-gray-700">Actions</th>
             </tr>
@@ -68,6 +69,7 @@ const ToppingManagement = () => {
               toppings.map((topping) => (
                 <tr key={topping._id} className="border-t">
                   <td className="py-2 px-4">{topping.name}</td>
+                  <td className="py-2 px-4">{topping.category}</td>
                   <td className="py-2 px-4">IDR {topping.price}</td>
                   <td className="py-2 px-4">
                     <button

@@ -4,7 +4,8 @@ import axios from "axios";
 const CreateAddon = ({ fetchAddons }) => {
   const [formData, setFormData] = useState({
     name: "",
-    type: "size",
+    category: "drink",
+    type: "",
     options: [],
     rawMaterials: []
   });
@@ -12,10 +13,18 @@ const CreateAddon = ({ fetchAddons }) => {
   const [error, setError] = useState("");
   const [rawMaterials, setRawMaterials] = useState([]);
 
+  const drinkTypes = ["Temperature", "Size", "Beans", "Sugar", "Ice Level", "Espresso", "Milk", "Syrup"];
+  const foodTypes = ["Spiciness", "Custom"]; 
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    if (name === "category") {
+      setFormData({ ...formData, category: value, type: value === "drink" ? "Temperature" : "Spiciness" });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
+
 
   const handleOptionChange = (e) => {
     const { name, value } = e.target;
@@ -75,26 +84,27 @@ const CreateAddon = ({ fetchAddons }) => {
       }));
     };
 
-  const addOption = () => {
-    // if (!option.label || option.price === "" || parseFloat(option.price) <= -0) {
-    //   setError("Please enter a valid label and price for the option.");
-    //   return;
-    // }
-    setError("");
-    setFormData({
-      ...formData,
-      options: [...formData.options, option],
-    });
-    setOption({ label: "", price: "" });
-  };
+    const addOption = () => {
+      if (!option.label || option.price === 0 || parseFloat(option.price) < 0) {
+        setError("Please enter a valid label and price for the option.");
+        return;
+      }
+      setError("");
+      setFormData({
+        ...formData,
+        options: [...formData.options, option],
+      });
+      setOption({ label: "", price: "" });
+    };
+  
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     try {
-      await axios.post("/api/addons", formData);
+      await axios.post("/api/menu/addons", formData);
       setFormData({ name: "", type: "size", options: [], rawMaterials: [] });
-      fetchAddons();
+      
     } catch (error) {
       setError("Error creating add-on. Please try again.");
       console.error("Error creating add-on:", error);
@@ -117,18 +127,19 @@ const CreateAddon = ({ fetchAddons }) => {
         />
       </div>
       <div className="mb-4">
+        <label className="block text-gray-700">Category</label>
+        <select name="category" value={formData.category} onChange={handleInputChange} className="w-full border rounded px-3 py-2">
+          <option value="drink">Drink</option>
+          <option value="food">Food</option>
+        </select>
+      </div>
+
+      <div className="mb-4">
         <label className="block text-gray-700">Type</label>
-        <select
-          name="type"
-          value={formData.type}
-          onChange={handleInputChange}
-          className="w-full border rounded px-3 py-2"
-          required
-        >
-          <option value="size">Size</option>
-          <option value="temperature">Temperature</option>
-          <option value="spiciness">Spiciness</option>
-          <option value="custom">Custom</option>
+        <select name="type" value={formData.type} onChange={handleInputChange} className="w-full border rounded px-3 py-2">
+          {(formData.category === "drink" ? drinkTypes : foodTypes).map((type) => (
+            <option key={type} value={type}>{type}</option>
+          ))}
         </select>
       </div>
       <div className="mb-4">
