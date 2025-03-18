@@ -2,7 +2,9 @@ import express from 'express';
 import {
   createOrder,
   handleMidtransNotification,
-  getUserOrders
+  getUserOrders,
+  getUserOrderHistory,
+  getCashierOrderHistory,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -19,5 +21,8 @@ router.post('/midtrans/notification', handleMidtransNotification);
 
 // Route untuk mendapatkan daftar order berdasarkan user
 router.get('/orders/:userId', verifyToken(['customer']), getUserOrders);
+
+router.get('/orders/history/:userId', getUserOrderHistory);
+router.get('/orders/cashier/:cashierId', getCashierOrderHistory);
 
 export default router;
