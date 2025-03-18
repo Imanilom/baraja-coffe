@@ -15,7 +15,7 @@ const AddonManagement = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get("http://localhost:3000/api/addons");
+      const response = await axios.get("/api/menu/addons");
       // Access nested data
       const addonsArray = response.data?.data;
       if (Array.isArray(addonsArray)) {
@@ -51,6 +51,7 @@ const AddonManagement = () => {
         <thead>
           <tr>
             <th className="py-2 px-4 bg-gray-200 text-gray-700">Name</th>
+            <th className="py-2 px-4 bg-gray-200 text-gray-700">Category</th>
             <th className="py-2 px-4 bg-gray-200 text-gray-700">Type</th>
             <th className="py-2 px-4 bg-gray-200 text-gray-700">Options</th>
             <th className="py-2 px-4 bg-gray-200 text-gray-700">Actions</th>
@@ -60,6 +61,7 @@ const AddonManagement = () => {
           {addons.map((addon) => (
             <tr key={addon._id} className="border-t">
               <td className="py-2 px-4">{addon.name}</td>
+              <td className="py-2 px-4">{addon.category}</td>
               <td className="py-2 px-4">{addon.type}</td>
               <td className="py-2 px-4">
                 {addon.options.map((opt, index) => (

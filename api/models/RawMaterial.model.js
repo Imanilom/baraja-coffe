@@ -18,9 +18,10 @@ const RawMaterialSchema = new mongoose.Schema({
   minimumStock: { type: Number, required: true, min: 0 }, // Stok minimum sebelum perlu restock
   maximumStock: { type: Number, required: true, min: 1 }, // Stok maksimum untuk mencegah overstock
   costPerUnit: { type: Number, required: true, min: 0 }, // Harga per satuan bahan baku
-  supplier: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' }, // Referensi ke pemasok
+  supplier: { type: String }, // Referensi ke pemasok
   expiryDate: { type: Date }, // Tanggal kadaluwarsa (jika ada)
   lastUpdated: { type: Date, default: Date.now }, // Terakhir diperbarui
+  availableAt: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' }], // Outlet tempat bahan baku tersedia
   status: { 
     type: String, 
     enum: ['Available', 'Low Stock', 'Out of Stock', 'Overstocked', 'Expired'], 

@@ -34,6 +34,24 @@ const AdminDashboard = () => {
             <p className="text-gray-500 mt-2">Track and manage inventory storage.</p>
           </Link>
 
+           {/* Topping Management */}
+           <Link
+            to="/toppings"
+            className="p-6 bg-white shadow-md rounded-lg hover:shadow-lg transition-shadow"
+          >
+            <h2 className="text-xl font-semibold text-gray-700">Topping Management</h2>
+            <p className="text-gray-500 mt-2">Manage available toppings for menu items.</p>
+          </Link>
+
+          {/* Add-ons Management */}
+          <Link
+            to="/addons"
+            className="p-6 bg-white shadow-md rounded-lg hover:shadow-lg transition-shadow"
+          >
+            <h2 className="text-xl font-semibold text-gray-700">Add-ons Management</h2>
+            <p className="text-gray-500 mt-2">Manage additional items that can be added to orders.</p>
+          </Link>
+
           {/* Promotion Management */}
           <Link
             to="/promotion"
@@ -60,6 +78,7 @@ const AdminDashboard = () => {
             <h2 className="text-xl font-semibold text-gray-700">Financial Management</h2>
             <p className="text-gray-500 mt-2">Monitor and manage financial records.</p>
           </Link>
+          
         </div>
       </div>
     </div>

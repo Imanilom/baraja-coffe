@@ -4,15 +4,24 @@ import axios from "axios";
 const UpdateAddon = ({ addon, fetchAddons, onCancel }) => {
   const [formData, setFormData] = useState({
     name: addon.name || "",
-    type: addon.type || "size",
+    category: addon.category || "drink",
+    type: addon.type || "",
     options: addon.options || [],
   });
   const [option, setOption] = useState({ label: "", price: "" });
 
+  const drinkTypes = ["Temperature", "Size", "Beans", "Sugar", "Ice Level", "Espresso", "Milk", "Syrup"];
+  const foodTypes = ["Spiciness", "Custom"]; 
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    if (name === "category") {
+      setFormData({ ...formData, category: value, type: value === "drink" ? "Temperature" : "Spiciness" });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
+
 
   const handleOptionChange = (e) => {
     const { name, value } = e.target;
@@ -37,7 +46,7 @@ const UpdateAddon = ({ addon, fetchAddons, onCancel }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`/api/addons/${addon._id}`, formData);
+      await axios.put(`/api/menu/addons/${addon._id}`, formData);
       fetchAddons();
       onCancel();
     } catch (error) {
@@ -66,20 +75,20 @@ const UpdateAddon = ({ addon, fetchAddons, onCancel }) => {
           />
         </div>
 
-        {/* Type Field */}
+        <div className="mb-4">
+          <label className="block text-gray-700">Category</label>
+          <select name="category" value={formData.category} onChange={handleInputChange} className="w-full border rounded px-3 py-2">
+            <option value="drink">Drink</option>
+            <option value="food">Food</option>
+          </select>
+        </div>
+
         <div className="mb-4">
           <label className="block text-gray-700">Type</label>
-          <select
-            name="type"
-            value={formData.type}
-            onChange={handleInputChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          >
-            <option value="size">Size</option>
-            <option value="temperature">Temperature</option>
-            <option value="spiciness">Spiciness</option>
-            <option value="custom">Custom</option>
+          <select name="type" value={formData.type} onChange={handleInputChange} className="w-full border rounded px-3 py-2">
+            {(formData.category === "drink" ? drinkTypes : foodTypes).map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
           </select>
         </div>
 

@@ -1,60 +1,132 @@
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import { StockOpname } from '../models/StockOpname.model.js';
 
-// Raw Material Controllers
-
 // Add a new raw material
 export const createRawMaterial = async (req, res) => {
   try {
-    const { outlet, name, quantity, unit, minimumStock, supplier } = req.body;
-
-    const rawMaterial = new RawMaterial({
-      outlet,
+    const {
       name,
+      category,
       quantity,
       unit,
       minimumStock,
+      maximumStock,
+      costPerUnit,
       supplier,
+      expiryDate,
+    } = req.body;
+    
+    // Validasi field wajib
+    if (
+      !name ||
+      !category ||
+      !quantity ||
+      !unit ||
+      !minimumStock ||
+      !maximumStock ||
+      !costPerUnit
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Missing required fields: name, category, quantity, unit, minimumStock, maximumStock, costPerUnit',
+      });
+    }
+
+    const rawMaterial = new RawMaterial({
+      name,
+      category,
+      quantity,
+      unit,
+      minimumStock,
+      maximumStock,
+      costPerUnit,
+      supplier,
+      expiryDate, // Boleh kosong
     });
 
     const savedRawMaterial = await rawMaterial.save();
     res.status(201).json({ success: true, data: savedRawMaterial });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to create raw material', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create raw material',
+      error: error.message,
+    });
   }
 };
 
 // Get all raw materials
 export const getRawMaterials = async (req, res) => {
   try {
-    const rawMaterials = await RawMaterial.find();
+    const rawMaterials = await RawMaterial.find()
+      .populate('supplier')
+      .sort({ createdAt: -1 });
+
     if (!rawMaterials || rawMaterials.length === 0) {
-      return res.status(404).json({ success: false, message: 'No raw materials found' });
+      return res.status(404).json({
+        success: false,
+        message: 'No raw materials found',
+      });
     }
+
     res.status(200).json({ success: true, data: rawMaterials });
   } catch (error) {
-    console.error("Database fetch error:", error);
-    res.status(500).json({ success: false, message: 'Failed to fetch raw materials', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch raw materials',
+      error: error.message,
+    });
   }
 };
-
 
 // Update a raw material by ID
 export const updateRawMaterial = async (req, res) => {
   try {
-    const { name, quantity, unit, minimumStock, supplier } = req.body;
+    const {
+      name,
+      category,
+      quantity,
+      unit,
+      minimumStock,
+      maximumStock,
+      costPerUnit,
+      supplier,
+      expiryDate,
+    } = req.body;
+
+    const updates = {
+      name,
+      category,
+      quantity,
+      unit,
+      minimumStock,
+      maximumStock,
+      costPerUnit,
+      supplier,
+      expiryDate,
+    };
 
     const updatedRawMaterial = await RawMaterial.findByIdAndUpdate(
       req.params.id,
-      { name, quantity, unit, minimumStock, supplier, lastUpdated: Date.now() },
+      updates,
       { new: true }
     );
 
-    if (!updatedRawMaterial) return res.status(404).json({ success: false, message: 'Raw material not found' });
+    if (!updatedRawMaterial) {
+      return res.status(404).json({
+        success: false,
+        message: 'Raw material not found',
+      });
+    }
 
     res.status(200).json({ success: true, data: updatedRawMaterial });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to update raw material', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update raw material',
+      error: error.message,
+    });
   }
 };
 
@@ -63,11 +135,23 @@ export const deleteRawMaterial = async (req, res) => {
   try {
     const deletedRawMaterial = await RawMaterial.findByIdAndDelete(req.params.id);
 
-    if (!deletedRawMaterial) return res.status(404).json({ success: false, message: 'Raw material not found' });
+    if (!deletedRawMaterial) {
+      return res.status(404).json({
+        success: false,
+        message: 'Raw material not found',
+      });
+    }
 
-    res.status(200).json({ success: true, message: 'Raw material deleted successfully' });
+    res.status(200).json({
+      success: true,
+      message: 'Raw material deleted successfully',
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to delete raw material', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete raw material',
+      error: error.message,
+    });
   }
 };
 

@@ -8,6 +8,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import PrivateRoute from './components/PrivateRoute';
 import Download from './components/download';
+import Sidebar from './components/Sidebar';
 // menu
 import Menumanagement from './pages/menu/index';
 import Menucreate from './pages/menu/create';
@@ -65,24 +66,30 @@ export default function App() {
           <Route path="/outlet" element={<Outlet />} />
           {/* Routes with restricted access */}
           <Route element={<PrivateRoute allowedRoles={['cashier', 'superadmin']} />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/toko" element={<OutletManagementPage />} />
-            <Route path="/menu" element={<Menumanagement />} />
-            <Route path="/menu-create" element={<Menucreate />} />
-            <Route path="/menu-update/:id" element={<MenuUpdate />} />
-            <Route path="/voucher" element={<Vouchermanagement />} />
-            <Route path="/voucher-create" element={<CreateVoucher />} />
-            <Route path="/toppings" element={<ToppingManagement />} />
-            <Route path="/topping-create" element={<CreateTopping />} />
-            <Route path="/addons" element={<AddonManagement />} />
-            <Route path="/addons-create" element={<CreateAddon />} />
-            <Route path="/promotion" element={<Promotionmanagement />} />
-            <Route path="/promotion-create" element={<CreatePromotion />} />
-            <Route path="/storage" element={<Storagemanagement />} />
-            <Route path="/storage-create" element={<CreateStrorage />} />
-            <Route path="/content" element={<ContentManagement />} />
-            <Route path="/content-create" element={<CreateContent />} />
-            <Route path="/content-update/:id" element={<UpdateContent />} />
+          <div className="flex">
+          <Sidebar />
+            <div className="flex-1"> 
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/toko" element={<OutletManagementPage />} />
+              <Route path="/menu" element={<Menumanagement />} />
+              <Route path="/menu-create" element={<Menucreate />} />
+              <Route path="/menu-update/:id" element={<MenuUpdate />} />
+              <Route path="/voucher" element={<Vouchermanagement />} />
+              <Route path="/voucher-create" element={<CreateVoucher />} />
+              <Route path="/toppings" element={<ToppingManagement />} />
+              <Route path="/topping-create" element={<CreateTopping />} />
+              <Route path="/addons" element={<AddonManagement />} />
+              <Route path="/addons-create" element={<CreateAddon />} />
+              <Route path="/promotion" element={<Promotionmanagement />} />
+              <Route path="/promotion-create" element={<CreatePromotion />} />
+              <Route path="/storage" element={<Storagemanagement />} />
+              <Route path="/storage-create" element={<CreateStrorage />} />
+              <Route path="/content" element={<ContentManagement />} />
+              <Route path="/content-create" element={<CreateContent />} />
+              <Route path="/content-update/:id" element={<UpdateContent />} />
+            </div>
+          </div>
+        
           </Route>
   
           {/* Routes for authenticated users */}

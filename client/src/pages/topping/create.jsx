@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Navigate } from "react-router-dom";
 
 const CreateTopping = ({ fetchToppings, onCancel }) => {
   const navigate = useNavigate(); 
-  const [formData, setFormData] = useState({ name: "", price: "", rawMaterials: [] });
+  const [formData, setFormData] = useState({ name: "", price: "", category: "food", rawMaterials: [] });
   const [rawMaterials, setRawMaterials] = useState([]);
 
   // Fetch available raw materials on mount
@@ -43,7 +42,6 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
     });
   };
   
-
   const handleRawMaterialSelect = (e) => {
     const { value } = e.target;
     const materialExists = formData.rawMaterials.some(
@@ -61,7 +59,6 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
     }
   };
   
-
   const handleRemoveRawMaterial = (materialId) => {
     setFormData((prevData) => ({
       ...prevData,
@@ -71,12 +68,11 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
     }));
   };
 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("/api/toppings", formData);
-      setFormData({ name: "", price: "", rawMaterials: [] });
+      await axios.post("/api/menu/toppings", formData);
+      setFormData({ name: "", price: "", category: "food", rawMaterials: [] });
       navigate("/toppings");
       if (onCancel) onCancel();
     } catch (error) {
@@ -113,44 +109,56 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
       </div>
 
       <div className="mb-4">
-          <label className="block text-gray-700">Raw Materials</label>
-          <select
-            onChange={handleRawMaterialSelect}
-            className="w-full border rounded px-3 py-2 mb-2"
-          >
-            <option value="">Select Raw Material</option>
-            {rawMaterials.map((rawMaterial) => (
-              <option key={rawMaterial._id} value={rawMaterial._id}>
-                {rawMaterial.name}
-              </option>
-            ))}
-          </select>
-          {formData.rawMaterials.map((material, index) => (
-            <div key={index} className="flex items-center mb-2">
-              <label className="w-2/3 text-gray-700">
-                {rawMaterials.find((item) => item._id === material.materialId)?.name}
-              </label>
-              <input
-                type="number"
-                value={material.quantityRequired}
-                onChange={(e) => handleRawMaterialChange(e, material.materialId)}
-                className="w-20 border rounded px-3 py-2 mr-2"
-                placeholder="Quantity"
-                min="1"
-                step="1"
-              />  
-              <button
-                type="button"
-                onClick={() => handleRemoveRawMaterial(material.materialId)}
-                className="bg-red-500 text-white px-3 py-1 rounded"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
+        <label className="block text-gray-700">Category</label>
+        <select
+          name="category"
+          value={formData.category}
+          onChange={handleInputChange}
+          className="w-full border rounded px-3 py-2"
+          required
+        >
+          <option value="food">Food</option>
+          <option value="drink">Drink</option>
+        </select>
+      </div>
 
-  
+      <div className="mb-4">
+        <label className="block text-gray-700">Raw Materials</label>
+        <select
+          onChange={handleRawMaterialSelect}
+          className="w-full border rounded px-3 py-2 mb-2"
+        >
+          <option value="">Select Raw Material</option>
+          {rawMaterials.map((rawMaterial) => (
+            <option key={rawMaterial._id} value={rawMaterial._id}>
+              {rawMaterial.name}
+            </option>
+          ))}
+        </select>
+        {formData.rawMaterials.map((material, index) => (
+          <div key={index} className="flex items-center mb-2">
+            <label className="w-2/3 text-gray-700">
+              {rawMaterials.find((item) => item._id === material.materialId)?.name}
+            </label>
+            <input
+              type="number"
+              value={material.quantityRequired}
+              onChange={(e) => handleRawMaterialChange(e, material.materialId)}
+              className="w-20 border rounded px-3 py-2 mr-2"
+              placeholder="Quantity"
+              min="1"
+              step="1"
+            />  
+            <button
+              type="button"
+              onClick={() => handleRemoveRawMaterial(material.materialId)}
+              className="bg-red-500 text-white px-3 py-1 rounded"
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
 
       <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
         Add Topping
