@@ -21,4 +21,6 @@ router.post('/midtrans/notification', handleMidtransNotification);
 // Route untuk mendapatkan daftar order berdasarkan user
 router.get('/orders/:userId', verifyToken(['customer']), getUserOrders);
 
+// router.get('/getHistory', getUserOrders)
+
 export default router;
