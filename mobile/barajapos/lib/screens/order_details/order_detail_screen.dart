@@ -20,14 +20,6 @@ class OrderDetailScreen extends ConsumerWidget {
         orderDetail = ref.watch(orderDetailProvider);
         totalPrices = ref.watch(orderDetailProvider.notifier).totalPrice;
         break;
-      case 1:
-        orderDetail = ref.watch(orderDetailProvider);
-        totalPrices = ref.watch(orderDetailProvider.notifier).totalPrice;
-        break;
-      case 2:
-        orderDetail = ref.watch(orderDetailProvider);
-        totalPrices = ref.watch(orderDetailProvider.notifier).totalPrice;
-        break;
       default:
     }
 
