@@ -1,10 +1,11 @@
-import 'package:barajapos/configs/menu_item_data.dart';
-import 'package:barajapos/models/menu_item_model.dart';
+import 'package:barajapos/models/try/try_menu_item_model.dart';
+import 'package:barajapos/repositories/menu_item_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import 'package:barajapos/repositories/menu_item_repository.dart';
 
-final menuItemProvider = FutureProvider<List<MenuItemModel>>((ref) async {
-  // final menu = MenuItemRepository();
-  // return menu.fetchMenu();
-  return dummyMenuItems;
+final menuItemRepository =
+    Provider<MenuItemRepository>((ref) => MenuItemRepository());
+
+final menuItemProvider = FutureProvider<List<TryMenuItemModel>>((ref) async {
+  final repository = ref.read(menuItemRepository);
+  return repository.getMenuItem();
 });

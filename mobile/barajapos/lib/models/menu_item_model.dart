@@ -25,10 +25,12 @@ class MenuItemModel {
 
   // Factory method untuk parsing JSON ke MenuItemModel
   factory MenuItemModel.fromJson(Map<String, dynamic> json) {
+    final double price = double.parse(json['price']);
+
     return MenuItemModel(
       id: json['_id'],
       name: json['name'],
-      price: json['price'].toDouble(),
+      price: price,
       description: json['description'],
       category: json['category'],
       imageURL: json['imageURL'],
