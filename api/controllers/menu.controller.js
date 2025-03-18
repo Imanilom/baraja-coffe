@@ -84,27 +84,39 @@ export const createMenuItem = async (req, res) => {
 
 export const getSimpleMenuItems = async (req, res) => {
   try {
-    const menuItems = await MenuItem.find().select('name price category imageURL rawMaterials');
+    const menuItems = await MenuItem.find().select('name price category imageURL rawMaterials discount');
 
     // Cek stok bahan baku untuk setiap menu
     const updatedMenuItems = await Promise.all(menuItems.map(async (menu) => {
       let isAvailable = true;
 
       for (const item of menu.rawMaterials) {
-        const material = await RawMaterial.find().find({ _id: item.materialId });
+        const material = await RawMaterial.findOne({ _id: item.materialId });
         if (!material || material.quantity < item.quantityRequired) {
           isAvailable = false;
           break;
         }
       }
 
+      // Hitung harga setelah diskon jika ada
+      let originalPrice = menu.price;
+      let discountPercentage = menu.discount || 0;
+      let discountedPrice = originalPrice;
+
+      if (discountPercentage > 0) {
+        discountedPrice = originalPrice - (originalPrice * (discountPercentage / 100));
+      }
+
       return {
         id: menu._id,
         name: menu.name,
-        price: menu.price,
+        price: originalPrice,
         category: menu.category,
         imageURL: menu.imageURL,
-        isAvailable
+        isAvailable,
+        originalPrice,
+        discountedPrice,
+        discountPercentage
       };
     }));
 
@@ -113,7 +125,6 @@ export const getSimpleMenuItems = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch menu items', error: error.message });
   }
 };
-
 
 
 // Get all menu items

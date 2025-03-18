@@ -83,3 +83,13 @@ export const deleteUser = async (req, res, next) => {
   }
 
 }
+
+export const getUSerById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    const { password, ...rest } = user._doc;
+    res.status(200).json(rest);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
