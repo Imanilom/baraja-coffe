@@ -1,6 +1,6 @@
 import { MenuItem } from '../models/MenuItem.model.js';
 import Topping from '../models/Topping.model.js';
-import Promotion from '../models/promotion.model.js';
+import { Promotion } from '../models/Promotion.model.js';
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import mongoose from 'mongoose';
 
@@ -231,7 +231,7 @@ export const getMenuItemById = async (req, res) => {
       }))
     );
 
-  
+
     // Fetch active promotions
     const currentDate = new Date();
     const activePromotions = await Promotion.find({
@@ -441,7 +441,7 @@ export const createTopping = async (req, res) => {
     // Create the topping
     const topping = new Topping({
       name,
-      category, 
+      category,
       price,
       rawMaterials: rawMaterials.map(rm => ({
         materialId: rm.materialId,
@@ -473,7 +473,7 @@ export const getToppingById = async (req, res) => {
 // Update a topping
 export const updateTopping = async (req, res) => {
   try {
-    const { name,category, price, rawMaterials } = req.body;
+    const { name, category, price, rawMaterials } = req.body;
 
     // Validate rawMaterials
     if (rawMaterials && !Array.isArray(rawMaterials)) {
@@ -519,7 +519,7 @@ export const updateTopping = async (req, res) => {
       req.params.id,
       {
         name,
-        category, 
+        category,
         price,
         rawMaterials: rawMaterials || [],
       },
