@@ -3,15 +3,8 @@ import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
 import Topping from "../models/Topping.model.js";
 import { RawMaterial } from "../models/RawMaterial.model.js";
-import midtransClient from 'midtrans-client';
+import {snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
-
-// Midtrans Configuration
-const snap = new midtransClient.Snap({
-  isProduction: false,
-  serverKey: process.env.MIDTRANS_SERVER_KEY,
-  clientKey: process.env.MIDTRANS_CLIENT_KEY
-});
 
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
@@ -19,7 +12,7 @@ export const createOrder = async (req, res) => {
   
   try {
     const orderData = req.body.order;
-    const { user, cashier, items, paymentMethod, orderType, deliveryAddress, tableNumber, type, voucher } = orderData;
+    const { userId, user, cashier, items, paymentMethod, orderType, outlet, deliveryAddress, tableNumber, type, voucher } = orderData;
 
     // Validasi dasar
     if (!items || items.length === 0) {
@@ -51,14 +44,19 @@ export const createOrder = async (req, res) => {
       totalPrice += subtotal;
     }
 
+    // Pastikan gross_amount adalah integer
+    totalPrice = Math.round(totalPrice);
+
     // Buat order
     const order = new Order({
+      userId,
       user,
       cashier,
       items: orderItems,
       totalPrice,
       paymentMethod,
       orderType,
+      outlet,
       deliveryAddress: orderType === 'Delivery' ? deliveryAddress : undefined,
       tableNumber: orderType === 'Dine-In' ? tableNumber : undefined,
       type: orderType === 'Dine-In' ? type : undefined,
@@ -82,38 +80,43 @@ export const createOrder = async (req, res) => {
       await payment.save({ session });
       paymentResponse = { cashPayment: "Pending confirmation" };
     } else {
-      // Konfigurasi pembayaran digital
+
+      // Parameter transaksi
       const parameter = {
         transaction_details: {
           order_id: order._id.toString(),
           gross_amount: totalPrice,
         },
-        credit_card: {
-          secure: true,
-        },
         customer_details: {
-          first_name: user.name || 'Customer', // Asumsikan user memiliki properti name
+          first_name: user.name || 'Customer',
           email: user.email || 'customer@example.com',
         }
       };
 
-      // Set payment type berdasarkan metode pembayaran
+      // Tentukan payment type
       switch(paymentMethod.toLowerCase()) {
         case 'qris':
-          parameter.enabled_payments = ['qris'];
+          parameter.payment_type = 'qris';
           break;
         case 'gopay':
-          parameter.enabled_payments = ['gopay'];
+          parameter.payment_type = 'gopay';
+          parameter.gopay = {
+            enable_callback: true,
+            callback_url: 'yourapp://callback'
+          };
           break;
         case 'credit_card':
-          parameter.enabled_payments = ['credit_card'];
+          parameter.payment_type = 'credit_card';
+          parameter.credit_card = {
+            secure: true
+          };
           break;
         default:
           throw new Error('Unsupported payment method');
       }
 
       // Create Midtrans transaction
-      const midtransTransaction = await snap.createTransaction(parameter);
+      const midtransResponse = await coreApi.charge(parameter);
 
       // Simpan detail pembayaran
       payment = new Payment({
@@ -122,15 +125,15 @@ export const createOrder = async (req, res) => {
         paymentMethod,
         status: "Pending",
         paymentDate: new Date(),
-        transactionId: midtransTransaction.transaction_id,
-        paymentDetails: midtransTransaction,
+        transactionId: midtransResponse.transaction_id,
+        paymentDetails: midtransResponse,
       });
       
       await payment.save({ session });
-      paymentResponse = midtransTransaction;
+      paymentResponse = midtransResponse;
     }
 
-    // Update stok bahan baku (asumsi fungsi ini sudah ada)
+    // Update stok bahan baku
     await updateStock(order, session);
 
     await session.commitTransaction();
@@ -216,5 +219,54 @@ export const getUserOrders = async (req, res) => {
   } catch (error) {
     console.error('Get Orders Error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch orders' });
+  }
+};
+
+
+// Get History User orders
+export const getUserOrderHistory = async (req, res) => {
+  try {
+      const userId = req.params.userId; // Mengambil ID user dari parameter URL
+      if (!userId) {
+          return res.status(400).json({ message: 'User ID is required.' });
+      }
+
+      // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
+      const orders = await Order.find({ customerId: userId })
+          .populate('items.menuItem') // Mengisi detail menu item (opsional)
+          .populate('voucher'); // Mengisi detail voucher (opsional)
+
+      if (!orders || orders.length === 0) {
+          return res.status(404).json({ message: 'No order history found for this user.' });
+      }
+
+      res.status(200).json({ orders });
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// Get Cashier Order History
+export const getCashierOrderHistory = async (req, res) => {
+  try {
+      const cashierId = req.params.cashierId; // Mengambil ID kasir dari parameter URL
+      if (!cashierId) {
+          return res.status(400).json({ message: 'Cashier ID is required.' });
+      }
+
+      // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
+      const orders = await Order.find({ cashier: cashierId })
+          .populate('items.menuItem') // Mengisi detail menu item (opsional)
+          .populate('voucher'); // Mengisi detail voucher (opsional)
+
+      if (!orders || orders.length === 0) {
+          return res.status(404).json({ message: 'No order history found for this cashier.' });
+      }
+
+      res.status(200).json({ orders });
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Internal server error.' });
   }
 };

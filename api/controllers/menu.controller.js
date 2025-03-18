@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
 // Create a new menu item
 export const createMenuItem = async (req, res) => {
   try {
-    const { name, price, description, category, stock, imageURL, toppings, addons, rawMaterials } = req.body;
+    const { name, price, description, category, imageURL, toppings, addons, rawMaterials } = req.body;
 
     if (!name || !price || !category || !imageURL) {
       return res.status(400).json({
