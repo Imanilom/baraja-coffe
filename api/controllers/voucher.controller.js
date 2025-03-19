@@ -1,11 +1,11 @@
-import Voucher from '../models/voucher.model.js';
+import { Voucher } from '../models/voucher.model.js';
 import QRCode from 'qrcode';
 
 // Create a new voucher
 export const createVoucher = async (req, res) => {
     try {
         const { name, description, discountAmount, discountType, validFrom, validTo, quota, applicableOutlets, customerType, printOnReceipt } = req.body;
-        
+
         const newVoucher = new Voucher({
             name,
             description,
@@ -18,7 +18,7 @@ export const createVoucher = async (req, res) => {
             customerType,
             printOnReceipt
         });
-        
+
         await newVoucher.save();
         res.status(201).json(newVoucher);
     } catch (error) {
@@ -74,7 +74,7 @@ export const generateVoucherQR = async (req, res) => {
     try {
         const voucher = await Voucher.findById(req.params.id);
         if (!voucher) return res.status(404).json({ message: 'Voucher not found' });
-        
+
         const qrCodeData = await QRCode.toDataURL(voucher.code);
         res.status(200).json({ qrCode: qrCodeData });
     } catch (error) {

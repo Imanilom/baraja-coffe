@@ -1,4 +1,5 @@
 import { MenuItem } from '../models/MenuItem.model.js';
+import Promotion from '../models/promotion.model.js';
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import mongoose from 'mongoose';
 
@@ -82,27 +83,39 @@ export const createMenuItem = async (req, res) => {
 
 export const getSimpleMenuItems = async (req, res) => {
   try {
-    const menuItems = await MenuItem.find().select('name price category imageURL rawMaterials');
+    const menuItems = await MenuItem.find().select('name price category imageURL rawMaterials discount');
 
     // Cek stok bahan baku untuk setiap menu
     const updatedMenuItems = await Promise.all(menuItems.map(async (menu) => {
       let isAvailable = true;
 
       for (const item of menu.rawMaterials) {
-        const material = await RawMaterial.find().find({ _id: item.materialId });
+        const material = await RawMaterial.findOne({ _id: item.materialId });
         if (!material || material.quantity < item.quantityRequired) {
           isAvailable = false;
           break;
         }
       }
 
+      // Hitung harga setelah diskon jika ada
+      let originalPrice = menu.price;
+      let discountPercentage = menu.discount || 0;
+      let discountedPrice = originalPrice;
+
+      if (discountPercentage > 0) {
+        discountedPrice = originalPrice - (originalPrice * (discountPercentage / 100));
+      }
+
       return {
         id: menu._id,
         name: menu.name,
-        price: menu.price,
+        price: originalPrice,
         category: menu.category,
         imageURL: menu.imageURL,
-        isAvailable
+        isAvailable,
+        originalPrice,
+        discountedPrice,
+        discountPercentage
       };
     }));
 
@@ -111,7 +124,6 @@ export const getSimpleMenuItems = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch menu items', error: error.message });
   }
 };
-
 
 
 // Get all menu items
@@ -184,8 +196,22 @@ export const getMenuItemById = async (req, res) => {
     // Cek ketersediaan bahan baku utama
     const isMainAvailable = await checkStockAvailability(menuItem.rawMaterials);
 
-  
-    // Struktur data response tanpa promo
+
+    // Fetch active promotions
+    const currentDate = new Date();
+    const activePromotions = await Promotion.find({
+      startDate: { $lte: currentDate },
+      endDate: { $gte: currentDate },
+    }).populate('applicableItems');
+
+    // Check if the item is part of a promotion
+    const promotion = activePromotions.find((promo) =>
+      promo.applicableItems.some((applicableItem) =>
+        applicableItem._id.toString() === menuItem._id.toString()
+      )
+    );
+
+    // Struktur data response dengan isAvailable
     const response = {
       id: menuItem._id,
       name: menuItem.name,
@@ -295,5 +321,3 @@ export const deleteMenuItem = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to delete menu item', error: error.message });
   }
 };
-
-
