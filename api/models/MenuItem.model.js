@@ -10,13 +10,17 @@ const MenuItemSchema = new mongoose.Schema({
     default: [] 
   },
   imageURL: { type: String, trim: true, default: 'https://placehold.co/1920x1080/png' },
-  toppings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }],
-  rawMaterials: [
+  toppings: [
     {
-      _id: false,  // Tambahkan ini agar tidak ada `_id` otomatis di dalam subdokumen
-      materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
-      quantityRequired: { type: Number, required: true, min: 0 }
-    }
+      name: { type: String, required: true },
+      price: { type: Number, required: true },
+      rawMaterials: [
+        {
+        materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
+        quantityRequired: { type: Number, required: true }
+       }
+    ]
+  }
   ],
   addons: [
     {
@@ -29,6 +33,13 @@ const MenuItemSchema = new mongoose.Schema({
       ]
     }
   ], // Menyimpan daftar addons dengan harga berbeda-beda per menu
+  rawMaterials: [
+    {
+      _id: false,  // Tambahkan ini agar tidak ada `_id` otomatis di dalam subdokumen
+      materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
+      quantityRequired: { type: Number, required: true, min: 0 }
+    }
+  ],
   availableAt: [
     { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', required: true }
   ], // Menyimpan daftar outlet tempat menu tersedia
