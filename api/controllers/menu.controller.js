@@ -1,5 +1,4 @@
 import { MenuItem } from '../models/MenuItem.model.js';
-import Promotion from '../models/promotion.model.js';
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import mongoose from 'mongoose';
 
@@ -196,21 +195,6 @@ export const getMenuItemById = async (req, res) => {
     // Cek ketersediaan bahan baku utama
     const isMainAvailable = await checkStockAvailability(menuItem.rawMaterials);
 
-
-    // Fetch active promotions
-    const currentDate = new Date();
-    const activePromotions = await Promotion.find({
-      startDate: { $lte: currentDate },
-      endDate: { $gte: currentDate },
-    }).populate('applicableItems');
-
-    // Check if the item is part of a promotion
-    const promotion = activePromotions.find((promo) =>
-      promo.applicableItems.some((applicableItem) =>
-        applicableItem._id.toString() === menuItem._id.toString()
-      )
-    );
-
     // Struktur data response dengan isAvailable
     const response = {
       id: menuItem._id,
@@ -228,6 +212,72 @@ export const getMenuItemById = async (req, res) => {
   } catch (error) {
     console.error('Error fetching menu item:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch menu item', error: error.message });
+  }
+};
+
+
+export const getMenuItemsByCategory = async (req, res) => {
+  try {
+    // Ambil parameter category dari request
+    const category = req.params.category;
+
+    if (!category) {
+      return res.status(400).json({ success: false, message: 'Category is required' });
+    }
+
+    // Fetch semua menu items dengan category yang sesuai
+    const menuItems = await MenuItem.find({ category })
+      .populate('rawMaterials.materialId')
+      .populate('availableAt');
+
+    if (!menuItems || menuItems.length === 0) {
+      return res.status(404).json({ success: false, message: 'No menu items found for this category' });
+    }
+
+    // Function to check stock availability
+    const checkStockAvailability = async (rawMaterials) => {
+      if (!rawMaterials || rawMaterials.length === 0) return true;
+
+      // Filter hanya ObjectId yang valid
+      const materialIds = rawMaterials
+        .filter(item => mongoose.Types.ObjectId.isValid(item.materialId))
+        .map(item => new mongoose.Types.ObjectId(item.materialId));
+
+      if (materialIds.length === 0) return true;
+
+      // Fetch semua material sekaligus
+      const materials = await RawMaterial.find({ _id: { $in: materialIds } });
+
+      // Cek apakah stok cukup
+      return rawMaterials.every(item => {
+        const material = materials.find(m => m._id.equals(item.materialId));
+        return material && material.quantity >= item.quantityRequired;
+      });
+    };
+
+    // Proses setiap menu item untuk menambahkan informasi isAvailable
+    const response = await Promise.all(
+      menuItems.map(async (menuItem) => {
+        const isMainAvailable = await checkStockAvailability(menuItem.rawMaterials);
+
+        return {
+          id: menuItem._id,
+          name: menuItem.name,
+          price: menuItem.price,
+          category: menuItem.category,
+          imageURL: menuItem.imageURL,
+          isAvailable: isMainAvailable, // Menentukan apakah menu utama tersedia
+          toppings: menuItem.toppings,
+          addons: menuItem.addons,
+          availableAt: menuItem.availableAt.map(outlet => outlet.toObject()),
+        };
+      })
+    );
+
+    res.status(200).json({ success: true, data: response });
+  } catch (error) {
+    console.error('Error fetching menu by category:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch menu by category', error: error.message });
   }
 };
 
