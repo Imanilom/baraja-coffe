@@ -1,4 +1,4 @@
-import { Voucher } from '../models/voucher.model.js';
+import Voucher from '../models/voucher.model.js';
 import QRCode from 'qrcode';
 
 // Create a new voucher

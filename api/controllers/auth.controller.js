@@ -99,7 +99,7 @@ export const signup = async (req, res, next) => {
 export const signin = async (req, res, next) => {
   try {
     const { identifier, password } = req.body;
-
+    console.log(req.body);
     if (!identifier || !password) {
       return next(errorHandler(400, "Identifier and password are required"));
     }

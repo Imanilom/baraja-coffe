@@ -60,7 +60,7 @@ export default function App() {
 
 
     <BrowserRouter>
-<<<<<<< Updated upstream
+
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow">
@@ -72,36 +72,6 @@ export default function App() {
           <Route path="/sign-up" element={<SignUp />} />
           <Route path="/order" element={<Order />} />
           <Route path="/outlet" element={<Outlet />} />
-<<<<<<< HEAD
-=======
-          {/* Routes with restricted access */}
-          <Route element={<PrivateRoute allowedRoles={['cashier', 'superadmin']} />}>
-          <div className="flex">
-          <Sidebar />
-            <div className="flex-1"> 
-              <Route path="/admin" element={<AdminDashboard />} />
-=======
-      <div className="flex flex-col min-h-screen">
-        <Header />
-        <main className="flex-grow">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/download" element={<Download />} />
-            <Route path="/sign-in" element={<SignIn />} />
-            <Route path="/sign-up" element={<SignUp />} />
-            <Route path="/order" element={<Order />} />
-            <Route path="/outlet" element={<Outlet />} />
-            {/* Routes with restricted access */}
-            <Route element={<PrivateRoute allowedRoles={['cashier', 'superadmin', 'admin']} />}>
-              {/* <Route> */}
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/report" element={<ReportDashboard />} />
-              <Route path="/transaction-sales" element={<TransactionSalesManagement />} />
-              <Route path="/production-sales" element={<ProductSalesManagement />} />
-              <Route path="/outlate-sales" element={<SalesOutlateManagement />} />
-              <Route path="/category-sales" element={<CategoryOutlateManagement />} />
->>>>>>> Stashed changes
               <Route path="/toko" element={<OutletManagementPage />} />
               <Route path="/menu" element={<Menumanagement />} />
               <Route path="/menu-create" element={<Menucreate />} />
@@ -119,58 +89,12 @@ export default function App() {
               <Route path="/content" element={<ContentManagement />} />
               <Route path="/content-create" element={<CreateContent />} />
               <Route path="/content-update/:id" element={<UpdateContent />} />
-<<<<<<< Updated upstream
-            </div>
-          </div>
-        
-          </Route>
->>>>>>> 877b336a280102ecb1cf93736a9c9c2e219d3fca
-  
-          {/* Routes for authenticated users */}
-          <Route element={<PrivateRoute />}>
-            <Route path="/profile" element={<Profile />} />
-          </Route>
-  
-          {/* Routes with restricted access */}
-          <Route element={<PrivateRoute allowedRoles={['cashier', 'superadmin']} />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/toko" element={<OutletManagementPage />} />
-            <Route path="/menu" element={<Menumanagement />} />
-            <Route path="/menu-create" element={<Menucreate />} />
-            <Route path="/menu-update/:id" element={<MenuUpdate />} />
-            <Route path="/voucher" element={<Vouchermanagement />} />
-            <Route path="/voucher-create" element={<CreateVoucher />} />
-            <Route path="/toppings" element={<ToppingManagement />} />
-            <Route path="/topping-create" element={<CreateTopping />} />
-            <Route path="/addons" element={<AddonManagement />} />
-            <Route path="/addons-create" element={<CreateAddon />} />
-            <Route path="/promotion" element={<Promotionmanagement />} />
-            <Route path="/promotion-create" element={<CreatePromotion />} />
-            <Route path="/storage" element={<Storagemanagement />} />
-            <Route path="/storage-create" element={<CreateStrorage />} />
-            <Route path="/content" element={<ContentManagement />} />
-            <Route path="/content-create" element={<CreateContent />} />
-            <Route path="/content-update/:id" element={<UpdateContent />} />
-          </Route>
+
         </Routes>
       </main>
       <Footer />
     </div>
   </BrowserRouter>
-  
-=======
-            </Route>
 
-            {/* Routes for authenticated users */}
-            <Route element={<PrivateRoute />}>
-              <Route path="/profile" element={<Profile />} />
-            </Route>
-          </Routes>
-        </main>
-        <Footer />
-      </div>
-    </BrowserRouter>
-
->>>>>>> Stashed changes
   );
 }
