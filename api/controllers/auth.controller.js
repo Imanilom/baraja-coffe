@@ -126,7 +126,7 @@ export const signin = async (req, res, next) => {
       if (!user || !["superadmin", "admin", "staff", "cashier"].includes(user.role)) {
         return next(errorHandler(403, "Access denied"));
       }
-      tokenExpiry = "1d";
+      tokenExpiry = "15m";
     }
 
     if (!user) return next(errorHandler(404, "User not found"));
