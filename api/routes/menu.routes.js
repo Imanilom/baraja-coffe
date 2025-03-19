@@ -9,7 +9,7 @@ import {
   deleteMenuItem,
 } from '../controllers/menu.controller.js';
 
-import { assignMenuItemsToCategory, filterMenuByCategory, getCategories } from '../controllers/category.comtroller.js';
+import { assignMenuItemsToCategory, filterMenuByCategory, getCategories } from '../controllers/category.controller.js';
 
 const router = express.Router();
 
