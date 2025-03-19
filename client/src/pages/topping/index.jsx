@@ -30,7 +30,7 @@ const ToppingManagement = () => {
       setLoading(false);
     }
   };
-  
+
 
   useEffect(() => {
     fetchToppings();
@@ -40,9 +40,9 @@ const ToppingManagement = () => {
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Topping Management</h1>
       <a href="/topping-create">
-      <button className="bg-blue-500 text-white px-2 py-1 rounded mr-2">Add Topping </button>
+        <button className="bg-blue-500 text-white px-2 py-1 rounded mr-2">Add Topping </button>
       </a>
-    
+
 
       {/* Error Message */}
       {error && (
