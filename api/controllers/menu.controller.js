@@ -1,6 +1,4 @@
 import { MenuItem } from '../models/MenuItem.model.js';
-import Topping from '../models/Topping.model.js';
-import { Promotion } from '../models/Promotion.model.js';
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import mongoose from 'mongoose';
 
@@ -130,44 +128,20 @@ export const getSimpleMenuItems = async (req, res) => {
 // Get all menu items
 export const getMenuItems = async (req, res) => {
   try {
+    const { outletId } = req.query; // Ambil ID outlet dari query parameter
+
+    // Buat query filter jika outletId diberikan
+    const filter = outletId ? { availableAt: outletId } : {};
+
+    // Ambil menu berdasarkan outlet (jika diberikan)
     const menuItems = await MenuItem.find()
       .populate([
-        {
-          path: 'toppings'
-        },
-        {
-          path: 'rawMaterials.materialId'
-        },
-        {
-          path: 'availableAt'
-        }
+        { path: 'rawMaterials.materialId' },
+        { path: 'availableAt' }
       ]);
 
-    const currentDate = new Date();
-    const activePromotions = await Promotion.find({
-      startDate: { $lte: currentDate },
-      endDate: { $gte: currentDate }
-    }).populate('applicableItems');
-
-    const updatedMenuItems = menuItems.map((item) => {
-      const promotion = activePromotions.find((promo) =>
-        promo.applicableItems.some(applicableItem =>
-          applicableItem._id.toString() === item._id.toString()
-        )
-      );
-
-      if (promotion) {
-        const discount = (item.price * promotion.discountPercentage) / 100;
-        return {
-          ...item.toObject(),
-          discount: promotion.discountPercentage,
-          discountedPrice: parseFloat((item.price - discount).toFixed(2)),
-          promotionTitle: promotion.title
-        };
-      }
-
-      return item.toObject();
-    });
+    // Konversi ke objek JavaScript
+    const updatedMenuItems = menuItems.map(item => item.toObject());
 
     res.status(200).json({ success: true, data: updatedMenuItems });
     console.log('Menu items fetched successfully');
@@ -180,6 +154,7 @@ export const getMenuItems = async (req, res) => {
   }
 };
 
+
 export const getMenuItemById = async (req, res) => {
   try {
     // Validasi parameter ID
@@ -189,7 +164,6 @@ export const getMenuItemById = async (req, res) => {
 
     // Fetch the menu item and populate related fields
     const menuItem = await MenuItem.findById(req.params.id)
-      .populate('toppings')
       .populate('rawMaterials.materialId')
       .populate('availableAt');
 
@@ -221,31 +195,6 @@ export const getMenuItemById = async (req, res) => {
     // Cek ketersediaan bahan baku utama
     const isMainAvailable = await checkStockAvailability(menuItem.rawMaterials);
 
-    // Cek ketersediaan bahan baku dalam toppings
-    const toppingsWithAvailability = await Promise.all(
-      menuItem.toppings.map(async (topping) => ({
-        ...topping.toObject(),
-        isAvailable: topping.rawMaterials
-          ? await checkStockAvailability(topping.rawMaterials)
-          : true,
-      }))
-    );
-
-
-    // Fetch active promotions
-    const currentDate = new Date();
-    const activePromotions = await Promotion.find({
-      startDate: { $lte: currentDate },
-      endDate: { $gte: currentDate },
-    }).populate('applicableItems');
-
-    // Check if the item is part of a promotion
-    const promotion = activePromotions.find((promo) =>
-      promo.applicableItems.some((applicableItem) =>
-        applicableItem._id.toString() === menuItem._id.toString()
-      )
-    );
-
     // Struktur data response dengan isAvailable
     const response = {
       id: menuItem._id,
@@ -254,18 +203,10 @@ export const getMenuItemById = async (req, res) => {
       category: menuItem.category,
       imageURL: menuItem.imageURL,
       isAvailable: isMainAvailable, // Menentukan apakah menu utama tersedia
-      toppings: toppingsWithAvailability,
+      toppings: menuItem.toppings,
       addons: menuItem.addons,
-      discountedPrice: menuItem.price,
       availableAt: menuItem.availableAt.map(outlet => outlet.toObject()),
     };
-
-    if (promotion) {
-      const discount = (menuItem.price * promotion.discountPercentage) / 100;
-      response.originalPrice = parseFloat(menuItem.price.toFixed(2));
-      response.discountedPrice = parseFloat((menuItem.price - discount).toFixed(2));
-      response.promotion = promotion.title;
-    }
 
     res.status(200).json({ success: true, data: response });
   } catch (error) {
@@ -273,6 +214,73 @@ export const getMenuItemById = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch menu item', error: error.message });
   }
 };
+
+
+export const getMenuItemsByCategory = async (req, res) => {
+  try {
+    // Ambil parameter category dari request
+    const category = req.params.category;
+
+    if (!category) {
+      return res.status(400).json({ success: false, message: 'Category is required' });
+    }
+
+    // Fetch semua menu items dengan category yang sesuai
+    const menuItems = await MenuItem.find({ category })
+      .populate('rawMaterials.materialId')
+      .populate('availableAt');
+
+    if (!menuItems || menuItems.length === 0) {
+      return res.status(404).json({ success: false, message: 'No menu items found for this category' });
+    }
+
+    // Function to check stock availability
+    const checkStockAvailability = async (rawMaterials) => {
+      if (!rawMaterials || rawMaterials.length === 0) return true;
+
+      // Filter hanya ObjectId yang valid
+      const materialIds = rawMaterials
+        .filter(item => mongoose.Types.ObjectId.isValid(item.materialId))
+        .map(item => new mongoose.Types.ObjectId(item.materialId));
+
+      if (materialIds.length === 0) return true;
+
+      // Fetch semua material sekaligus
+      const materials = await RawMaterial.find({ _id: { $in: materialIds } });
+
+      // Cek apakah stok cukup
+      return rawMaterials.every(item => {
+        const material = materials.find(m => m._id.equals(item.materialId));
+        return material && material.quantity >= item.quantityRequired;
+      });
+    };
+
+    // Proses setiap menu item untuk menambahkan informasi isAvailable
+    const response = await Promise.all(
+      menuItems.map(async (menuItem) => {
+        const isMainAvailable = await checkStockAvailability(menuItem.rawMaterials);
+
+        return {
+          id: menuItem._id,
+          name: menuItem.name,
+          price: menuItem.price,
+          category: menuItem.category,
+          imageURL: menuItem.imageURL,
+          isAvailable: isMainAvailable, // Menentukan apakah menu utama tersedia
+          toppings: menuItem.toppings,
+          addons: menuItem.addons,
+          availableAt: menuItem.availableAt.map(outlet => outlet.toObject()),
+        };
+      })
+    );
+
+    res.status(200).json({ success: true, data: response });
+  } catch (error) {
+    console.error('Error fetching menu by category:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch menu by category', error: error.message });
+  }
+};
+
 
 
 // Update a menu item
@@ -361,189 +369,5 @@ export const deleteMenuItem = async (req, res) => {
     res.status(200).json({ success: true, message: 'Menu item deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete menu item', error: error.message });
-  }
-};
-
-
-
-// Get all toppings
-export const getToppings = async (req, res) => {
-  try {
-    const toppings = await Topping.find();
-    res.status(200).json({ success: true, data: toppings });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch toppings', error: error.message });
-  }
-};
-
-// Create a new topping
-export const createTopping = async (req, res) => {
-  try {
-    const { name, category, price, rawMaterials } = req.body;
-
-    // Validate rawMaterials
-    if (rawMaterials && !Array.isArray(rawMaterials)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Raw materials must be an array of objects with material ID and quantity.',
-      });
-    }
-
-    if (rawMaterials) {
-      // Validate each raw material
-      for (let i = 0; i < rawMaterials.length; i++) {
-        const { materialId, quantityRequired } = rawMaterials[i];
-
-        // Check existence of required fields
-        if (!materialId || quantityRequired === undefined) {
-          return res.status(400).json({
-            success: false,
-            message: `Raw material at index ${i} is missing 'materialId' or 'quantityRequired'.`,
-          });
-        }
-
-        // Validate quantity type and value
-        const quantity = Number(quantityRequired);
-        if (isNaN(quantity)) {
-          return res.status(400).json({
-            success: false,
-            message: `Quantity must be a number for raw material at index ${i}.`,
-          });
-        }
-
-        if (quantity <= 0) {
-          return res.status(400).json({
-            success: false,
-            message: `Quantity must be greater than 0 for raw material at index ${i}.`,
-          });
-        }
-      }
-    }
-
-    // Check raw material stock availability
-    const rawMaterialPromises = rawMaterials.map(async ({ materialId, quantityRequired }) => {
-      const rawMaterial = await RawMaterial.findById(materialId);
-      if (!rawMaterial) {
-        throw new Error(`Raw material with ID ${materialId} not found.`);
-      }
-      if (rawMaterial.stock < quantityRequired) {
-        throw new Error(`Insufficient stock for raw material: ${rawMaterial.name}`);
-      }
-      return rawMaterial;
-    });
-
-    try {
-      await Promise.all(rawMaterialPromises);
-    } catch (error) {
-      return res.status(404).json({ success: false, message: error.message });
-    }
-
-    // Create the topping
-    const topping = new Topping({
-      name,
-      category,
-      price,
-      rawMaterials: rawMaterials.map(rm => ({
-        materialId: rm.materialId,
-        quantityRequired: Number(rm.quantityRequired)
-      })) || [],
-    });
-
-    const savedTopping = await topping.save();
-    res.status(201).json({ success: true, data: savedTopping });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to create topping', error: error.message });
-  }
-};
-
-
-
-// Get a single topping by ID
-export const getToppingById = async (req, res) => {
-  try {
-    const topping = await Topping.findById(req.params.id);
-    if (!topping) return res.status(404).json({ success: false, message: 'Topping not found' });
-
-    res.status(200).json({ success: true, data: topping });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch topping', error: error.message });
-  }
-};
-
-// Update a topping
-export const updateTopping = async (req, res) => {
-  try {
-    const { name, category, price, rawMaterials } = req.body;
-
-    // Validate rawMaterials
-    if (rawMaterials && !Array.isArray(rawMaterials)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Raw materials must be an array of objects with material ID and quantity.',
-      });
-    }
-
-    if (rawMaterials) {
-      // Ensure each raw material has `materialId` and `quantityRequired`
-      for (let i = 0; i < rawMaterials.length; i++) {
-        const { materialId, quantityRequired } = rawMaterials[i];
-        if (!materialId || quantityRequired === undefined) {
-          return res.status(400).json({
-            success: false,
-            message: `Raw material at index ${i} is missing 'materialId' or 'quantityRequired'.`,
-          });
-        }
-      }
-    }
-
-    // Check raw material stock availability
-    const rawMaterialPromises = rawMaterials.map(async ({ materialId, quantityRequired }) => {
-      const rawMaterial = await RawMaterial.findById(materialId);
-      if (!rawMaterial) {
-        throw new Error(`Raw material with ID ${materialId} not found.`);
-      }
-      if (rawMaterial.stock < quantityRequired) {
-        throw new Error(`Insufficient stock for raw material: ${rawMaterial.name}`);
-      }
-      return rawMaterial;
-    });
-
-    try {
-      await Promise.all(rawMaterialPromises);
-    } catch (error) {
-      return res.status(404).json({ success: false, message: error.message });
-    }
-
-
-    const updatedTopping = await Topping.findByIdAndUpdate(
-      req.params.id,
-      {
-        name,
-        category,
-        price,
-        rawMaterials: rawMaterials || [],
-      },
-      { new: true }
-    );
-
-    if (!updatedTopping) {
-      return res.status(404).json({ success: false, message: 'Topping not found' });
-    }
-
-    res.status(200).json({ success: true, data: updatedTopping });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to update topping', error: error.message });
-  }
-};
-
-// Delete a topping
-export const deleteTopping = async (req, res) => {
-  try {
-    const deletedTopping = await Topping.findByIdAndDelete(req.params.id);
-    if (!deletedTopping) return res.status(404).json({ success: false, message: 'Topping not found' });
-
-    res.status(200).json({ success: true, message: 'Topping deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to delete topping', error: error.message });
   }
 };

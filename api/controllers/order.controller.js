@@ -1,7 +1,6 @@
 import { Order } from '../models/Order.model.js';
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
-import Topping from "../models/Topping.model.js";
 import { RawMaterial } from "../models/RawMaterial.model.js";
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
@@ -9,7 +8,6 @@ import mongoose from 'mongoose';
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
-
   try {
     const orderData = req.body.order;
     const { userId, user, cashier, items, paymentMethod, orderType, outlet, deliveryAddress, tableNumber, type, voucher } = orderData;
@@ -28,10 +26,6 @@ export const createOrder = async (req, res) => {
       if (!menuItem) {
         throw new Error(`Menu item ${item.menuItem} not found`);
       }
-
-      const toppings = await Topping.find({ _id: { $in: item.toppings || [] } }).session(session);
-      const toppingsTotal = toppings.reduce((sum, topping) => sum + (topping.price || 0), 0);
-      const subtotal = (menuItem.price + toppingsTotal) * item.quantity;
 
       orderItems.push({
         menuItem: item.menuItem,
@@ -174,19 +168,6 @@ async function updateStock(order, session) {
         { session }
       );
     }
-
-
-    // Update stok bahan baku untuk toppings
-    const toppings = await Topping.find({ _id: { $in: item.toppings || [] } }).session(session);
-    for (const topping of toppings) {
-      for (const material of topping.rawMaterials) {
-        await mongoose.model("RawMaterial").updateOne(
-          { _id: material.materialId },
-          { $inc: { quantity: -material.quantityRequired * item.quantity } },
-          { session }
-        );
-      }
-    }
   }
 }
 
@@ -212,7 +193,6 @@ export const getUserOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.params.userId })
       .populate('items.menuItem')
-      .populate('items.toppings')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: orders });
