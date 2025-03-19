@@ -263,14 +263,11 @@
 import React, { useEffect, useState } from "react";
 import { FaBox, FaLayerGroup, FaTag } from 'react-icons/fa';
 import axios from "axios";
-<<<<<<< Updated upstream
-=======
 import CreateTopping from "./opsi/create";
 import UpdateMenu from "./update";
 import OpsiMenu from "./opsi";
 import DeleteMenus from "./delete";
 import CategoryMenu from "./category";
->>>>>>> Stashed changes
 import { Link } from "react-router-dom";
 
 const Menu = () => {
@@ -281,20 +278,13 @@ const Menu = () => {
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState("menu");
   const [currentPage, setCurrentPage] = useState(1);
-<<<<<<< Updated upstream
-  const itemsPerPage = 6;
-=======
   const [editingMenu, setEditingMenu] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null); // Menyimpan status dropdown
   const itemsPerPage = 6; // Number of items per page
->>>>>>> Stashed changes
 
   const fetchMenuItems = async () => {
     try {
       const response = await axios.get("/api/menu/menu-items");
-<<<<<<< Updated upstream
-      setMenuItems(response.data?.data || []);
-=======
 
 
       setMenuItems(response.data?.data || []);
@@ -302,10 +292,9 @@ const Menu = () => {
       // console.log(response.data.data);
 
       // Menambahkan kategori unik
->>>>>>> Stashed changes
       const uniqueCategories = [
         "Semua Kategori",
-        ...new Set(response.data?.data.map((item) => item.category)),
+        ...new Set(response.data?.data.flatMap((item) => item.category)),
       ];
       setCategories(uniqueCategories);
     } catch (error) {
@@ -364,138 +353,28 @@ const Menu = () => {
     fetchMenuItems();
   }, []);
 
-<<<<<<< Updated upstream
-  const filteredItems = menuItems.filter(
-    (item) =>
-      selectedCategory === "all" || item.category === selectedCategory
-  );
-=======
+  console.log(menuItems);
+
   // Filter menu items berdasarkan kategori dan pencarian menu
   const filteredItems = menuItems.filter((item) => {
     const matchesCategory =
-      selectedCategory === "Semua Kategori" || item.category === selectedCategory;
+      selectedCategory === "Semua Kategori" ||
+      item.category.some((cat) => cat.toLowerCase() === selectedCategory.toLowerCase());
     const matchesSearch =
       item.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
->>>>>>> Stashed changes
+
+  console.log(filteredItems);
 
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
-  // console.log(currentItems);
 
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
 
   return (
-<<<<<<< Updated upstream
-    <div className="container mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8 text-center">Menu Items</h1>
-
-      <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 mb-8">
-        <div className="flex items-center space-x-2">
-          <label className="font-medium">Filter by Category:</label>
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {categories.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Link
-            to="/menu-create"
-            className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition duration-200"
-          >
-            Add Menu Item
-          </Link>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {currentItems.map((item) => (
-          <div
-            key={item._id}
-            className="bg-white rounded-lg shadow-md overflow-hidden"
-          >
-            <img
-              src={item.imageURL || "https://placehold.co/600x400/png"}
-              alt={item.name}
-              className="h-48 w-full object-cover rounded-t-lg"
-            />
-            <div className="p-4">
-              <h2 className="text-lg font-semibold mb-2">{item.name}</h2>
-              <p className="text-gray-600 mb-4">{item.description}</p>
-              <div className="flex items-center mb-4">
-                <span className="text-gray-500">Price:</span>
-                <div className="ml-2">
-                  {item.promotionTitle ? (
-                    <>
-                      <span className="line-through text-gray-400 mr-2">
-                        {item.price}
-                      </span>
-                      <span className="text-green-500 font-bold">
-                        {item.discountedPrice}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="font-medium text-gray-800">
-                      {item.price}
-                    </span>
-                  )}
-                </div>
-              </div>
-              {item.promotionTitle && (
-                <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm mb-4">
-                  Promotion: {item.promotionTitle} ({item.discount}%)
-                </div>
-              )}
-              <div className="flex items-center mb-4">
-                <span className="text-gray-500">Category:</span>
-                <span className="bg-gray-100 px-2 py-1 rounded text-sm ml-2">
-                  {item.category}
-                </span>
-              </div>
-              <div className="flex justify-between mt-4">
-                <Link
-                  to={`/update/${item._id}`}
-                  className="bg-yellow-400 text-white px-4 py-2 rounded-lg hover:bg-yellow-500 transition duration-200"
-                >
-                  Edit
-                </Link>
-                <button
-                  onClick={() => deleteMenuItem(item._id)}
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition duration-200"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex justify-center mt-8">
-        {Array.from({ length: totalPages }, (_, i) => (
-          <button
-            key={i + 1}
-            onClick={() => setCurrentPage(i + 1)}
-            className={`px-4 py-2 mx-1 rounded-full ${
-              currentPage === i + 1
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-            }`}
-          >
-            {i + 1}
-          </button>
-        ))}
-=======
     <div className="container mx-auto p-4">
       <div className="flex justify-between border-t border-b border-gray-200 py-2">
         <h1 className="text-2xl font-bold">Menu</h1>
@@ -652,7 +531,34 @@ const Menu = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-2">{item.category}</td>
+                      <td className="px-4 py-2">
+                        {item.category.map((category, index) => {
+                          // Memeriksa apakah kategori adalah 'recommended' atau 'breakfast'
+                          const isRecommended = category.toLowerCase() === "recommended";
+                          const isBreakfast = category.toLowerCase() === "breakfast";
+
+                          // Tentukan kelas dan gaya berdasarkan kategori
+                          let categoryClass = "";
+                          let style = {};
+
+                          if (isRecommended) {
+                            categoryClass = "bg-green-500 text-white px-2 py-1 rounded"; // Warna hijau untuk recommended
+                            style.fontWeight = "bold";
+                          } else if (isBreakfast) {
+                            categoryClass = "bg-amber-800 text-white px-2 py-1 rounded"; // Warna coklat untuk breakfast
+                          }
+
+                          return (
+                            <span
+                              key={index}
+                              className={`inline-block mr-2 ${categoryClass}`} // Kelas untuk kategori tertentu
+                              style={style}
+                            >
+                              {category}
+                            </span>
+                          );
+                        })}
+                      </td>
                       <td className="px-4 py-2">{item.price}</td>
                       <td className="px-4 py-2">
                         {/* Dropdown */}
@@ -731,7 +637,6 @@ const Menu = () => {
             <CategoryMenu />
           </div>
         )}
->>>>>>> Stashed changes
       </div>
     </div>
   );
