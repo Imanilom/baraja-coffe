@@ -176,3 +176,13 @@ export const assignOutlets = async (req, res, next) => {
     next(errorHandler(500, error.message));
   }
 };
+
+export const getUSerById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    const { password, ...rest } = user._doc;
+    res.status(200).json(rest);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
