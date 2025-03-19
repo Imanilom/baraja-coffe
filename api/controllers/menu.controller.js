@@ -180,49 +180,6 @@ export const getMenuItems = async (req, res) => {
   }
 };
 
-<<<<<<< Updated upstream
-=======
-
-// Get menu items by category
-export const getMenuItemsByCategory = async (req, res) => {
-  try {
-    const menuItemsCount = await MenuItem.aggregate([
-      {
-        $unwind: "$category"  // Memecah array kategori sehingga setiap kategori menjadi entitas terpisah
-      },
-      {
-        $group: {
-          _id: "$category",  // Mengelompokkan berdasarkan kategori yang telah dipecah
-          count: { $sum: 1 }  // Menghitung jumlah menu item dalam setiap kategori
-        }
-      },
-      {
-        $sort: { count: -1 }  // Mengurutkan berdasarkan jumlah item secara menurun
-      }
-    ]);
-
-    // Menambahkan label "category" pada setiap hasil
-    const formattedMenuItemsCount = menuItemsCount.map(item => ({
-      category: item._id, // Menambahkan "category" sebagai label
-      count: item.count    // Menyertakan count yang dihitung
-    }));
-
-
-    res.status(200).json({
-      success: true,
-      data: formattedMenuItemsCount
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch menu items by category',
-      error: error.message,
-    });
-  }
-};
-
-// Get a single menu item by ID
->>>>>>> Stashed changes
 export const getMenuItemById = async (req, res) => {
   try {
     // Validasi parameter ID

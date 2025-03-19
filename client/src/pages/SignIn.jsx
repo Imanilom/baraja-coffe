@@ -30,42 +30,29 @@ export default function SignIn() {
         body: JSON.stringify(formData),
       });
       const data = await res.json();
-  
+
       if (!res.ok) {
         throw new Error(data.message || 'Sign-in failed');
       }
-  
+
       dispatch(signInSuccess(data));
-<<<<<<< Updated upstream
       navigate('/');
     } catch (err) {
       dispatch(signInFailure({ message: err.message })); // Pastikan error berbentuk objek
-=======
-      navigate('/admin');
-    } catch (error) {
-      dispatch(signInFailure(error));
->>>>>>> Stashed changes
     }
   };
-  
+
   return (
     <div className='p-3 max-w-lg mx-auto'>
       <h1 className='text-3xl text-center font-semibold my-7'>Sign In</h1>
       <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-<<<<<<< Updated upstream
         <input
           type='text'
           placeholder='Username or Email'
           id='identifier'
-=======
-        {/* <input
-          type='email'
-          placeholder='Email'
-          id='email'
->>>>>>> Stashed changes
           className='bg-slate-100 p-3 rounded-lg'
           onChange={handleChange}
-        /> */}
+        />
         <input
           type='text'
           placeholder='username'

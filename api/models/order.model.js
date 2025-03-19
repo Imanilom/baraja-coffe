@@ -19,10 +19,7 @@ const OrderSchema = new mongoose.Schema({
   orderType: { type: String, enum: ['Dine-In', 'Pickup', 'Delivery'], required: true },
   deliveryAddress: { type: String },
   tableNumber: { type: String },
-<<<<<<< Updated upstream
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
-=======
->>>>>>> Stashed changes
   voucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
 }, { timestamps: true });
 
