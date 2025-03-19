@@ -78,7 +78,19 @@ const AdminDashboard = () => {
             <h2 className="text-xl font-semibold text-gray-700">Financial Management</h2>
             <p className="text-gray-500 mt-2">Monitor and manage financial records.</p>
           </Link>
+<<<<<<< Updated upstream
           
+=======
+
+          {/* Report Management */}
+          <Link
+            to="/report"
+            className="p-6 bg-white shadow-md rounded-lg hover:shadow-lg transition-shadow"
+          >
+            <h2 className="text-xl font-semibold text-gray-700">Report Management</h2>
+            <p className="text-gray-500 mt-2">Monitor and manage report records.</p>
+          </Link>
+>>>>>>> Stashed changes
         </div>
       </div>
     </div>

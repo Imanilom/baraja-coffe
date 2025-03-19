@@ -15,6 +15,8 @@ import storageRoutes from './routes/storage.routes.js';
 import contentRoutes from './routes/content.routes.js';
 import OutletRoutes from './routes/outlet.routes.js';
 import posRoutes from './routes/pos.routes.js';
+import reportRoutes from './routes/report.routes.js';
+import historyRoutes from './routes/history.routes.js';
 
 dotenv.config();
 
@@ -57,6 +59,8 @@ app.use('/api/storage', storageRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/outlet', OutletRoutes);
 app.use('/api/workstation', posRoutes);
+app.use('/api/report', reportRoutes);
+app.use('/api/history', historyRoutes);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
