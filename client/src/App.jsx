@@ -42,6 +42,13 @@ import CreateStrorage from './pages/storage/RawMaterial';
 import AdminDashboard from './pages/admin/index';
 import OutletManagementPage from './pages/outlet/index';
 
+// Report
+import ReportDashboard from './pages/report';
+import TransactionSalesManagement from './pages/sales/sales_transaction/index';
+import ProductSalesManagement from './pages/sales/sales_product/index';
+import SalesOutlateManagement from './pages/sales/sales_outlate/index';
+import CategoryOutlateManagement from './pages/sales/sales_category/index';
+
 // content
 import ContentManagement from './pages/content/index';
 import CreateContent from './pages/content/create';
@@ -50,9 +57,10 @@ import UpdateContent from './pages/content/update';
 export default function App() {
 
   return (
-    
+
 
     <BrowserRouter>
+<<<<<<< Updated upstream
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow">
@@ -70,6 +78,28 @@ export default function App() {
           <Sidebar />
             <div className="flex-1"> 
               <Route path="/admin" element={<AdminDashboard />} />
+=======
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-grow">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/download" element={<Download />} />
+            <Route path="/sign-in" element={<SignIn />} />
+            <Route path="/sign-up" element={<SignUp />} />
+            <Route path="/order" element={<Order />} />
+            <Route path="/outlet" element={<Outlet />} />
+            {/* Routes with restricted access */}
+            <Route element={<PrivateRoute allowedRoles={['cashier', 'superadmin', 'admin']} />}>
+              {/* <Route> */}
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/report" element={<ReportDashboard />} />
+              <Route path="/transaction-sales" element={<TransactionSalesManagement />} />
+              <Route path="/production-sales" element={<ProductSalesManagement />} />
+              <Route path="/outlate-sales" element={<SalesOutlateManagement />} />
+              <Route path="/category-sales" element={<CategoryOutlateManagement />} />
+>>>>>>> Stashed changes
               <Route path="/toko" element={<OutletManagementPage />} />
               <Route path="/menu" element={<Menumanagement />} />
               <Route path="/menu-create" element={<Menucreate />} />
@@ -87,6 +117,7 @@ export default function App() {
               <Route path="/content" element={<ContentManagement />} />
               <Route path="/content-create" element={<CreateContent />} />
               <Route path="/content-update/:id" element={<UpdateContent />} />
+<<<<<<< Updated upstream
             </div>
           </div>
         
@@ -102,5 +133,19 @@ export default function App() {
     </div>
   </BrowserRouter>
   
+=======
+            </Route>
+
+            {/* Routes for authenticated users */}
+            <Route element={<PrivateRoute />}>
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </BrowserRouter>
+
+>>>>>>> Stashed changes
   );
 }

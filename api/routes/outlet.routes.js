@@ -14,9 +14,7 @@ const router = express.Router();
 const adminAccess = verifyToken(['admin', 'superadmin']);
 
 // Create new outlet
-// router.post('/', adminAccess, createOutlet);
-router.post('/createOutlet', createOutlet);
-
+router.post('/', adminAccess, createOutlet);
 
 // Get all outlets
 router.get('/', getOutlets);
