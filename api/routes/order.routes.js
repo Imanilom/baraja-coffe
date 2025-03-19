@@ -12,8 +12,6 @@ const router = express.Router();
 
 // Route untuk membuat order dan pembayaran
 router.post('/order', createOrder);
-// router.get('/order-all', getOrderAll);
-
 
 // Route untuk membatalkan order
 // router.put('/order/:id/cancel', verifyToken(['customer']), cancelOrder);

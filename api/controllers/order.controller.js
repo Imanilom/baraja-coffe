@@ -2,13 +2,12 @@ import { Order } from '../models/Order.model.js';
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
 import { RawMaterial } from "../models/RawMaterial.model.js";
-import {snap, coreApi } from '../utils/MidtransConfig.js';
+import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
-  
   try {
     const orderData = req.body.order;
     const { userId, user, cashier, items, paymentMethod, orderType, outlet, deliveryAddress, tableNumber, type, voucher } = orderData;
@@ -64,7 +63,7 @@ export const createOrder = async (req, res) => {
     // Proses pembayaran
     let paymentResponse = {};
     let payment;
-    
+
     if (paymentMethod === "Cash") {
       payment = new Payment({
         order: order._id,
@@ -89,7 +88,7 @@ export const createOrder = async (req, res) => {
       };
 
       // Tentukan payment type
-      switch(paymentMethod.toLowerCase()) {
+      switch (paymentMethod.toLowerCase()) {
         case 'qris':
           parameter.payment_type = 'qris';
           break;
@@ -123,7 +122,7 @@ export const createOrder = async (req, res) => {
         transactionId: midtransResponse.transaction_id,
         paymentDetails: midtransResponse,
       });
-      
+
       await payment.save({ session });
       paymentResponse = midtransResponse;
     }
@@ -132,17 +131,17 @@ export const createOrder = async (req, res) => {
     await updateStock(order, session);
 
     await session.commitTransaction();
-    res.status(201).json({ 
+    res.status(201).json({
       success: true,
       order: order.toJSON(),
-      payment: paymentResponse 
+      payment: paymentResponse
     });
   } catch (error) {
     await session.abortTransaction();
     console.error('Order Error:', error);
-    res.status(400).json({ 
+    res.status(400).json({
       success: false,
-      error: error.message 
+      error: error.message
     });
   } finally {
     session.endSession();
@@ -175,13 +174,13 @@ async function updateStock(order, session) {
 export const handleMidtransNotification = async (req, res) => {
   try {
     const { order_id, transaction_status } = req.body;
-    
+
     const payment = await Payment.findOne({ order: order_id });
     if (!payment) return res.status(404).json({ error: 'Payment not found' });
 
     payment.status = transaction_status === 'settlement' ? 'Success' : 'Failed';
     await payment.save();
-    
+
     res.status(200).json({ message: 'Payment status updated' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -207,47 +206,47 @@ export const getUserOrders = async (req, res) => {
 // Get History User orders
 export const getUserOrderHistory = async (req, res) => {
   try {
-      const userId = req.params.userId; // Mengambil ID user dari parameter URL
-      if (!userId) {
-          return res.status(400).json({ message: 'User ID is required.' });
-      }
+    const userId = req.params.userId; // Mengambil ID user dari parameter URL
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required.' });
+    }
 
-      // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
-      const orders = await Order.find({ customerId: userId })
-          .populate('items.menuItem') // Mengisi detail menu item (opsional)
-          .populate('voucher'); // Mengisi detail voucher (opsional)
+    // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
+    const orders = await Order.find({ customerId: userId })
+      .populate('items.menuItem') // Mengisi detail menu item (opsional)
+      .populate('voucher'); // Mengisi detail voucher (opsional)
 
-      if (!orders || orders.length === 0) {
-          return res.status(404).json({ message: 'No order history found for this user.' });
-      }
+    if (!orders || orders.length === 0) {
+      return res.status(404).json({ message: 'No order history found for this user.' });
+    }
 
-      res.status(200).json({ orders });
+    res.status(200).json({ orders });
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Internal server error.' });
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
 // Get Cashier Order History
 export const getCashierOrderHistory = async (req, res) => {
   try {
-      const cashierId = req.params.cashierId; // Mengambil ID kasir dari parameter URL
-      if (!cashierId) {
-          return res.status(400).json({ message: 'Cashier ID is required.' });
-      }
+    const cashierId = req.params.cashierId; // Mengambil ID kasir dari parameter URL
+    if (!cashierId) {
+      return res.status(400).json({ message: 'Cashier ID is required.' });
+    }
 
-      // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
-      const orders = await Order.find({ cashier: cashierId })
-          .populate('items.menuItem') // Mengisi detail menu item (opsional)
-          .populate('voucher'); // Mengisi detail voucher (opsional)
+    // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
+    const orders = await Order.find({ cashier: cashierId })
+      .populate('items.menuItem') // Mengisi detail menu item (opsional)
+      .populate('voucher'); // Mengisi detail voucher (opsional)
 
-      if (!orders || orders.length === 0) {
-          return res.status(404).json({ message: 'No order history found for this cashier.' });
-      }
+    if (!orders || orders.length === 0) {
+      return res.status(404).json({ message: 'No order history found for this cashier.' });
+    }
 
-      res.status(200).json({ orders });
+    res.status(200).json({ orders });
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Internal server error.' });
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };

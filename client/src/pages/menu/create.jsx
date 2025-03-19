@@ -6,8 +6,11 @@ import { useNavigate } from "react-router-dom";
 const Create = () => {
   const [formData, setFormData] = useState({
     name: "",
+    description: "",
     price: "",
     category: "",
+    promotionTitle: "",
+    discount: "",
     imageURL: "",
     toppings: [],
     addons: [],
@@ -21,15 +24,10 @@ const Create = () => {
     // Fetch available toppings and addons
     const fetchOptions = async () => {
       try {
-        const [toppingsRes, addOnsRes, rawMaterialsRes] = await Promise.all([
-          axios.get("/api/menu/toppings"),
-          axios.get("/api/menu/addons"),
-          axios.get("/api/storage/raw-material"),
-        ]);
-        setToppings(toppingsRes.data?.data || []);
-        // console.log(toppingsRes);
-        setAddOns(addOnsRes.data?.data || []);
-        setRawMaterials(rawMaterialsRes.data?.data || []);
+        const toppings = await axios.get("/api/menu/toppings");
+        const addons = await axios.get("/api/menu/addons");
+        setToppingsList(toppings.data.data);
+        setAddonsList(addons.data.data);
       } catch (error) {
         console.error("Error fetching options:", error);
       }
@@ -54,12 +52,20 @@ const Create = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Prevent page refresh
-    setLoading(true);
+    e.preventDefault();
+
     try {
-      await axios.post("/api/menu/menu-items", formData);
-      fetchMenuItems();
-      onCancel();
+      const formDataToSend = new FormData();
+      Object.entries(formData).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          value.forEach((id) => formDataToSend.append(key, id));
+        } else {
+          formDataToSend.append(key, value);
+        }
+      });
+
+      await axios.post("/api/menu/menu-items", formDataToSend);
+      navigate("/");
     } catch (error) {
       console.error("Error creating menu item:", error);
       alert("Gagal menambahkan menu. Periksa koneksi atau data Anda.");
@@ -256,154 +262,99 @@ const Create = () => {
   //   </div>
   // );
   return (
-
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between border-b border-gray-200 py-2">
-        <h1 className="text-2xl font-bold">Tambah Menu</h1>
-      </div>
+    <div className="container mx-auto p-8">
+      <h1 className="text-3xl font-bold mb-8 text-center">Tambah Menu</h1>
       <form
         onSubmit={handleSubmit}
-        className="bg-white py-6 w-full flex flex-col h-full"
+        className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md"
       >
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="mb-4">
-            <label className="block mb-2 font-medium">Nama Menu</label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              className="w-full border rounded px-3 py-2"
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium">Kategori</label>
-            <input
-              type="text"
-              name="category"
-              value={formData.category}
-              onChange={handleInputChange}
-              className="w-full border rounded px-3 py-2"
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium">Harga</label>
-            <input
-              type="number"
-              name="price"
-              value={formData.price}
-              onChange={handleInputChange}
-              className="w-full border rounded px-3 py-2"
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium">Raw Materials</label>
-            <select
-              onChange={handleRawMaterialSelect}
-              className="w-full border rounded px-3 py-2 mb-2"
-            >
-              <option value="">Select Raw Material</option>
-              {rawMaterials.map((rawMaterial) => (
-                <option key={rawMaterial._id} value={rawMaterial._id}>
-                  {rawMaterial.name}
-                </option>
-              ))}
-            </select>
-            {formData.rawMaterials.map((material, index) => (
-              <div key={index} className="flex items-center mb-2">
-                <label className="w-2/3 text-gray-700">
-                  {rawMaterials.find((item) => item._id === material.materialId)?.name}
-                </label>
-                <input
-                  type="number"
-                  value={material.quantityRequired}
-                  onChange={(e) => handleRawMaterialChange(e, material.materialId)}
-                  className="w-20 border rounded px-3 py-2 mr-2"
-                  placeholder="Quantity"
-                  min="1"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveRawMaterial(material.materialId)}
-                  className="bg-red-500 text-white px-3 py-1 rounded"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="mb-4 col-span-2">
-            <label className="block mb-2 font-medium">Foto Produk</label>
-            <img
-              src={formData.imageURL}
-              alt="Uploaded"
-              className="h-24 w-24 object-cover rounded mb-2"
-              onClick={() => fileRef.current.click()}
-            />
-            <input
-              ref={fileRef}
-              type="file"
-              className="hidden"
-              onChange={(e) => setImage(e.target.files[0])}
-            />
-            {imagePercent > 0 && <div>Upload Progress: {imagePercent}%</div>}
-            {imageError && <div className="text-red-500">Image upload failed</div>}
-          </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium">Toppings</label>
-            {toppings.map((topping) => (
-              <div key={topping._id} className="flex items-center">
-                <input
-                  type="checkbox"
-                  value={topping._id}
-                  checked={formData.toppings.includes(topping._id)}
-                  onChange={(e) => handleCheckboxChange(e, "toppings")}
-                />
-                <label className="ml-2">{topping.name}</label>
-              </div>
-            ))}
-          </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium">Add-Ons</label>
-            {addOns.map((addOn) => (
-              <div key={addOn._id} className="flex items-center">
-                <input
-                  type="checkbox"
-                  value={addOn._id}
-                  checked={formData.addOns.includes(addOn._id)}
-                  onChange={(e) => handleCheckboxChange(e, "addOns")}
-                />
-                <label className="ml-2">{addOn.name}</label>
-              </div>
-            ))}
-          </div>
+        {/* Nama Menu */}
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Nama Menu
+          </label>
+          <input
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+            required
+          />
         </div>
 
-        {/* Fixed buttons at the bottom */}
-        <div className="mt-auto flex justify-end gap-4">
-          <Link
-            to="/menu" // Specify the route to the menu page
-            className="bg-gray-400 text-white px-4 py-2 rounded inline-block"
+        {/* Deskripsi */}
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Deskripsi
+          </label>
+          <textarea
+            name="description"
+            value={formData.description}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+            rows="4"
+          ></textarea>
+        </div>
+
+        {/* Harga */}
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Harga
+          </label>
+          <input
+            type="number"
+            name="price"
+            value={formData.price}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+            required
+          />
+        </div>
+
+        {/* Kategori */}
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Kategori
+          </label>
+          <select
+            name="category"
+            value={formData.category}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+            required
           >
-            Cancel
-          </Link>
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-500 text-white px-4 py-2 rounded"
-          >
-            {loading ? "Saving..." : "Save"}
-          </button>
+            <option value="">Pilih Kategori</option>
+            <option value="makanan">Makanan</option>
+            <option value="minuman">Minuman</option>
+            <option value="snack">Snack</option>
+          </select>
+        </div>
+
+        {/* Gambar */}
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2">
+            Gambar
+          </label>
+          <input
+            type="file"
+            name="imageURL"
+            onChange={handleInputChange}
+            className="block w-full text-sm text-gray-500
+            file:mr-4 file:py-2 file:px-4
+            file:rounded-full file:border-0
+            file:text-sm file:font-semibold
+            file:bg-blue-500 file:text-white
+            hover:file:bg-blue-600"
+            accept="image/*"
+          />
+          {imagePreview && (
+            <img
+              src={imagePreview}
+              alt="preview"
+              className="mt-2 w-full h-48 object-cover rounded-lg"
+            />
+          )}
         </div>
 
         {/* Promo */}

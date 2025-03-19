@@ -60,18 +60,23 @@ export default function App() {
 
 
     <BrowserRouter>
-
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-grow">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/download" element={<Download />} />
-          <Route path="/sign-in" element={<SignIn />} />
-          <Route path="/sign-up" element={<SignUp />} />
-          <Route path="/order" element={<Order />} />
-          <Route path="/outlet" element={<Outlet />} />
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-grow">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/download" element={<Download />} />
+            <Route path="/sign-in" element={<SignIn />} />
+            <Route path="/sign-up" element={<SignUp />} />
+            <Route path="/order" element={<Order />} />
+            <Route path="/outlet" element={<Outlet />} />
+            {/* Routes with restricted access */}
+            <Route element={<PrivateRoute allowedRoles={['cashier', 'superadmin']} />}>
+              {/* <div className="flex"> */}
+              {/* <Sidebar /> */}
+              {/* <div className="flex-1"> */}
+              <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/toko" element={<OutletManagementPage />} />
               <Route path="/menu" element={<Menumanagement />} />
               <Route path="/menu-create" element={<Menucreate />} />
@@ -89,12 +94,20 @@ export default function App() {
               <Route path="/content" element={<ContentManagement />} />
               <Route path="/content-create" element={<CreateContent />} />
               <Route path="/content-update/:id" element={<UpdateContent />} />
+              {/* </div> */}
+              {/* </div> */}
 
-        </Routes>
-      </main>
-      <Footer />
-    </div>
-  </BrowserRouter>
+            </Route>
+
+            {/* Routes for authenticated users */}
+            <Route element={<PrivateRoute />}>
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </BrowserRouter>
 
   );
 }
