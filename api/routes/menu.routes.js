@@ -3,11 +3,7 @@ import { verifyToken } from '../utils/verifyUser.js';
 import {
   createMenuItem,
   getMenuItems,
-<<<<<<< Updated upstream
   getSimpleMenuItems,
-=======
-  getMenuItemsByCategory,
->>>>>>> Stashed changes
   getMenuItemById,
   // updateMenuItem,
   deleteMenuItem,
@@ -18,7 +14,7 @@ import {
   deleteTopping,
 } from '../controllers/menu.controller.js';
 
-import { assignMenuItemsToCategory, filterMenuByCategory, getCategories  } from '../controllers/category.comtroller.js';
+import { assignMenuItemsToCategory, filterMenuByCategory, getCategories } from '../controllers/category.comtroller.js';
 
 const router = express.Router();
 
@@ -28,11 +24,7 @@ const adminAccess = verifyToken(['admin', 'superadmin']);
 // MenuItem Routes
 router.post('/menu-items', adminAccess, createMenuItem); // Create a new MenuItem
 router.get('/menu-items', getMenuItems); // Get all MenuItems
-<<<<<<< Updated upstream
 router.get('/simple-menus', getSimpleMenuItems); // Get all MenuItems
-=======
-router.get('/menu-category', getMenuItemsByCategory); // Get all MenuItems
->>>>>>> Stashed changes
 router.get('/menu-items/:id', getMenuItemById); // Get a specific MenuItem by ID
 // router.put('/menu-items/:id', adminAccess, updateMenuItem); // Update a specific MenuItem
 router.delete('/menu-items/:id', adminAccess, deleteMenuItem); // Delete a specific MenuItem
