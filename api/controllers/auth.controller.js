@@ -99,7 +99,7 @@ export const signup = async (req, res, next) => {
 export const signin = async (req, res, next) => {
   try {
     const { identifier, password } = req.body;
-    console.log(req.body);
+
     if (!identifier || !password) {
       return next(errorHandler(400, "Identifier and password are required"));
     }
@@ -123,7 +123,7 @@ export const signin = async (req, res, next) => {
           populate: { path: "admin", select: "name" }
 
         });
-      if (!user || !["superadmin", "admin", "staff", "cashier"].includes(user.role)) {
+      if (!user || !["superadmin", "admin", "staff", "cashier junior", "cashier senior"].includes(user.role)) {
         return next(errorHandler(403, "Access denied"));
       }
       tokenExpiry = "15m";
