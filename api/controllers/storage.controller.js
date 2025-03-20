@@ -1,82 +1,72 @@
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import { StockOpname } from '../models/StockOpname.model.js';
 
-// Add a new raw material
-export const createRawMaterial = async (req, res) => {
+
+
+// Batch insert or update stock with outlet, date, and notes
+export const batchInsertStock = async (req, res) => {
   try {
-    const {
-      name,
-      category,
-      quantity,
-      unit,
-      minimumStock,
-      maximumStock,
-      costPerUnit,
-      supplier,
-      expiryDate,
-    } = req.body;
-    
-    // Validasi field wajib
-    if (
-      !name ||
-      !category ||
-      !quantity ||
-      !unit ||
-      !minimumStock ||
-      !maximumStock ||
-      !costPerUnit
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          'Missing required fields: name, category, quantity, unit, minimumStock, maximumStock, costPerUnit',
-      });
+    const { outletId, datein, notes, materials } = req.body;     
+    if (!outletId || !datein || !Array.isArray(materials) || materials.length === 0) {
+      return res.status(400).json({ message: 'Invalid request data' });
     }
-
-    const rawMaterial = new RawMaterial({
-      name,
-      category,
-      quantity,
-      unit,
-      minimumStock,
-      maximumStock,
-      costPerUnit,
-      supplier,
-      expiryDate, // Boleh kosong
-    });
-
-    const savedRawMaterial = await rawMaterial.save();
-    res.status(201).json({ success: true, data: savedRawMaterial });
+    
+    const bulkOps = materials.map(material => ({
+      updateOne: {
+        filter: { name: material.name, category: material.category, availableAt: outletId },
+        update: {
+          $inc: { quantity: material.quantity },
+          $setOnInsert: {
+            name: material.name,
+            category: material.category,
+            unit: material.unit,
+            minimumStock: material.minimumStock,
+            maximumStock: material.maximumStock,
+            costPerUnit: material.costPerUnit,
+            supplier: material.supplier,
+            expiryDate: material.expiryDate,
+            availableAt: outletId,
+            datein: datein,
+            notes: notes,
+            lastUpdatedBy: req.user._id,
+          }
+        },
+        upsert: true,
+      }
+    }));
+    
+    const result = await RawMaterial.bulkWrite(bulkOps);
+    res.status(200).json({ message: 'Stock batch processed successfully', result });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create raw material',
-      error: error.message,
-    });
+    res.status(500).json({ message: 'Error processing batch stock', error });
   }
 };
 
-// Get all raw materials
+// get all raw materials
 export const getRawMaterials = async (req, res) => {
   try {
-    const rawMaterials = await RawMaterial.find()
-      .populate('supplier')
-      .sort({ createdAt: -1 });
+    const { outletId, status } = req.query;
+    let filter = {};
 
-    if (!rawMaterials || rawMaterials.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No raw materials found',
-      });
+    // Tambahkan filter berdasarkan outlet jika diberikan
+    if (outletId) {
+      filter.availableAt = outletId;
     }
 
-    res.status(200).json({ success: true, data: rawMaterials });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch raw materials',
-      error: error.message,
+    // Tambahkan filter berdasarkan status jika diberikan
+    if (status) {
+      filter.status = status;
+    }
+
+    // Ambil data bahan baku berdasarkan filter
+    const rawMaterials = await RawMaterial.find(filter).populate('availableAt lastUpdatedBy');
+
+    res.status(200).json({
+      message: 'Raw materials retrieved successfully',
+      data: rawMaterials
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving raw materials', error: error.message });
   }
 };
 

@@ -1,11 +1,11 @@
 import express from 'express';
 import {
-  createRawMaterial,
+  batchInsertStock,
   getRawMaterials,
   updateRawMaterial,
   deleteRawMaterial,
   createStockOpname,
-  getStockOpnames,
+  getStockOpnames,  
   getStockOpnameById,
   updateStockOpname,
   deleteStockOpname
@@ -17,8 +17,10 @@ const router = express.Router();
 // Middleware for admin and superadmin access
 const adminAccess = verifyToken(['admin', 'superadmin', 'inventory']);
 
+// Stock Routes
+router.post('/stock/batch', adminAccess, batchInsertStock); // Batch insert stock data
+
 // Raw Material Routes
-router.post('/raw-material', adminAccess, createRawMaterial); // Create a new Raw Material
 router.get('/raw-material', getRawMaterials); // Get all Raw Materials
 router.put('/raw-material/:id', adminAccess, updateRawMaterial); // Update a specific Raw Material
 router.delete('/raw-material/:id', adminAccess, deleteRawMaterial); // Delete a specific Raw Material
