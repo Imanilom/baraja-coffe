@@ -66,7 +66,6 @@ export const filterMenuByCategory = async (req, res) => {
   
       // Cari menu item berdasarkan kategori
       const menuItems = await MenuItem.find({ category: { $in: [category] } })
-        .populate('toppings')
         .populate('rawMaterials.materialId')
         .populate('availableAt');
   

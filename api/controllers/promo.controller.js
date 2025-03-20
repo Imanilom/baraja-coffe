@@ -23,9 +23,20 @@ export const getPromoById = async (req, res) => {
 
 // Create a new promo
 export const createPromo = async (req, res) => {
+  const { name, discountAmount, discountType, customerType, outlet, validFrom, validTo } = req.body;
+  const createdBy = req.user._id;
+  console.log(req.user);
   try {
-    const promo = new Promo(req.body);
-    await promo.save();
+    const promo = new Promo(
+      name,
+      discountAmount,
+      discountType,
+      customerType,
+      outlet,
+      createdBy,
+      validFrom,
+      validTo
+    );
     res.status(201).json(promo);
   } catch (error) {
     res.status(400).json({ message: error.message });

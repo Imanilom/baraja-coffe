@@ -13,10 +13,10 @@ const Sidebar = () => {
     { name: "Menu Management", path: "/admin/menu" },
     { name: "Voucher Management", path: "/admin/voucher" },
     { name: "Storage Management", path: "/admin/storage" },
-    { name: "Topping Management", path: "/admin/toppings" },
-    { name: "Add-ons Management", path: "/admin/addons" },
     { name: "Promotion Management", path: "/admin/promotion" },
     { name: "Outlet Management", path: "/admin/toko" },
+    { name: "User Management", path: "/admin/user" },
+    { name: "Profile", path: "/profile" },
   ];
 
   const activeRoute = useActiveRoute();
