@@ -15,10 +15,48 @@ const Create = () => {
     toppings: [],
     addons: [],
   });
-  const [toppingsList, setToppingsList] = useState([]);
-  const [addonsList, setAddonsList] = useState([]);
+
+  // State untuk menyimpan input topping dan add-ons
+  const [toppingInputs, setToppingInputs] = useState([]);
+  const [addonsInputs, setAddonsInputs] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
   const navigate = useNavigate();
+
+  // Fungsi untuk menambah input topping baru
+  const addTopping = () => {
+    setToppingInputs([...toppingInputs, { name: "", price: "" }]);  // Menambahkan objek kosong
+  };
+
+  // Fungsi untuk menambah input add-ons baru
+  const addAddons = () => {
+    setAddonsInputs([...addonsInputs, { name: "", option: "", price: "" }]);  // Menambahkan objek kosong
+  };
+
+  // Fungsi untuk mengubah nilai input topping
+  const handleToppingChange = (index, field, value) => {
+    const updatedToppings = [...toppingInputs];
+    updatedToppings[index][field] = value;  // Memperbarui nilai sesuai field dan index
+    setToppingInputs(updatedToppings);
+  };
+
+  // Fungsi untuk mengubah nilai input add-ons
+  const handleAddonsChange = (index, field, value) => {
+    const updatedAddons = [...addonsInputs];
+    updatedAddons[index][field] = value;  // Memperbarui nilai sesuai field dan index
+    setAddonsInputs(updatedAddons);
+  };
+
+  // Fungsi untuk menghapus input topping
+  const removeTopping = (index) => {
+    const updatedToppings = toppingInputs.filter((_, i) => i !== index);
+    setToppingInputs(updatedToppings);
+  };
+
+  // Fungsi untuk menghapus input add-ons
+  const removeAddons = (index) => {
+    const updatedAddons = addonsInputs.filter((_, i) => i !== index);
+    setAddonsInputs(updatedAddons);
+  };
 
   useEffect(() => {
     // Fetch available toppings and addons
@@ -72,195 +110,6 @@ const Create = () => {
     }
   };
 
-  // return (
-  //   <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
-  //     <form
-  //       onSubmit={handleSubmit}
-  //       className="bg-white p-6 rounded shadow-md w-full max-w-lg"
-  //     >
-  //       <h2 className="text-xl font-bold mb-4">Tambah Menu</h2>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Nama Menu</label>
-  //         <input
-  //           type="text"
-  //           name="name"
-  //           value={formData.name}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //           required
-  //         />
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Kategori</label>
-  //         <input
-  //           type="text"
-  //           name="category"
-  //           value={formData.category}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //           required
-  //         />
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Harga</label>
-  //         <input
-  //           type="number"
-  //           name="price"
-  //           value={formData.price}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //           required
-  //         />
-  //       </div>
-
-  //       {/* <div className="mb-4">
-  //         <label className="block text-gray-700">Description</label>
-  //         <textarea
-  //           name="description"
-  //           value={formData.description}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //         />
-  //       </div> */}
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">SKU</label>
-  //         <input
-  //           name="sku"
-  //           value={formData.description}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //         />
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Barcode</label>
-  //         <input
-  //           name="barcode"
-  //           value={formData.description}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //         />
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Satuan Stok</label>
-  //         <input
-  //           type="number"
-  //           name="stock"
-  //           value={formData.stock}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //         />
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Foto Produk</label>
-  //         <img
-  //           src={formData.imageURL}
-  //           alt="Uploaded"
-  //           className="h-24 w-24 object-cover rounded mb-2"
-  //           onClick={() => fileRef.current.click()}
-  //         />
-  //         <input
-  //           ref={fileRef}
-  //           type="file"
-  //           className="hidden"
-  //           onChange={(e) => setImage(e.target.files[0])}
-  //         />
-  //         {imagePercent > 0 && <div>Upload Progress: {imagePercent}%</div>}
-  //         {imageError && <div className="text-red-500">Image upload failed</div>}
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Toppings</label>
-  //         {toppings.map((topping) => (
-  //           <div key={topping._id} className="flex items-center">
-  //             <input
-  //               type="checkbox"
-  //               value={topping._id}
-  //               checked={formData.toppings.includes(topping._id)}
-  //               onChange={(e) => handleCheckboxChange(e, "toppings")}
-  //             />
-  //             <label className="ml-2">{topping.name}</label>
-  //           </div>
-  //         ))}
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Add-Ons</label>
-  //         {addOns.map((addOn) => (
-  //           <div key={addOn._id} className="flex items-center">
-  //             <input
-  //               type="checkbox"
-  //               value={addOn._id}
-  //               checked={formData.addOns.includes(addOn._id)}
-  //               onChange={(e) => handleCheckboxChange(e, "addOns")}
-  //             />
-  //             <label className="ml-2">{addOn.name}</label>
-  //           </div>
-  //         ))}
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Raw Materials</label>
-  //         <select
-  //           onChange={handleRawMaterialSelect}
-  //           className="w-full border rounded px-3 py-2 mb-2"
-  //         >
-  //           <option value="">Select Raw Material</option>
-  //           {rawMaterials.map((rawMaterial) => (
-  //             <option key={rawMaterial._id} value={rawMaterial._id}>
-  //               {rawMaterial.name}
-  //             </option>
-  //           ))}
-  //         </select>
-  //         {formData.rawMaterials.map((material, index) => (
-  //           <div key={index} className="flex items-center mb-2">
-  //             <label className="w-2/3 text-gray-700">
-  //               {rawMaterials.find((item) => item._id === material.materialId)?.name}
-  //             </label>
-  //             <input
-  //               type="number"
-  //               value={material.quantityRequired}
-  //               onChange={(e) => handleRawMaterialChange(e, material.materialId)}
-  //               className="w-20 border rounded px-3 py-2 mr-2"
-  //               placeholder="Quantity"
-  //               min="1"
-  //             />
-  //             <button
-  //               type="button"
-  //               onClick={() => handleRemoveRawMaterial(material.materialId)}
-  //               className="bg-red-500 text-white px-3 py-1 rounded"
-  //             >
-  //               Remove
-  //             </button>
-  //           </div>
-  //         ))}
-  //       </div>
-
-  //       <div className="flex justify-between">
-  //         <button
-  //           type="button"
-  //           onClick={onCancel}
-  //           className="bg-gray-400 text-white px-4 py-2 rounded"
-  //         >
-  //           Cancel
-  //         </button>
-  //         <button
-  //           type="submit"
-  //           disabled={loading}
-  //           className="bg-blue-500 text-white px-4 py-2 rounded"
-  //         >
-  //           {loading ? "Saving..." : "Save"}
-  //         </button>
-  //       </div>
-  //     </form>
-  //   </div>
-  // );
   return (
     <div className="container mx-auto p-8">
       <h1 className="text-3xl font-bold mb-8 text-center">Tambah Menu</h1>
@@ -382,26 +231,8 @@ const Create = () => {
           </div>
         </div>
 
-        {/* Topping Section */}
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold mb-2">Topping</h3>
-          <div className="space-y-2">
-            {toppingsList.map((topping) => (
-              <div key={topping._id} className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.toppings.includes(topping._id)}
-                  onChange={() => handleCheckboxChange("toppings", topping._id)}
-                  className="form-checkbox h-5 w-5 text-blue-500"
-                />
-                <label className="ml-2 text-gray-700">{topping.name}</label>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Add-Ons Section */}
-        <div className="mb-4">
+        {/* <div className="mb-4">
           <h3 className="text-lg font-semibold mb-2">Add-Ons</h3>
           <div className="space-y-2">
             {addonsList.map((addon) => (
@@ -416,6 +247,97 @@ const Create = () => {
               </div>
             ))}
           </div>
+        </div> */}
+
+        {/* Topping Section */}
+        <div className="mb-4">
+          <div className="flex justify-between mb-2">
+            <h3 className="text-lg font-semibold mb-2">Topping</h3>
+            {/* Tombol untuk menambah input topping */}
+            <button
+              onClick={addTopping}
+              className="p-2 bg-blue-500 text-white rounded"
+            >
+              +
+            </button>
+          </div>
+          <div className="flex flex-col">
+            {/* Menampilkan input Topping jika ada */}
+            {toppingInputs.map((input, index) => (
+              <div key={index} className="flex space-x-4 mb-2">
+                <input
+                  type="text"
+                  value={input.name}
+                  onChange={(e) => handleToppingChange(index, "name", e.target.value)}
+                  className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="Nama"
+                />
+                <input
+                  type="text"
+                  value={input.price}
+                  onChange={(e) => handleToppingChange(index, "price", e.target.value)}
+                  className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="Harga"
+                />
+                {/* Tombol Hapus untuk setiap add-on */}
+                <button
+                  onClick={() => removeTopping(index)}
+                  className="p-2 bg-red-500 text-white rounded"
+                >
+                  Hapus
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Add-Ons Section */}
+        <div className="mb-4">
+          <div className="flex justify-between mb-2">
+            <h3 className="text-lg font-semibold mb-2">Add-Ons</h3>
+            {/* Tombol untuk menambah input add-ons */}
+            <button
+              onClick={addAddons}
+              className="p-2 bg-blue-500 text-white rounded"
+            >
+              +
+            </button>
+          </div>
+          <div className="flex flex-col">
+            {/* Menampilkan input Add-Ons jika ada */}
+            {addonsInputs.map((input, index) => (
+              <div key={index} className="flex space-x-4 mb-2">
+                <input
+                  type="text"
+                  value={input.name}
+                  onChange={(e) => handleAddonsChange(index, "name", e.target.value)}
+                  className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="Nama"
+                />
+                <input
+                  type="text"
+                  value={input.option}
+                  onChange={(e) => handleAddonsChange(index, "option", e.target.value)}
+                  className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="Opsi"
+                />
+                <input
+                  type="text"
+                  value={input.price}
+                  onChange={(e) => handleAddonsChange(index, "price", e.target.value)}
+                  className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="Harga"
+                />
+                {/* Tombol Hapus untuk setiap add-on */}
+                <button
+                  onClick={() => removeAddons(index)}
+                  className="p-2 bg-red-500 text-white rounded"
+                >
+                  Hapus
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Submit Button */}
@@ -425,8 +347,14 @@ const Create = () => {
         >
           Simpan Menu
         </button>
-      </form>
-    </div>
+        <Link
+          to="/menu"  // Change this to your desired route (e.g., "/home")
+          className="block bg-gray-500 text-white px-4 py-2 rounded-lg mt-2 text-center"
+        >
+          Back
+        </Link>
+      </form >
+    </div >
   );
 };
 
