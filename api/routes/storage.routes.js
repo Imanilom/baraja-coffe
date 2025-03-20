@@ -15,7 +15,7 @@ import { verifyToken } from '../utils/verifyUser.js';
 const router = express.Router();
 
 // Middleware for admin and superadmin access
-const adminAccess = verifyToken(['admin', 'superadmin']);
+const adminAccess = verifyToken(['admin', 'superadmin', 'inventory']);
 
 // Raw Material Routes
 router.post('/raw-material', adminAccess, createRawMaterial); // Create a new Raw Material
