@@ -21,7 +21,7 @@ const RawMaterialSchema = new mongoose.Schema({
   supplier: { type: String }, // Referensi ke pemasok
   expiryDate: { type: Date }, // Tanggal kadaluwarsa (jika ada)
   lastUpdated: { type: Date, default: Date.now }, // Terakhir diperbarui
-  availableAt: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', index: true }], // Outlet tempat bahan baku tersedia
+  availableAt: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', index: true }, // Outlet tempat bahan baku tersedia
   status: { 
     type: String, 
     enum: ['Available', 'Low Stock', 'Out of Stock', 'Overstocked', 'Expired'], 

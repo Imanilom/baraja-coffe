@@ -257,6 +257,7 @@ const Update = () => {
       </form>
     </div>
   );
-};
+
+}
 
 export default Update;

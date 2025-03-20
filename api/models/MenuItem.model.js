@@ -30,7 +30,13 @@ const MenuItemSchema = new mongoose.Schema({
           label: { type: String, required: true }, // Label opsi (contoh: reg, med, large)
           price: { type: Number, required: true, min: 0 } // Harga tambahan untuk opsi tersebut
         }
-      ]
+      ],
+      rawMaterials: [
+        {
+        materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
+        quantityRequired: { type: Number, required: true }
+       }
+    ]
     }
   ], // Menyimpan daftar addons dengan harga berbeda-beda per menu
   rawMaterials: [
