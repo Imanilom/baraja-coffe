@@ -3,7 +3,7 @@ import 'package:barajapos/models/menu_item_model.dart';
 class OrderItemModel {
   final MenuItemModel menuItem;
   final List<ToppingModel> selectedToppings;
-  final List<AddOnModel> selectedAddons;
+  final List<AddonModel> selectedAddons;
   int quantity;
   // final double subtotal;
   // final String note = '';
@@ -34,7 +34,7 @@ class OrderItemModel {
     MenuItemModel? menuItem,
     int? quantity,
     List<ToppingModel>? selectedToppings,
-    List<AddOnModel>? selectedAddons,
+    List<AddonModel>? selectedAddons,
     double? subTotalPrice,
   }) {
     return OrderItemModel(

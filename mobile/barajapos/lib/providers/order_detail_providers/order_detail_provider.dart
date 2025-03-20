@@ -69,21 +69,21 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     return true;
   }
 
-  bool _areAddonsEqual(List<AddOnModel> addons1, List<AddOnModel> addons2) {
+  bool _areAddonsEqual(List<AddonModel> addons1, List<AddonModel> addons2) {
     if (addons1.length != addons2.length) return false;
     for (var i = 0; i < addons1.length; i++) {
-      if (addons1[i].id != addons2[i].id) return false;
+      if (addons1[i].options.first.id != addons2[i].options.first.id) {
+        return false;
+      }
     }
     return true;
   }
 
-  void removeItem(String menuItemId) {
-    if (state != null) {
-      state = state!.copyWith(
-        items: state!.items
-            .where((item) => item.menuItem.id != menuItemId)
-            .toList(),
-      );
+  void removeItem(OrderItemModel menuItem) {
+    final index = state!.items.indexOf(menuItem);
+    if (index != -1) {
+      state!.items.removeAt(index);
+      state = state!.copyWith(items: state!.items);
     }
   }
 

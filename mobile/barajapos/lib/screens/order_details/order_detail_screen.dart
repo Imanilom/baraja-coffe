@@ -14,11 +14,13 @@ class OrderDetailScreen extends ConsumerWidget {
     final currenIndex = ref.watch(navigationProvider);
     double totalPrices = 0;
     OrderDetailModel? orderDetail;
+    String onNull = 'Pilih detail pesanan';
 
     switch (currenIndex) {
       case 0:
         orderDetail = ref.watch(orderDetailProvider);
         totalPrices = ref.watch(orderDetailProvider.notifier).totalPrice;
+        onNull = 'Pilih menu untuk memulai pesanan';
         break;
       default:
     }
@@ -38,7 +40,14 @@ class OrderDetailScreen extends ConsumerWidget {
           ),
           Expanded(
             child: orderDetail == null || orderDetail.items.isEmpty
-                ? const Center(child: Text('Pilih menu untuk memulai pesanan'))
+                ? Container(
+                    color: Colors.grey[200],
+                    alignment: Alignment.center,
+                    child: Text(
+                      onNull,
+                      textAlign: TextAlign.center,
+                    ),
+                  )
                 : ListView.builder(
                     itemCount: orderDetail.items.length,
                     itemBuilder: (context, index) {
@@ -74,7 +83,7 @@ class OrderDetailScreen extends ConsumerWidget {
                               //mengambil nama addons dan lable pada opsions
 
                               Text(
-                                  'Addons: ${orderItem.selectedAddons.map((addon) => addon.options.first.label).join(', ')}'),
+                                  'Addons: ${orderItem.selectedAddons.map((a) => a.options.map((o) => o.label).join(', ')).join(', ')}'),
                             Text(
                                 'Sub total: ${formatRupiah(orderItem.subTotalPrice)}'),
                           ],
@@ -87,7 +96,7 @@ class OrderDetailScreen extends ConsumerWidget {
                           onPressed: () {
                             ref
                                 .read(orderDetailProvider.notifier)
-                                .removeItem(orderItem.menuItem.id);
+                                .removeItem(orderItem);
                           },
                         ),
                       );
