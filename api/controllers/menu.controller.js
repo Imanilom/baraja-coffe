@@ -2,15 +2,26 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import mongoose from 'mongoose';
 
+import { MenuItem } from '../models/MenuItem.js';
+import { RawMaterial } from '../models/RawMaterial.js';
+import { Outlet } from '../models/Outlet.js';
+
 // Create a new menu item
 export const createMenuItem = async (req, res) => {
   try {
-    const { name, price, description, category, imageURL, toppings, addons, rawMaterials } = req.body;
+    const { name, price, description, category, imageURL, toppings, addons, rawMaterials, availableAt } = req.body;
 
-    if (!name || !price || !category || !imageURL) {
+    if (!name || !price || !category || !imageURL || !availableAt) {
       return res.status(400).json({
         success: false,
-        message: 'Name, price, category, and imageURL are required fields.',
+        message: 'Name, price, category, imageURL, and availableAt are required fields.',
+      });
+    }
+
+    if (!Array.isArray(category) || category.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Category must be a non-empty array of strings.',
       });
     }
 
@@ -18,12 +29,11 @@ export const createMenuItem = async (req, res) => {
     if (rawMaterials && !Array.isArray(rawMaterials)) {
       return res.status(400).json({
         success: false,
-        message: 'Raw materials must be an array of objects with material ID and quantity.',
+        message: 'Raw materials must be an array of objects with materialId and quantityRequired.',
       });
     }
 
     if (rawMaterials) {
-      // Ensure each raw material has `quantityRequired`
       for (let i = 0; i < rawMaterials.length; i++) {
         const { materialId, quantityRequired } = rawMaterials[i];
         if (!materialId || quantityRequired === undefined) {
@@ -35,6 +45,39 @@ export const createMenuItem = async (req, res) => {
       }
     }
 
+    // Validate toppings
+    if (toppings && !Array.isArray(toppings)) {
+      return res.status(400).json({ success: false, message: 'Toppings must be an array.' });
+    }
+
+    // Validate addons
+    if (addons && !Array.isArray(addons)) {
+      return res.status(400).json({ success: false, message: 'Addons must be an array.' });
+    }
+
+    // Validate availableAt (outlets)
+    if (!Array.isArray(availableAt) || availableAt.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'availableAt must be a non-empty array of outlet IDs.',
+      });
+    }
+
+    const outletPromises = availableAt.map(async (outletId) => {
+      const outlet = await Outlet.findById(outletId);
+      if (!outlet) {
+        throw new Error(`Outlet with ID ${outletId} not found.`);
+      }
+      return outlet;
+    });
+
+    try {
+      await Promise.all(outletPromises);
+    } catch (error) {
+      return res.status(404).json({ success: false, message: error.message });
+    }
+
+    // Validate raw materials availability
     const rawMaterialPromises = rawMaterials.map(async ({ materialId, quantityRequired }) => {
       const rawMaterial = await RawMaterial.findById(materialId);
       if (!rawMaterial) {
@@ -61,6 +104,7 @@ export const createMenuItem = async (req, res) => {
       toppings: toppings || [],
       addons: addons || [],
       rawMaterials: rawMaterials || [],
+      availableAt,
     });
 
     const savedMenuItem = await menuItem.save();
@@ -79,6 +123,7 @@ export const createMenuItem = async (req, res) => {
     });
   }
 };
+
 
 export const getSimpleMenuItems = async (req, res) => {
   try {
