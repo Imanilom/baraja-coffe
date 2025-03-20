@@ -54,13 +54,6 @@ export default function SignIn() {
           onChange={handleChange}
         />
         <input
-          type='text'
-          placeholder='username'
-          id='identifier'
-          className='bg-slate-100 p-3 rounded-lg'
-          onChange={handleChange}
-        />
-        <input
           type='password'
           placeholder='Password'
           id='password'
