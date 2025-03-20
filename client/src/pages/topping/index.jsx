@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import axios from "axios";
 import CreateTopping from "./create";
 import UpdateTopping from "./update";
@@ -37,12 +38,16 @@ const ToppingManagement = () => {
   }, []);
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Topping Management</h1>
-      <a href="/topping-create">
-        <button className="bg-blue-500 text-white px-2 py-1 rounded mr-2">Add Topping </button>
-      </a>
-
+    <div className="w-full mx-auto">
+      <div className="flex justify-between py-2 mb-6">
+        <h1 className="text-3xl font-bold">Topping</h1>
+        <Link
+          to="/topping-create" // Specify the route you want to navigate to
+          className="bg-blue-500 text-white px-4 py-2 rounded inline-block"
+        >
+          Tambah Topping
+        </Link>
+      </div>
 
       {/* Error Message */}
       {error && (
@@ -55,7 +60,7 @@ const ToppingManagement = () => {
       {loading ? (
         <div className="text-center text-gray-700">Loading...</div>
       ) : (
-        <table className="min-w-full bg-white shadow-md rounded mt-6">
+        <table className="min-w-full  bg-white shadow-md rounded mt-6">
           <thead>
             <tr>
               <th className="py-2 px-4 bg-gray-200 text-gray-700">Name</th>

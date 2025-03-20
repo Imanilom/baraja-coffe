@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 
 const CreateTopping = ({ fetchToppings, onCancel }) => {
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({ name: "", price: "", category: "food", rawMaterials: [] });
   const [rawMaterials, setRawMaterials] = useState([]);
 
@@ -41,13 +41,13 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
       return { ...prevData, rawMaterials: updatedRawMaterials };
     });
   };
-  
+
   const handleRawMaterialSelect = (e) => {
     const { value } = e.target;
     const materialExists = formData.rawMaterials.some(
       (material) => material.materialId === value
     );
-  
+
     if (!materialExists && value) {
       setFormData((prevData) => ({
         ...prevData,
@@ -58,7 +58,7 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
       }));
     }
   };
-  
+
   const handleRemoveRawMaterial = (materialId) => {
     setFormData((prevData) => ({
       ...prevData,
@@ -73,7 +73,7 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
     try {
       await axios.post("/api/menu/toppings", formData);
       setFormData({ name: "", price: "", category: "food", rawMaterials: [] });
-      navigate("/toppings");
+      navigate("/menu");
       if (onCancel) onCancel();
     } catch (error) {
       console.error("Error creating topping:", error);
@@ -81,7 +81,7 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-4xl mx-auto p-6 mt-6 bg-white shadow-md rounded">
+    <form onSubmit={handleSubmit} className="max-w-4xl mx-auto p-6 my-6 bg-white shadow-md rounded">
       <h2 className="text-xl font-bold mb-4">Add Topping</h2>
 
       <div className="mb-4">
@@ -129,11 +129,13 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
           className="w-full border rounded px-3 py-2 mb-2"
         >
           <option value="">Select Raw Material</option>
-          {rawMaterials.map((rawMaterial) => (
-            <option key={rawMaterial._id} value={rawMaterial._id}>
-              {rawMaterial.name}
-            </option>
-          ))}
+          {rawMaterials
+            .sort((a, b) => a.name.localeCompare(b.name)) // Sorting alphabetically by name
+            .map((rawMaterial) => (
+              <option key={rawMaterial._id} value={rawMaterial._id}>
+                {rawMaterial.name}
+              </option>
+            ))}
         </select>
         {formData.rawMaterials.map((material, index) => (
           <div key={index} className="flex items-center mb-2">
@@ -148,7 +150,7 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
               placeholder="Quantity"
               min="1"
               step="1"
-            />  
+            />
             <button
               type="button"
               onClick={() => handleRemoveRawMaterial(material.materialId)}
@@ -160,9 +162,18 @@ const CreateTopping = ({ fetchToppings, onCancel }) => {
         ))}
       </div>
 
-      <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
-        Add Topping
-      </button>
+      <div className="flex gap-4">
+        <Link
+          to="/menu"  // Change this to your desired route (e.g., "/home")
+          className="bg-gray-500 text-white px-4 py-2 rounded mr-2"
+        >
+          Back
+        </Link>
+
+        <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+          Tambah Topping
+        </button>
+      </div>
     </form>
   );
 };
