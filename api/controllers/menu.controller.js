@@ -1,10 +1,7 @@
 import { MenuItem } from '../models/MenuItem.model.js';
 import { RawMaterial } from '../models/RawMaterial.model.js';
+import { Outlet } from '../models/Outlet.model.js';
 import mongoose from 'mongoose';
-
-import { MenuItem } from '../models/MenuItem.js';
-import { RawMaterial } from '../models/RawMaterial.js';
-import { Outlet } from '../models/Outlet.js';
 
 // Create a new menu item
 export const createMenuItem = async (req, res) => {
