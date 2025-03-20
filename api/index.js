@@ -12,10 +12,11 @@ import orderRoutes from './routes/order.routes.js';
 import menuRoutes from './routes/menu.routes.js';
 import promotionRoutes from './routes/promotion.rotues.js';
 import storageRoutes from './routes/storage.routes.js';
-import voucherRoutes from './routes/voucher.routes.js';
 import contentRoutes from './routes/content.routes.js';
 import OutletRoutes from './routes/outlet.routes.js';
 import posRoutes from './routes/pos.routes.js';
+import reportRoutes from './routes/report.routes.js';
+import historyRoutes from './routes/history.routes.js';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use(express.static(path.join(__dirname, '/client/dist')));
 // });
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use(cookieParser());
 app.use(cors());
@@ -53,11 +55,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api', orderRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/promotion', promotionRoutes);
-app.use('/api/voucher', voucherRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/outlet', OutletRoutes);
 app.use('/api/workstation', posRoutes);
+app.use('/api/report', reportRoutes);
+app.use('/api/history', historyRoutes);
 
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
@@ -68,3 +71,4 @@ app.use((err, req, res, next) => {
     statusCode,
   });
 });
+

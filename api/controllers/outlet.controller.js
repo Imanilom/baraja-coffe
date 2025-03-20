@@ -1,11 +1,19 @@
 import { Outlet } from '../models/Outlet.model.js';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 
 export const createOutlet = async (req, res) => {
   try {
-    const outlets = req.body;
-    const newOutlets = await Outlet.insertMany(outlets);
+    const { name, address, city, latitude, longitude, contactNumber, manager, outletPictures } = req.body;
+
+    const newOutlet = new Outlet({
+      name,
+      address,
+      city,
+      latitude,
+      longitude,
+      contactNumber,
+      manager,
+      outletPictures,
+    });
 
     res.status(201).json({ message: 'Outlets created successfully', data: newOutlets });
   } catch (error) {
@@ -15,7 +23,7 @@ export const createOutlet = async (req, res) => {
 
 export const getOutlets = async (req, res) => {
   try {
-    const outlets = await Outlet.find();
+    const outlets = await Outlet.find().populate('admin', 'name email');
     res.status(200).json(outlets);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch outlets', error: error.message });
@@ -26,7 +34,7 @@ export const getOutlets = async (req, res) => {
 export const getOutletById = async (req, res) => {
   try {
     const { id } = req.params;
-    const outlet = await Outlet.findById(id);
+    const outlet = await Outlet.findById(id).populate('manager', 'name email');
 
     if (!outlet) return res.status(404).json({ message: 'Outlet not found' });
 
@@ -40,13 +48,13 @@ export const getOutletById = async (req, res) => {
 export const updateOutlet = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, location, contactNumber, latitude, longitude, outletPictures } = req.body;
+    const { name, address, city, latitude, longitude, contactNumber, manager, outletPictures } = req.body;
 
     const updatedOutlet = await Outlet.findByIdAndUpdate(
       id,
-      { name, location, contactNumber, latitude, longitude, outletPictures },
+      { name, address, city, latitude, longitude, contactNumber, manager, outletPictures },
       { new: true }
-    );
+    ).populate('manager', 'name email');
 
     if (!updatedOutlet) return res.status(404).json({ message: 'Outlet not found' });
 
@@ -74,19 +82,15 @@ export const deleteOutlet = async (req, res) => {
 // Find nearest outlets
 export const findNearestOutlet = async (req, res) => {
   try {
-    const { latitude, longitude, maxDistance } = req.query;
+    const { latitude, longitude, maxDistance = 10 } = req.query;
 
     if (!latitude || !longitude) {
       return res.status(400).json({ message: 'Latitude and longitude are required' });
     }
 
-    const maxDistanceInRadians = maxDistance ? maxDistance / 6371 : 10 / 6371; // Default 10 km radius
     const outlets = await Outlet.find({
-      location: {
-        $geoWithin: {
-          $centerSphere: [[longitude, latitude], maxDistanceInRadians],
-        },
-      },
+      latitude: { $gte: latitude - 0.1, $lte: latitude + 0.1 },
+      longitude: { $gte: longitude - 0.1, $lte: longitude + 0.1 },
     });
 
     res.status(200).json(outlets);

@@ -1,55 +1,122 @@
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import { StockOpname } from '../models/StockOpname.model.js';
 
-// Raw Material Controllers
 
-// Add a new raw material
-export const createRawMaterial = async (req, res) => {
+
+// Batch insert or update stock with outlet, date, and notes
+export const batchInsertStock = async (req, res) => {
   try {
-    const { outlet, name, quantity, unit, minimumStock, supplier } = req.body;
-
-    const rawMaterial = new RawMaterial({
-      outlet,
-      name,
-      quantity,
-      unit,
-      minimumStock,
-      supplier,
-    });
-
-    const savedRawMaterial = await rawMaterial.save();
-    res.status(201).json({ success: true, data: savedRawMaterial });
+    const { outletId, datein, notes, materials } = req.body;     
+    if (!outletId || !datein || !Array.isArray(materials) || materials.length === 0) {
+      return res.status(400).json({ message: 'Invalid request data' });
+    }
+    
+    const bulkOps = materials.map(material => ({
+      updateOne: {
+        filter: { name: material.name, category: material.category, availableAt: outletId },
+        update: {
+          $inc: { quantity: material.quantity },
+          $setOnInsert: {
+            name: material.name,
+            category: material.category,
+            unit: material.unit,
+            minimumStock: material.minimumStock,
+            maximumStock: material.maximumStock,
+            costPerUnit: material.costPerUnit,
+            supplier: material.supplier,
+            expiryDate: material.expiryDate,
+            availableAt: outletId,
+            datein: datein,
+            notes: notes,
+            lastUpdatedBy: req.user._id,
+          }
+        },
+        upsert: true,
+      }
+    }));
+    
+    const result = await RawMaterial.bulkWrite(bulkOps);
+    res.status(200).json({ message: 'Stock batch processed successfully', result });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to create raw material', error: error.message });
+    res.status(500).json({ message: 'Error processing batch stock', error });
   }
 };
 
-// Get all raw materials
+// get all raw materials
 export const getRawMaterials = async (req, res) => {
   try {
-    const rawMaterials = await RawMaterial.find();
-    res.status(200).json({ success: true, data: rawMaterials });
+    const { outletId, status } = req.query;
+    let filter = {};
+
+    // Tambahkan filter berdasarkan outlet jika diberikan
+    if (outletId) {
+      filter.availableAt = outletId;
+    }
+
+    // Tambahkan filter berdasarkan status jika diberikan
+    if (status) {
+      filter.status = status;
+    }
+
+    // Ambil data bahan baku berdasarkan filter
+    const rawMaterials = await RawMaterial.find(filter).populate('availableAt lastUpdatedBy');
+
+    res.status(200).json({
+      message: 'Raw materials retrieved successfully',
+      data: rawMaterials
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch raw materials', error: error.message });
+    res.status(500).json({ message: 'Error retrieving raw materials', error: error.message });
   }
 };
 
 // Update a raw material by ID
 export const updateRawMaterial = async (req, res) => {
   try {
-    const { name, quantity, unit, minimumStock, supplier } = req.body;
+    const {
+      name,
+      category,
+      quantity,
+      unit,
+      minimumStock,
+      maximumStock,
+      costPerUnit,
+      supplier,
+      expiryDate,
+    } = req.body;
+
+    const updates = {
+      name,
+      category,
+      quantity,
+      unit,
+      minimumStock,
+      maximumStock,
+      costPerUnit,
+      supplier,
+      expiryDate,
+    };
 
     const updatedRawMaterial = await RawMaterial.findByIdAndUpdate(
       req.params.id,
-      { name, quantity, unit, minimumStock, supplier, lastUpdated: Date.now() },
+      updates,
       { new: true }
     );
 
-    if (!updatedRawMaterial) return res.status(404).json({ success: false, message: 'Raw material not found' });
+    if (!updatedRawMaterial) {
+      return res.status(404).json({
+        success: false,
+        message: 'Raw material not found',
+      });
+    }
 
     res.status(200).json({ success: true, data: updatedRawMaterial });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to update raw material', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update raw material',
+      error: error.message,
+    });
   }
 };
 
@@ -58,11 +125,23 @@ export const deleteRawMaterial = async (req, res) => {
   try {
     const deletedRawMaterial = await RawMaterial.findByIdAndDelete(req.params.id);
 
-    if (!deletedRawMaterial) return res.status(404).json({ success: false, message: 'Raw material not found' });
+    if (!deletedRawMaterial) {
+      return res.status(404).json({
+        success: false,
+        message: 'Raw material not found',
+      });
+    }
 
-    res.status(200).json({ success: true, message: 'Raw material deleted successfully' });
+    res.status(200).json({
+      success: true,
+      message: 'Raw material deleted successfully',
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to delete raw material', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete raw material',
+      error: error.message,
+    });
   }
 };
 

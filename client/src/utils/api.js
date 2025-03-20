@@ -137,3 +137,10 @@ export const updateStockOpname = async (id, data) => {
 export const deleteStockOpname = async (id) => {
   await axios.delete(`${API_URL}/storage/stock-opname/${id}`);
 };
+
+// Order Services
+
+export const getOrders = async () => {
+  const response = await axios.get(`${API_URL}/order-all`);
+  return response.data.data;
+};
