@@ -9,12 +9,12 @@ import {
   deleteMenuItem,
 } from '../controllers/menu.controller.js';
 
-import { assignMenuItemsToCategory, filterMenuByCategory, getCategories } from '../controllers/category.comtroller.js';
+import { assignMenuItemsToCategory, filterMenuByCategory, getCategories } from '../controllers/category.controller.js';
 
 const router = express.Router();
 
 // Middleware for admin and superadmin only
-const adminAccess = verifyToken(['admin', 'superadmin']);
+const adminAccess = verifyToken(['admin', 'superadmin','marketing', 'operational']);
 
 // MenuItem Routes
 router.post('/menu-items', adminAccess, createMenuItem); // Create a new MenuItem
