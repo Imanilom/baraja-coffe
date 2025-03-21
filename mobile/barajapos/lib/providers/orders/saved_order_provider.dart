@@ -2,16 +2,16 @@ import 'package:barajapos/models/order_detail_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
 
-class HistoryDetailProvider extends StateNotifier<List<OrderDetailModel?>> {
-  HistoryDetailProvider() : super([]);
+class SavedOrderProvider extends StateNotifier<List<OrderDetailModel?>> {
+  SavedOrderProvider() : super([]);
 
-  //ini harusnya buat List History
-  void addToHistoryDetail(OrderDetailModel orderDetail) {
+  //ini harusnya buat List savedOrderDetail
+  void savedOrder(OrderDetailModel orderDetail) {
     state = [...state, orderDetail];
   }
 
-  //memindahkan state history detail provider ke order detail provider
-  void moveToOrderDetail() {
+  //memindahkan state saved order detail ke order detail provider
+  void moveToOrder(OrderDetailModel orderDetail) {
     if (state.isNotEmpty) {
       // state = state;
     }
@@ -29,11 +29,6 @@ class HistoryDetailProvider extends StateNotifier<List<OrderDetailModel?>> {
     }
   }
 
-  // Kosongkan daftar pesanan
-  void clearHistoryDetail() {
-    state = [];
-  }
-
   // Hitung total harga dari daftar pesanan
   double get totalPrice {
     return state.expand((orderDetail) => orderDetail!.items).fold(
@@ -43,9 +38,8 @@ class HistoryDetailProvider extends StateNotifier<List<OrderDetailModel?>> {
   }
 }
 
-// Provider untuk HistoryDetailProvider
-final historyDetailProvider =
-    StateNotifierProvider<HistoryDetailProvider, List<OrderDetailModel?>>(
-        (ref) {
-  return HistoryDetailProvider();
+// Provider untuk SavedOrderProvider
+final savedOrderProvider =
+    StateNotifierProvider<SavedOrderProvider, List<OrderDetailModel?>>((ref) {
+  return SavedOrderProvider();
 });

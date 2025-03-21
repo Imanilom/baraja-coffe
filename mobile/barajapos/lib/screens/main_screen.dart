@@ -40,7 +40,7 @@ class MainScreen extends ConsumerWidget {
                       onTap: onItemTapped,
                     ),
                     _NavItem(
-                      icon: Icons.shopping_cart,
+                      icon: Icons.smartphone,
                       label: 'Orders',
                       index: 1,
                       selectedIndex: selectedIndex,
@@ -54,7 +54,7 @@ class MainScreen extends ConsumerWidget {
                       onTap: onItemTapped,
                     ),
                     _NavItem(
-                      icon: Icons.bookmark,
+                      icon: Icons.shopping_cart,
                       label: 'Saved',
                       index: 3,
                       selectedIndex: selectedIndex,
