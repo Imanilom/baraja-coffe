@@ -27,8 +27,7 @@ class HomeScreen extends ConsumerWidget {
                   if (orderDetail == null) {
                     print('Initialize order dulu');
                     orderDetailNotifier.initializeOrder(
-                      cashierId: 'Nama Kasir', // Ambil dari state login
-                      orderType: 'Dine-In', // Default order type
+                      orderType: 'dine-in', // Default order type
                     );
                   }
                   // Tampilkan dialog pemilihan topping dan addon
@@ -56,33 +55,6 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 trailing: Text(menuItem.category.map((x) => x).join(', ')),
               );
-              // return ListTile(
-              //   title: Text(menuItem.name),
-              //   subtitle: Text('Price: ${formatRupiah(menuItem.price)}'),
-              //   trailing: IconButton(
-              //     icon: const Icon(Icons.add),
-              //     onPressed: () {
-              //       if (orderDetail == null) {
-              //         print('Initialize order dulu');
-              //         orderDetailNotifier.initializeOrder(
-              //           cashierId: 'Nama Kasir', // Ambil dari state login
-              //           orderType: 'Dine-In', // Default order type
-              //         );
-              //       }
-              //       Tampilkan dialog pemilihan topping dan addon
-              //       showDialog(
-              //         context: context,
-              //          builder: (context) {
-              //            return OrderOptionDialogs(
-              //              menuItem: menuItem,
-              //             onAddToOrder: (orderItem) =>
-              //                 orderDetailNotifier.addItemToOrder(orderItem),
-              //          );
-              //         },
-              //       );
-              //     },
-              //   ),
-              // );
             },
           );
         },

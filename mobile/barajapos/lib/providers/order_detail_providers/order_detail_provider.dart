@@ -9,18 +9,29 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   /// this method does nothing. Otherwise, it creates a ,new `OrderDetailModel`
   void initializeOrder({
-    required String cashierId,
     required String orderType,
   }) {
     print('condition Initialize order');
     if (state != null) return;
     print('Initialize order');
     state = OrderDetailModel(
-      cashierId: cashierId,
       customerName: '',
       orderType: orderType,
       items: [],
     );
+  }
+
+  void addOrderFromSavedOrderDetail(OrderDetailModel orderDetail) {
+    clearOrder();
+    state = orderDetail;
+  }
+
+  // Set order type (dine-in, take away, delivery)
+  void updateOrderType(String orderType) {
+    if (state != null) {
+      state = state!.copyWith(orderType: orderType);
+      print('Order Type: $orderType');
+    }
   }
 
   // Set customer name, phone number, dan table number
