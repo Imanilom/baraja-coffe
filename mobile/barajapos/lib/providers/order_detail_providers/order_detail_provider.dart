@@ -15,7 +15,6 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     if (state != null) return;
     print('Initialize order');
     state = OrderDetailModel(
-      customerName: '',
       orderType: orderType,
       items: [],
     );

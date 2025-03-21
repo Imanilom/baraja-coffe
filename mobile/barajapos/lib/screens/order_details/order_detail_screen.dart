@@ -58,37 +58,62 @@ class OrderDetailScreen extends ConsumerWidget {
           //memilih tipe order dine-in atau take away,
           //menggunakan radio button group.
           if (currenIndex == 0) const SelectOrderType(),
-
           //nama customer
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              maxLines: 1,
-              style: const TextStyle(fontSize: 14),
-              decoration: const InputDecoration(
-                labelText: 'Nama Customer',
-                labelStyle: TextStyle(fontSize: 14),
-                border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                suffixIcon: Icon(
-                  Icons.qr_code_scanner,
-                  color: Colors.grey,
-                  shadows: [
-                    BoxShadow(
+            child: Consumer(
+              builder: (context, ref, child) {
+                final customerNameController = TextEditingController(
+                  text: orderDetail?.customerName ?? '',
+                );
+
+                // Ensure the cursor stays at the end of the text
+                customerNameController.selection = TextSelection.fromPosition(
+                  TextPosition(offset: customerNameController.text.length),
+                );
+
+                return TextField(
+                  maxLines: 1,
+                  style: const TextStyle(fontSize: 14),
+                  readOnly: currenIndex != 0,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Customer',
+                    labelStyle: TextStyle(fontSize: 14),
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    suffixIcon: Icon(
+                      Icons.qr_code_scanner,
                       color: Colors.grey,
-                      blurRadius: 10,
-                    )
-                  ],
-                ),
-              ),
-              controller: TextEditingController(
-                text: ref.watch(orderDetailProvider)?.customerName ?? '',
-              ),
-              onChanged: (value) {
-                ref.read(orderDetailProvider.notifier).updateCustomerDetails(
-                      customerName: value,
-                    );
+                      shadows: [
+                        BoxShadow(
+                          color: Colors.grey,
+                          blurRadius: 10,
+                        )
+                      ],
+                    ),
+                  ),
+                  controller: customerNameController,
+                  onChanged: (value) {
+                    if (currenIndex == 0) {
+                      print('Customer Name: ${orderDetail?.customerName}');
+                      print(value);
+                      if (value.isEmpty) {
+                        return;
+                      }
+                      if (orderDetail == null) {
+                        ref
+                            .read(orderDetailProvider.notifier)
+                            .initializeOrder(orderType: 'dine-in');
+                      }
+                      ref
+                          .read(orderDetailProvider.notifier)
+                          .updateCustomerDetails(
+                            customerName: value,
+                          );
+                    }
+                  },
+                );
               },
             ),
           ),
@@ -269,8 +294,6 @@ class SelectOrderType extends ConsumerWidget {
               }
             },
           ),
-          const SizedBox(width: 16),
-          const Text('TA'),
           Radio(
             value: 'take-away',
             groupValue: orderType,
