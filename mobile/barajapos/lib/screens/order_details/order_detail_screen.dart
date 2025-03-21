@@ -194,48 +194,54 @@ class OrderDetailScreen extends ConsumerWidget {
           //tombol untuk melanjutkan pesanan.
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: ElevatedButton(
-              onPressed: () {
-                // hapus data order detail yang lama
-                ref.read(orderDetailProvider.notifier).clearOrder();
-                // hapus data order detail yang lama
-                ref
-                    .read(savedOrderProvider.notifier)
-                    .deleteOrderDetail(orderDetail!);
-                ref.read(savedOrderDetailProvider.notifier).moveToOrderDetail(
-                      orderDetail,
-                      ref,
-                    );
-              },
-              child: const Text('Lanjutkan Pesanan'),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
+            child: currenIndex == 3
+                ? ElevatedButton(
                     onPressed: () {
-                      if (orderDetail != null && orderDetail.items.isNotEmpty) {
-                        print('mau disimpan');
-                        ref.read(savedOrderProvider.notifier).savedOrder(ref);
-
-                        ref.read(orderDetailProvider.notifier).clearOrder();
-                      }
+                      // hapus data order detail yang lama
+                      ref.read(orderDetailProvider.notifier).clearOrder();
+                      // hapus data order detail yang lama
+                      ref
+                          .read(savedOrderProvider.notifier)
+                          .deleteOrderDetail(orderDetail!);
+                      ref
+                          .read(savedOrderDetailProvider.notifier)
+                          .moveToOrderDetail(
+                            orderDetail,
+                            ref,
+                          );
+                      ref.read(navigationProvider.notifier).setIndex(0);
                     },
-                    child: const Text('Save Order'),
+                    child: const Text('Lanjutkan Pesanan'),
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (orderDetail != null &&
+                                orderDetail.items.isNotEmpty) {
+                              print('mau disimpan');
+                              ref
+                                  .read(savedOrderProvider.notifier)
+                                  .savedOrder(ref);
+
+                              ref
+                                  .read(orderDetailProvider.notifier)
+                                  .clearOrder();
+                            }
+                          },
+                          child: const Text('Save Order'),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {},
+                          child: const Text('Bayar'),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    child: const Text('Bayar'),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
