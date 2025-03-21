@@ -15,16 +15,16 @@ const AutoPromoSchema = new mongoose.Schema({
     minTotal: Number, // For 'discount_on_total'
     buyProduct: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product'
+      ref: 'MenuItem'
     }, // For 'buy_x_get_y'
     getProduct: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product'
+      ref: 'MenuItem'
     }, // For 'buy_x_get_y'
     bundleProducts: [{
       product: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product'
+        ref: 'MenuItem'
       },
       quantity: Number
     }], // For 'bundling'
@@ -41,9 +41,18 @@ const AutoPromoSchema = new mongoose.Schema({
       return this.promoType === 'bundling';
     }
   },
+  consumerType: {
+    type: String,
+    default: 'all'
+  },
   outlet: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Outlet',
+    required: true
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     required: true
   },
   validFrom: {

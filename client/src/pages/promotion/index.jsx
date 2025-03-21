@@ -7,7 +7,7 @@ const PromoPage = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Card 1: Promo Khusus */}
         <Link
-          to="/promo-khusus"
+          to="/admin/promo-khusus"
           className="card bg-gray-600 text-white p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
         >
           <h2 className="text-lg font-bold mb-2">Promo Khusus</h2>
