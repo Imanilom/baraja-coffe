@@ -4,6 +4,8 @@ import axios from "axios";
 const RawMaterialPage = () => {
   const [outlets, setOutlets] = useState([]); // List of outlets fetched from API
   const [selectedOutlet, setSelectedOutlet] = useState(null); // Selected outlet object
+  const [categories, setCategories] = useState([]); // List of categories fetched from API
+  const [selectedCategories, setSelectedCategories] = useState(null); // Selected category object
   const [datein, setDatein] = useState("");
   const [notes, setNotes] = useState("");
   const [materials, setMaterials] = useState([
@@ -65,6 +67,16 @@ const RawMaterialPage = () => {
       console.error(error);
     }
   };
+  
+  // Fetch list of categories on component mount
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get("/api/storage/category/inventory");
+      setCategories(response.data.data || []);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   // Submit form data
   const handleSubmit = async (e) => {
@@ -106,6 +118,8 @@ const RawMaterialPage = () => {
   // Fetch outlets when the component mounts
   useEffect(() => {
     fetchOutlets();
+    fetchCategories();
+    console.log(categories);
   }, []);
 
   return (
@@ -194,18 +208,26 @@ const RawMaterialPage = () => {
 
               {/* Category */}
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Kategori
-                </label>
-                <input
-                  type="text"
-                  value={material.category}
-                  onChange={(e) =>
-                    handleMaterialChange(index, "category", e.target.value)
-                  }
+                <label className="block font-sm font-medium text-gray-700">Kategori</label>
+                <select
+                  value={selectedCategories?.name || ""}
+                  onChange={(e) => {
+                    const selectedName = e.target.value;
+                    const category = categories.find((o) => o.name === selectedName);
+                    setSelectedCategories(category);
+                  }}
                   className="w-full p-2 border rounded"
                   required
-                />
+                >
+                  <option value="" disabled hidden>
+                    Select a Category...
+                  </option>
+                  {categories.map((category) => (
+                    <option key={category._id} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Quantity */}
