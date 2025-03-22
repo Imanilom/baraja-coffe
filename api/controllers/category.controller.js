@@ -1,61 +1,82 @@
 import { MenuItem } from '../models/MenuItem.model.js';
 import Category from '../models/Category.model.js';
-
+import mongoose from 'mongoose';
 
 // Controller untuk menambahkan menu item ke dalam kategori
 export const assignMenuItemsToCategory = async (req, res) => {
-    try {
-      // Validasi input
-      const { category, menuItems } = req.body;
-  
-      if (!category || !Array.isArray(menuItems) || menuItems.length === 0) {
-        return res.status(400).json({ success: false, message: 'Invalid input data' });
-      }
-  
-      // Pastikan semua ID menu valid
-      const invalidIds = menuItems.filter(id => !mongoose.Types.ObjectId.isValid(id));
-      if (invalidIds.length > 0) {
-        return res.status(400).json({ success: false, message: 'Some menu item IDs are invalid' });
-      }
-  
-      // Ambil semua menu item berdasarkan ID
-      const existingMenuItems = await MenuItem.find({ _id: { $in: menuItems } });
-  
-      if (existingMenuItems.length !== menuItems.length) {
-        return res.status(400).json({ success: false, message: 'Some menu items not found' });
-      }
-  
-      // Perbarui setiap menu item dengan menambahkan/menggabungkan kategori
-      await Promise.all(existingMenuItems.map(async (menuItem) => {
-        if (!menuItem.category.includes(category)) {
-          menuItem.category.push(category);
-          await menuItem.save();
-        }
-      }));
-  
-      res.status(200).json({ success: true, message: 'Menu items assigned to category successfully' });
-    } catch (error) {
-      console.error('Error assigning menu items to category:', error);
-      res.status(500).json({ success: false, message: 'Failed to assign menu items to category', error: error.message });
-    }
-  };
+  try {
+    const { categoryNames, menuItems } = req.body;
 
+    // Validasi input
+    if (!Array.isArray(categoryNames) || categoryNames.length === 0 || !Array.isArray(menuItems) || menuItems.length === 0) {
+      return res.status(400).json({ success: false, message: 'Invalid input data' });
+    }
+
+    // Pastikan semua ID menu valid
+    const invalidMenuIds = menuItems.filter(id => !mongoose.Types.ObjectId.isValid(id));
+    if (invalidMenuIds.length > 0) {
+      return res.status(400).json({ success: false, message: 'Some menu item IDs are invalid', invalidMenuIds });
+    }
+
+    // Ambil semua menu item berdasarkan ID
+    const existingMenuItems = await MenuItem.find({ _id: { $in: menuItems } });
+
+    if (existingMenuItems.length !== menuItems.length) {
+      const missingMenuIds = menuItems.filter(
+        id => !existingMenuItems.map(item => item._id.toString()).includes(id)
+      );
+      return res.status(400).json({ success: false, message: 'Some menu items not found', missingMenuIds });
+    }
+
+    // Cari ID kategori berdasarkan nama kategori
+    const categories = await Category.find({ name: { $in: categoryNames } });
+    if (categories.length !== categoryNames.length) {
+      const missingCategories = categoryNames.filter(
+        name => !categories.map(cat => cat.name).includes(name)
+      );
+      return res.status(400).json({ success: false, message: 'Some categories not found', missingCategories });
+    }
+
+    // Dapatkan array nama kategori
+    const categoryNamesToAdd = categories.map(cat => cat.name);
+
+    // Perbarui setiap menu item dengan menambahkan/menggabungkan nama kategori
+    await Promise.all(
+      existingMenuItems.map(async (menuItem) => {
+        // Hapus semua elemen yang bukan string dari array category
+        const cleanedCategories = menuItem.category.filter(cat => typeof cat === 'string');
+
+        // Tambahkan nama kategori baru jika belum ada
+        const updatedCategories = [...cleanedCategories, ...categoryNamesToAdd].filter((v, i, a) => a.indexOf(v) === i);
+
+        menuItem.category = updatedCategories; // Setel ulang array category
+        await menuItem.save();
+      })
+    );
+
+    res.status(200).json({ success: true, message: 'Menu items assigned to categories successfully' });
+  } catch (error) {
+    console.error('Error assigning menu items to category:', error);
+    res.status(500).json({ success: false, message: 'Failed to assign menu items to category', error: error.message });
+  }
+};
 
   // Controller untuk mengambil daftar kategori
-export const getCategories = async (req, res) => {
+  export const getCategories = async (req, res) => {
     try {
-      // Ambil semua kategori unik dari koleksi MenuItem
-      const categories = await MenuItem.distinct('category').exec();
-  
-      // Pastikan hasilnya adalah array flat (jika ada kategori yang merupakan array)
-      const flattenedCategories = Array.from(new Set(categories.flat()));
-  
-      res.status(200).json({ success: true, data: flattenedCategories });
+        // Daftar tipe yang diperbolehkan
+        const allowedTypes = ['food', 'beverage', 'instan'];
+
+        // Ambil kategori yang hanya sesuai dengan tipe yang diizinkan
+        const categories = await Category.find({ type: { $in: allowedTypes } });
+
+        res.status(200).json({ success: true, data: categories });
     } catch (error) {
-      console.error('Error fetching categories:', error);
-      res.status(500).json({ success: false, message: 'Failed to fetch categories', error: error.message });
+        console.error('Error fetching categories:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch categories', error: error.message });
     }
   };
+
 
   // Controller untuk memfilter menu berdasarkan kategori
 export const filterMenuByCategory = async (req, res) => {
@@ -86,7 +107,7 @@ export const createCategory = async (req, res) => {
 
         if (!Array.isArray(categories) || categories.length === 0) {
             return res.status(400).json({ success: false, message: 'Invalid input, must be an array of categories' });
-        }
+        } 
 
         const newCategories = await Category.insertMany(categories);
 
