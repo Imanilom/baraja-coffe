@@ -2,11 +2,13 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import { Outlet } from '../models/Outlet.model.js';
 import mongoose from 'mongoose';
+import { response } from 'express';
 
 // Create a new menu item
 export const createMenuItem = async (req, res) => {
   try {
     const { name, price, description, category, imageURL, toppings, addons, rawMaterials, availableAt } = req.body;
+    console.log(req.body);
 
     if (!name || !price || !category || !imageURL || !availableAt) {
       return res.status(400).json({
@@ -104,7 +106,7 @@ export const createMenuItem = async (req, res) => {
       availableAt,
     });
 
-    const savedMenuItem = await menuItem.save();
+    // const savedMenuItem = await menuItem.save();
 
     res.status(201).json({
       success: true,

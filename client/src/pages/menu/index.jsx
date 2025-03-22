@@ -3,7 +3,6 @@ import { FaBox, FaLayerGroup, FaTag } from 'react-icons/fa';
 import axios from "axios";
 import CreateTopping from "./opsi/create";
 import UpdateMenu from "./update";
-import ToppingManagement from "../topping/index";
 import DeleteMenus from "./delete";
 import CategoryMenu from "./category";
 import { Link } from "react-router-dom";
@@ -27,8 +26,6 @@ const Menu = () => {
 
       setMenuItems(response.data?.data || []);
 
-      // console.log(response.data.data);
-
       // Menambahkan kategori unik
       const uniqueCategories = [
         "Semua Kategori",
@@ -37,29 +34,6 @@ const Menu = () => {
       setCategories(uniqueCategories);
     } catch (error) {
       console.error("Error fetching menu items:", error);
-    }
-  };
-
-  const fetchToppingItems = async () => {
-    try {
-      const response = await axios.get("/api/menu/toppings");
-      setMenuItems(response.data?.data || []);
-    } catch (error) {
-      console.error("Error fetching menu items:", error);
-    }
-  };
-
-  const deleteMenuItem = async (id) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this menu item?"
-    );
-    if (!confirmDelete) return;
-
-    try {
-      await axios.delete(`/api/menu/menu-items/${id}`);
-      fetchMenuItems();
-    } catch (error) {
-      console.error("Error deleting menu item:", error);
     }
   };
 
@@ -99,7 +73,7 @@ const Menu = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 my-4 gap-4 mb-4 border-b border-t py-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 my-4 gap-4 mb-4 border-b border-t py-4">
         {/* Grid Item 1: menu */}
         <div
           className={`flex items-center bg-white border-b-2 border-white hover:border-b-blue-500 focus:outline-none p-4 cursor-pointer border-l-2 border-l-gray-200 ${selectedItem === "menu" ? "border-blue-500" : ""
@@ -144,7 +118,7 @@ const Menu = () => {
 
                 {/* Button to create a new item */}
                 <Link
-                  to="/menu-create" // Specify the route you want to navigate to
+                  to="/admin/menu-create" // Specify the route you want to navigate to
                   className="bg-blue-500 text-white px-4 py-2 rounded inline-block"
                 >
                   Tambah Menu
@@ -179,8 +153,6 @@ const Menu = () => {
               <div className="flex-1">
                 <label className="block mb-2 font-medium text-lg">Outlet:</label>
                 <select
-                  value=""
-                  onChange=""
                   className="border rounded px-2 py-1 w-full"
                 >
                 </select>
@@ -273,7 +245,7 @@ const Menu = () => {
                               <ul className="py-2">
                                 <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
                                   <Link
-                                    to={`/menu-update/${item._id}`} // Navigate to the edit page for the specific item
+                                    to={`/admin/menu-update/${item._id}`} // Navigate to the edit page for the specific item
                                     className="block bg-transparent"
                                   >
                                     Edit
@@ -320,12 +292,6 @@ const Menu = () => {
                 </button>
               ))}
             </div>
-          </div>
-        )}
-        {selectedItem === "opsi" && (
-          <div>
-            {/* Options */}
-            <ToppingManagement />
           </div>
         )}
         {selectedItem === "category" && (
