@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const RawMaterialSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
-  category: { type: String, required: true, trim: true }, // Kategori bahan baku
+  category: { type: mongoose.Schema.Types.ObjectId, ref: 'categories' }, // Kategori Masakan
   quantity: { 
     type: Number, 
     required: true, 
