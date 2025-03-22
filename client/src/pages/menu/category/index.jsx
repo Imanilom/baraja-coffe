@@ -1,155 +1,147 @@
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-import { Link } from "react-router-dom";
+const CategoryIndex = () => {
+  const [categories, setCategories] = useState([]);
+  const [filteredCategories, setFilteredCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedType, setSelectedType] = useState('all'); // State untuk menyimpan tipe yang dipilih
 
-const CategoryMenu = () => {
-    const [categoryItems, setcategoryItems] = useState([]);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedItems, setSelectedItems] = useState([]);
-    const [openDropdown, setOpenDropdown] = useState(null); // Menyimpan status dropdown
-    const [currentPage, setCurrentPage] = useState(1);
-    const categoryPerPage = 6; // Number of items per page
+  // Fungsi untuk mengambil daftar kategori dari API
+  const fetchCategories = async (type) => {
+    try {
+      let url = '/api/storage/category'; // URL default untuk mendapatkan semua kategori
+      if (type && type !== 'all') {
+        url += `/${type}`; // Tambahkan parameter type jika ada
+      }
 
-    const fetchcategoryItems = async () => {
-        try {
-            const response = await axios.get("/api/menu/menu-category");
-            setcategoryItems(response.data?.data || []);
-        } catch (error) {
-            console.error("Error fetching menu items:", error);
-        }
-    };
+      const response = await axios.get(url);
+      setCategories(response.data.data || []);
+      setFilteredCategories(response.data.data || []);
+      setLoading(false);
+    } catch (err) {
+      setError('Failed to fetch categories');
+      setLoading(false);
+      console.error('Error fetching categories:', err);
+    }
+  };
 
-    const handleCheckboxChange = (e, item) => {
-        const checked = e.target.checked;
-        setSelectedItems((prevSelectedItems) => {
-            if (checked) {
-                return [...prevSelectedItems, item];
-            } else {
-                return prevSelectedItems.filter((i) => i !== item);
-            }
-        });
-    };
+  // Fungsi untuk menghapus kategori
+  const handleDeleteCategory = async (categoryId) => {
+    if (!window.confirm('Are you sure you want to delete this category?')) return;
 
-    const toggleDropdown = (_id) => {
-        if (openDropdown === _id) {
-            setOpenDropdown(null); // Jika dropdown sudah terbuka, tutup
-        } else {
-            setOpenDropdown(_id); // Buka dropdown yang sesuai
-        }
-    };
+    try {
+      await axios.delete(`/category/${categoryId}`);
+      setCategories((prevCategories) =>
+        prevCategories.filter((category) => category._id !== categoryId)
+      );
+      setFilteredCategories((prevFilteredCategories) =>
+        prevFilteredCategories.filter((category) => category._id !== categoryId)
+      );
+    } catch (err) {
+      alert('Failed to delete category');
+      console.error('Error deleting category:', err);
+    }
+  };
 
-    useEffect(() => {
-        fetchcategoryItems();
-    }, []);
+  // Fungsi untuk menangani perubahan filter berdasarkan tipe
+  const handleTypeChange = async (e) => {
+    const type = e.target.value;
+    setSelectedType(type);
 
+    if (type === 'all') {
+      // Jika pilihan adalah "all", muat semua kategori
+      await fetchCategories();
+    } else {
+      // Jika pilihan bukan "all", muat kategori berdasarkan tipe
+      await fetchCategories(type);
+    }
+  };
 
-    // Filter menu items berdasarkan kategori dan pencarian produk
-    const filteredcategory = categoryItems.filter((category) => {
-        const matchesSearch =
-            category.category.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesSearch;
-    });
+  useEffect(() => {
+    // Saat komponen dimuat, ambil semua kategori
+    fetchCategories();
+  }, []);
 
-    const indexOfLastcategory = currentPage * categoryPerPage;
-    const indexOfFirstcategory = indexOfLastcategory - categoryPerPage;
-    const currentCategories = filteredcategory.slice(indexOfFirstcategory, indexOfLastcategory);
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Category Management</h1>
 
-    const totalPages = Math.ceil(filteredcategory.length / categoryPerPage);
+      {/* Dropdown untuk filter berdasarkan tipe */}
+      <div className="mb-4">
+        <label htmlFor="type" className="block text-sm font-medium text-gray-700">
+          Filter by Type:
+        </label>
+        <select
+          id="type"
+          value={selectedType}
+          onChange={handleTypeChange}
+          className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+        >
+          <option value="all">All</option>
+          <option value="food">Food</option>
+          <option value="beverage">Beverages</option>
+          <option value="instan">Dessert</option>
+          {/* Tambahkan opsi lain sesuai kebutuhan */}
+        </select>
+      </div>
 
-    return (
-        <div>
-            <div className="flex space-x-4 mb-4">
-                {/* Search by Product */}
-                <div className="flex-1">
-                    <label className="block mb-2 font-medium">Cari:</label>
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Cari Kategori..."
-                        className="border rounded px-2 py-1 w-full"
-                    />
-                </div>
-            </div>
-
-            {/* Tabel Produk */}
-            <div className="w-full mt-4">
-                <table className="w-full table-auto">
-                    <thead>
-                        <tr className="bg-gray-200">
-                            <th className="px-4 py-2 w-16"></th>
-                            <th className="px-4 py-2">Nama Kategori</th>
-                            <th className="px-4 py-2">Jumlah Menu</th>
-                            <th className="px-4 py-2"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {currentCategories.map((item) => (
-                            <tr key={item._id} className="hover:bg-gray-100">
-                                <td className="px-4 py-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedItems.includes(item)}
-                                        onChange={(e) => handleCheckboxChange(e, item)}
-                                    />
-                                </td>
-                                <td className="px-4 py-2">{item.category}</td>
-                                <td className="px-4 py-2">{item.count}</td>
-                                <td className="px-4 py-2">
-                                    {/* Dropdown */}
-                                    <div className="relative text-right">
-                                        <button
-                                            className="px-2 bg-white border border-gray-200 hover:border-none hover:bg-green-800 rounded-sm"
-                                            onClick={() => toggleDropdown(item._id)}
-                                        >
-                                            <span className="text-xl text-gray-200 hover:text-white">
-                                                •••
-                                            </span>
-                                        </button>
-                                        {openDropdown === item._id && (
-                                            <div className="absolute text-left right-0 top-full mt-2 bg-white border rounded-md shadow-md w-40 z-10">
-                                                <ul className="py-2">
-                                                    <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
-                                                        <Link to={`/menu-update/${item._id}`}>
-                                                            Edit
-                                                        </Link>
-                                                    </li>
-                                                    <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
-                                                        Delete
-                                                    </li>
-                                                    <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
-                                                        View
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-
-            {/* Pagination */}
-            <div className="flex justify-center mt-4">
-                {Array.from({ length: totalPages }, (_, i) => (
-                    <button
-                        key={i + 1}
-                        onClick={() => setCurrentPage(i + 1)}
-                        className={`px-4 py-2 mx-1 rounded ${currentPage === i + 1
-                            ? "bg-blue-500 text-white"
-                            : "bg-gray-200 text-gray-700"
-                            }`}
-                    >
-                        {i + 1}
-                    </button>
-                ))}
-            </div>
+      {loading ? (
+        <p>Loading...</p>
+      ) : error ? (
+        <p className="text-red-500">{error}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead>
+              <tr>
+                <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Name
+                </th>
+                <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredCategories.length > 0 ? (
+                filteredCategories.map((category) => (
+                  <tr key={category._id}>
+                    <td className="px-6 py-4 whitespace-nowrap">{category.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{category.type}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => handleDeleteCategory(category._id)}
+                        className="text-red-500 hover:text-red-700 mr-2"
+                      >
+                        Delete
+                      </button>
+                      <a
+                        href={`/category/${category._id}/menu`}
+                        className="text-blue-500 hover:text-blue-700"
+                      >
+                        View Menu
+                      </a>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="3" className="text-center py-4">
+                    No categories found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-    )
-}
+      )}
+    </div>
+  );
+};
 
-export default CategoryMenu;
+export default CategoryIndex;
