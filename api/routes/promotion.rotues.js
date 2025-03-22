@@ -12,7 +12,7 @@ const router = express.Router();
 const adminAccess = verifyToken(['admin', 'superadmin']);
 const marketingAccess = verifyToken(['marketing', 'admin', 'superadmin']);
 
-router.post('/promo-create',marketingAccess, createPromo); // Create a new promo
+router.post('/promo-create', marketingAccess, createPromo); // Create a new promo
 router.get('/promos', getPromos); // Get all promos
 router.get('/promos/:id', getPromoById); // Get a specific promo by ID
 router.put('/promos/:id',marketingAccess, updatePromo); // Update a specific promo

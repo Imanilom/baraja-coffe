@@ -1,87 +1,48 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import CreatePromotion from "./create";
-import UpdatePromotion from "./update";
+import { Link } from "react-router-dom";
 
-const PromotionManagement = () => {
-  const [promotions, setPromotions] = useState([]);
-  const [editingPromotion, setEditingPromotion] = useState(null);
-
-  const fetchPromotions = async () => {
-    try {
-      const response = await axios.get("/api/promotion");
-      setPromotions(response.data);
-      
-    } catch (error) {
-      console.error("Error fetching promotions:", error);
-    }
-  };
-
-  const deletePromotion = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this promotion?")) return;
-    try {
-      await axios.delete(`/api/promotion/${id}`);
-      fetchPromotions();
-    } catch (error) {
-      console.error("Error deleting promotion:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchPromotions();
-  }, []);
-
+const PromoPage = () => {
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Promotion Management</h1>
-      <CreatePromotion fetchPromotions={fetchPromotions} />
+    <div className="container mx-auto p-4">
+      {/* Card Section */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Card 1: Promo Khusus */}
+        <Link
+          to="/admin/promo-khusus"
+          className="card bg-gray-600 text-white p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
+        >
+          <h2 className="text-lg font-bold mb-2">Promo Khusus</h2>
+          <p className="text-sm">Akses promo khusus yang tersedia hanya untuk Anda.</p>
+        </Link>
 
-      <table className="w-full border-collapse border border-gray-300 mt-6">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border border-gray-300 px-4 py-2">Title</th>
-            <th className="border border-gray-300 px-4 py-2">Discount</th>
-            <th className="border border-gray-300 px-4 py-2">Date Range</th>
-            <th className="border border-gray-300 px-4 py-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {promotions.map((promotion) => (
-            <tr key={promotion._id} className="text-center">
-              <td className="border border-gray-300 px-4 py-2">{promotion.title}</td>
-              <td className="border border-gray-300 px-4 py-2">{promotion.discountPercentage}%</td>
-              <td className="border border-gray-300 px-4 py-2">
-                {new Date(promotion.startDate).toLocaleDateString()} -{" "}
-                {new Date(promotion.endDate).toLocaleDateString()}
-              </td>
-              <td className="border border-gray-300 px-4 py-2">
-                <button
-                  onClick={() => setEditingPromotion(promotion)}
-                  className="bg-yellow-500 text-white px-3 py-1 rounded mr-2"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => deletePromotion(promotion._id)}
-                  className="bg-red-500 text-white px-3 py-1 rounded"
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        {/* Card 2: Promo Otomatis */}
+        <Link
+          to="/promo-otomatis"
+          className="card bg-gray-600 text-white p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
+        >
+          <h2 className="text-lg font-bold mb-2">Promo Otomatis</h2>
+          <p className="text-sm">Dapatkan diskon otomatis saat berbelanja.</p>
+        </Link>
 
-      {editingPromotion && (
-        <UpdatePromotion
-          promotion={editingPromotion}
-          onClose={() => setEditingPromotion(null)}
-          fetchPromotions={fetchPromotions}
-        />
-      )}
+        {/* Card 3: Voucher */}
+        <Link
+          to="/voucher"
+          className="card bg-gray-600 text-white p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
+        >
+          <h2 className="text-lg font-bold mb-2">Voucher</h2>
+          <p className="text-sm">Klaim voucher eksklusif untuk pengguna baru.</p>
+        </Link>
+
+        {/* Card 4: Poin */}
+        <Link
+          to="/poin"
+          className="card bg-gray-600 text-white p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
+        >
+          <h2 className="text-lg font-bold mb-2">Poin</h2>
+          <p className="text-sm">Tukarkan poin Anda dengan hadiah menarik.</p>
+        </Link>
+      </div>
     </div>
   );
 };
 
-export default PromotionManagement;
+export default PromoPage;

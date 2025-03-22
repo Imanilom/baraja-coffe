@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const RawMaterialSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
-  category: { type: String, required: true, trim: true }, // Kategori bahan baku
+  category: { type: mongoose.Schema.Types.ObjectId, ref: 'categories' }, // Kategori Masakan
   quantity: { 
     type: Number, 
     required: true, 
@@ -19,8 +19,11 @@ const RawMaterialSchema = new mongoose.Schema({
   maximumStock: { type: Number, required: true, min: 1 }, // Stok maksimum untuk mencegah overstock
   costPerUnit: { type: Number, required: true, min: 0 }, // Harga per satuan bahan baku
   supplier: { type: String }, // Referensi ke pemasok
+  datein: { type: Date, default: Date.now }, // Tanggal masuk bahan baku
+  notes: { type: String }, // Catatan tambahan (jika ada)
   expiryDate: { type: Date }, // Tanggal kadaluwarsa (jika ada)
   lastUpdated: { type: Date, default: Date.now }, // Terakhir diperbarui
+  lastUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // User terakhir yang memperbarui
   availableAt: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', index: true }, // Outlet tempat bahan baku tersedia
   status: { 
     type: String, 

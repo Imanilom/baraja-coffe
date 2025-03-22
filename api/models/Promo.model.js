@@ -18,15 +18,14 @@ const PromoSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  outlet: {
+  outlet: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Outlet',
     required: true
-  },
+  }],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
   },
   validFrom: {
     type: Date,
