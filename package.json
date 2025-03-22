@@ -13,7 +13,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@shadcn/ui": "^0.0.4",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
@@ -29,7 +28,6 @@
     "mongoose": "^7.4.2",
     "nodemon": "^3.0.1",
     "qrcode": "^1.5.4",
-    "uuid": "^11.1.0",
-    "xendit-node": "^6.0.0"
+    "uuid": "^11.1.0"
   }
 }
