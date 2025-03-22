@@ -5,8 +5,7 @@ const MenuItemSchema = new mongoose.Schema({
   price: { type: Number, required: true, min: 0 },
   description: { type: String, trim: true },
   category: { 
-    type: [String], // Diubah menjadi array string
-    required: true,
+    type: [String],
     default: [] 
   },
   imageURL: { type: String, trim: true, default: 'https://placehold.co/1920x1080/png' },

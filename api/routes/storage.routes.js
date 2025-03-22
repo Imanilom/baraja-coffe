@@ -40,7 +40,7 @@ router.get('/category/:type', getCategoriesByType); // Get categories by type
 router.post('/category', adminAccess, createCategory); // Create a new category
 router.put('/category/:id', adminAccess, updateCategory); // Update a specific category
 router.delete('/category/:id', adminAccess, deleteCategory); // Delete a specific category
-router.post('/category/assign', adminAccess, assignMenuItemsToCategory); // Assign menu items to a category
+router.post('/category/assign', assignMenuItemsToCategory); // Assign menu items to a category
 router.get('/category/:id/menu', filterMenuByCategory); // Filter menu items by category
 
 
