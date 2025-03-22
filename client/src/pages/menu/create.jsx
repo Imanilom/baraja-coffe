@@ -1,433 +1,472 @@
-import React, { useRef, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { FaTrashAlt } from "react-icons/fa"; // Import ikon trash untuk tombol remove
 
-const Create = () => {
+const CreateMenu = () => {
   const [formData, setFormData] = useState({
     name: "",
-    description: "",
     price: "",
-    category: "",
-    promotionTitle: "",
-    discount: "",
+    description: "",
+    category: [],
     imageURL: "",
     toppings: [],
     addons: [],
+    rawMaterials: [],
+    availableAt: "", // Menyimpan outlet yang dipilih
   });
-  const [toppingsList, setToppingsList] = useState([]);
-  const [addonsList, setAddonsList] = useState([]);
+
+  const [categories, setCategories] = useState([]);
+  const [rawMaterials, setRawMaterials] = useState([]);
+  const [outlets, setOutlets] = useState([]); // Menyimpan daftar outlet untuk dropdown
   const [imagePreview, setImagePreview] = useState(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
-    // Fetch available toppings and addons
-    const fetchOptions = async () => {
+    const fetchCategories = async () => {
       try {
-        const toppings = await axios.get("/api/menu/toppings");
-        const addons = await axios.get("/api/menu/addons");
-        setToppingsList(toppings.data.data);
-        setAddonsList(addons.data.data);
+        const response = await axios.get("/api/menu/categories"); // Sesuaikan URL API kategori
+        setCategories(response.data.data || []);
       } catch (error) {
-        console.error("Error fetching options:", error);
+        console.error("Error fetching categories:", error);
       }
     };
-    fetchOptions();
+
+    const fetchOutlets = async () => {
+      try {
+        const response = await axios.get("/api/outlet/"); // Sesuaikan URL API outlets
+        setOutlets(response.data || []); // Asumsikan API mengembalikan list outlet
+      } catch (error) {
+        console.error("Error fetching outlets:", error);
+      }
+    };
+
+    const fetchRawMaterial = async () => {
+      try {
+        const response = await axios.get("/api/storage/raw-material");
+        setRawMaterials(response.data.data || []);
+      } catch (error) {
+        console.error("Error fetching raw materials:", error);
+      }
+    };
+
+
+    fetchCategories();
+    fetchOutlets();
+    fetchRawMaterial();
   }, []);
 
   const handleInputChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === "imageURL" && files?.length > 0) {
-      setImagePreview(URL.createObjectURL(files[0]));
-    }
-    setFormData({ ...formData, [name]: value });
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
   };
 
-  const handleCheckboxChange = (field, id) => {
-    const selected = formData[field].includes(id);
-    const newSelection = selected
-      ? formData[field].filter((item) => item !== id)
-      : [...formData[field], id];
-    setFormData({ ...formData, [field]: newSelection });
+  const handleCategoryChange = (e) => {
+    const { value, checked } = e.target;
+    setFormData((prevData) => {
+      const updatedCategories = checked
+        ? [...prevData.category, value] // Menambahkan kategori jika dicentang
+        : prevData.category.filter((category) => category !== value); // Menghapus kategori jika dicabut
+      return {
+        ...prevData,
+        category: updatedCategories,
+      };
+    });
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    setFormData({
+      ...formData,
+      imageURL: file,
+    });
+    const imageUrl = URL.createObjectURL(file);
+    setImagePreview(imageUrl);
+  };
+
+  const handleRawMaterialChange = (e) => {
+    const { value, checked } = e.target;
+    setFormData((prevData) => {
+      const updatedRawMaterials = checked
+        ? [...prevData.rawMaterials, value]  // Menambahkan rawMaterial
+        : prevData.rawMaterials.filter((rawMaterial) => rawMaterial !== value); // Menghapus rawMaterial
+
+      return {
+        ...prevData,
+        rawMaterials: updatedRawMaterials,  // Pastikan ini diupdate
+      };
+    });
+  };
+
+  const handleAddTopping = () => {
+    setFormData({
+      ...formData,
+      toppings: [
+        ...formData.toppings,
+        { name: "", price: "" },
+      ],
+    });
+  };
+
+  const handleAddAddon = () => {
+    setFormData({
+      ...formData,
+      addons: [
+        ...formData.addons,
+        { name: "", options: [{ label: "", price: "" }] }, // Input option langsung ditambahkan
+      ],
+    });
+  };
+
+  const handleRemoveTopping = (index) => {
+    const updatedToppings = formData.toppings.filter((_, i) => i !== index);
+    setFormData({ ...formData, toppings: updatedToppings });
+  };
+
+  const handleRemoveAddon = (index) => {
+    const updatedAddons = formData.addons.filter((_, i) => i !== index);
+    setFormData({ ...formData, addons: updatedAddons });
+  };
+
+  const handleRemoveAddonOption = (addonIndex, optionIndex) => {
+    const updatedAddons = [...formData.addons];
+    updatedAddons[addonIndex].options = updatedAddons[addonIndex].options.filter((_, i) => i !== optionIndex);
+    setFormData({ ...formData, addons: updatedAddons });
+  };
+
+  const handleAddOption = (addonIndex) => {
+    const updatedAddons = [...formData.addons];
+    updatedAddons[addonIndex].options.push({ label: "", price: "", default: false }); // Add default flag
+    setFormData({ ...formData, addons: updatedAddons });
+  };
+
+  const handleDefaultOptionChange = (addonIndex, optionIndex) => {
+    const updatedAddons = [...formData.addons];
+    updatedAddons[addonIndex].options = updatedAddons[addonIndex].options.map((option, index) => {
+      if (index === optionIndex) {
+        return { ...option, default: true }; // Mark this option as default
+      }
+      return { ...option, default: false }; // Unmark other options as default
+    });
+    setFormData({ ...formData, addons: updatedAddons });
+  };
+
+  const handleAvailableAtChange = (e) => {
+    setFormData({
+      ...formData,
+      availableAt: e.target.value,  // Menyimpan ID outlet yang dipilih sebagai string
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    try {
-      const formDataToSend = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        if (Array.isArray(value)) {
-          value.forEach((id) => formDataToSend.append(key, id));
-        } else {
-          formDataToSend.append(key, value);
-        }
-      });
+    console.log(formData);
 
-      await axios.post("/api/menu/menu-items", formDataToSend);
-      navigate("/");
+    const formDataToSubmit = new FormData();
+    formDataToSubmit.append("name", formData.name);
+    formDataToSubmit.append("price", formData.price);
+    formDataToSubmit.append("description", formData.description);
+    formDataToSubmit.append("category", JSON.stringify(formData.category));
+    if (formData.image) {
+      formDataToSubmit.append("imageURL", formData.imageURL);
+    }
+    formDataToSubmit.append("toppings", JSON.stringify(formData.toppings));
+    formDataToSubmit.append("addons", JSON.stringify(formData.addons));
+    formDataToSubmit.append("rawMaterials", JSON.stringify(formData.rawMaterials));
+    formDataToSubmit.append("availableAt", JSON.stringify(formData.availableAt));
+
+    try {
+      await axios.post("/api/menu/menu-items", formDataToSubmit, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
     } catch (error) {
       console.error("Error creating menu item:", error);
-      alert("Gagal menambahkan menu. Periksa koneksi atau data Anda.");
     }
   };
 
-  // return (
-  //   <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
-  //     <form
-  //       onSubmit={handleSubmit}
-  //       className="bg-white p-6 rounded shadow-md w-full max-w-lg"
-  //     >
-  //       <h2 className="text-xl font-bold mb-4">Tambah Menu</h2>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Nama Menu</label>
-  //         <input
-  //           type="text"
-  //           name="name"
-  //           value={formData.name}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //           required
-  //         />
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Kategori</label>
-  //         <input
-  //           type="text"
-  //           name="category"
-  //           value={formData.category}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //           required
-  //         />
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Harga</label>
-  //         <input
-  //           type="number"
-  //           name="price"
-  //           value={formData.price}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //           required
-  //         />
-  //       </div>
-
-  //       {/* <div className="mb-4">
-  //         <label className="block text-gray-700">Description</label>
-  //         <textarea
-  //           name="description"
-  //           value={formData.description}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //         />
-  //       </div> */}
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">SKU</label>
-  //         <input
-  //           name="sku"
-  //           value={formData.description}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //         />
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Barcode</label>
-  //         <input
-  //           name="barcode"
-  //           value={formData.description}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //         />
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Satuan Stok</label>
-  //         <input
-  //           type="number"
-  //           name="stock"
-  //           value={formData.stock}
-  //           onChange={handleInputChange}
-  //           className="w-full border rounded px-3 py-2"
-  //         />
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Foto Produk</label>
-  //         <img
-  //           src={formData.imageURL}
-  //           alt="Uploaded"
-  //           className="h-24 w-24 object-cover rounded mb-2"
-  //           onClick={() => fileRef.current.click()}
-  //         />
-  //         <input
-  //           ref={fileRef}
-  //           type="file"
-  //           className="hidden"
-  //           onChange={(e) => setImage(e.target.files[0])}
-  //         />
-  //         {imagePercent > 0 && <div>Upload Progress: {imagePercent}%</div>}
-  //         {imageError && <div className="text-red-500">Image upload failed</div>}
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Toppings</label>
-  //         {toppings.map((topping) => (
-  //           <div key={topping._id} className="flex items-center">
-  //             <input
-  //               type="checkbox"
-  //               value={topping._id}
-  //               checked={formData.toppings.includes(topping._id)}
-  //               onChange={(e) => handleCheckboxChange(e, "toppings")}
-  //             />
-  //             <label className="ml-2">{topping.name}</label>
-  //           </div>
-  //         ))}
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Add-Ons</label>
-  //         {addOns.map((addOn) => (
-  //           <div key={addOn._id} className="flex items-center">
-  //             <input
-  //               type="checkbox"
-  //               value={addOn._id}
-  //               checked={formData.addOns.includes(addOn._id)}
-  //               onChange={(e) => handleCheckboxChange(e, "addOns")}
-  //             />
-  //             <label className="ml-2">{addOn.name}</label>
-  //           </div>
-  //         ))}
-  //       </div>
-
-  //       <div className="mb-4">
-  //         <label className="block text-gray-700">Raw Materials</label>
-  //         <select
-  //           onChange={handleRawMaterialSelect}
-  //           className="w-full border rounded px-3 py-2 mb-2"
-  //         >
-  //           <option value="">Select Raw Material</option>
-  //           {rawMaterials.map((rawMaterial) => (
-  //             <option key={rawMaterial._id} value={rawMaterial._id}>
-  //               {rawMaterial.name}
-  //             </option>
-  //           ))}
-  //         </select>
-  //         {formData.rawMaterials.map((material, index) => (
-  //           <div key={index} className="flex items-center mb-2">
-  //             <label className="w-2/3 text-gray-700">
-  //               {rawMaterials.find((item) => item._id === material.materialId)?.name}
-  //             </label>
-  //             <input
-  //               type="number"
-  //               value={material.quantityRequired}
-  //               onChange={(e) => handleRawMaterialChange(e, material.materialId)}
-  //               className="w-20 border rounded px-3 py-2 mr-2"
-  //               placeholder="Quantity"
-  //               min="1"
-  //             />
-  //             <button
-  //               type="button"
-  //               onClick={() => handleRemoveRawMaterial(material.materialId)}
-  //               className="bg-red-500 text-white px-3 py-1 rounded"
-  //             >
-  //               Remove
-  //             </button>
-  //           </div>
-  //         ))}
-  //       </div>
-
-  //       <div className="flex justify-between">
-  //         <button
-  //           type="button"
-  //           onClick={onCancel}
-  //           className="bg-gray-400 text-white px-4 py-2 rounded"
-  //         >
-  //           Cancel
-  //         </button>
-  //         <button
-  //           type="submit"
-  //           disabled={loading}
-  //           className="bg-blue-500 text-white px-4 py-2 rounded"
-  //         >
-  //           {loading ? "Saving..." : "Save"}
-  //         </button>
-  //       </div>
-  //     </form>
-  //   </div>
-  // );
   return (
-    <div className="container mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8 text-center">Tambah Menu</h1>
-      <form
-        onSubmit={handleSubmit}
-        className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md"
-      >
-        {/* Nama Menu */}
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Nama Menu
-          </label>
+    <div className="max-w-2xl mx-auto p-4">
+      <h2 className="text-2xl font-bold mb-4">Create Menu Item</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Name */}
+        <div>
+          <label className="block font-medium">Name</label>
           <input
             type="text"
             name="name"
             value={formData.name}
             onChange={handleInputChange}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+            className="w-full p-2 border rounded"
             required
           />
         </div>
 
-        {/* Deskripsi */}
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Deskripsi
-          </label>
-          <textarea
-            name="description"
-            value={formData.description}
-            onChange={handleInputChange}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            rows="4"
-          ></textarea>
-        </div>
-
-        {/* Harga */}
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Harga
-          </label>
+        {/* Price */}
+        <div>
+          <label className="block font-medium">Price</label>
           <input
             type="number"
             name="price"
             value={formData.price}
             onChange={handleInputChange}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+            className="w-full p-2 border rounded"
             required
           />
         </div>
 
-        {/* Kategori */}
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Kategori
-          </label>
-          <select
-            name="category"
-            value={formData.category}
+        {/* Description */}
+        <div>
+          <label className="block font-medium">Description</label>
+          <textarea
+            name="description"
+            value={formData.description}
             onChange={handleInputChange}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            required
-          >
-            <option value="">Pilih Kategori</option>
-            <option value="makanan">Makanan</option>
-            <option value="minuman">Minuman</option>
-            <option value="snack">Snack</option>
-          </select>
+            className="w-full p-2 border rounded"
+          />
         </div>
 
-        {/* Gambar */}
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Gambar
-          </label>
+        {/* Category (Checkboxes) */}
+        <div>
+          <label className="block font-medium">Categories</label>
+          <div className="space-y-2">
+            {categories.length > 0 ? (
+              categories.map((category) => (
+                <div key={category}>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      value={category}
+                      checked={formData.category.includes(category)}
+                      onChange={handleCategoryChange}
+                      className="mr-2"
+                    />
+                    {category}
+                  </label>
+                </div>
+              ))
+            ) : (
+              <div>Loading categories...</div>
+            )}
+          </div>
+        </div>
+
+        {/* Image File Input */}
+        <div>
+          <label className="block font-medium">Image</label>
           <input
             type="file"
             name="imageURL"
-            onChange={handleInputChange}
-            className="block w-full text-sm text-gray-500
-            file:mr-4 file:py-2 file:px-4
-            file:rounded-full file:border-0
-            file:text-sm file:font-semibold
-            file:bg-blue-500 file:text-white
-            hover:file:bg-blue-600"
             accept="image/*"
+            onChange={handleImageChange}
+            className="w-full p-2 border rounded"
           />
-          {imagePreview && (
-            <img
-              src={imagePreview}
-              alt="preview"
-              className="mt-2 w-full h-48 object-cover rounded-lg"
-            />
+        </div>
+
+        {/* Display the image preview */}
+        {imagePreview && (
+          <div className="mt-4">
+            <img src={imagePreview} alt="Image Preview" className="w-full max-h-60 object-cover rounded" />
+          </div>
+        )}
+
+        {/* Available At (Dropdown) */}
+        <div>
+          <label className="block font-medium">Available At</label>
+          <select
+            name="availableAt"
+            value={formData.availableAt}  // Pastikan ini adalah satu ID outlet yang dipilih
+            onChange={handleAvailableAtChange}
+            className="w-full p-2 border rounded"
+          >
+            {outlets.length > 0 ? (
+              outlets.map((outlet) => (
+                <option key={outlet._id} value={outlet._id}>
+                  {outlet.name}
+                </option>
+              ))
+            ) : (
+              <option value="">Loading outlets...</option>
+            )}
+          </select>
+        </div>
+
+        {/* Raw Materials */}
+        <div>
+          <h3 className="text-lg font-semibold">Raw Materials</h3>
+          {rawMaterials.length > 0 ? (
+            rawMaterials.map((rawMaterial) => (
+              <div key={rawMaterial._id} >
+                <label className="inline-flex items-center" >
+                  <input
+                    type="checkbox"
+                    value={rawMaterial._id}
+                    checked={formData.rawMaterials.includes(rawMaterial._id)}
+                    onChange={handleRawMaterialChange}
+                    className="mr-2"
+                  />
+                  {rawMaterial.name}  {/* Tampilkan nama raw material */}
+                </label>
+              </div>
+            ))
+          ) : (
+            <div>Loading raw materials...</div>
           )}
-        </div>
+        </div >
 
-        {/* Promo */}
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Promo (Opsional)
-          </label>
-          <div className="flex space-x-4">
-            <input
-              type="text"
-              name="promotionTitle"
-              value={formData.promotionTitle}
-              onChange={handleInputChange}
-              placeholder="Judul promo"
-              className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            />
-            <input
-              type="number"
-              name="discount"
-              value={formData.discount}
-              onChange={handleInputChange}
-              placeholder="Diskon (%)"
-              className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-            />
-          </div>
-        </div>
 
-        {/* Topping Section */}
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold mb-2">Topping</h3>
-          <div className="space-y-2">
-            {toppingsList.map((topping) => (
-              <div key={topping._id} className="flex items-center">
+        {/* Toppings */}
+        < div >
+          <h3 className="text-lg font-semibold">Toppings</h3>
+          {
+            formData.toppings.map((topping, index) => (
+              <div key={index} className="flex space-x-4 items-center">
                 <input
-                  type="checkbox"
-                  checked={formData.toppings.includes(topping._id)}
-                  onChange={() => handleCheckboxChange("toppings", topping._id)}
-                  className="form-checkbox h-5 w-5 text-blue-500"
+                  type="text"
+                  placeholder="Topping Name"
+                  value={topping.name}
+                  onChange={(e) => {
+                    const updatedToppings = [...formData.toppings];
+                    updatedToppings[index].name = e.target.value;
+                    setFormData({ ...formData, toppings: updatedToppings });
+                  }}
+                  className="p-2 border rounded"
                 />
-                <label className="ml-2 text-gray-700">{topping.name}</label>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Add-Ons Section */}
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold mb-2">Add-Ons</h3>
-          <div className="space-y-2">
-            {addonsList.map((addon) => (
-              <div key={addon._id} className="flex items-center">
                 <input
-                  type="checkbox"
-                  checked={formData.addons.includes(addon._id)}
-                  onChange={() => handleCheckboxChange("addons", addon._id)}
-                  className="form-checkbox h-5 w-5 text-blue-500"
+                  type="number"
+                  placeholder="Price"
+                  value={topping.price}
+                  onChange={(e) => {
+                    const updatedToppings = [...formData.toppings];
+                    updatedToppings[index].price = e.target.value;
+                    setFormData({ ...formData, toppings: updatedToppings });
+                  }}
+                  className="p-2 border rounded"
                 />
-                <label className="ml-2 text-gray-700">{addon.name}</label>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTopping(index)}
+                  className="text-red-500"
+                >
+                  <FaTrashAlt />
+                </button>
               </div>
-            ))}
-          </div>
-        </div>
+            ))
+          }
+          <button
+            type="button"
+            onClick={handleAddTopping}
+            className="mt-2 text-blue-500"
+          >
+            Add Topping
+          </button>
+        </div >
+
+        {/* Addons */}
+        < div >
+          <h3 className="text-lg font-semibold">Addons</h3>
+          {
+            formData.addons.map((addon, addonIndex) => (
+              <div key={addonIndex} className="space-y-2">
+                <div className="flex space-x-4 items-center">
+                  <input
+                    type="text"
+                    placeholder="Addon Name"
+                    value={addon.name}
+                    onChange={(e) => {
+                      const updatedAddons = [...formData.addons];
+                      updatedAddons[addonIndex].name = e.target.value;
+                      setFormData({ ...formData, addons: updatedAddons });
+                    }}
+                    className="p-2 border rounded"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAddon(addonIndex)}
+                    className="text-red-500"
+                  >
+                    <FaTrashAlt />
+                  </button>
+                </div>
+
+                {/* Add options for each addon */}
+                {addon.options.map((option, optionIndex) => (
+                  <div key={optionIndex} className="flex space-x-4 items-center">
+                    <input
+                      type="text"
+                      placeholder="Option Label"
+                      value={option.label}
+                      onChange={(e) => {
+                        const updatedAddons = [...formData.addons];
+                        updatedAddons[addonIndex].options[optionIndex].label = e.target.value;
+                        setFormData({ ...formData, addons: updatedAddons });
+                      }}
+                      className="p-2 border rounded"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Option Price"
+                      value={option.price}
+                      onChange={(e) => {
+                        const updatedAddons = [...formData.addons];
+                        updatedAddons[addonIndex].options[optionIndex].price = e.target.value;
+                        setFormData({ ...formData, addons: updatedAddons });
+                      }}
+                      className="p-2 border rounded"
+                    />
+
+                    {/* Radio button for Default Option */}
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name={`defaultOption-${addonIndex}`} // Same name group to make it a radio button group
+                        checked={option.default}
+                        onChange={() => handleDefaultOptionChange(addonIndex, optionIndex)} // Mark this option as default
+                        className="mr-2"
+                      />
+                      Default
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAddonOption(addonIndex, optionIndex)}
+                      className="text-red-500"
+                    >
+                      <FaTrashAlt />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => handleAddOption(addonIndex)}
+                  className="mt-2 text-blue-500"
+                >
+                  Add Option
+                </button>
+              </div>
+            ))
+          }
+          <button
+            type="button"
+            onClick={handleAddAddon}
+            className="mt-2 text-blue-500"
+          >
+            Add Addon
+          </button>
+        </div >
 
         {/* Submit Button */}
-        <button
-          type="submit"
-          className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-200"
-        >
-          Simpan Menu
-        </button>
-      </form>
-    </div>
+        < div >
+          <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded">
+            Submit
+          </button>
+        </div >
+      </form >
+    </div >
   );
 };
 
-export default Create;
+export default CreateMenu;

@@ -24,6 +24,7 @@ export const createOutlet = async (req, res) => {
 export const getOutlets = async (req, res) => {
   try {
     const outlets = await Outlet.find().populate('admin', 'name email');
+    // const outlets = await Outlet.find().populate('manager', 'name email');
     res.status(200).json(outlets);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch outlets', error: error.message });
