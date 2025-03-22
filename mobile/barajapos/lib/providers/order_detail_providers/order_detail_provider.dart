@@ -1,6 +1,7 @@
 import 'package:barajapos/models/menu_item_model.dart';
 import 'package:barajapos/models/order_detail_model.dart';
 import 'package:barajapos/models/order_item_model.dart';
+import 'package:barajapos/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
 
@@ -30,6 +31,13 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     if (state != null) {
       state = state!.copyWith(orderType: orderType);
       print('Order Type: $orderType');
+    }
+  }
+
+  // Set payment method
+  void updatePaymentMethod(String paymentMethod) {
+    if (state != null) {
+      state = state!.copyWith(paymentMethod: paymentMethod);
     }
   }
 
@@ -134,6 +142,25 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     } else {
       return 0;
     }
+  }
+
+  // Kirim data orderDetail ke backend
+  Future<bool> submitOrder() async {
+    try {
+      final order = await OrderService().createOrder(state!);
+    } catch (e) {}
+    if (state != null) {
+      // Kirim data orderDetail ke backend
+      // Simulasi panggilan ke backend
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Simulasi respons dari backend
+      bool isSuccess = true;
+
+      clearOrder();
+      return isSuccess;
+    }
+    return false; // Return false if state is null
   }
 }
 

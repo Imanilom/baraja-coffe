@@ -5,6 +5,7 @@ import 'package:barajapos/providers/orders/order_type_provider.dart';
 import 'package:barajapos/providers/orders/saved_order_provider.dart';
 import 'package:barajapos/utils/format_rupiah.dart';
 import 'package:barajapos/widgets/dialogs/edit_order_item_dialog.dart';
+import 'package:barajapos/widgets/payment/payment_method.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:barajapos/providers/order_detail_providers/order_detail_provider.dart';
@@ -208,7 +209,7 @@ class OrderDetailScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Text(
-              'Total: ${formatRupiah(totalPrices)}',
+              'Total: ${formatRupiah(totalPrices)}, payment: ${orderDetail?.paymentMethod}',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -261,7 +262,20 @@ class OrderDetailScreen extends ConsumerWidget {
                       const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            if (orderDetail != null &&
+                                orderDetail.items.isNotEmpty) {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(20)),
+                                ),
+                                builder: (context) => const PaymentMethod(),
+                              );
+                            }
+                          },
                           child: const Text('Bayar'),
                         ),
                       ),

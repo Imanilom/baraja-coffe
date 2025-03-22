@@ -5,7 +5,7 @@ class OrderItemModel {
   final List<ToppingModel> selectedToppings;
   final List<AddonModel> selectedAddons;
   int quantity;
-  // final double subtotal;
+  // final double? subtotal;
   // final String note = '';
 
   OrderItemModel({
@@ -13,7 +13,7 @@ class OrderItemModel {
     this.selectedToppings = const [],
     this.selectedAddons = const [],
     this.quantity = 1,
-    // required this.subtotal,
+    // this.subtotal,
   });
 
   double get subTotalPrice {
@@ -52,7 +52,7 @@ class OrderItemModel {
       'toppings':
           selectedToppings.map((topping) => {'_id': topping.id}).toList(),
       'quantity': quantity,
-      // 'subtotal': subtotal,
+      'subtotal': subTotalPrice,
     };
   }
 }
