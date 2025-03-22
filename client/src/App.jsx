@@ -21,6 +21,10 @@ import CreateVoucher from "./pages/voucher/create";
 // inventory
 import Storagemanagement from "./pages/storage/index";
 import CreateStrorage from "./pages/storage/RawMaterial";
+import CategoryIndex from "./pages/menu/category/index";
+import CreateCategory from "./pages/menu/category/create";
+import AssignMenuItemToCategory from "./pages/menu/category/assignmenu";
+
 // content
 import ContentManagement from "./pages/content/index";
 import CreateContent from "./pages/content/create";
@@ -33,6 +37,7 @@ import IndexPromoPage from "./pages/promotion/promo/index";
 // auto promo
 import CreateAutoPromoPage from "./pages/promotion/autopromo/create";
 import RunningAutoPromos from "./pages/promotion/autopromo/index";
+
 
 
 export default function App() {
@@ -66,6 +71,10 @@ export default function App() {
                 <Route path="promo-otomatis" element={<RunningAutoPromos />} />
                 <Route path="storage" element={<Storagemanagement />} />
                 <Route path="storage-create" element={<CreateStrorage />} />
+                <Route path="categories" element={<CategoryIndex />} />
+                <Route path="categories-create" element={<CreateCategory />} />
+                <Route path="categories-assign" element={<AssignMenuItemToCategory />} />
+                
                 <Route path="content" element={<ContentManagement />} />
                 <Route path="content-create" element={<CreateContent />} />
                 <Route path="content-update/:id" element={<UpdateContent />} />
