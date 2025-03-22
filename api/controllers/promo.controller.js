@@ -24,13 +24,28 @@ export const getPromoById = async (req, res) => {
 // Create a new promo
 export const createPromo = async (req, res) => {
   try {
-    const promo = new Promo(req.body);
-    await promo.save();
+    const { name, discountAmount, discountType, customerType, outlet, validFrom, validTo } = req.body;
+    const createdBy = req.user._id; // Pastikan req.user sudah terisi dengan benar
+
+    // Perbaikan: Masukkan data sebagai objek ke dalam constructor Promo
+    const promo = new Promo({
+      name,
+      discountAmount,
+      discountType,
+      customerType,
+      outlet, // Pastikan ini dalam bentuk array jika di skema terdefinisi sebagai array
+      createdBy,
+      validFrom,
+      validTo
+    });
+
+    await promo.save(); // Simpan promo ke database
     res.status(201).json(promo);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 };
+
 
 // Update an existing promo
 export const updatePromo = async (req, res) => {

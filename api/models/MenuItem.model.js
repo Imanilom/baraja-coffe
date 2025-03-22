@@ -28,7 +28,8 @@ const MenuItemSchema = new mongoose.Schema({
       options: [ // Array untuk menyimpan opsi-opsi dengan harga
         {
           label: { type: String, required: true }, // Label opsi (contoh: reg, med, large)
-          price: { type: Number, required: true, min: 0 } // Harga tambahan untuk opsi tersebut
+          price: { type: Number, required: true, min: 0 }, // Harga tambahan untuk opsi tersebut
+          isdefault: { type: Boolean, default: false } // Opsi default atau tidak
         }
       ],
       rawMaterials: [

@@ -1,322 +1,374 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import dayjs from 'dayjs';
+import { useState, useEffect } from "react";
+import axios from "axios";
 
 const RawMaterialPage = () => {
-  const [rawMaterials, setRawMaterials] = useState([]);
-  const [formData, setFormData] = useState({
-    name: '',
-    category: '',
-    quantity: 0,
-    unit: '',
-    minimumStock: 0,
-    maximumStock: 0,
-    costPerUnit: 0,
-    supplier: '',
-    expiryDate: null,
-  });
-  const [error, setError] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editId, setEditId] = useState(null);
-
-  useEffect(() => {
-    fetchRawMaterials();
-  }, []);
-
-  const fetchRawMaterials = async () => {
-    try {
-      const response = await axios.get('/api/storage/raw-material');
-      setRawMaterials(response.data.data || []);
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setError('Failed to fetch raw materials');
-    }
-  };
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    const val = type === 'checkbox' ? checked : (name === 'expiryDate' ? e.target.value : value);
-    setFormData({
-      ...formData,
-      [name]: name === 'expiryDate' 
-        ? (val === '' ? null : dayjs(val).toISOString()) 
-        : (name in [ 'quantity', 'minimumStock', 'maximumStock', 'costPerUnit' ] 
-          ? parseInt(val) 
-          : val)
-    });
-  };
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      category: '',
+  const [outlets, setOutlets] = useState([]); // List of outlets fetched from API
+  const [selectedOutlet, setSelectedOutlet] = useState(null); // Selected outlet object
+  const [categories, setCategories] = useState([]); // List of categories fetched from API
+  const [selectedCategories, setSelectedCategories] = useState(null); // Selected category object
+  const [datein, setDatein] = useState("");
+  const [notes, setNotes] = useState("");
+  const [materials, setMaterials] = useState([
+    {
+      name: "",
+      category: "",
       quantity: 0,
-      unit: '',
+      unit: "",
       minimumStock: 0,
       maximumStock: 0,
       costPerUnit: 0,
-      supplier: '',
-      expiryDate: null,
-    });
-    setIsEditing(false);
-    setEditId(null);
-    setError(null);
+      supplier: "",
+      expiryDate: "",
+    },
+  ]);
+  const [message, setMessage] = useState("");
+
+  // Handle input changes for materials
+  const handleMaterialChange = (index, key, value) => {
+    const updatedMaterials = [...materials];
+    updatedMaterials[index][key] = value;
+    setMaterials(updatedMaterials);
   };
 
+  // Add a new material row
+  const addMaterial = () => {
+    setMaterials([
+      ...materials,
+      {
+        name: "",
+        category: "",
+        quantity: 0,
+        unit: "",
+        minimumStock: 0,
+        maximumStock: 0,
+        costPerUnit: 0,
+        supplier: "",
+        expiryDate: "",
+      },
+    ]);
+  };
+
+  // Remove a material row
+  const removeMaterial = (index) => {
+    if (materials.length > 1) {
+      setMaterials(materials.filter((_, i) => i !== index));
+    }
+  };
+
+  // Fetch list of outlets on component mount
+  const fetchOutlets = async () => {
+    try {
+      const response = await axios.get("/api/outlet");
+      setOutlets(response.data || []);
+      if (response.data && response.data.length > 0) {
+        setSelectedOutlet(response.data[0]); // Set default outlet
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  
+  // Fetch list of categories on component mount
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get("/api/storage/category/inventory");
+      setCategories(response.data.data || []);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // Submit form data
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Basic validation
+    if (
+      !selectedOutlet ||
+      !datein ||
+      materials.some(
+        (m) =>
+          m.name === "" ||
+          m.category === "" ||
+          m.quantity <= 0 ||
+          m.unit === "" ||
+          m.costPerUnit <= 0 ||
+          m.supplier === "" ||
+          m.expiryDate === ""
+      )
+    ) {
+      setMessage("Please fill in all required fields.");
+      return;
+    }
+
     try {
-      if (isEditing) {
-        await axios.put(`/api/storage/raw-material/${editId}`, formData);
-      } else {
-        await axios.post('/api/storage/raw-material', formData);
-      }
-      resetForm();
-      fetchRawMaterials();
-      setError(null);
-    } catch (err) {
-      console.error('Save error:', err);
-      setError('Failed to save raw material');
+      const response = await axios.post("/api/storage/stock/batch", {
+        outletId: selectedOutlet._id, // Send outletId, not name
+        datein,
+        notes,
+        materials,
+      });
+
+      setMessage(response.data.message || "Data submitted successfully!");
+    } catch (error) {
+      setMessage(error.response?.data?.message || "Error submitting data.");
     }
   };
 
-  const handleEdit = (material) => {
-    setFormData({
-      ...material,
-      expiryDate: material.expiryDate ? dayjs(material.expiryDate).format('YYYY-MM-DD') : null,
-    });
-    setIsEditing(true);
-    setEditId(material._id);
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this material?')) {
-      try {
-        await axios.delete(`/api/storage/raw-material/${id}`);
-        fetchRawMaterials();
-      } catch (err) {
-        console.error('Delete error:', err);
-        setError('Failed to delete raw material');
-      }
-    }
-  };
+  // Fetch outlets when the component mounts
+  useEffect(() => {
+    fetchOutlets();
+    fetchCategories();
+    console.log(categories);
+  }, []);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8 text-center">Bahan Baku Manajemen</h1>
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-800 px-4 py-3 rounded mb-4">
-          {error}
+    <div className="max-w-8xl mx-auto p-6 bg-white shadow-lg rounded-lg">
+      <h2 className="text-2xl font-semibold text-gray-700 mb-4">Batch Insert Stock</h2>
+      {message && (
+        <div
+          className={`bg-${
+            message.includes("Error") ? "red" : "green"
+          }-100 text-${message.includes("Error") ? "red" : "green"}-700 p-2 rounded mb-4`}
+        >
+          {message}
         </div>
       )}
 
-      <form 
-        onSubmit={handleSubmit}
-        className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-8"
-      >
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Nama Bahan
-          </label>
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Kategori
-          </label>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Outlet Selection */}
+        <div>
+          <label className="block font-medium text-gray-700">Outlet</label>
           <select
-            name="category"
-            value={formData.category}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            value={selectedOutlet?.name || ""}
+            onChange={(e) => {
+              const selectedName = e.target.value;
+              const outlet = outlets.find((o) => o.name === selectedName);
+              setSelectedOutlet(outlet);
+            }}
+            className="w-full p-2 border rounded"
+            required
           >
-            <option value="">Pilih Kategori</option>
-            <option value="kemasan">Kemasan</option>
-            <option value="bahan_makanan">Bahan Makanan</option>
-            <option value="peralatan">Peralatan</option>
+            <option value="" disabled hidden>
+              Select an outlet...
+            </option>
+            {outlets.map((outlet) => (
+              <option key={outlet._id} value={outlet.name}>
+                {outlet.name}
+              </option>
+            ))}
           </select>
         </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Jumlah Stok
-          </label>
-          <input
-            type="number"
-            name="quantity"
-            value={formData.quantity}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Satuan
-          </label>
-          <input
-            type="text"
-            name="unit"
-            value={formData.unit}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Stok Minimum
-          </label>
-          <input
-            type="number"
-            name="minimumStock"
-            value={formData.minimumStock}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Stok Maksimum
-          </label>
-          <input
-            type="number"
-            name="maximumStock"
-            value={formData.maximumStock}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Harga Per Unit
-          </label>
-          <input
-            type="number"
-            name="costPerUnit"
-            value={formData.costPerUnit}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Pemasok
-          </label>
-          <input
-            type="text"
-            name="supplier"
-            value={formData.supplier}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Tanggal Kadaluarsa
-          </label>
+
+        {/* Date In */}
+        <div>
+          <label className="block font-medium text-gray-700">Tanggal Masuk</label>
           <input
             type="date"
-            name="expiryDate"
-            value={formData.expiryDate ? dayjs(formData.expiryDate).format('YYYY-MM-DD') : ''}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            value={datein}
+            onChange={(e) => setDatein(e.target.value)}
+            className="w-full p-2 border rounded"
+            required
           />
         </div>
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2"
-          >
-            {isEditing ? 'Perbarui Bahan' : 'Tambah Bahan'}
-          </button>
-          {isEditing && (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded"
-            >
-              Batal
-            </button>
-          )}
-        </div>
-      </form>
 
-      <div className="overflow-x-auto shadow-md sm:rounded-lg">
-        <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-            <tr>
-              <th scope="col" className="px-6 py-3">
-                Nama
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Kategori
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Stok
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Satuan
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Stok Minimum
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Harga/Unit
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Kadaluarsa
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Aksi
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rawMaterials.map(material => (
-              <tr 
-                key={material._id} 
-                className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-100"
-              >
-                <td className="px-6 py-4">{material.name}</td>
-                <td className="px-6 py-4">{material.category}</td>
-                <td className="px-6 py-4">{material.quantity}</td>
-                <td className="px-6 py-4">{material.unit}</td>
-                <td className="px-6 py-4">{material.minimumStock}</td>
-                <td className="px-6 py-4">{material.costPerUnit}</td>
-                <td className="px-6 py-4">
-                  {material.expiryDate 
-                    ? dayjs(material.expiryDate).format('DD/MM/YYYY') 
-                    : '-'}
-                </td>
-                <td className="px-6 py-4 flex space-x-2">
-                  <button
-                    onClick={() => handleEdit(material)}
-                    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(material._id)}
-                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                  >
-                    Hapus
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        {/* Notes */}
+        <div>
+          <label className="block font-medium text-gray-700">Catatan</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full p-2 border rounded"
+          ></textarea>
+        </div>
+
+        {/* Material List */}
+        <div>
+          <label className="block font-medium text-gray-700">Material</label>
+          {materials.map((material, index) => (
+            <div
+              key={index}
+              className="grid grid-cols-12 gap-2 mb-2 items-center"
+            >
+              {/* Name */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Nama
+                </label>
+                <input
+                  type="text"
+                  value={material.name}
+                  onChange={(e) =>
+                    handleMaterialChange(index, "name", e.target.value)
+                  }
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+
+              {/* Category */}
+              <div className="col-span-2">
+                <label className="block font-sm font-medium text-gray-700">Kategori</label>
+                <select
+                  value={selectedCategories?.name || ""}
+                  onChange={(e) => {
+                    const selectedName = e.target.value;
+                    const category = categories.find((o) => o.name === selectedName);
+                    setSelectedCategories(category);
+                  }}
+                  className="w-full p-2 border rounded"
+                  required
+                >
+                  <option value="" disabled hidden>
+                    Select a Category...
+                  </option>
+                  {categories.map((category) => (
+                    <option key={category._id} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Quantity */}
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Qty
+                </label>
+                <input
+                  type="number"
+                  value={material.quantity}
+                  onChange={(e) =>
+                    handleMaterialChange(index, "quantity", e.target.value)
+                  }
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+
+              {/* Unit */}
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Unit
+                </label>
+                <input
+                  type="text"
+                  value={material.unit}
+                  onChange={(e) =>
+                    handleMaterialChange(index, "unit", e.target.value)
+                  }
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+
+              {/* Minimum Stock */}
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Min Stock
+                </label>
+                <input
+                  type="number"
+                  value={material.minimumStock}
+                  onChange={(e) =>
+                    handleMaterialChange(index, "minimumStock", e.target.value)
+                  }
+                  className="w-full p-2 border rounded"
+                />
+              </div>
+
+              {/* Maximum Stock */}
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Max Stock
+                </label>
+                <input
+                  type="number"
+                  value={material.maximumStock}
+                  onChange={(e) =>
+                    handleMaterialChange(index, "maximumStock", e.target.value)
+                  }
+                  className="w-full p-2 border rounded"
+                />
+              </div>
+
+              {/* Cost Per Unit */}
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Harga per Unit
+                </label>
+                <input
+                  type="number"
+                  value={material.costPerUnit}
+                  onChange={(e) =>
+                    handleMaterialChange(index, "costPerUnit", e.target.value)
+                  }
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+
+              {/* Supplier */}
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Supplier
+                </label>
+                <input
+                  type="text"
+                  value={material.supplier}
+                  onChange={(e) =>
+                    handleMaterialChange(index, "supplier", e.target.value)
+                  }
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+
+              {/* Expiry Date */}
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Expire Date
+                </label>
+                <input
+                  type="date"
+                  value={material.expiryDate}
+                  onChange={(e) =>
+                    handleMaterialChange(index, "expiryDate", e.target.value)
+                  }
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+
+              {/* Remove Button */}
+              <div className="col-span-1 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => removeMaterial(index)}
+                  className="bg-red-500 text-white px-3 py-2 rounded"
+                >
+                  Hapus
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addMaterial}
+            className="bg-blue-500 text-white px-4 py-2 rounded mt-2"
+          >
+            + Tambah Material
+          </button>
+        </div>
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          className="bg-green-500 text-white px-4 py-2 rounded w-full"
+        >
+          Submit
+        </button>
+      </form>
     </div>
   );
 };
