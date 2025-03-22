@@ -53,9 +53,9 @@ class PaymentMethod extends ConsumerWidget {
                   final success = await orderDetail.submitOrder();
 
                   // Tutup modal
-                  if (success) {
+                  if (success && context.mounted) {
                     Navigator.pop(context);
-                  } else {
+                  } else if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Pembayaran gagal!'),

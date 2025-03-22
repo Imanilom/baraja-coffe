@@ -148,17 +148,13 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   Future<bool> submitOrder() async {
     try {
       final order = await OrderService().createOrder(state!);
-    } catch (e) {}
-    if (state != null) {
-      // Kirim data orderDetail ke backend
-      // Simulasi panggilan ke backend
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Simulasi respons dari backend
-      bool isSuccess = true;
-
-      clearOrder();
-      return isSuccess;
+      // print('Order ID: $order');
+      if (order.isNotEmpty) {
+        return true;
+      }
+    } catch (e) {
+      // print(e);
+      return false;
     }
     return false; // Return false if state is null
   }
