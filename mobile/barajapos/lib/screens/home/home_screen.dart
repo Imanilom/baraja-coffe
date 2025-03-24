@@ -13,50 +13,73 @@ class HomeScreen extends ConsumerWidget {
     final menu = ref.watch(menuItemProvider);
     final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
     final orderDetail = ref.watch(orderDetailProvider);
-    return Scaffold(
-      backgroundColor: Colors.gray[100],
-      child: menu.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(child: Text('Error: $error')),
-        data: (menuItems) {
-          return GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-              childAspectRatio: 1,
-              // mainAxisExtent: 200,
+    return Row(
+      children: [
+        NavigationRail(
+          alignment: NavigationRailAlignment.start,
+          labelPosition: NavigationLabelPosition.bottom,
+          onSelected: (index) {},
+          labelType: NavigationLabelType.all,
+          children: const [
+            NavigationItem(
+              label: Text('Popular'),
+              child: Icon(LucideIcons.blocks),
             ),
-            padding: const EdgeInsets.all(16),
-            itemCount: menuItems.length,
-            itemBuilder: (context, index) {
-              final menuItem = menuItems[index];
-              return MenuItemCard(
-                menuItem: menuItem,
-                onTap: () {
-                  if (orderDetail == null) {
-                    print('Initialize order dulu');
-                    orderDetailNotifier.initializeOrder(
-                      orderType: 'dine-in', // Default order type
+            NavigationItem(
+              label: Text('Coffee'),
+              child: Icon(LucideIcons.coffee),
+            )
+          ],
+        ),
+        const VerticalDivider(),
+        Expanded(
+          child: Scaffold(
+            backgroundColor: Colors.gray[100],
+            child: menu.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(child: Text('Error: $error')),
+              data: (menuItems) {
+                return GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1,
+                    // mainAxisExtent: 200,
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: menuItems.length,
+                  itemBuilder: (context, index) {
+                    final menuItem = menuItems[index];
+                    return MenuItemCard(
+                      menuItem: menuItem,
+                      onTap: () {
+                        if (orderDetail == null) {
+                          print('Initialize order dulu');
+                          orderDetailNotifier.initializeOrder(
+                            orderType: 'dine-in', // Default order type
+                          );
+                        }
+                        // Tampilkan dialog pemilihan topping dan addon
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+                            return OrderOptionDialogs(
+                              menuItem: menuItem,
+                              onAddToOrder: (orderItem) =>
+                                  orderDetailNotifier.addItemToOrder(orderItem),
+                            );
+                          },
+                        );
+                      },
                     );
-                  }
-                  // Tampilkan dialog pemilihan topping dan addon
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return OrderOptionDialogs(
-                        menuItem: menuItem,
-                        onAddToOrder: (orderItem) =>
-                            orderDetailNotifier.addItemToOrder(orderItem),
-                      );
-                    },
-                  );
-                },
-              );
-            },
-          );
-        },
-      ),
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,4 +1,4 @@
-import 'package:barajapos/configs/menu_item_data.dart';
+// import 'package:barajapos/configs/menu_item_data.dart';
 import 'package:barajapos/models/menu_item_model.dart';
 import 'package:barajapos/repositories/menu_item_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
