@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:barajapos/widgets/cards/menu_item_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:barajapos/providers/menu_item_provider.dart';
 import 'package:barajapos/providers/order_detail_providers/order_detail_provider.dart';
-// import 'package:barajapos/utils/format_rupiah.dart';
 import 'package:barajapos/widgets/dialogs/order_option_dialogs.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -14,15 +14,25 @@ class HomeScreen extends ConsumerWidget {
     final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
     final orderDetail = ref.watch(orderDetailProvider);
     return Scaffold(
-      body: menu.when(
+      backgroundColor: Colors.gray[100],
+      child: menu.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(child: Text('Error: $error')),
         data: (menuItems) {
-          return ListView.builder(
+          return GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 1,
+              // mainAxisExtent: 200,
+            ),
+            padding: const EdgeInsets.all(16),
             itemCount: menuItems.length,
             itemBuilder: (context, index) {
               final menuItem = menuItems[index];
-              return ListTile(
+              return MenuItemCard(
+                menuItem: menuItem,
                 onTap: () {
                   if (orderDetail == null) {
                     print('Initialize order dulu');
@@ -42,18 +52,6 @@ class HomeScreen extends ConsumerWidget {
                     },
                   );
                 },
-                title: Text(menuItem.name),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Price: Rp${menuItem.price}'),
-                    Text(
-                        'Toppings: ${menuItem.toppings.map((x) => x.name).join(', ')}'),
-                    Text(
-                        'Addons: ${menuItem.addons!.map((x) => x.options.map((y) => y.label)).join(', ')}'),
-                  ],
-                ),
-                trailing: Text(menuItem.category.map((x) => x).join(', ')),
               );
             },
           );

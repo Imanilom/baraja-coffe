@@ -28,6 +28,7 @@ dependencies:
   flutter_dotenv: ^5.2.1
   jwt_decoder: ^2.0.1
   fluttertoast: ^8.2.12
+  shadcn_flutter: ^0.0.30
 
 assets:
   - .env

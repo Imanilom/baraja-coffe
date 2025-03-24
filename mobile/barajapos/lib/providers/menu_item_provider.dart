@@ -8,7 +8,7 @@ final menuItemRepository =
 
 final menuItemProvider = FutureProvider<List<MenuItemModel>>((ref) async {
   //get dari data dummy
-  return dummyMenuItems;
-  // final repository = ref.read(menuItemRepository);
-  // return repository.getMenuItem();
+  // return dummyMenuItems;
+  final repository = ref.read(menuItemRepository);
+  return repository.getMenuItem();
 });

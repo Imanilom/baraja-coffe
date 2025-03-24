@@ -4,8 +4,9 @@ import 'package:barajapos/screens/home/home_screen.dart';
 import 'package:barajapos/screens/home/online_order_screen.dart';
 import 'package:barajapos/screens/home/saved_order_screen.dart';
 import 'package:barajapos/screens/order_details/order_detail_screen.dart';
-import 'package:flutter/material.dart';
+// import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 class MainScreen extends ConsumerWidget {
   const MainScreen({
@@ -17,6 +18,7 @@ class MainScreen extends ConsumerWidget {
     final selectedIndex = ref.watch(navigationProvider);
 
     void onItemTapped(int index) {
+      print('index: $index');
       ref.read(navigationProvider.notifier).setIndex(index);
     }
 
@@ -25,47 +27,43 @@ class MainScreen extends ConsumerWidget {
         Expanded(
           flex: 2,
           child: Scaffold(
-            appBar: AppBar(
-              title: PreferredSize(
-                preferredSize: const Size.fromHeight(50.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    const Text("Dashboard"),
-                    _NavItem(
-                      icon: Icons.home,
-                      label: 'Home',
-                      index: 0,
-                      selectedIndex: selectedIndex,
-                      onTap: onItemTapped,
-                    ),
-                    _NavItem(
-                      icon: Icons.smartphone,
-                      label: 'Orders',
-                      index: 1,
-                      selectedIndex: selectedIndex,
-                      onTap: onItemTapped,
-                    ),
-                    _NavItem(
-                      icon: Icons.history,
-                      label: 'History',
-                      index: 2,
-                      selectedIndex: selectedIndex,
-                      onTap: onItemTapped,
-                    ),
-                    _NavItem(
-                      icon: Icons.shopping_cart,
-                      label: 'Saved',
-                      index: 3,
-                      selectedIndex: selectedIndex,
-                      onTap: onItemTapped,
-                    ),
-                  ],
-                ),
+            headers: [
+              AppBar(
+                title: const Text('BarajaPOS'),
+                trailing: [
+                  _NavItem(
+                    icon: LucideIcons.house,
+                    label: 'Home',
+                    index: 0,
+                    selectedIndex: selectedIndex,
+                    onTap: onItemTapped,
+                  ),
+                  _NavItem(
+                    icon: LucideIcons.smartphone,
+                    label: 'Orders',
+                    index: 1,
+                    selectedIndex: selectedIndex,
+                    onTap: onItemTapped,
+                  ),
+                  _NavItem(
+                    icon: LucideIcons.history,
+                    label: 'History',
+                    index: 2,
+                    selectedIndex: selectedIndex,
+                    onTap: onItemTapped,
+                  ),
+                  _NavItem(
+                    icon: LucideIcons.shoppingCart,
+                    label: 'Saved',
+                    index: 3,
+                    selectedIndex: selectedIndex,
+                    onTap: onItemTapped,
+                  ),
+                ],
               ),
-            ),
+            ],
             // body: _buildBody(selectedIndex),
-            body: IndexedStack(
+            child: IndexedStack(
               index: selectedIndex,
               children: const [
                 HomeScreen(),
@@ -103,16 +101,21 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSelected = selectedIndex == index;
-
-    return GestureDetector(
-      onTap: () => onTap(index),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: isSelected ? Colors.blue : Colors.grey),
-          Text(label,
-              style: TextStyle(color: isSelected ? Colors.blue : Colors.grey)),
-        ],
+    return NavigationItem(
+      index: index,
+      selected: isSelected,
+      child: GestureDetector(
+        onTap: () => onTap(index),
+        child: Container(
+          color: isSelected ? Colors.primaries.first : Colors.transparent,
+          child: Column(
+            children: [
+              Icon(icon),
+              const SizedBox(width: 8),
+              Text(label),
+            ],
+          ),
+        ),
       ),
     );
   }
