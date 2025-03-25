@@ -15,9 +15,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     refreshListenable: GoRouterRefreshStream(authNotifier.stream),
     redirect: (context, state) {
-      if (authState.isLoading) return '/';
-      // return isAuthenticated ? '/main' : '/main';
-      return isAuthenticated ? '/main' : '/login';
+      // if (authState.isLoading) return '/';
+      return isAuthenticated ? '/main' : '/main';
+      // return isAuthenticated ? '/main' : '/login';
     },
     routes: [
       GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
