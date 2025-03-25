@@ -4,6 +4,7 @@ import { errorHandler } from '../utils/error.js';
 import jwt from 'jsonwebtoken';
 import admin from 'firebase-admin';
 import { verifyToken } from '../utils/verifyUser.js';
+import { Outlet } from '../models/Outlet.model.js';
 
 // Initialize Firebase Admin
 // admin.initializeApp({
@@ -103,6 +104,10 @@ export const signin = async (req, res, next) => {
       }
       tokenExpiry = "15m";
     }
+    //mencari user yang rolenya casir pada outlet yang smaa dengan admin?
+    const cashier = await User.find({
+      role: ["cashier junior", "cashier senior"],
+    }).populate("outlet.outletId", "admin");
 
     if (!user) return next(errorHandler(404, "User not found"));
 
@@ -116,11 +121,13 @@ export const signin = async (req, res, next) => {
       process.env.JWT_SECRET,
       { expiresIn: tokenExpiry }
     );
+
+
     const { password: hashedPassword, ...rest } = user._doc;
     res.cookie("access_token", token, {
       httpOnly: true,
       maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 7 hari atau 1 hari dalam ms
-    }).status(200).json({ ...rest, token });
+    }).status(200).json({ ...rest, token, cashier });
 
   } catch (error) {
     next(error);
