@@ -1,4 +1,5 @@
 import 'package:barajapos/models/order_detail_model.dart';
+import 'package:barajapos/providers/auth_provider.dart';
 import 'package:barajapos/providers/navigation_provider.dart';
 import 'package:barajapos/providers/order_detail_providers/saved_order_detail_provider.dart';
 import 'package:barajapos/providers/orders/order_type_provider.dart';
@@ -38,9 +39,17 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
     // final orderDetail = ref.watch(orderDetailProvider);
 
     return Scaffold(
-      headers: const [
+      headers: [
         AppBar(
-          title: Text('Pesanan'),
+          title: const Text('Pesanan'),
+          trailing: [
+            //logout
+            Button(
+              style: ButtonVariance.secondary,
+              child: const Icon(RadixIcons.exit),
+              onPressed: () => ref.read(authProvider.notifier).logout(),
+            ),
+          ],
         ),
       ],
       child: Column(
@@ -169,9 +178,10 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
                                     'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}'),
                               if (orderItem.selectedAddons.isNotEmpty)
                                 //mengambil nama addons dan lable pada opsions
-
-                                Text(
-                                    'Addons: ${orderItem.selectedAddons.map((a) => a.options.map((o) => o.label).join(', ')).join(', ')}'),
+                                if (orderItem
+                                    .selectedAddons.first.options.isNotEmpty)
+                                  Text(
+                                      'Addons: ${orderItem.selectedAddons.map((a) => a.options.map((o) => o.label).join(', ')).join(', ')}'),
                               Text(
                                   'Sub total: ${formatRupiah(orderItem.subTotalPrice)}'),
                             ],

@@ -93,11 +93,6 @@ class HomeScreen extends ConsumerWidget {
                                         )
                                         .toList()
                                     : [],
-                                // selectedAddons: menuItem.addons!
-                                //     .where((addon) => addon.options
-                                //         .where((o) => o.isDefault == true)
-                                //         .isNotEmpty)
-                                //     .toList(),
                               ),
                               onSubmit: (newOrder) =>
                                   orderDetailNotifier.addItemToOrder(newOrder),

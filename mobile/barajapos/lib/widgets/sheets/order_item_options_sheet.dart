@@ -19,11 +19,9 @@ class OrderItemOptionsSheet extends ConsumerWidget {
     final order = ref.watch(orderItemProvider(orderItem));
     final orderNotifier = ref.read(orderItemProvider(orderItem).notifier);
 
-    print(order.selectedAddons.isNotEmpty
-        ? order.selectedAddons
-            .map((e) => e.options.map((e) => e.label))
-            .toList()
-        : []);
+    print(order.selectedAddons
+        .map((e) => e.options.map((e) => e.label))
+        .toList());
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [

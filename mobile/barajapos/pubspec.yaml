@@ -30,6 +30,7 @@ dependencies:
   fluttertoast: ^8.2.12
   shadcn_flutter: ^0.0.30
   freezed_annotation: ^3.0.0
+  bcrypt: ^1.1.3
 
 assets:
   - .env
