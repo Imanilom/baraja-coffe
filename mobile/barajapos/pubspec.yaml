@@ -30,7 +30,6 @@ dependencies:
   fluttertoast: ^8.2.12
   shadcn_flutter: ^0.0.30
   freezed_annotation: ^3.0.0
-  hive_ce_generator: ^1.8.1
 
 assets:
   - .env
@@ -42,6 +41,7 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   freezed: ^3.0.4
   build_runner: ^2.4.6
+  hive_ce_generator: ^1.8.1
 
 flutter:
   uses-material-design: true

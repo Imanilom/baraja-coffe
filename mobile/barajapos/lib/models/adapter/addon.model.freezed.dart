@@ -31,9 +31,6 @@ mixin _$AddonModel {
   $AddonModelCopyWith<AddonModel> get copyWith =>
       _$AddonModelCopyWithImpl<AddonModel>(this as AddonModel, _$identity);
 
-  /// Serializes this AddonModel to a JSON map.
-  Map<String, dynamic> toJson();
-
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
@@ -45,7 +42,6 @@ mixin _$AddonModel {
             const DeepCollectionEquality().equals(other.options, options));
   }
 
-  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, id, name, type,
       const DeepCollectionEquality().hash(options));
@@ -108,8 +104,7 @@ class _$AddonModelCopyWithImpl<$Res> implements $AddonModelCopyWith<$Res> {
 }
 
 /// @nodoc
-@JsonSerializable()
-@HiveField(0)
+
 class _AddonModel implements AddonModel {
   _AddonModel(
       {@HiveField(1) this.id,
@@ -117,8 +112,6 @@ class _AddonModel implements AddonModel {
       @HiveField(3) this.type,
       @HiveField(4) required final List<AddonOptionModel> options})
       : _options = options;
-  factory _AddonModel.fromJson(Map<String, dynamic> json) =>
-      _$AddonModelFromJson(json);
 
   @override
   @HiveField(1)
@@ -147,13 +140,6 @@ class _AddonModel implements AddonModel {
       __$AddonModelCopyWithImpl<_AddonModel>(this, _$identity);
 
   @override
-  Map<String, dynamic> toJson() {
-    return _$AddonModelToJson(
-      this,
-    );
-  }
-
-  @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
@@ -164,7 +150,6 @@ class _AddonModel implements AddonModel {
             const DeepCollectionEquality().equals(other._options, _options));
   }
 
-  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, id, name, type,
       const DeepCollectionEquality().hash(_options));

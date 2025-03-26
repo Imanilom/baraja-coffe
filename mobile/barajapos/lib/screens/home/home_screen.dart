@@ -1,4 +1,8 @@
+import 'package:barajapos/models/order_item_model.dart';
+import 'package:barajapos/providers/orders/order_item_provider.dart';
 import 'package:barajapos/widgets/cards/menu_item_card.dart';
+import 'package:barajapos/widgets/sheets/order_item_options_sheet.dart';
+import 'package:flutter/material.dart' as material;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:barajapos/providers/menu_item_provider.dart';
 import 'package:barajapos/providers/order_detail_providers/order_detail_provider.dart';
@@ -60,17 +64,56 @@ class HomeScreen extends ConsumerWidget {
                             orderType: 'dine-in', // Default order type
                           );
                         }
-                        // Tampilkan dialog pemilihan topping dan addon
-                        showDialog(
+                        // Tampilkan sheet pemilihan topping dan addon
+                        openSheet(
                           context: context,
+                          position: OverlayPosition.bottom,
+                          draggable: true,
+                          // builder: (context) => OrderOptionDialogs(
+                          //       menuItem: menuItem,
+                          //       onAddToOrder: (orderItem) =>
+                          //           orderDetailNotifier
+                          //               .addItemToOrder(orderItem),
+                          //     )
                           builder: (context) {
-                            return OrderOptionDialogs(
-                              menuItem: menuItem,
-                              onAddToOrder: (orderItem) =>
-                                  orderDetailNotifier.addItemToOrder(orderItem),
+                            return OrderItemOptionsSheet(
+                              orderItem: OrderItemModel(
+                                menuItem: menuItem,
+                                quantity: 1,
+                                selectedToppings: [],
+                                selectedAddons: menuItem.addons != []
+                                    ? menuItem.addons!
+                                        .map(
+                                          (addon) => addon.copyWith(
+                                            options: addon.options
+                                                .where(
+                                                    (o) => o.isDefault == true)
+                                                .toList(), // join(', ')
+                                          ),
+                                        )
+                                        .toList()
+                                    : [],
+                                // selectedAddons: menuItem.addons!
+                                //     .where((addon) => addon.options
+                                //         .where((o) => o.isDefault == true)
+                                //         .isNotEmpty)
+                                //     .toList(),
+                              ),
+                              onSubmit: (newOrder) =>
+                                  orderDetailNotifier.addItemToOrder(newOrder),
                             );
                           },
                         );
+                        // material.showBottomSheet(
+                        //   context: context,
+                        //   builder: (context) {
+                        //     return OrderOptionDialogs(
+                        //       menuItem: menuItem,
+                        //       onAddToOrder: (orderItem) =>
+                        //           orderDetailNotifier.addItemToOrder(orderItem),
+                        //     );
+                        //   },
+                        // );
                       },
                     );
                   },
