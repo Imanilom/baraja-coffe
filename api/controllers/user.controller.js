@@ -31,7 +31,7 @@ export const createUser = async (req, res, next) => {
 
     // Validasi outlet
     const formattedOutlets = outlet.map(id => ({
-      outletId: mongoose.Types.ObjectId(id)
+      outletId: new mongoose.Types.ObjectId(id)
     }));
 
     // Buat user baru

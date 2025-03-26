@@ -1,189 +1,169 @@
 class MenuItemModel {
-  final String id;
-  final String name;
+  String id;
+  String name;
   final double price;
-  final String? description;
-  final String? category;
-  final String? imageURL;
-  final List<ToppingModel>? toppings;
-  final List<AddOnModel?>? addOns;
-  final String? createdAt;
-  final String? updatedAt;
+  String description;
+  final List<String> category;
+  String imageURL;
+  final List<ToppingModel> toppings;
+  List<AddonModel>? addons;
+  // final List<AvailableAt> availableAt;
 
   MenuItemModel({
     required this.id,
     required this.name,
     required this.price,
-    this.description,
-    this.category,
-    this.imageURL,
-    this.toppings,
-    this.addOns,
-    this.createdAt,
-    this.updatedAt,
+    required this.description,
+    required this.category,
+    required this.imageURL,
+    required this.toppings,
+    this.addons,
+    // required this.availableAt,
   });
 
-  // Factory method untuk parsing JSON ke MenuItemModel
   factory MenuItemModel.fromJson(Map<String, dynamic> json) {
+    final List<ToppingModel> toppings = json['toppings'] != null
+        ? List<ToppingModel>.from(
+            json['toppings'].map((x) => ToppingModel.fromJson(x)))
+        : [];
+
+    final List<AddonModel> addons = json['addons'] != null
+        ? List<AddonModel>.from(
+            json['addons'].map((x) => AddonModel.fromJson(x)))
+        : [];
+
     return MenuItemModel(
       id: json['_id'],
       name: json['name'],
-      price: json['price'].toDouble(),
+      price: json['price'],
       description: json['description'],
-      category: json['category'],
+      category: List<String>.from(json['category']),
       imageURL: json['imageURL'],
-      toppings: (json['toppings'] as List?) // Jika toppings kosong atau null
-              ?.map((topping) => ToppingModel.fromJson(topping))
-              .toList() ??
-          [], // Default value list kosong
-      addOns: (json['addOns'] as List?) // Jika addOns kosong atau null
-              ?.map((addOn) => AddOnModel.fromJson(addOn))
-              .toList() ??
-          [],
-      createdAt: json['createdAt'],
-      updatedAt: json['updatedAt'],
+      toppings: toppings,
+      addons: addons,
+      // availableAt: List<AvailableAt>.from(
+      //     json['availableAt'].map((x) => AvailableAt.fromJson(x))),
     );
-  }
-
-  // Method untuk mengubah MenuItemModel menjadi JSON
-  Map<String, dynamic> toJson() {
-    return {
-      '_id': id,
-      'name': name,
-      'price': price,
-      'description': description,
-      'category': category,
-      'imageURL': imageURL,
-      'toppings': toppings?.map((topping) => topping.toJson()).toList() ?? [],
-      'addOns': addOns?.map((addOn) => addOn?.toJson()).toList() ?? [],
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
-    };
   }
 }
 
 class ToppingModel {
-  final String id;
+  final String? id;
   final String name;
   final double price;
-  final String? createdAt;
 
   ToppingModel({
-    required this.id,
+    this.id,
     required this.name,
     required this.price,
-    this.createdAt,
   });
 
-  // Factory method untuk parsing JSON ke ToppingModel
   factory ToppingModel.fromJson(Map<String, dynamic> json) {
     return ToppingModel(
       id: json['_id'],
       name: json['name'],
-      price: json['price'].toDouble(),
-      createdAt: json['createdAt'] ?? '',
+      price: json['price'],
     );
-  }
-
-  // Method untuk mengubah ToppingModel menjadi JSON
-  Map<String, dynamic> toJson() {
-    return {
-      '_id': id,
-      'name': name,
-      'price': price,
-      'createdAt': createdAt,
-    };
   }
 }
 
-class AddOnModel {
-  final String id;
+class AddonModel {
+  final String? id;
   final String name;
-  final String type;
-  final List<AddOnOptionModel> options;
-  final bool? isActive;
-  final String? createdAt;
+  final String? type;
+  final List<AddonOptionModel> options;
 
-  AddOnModel({
-    required this.id,
+  AddonModel({
+    this.id,
     required this.name,
-    required this.type,
+    this.type,
     required this.options,
-    this.isActive,
-    this.createdAt,
   });
 
-  AddOnModel copyWith({
+  AddonModel copyWith({
     String? id,
     String? name,
     String? type,
-    List<AddOnOptionModel>? options,
+    List<AddonOptionModel>? options,
     bool? isActive,
     String? createdAt,
   }) {
-    return AddOnModel(
+    return AddonModel(
       id: id ?? this.id,
       name: name ?? this.name,
       type: type ?? this.type,
       options: options ?? this.options,
-      isActive: isActive ?? this.isActive,
-      createdAt: createdAt ?? this.createdAt,
     );
   }
 
-  // Factory method untuk parsing JSON ke AddOnModel
-  factory AddOnModel.fromJson(Map<String, dynamic> json) {
-    return AddOnModel(
+  factory AddonModel.fromJson(Map<String, dynamic> json) {
+    final List<AddonOptionModel> options = json['options'] != null
+        ? List<AddonOptionModel>.from(
+            json['options'].map((x) => AddonOptionModel.fromJson(x)))
+        : [];
+
+    return AddonModel(
       id: json['_id'],
       name: json['name'],
-      type: json['type'],
-      options: (json['options'] as List)
-          .map((option) => AddOnOptionModel.fromJson(option))
-          .toList(),
-      isActive: json['isActive'] ?? false,
-      createdAt: json['createdAt'] ?? '',
+      options: options,
     );
-  }
-
-  // Method untuk mengubah AddOnModel menjadi JSON
-  Map<String, dynamic> toJson() {
-    return {
-      '_id': id,
-      'name': name,
-      'type': type,
-      'options': options.map((option) => option.toJson()).toList(),
-      'isActive': isActive,
-      'createdAt': createdAt,
-    };
   }
 }
 
-class AddOnOptionModel {
-  final String id;
+class AddonOptionModel {
+  final String? id;
   final String label;
   final double price;
 
-  AddOnOptionModel({
-    required this.id,
+  AddonOptionModel({
+    this.id,
     required this.label,
     required this.price,
   });
 
-  // Factory method untuk parsing JSON ke AddOnOptionModel
-  factory AddOnOptionModel.fromJson(Map<String, dynamic> json) {
-    return AddOnOptionModel(
+  factory AddonOptionModel.fromJson(Map<String, dynamic> json) {
+    return AddonOptionModel(
       id: json['_id'],
       label: json['label'],
-      price: json['price'].toDouble(),
+      price: json['price'],
     );
   }
+}
 
-  // Method untuk mengubah AddOnOptionModel menjadi JSON
-  Map<String, dynamic> toJson() {
-    return {
-      'label': label,
-      'price': price,
-      '_id': id,
-    };
+class AvailableAt {
+  final String id;
+  final String name;
+  final String address;
+  final String city;
+  final double latitude;
+  final double longitude;
+  final String contactNumber;
+  final String admin;
+  final List<String> outletPictures;
+
+  AvailableAt({
+    required this.id,
+    required this.name,
+    required this.address,
+    required this.city,
+    required this.latitude,
+    required this.longitude,
+    required this.contactNumber,
+    required this.admin,
+    required this.outletPictures,
+  });
+
+  factory AvailableAt.fromJson(Map<String, dynamic> json) {
+    return AvailableAt(
+      id: json['_id'],
+      name: json['name'],
+      address: json['address'],
+      city: json['city'],
+      latitude: json['latitude'].toDouble(),
+      longitude: json['longitude'].toDouble(),
+      contactNumber: json['contactNumber'],
+      admin: json['admin'],
+      outletPictures: List<String>.from(json['outletPictures']),
+    );
   }
 }
