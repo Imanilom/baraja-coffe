@@ -8,15 +8,11 @@ part 'addon.model.g.dart';
 
 @freezed
 @HiveType(typeId: 2)
-class AddonModel with _$AddonModel {
-  @HiveField(0)
+abstract class AddonModel with _$AddonModel {
   factory AddonModel({
     @HiveField(1) String? id,
     @HiveField(2) required String name,
     @HiveField(3) String? type,
     @HiveField(4) required List<AddonOptionModel> options,
   }) = _AddonModel;
-
-  factory AddonModel.fromJson(Map<String, dynamic> json) =>
-      _$AddonModelFromJson(json);
 }

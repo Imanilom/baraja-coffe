@@ -104,13 +104,17 @@ export const signin = async (req, res, next) => {
       }
       tokenExpiry = "15m";
     }
-    //mencari user yang rolenya casir pada outlet yang smaa dengan admin?
-    const cashier = await User.find({
-      role: ["cashier junior", "cashier senior"],
-    }).populate("outlet.outletId", "admin");
+    const cashier = [];
+    if (user.role === "admin") {
+      //mencari user yang rolenya casir pada outlet yang smaa dengan admin?
+      const cashiers = await User.find({
+        role: ["cashier junior", "cashier senior"],
+      }).populate("outlet.outletId", "admin");
+
+      cashier = cashiers;
+    }
 
     if (!user) return next(errorHandler(404, "User not found"));
-
 
     const isValidPassword = bcryptjs.compareSync(password, user.password);
     if (!isValidPassword) return next(errorHandler(401, "Wrong credentials"));
@@ -127,7 +131,7 @@ export const signin = async (req, res, next) => {
     res.cookie("access_token", token, {
       httpOnly: true,
       maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 7 hari atau 1 hari dalam ms
-    }).status(200).json({ ...rest, token, cashier });
+    }).status(200).json(user.role !== "admin" ? { ...rest, token } : { ...rest, token, cashier });
 
   } catch (error) {
     next(error);

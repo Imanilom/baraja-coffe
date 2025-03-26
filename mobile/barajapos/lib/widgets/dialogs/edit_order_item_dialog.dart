@@ -34,99 +34,99 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   Widget build(BuildContext context) {
     final menuItem = widget.orderItem.menuItem;
 
-    return AlertDialog(
-      title: Text('Edit Pesanan ${menuItem.name}'),
-      content: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Counter Quantity
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove),
-                  onPressed: () {
-                    setState(() {
-                      if (quantity > 1) {
-                        quantity--;
-                      }
-                    });
-                  },
-                ),
-                Text(
-                  '$quantity',
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  onPressed: () {
-                    setState(() {
-                      quantity++;
-                    });
-                  },
-                ),
-              ],
-            ),
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ElevatedButton(
+                onPressed: () {},
+                child: const Text('Kembali'),
+              ),
+              const Text(
+                'Edit Pesanan',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  // Buat OrderItem baru dengan data yang sudah diubah
+                  final editedOrderItem = OrderItemModel(
+                    menuItem: widget.orderItem.menuItem,
+                    quantity: quantity,
+                    selectedToppings: selectedToppings,
+                    selectedAddons: selectedAddons,
+                  );
+                  widget.onEditOrder(editedOrderItem); // Kirim ke OrderNotifier
+                },
+                child: const Text('Simpan'),
+              ),
+            ],
+          ),
+          const Divider(),
+          const SizedBox(height: 16),
+          //quantity
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove),
+                onPressed: () {
+                  setState(() {
+                    if (quantity > 1) {
+                      quantity--;
+                    }
+                  });
+                },
+              ),
+              Text(
+                '$quantity',
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () {
+                  setState(() {
+                    quantity++;
+                  });
+                },
+              ),
+            ],
+          ),
+          if (menuItem.toppings.isNotEmpty)
+            const Text('Topping:',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ..._buildToppingList(menuItem.toppings, selectedToppings, (topping) {
+            setState(() {
+              if (selectedToppings.contains(topping)) {
+                selectedToppings.remove(topping);
+              } else {
+                selectedToppings.add(topping);
+              }
+            });
+          }),
 
-            // Pilih Topping (hanya yang tersedia di MenuItem)
-            if (menuItem.toppings.isNotEmpty)
-              const Text('Topping:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ..._buildToppingList(menuItem.toppings, selectedToppings,
-                (topping) {
-              setState(() {
-                if (selectedToppings.contains(topping)) {
-                  selectedToppings.remove(topping);
-                } else {
-                  selectedToppings.add(topping);
-                }
-              });
-            }),
-
-            // Pilih Addon (hanya yang tersedia di MenuItem)
-            if (menuItem.addons!.isNotEmpty)
-              const Text('Addon:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ..._buildAddonList(
-                menuItem.addons?.whereType<AddonModel>().toList() ?? [],
-                selectedAddons, (addon, selectedOption) {
-              setState(() {
-                final index =
-                    selectedAddons.indexWhere((a) => a.id == addon.id);
-                if (index != -1) {
-                  selectedAddons[index] =
-                      addon.copyWith(options: [selectedOption]);
-                } else {
-                  selectedAddons.add(addon.copyWith(options: [selectedOption]));
-                }
-              });
-            }),
-          ],
-        ),
+          // Pilih Addon (hanya yang tersedia di MenuItem)
+          if (menuItem.addons!.isNotEmpty)
+            const Text('Addon:', style: TextStyle(fontWeight: FontWeight.bold)),
+          ..._buildAddonList(
+              menuItem.addons?.whereType<AddonModel>().toList() ?? [],
+              selectedAddons, (addon, selectedOption) {
+            setState(() {
+              final index = selectedAddons.indexWhere((a) => a.id == addon.id);
+              if (index != -1) {
+                selectedAddons[index] =
+                    addon.copyWith(options: [selectedOption]);
+              } else {
+                selectedAddons.add(addon.copyWith(options: [selectedOption]));
+              }
+            });
+          }),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          child: const Text('Batal'),
-        ),
-        TextButton(
-          onPressed: () {
-            // Buat OrderItem baru dengan data yang sudah diubah
-            final editedOrderItem = OrderItemModel(
-              menuItem: widget.orderItem.menuItem,
-              quantity: quantity,
-              selectedToppings: selectedToppings,
-              selectedAddons: selectedAddons,
-            );
-            widget.onEditOrder(editedOrderItem); // Kirim ke OrderNotifier
-            Navigator.pop(context);
-          },
-          child: const Text('Simpan'),
-        ),
-      ],
     );
   }
 
@@ -139,7 +139,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     return availableToppings.map((topping) {
       return CheckboxListTile(
         title: Text(topping.name),
-        subtitle: Text('\$${topping.price}'),
+        subtitle: Text('Rp${topping.price}'),
         value: selectedToppings.contains(topping),
         onChanged: (value) {
           onToppingSelected(topping);
