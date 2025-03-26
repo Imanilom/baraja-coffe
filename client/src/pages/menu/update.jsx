@@ -1,278 +1,658 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { FaTrashAlt } from "react-icons/fa";
+import { useNavigate, useParams } from "react-router-dom";
 
-const Update = () => {
-  const { id } = useParams();
-  const navigate = useNavigate()
+const UpdateMenu = () => {
+  const { id } = useParams(); // Get the menu item ID from the URL
   const [formData, setFormData] = useState({
     name: "",
-    description: "",
     price: "",
-    category: [],
-    discount: "",
+    description: "",
+    category: [], // This should be an array
     imageURL: "",
     toppings: [],
     addons: [],
-    rawMaterials: []
+    rawMaterials: [],
+    availableAt: "",
   });
-  const [toppingsList, setToppingsList] = useState([]);
-  const [addonsList, setAddonsList] = useState([]);
+
+  const [categories, setCategories] = useState([]);
+  const [rawMaterials, setRawMaterials] = useState([]);
+  const [outlets, setOutlets] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
+  const [categoryMap, setCategoryMap] = useState({});
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Fetch menu item details
+    const fetchCategories = async () => {
+      try {
+        const response = await axios.get("/api/menu/categories");
+        const fetchedCategories = response.data.data || [];
+        setCategories(fetchedCategories);
+
+        // Create a mapping of category IDs to names
+        const map = {};
+        fetchedCategories.forEach(category => {
+          map[category._id] = category.name;
+        });
+        setCategoryMap(map);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      }
+    };
+
+    const fetchOutlets = async () => {
+      try {
+        const response = await axios.get("/api/outlet/");
+        setOutlets(response.data || []);
+      } catch (error) {
+        console.error("Error fetching outlets:", error);
+      }
+    };
+
+    const fetchRawMaterial = async () => {
+      try {
+        const response = await axios.get("/api/storage/raw-material");
+        setRawMaterials(response.data.data || []);
+      } catch (error) {
+        console.error("Error fetching raw materials:", error);
+      }
+    };
+
     const fetchMenuItem = async () => {
       try {
         const response = await axios.get(`/api/menu/menu-items/${id}`);
-        setFormData(response.data.data);
-        setImagePreview(response.data.data.imageURL);
+        const menuItem = response.data.data;
+
+        // Ensure that the addons have options
+        if (menuItem.addons) {
+          menuItem.addons.forEach(addon => {
+            if (!addon.options) {
+              addon.options = []; // Initialize options if not present
+            }
+          });
+        }
+
+        setFormData(menuItem);
+        setImagePreview(menuItem.imageURL);
       } catch (error) {
         console.error("Error fetching menu item:", error);
-        navigate('/')
       }
     };
-    fetchMenuItem();
+
+    fetchCategories();
+    fetchOutlets();
+    fetchRawMaterial();
+    fetchMenuItem(); // Fetch the menu item to update
   }, [id]);
 
   const handleInputChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === "imageURL" && files?.length > 0) {
-      setImagePreview(URL.createObjectURL(files[0]));
-    }
-    setFormData({ ...formData, [name]: value });
+    const { name, value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: value,
+    }));
   };
 
-  const handleCheckboxChange = (field, id) => {
-    const selected = formData[field].includes(id);
-    const newSelection = selected
-      ? formData[field].filter((item) => item !== id)
-      : [...formData[field], id];
-    setFormData({ ...formData, [field]: newSelection });
+  const handleCategoryChange = (e) => {
+    const { value, checked } = e.target;
+    setFormData((prevData) => {
+      const updatedCategories = checked
+        ? [...prevData.category, value]
+        : prevData.category.filter((category) => category !== value);
+      return {
+        ...prevData,
+        category: updatedCategories,
+      };
+    });
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      setFormData((prevData) => ({
+        ...prevData,
+        imageURL: reader.result,
+      }));
+      setImagePreview(reader.result);
+    };
+  };
+
+  const handleAvailableAtChange = (e) => {
+    const { value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      availableAt: value, // Update the availableAt field
+    }));
+  };
+
+  const handleRawMaterialChange = (e) => {
+    const { value, checked } = e.target;
+    setFormData((prevData) => {
+      let updatedRawMaterials = [...prevData.rawMaterials];
+
+      if (checked) {
+        // Add the materialId to the array
+        updatedRawMaterials.push({ materialId: { _id: value }, quantityRequired: 0.1 }); // Adjust quantity as needed
+      } else {
+        // Remove the materialId from the array
+        updatedRawMaterials = updatedRawMaterials.filter(raw => raw.materialId._id !== value);
+      }
+
+      return {
+        ...prevData,
+        rawMaterials: updatedRawMaterials,
+      };
+    });
+  };
+
+  const handleToppingInputChange = (index, field, value) => {
+    setFormData((prevData) => {
+      const updatedToppings = [...prevData.toppings];
+      updatedToppings[index] = {
+        ...updatedToppings[index],
+        [field]: value || "", // Ensure it defaults to an empty string
+      };
+      return {
+        ...prevData,
+        toppings: updatedToppings,
+      };
+    });
+  };
+
+  const handleAddonInputChange = (index, field, value) => {
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+      updatedAddons[index] = {
+        ...updatedAddons[index],
+        [field]: value || "", // Ensure it defaults to an empty string
+      };
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleAddonRawMaterialChange = (addonIndex, e) => {
+    const { value, checked } = e.target; // Get the value and checked state of the checkbox
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons]; // Create a copy of the current addons
+      const addon = updatedAddons[addonIndex]; // Get the specific addon being modified
+
+      if (checked) {
+        // If the checkbox is checked, add the raw material
+        addon.rawMaterials.push({ materialId: { _id: value }, quantityRequired: 0.1 }); // Adjust quantity as needed
+      } else {
+        // If the checkbox is unchecked, remove the raw material
+        addon.rawMaterials = addon.rawMaterials.filter(raw => raw.materialId._id !== value);
+      }
+
+      return {
+        ...prevData,
+        addons: updatedAddons, // Update the state with the modified addons
+      };
+    });
+  };
+
+  const handleToppingRawMaterialChange = (toppingIndex, e) => {
+    const { value, checked } = e.target; // Get the value and checked state of the checkbox
+    setFormData((prevData) => {
+      const updatedToppings = [...prevData.toppings]; // Create a copy of the current toppings
+      const topping = updatedToppings[toppingIndex]; // Get the specific topping being modified
+
+      if (checked) {
+        // If the checkbox is checked, add the raw material
+        topping.rawMaterials.push({ materialId: { _id: value }, quantityRequired: 0.1 }); // Adjust quantity as needed
+      } else {
+        // If the checkbox is unchecked, remove the raw material
+        topping.rawMaterials = topping.rawMaterials.filter(raw => raw.materialId._id !== value);
+      }
+
+      return {
+        ...prevData,
+        toppings: updatedToppings, // Update the state with the modified toppings
+      };
+    });
+  };
+
+  const handleRemoveAddonOption = (addonIndex, optionIndex) => {
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+      updatedAddons[addonIndex].options = updatedAddons[addonIndex].options.filter((_, i) => i !== optionIndex);
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleAddOption = (addonIndex) => {
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+      updatedAddons[addonIndex].options.push({ label: "", price: "", default: false });
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleAddonOptionInputChange = (addonIndex, optionIndex, field, value) => {
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+      updatedAddons[addonIndex].options[optionIndex] = {
+        ...updatedAddons[addonIndex].options[optionIndex],
+        [field]: value || "",
+      };
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleDefaultOptionChange = (addonIndex, optionIndex) => {
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+      updatedAddons[addonIndex].options = updatedAddons[addonIndex].options.map((option, index) => {
+        return {
+          ...option,
+          default: index === optionIndex,
+        };
+      });
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleAddTopping = () => {
+    setFormData((prevData) => ({
+      ...prevData,
+      toppings: [...prevData.toppings, { name: "", price: "", rawMaterials: [] }],
+    }));
+  };
+
+  const handleAddAddon = () => {
+    setFormData((prevData) => ({
+      ...prevData,
+      addons: [
+        ...prevData.addons,
+        { name: "", options: [{ label: "", price: "", default: false }], rawMaterials: [] },
+      ],
+    }));
+  };
+
+  const handleRemoveTopping = (index) => {
+    setFormData((prevData) => {
+      const updatedToppings = prevData.toppings.filter((_, i) => i !== index);
+      return {
+        ...prevData,
+        toppings: updatedToppings,
+      };
+    });
+  };
+
+  const handleRemoveAddon = (index) => {
+    setFormData((prevData) => {
+      const updatedAddons = prevData.addons.filter((_, i) => i !== index);
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
-      const formDataToSend = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        if (Array.isArray(value)) {
-          value.forEach((id) => formDataToSend.append(key, id));
-        } else {
-          formDataToSend.append(key, value);
-        }
-      });
-
-      await axios.put(`/api/menu/menu-items/${id}`, formDataToSend);
-      navigate('/')
+      const response = await axios.put(`/api/menu/menu-items/${id}`, formData);
+      console.log(response);
+      navigate("/admin/menu");
     } catch (error) {
       console.error("Error updating menu item:", error);
-      alert("Gagal memperbarui menu. Periksa koneksi atau data Anda.");
     }
   };
 
   return (
-    <div className="container mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8 text-center">Perbarui Menu</h1>
-      <form
-        onSubmit={handleSubmit}
-        className="mx-auto bg-white p-8 rounded-lg shadow-md"
-      >
-        <div className="grid grid-cols-2 gap-4">
+    <div className="max-w-2xl mx-auto p-4">
+      <h2 className="text-2xl font-bold mb-4">Update Menu Item</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Name */}
+        <div>
+          <label className="block font-medium">Name</label>
+          <input
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleInputChange}
+            className="w-full p-2 border rounded"
+            required
+          />
+        </div>
 
-          {/* Nama Menu */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Nama Menu
-            </label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              required
-            />
-          </div>
+        {/* Price */}
+        <div>
+          <label className="block font-medium">Price</label>
+          <input
+            type="number"
+            name="price"
+            value={formData.price}
+            onChange={handleInputChange}
+            className="w-full p-2 border rounded"
+            required
+          />
+        </div>
 
-          {/* Topping Section */}
-          <div className="mb-4">
-            <h3 className="block text-gray-700 text-sm font-bold mb-2">Topping</h3>
-            <div className="space-y-2">
-              {toppingsList.map((topping) => (
-                <div key={topping._id} className="flex items-center">
+        {/* Description */}
+        <div>
+          <label className="block font-medium">Description</label>
+          <textarea
+            name="description"
+            value={formData.description}
+            onChange={handleInputChange}
+            className="w-full p-2 border rounded"
+          />
+        </div>
+
+        {/* Category (Checkboxes) */}
+        <div>
+          <label className="block font-medium">Categories</label>
+          <div className="space-y-2">
+            {categories.map((category) => (
+              <div key={category._id}>
+                <label className="inline-flex items-center">
                   <input
                     type="checkbox"
-                    checked={formData.toppings.includes(topping._id)}
-                    onChange={() => handleCheckboxChange("toppings", topping._id)}
-                    className="form-checkbox h-5 w-5 text-blue-500"
+                    value={category.name}
+                    checked={formData.category.includes(category.name)} // Check if the category is included
+                    onChange={handleCategoryChange}
+                    className="mr-2"
                   />
-                  <label className="ml-2 text-gray-700">{topping.name}</label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Kategori */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Kategori
-            </label>
-            <select
-              name="category"
-              value={formData.category}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              required
-            >
-              <option value="">Pilih Kategori</option>
-              <option value="beverage">Beverage</option>
-              <option value="food">Food</option>
-              <option value="instan">Instan</option>
-            </select>
-          </div>
-
-
-
-          {/* Add-Ons Section */}
-          <div className="mb-4">
-            <h3 className="block text-gray-700 text-sm font-bold mb-2">Add-Ons</h3>
-            <div className="space-y-2">
-              {addonsList.map((addon) => (
-                <div key={addon._id} className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.addons.includes(addon._id)}
-                    onChange={() => handleCheckboxChange("addons", addon._id)}
-                    className="form-checkbox h-5 w-5 text-blue-500"
-                  />
-                  <label className="ml-2 text-gray-700">{addon.name}</label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Harga */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Harga
-            </label>
-            <input
-              type="number"
-              name="price"
-              value={formData.price}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              required
-            />
-          </div>
-
-          {/* Promo */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Promo (Opsional)
-            </label>
-            <div className="flex space-x-4">
-              <input
-                type="text"
-                name="promotionTitle"
-                value={formData.promotionTitle}
-                onChange={handleInputChange}
-                placeholder="Judul promo"
-                className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              />
-              <input
-                type="number"
-                name="discount"
-                value={formData.discount}
-                onChange={handleInputChange}
-                placeholder="Diskon (%)"
-                className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Raw material */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Raw Material
-            </label>
-            <input
-              type="string"
-              name="rawMaterial"
-              value={formData.price}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              required
-            />
-          </div>
-
-          {/* Deskripsi */}
-          <div className="mb-4 row-span-2">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Deskripsi
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              rows="4"
-            ></textarea>
-          </div>
-
-          {/* Gambar */}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Gambar
-            </label>
-            <input
-              type="file"
-              name="imageURL"
-              onChange={handleInputChange}
-              className="block w-full text-sm text-gray-500
-            file:mr-4 file:py-2 file:px-4
-            file:rounded-full file:border-0
-            file:text-sm file:font-semibold
-            file:bg-blue-500 file:text-white
-            hover:file:bg-blue-600"
-              accept="image/*"
-            />
-            <div className="mt-2">
-              {imagePreview && (
-                <img
-                  src={imagePreview}
-                  alt="preview"
-                  className="w-full h-48 object-cover rounded-lg"
-                />
-              )}
-              <p className="text-gray-500 text-xs mt-1">
-                *Biarkan kosong untuk tidak mengubah gambar
-              </p>
-            </div>
+                  {category.name}
+                </label>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Submit Button */}
-        <div className="flex justify-end space-x-4">
+        {/* Image File Input */}
+        <div>
+          <label className="block font-medium">Image</label>
+          <input
+            type="file"
+            name="imageURL"
+            accept="image/*"
+            onChange={handleImageChange}
+            className="w-full p-2 border rounded"
+          />
+        </div>
+
+        {/* Display the image preview */}
+        {imagePreview && (
+          <div className="mt-4">
+            <img src={imagePreview} alt="Image Preview" className="w-full max-h-60 object-cover rounded" />
+          </div>
+        )}
+
+        {/* Available At (Dropdown) */}
+        <div>
+          <label className="block font-medium">Available At</label>
+          <select
+            name="availableAt"
+            value={formData.availableAt} // Set the value to the current availableAt
+            onChange={handleAvailableAtChange} // Handle changes
+            className="w-full p-2 border rounded"
+          >
+            {/* <option value="">Pilih Outlet</option> */}
+            {outlets.length > 0 ? (
+              outlets.map((outlet) => (
+                <option key={outlet._id} value={outlet._id}>
+                  {outlet.name}
+                </option>
+              ))
+            ) : (
+              <option value="">Loading outlets...</option>
+            )}
+          </select>
+        </div>
+
+        {/* Raw Materials */}
+        <div>
+          <label className="block font-medium">Raw Materials</label>
+          <div className="space-y-2 border p-3 rounded">
+            {rawMaterials.map((material) => (
+              <div key={material._id}>
+                <label className="inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    value={material._id}
+                    checked={formData.rawMaterials.some(raw => raw.materialId._id === material._id)} // Check if the materialId matches
+                    onChange={handleRawMaterialChange}
+                    className="mr-2"
+                  />
+                  {material.name}
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Toppings */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="block font-medium">Toppings</label>
+            <button
+              type="button"
+              onClick={handleAddTopping}
+              className="bg-green-500 text-white px-2 py-1 rounded text-sm"
+            >
+              + Add Topping
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {formData.toppings.map((topping, toppingIndex) => (
+              <div key={toppingIndex} className="border p-3 rounded">
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-medium">Topping #{toppingIndex + 1}</h4>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTopping(toppingIndex)}
+                    className="text-red-500"
+                  >
+                    <FaTrashAlt />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <label className="block text-sm">Name</label>
+                    <input
+                      type="text"
+                      value={topping.name || ""} // Use an empty string as a fallback
+                      onChange={(e) => handleToppingInputChange(toppingIndex, "name", e.target.value)}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm">Price</label>
+                    <input
+                      type="number"
+                      value={topping.price}
+                      onChange={(e) => handleToppingInputChange(toppingIndex, "price", e.target.value)}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+                </div>
+
+                {/* Raw Materials for Topping */}
+                <div>
+                  <label className="block text-sm mb-1">Raw Materials</label>
+                  <div className="max-h-28 overflow-y-auto border p-2 rounded">
+                    {rawMaterials.map((material) => (
+                      < div key={material._id} >
+                        <label className="inline-flex items-center">
+                          <input
+                            type="checkbox"
+                            value={material._id}
+                            checked={topping.rawMaterials.some(raw => raw.materialId._id === material._id)} // Check if the materialId matches
+                            onChange={(e) => handleToppingRawMaterialChange(toppingIndex, e)}
+                            className="mr-2"
+                          />
+                          {material.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+
+
+        {/* Addons */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="block font-medium">Addons</label>
+            <button
+              type="button"
+              onClick={handleAddAddon}
+              className="bg-green-500 text-white px-2 py-1 rounded text-sm"
+            >
+              + Add Addon
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {formData.addons.map((addon, addonIndex) => (
+              <div key={addonIndex} className="border p-3 rounded">
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-medium">Addon #{addonIndex + 1}</h4>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAddon(addonIndex)}
+                    className="text-red-500"
+                  >
+                    <FaTrashAlt />
+                  </button>
+                </div>
+
+                <div className="mb-2">
+                  <label className="block text-sm">Name</label>
+                  <input
+                    type="text"
+                    value={addon.name}
+                    onChange={(e) => handleAddonInputChange(addonIndex, "name", e.target.value)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+
+                {/* Addon Options */}
+                <div className="mb-3">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium">Options</label>
+                    <button
+                      type="button"
+                      onClick={() => handleAddOption(addonIndex)}
+                      className="bg-blue-500 text-white px-2 py-1 rounded text-xs"
+                    >
+                      + Add Option
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {addon.options.map((option, optionIndex) => (
+                      <div key={optionIndex} className="flex items-center space-x-2 border p-2 rounded">
+                        <div className="flex-1">
+                          <label className="block text-xs">Label</label>
+                          <input
+                            type="text"
+                            value={option.label}
+                            onChange={(e) =>
+                              handleAddonOptionInputChange(addonIndex, optionIndex, "label", e.target.value)
+                            }
+                            className="w-full p-1 border rounded"
+                          />
+                        </div>
+                        <div className="w-20">
+                          <label className="block text-xs">Price</label>
+                          <input
+                            type="number"
+                            value={option.price}
+                            onChange={(e) =>
+                              handleAddonOptionInputChange(addonIndex, optionIndex, "price", e.target.value)
+                            }
+                            className="w-full p-1 border rounded"
+                          />
+                        </div>
+                        <div className="w-16 text-center">
+                          <label className="block text-xs">Default</label>
+                          <input
+                            type="radio"
+                            checked={option.isdefault || false}
+                            onChange={() => handleDefaultOptionChange(addonIndex, optionIndex)}
+                            className="mt-1"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAddonOption(addonIndex, optionIndex)}
+                          className="text-red-500"
+                        >
+                          <FaTrashAlt />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Raw Materials for Addon */}
+                <div>
+                  <label className="block text-sm mb-1">Raw Materials</label>
+                  <div className="max-h-28 overflow-y-auto border p-2 rounded">
+                    {rawMaterials.map((material) => (
+                      <div key={material._id}>
+                        <label className="inline-flex items-center">
+                          <input
+                            type="checkbox"
+                            value={material._id}
+                            checked={addon.rawMaterials.some(raw => raw.materialId._id === material._id)}
+                            onChange={(e) => handleAddonRawMaterialChange(addonIndex, e)}
+                            className="mr-2"
+                          />
+                          {material.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
           <button
             type="submit"
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-200"
+            className="w-full bg-blue-500 text-white py-2 rounded"
           >
-            Simpan Perubahan
+            Update Menu Item
           </button>
-          <Link
-            to="/admin/menu"  // Change this to your desired route (e.g., "/home")
-            className="bg-gray-500 text-white px-4 py-2 rounded-lg"
-          >
-            Back
-          </Link>
         </div>
-      </form>
-    </div>
+      </form >
+    </div >
   );
+};
 
-}
-
-export default Update;
+export default UpdateMenu;
