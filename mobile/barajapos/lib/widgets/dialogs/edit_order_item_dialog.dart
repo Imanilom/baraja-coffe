@@ -18,7 +18,7 @@ class EditOrderItemDialog extends StatefulWidget {
 
 class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   late List<ToppingModel> selectedToppings;
-  late List<AddOnModel> selectedAddons;
+  late List<AddonModel> selectedAddons;
   late int quantity;
 
   @override
@@ -70,10 +70,10 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
             ),
 
             // Pilih Topping (hanya yang tersedia di MenuItem)
-            if (menuItem.toppings!.isNotEmpty)
+            if (menuItem.toppings.isNotEmpty)
               const Text('Topping:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
-            ..._buildToppingList(menuItem.toppings!, selectedToppings,
+            ..._buildToppingList(menuItem.toppings, selectedToppings,
                 (topping) {
               setState(() {
                 if (selectedToppings.contains(topping)) {
@@ -85,11 +85,11 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
             }),
 
             // Pilih Addon (hanya yang tersedia di MenuItem)
-            if (menuItem.addOns!.isNotEmpty)
+            if (menuItem.addons!.isNotEmpty)
               const Text('Addon:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
             ..._buildAddonList(
-                menuItem.addOns?.whereType<AddOnModel>().toList() ?? [],
+                menuItem.addons?.whereType<AddonModel>().toList() ?? [],
                 selectedAddons, (addon, selectedOption) {
               setState(() {
                 final index =
@@ -150,9 +150,9 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
 
   // Build daftar addon
   List<Widget> _buildAddonList(
-    List<AddOnModel> availableAddons,
-    List<AddOnModel> selectedAddons,
-    Function(AddOnModel, AddOnOptionModel) onAddonSelected,
+    List<AddonModel> availableAddons,
+    List<AddonModel> selectedAddons,
+    Function(AddonModel, AddonOptionModel) onAddonSelected,
   ) {
     return availableAddons.map((addon) {
       return Column(
@@ -160,13 +160,13 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
         children: [
           Text(addon.name, style: const TextStyle(fontWeight: FontWeight.bold)),
           ...addon.options.map((option) {
-            return RadioListTile<AddOnOptionModel>(
+            return RadioListTile<AddonOptionModel>(
               title: Text(option.label),
               value: option,
               groupValue: selectedAddons
                   .firstWhere((a) => a.id == addon.id,
                       orElse: () =>
-                          AddOnModel(id: '', name: '', type: '', options: []))
+                          AddonModel(id: '', name: '', type: '', options: []))
                   .options
                   .firstOrNull,
               onChanged: (value) {

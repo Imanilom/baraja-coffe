@@ -9,6 +9,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
+      print('start login...'); //
       Response response = await _dio.post(
         '/api/auth/signin',
         data: {
@@ -16,13 +17,9 @@ class AuthService {
           "password": password,
         },
       );
-      print('response awal: $response');
-      print('response data awal: ${response.data}');
       return response.data;
     } on DioException catch (e) {
-      final error = ApiResponseHandler.handleError(e);
-      print('response error awal: $error');
-      throw error;
+      throw ApiResponseHandler.handleError(e);
     }
   }
 
