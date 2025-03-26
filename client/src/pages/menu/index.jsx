@@ -1,60 +1,104 @@
 import React, { useEffect, useState } from "react";
-import { FaBox, FaLayerGroup, FaTag } from 'react-icons/fa';
+import { FaBox, FaTag } from 'react-icons/fa';
 import axios from "axios";
-import CreateTopping from "./opsi/create";
-import UpdateMenu from "./update";
-import DeleteMenus from "./delete";
-import CategoryMenu from "./category";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import CategoryIndex from "./category";
+import { FaTrash } from 'react-icons/fa';
 
+const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+      <div className="bg-white p-6 rounded shadow-md text-center w-96"> {/* Set width to 96 (24rem) for medium size */}
+        <FaTrash className="text-red-500 mx-auto mb-4" size={72} />
+        <h2 className="text-lg font-bold">Konfirmasi Penghapusan</h2>
+        <p>Apakah Anda yakin ingin menghapus item ini?</p>
+        <div className="flex justify-center mt-4">
+          <button onClick={onClose} className="mr-2 px-4 py-2 bg-gray-300 rounded">Batal</button>
+          <button onClick={onConfirm} className="px-4 py-2 bg-red-500 text-white rounded">Hapus</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 const Menu = () => {
+  const location = useLocation();
+  const navigate = useNavigate(); // Use the new hook
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("Semua Kategori");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedItems, setSelectedItems] = useState([]);
-  const [selectedItem, setSelectedItem] = useState("menu");
+  const [selected, setselected] = useState("menu");
   const [currentPage, setCurrentPage] = useState(1);
-  const [editingMenu, setEditingMenu] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null); // Menyimpan status dropdown
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
   const itemsPerPage = 6; // Number of items per page
 
-  const fetchMenuItems = async () => {
+  // Get category and selected from URL query
+  const queryParams = new URLSearchParams(location.search);
+  const categoryFromUrl = queryParams.get('category');
+  const selectedFromUrl = queryParams.get('selected');
+
+  useEffect(() => {
+    if (categoryFromUrl) {
+      setSelectedCategory(categoryFromUrl); // Set the selected category from URL
+    }
+    if (selectedFromUrl) {
+      setselected(selectedFromUrl); // Set selected from URL
+    }
+    fetchMenuItems(categoryFromUrl || ""); // Fetch items based on selected category
+    fetchCategories(); // Fetch categories from category table
+  }, [categoryFromUrl, selectedFromUrl]);
+
+  // Fetch menu items based on category
+  const fetchMenuItems = async (category = "") => {
     try {
-      const response = await axios.get("/api/menu/menu-items");
-
-
+      let url = "/api/menu/menu-items";
+      if (category) {
+        url = `/api/menu/categories/filter?category=${category}`; // Adjust the endpoint based on your backend API
+      }
+      const response = await axios.get(url);
       setMenuItems(response.data?.data || []);
-
-      // Menambahkan kategori unik
-      const uniqueCategories = [
-        "Semua Kategori",
-        ...new Set(response.data?.data.flatMap((item) => item.category)),
-      ];
-      setCategories(uniqueCategories);
     } catch (error) {
       console.error("Error fetching menu items:", error);
     }
   };
 
-  // Fungsi untuk menangani klik pada item grid
-  const handleItemClick = (item) => {
-    setSelectedItem(item);
-  };
-
-  const toggleDropdown = (_id) => {
-    if (openDropdown === _id) {
-      setOpenDropdown(null); // Jika dropdown sudah terbuka, tutup
-    } else {
-      setOpenDropdown(_id); // Buka dropdown yang sesuai
+  // Fetch categories from the category table
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get("/api/menu/categories"); // Adjust this URL based on your backend API
+      setCategories(["Semua Kategori", ...response.data.data?.map((category) => category.name || "")]); // Assuming each category has a `name` field
+    } catch (error) {
+      console.error("Error fetching categories:", error);
     }
   };
 
-  useEffect(() => {
-    fetchMenuItems();
-  }, []);
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+    // Update the URL with the selected category using `navigate`
+    navigate(`/admin/menu?category=${category === "Semua Kategori" ? "" : category}&selected=${selected}`);
+  };
 
-  // Filter menu items berdasarkan kategori dan pencarian menu
+  const handleTabChange = (item) => {
+    setselected(item);
+    // Update the URL to reflect the selected tab
+    navigate(`/admin/menu?category=${selectedCategory === "Semua Kategori" ? "" : selectedCategory}&selected=${item}`);
+  };
+
+  const handleDelete = async (itemId) => {
+    try {
+      await axios.delete(`/api/menu/menu-items/${itemId}`); // Adjust the endpoint based on your backend API
+      setMenuItems(menuItems.filter(item => item._id !== itemId)); // Update the state to remove the deleted item
+      setIsModalOpen(false); // Close the modal
+    } catch (error) {
+      console.error("Error deleting item:", error);
+    }
+  };
+
+  // Filter menu items based on category and search query
   const filteredItems = menuItems.filter((item) => {
     const matchesCategory =
       selectedCategory === "Semua Kategori" ||
@@ -68,39 +112,35 @@ const Menu = () => {
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
-
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
 
   return (
     <div className="container mx-auto p-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 my-4 gap-4 mb-4 border-b border-t py-4">
-        {/* Grid Item 1: menu */}
         <div
-          className={`flex items-center bg-white border-b-2 border-white hover:border-b-blue-500 focus:outline-none p-4 cursor-pointer border-l-2 border-l-gray-200 ${selectedItem === "menu" ? "border-blue-500" : ""
-            }`}
-          onClick={() => handleItemClick("menu")}
+          className={`flex items-center bg-white border-b-2 border-white hover:border-b-blue-500 focus:outline-none p-4 cursor-pointer border-l-2 border-l-gray-200 ${selected === "menu" ? "border-blue-500" : ""}`}
+          onClick={() => handleTabChange("menu")}
         >
           <FaBox size={24} />
           <h2 className="text-lg font-bold ml-2">Menu</h2>
         </div>
 
-        {/* Grid Item 3: Category */}
         <div
-          className={`flex items-center bg-white border-b-2 border-b-white hover:border-b-blue-500 focus:outline-none p-4 cursor-pointer border-l-2 border-l-gray-200 ${selectedItem === "kategori" ? "border-blue-500" : ""
-            }`}
-          onClick={() => handleItemClick("category")}
+          className={`flex items-center bg-white border-b-2 border-b-white hover:border-b-blue-500 focus:outline-none p-4 cursor-pointer border-l-2 border-l-gray-200 ${selected === "category" ? "border-blue-500" : ""}`}
+          onClick={() => handleTabChange("category")}
         >
           <FaTag size={24} />
           <h2 className="text-lg font-bold ml-2">Kategori</h2>
         </div>
       </div>
+
       <div className="w-full pb-6">
-        {selectedItem === "menu" && (
+
+        {selected === "menu" && (
           <div>
             <div className="flex justify-between py-2 mb-6">
               <h1 className="text-3xl font-bold">Menu</h1>
               <div className="flex space-x-4">
-                {/* Export menu Button */}
                 <button
                   onClick={() => console.log('Impor Menu')}
                   className="bg-white text-blue-500 px-4 py-2 rounded border border-blue-500 hover:text-white hover:bg-blue-500"
@@ -108,7 +148,6 @@ const Menu = () => {
                   Impor Menu
                 </button>
 
-                {/* Import menu Button */}
                 <button
                   onClick={() => console.log('Ekspor Menu')}
                   className="bg-white text-blue-500 px-4 py-2 rounded border border-blue-500 hover:text-white hover:bg-blue-500"
@@ -116,45 +155,36 @@ const Menu = () => {
                   Ekspor Menu
                 </button>
 
-                {/* Button to create a new item */}
                 <Link
-                  to="/admin/menu-create" // Specify the route you want to navigate to
+                  to="/admin/menu-create"
                   className="bg-blue-500 text-white px-4 py-2 rounded inline-block"
                 >
                   Tambah Menu
                 </Link>
               </div>
             </div>
+
             <div className="flex space-x-4 mb-4">
               {/* Filter by Category */}
               <div className="flex-1">
                 <label className="block mb-2 font-medium text-lg">Kategori:</label>
                 <select
                   value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
                   className="border rounded px-2 py-1 w-full"
                 >
-                  {/* Menampilkan "Semua Kategori" di atas */}
+
+                  {/* Add "Semua Kategori" as an option */}
                   <option value="Semua Kategori">Semua Kategori</option>
 
-                  {/* Mengurutkan kategori lainnya secara alfabet dan menampilkan */}
                   {categories
-                    .filter(category => category !== "Semua Kategori") // Menghilangkan "Semua Kategori" dari daftar kategori
-                    .sort((a, b) => a.localeCompare(b)) // Mengurutkan kategori secara alfabet
+                    .filter(category => category !== "Semua Kategori")
+                    .sort((a, b) => a.localeCompare(b))
                     .map((category) => (
                       <option key={category} value={category}>
                         {category}
                       </option>
                     ))}
-                </select>
-              </div>
-
-              {/* Filter by Outlet */}
-              <div className="flex-1">
-                <label className="block mb-2 font-medium text-lg">Outlet:</label>
-                <select
-                  className="border rounded px-2 py-1 w-full"
-                >
                 </select>
               </div>
 
@@ -171,7 +201,7 @@ const Menu = () => {
               </div>
             </div>
 
-            {/* Tabel menu */}
+            {/* Menu Table */}
             <div className="w-full mt-4 shadow-md rounded">
               <table className="w-full table-auto">
                 <thead>
@@ -185,7 +215,6 @@ const Menu = () => {
                 </thead>
                 <tbody>
                   {currentItems.map((item) => (
-
                     <tr key={item._id} className="hover:bg-gray-100">
                       <td className="px-4 py-2"></td>
                       <td className="px-4 py-2">
@@ -201,40 +230,15 @@ const Menu = () => {
                         </div>
                       </td>
                       <td className="px-4 py-2">
-                        {item.category.map((category, index) => {
-                          // Memeriksa apakah kategori adalah 'recommended' atau 'breakfast'
-                          const isRecommended = category.toLowerCase() === "recommended";
-                          const isBreakfast = category.toLowerCase() === "breakfast";
-
-                          // Tentukan kelas dan gaya berdasarkan kategori
-                          let categoryClass = "";
-                          let style = {};
-
-                          if (isRecommended) {
-                            categoryClass = "bg-green-500 text-white px-2 py-1 rounded"; // Warna hijau untuk recommended
-                            style.fontWeight = "bold";
-                          } else if (isBreakfast) {
-                            categoryClass = "bg-amber-800 text-white px-2 py-1 rounded"; // Warna coklat untuk breakfast
-                          }
-
-                          return (
-                            <span
-                              key={index}
-                              className={`inline-block mr-2 ${categoryClass}`} // Kelas untuk kategori tertentu
-                              style={style}
-                            >
-                              {category}
-                            </span>
-                          );
-                        })}
+                        {item.category.join(", ")}
                       </td>
                       <td className="px-4 py-2">{item.price}</td>
                       <td className="px-4 py-2">
-                        {/* Dropdown */}
+                        {/* Dropdown Menu */}
                         <div className="relative text-right">
                           <button
                             className="px-2 bg-white border border-gray-200 hover:border-none hover:bg-green-800 rounded-sm"
-                            onClick={() => toggleDropdown(item._id)}
+                            onClick={() => setOpenDropdown(openDropdown === item._id ? null : item._id)}
                           >
                             <span className="text-xl text-gray-200 hover:text-white">
                               •••
@@ -245,25 +249,19 @@ const Menu = () => {
                               <ul className="py-2">
                                 <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
                                   <Link
-                                    to={`/admin/menu-update/${item._id}`} // Navigate to the edit page for the specific item
+                                    to={`/admin/menu-update/${item._id}`}
                                     className="block bg-transparent"
                                   >
                                     Edit
                                   </Link>
-
-                                  {editingMenu && (
-                                    <UpdateMenu
-                                      menu={editingMenu}
-                                      fetchMenuItems={fetchMenuItems}
-                                      onCancel={() => setEditingMenu(null)}
-                                    />
-                                  )}
                                 </li>
                                 <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
-                                  <DeleteMenus
-                                    id={item._id}
-                                    fetchMenus={fetchMenuItems}
-                                  />
+                                  <button onClick={() => {
+                                    setItemToDelete(item._id);
+                                    setIsModalOpen(true);
+                                  }}>
+                                    Delete
+                                  </button>
                                 </li>
                               </ul>
                             </div>
@@ -276,17 +274,13 @@ const Menu = () => {
               </table>
             </div>
 
-
             {/* Pagination */}
             <div className="flex justify-center mt-4">
               {Array.from({ length: totalPages }, (_, i) => (
                 <button
                   key={i + 1}
                   onClick={() => setCurrentPage(i + 1)}
-                  className={`px-4 py-2 mx-1 rounded ${currentPage === i + 1
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200 text-gray-700"
-                    }`}
+                  className={`px-4 py-2 mx-1 rounded ${currentPage === i + 1 ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700"}`}
                 >
                   {i + 1}
                 </button>
@@ -294,13 +288,18 @@ const Menu = () => {
             </div>
           </div>
         )}
-        {selectedItem === "category" && (
+
+        {selected === "category" && (
           <div>
-            {/* Options */}
-            <CategoryMenu />
+            <CategoryIndex />
           </div>
         )}
       </div>
+      <ConfirmationModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={() => handleDelete(itemToDelete)}
+      />
     </div>
   );
 };
