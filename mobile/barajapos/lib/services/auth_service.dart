@@ -17,7 +17,8 @@ class AuthService {
           "password": password,
         },
       );
-      print('response awal : ${response.data}');
+      // print('response awal : ${response.data}');
+      print('response awal Login');
       return response.data;
     } on DioException catch (e) {
       throw ApiResponseHandler.handleError(e);
