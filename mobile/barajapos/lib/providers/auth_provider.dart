@@ -1,9 +1,13 @@
 import 'package:barajapos/providers/message_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/user_model.dart';
+import 'package:hive_ce/hive.dart';
+import '../models/adapter/user.model.dart';
+import '../models/adapter/cashier.model.dart';
 import '../repositories/auth_repository.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
+import 'package:bcrypt/bcrypt.dart';
+import 'package:collection/collection.dart';
 
 final authServiceProvider = Provider((ref) => AuthService());
 final storageServiceProvider = Provider((ref) => StorageService());
@@ -53,8 +57,13 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
   }
 
   Future<void> logout() async {
-    await _authRepository.logout();
+    // await _authRepository.logout();
     state = const AsyncValue.data(null);
+    ref.read(selectedCashierProvider.notifier).state = null;
+    ref.read(messageProvider.notifier).clearMessage();
+    //delete data user di hive
+    final box = Hive.box('userBox');
+    await box.delete('user');
   }
 
   Future<void> checkLoginStatus() async {
@@ -68,3 +77,54 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     }
   }
 }
+
+class CashierNotifier extends StateNotifier<AsyncValue<CashierModel?>> {
+  final Ref ref;
+
+  CashierNotifier(this.ref) : super(const AsyncValue.data(null));
+
+  Future<void> login(CashierModel cashier) async {
+    state = AsyncValue.data(cashier);
+  }
+
+  Future<void> logincashier(CashierModel cashier, String pinCashier) async {
+    try {
+      final box = Hive.box('userBox');
+      final manager = box.get('user') as UserModel?;
+
+      if (manager == null || manager.cashiers == null) {
+        throw Exception("Data manager tidak ditemukan");
+      }
+
+      // Cari kasir berdasarkan ID
+      final matchedCashier = manager.cashiers!.firstWhereOrNull(
+        (c) => c.id == cashier.id,
+      );
+
+      // Validasi PIN
+      if (matchedCashier == null ||
+          !BCrypt.checkpw(pinCashier, matchedCashier.password!)) {
+        throw Exception("PIN salah");
+      }
+
+      // Jika berhasil, set state ke kasir yang login
+      state = AsyncValue.data(matchedCashier);
+    } catch (e) {
+      state = AsyncValue.error(e, StackTrace.current);
+      ref.read(messageProvider.notifier).showMessage(e.toString());
+    }
+  }
+
+  void logout() {
+    state = const AsyncValue.data(null);
+    ref.read(selectedCashierProvider.notifier).state = null;
+  }
+}
+
+final authCashierProvider =
+    StateNotifierProvider<CashierNotifier, AsyncValue<CashierModel?>>(
+  (ref) => CashierNotifier(ref),
+);
+
+//state onselected cashier
+final selectedCashierProvider = StateProvider<CashierModel?>((ref) => null);

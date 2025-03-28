@@ -47,7 +47,7 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
             Button(
               style: ButtonVariance.secondary,
               child: const Icon(RadixIcons.exit),
-              onPressed: () => ref.read(authProvider.notifier).logout(),
+              onPressed: () => ref.read(authCashierProvider.notifier).logout(),
             ),
           ],
         ),

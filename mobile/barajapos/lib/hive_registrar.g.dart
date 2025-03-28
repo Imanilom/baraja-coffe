@@ -5,14 +5,18 @@
 import 'package:hive_ce/hive.dart';
 import 'package:barajapos/models/adapter/addon.model.dart';
 import 'package:barajapos/models/adapter/addon_option.model.dart';
+import 'package:barajapos/models/adapter/cashier.model.dart';
 import 'package:barajapos/models/adapter/menu_item.model.dart';
 import 'package:barajapos/models/adapter/topping.model.dart';
+import 'package:barajapos/models/adapter/user.model.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
     registerAdapter(AddonModelAdapter());
     registerAdapter(AddonOptionModelAdapter());
+    registerAdapter(CashierModelAdapter());
     registerAdapter(MenuItemModelAdapter());
     registerAdapter(ToppingModelAdapter());
+    registerAdapter(UserModelAdapter());
   }
 }

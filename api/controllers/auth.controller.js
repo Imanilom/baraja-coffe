@@ -82,7 +82,7 @@ export const signin = async (req, res, next) => {
 
     let user = null;
     let tokenExpiry = "1h";
-
+    let cashiers = null;
 
     if (typeof identifier === "string" && identifier.includes("@")) {
 
@@ -103,16 +103,16 @@ export const signin = async (req, res, next) => {
         return next(errorHandler(403, "Access denied"));
       }
       tokenExpiry = "15m";
-    }
-    const cashier = [];
-    if (user.role === "admin") {
-      //mencari user yang rolenya casir pada outlet yang smaa dengan admin?
-      const cashiers = await User.find({
-        role: ["cashier junior", "cashier senior"],
-      }).populate("outlet.outletId", "admin");
+      if (user.role === "admin") {
+        //mencari user yang rolenya casir pada outlet yang smaa dengan admin?
+        let cashier = await User.find({
+          role: ["cashier junior", "cashier senior"],
+        }).populate("outlet.outletId", "admin");
 
-      cashier = cashiers;
+        cashiers = cashier;
+      }
     }
+
 
     if (!user) return next(errorHandler(404, "User not found"));
 
@@ -131,7 +131,7 @@ export const signin = async (req, res, next) => {
     res.cookie("access_token", token, {
       httpOnly: true,
       maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 7 hari atau 1 hari dalam ms
-    }).status(200).json(user.role !== "admin" ? { ...rest, token } : { ...rest, token, cashier });
+    }).status(200).json(user.role !== "admin" ? { ...rest, token } : { ...rest, token, cashiers });
 
   } catch (error) {
     next(error);
