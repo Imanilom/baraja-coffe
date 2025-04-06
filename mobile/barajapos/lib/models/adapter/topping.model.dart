@@ -8,14 +8,22 @@ class ToppingModel {
   final String? id;
 
   @HiveField(1)
-  final double name;
+  final String name;
 
   @HiveField(2)
-  final String price;
+  final int price;
 
   ToppingModel({
     this.id,
     required this.name,
     required this.price,
   });
+
+  factory ToppingModel.fromJson(Map<String, dynamic> json) {
+    return ToppingModel(
+      id: json['_id'],
+      name: json['name'],
+      price: json['price'],
+    );
+  }
 }

@@ -1,7 +1,10 @@
 // import 'package:barajapos/models/order_detail_model.dart';
 import 'package:barajapos/utils/format_rupiah.dart';
 import 'package:flutter/material.dart';
-import 'package:barajapos/models/menu_item_model.dart';
+import 'package:barajapos/models/adapter/menu_item.model.dart';
+import 'package:barajapos/models/adapter/topping.model.dart';
+import 'package:barajapos/models/adapter/addon.model.dart';
+import 'package:barajapos/models/adapter/addon_option.model.dart';
 import 'package:barajapos/models/order_item_model.dart';
 
 class OrderOptionDialogs extends StatefulWidget {
@@ -75,7 +78,7 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
             ],
           ),
           // Pilih Topping,
-          if (widget.menuItem.toppings.isNotEmpty)
+          if (widget.menuItem.toppings!.isNotEmpty)
             const Text(
               'Topping',
               style: TextStyle(
@@ -224,7 +227,7 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
     // data toping diambil dari menu item itu sendiri
     final toppings = widget.menuItem.toppings;
 
-    return toppings.map((topping) {
+    return toppings!.map((topping) {
       return CheckboxListTile(
         title: Text(topping.name),
         subtitle: Text(formatRupiah(topping.price)),

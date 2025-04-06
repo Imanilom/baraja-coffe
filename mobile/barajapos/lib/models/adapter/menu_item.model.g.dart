@@ -19,7 +19,7 @@ class MenuItemModelAdapter extends TypeAdapter<MenuItemModel> {
     return MenuItemModel(
       id: fields[1] as String,
       name: fields[2] as String,
-      price: (fields[3] as num).toDouble(),
+      price: (fields[3] as num).toInt(),
       description: fields[4] as String,
       categories: (fields[5] as List).cast<String>(),
       imageURL: fields[6] as String,

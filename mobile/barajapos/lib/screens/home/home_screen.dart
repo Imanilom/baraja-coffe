@@ -1,12 +1,9 @@
-import 'package:barajapos/models/order_item_model.dart';
-import 'package:barajapos/providers/orders/order_item_provider.dart';
+import 'package:barajapos/models/adapter/order_item.model.dart';
 import 'package:barajapos/widgets/cards/menu_item_card.dart';
 import 'package:barajapos/widgets/sheets/order_item_options_sheet.dart';
-import 'package:flutter/material.dart' as material;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:barajapos/providers/menu_item_provider.dart';
 import 'package:barajapos/providers/order_detail_providers/order_detail_provider.dart';
-import 'package:barajapos/widgets/dialogs/order_option_dialogs.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -17,6 +14,8 @@ class HomeScreen extends ConsumerWidget {
     final menu = ref.watch(menuItemProvider);
     final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
     final orderDetail = ref.watch(orderDetailProvider);
+
+    print('menu item di UI ${menu.value}');
     return Row(
       children: [
         NavigationRail(
@@ -36,6 +35,7 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
         const VerticalDivider(),
+        //menampilkan menuItems
         Expanded(
           child: Scaffold(
             backgroundColor: Colors.gray[100],
@@ -43,6 +43,9 @@ class HomeScreen extends ConsumerWidget {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, stack) => Center(child: Text('Error: $error')),
               data: (menuItems) {
+                if (menuItems.isEmpty) {
+                  return const Center(child: Text("Tidak ada menu tersedia"));
+                }
                 return GridView.builder(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 4,
@@ -59,7 +62,6 @@ class HomeScreen extends ConsumerWidget {
                       menuItem: menuItem,
                       onTap: () {
                         if (orderDetail == null) {
-                          print('Initialize order dulu');
                           orderDetailNotifier.initializeOrder(
                             orderType: 'dine-in', // Default order type
                           );
@@ -69,18 +71,13 @@ class HomeScreen extends ConsumerWidget {
                           context: context,
                           position: OverlayPosition.bottom,
                           draggable: true,
-                          // builder: (context) => OrderOptionDialogs(
-                          //       menuItem: menuItem,
-                          //       onAddToOrder: (orderItem) =>
-                          //           orderDetailNotifier
-                          //               .addItemToOrder(orderItem),
-                          //     )
                           builder: (context) {
                             return OrderItemOptionsSheet(
                               orderItem: OrderItemModel(
                                 menuItem: menuItem,
                                 quantity: 1,
                                 selectedToppings: [],
+                                // selectedAddons: [],
                                 selectedAddons: menuItem.addons != []
                                     ? menuItem.addons!
                                         .map(
@@ -99,16 +96,6 @@ class HomeScreen extends ConsumerWidget {
                             );
                           },
                         );
-                        // material.showBottomSheet(
-                        //   context: context,
-                        //   builder: (context) {
-                        //     return OrderOptionDialogs(
-                        //       menuItem: menuItem,
-                        //       onAddToOrder: (orderItem) =>
-                        //           orderDetailNotifier.addItemToOrder(orderItem),
-                        //     );
-                        //   },
-                        // );
                       },
                     );
                   },
@@ -116,6 +103,9 @@ class HomeScreen extends ConsumerWidget {
               },
             ),
           ),
+          // child: Center(
+          //   child: Text('Menu'),
+          // ),
         ),
       ],
     );

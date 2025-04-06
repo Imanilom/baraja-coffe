@@ -7,6 +7,8 @@ import 'package:barajapos/models/adapter/addon.model.dart';
 import 'package:barajapos/models/adapter/addon_option.model.dart';
 import 'package:barajapos/models/adapter/cashier.model.dart';
 import 'package:barajapos/models/adapter/menu_item.model.dart';
+import 'package:barajapos/models/adapter/order_detail.model.dart';
+import 'package:barajapos/models/adapter/order_item.model.dart';
 import 'package:barajapos/models/adapter/topping.model.dart';
 import 'package:barajapos/models/adapter/user.model.dart';
 
@@ -16,6 +18,8 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(AddonOptionModelAdapter());
     registerAdapter(CashierModelAdapter());
     registerAdapter(MenuItemModelAdapter());
+    registerAdapter(OrderDetailModelAdapter());
+    registerAdapter(OrderItemModelAdapter());
     registerAdapter(ToppingModelAdapter());
     registerAdapter(UserModelAdapter());
   }

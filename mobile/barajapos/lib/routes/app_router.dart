@@ -35,8 +35,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const LoginCashierScreen(),
       ),
       GoRoute(
-          path: '/pin-input',
-          builder: (context, state) => const PinInputScreen()),
+        path: '/pin-input',
+        builder: (context, state) => const PinInputScreen(),
+      ),
       GoRoute(path: '/main', builder: (context, state) => const MainScreen()),
     ],
   );

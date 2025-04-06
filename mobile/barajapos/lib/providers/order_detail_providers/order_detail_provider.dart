@@ -1,6 +1,7 @@
-import 'package:barajapos/models/menu_item_model.dart';
-import 'package:barajapos/models/order_detail_model.dart';
-import 'package:barajapos/models/order_item_model.dart';
+import 'package:barajapos/models/adapter/topping.model.dart';
+import 'package:barajapos/models/adapter/addon.model.dart';
+import 'package:barajapos/models/adapter/order_detail.model.dart';
+import 'package:barajapos/models/adapter/order_item.model.dart';
 import 'package:barajapos/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
@@ -58,18 +59,27 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   // Tambahkan menu ke daftar pesanan
   void addItemToOrder(OrderItemModel orderItem) {
+    print('memeriksa apakah menu item sudah ada....');
     final existingOrderItemIndex = state!.items.indexWhere(
       (item) =>
           item.menuItem.id == orderItem.menuItem.id &&
           _areToppingsEqual(
               item.selectedToppings, orderItem.selectedToppings) &&
           _areAddonsEqual(item.selectedAddons, orderItem.selectedAddons),
-    );
+    ); //letak errornya disiini
+    print('mendapatkan index: $existingOrderItemIndex');
     if (existingOrderItemIndex != -1) {
+      print('menu item yang sudah ada');
       // Jika menu item sudah ada, tambahkan quantity-nya
-      state?.items[existingOrderItemIndex].quantity += orderItem.quantity;
-      state = state!.copyWith(items: state!.items);
+      final updatedItem = state!.items[existingOrderItemIndex].copyWith(
+          quantity: state!.items[existingOrderItemIndex].quantity +
+              orderItem.quantity);
+      final updatedItems = [...state!.items];
+      updatedItems[existingOrderItemIndex] = updatedItem;
+      state = state!.copyWith(items: updatedItems);
     } else {
+      print('menu item yang belum ada');
+
       // Jika menu item belum ada, tambahkan ke daftar pesanan
       state = state!.copyWith(items: [...state!.items, orderItem]);
     }
@@ -133,11 +143,18 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Hitung total harga dari daftar pesanan
-  double get totalPrice {
+  int get totalPrice {
     if (state != null) {
       return state!.items.fold(
         0,
-        (sum, item) => sum + item.subTotalPrice,
+        (sum, item) =>
+            sum +
+            item.calculateSubTotalPrice(
+              menuItem: item.menuItem,
+              selectedToppings: item.selectedToppings,
+              selectedAddons: item.selectedAddons,
+              quantity: item.quantity,
+            ),
       );
     } else {
       return 0;

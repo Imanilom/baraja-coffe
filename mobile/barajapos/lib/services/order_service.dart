@@ -1,4 +1,4 @@
-import 'package:barajapos/models/order_detail_model.dart';
+import 'package:barajapos/models/adapter/order_detail.model.dart';
 import 'package:barajapos/services/api_response_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:barajapos/configs/app_config.dart';
@@ -13,7 +13,7 @@ class OrderService {
       print('start create order...'); //
       Response response = await _dio.post(
         '/api/order',
-        data: orderDetail.toJson(),
+        // data: orderDetail.toJson(),
       );
       return response.data;
     } on DioException catch (e) {

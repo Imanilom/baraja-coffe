@@ -1,4 +1,4 @@
-import 'package:barajapos/models/order_detail_model.dart';
+import 'package:barajapos/models/adapter/order_detail.model.dart';
 import 'package:barajapos/providers/auth_provider.dart';
 import 'package:barajapos/providers/navigation_provider.dart';
 import 'package:barajapos/providers/order_detail_providers/saved_order_detail_provider.dart';
@@ -17,7 +17,7 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
   @override
   Widget build(BuildContext context, riverpod.WidgetRef ref) {
     final currenIndex = ref.watch(navigationProvider);
-    double totalPrices = 0;
+    int totalPrices = 0;
     OrderDetailModel? orderDetail;
     String onNull = 'Pilih detail pesanan';
 
@@ -183,7 +183,12 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
                                   Text(
                                       'Addons: ${orderItem.selectedAddons.map((a) => a.options.map((o) => o.label).join(', ')).join(', ')}'),
                               Text(
-                                  'Sub total: ${formatRupiah(orderItem.subTotalPrice)}'),
+                                  'Sub total: ${formatRupiah(orderItem.calculateSubTotalPrice(
+                                menuItem: orderItem.menuItem,
+                                selectedToppings: orderItem.selectedToppings,
+                                selectedAddons: orderItem.selectedAddons,
+                                quantity: orderItem.quantity,
+                              ))}'),
                             ],
                           ),
                           trailing: currenIndex == 0

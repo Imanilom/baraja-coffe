@@ -1,11 +1,13 @@
-import 'package:barajapos/models/menu_item_model.dart';
+import 'package:barajapos/models/adapter/menu_item.model.dart';
+import 'package:barajapos/models/adapter/topping.model.dart';
+import 'package:barajapos/models/adapter/addon.model.dart';
 
 class OrderItemModel {
   final MenuItemModel menuItem;
   final List<ToppingModel> selectedToppings;
   final List<AddonModel> selectedAddons;
   int quantity;
-  // final double? subtotal;
+  // final int? subtotal;
   // final String note = '';
 
   OrderItemModel({
@@ -16,13 +18,13 @@ class OrderItemModel {
     // this.subtotal,
   });
 
-  double get subTotalPrice {
-    double total = menuItem.price;
+  int get subTotalPrice {
+    int total = menuItem.price;
     total += selectedToppings.fold(0, (sum, topping) => sum + topping.price);
     total += selectedAddons.fold(
-        0.0,
+        0,
         (sum, addon) =>
-            sum + addon.options.fold(0.0, (sum, option) => sum + option.price));
+            sum + addon.options.fold(0, (sum, option) => sum + option.price));
     return total * quantity;
   }
 
@@ -35,7 +37,7 @@ class OrderItemModel {
     int? quantity,
     List<ToppingModel>? selectedToppings,
     List<AddonModel>? selectedAddons,
-    double? subTotalPrice,
+    int? subTotalPrice,
   }) {
     return OrderItemModel(
       menuItem: menuItem ?? this.menuItem,
