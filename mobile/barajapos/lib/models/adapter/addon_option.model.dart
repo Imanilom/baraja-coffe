@@ -8,14 +8,27 @@ class AddonOptionModel {
   final String? id;
 
   @HiveField(1)
-  final String name;
+  final String label;
 
   @HiveField(2)
-  final double price;
+  final bool? isDefault;
+
+  @HiveField(3)
+  final int price;
 
   AddonOptionModel({
     this.id,
-    required this.name,
+    required this.label,
+    this.isDefault,
     required this.price,
   });
+
+  factory AddonOptionModel.fromJson(Map<String, dynamic> json) {
+    return AddonOptionModel(
+      id: json['_id'],
+      label: json['label'],
+      isDefault: json['isDefault'],
+      price: json['price'],
+    );
+  }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:barajapos/models/menu_item_model.dart';
-import 'package:barajapos/models/order_item_model.dart';
+import 'package:barajapos/models/adapter/topping.model.dart';
+import 'package:barajapos/models/adapter/addon.model.dart';
+import 'package:barajapos/models/adapter/addon_option.model.dart';
+import 'package:barajapos/models/adapter/order_item.model.dart';
 
 class EditOrderItemDialog extends StatefulWidget {
   final OrderItemModel orderItem;
@@ -96,10 +98,10 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               ),
             ],
           ),
-          if (menuItem.toppings.isNotEmpty)
+          if (menuItem.toppings!.isNotEmpty)
             const Text('Topping:',
                 style: TextStyle(fontWeight: FontWeight.bold)),
-          ..._buildToppingList(menuItem.toppings, selectedToppings, (topping) {
+          ..._buildToppingList(menuItem.toppings!, selectedToppings, (topping) {
             setState(() {
               if (selectedToppings.contains(topping)) {
                 selectedToppings.remove(topping);

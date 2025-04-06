@@ -3,12 +3,10 @@ import 'package:barajapos/providers/auth_provider.dart';
 import 'package:barajapos/providers/message_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
-// import 'package:barajapos/models/user_model.dart';
-// import 'package:barajapos/services/hive_service.dart';
 import 'package:bcrypt/bcrypt.dart';
+import 'package:barajapos/widgets/inputs/pin_input.dart';
 
 class LoginCashierScreen extends ConsumerWidget {
   const LoginCashierScreen({super.key});
@@ -19,6 +17,9 @@ class LoginCashierScreen extends ConsumerWidget {
     final manager = box.get('user') as UserModel;
 
     final currentCashier = ref.watch(selectedCashierProvider);
+
+    //membuat isvalidate provider boolean
+    final isValid = StateProvider<bool>((ref) => false);
 
     //menampilkan message
     ref.listen(messageProvider, (previous, next) {
@@ -49,97 +50,74 @@ class LoginCashierScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: Row(children: [
-        Expanded(
-          child: ListView.builder(
-            itemCount: manager.cashiers!.length,
-            itemBuilder: (context, index) {
-              final cashier = manager.cashiers![index];
+      body: Row(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              itemCount: manager.cashiers!.length,
+              itemBuilder: (context, index) {
+                final cashier = manager.cashiers![index];
 
-              final selectedCashier =
-                  ref.read(selectedCashierProvider.notifier);
-              return ListTile(
-                title: Text(cashier.username!),
-                leading: const Icon(Icons.person),
-                trailing: const Icon(Icons.arrow_forward),
-                subtitle: Text(cashier.role!),
-                onTap: () {
-                  selectedCashier.state = null;
-                  selectedCashier.state = cashier;
-                  context.go('/pin-input');
-                },
-              );
-            },
+                final selectedCashier =
+                    ref.read(selectedCashierProvider.notifier);
+                return ListTile(
+                  selected: cashier.username == currentCashier?.username,
+                  title: Text(cashier.username!),
+                  leading: const Icon(Icons.person),
+                  subtitle: Text(cashier.role!),
+                  trailing: Icon(cashier.username == currentCashier?.username
+                      ? Icons.circle
+                      : Icons.arrow_forward),
+                  onTap: () {
+                    selectedCashier.state = null;
+                    selectedCashier.state = cashier;
+                  },
+                );
+              },
+            ),
           ),
-        ),
-        // Expanded(
-        //   child: SingleChildScrollView(
-        //     keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        //     child: Center(
-        //       child: currentCashier == null
-        //           ? const Text('Pilih kasir untuk login')
-        //           : Card(
-        //               child: Column(
-        //                 mainAxisSize: MainAxisSize.min,
-        //                 children: [
-        //                   const Text('Masukan PIN'),
-        //                   InputOTP(
-        //                     onChanged: (value) {},
-        //                     onSubmitted: (value) {
-        //                       print('value: ${value.otpToString()}');
-        //                       // ref.read(authCashierProvider.notifier).login(cashier);
-        //                       bool isValid = BCrypt.checkpw(
-        //                         value.otpToString(),
-        //                         currentCashier.password!,
-        //                       );
+          Expanded(
+            child: Container(
+              color: Colors.grey[200],
+              child: Center(
+                child: currentCashier == null
+                    ? const Text('Pilih kasir untuk masuk')
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: PinInput(
+                          pinLength: 4,
+                          onCompleted: (pin) async {
+                            ref.read(isValid.notifier).state = BCrypt.checkpw(
+                              pin.toString(),
+                              currentCashier.password!,
+                            );
 
-        //                       if (isValid) {
-        //                         // Simpan kasir ke state
-        //                         print('passwordnya benar');
-        //                         ref
-        //                             .read(authCashierProvider.notifier)
-        //                             .login(currentCashier);
-        //                         // context.go('/main'); // Pindah ke halaman utama
-        //                       } else {
-        //                         showToast(
-        //                           context: context,
-        //                           builder: (context, overlay) =>
-        //                               const SurfaceCard(
-        //                             child: Basic(
-        //                               title: Text('pin Salah'),
-        //                               trailingAlignment: Alignment.center,
-        //                             ),
-        //                           ),
-        //                           location: ToastLocation.bottomCenter,
-        //                         );
-        //                       }
-        //                     },
-        //                     children: [
-        //                       InputOTPChild.character(
-        //                         allowDigit: true,
-        //                         obscured: true,
-        //                       ),
-        //                       InputOTPChild.character(
-        //                         allowDigit: true,
-        //                         obscured: true,
-        //                       ),
-        //                       InputOTPChild.character(
-        //                         allowDigit: true,
-        //                         obscured: true,
-        //                       ),
-        //                       InputOTPChild.character(
-        //                         allowDigit: true,
-        //                         obscured: true,
-        //                       ),
-        //                     ],
-        //                   ),
-        //                 ],
-        //               ).gap(8),
-        //             ),
-        //     ),
-        //   ),
-        // ),
-      ]),
+                            if (ref.watch(isValid)) {
+                              ref
+                                  .read(authCashierProvider.notifier)
+                                  .login(currentCashier);
+                            } else {
+                              shadcn.showToast(
+                                context: context,
+                                builder: (context, overlay) =>
+                                    const shadcn.SurfaceCard(
+                                  child: shadcn.Basic(
+                                    title: Text('PIN Salah'),
+                                    trailingAlignment: Alignment.center,
+                                  ),
+                                ),
+                                location: shadcn.ToastLocation.bottomCenter,
+                              );
+                            }
+                            return ref.watch(isValid);
+                          },
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -15,4 +15,18 @@ abstract class AddonModel with _$AddonModel {
     @HiveField(3) String? type,
     @HiveField(4) required List<AddonOptionModel> options,
   }) = _AddonModel;
+
+  factory AddonModel.fromJson(Map<String, dynamic> json) {
+    final List<AddonOptionModel> options = json['options'] != null
+        ? List<AddonOptionModel>.from(
+            json['options'].map((x) => AddonOptionModel.fromJson(x)))
+        : [];
+
+    return AddonModel(
+      id: json['_id'],
+      name: json['name'],
+      type: json['type'],
+      options: options,
+    );
+  }
 }

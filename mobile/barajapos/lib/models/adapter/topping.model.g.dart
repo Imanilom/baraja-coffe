@@ -18,8 +18,8 @@ class ToppingModelAdapter extends TypeAdapter<ToppingModel> {
     };
     return ToppingModel(
       id: fields[0] as String?,
-      name: (fields[1] as num).toDouble(),
-      price: fields[2] as String,
+      name: fields[1] as String,
+      price: (fields[2] as num).toInt(),
     );
   }
 

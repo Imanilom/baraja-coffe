@@ -1,5 +1,5 @@
 // import 'package:flutter/material.dart';
-import 'package:barajapos/models/menu_item_model.dart';
+import 'package:barajapos/models/adapter/menu_item.model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 

@@ -20,7 +20,7 @@ mixin _$MenuItemModel {
   @HiveField(2)
   String get name;
   @HiveField(3)
-  double get price;
+  int get price;
   @HiveField(4)
   String get description;
   @HiveField(5)
@@ -85,7 +85,7 @@ abstract mixin class $MenuItemModelCopyWith<$Res> {
   $Res call(
       {@HiveField(1) String id,
       @HiveField(2) String name,
-      @HiveField(3) double price,
+      @HiveField(3) int price,
       @HiveField(4) String description,
       @HiveField(5) List<String> categories,
       @HiveField(6) String imageURL,
@@ -127,7 +127,7 @@ class _$MenuItemModelCopyWithImpl<$Res>
       price: null == price
           ? _self.price
           : price // ignore: cast_nullable_to_non_nullable
-              as double,
+              as int,
       description: null == description
           ? _self.description
           : description // ignore: cast_nullable_to_non_nullable
@@ -176,7 +176,7 @@ class _MenuItemModel implements MenuItemModel {
   final String name;
   @override
   @HiveField(3)
-  final double price;
+  final int price;
   @override
   @HiveField(4)
   final String description;
@@ -269,7 +269,7 @@ abstract mixin class _$MenuItemModelCopyWith<$Res>
   $Res call(
       {@HiveField(1) String id,
       @HiveField(2) String name,
-      @HiveField(3) double price,
+      @HiveField(3) int price,
       @HiveField(4) String description,
       @HiveField(5) List<String> categories,
       @HiveField(6) String imageURL,
@@ -311,7 +311,7 @@ class __$MenuItemModelCopyWithImpl<$Res>
       price: null == price
           ? _self.price
           : price // ignore: cast_nullable_to_non_nullable
-              as double,
+              as int,
       description: null == description
           ? _self.description
           : description // ignore: cast_nullable_to_non_nullable
