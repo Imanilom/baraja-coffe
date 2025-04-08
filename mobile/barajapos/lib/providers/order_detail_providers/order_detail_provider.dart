@@ -1,6 +1,7 @@
 import 'package:barajapos/models/menu_item_model.dart';
 import 'package:barajapos/models/order_detail_model.dart';
 import 'package:barajapos/models/order_item_model.dart';
+import 'package:barajapos/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
 
@@ -9,18 +10,35 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   /// this method does nothing. Otherwise, it creates a ,new `OrderDetailModel`
   void initializeOrder({
-    required String cashierId,
     required String orderType,
   }) {
     print('condition Initialize order');
     if (state != null) return;
     print('Initialize order');
     state = OrderDetailModel(
-      cashierId: cashierId,
-      customerName: '',
       orderType: orderType,
       items: [],
     );
+  }
+
+  void addOrderFromSavedOrderDetail(OrderDetailModel orderDetail) {
+    clearOrder();
+    state = orderDetail;
+  }
+
+  // Set order type (dine-in, take away, delivery)
+  void updateOrderType(String orderType) {
+    if (state != null) {
+      state = state!.copyWith(orderType: orderType);
+      print('Order Type: $orderType');
+    }
+  }
+
+  // Set payment method
+  void updatePaymentMethod(String paymentMethod) {
+    if (state != null) {
+      state = state!.copyWith(paymentMethod: paymentMethod);
+    }
   }
 
   // Set customer name, phone number, dan table number
@@ -69,21 +87,21 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     return true;
   }
 
-  bool _areAddonsEqual(List<AddOnModel> addons1, List<AddOnModel> addons2) {
+  bool _areAddonsEqual(List<AddonModel> addons1, List<AddonModel> addons2) {
     if (addons1.length != addons2.length) return false;
     for (var i = 0; i < addons1.length; i++) {
-      if (addons1[i].id != addons2[i].id) return false;
+      if (addons1[i].options.first.id != addons2[i].options.first.id) {
+        return false;
+      }
     }
     return true;
   }
 
-  void removeItem(String menuItemId) {
-    if (state != null) {
-      state = state!.copyWith(
-        items: state!.items
-            .where((item) => item.menuItem.id != menuItemId)
-            .toList(),
-      );
+  void removeItem(OrderItemModel menuItem) {
+    final index = state!.items.indexOf(menuItem);
+    if (index != -1) {
+      state!.items.removeAt(index);
+      state = state!.copyWith(items: state!.items);
     }
   }
 
@@ -124,6 +142,21 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     } else {
       return 0;
     }
+  }
+
+  // Kirim data orderDetail ke backend
+  Future<bool> submitOrder() async {
+    try {
+      final order = await OrderService().createOrder(state!);
+      // print('Order ID: $order');
+      if (order.isNotEmpty) {
+        return true;
+      }
+    } catch (e) {
+      // print(e);
+      return false;
+    }
+    return false; // Return false if state is null
   }
 }
 

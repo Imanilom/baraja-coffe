@@ -44,7 +44,7 @@ class HistoryDetailProvider extends StateNotifier<List<OrderDetailModel?>> {
 }
 
 // Provider untuk HistoryDetailProvider
-final orderDetailProvider =
+final historyDetailProvider =
     StateNotifierProvider<HistoryDetailProvider, List<OrderDetailModel?>>(
         (ref) {
   return HistoryDetailProvider();

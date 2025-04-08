@@ -20,113 +20,201 @@ class OrderOptionDialogs extends StatefulWidget {
 
 class OrderOptionDialogsState extends State<OrderOptionDialogs> {
   List<ToppingModel> selectedToppings = [];
-  List<AddOnModel> selectedAddons = [];
+  List<AddonModel> selectedAddons = [];
   int quantity = 1;
 
   @override
+  void initState() {
+    super.initState();
+    _initializeDefaultAddons();
+  }
+
+  void _initializeDefaultAddons() {
+    setState(() {
+      selectedAddons = widget.menuItem.addons!.map((addon) {
+        return addon.copyWith(options: [addon.options.first]);
+      }).toList();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Pilih Topping & Addon untuk ${widget.menuItem.name}'),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Counter Quantity
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.remove),
-                    onPressed: () {
-                      setState(() {
-                        if (quantity > 1) {
-                          quantity--; // Kurangi quantity
-                        }
-                      });
-                    },
-                  ),
-                  Text(
-                    '$quantity',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () {
-                      setState(() {
-                        quantity++; // Tambah quantity
-                      });
-                    },
-                  ),
-                ],
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Counter Quantity,
+          Text('Pilih Topping & Addon untuk ${widget.menuItem.name}'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove),
+                onPressed: () {
+                  setState(() {
+                    if (quantity > 1) {
+                      quantity--; // Kurangi quantity
+                    }
+                  });
+                },
+              ),
+              Text(
+                '$quantity',
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () {
+                  setState(() {
+                    quantity++; // Tambah quantity
+                  });
+                },
+              ),
+            ],
+          ),
+          // Pilih Topping,
+          if (widget.menuItem.toppings.isNotEmpty)
+            const Text(
+              'Topping',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
               ),
             ),
-            // Pilih Topping,
-            if (widget.menuItem.toppings!.isNotEmpty)
-              const Text(
-                'Topping',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
 
-            ..._buildToppingList(selectedToppings, (ToppingModel topping) {
-              setState(() {
-                if (selectedToppings.contains(topping)) {
-                  selectedToppings.remove(topping);
-                } else {
-                  selectedToppings.add(topping);
-                }
-              });
-            }),
+          ..._buildToppingList(selectedToppings, (ToppingModel topping) {
+            setState(() {
+              if (selectedToppings.contains(topping)) {
+                selectedToppings.remove(topping);
+              } else {
+                selectedToppings.add(topping);
+              }
+            });
+          }),
 
-            // Pilih Addon
-            ..._buildAddonList(selectedAddons, (addon, selectedOption) {
-              setState(() {
-                final index =
-                    selectedAddons.indexWhere((a) => a.id == addon.id);
-                if (index != -1) {
-                  // Jika addon sudah dipilih, update opsi yang dipilih
-                  selectedAddons[index] =
-                      addon.copyWith(options: [selectedOption]);
-                } else {
-                  // Jika addon belum dipilih, tambahkan ke daftar
-                  selectedAddons.add(addon.copyWith(options: [selectedOption]));
-                }
-              });
-            }),
-          ],
-        ),
+          // Pilih Addon
+          ..._buildAddonList(selectedAddons, (addon, selectedOption) {
+            setState(() {
+              final index = selectedAddons.indexWhere((a) => a.id == addon.id);
+              if (index != -1) {
+                // Jika addon sudah dipilih, update opsi yang dipilih
+                selectedAddons[index] =
+                    addon.copyWith(options: [selectedOption]);
+              } else {
+                // Jika addon belum dipilih, tambahkan ke daftar
+                selectedAddons.add(addon.copyWith(options: [selectedOption]));
+              }
+            });
+          }),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          child: const Text('Batal'),
-        ),
-        TextButton(
-          onPressed: () {
-            // Buat OrderItem dan panggil callback
-            print(
-              'OrderItem: ${selectedToppings.map((topping) => topping.name)}, ${selectedAddons.map((addon) => addon.name)}',
-            );
-            final orderItem = OrderItemModel(
-              menuItem: widget.menuItem,
-              selectedToppings: selectedToppings,
-              selectedAddons: selectedAddons,
-              quantity: quantity,
-            );
-            widget.onAddToOrder(orderItem);
-            Navigator.pop(context);
-          },
-          child: const Text('Tambahkan'),
-        ),
-      ],
     );
+    // return AlertDialog(
+    //   title: Text('Pilih Topping & Addon untuk ${widget.menuItem.name}'),
+    //   content: SingleChildScrollView(
+    //     child: Padding(
+    //       padding: const EdgeInsets.all(8.0),
+    //       child: Column(
+    //         crossAxisAlignment: CrossAxisAlignment.start,
+    //         children: [
+    //           // Counter Quantity,
+    //           Text('Pilih Topping & Addon untuk ${widget.menuItem.name}'),
+    //           Row(
+    //             mainAxisAlignment: MainAxisAlignment.end,
+    //             children: [
+    //               IconButton(
+    //                 icon: const Icon(Icons.remove),
+    //                 onPressed: () {
+    //                   setState(() {
+    //                     if (quantity > 1) {
+    //                       quantity--; // Kurangi quantity
+    //                     }
+    //                   });
+    //                 },
+    //               ),
+    //               Text(
+    //                 '$quantity',
+    //                 style: const TextStyle(
+    //                     fontSize: 18, fontWeight: FontWeight.bold),
+    //               ),
+    //               IconButton(
+    //                 icon: const Icon(Icons.add),
+    //                 onPressed: () {
+    //                   setState(() {
+    //                     quantity++; // Tambah quantity
+    //                   });
+    //                 },
+    //               ),
+    //             ],
+    //           ),
+    //           // Pilih Topping,
+    //           if (widget.menuItem.toppings.isNotEmpty)
+    //             const Text(
+    //               'Topping',
+    //               style: TextStyle(
+    //                 fontWeight: FontWeight.bold,
+    //                 fontSize: 16,
+    //               ),
+    //             ),
+
+    //           ..._buildToppingList(selectedToppings, (ToppingModel topping) {
+    //             setState(() {
+    //               if (selectedToppings.contains(topping)) {
+    //                 selectedToppings.remove(topping);
+    //               } else {
+    //                 selectedToppings.add(topping);
+    //               }
+    //             });
+    //           }),
+
+    //           // Pilih Addon
+    //           ..._buildAddonList(selectedAddons, (addon, selectedOption) {
+    //             setState(() {
+    //               final index =
+    //                   selectedAddons.indexWhere((a) => a.id == addon.id);
+    //               if (index != -1) {
+    //                 // Jika addon sudah dipilih, update opsi yang dipilih
+    //                 selectedAddons[index] =
+    //                     addon.copyWith(options: [selectedOption]);
+    //               } else {
+    //                 // Jika addon belum dipilih, tambahkan ke daftar
+    //                 selectedAddons
+    //                     .add(addon.copyWith(options: [selectedOption]));
+    //               }
+    //             });
+    //           }),
+    //         ],
+    //       ),
+    //     ),
+    //   ),
+    //   actions: [
+    //     TextButton(
+    //       onPressed: () {
+    //         Navigator.pop(context);
+    //       },
+    //       child: const Text('Batal'),
+    //     ),
+    //     TextButton(
+    //       onPressed: () {
+    //         // Buat OrderItem dan panggil callback
+    //         print(
+    //           'OrderItem: ${selectedToppings.map((topping) => topping.name)}, ${selectedAddons.map((addon) => addon.name)}',
+    //         );
+    //         final orderItem = OrderItemModel(
+    //           menuItem: widget.menuItem,
+    //           selectedToppings: selectedToppings,
+    //           selectedAddons: selectedAddons,
+    //           quantity: quantity,
+    //         );
+    //         widget.onAddToOrder(orderItem);
+    //         Navigator.pop(context);
+    //       },
+    //       child: const Text('Tambahkan'),
+    //     ),
+    //   ],
+    // );
   }
 
   // Build daftar topping
@@ -136,7 +224,7 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
     // data toping diambil dari menu item itu sendiri
     final toppings = widget.menuItem.toppings;
 
-    return toppings!.map((topping) {
+    return toppings.map((topping) {
       return CheckboxListTile(
         title: Text(topping.name),
         subtitle: Text(formatRupiah(topping.price)),
@@ -149,26 +237,25 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
   }
 
   // Build daftar addon
-  List<Widget> _buildAddonList(List<AddOnModel> selectedAddons,
-      Function(AddOnModel, AddOnOptionModel) onAddonSelected) {
+  List<Widget> _buildAddonList(List<AddonModel> selectedAddons,
+      Function(AddonModel, AddonOptionModel) onAddonSelected) {
     // Contoh data addon (bisa diganti dengan data dari API)
-    final addons = widget.menuItem.addOns!;
+    final addons = widget.menuItem.addons!;
     print(addons);
     return addons.map((addon) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(addon!.name,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(addon.name, style: const TextStyle(fontWeight: FontWeight.bold)),
           ...addon.options.map((option) {
-            return RadioListTile<AddOnOptionModel>(
+            return RadioListTile<AddonOptionModel>(
               title: Text(option.label),
               subtitle: Text(formatRupiah(option.price)),
               value: option,
               groupValue: selectedAddons
                   .firstWhere((a) => a.id == addon.id,
                       orElse: () =>
-                          AddOnModel(id: '', name: '', type: '', options: []))
+                          addon.copyWith(options: [addon.options.first]))
                   .options
                   .firstOrNull,
               onChanged: (value) {

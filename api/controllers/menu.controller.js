@@ -243,11 +243,13 @@ export const getMenuItemById = async (req, res) => {
       id: menuItem._id,
       name: menuItem.name,
       price: menuItem.price,
+      description: menuItem.description, //description
       category: menuItem.category,
       imageURL: menuItem.imageURL,
       isAvailable: isMainAvailable, // Menentukan apakah menu utama tersedia
       toppings: menuItem.toppings,
       addons: menuItem.addons,
+      rawMaterials: menuItem.rawMaterials, // raw materials
       availableAt: menuItem.availableAt.map(outlet => outlet.toObject()),
     };
 

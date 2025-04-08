@@ -31,7 +31,7 @@ export const createUser = async (req, res, next) => {
 
     // Validasi outlet
     const formattedOutlets = outlet.map(id => ({
-      outletId: mongoose.Types.ObjectId(id)
+      outletId: new mongoose.Types.ObjectId(id)
     }));
 
     // Buat user baru
@@ -186,3 +186,26 @@ export const getUSerById = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 }
+
+export const getUserProfile = async (req, res) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Token tidak ditemukan' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select('-password'); // Hindari return password
+
+    if (!user) {
+      return res.status(404).json({ message: 'User tidak ditemukan' });
+    }
+
+    res.status(200).json({ user });
+  } catch (err) {
+    res.status(401).json({ message: 'Token tidak valid' });
+  }
+};
