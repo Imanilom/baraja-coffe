@@ -22,6 +22,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/login-cashier',
+        // builder: (context, state) => const LoginCashierScreen(),
+        redirect: (context, state) => isAuthenticated ? '/main' : null,
+      ),
       GoRoute(path: '/main', builder: (context, state) => const MainScreen()),
     ],
   );

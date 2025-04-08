@@ -4,6 +4,9 @@ import { errorHandler } from '../utils/error.js';
 import jwt from 'jsonwebtoken';
 import admin from 'firebase-admin';
 import { verifyToken } from '../utils/verifyUser.js';
+import { Outlet } from '../models/Outlet.model.js';
+import { OAuth2Client } from "google-auth-library";
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Initialize Firebase Admin
 // admin.initializeApp({
@@ -103,9 +106,17 @@ export const signin = async (req, res, next) => {
       }
       tokenExpiry = "15m";
     }
+    const cashier = [];
+    if (user.role === "admin") {
+      //mencari user yang rolenya casir pada outlet yang smaa dengan admin?
+      const cashiers = await User.find({
+        role: ["cashier junior", "cashier senior"],
+      }).populate("outlet.outletId", "admin");
+
+      cashier = cashiers;
+    }
 
     if (!user) return next(errorHandler(404, "User not found"));
-
 
     const isValidPassword = bcryptjs.compareSync(password, user.password);
     if (!isValidPassword) return next(errorHandler(401, "Wrong credentials"));
@@ -116,11 +127,13 @@ export const signin = async (req, res, next) => {
       process.env.JWT_SECRET,
       { expiresIn: tokenExpiry }
     );
+
+
     const { password: hashedPassword, ...rest } = user._doc;
     res.cookie("access_token", token, {
       httpOnly: true,
       maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 7 hari atau 1 hari dalam ms
-    }).status(200).json({ ...rest, token });
+    }).status(200).json(user.role !== "admin" ? { ...rest, token } : { ...rest, token, cashier });
 
   } catch (error) {
     next(error);
@@ -130,47 +143,42 @@ export const signin = async (req, res, next) => {
 
 
 
-export const google = async (req, res, next) => {
+export const googleAuth = async (req, res) => {
+  const { idToken } = req.body;
+
   try {
-    const user = await User.findOne({ email: req.body.email });
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
 
-    if (user) {
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-      const { password: hashedPassword, ...rest } = user._doc;
+    // console.log("ID TOKEN YANG DITERIMA:", idToken);
 
-      res
-        .cookie('access_token', token, {
-          httpOnly: true,
-          maxAge: 3600000, // 1 hour
-        })
-        .status(200)
-        .json(rest);
-    } else {
-      const randomPassword = Math.random().toString(36).slice(-8);
-      const hashedPassword = bcryptjs.hashSync(randomPassword, 10);
 
-      const newUser = new User({
-        username: `${req.body.name.replace(/\s/g, '').toLowerCase()}${Math.random().toString(36).slice(-4)}`,
-        email: req.body.email,
-        password: hashedPassword,
-        profilePicture: req.body.photo,
+    const payload = ticket.getPayload();
+    const { email, name, picture } = payload;
+
+    let user = await User.findOne({ email });
+    if (!user) {
+      user = new User({
+        username: name,
+        email,
+        password: "-", // Atau set default yang aman
+        profilePicture: picture,
+        role: "customer",
+        consumerType: 'bronze', // <-- Tambahkan ini untuk mastiin
       });
-
-      await newUser.save();
-
-      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-      const { password: hashedPassword2, ...rest } = newUser._doc;
-
-      res
-        .cookie('access_token', token, {
-          httpOnly: true,
-          maxAge: 3600000, // 1 hour
-        })
-        .status(200)
-        .json(rest);
+      console.log("Creating user:", user);
+      await user.save();
     }
-  } catch (error) {
-    next(error);
+
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    const { password, ...userData } = user._doc;
+
+    res.status(200).json({ user: userData, token });
+  } catch (err) {
+    res.status(401).json({ message: "Invalid Google token" });
   }
 };
 

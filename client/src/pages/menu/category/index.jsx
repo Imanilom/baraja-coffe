@@ -7,6 +7,8 @@ const CategoryIndex = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedType, setSelectedType] = useState('all'); // State untuk menyimpan tipe yang dipilih
+  const [currentPage, setCurrentPage] = useState(1); // Halaman saat ini
+  const itemsPerPage = 6; // Jumlah kategori per halaman
 
   // Fungsi untuk mengambil daftar kategori dari API
   const fetchCategories = async (type) => {
@@ -57,6 +59,7 @@ const CategoryIndex = () => {
       // Jika pilihan bukan "all", muat kategori berdasarkan tipe
       await fetchCategories(type);
     }
+    setCurrentPage(1); // Reset halaman ketika filter diubah
   };
 
   useEffect(() => {
@@ -64,13 +67,19 @@ const CategoryIndex = () => {
     fetchCategories();
   }, []);
 
+  // Menghitung kategori yang ditampilkan untuk halaman saat ini
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredCategories.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredCategories.length / itemsPerPage);
+
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Category Management</h1>
+    <div className="">
+      <h1 className="text-3xl font-bold mb-6">Kategori</h1>
 
       {/* Dropdown untuk filter berdasarkan tipe */}
       <div className="mb-4">
-        <label htmlFor="type" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-4">
           Filter by Type:
         </label>
         <select
@@ -108,8 +117,8 @@ const CategoryIndex = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredCategories.length > 0 ? (
-                filteredCategories.map((category) => (
+              {currentItems.length > 0 ? (
+                currentItems.map((category) => (
                   <tr key={category._id}>
                     <td className="px-6 py-4 whitespace-nowrap">{category.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap">{category.type}</td>
@@ -140,6 +149,33 @@ const CategoryIndex = () => {
           </table>
         </div>
       )}
+
+      {/* Pagination */}
+      <div className="flex justify-center mt-4">
+        <button
+          onClick={() => setCurrentPage(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-4 py-2 mx-1 rounded bg-gray-300 text-gray-700"
+        >
+          Previous
+        </button>
+        {Array.from({ length: totalPages }, (_, i) => (
+          <button
+            key={i + 1}
+            onClick={() => setCurrentPage(i + 1)}
+            className={`px-4 py-2 mx-1 rounded ${currentPage === i + 1 ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700"}`}
+          >
+            {i + 1}
+          </button>
+        ))}
+        <button
+          onClick={() => setCurrentPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-4 py-2 mx-1 rounded bg-gray-300 text-gray-700"
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 };

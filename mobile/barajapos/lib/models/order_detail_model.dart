@@ -3,7 +3,7 @@ import 'package:barajapos/models/order_item_model.dart';
 class OrderDetailModel {
   final String? customerId; // ID customer
   final String? customerName; // Nama customer
-  final String cashierId; // ID cashier yang sedang login
+  final String? cashierId; // ID cashier yang sedang login
   final String? phoneNumber; // Nomor telepon (opsional)
   final List<OrderItemModel> items; // Daftar item pesanan
   final String orderType; // Dine-In atau Takeaway
@@ -16,7 +16,7 @@ class OrderDetailModel {
   OrderDetailModel({
     this.customerId,
     this.customerName,
-    required this.cashierId,
+    this.cashierId,
     this.phoneNumber,
     required this.items,
     required this.orderType,
