@@ -8,7 +8,7 @@ import { response } from 'express';
 export const createMenuItem = async (req, res) => {
   try {
     const { name, price, description, category, imageURL, toppings, addons, rawMaterials, availableAt } = req.body;
-      
+    console.log(req.body)
     if (!name || !price || !category || !imageURL || !availableAt) {
       return res.status(400).json({
         success: false,

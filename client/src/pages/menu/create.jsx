@@ -24,7 +24,7 @@ const CreateMenu = () => {
     const fetchCategories = async () => {
       try {
         const response = await axios.get("/api/menu/categories"); // Sesuaikan URL API kategori
-        setCategories(response.data.data || []);
+        setCategories(response.data || []);
       } catch (error) {
         console.error("Error fetching categories:", error);
       }
@@ -235,16 +235,16 @@ const CreateMenu = () => {
           <div className="space-y-2">
             {categories.length > 0 ? (
               categories.map((category) => (
-                <div key={category}>
+                <div key={category._id}>
                   <label className="inline-flex items-center">
                     <input
                       type="checkbox"
-                      value={category}
-                      checked={formData.category.includes(category)}
+                      value={category._id}
+                      checked={formData.category.includes(category._id)}
                       onChange={handleCategoryChange}
                       className="mr-2"
                     />
-                    {category}
+                    {category.name} {/* Tampilkan nama kategori */}
                   </label>
                 </div>
               ))
