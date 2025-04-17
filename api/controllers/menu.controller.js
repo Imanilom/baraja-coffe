@@ -169,24 +169,99 @@ export const getSimpleMenuItems = async (req, res) => {
 
 
 // Get all menu items
+// export const getMenuItems = async (req, res) => {
+//   try {
+//     const { outletId } = req.query; // Ambil ID outlet dari query parameter
+
+//     // Buat query filter jika outletId diberikan
+//     const filter = outletId ? { availableAt: outletId } : {};
+
+//     // Ambil menu berdasarkan outlet (jika diberikan)
+//     const menuItems = await MenuItem.find()
+//       .populate([
+//         { path: 'rawMaterials.materialId' },
+//         { path: 'availableAt' }
+//       ]);
+
+//     // Konversi ke objek JavaScript
+//     const updatedMenuItems = menuItems.map(item => item.toObject());
+
+//     res.status(200).json({ success: true, data: updatedMenuItems });
+//     console.log('Menu items fetched successfully');
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch menu items',
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const getMenuItems = async (req, res) => {
   try {
-    const { outletId } = req.query; // Ambil ID outlet dari query parameter
-
-    // Buat query filter jika outletId diberikan
-    const filter = outletId ? { availableAt: outletId } : {};
-
-    // Ambil menu berdasarkan outlet (jika diberikan)
     const menuItems = await MenuItem.find()
       .populate([
+        { path: 'toppings' },
         { path: 'rawMaterials.materialId' },
         { path: 'availableAt' }
       ]);
 
-    // Konversi ke objek JavaScript
-    const updatedMenuItems = menuItems.map(item => item.toObject());
+    // const currentDate = new Date();
+    // const activePromotions = await Promotion.find({
+    //   startDate: { $lte: currentDate },
+    //   endDate: { $gte: currentDate }
+    // }).populate('applicableItems');
 
-    res.status(200).json({ success: true, data: updatedMenuItems });
+    // const updatedMenuItems = menuItems.map((item) => {
+    //   const promotion = activePromotions.find((promo) =>
+    //     promo.applicableItems.some(applicableItem =>
+    //       applicableItem._id.toString() === item._id.toString()
+    //     )
+    //   );
+
+    //   if (promotion) {
+    //     const discount = (item.price * promotion.discountPercentage) / 100;
+    //     return {
+    //       ...item.toObject(),
+    //       discount: promotion.discountPercentage,
+    //       discountedPrice: parseFloat((item.price - discount).toFixed(2)),
+    //       promotionTitle: promotion.title
+    //     };
+    //   }
+
+    //   return item.toObject();
+    // });
+
+    // // Format untuk aplikasi Flutter
+
+    const updatedMenuItems = menuItems.map(item => item.toObject());
+    const formattedMenuItems = updatedMenuItems.map(item => {
+      return {
+        id: item._id.toString(),
+        name: item.name,
+        category: item.category,
+        mainCategory: item.mainCategory || 'Uncategorized', // Sesuaikan dengan logika bisnis Anda
+        imageUrl: item.imageUrl || '',
+        originalPrice: item.price,
+        discountPrice: item.discountedPrice || item.price,
+        description: item.description || '',
+        discountPercentage: item.discount ? `${item.discount}%` : null,
+        toppings: item.toppings ? item.toppings.map(topping => ({
+          id: topping._id.toString(),
+          name: topping.name,
+          price: topping.price
+        })) : [],
+        addons: [] // Isi dengan data addons jika tersedia
+      };
+    });
+
+    // Kirim kedua format data
+    res.status(200).json({
+      success: true,
+      data: updatedMenuItems,        // Data asli
+      formattedData: formattedMenuItems  // Data yang diformat untuk Flutter
+    });
+
     console.log('Menu items fetched successfully');
   } catch (error) {
     res.status(500).json({
@@ -196,7 +271,6 @@ export const getMenuItems = async (req, res) => {
     });
   }
 };
-
 
 export const getMenuItemById = async (req, res) => {
   try {
