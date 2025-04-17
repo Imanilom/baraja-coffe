@@ -203,67 +203,54 @@ export const getMenuItems = async (req, res) => {
       .populate([
         { path: 'toppings' },
         { path: 'rawMaterials.materialId' },
-        { path: 'availableAt' }
+        { path: 'availableAt' },
+        {
+          path: 'addons',
+          populate: {
+            path: 'options',
+          },
+        }
       ]);
 
-    // const currentDate = new Date();
-    // const activePromotions = await Promotion.find({
-    //   startDate: { $lte: currentDate },
-    //   endDate: { $gte: currentDate }
-    // }).populate('applicableItems');
-
-    // const updatedMenuItems = menuItems.map((item) => {
-    //   const promotion = activePromotions.find((promo) =>
-    //     promo.applicableItems.some(applicableItem =>
-    //       applicableItem._id.toString() === item._id.toString()
-    //     )
-    //   );
-
-    //   if (promotion) {
-    //     const discount = (item.price * promotion.discountPercentage) / 100;
-    //     return {
-    //       ...item.toObject(),
-    //       discount: promotion.discountPercentage,
-    //       discountedPrice: parseFloat((item.price - discount).toFixed(2)),
-    //       promotionTitle: promotion.title
-    //     };
-    //   }
-
-    //   return item.toObject();
-    // });
-
-    // // Format untuk aplikasi Flutter
-
-    const updatedMenuItems = menuItems.map(item => item.toObject());
-    const formattedMenuItems = updatedMenuItems.map(item => {
+    const formattedMenuItems = menuItems.map(item => {
       return {
         id: item._id.toString(),
         name: item.name,
-        category: item.category,
-        mainCategory: item.mainCategory || 'Uncategorized', // Sesuaikan dengan logika bisnis Anda
+        category: item.category || [],
+        mainCategory: item.mainCategory || 'Uncategorized',
         imageUrl: item.imageUrl || '',
         originalPrice: item.price,
         discountPrice: item.discountedPrice || item.price,
         description: item.description || '',
         discountPercentage: item.discount ? `${item.discount}%` : null,
-        toppings: item.toppings ? item.toppings.map(topping => ({
+        toppings: item.toppings?.map(topping => ({
           id: topping._id.toString(),
           name: topping.name,
           price: topping.price
-        })) : [],
-        addons: [] // Isi dengan data addons jika tersedia
+        })) || [],
+        addons: item.addons?.map(addon => ({
+          id: addon._id.toString(),
+          name: addon.name,
+          options: addon.options?.map(opt => ({
+            id: opt._id.toString(),
+            label: opt.label,
+            price: opt.price,
+            isDefault: opt.isDefault
+          })) || []
+        })) || []
       };
     });
 
-    // Kirim kedua format data
+    // Kirim response
     res.status(200).json({
       success: true,
-      data: updatedMenuItems,        // Data asli
-      formattedData: formattedMenuItems  // Data yang diformat untuk Flutter
+      data: menuItems,             // data asli dari MongoDB
+      formattedData: formattedMenuItems // data terformat untuk frontend
     });
 
     console.log('Menu items fetched successfully');
   } catch (error) {
+    console.error('Error fetching menu items:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch menu items',
@@ -271,6 +258,7 @@ export const getMenuItems = async (req, res) => {
     });
   }
 };
+
 
 export const getMenuItemById = async (req, res) => {
   try {

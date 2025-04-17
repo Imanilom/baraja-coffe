@@ -187,6 +187,8 @@ export const getUSerById = async (req, res) => {
   }
 }
 
+import jwt from 'jsonwebtoken';
+
 export const getUserProfile = async (req, res) => {
   const authHeader = req.headers.authorization;
 
