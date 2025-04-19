@@ -164,7 +164,7 @@ export const createOrder = async (req, res) => {
 
 
 export const checkout = async (req, res) => {
-  const { orders, user, table, paymentMethod, orderType, type} = req.body;
+  const { orders, user, cashier, table, paymentMethod, orderType, type, voucher} = req.body;
  
   try {
     // Hitung total dari semua order
@@ -244,11 +244,12 @@ export const checkout = async (req, res) => {
     const newOrder = new Order({
       order_id: order_id,
       user,
+      cashier,
       items: orderItems,
       paymentMethod: paymentMethod,
       orderType: orderType,
       type: type, 
-      tableNumber: table 
+      tableNumber: table
     });
 
     await newOrder.save();
