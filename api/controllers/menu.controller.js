@@ -169,26 +169,88 @@ export const getSimpleMenuItems = async (req, res) => {
 
 
 // Get all menu items
+// export const getMenuItems = async (req, res) => {
+//   try {
+//     const { outletId } = req.query; // Ambil ID outlet dari query parameter
+
+//     // Buat query filter jika outletId diberikan
+//     const filter = outletId ? { availableAt: outletId } : {};
+
+//     // Ambil menu berdasarkan outlet (jika diberikan)
+//     const menuItems = await MenuItem.find()
+//       .populate([
+//         { path: 'rawMaterials.materialId' },
+//         { path: 'availableAt' }
+//       ]);
+
+//     // Konversi ke objek JavaScript
+//     const updatedMenuItems = menuItems.map(item => item.toObject());
+
+//     res.status(200).json({ success: true, data: updatedMenuItems });
+//     console.log('Menu items fetched successfully');
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch menu items',
+//       error: error.message,
+//     });
+//   }
+// };
+
 export const getMenuItems = async (req, res) => {
   try {
-    const { outletId } = req.query; // Ambil ID outlet dari query parameter
-
-    // Buat query filter jika outletId diberikan
-    const filter = outletId ? { availableAt: outletId } : {};
-
-    // Ambil menu berdasarkan outlet (jika diberikan)
     const menuItems = await MenuItem.find()
       .populate([
+        { path: 'toppings' },
         { path: 'rawMaterials.materialId' },
-        { path: 'availableAt' }
+        { path: 'availableAt' },
+        {
+          path: 'addons',
+          populate: {
+            path: 'options',
+          },
+        }
       ]);
 
-    // Konversi ke objek JavaScript
-    const updatedMenuItems = menuItems.map(item => item.toObject());
+    const formattedMenuItems = menuItems.map(item => {
+      return {
+        id: item._id.toString(),
+        name: item.name,
+        category: item.category || [],
+        mainCategory: item.mainCategory || 'Uncategorized',
+        imageUrl: item.imageUrl || '',
+        originalPrice: item.price,
+        discountPrice: item.discountedPrice || item.price,
+        description: item.description || '',
+        discountPercentage: item.discount ? `${item.discount}%` : null,
+        toppings: item.toppings?.map(topping => ({
+          id: topping._id.toString(),
+          name: topping.name,
+          price: topping.price
+        })) || [],
+        addons: item.addons?.map(addon => ({
+          id: addon._id.toString(),
+          name: addon.name,
+          options: addon.options?.map(opt => ({
+            id: opt._id.toString(),
+            label: opt.label,
+            price: opt.price,
+            isDefault: opt.isDefault
+          })) || []
+        })) || []
+      };
+    });
 
-    res.status(200).json({ success: true, data: updatedMenuItems });
+    // Kirim response
+    res.status(200).json({
+      success: true,
+      data: menuItems,             // data asli dari MongoDB
+      formattedData: formattedMenuItems // data terformat untuk frontend
+    });
+
     console.log('Menu items fetched successfully');
   } catch (error) {
+    console.error('Error fetching menu items:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch menu items',
