@@ -26,11 +26,7 @@
     "jwt-decode": "^4.0.0",
     "midtrans-client": "^1.4.2",
     "mongoose": "^7.4.2",
-<<<<<<< HEAD
     "node-thermal-printer": "^4.4.5",
-=======
-    "nodemailer": "^6.10.1",
->>>>>>> e9551ed46b2b6f9b09bb0bbc2a31a4313d72f0cf
     "nodemon": "^3.0.1",
     "qrcode": "^1.5.4",
     "uuid": "^11.1.0"
