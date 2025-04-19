@@ -1,5 +1,6 @@
 import 'package:barajapos/models/adapter/addon.model.dart';
 import 'package:barajapos/models/adapter/addon_option.model.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:barajapos/models/adapter/order_item.model.dart';
@@ -17,6 +18,7 @@ class OrderItemOptionsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    print('permasalahannya disini ternyata pada providernya');
     final order = ref.watch(orderItemProvider(orderItem));
     final orderNotifier = ref.read(orderItemProvider(orderItem).notifier);
 
@@ -98,16 +100,19 @@ class OrderItemOptionsSheet extends ConsumerWidget {
           children: [
             ...order.menuItem.addons!.map(
               (addon) {
-                // Gunakan defaultOption jika ada, jika tidak biarkan kosong
-                final AddonOptionModel selectedOption =
-                    addon.options.firstWhere(
-                  (option) => option.isDefault == true,
-                  orElse: () => AddonOptionModel(
-                      id: '',
-                      label: '',
-                      price: 0,
-                      isDefault: false), // Jika tidak ada default, biarkan null
-                );
+                // // Gunakan defaultOption jika ada, jika tidak biarkan kosong
+                // final AddonOptionModel selectedOption =
+                //     addon.options.firstWhere(
+                //   (option) => option.isDefault == true,
+                //   orElse: () => AddonOptionModel(
+                //       id: '',
+                //       label: '',
+                //       price: 0,
+                //       isDefault: false), // Jika tidak ada default, biarkan null
+                // );
+                final AddonOptionModel? selectedOption = addon.options
+                    .firstWhereOrNull((option) => option.isDefault == true);
+                print('selectedOption: $selectedOption');
 
                 return RadioGroup<AddonOptionModel>(
                   value: selectedOption,
