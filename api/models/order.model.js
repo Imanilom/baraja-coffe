@@ -2,17 +2,18 @@ import mongoose from 'mongoose';
 
 const OrderItemSchema = new mongoose.Schema({
   menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem', required: true },
-  addons: [{ type: mongoose.Schema.Types.ObjectId, ref: 'AddOn' }],
-  toppings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }],
   quantity: { type: Number, required: true, min: 1 },
   subtotal: { type: Number, required: true, min: 0 },
+  addons: [{ name: String, price: Number }],
+  toppings: [{ name: String, price: Number }],
   isPrinted: { type: Boolean, default: false },
 });
 
 // Model Order
 const OrderSchema = new mongoose.Schema({
-  user: { type: String, required: true },
-  cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  order_id: { type: String, required: true, unique: true },
+  user: { type: String, required: true, default: 'Guest' },
+  cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User'},
   items: [OrderItemSchema],
   status: { type: String, enum: ['Pending', 'OnProcess', 'Completed', 'Canceled'], default: 'Pending' },
   paymentMethod: { type: String, enum: ['Cash', 'Card', 'E-Wallet', 'Debit'], required: true },
