@@ -1,6 +1,8 @@
 import express from 'express';
 import {
   createOrder,
+  checkout,
+  paymentNotification,
   handleMidtransNotification,
   getUserOrders,
   getUserOrderHistory,
@@ -12,6 +14,10 @@ const router = express.Router();
 
 // Route untuk membuat order dan pembayaran
 router.post('/order', createOrder);
+
+router.post("/checkout", checkout);
+
+router.post("/payment-notification", paymentNotification);
 
 // Route untuk membatalkan order
 // router.put('/order/:id/cancel', verifyToken(['customer']), cancelOrder);
