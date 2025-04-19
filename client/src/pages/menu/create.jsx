@@ -26,6 +26,10 @@ const CreateMenu = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
+<<<<<<< HEAD
+        const response = await axios.get("/api/menu/categories"); // Sesuaikan URL API kategori
+        setCategories(response.data || []);
+=======
         const response = await axios.get("/api/menu/categories");
         const fetchedCategories = response.data.data || [];
         setCategories(fetchedCategories);
@@ -36,6 +40,7 @@ const CreateMenu = () => {
           map[category._id] = category.name;
         });
         setCategoryMap(map);
+>>>>>>> b39d30be9cbc3fb9798da58b2924ecf38c43a164
       } catch (error) {
         console.error("Error fetching categories:", error);
       }
@@ -465,6 +470,26 @@ const CreateMenu = () => {
         <div>
           <label className="block font-medium">Categories</label>
           <div className="space-y-2">
+<<<<<<< HEAD
+            {categories.length > 0 ? (
+              categories.map((category) => (
+                <div key={category._id}>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      value={category._id}
+                      checked={formData.category.includes(category._id)}
+                      onChange={handleCategoryChange}
+                      className="mr-2"
+                    />
+                    {category.name} {/* Tampilkan nama kategori */}
+                  </label>
+                </div>
+              ))
+            ) : (
+              <div>Loading categories...</div>
+            )}
+=======
             {categories.map((category) => (
               <div key={category._id}>
                 <label className="inline-flex items-center">
@@ -479,6 +504,7 @@ const CreateMenu = () => {
                 </label>
               </div>
             ))}
+>>>>>>> b39d30be9cbc3fb9798da58b2924ecf38c43a164
           </div>
         </div>
 

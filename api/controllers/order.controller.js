@@ -4,14 +4,28 @@ import { MenuItem } from "../models/MenuItem.model.js";
 import { RawMaterial } from "../models/RawMaterial.model.js";
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
+import axios from 'axios';
 
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const orderData = req.body.order;
-    const { userId, user, cashier, items, paymentMethod, orderType, outlet, deliveryAddress, tableNumber, type, voucher } = orderData;
-
+    const { 
+      order: orderData, 
+      order: { 
+      userId, 
+      user, 
+      cashier, 
+      items, 
+      paymentMethod, 
+      orderType, 
+      outlet, 
+      deliveryAddress, 
+      tableNumber, 
+      type, 
+      voucher 
+      } 
+    } = req.body;
     // Validasi dasar
     if (!items || items.length === 0) {
       throw new Error("Order items cannot be empty");
@@ -147,6 +161,175 @@ export const createOrder = async (req, res) => {
     session.endSession();
   }
 };
+
+
+export const checkout = async (req, res) => {
+  const { orders, user, cashier, table, paymentMethod, orderType, type, voucher} = req.body;
+ 
+  try {
+    // Hitung total dari semua order
+    const orderItems = orders.map(order => {
+      const basePrice = order.item.price || 0;
+      const addons = order.item.addons || [];
+      const toppings = order.item.toppings || [];
+
+      const addonsTotal = addons.reduce((sum, a) => sum + (a.price || 0), 0);
+      const toppingsTotal = toppings.reduce((sum, t) => sum + (t.price || 0), 0);
+      const itemTotal = basePrice + addonsTotal + toppingsTotal;
+
+      return {
+        menuItem: order.item.id,
+        quantity: 1,
+        subtotal: itemTotal,
+        addons,
+        toppings,
+      };
+    });
+
+    const totalAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+    // Buat data transaksi untuk Midtrans
+    const transactionData = {
+      payment_type: 'gopay', // Hanya E-Wallet (GoPay)
+      transaction_details: {
+        order_id: `order-${Date.now()}`,
+        gross_amount: totalAmount,
+      },
+      item_details: orders.map(order => {
+        const basePrice = order.item.price || 0;
+        const addons = order.item.addons || [];
+        const toppings = order.item.toppings || [];
+
+        const addonsTotal = addons.reduce((sum, a) => sum + (a.price || 0), 0);
+        const toppingsTotal = toppings.reduce((sum, t) => sum + (t.price || 0), 0);
+        const itemTotal = basePrice + addonsTotal + toppingsTotal;
+
+        return {
+          id: order.item.id,
+          name: order.item.name,
+          price: itemTotal,
+          quantity: 1,
+        };
+      }),
+      customer_details: {
+        name: 'Customer',
+        email: 'customer@example.com',
+        phone: '081234567890',
+      },
+    };
+
+    // Request ke Midtrans
+    const generateRandomToken = () => Math.random().toString().slice(2, 12);
+    const order_id = `order-${generateRandomToken()}`;
+    const midtransSnapResponse = await axios.post(
+      process.env.MIDTRANS_SANDBOX_ENDPOINT_TRANSACTION,
+      {
+      transaction_details: {
+        order_id: order_id,
+        gross_amount: totalAmount,
+      },
+      item_details: transactionData.item_details,
+      customer_details: transactionData.customer_details,
+      },
+      {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Basic ${Buffer.from(process.env.MIDTRANS_SERVER_KEY + ':').toString('base64')}`,
+      },
+      }
+    );
+
+    // Simpan ke database
+    const newOrder = new Order({
+      order_id: order_id,
+      user,
+      cashier,
+      items: orderItems,
+      paymentMethod: paymentMethod,
+      orderType: orderType,
+      type: type, 
+      tableNumber: table
+    });
+
+    await newOrder.save();
+
+    // Kembalikan URL pembayaran
+    res.json({ redirect_url: midtransSnapResponse.data.redirect_url });
+  } catch (error) {
+    if (error.response) {
+      console.error('Midtrans error:', error.response.data);
+      res.status(error.response.status).json({ message: error.response.data.message || 'Payment processing failed.' });
+    } else if (error.request) {
+      console.error('No response received:', error.request);
+      res.status(500).json({ message: 'No response from payment gateway.' });
+    } else {
+      console.error('Checkout error:', error.message);
+      res.status(500).json({ message: 'An error occurred while processing your checkout.' });
+    }
+  }
+};
+
+// Handling Midtrans Notification 
+export const paymentNotification = async (req, res) => {
+  const notification = req.body;
+
+  // Log the notification for debugging
+  console.log('Payment notification received:', notification);
+
+  // Extract relevant information from the notification
+  const { transaction_status, order_id, gross_amount, payment_type } = notification;
+
+  try {
+      // Update the payment record in the database based on the transaction status
+      let status;
+      switch (transaction_status) {
+          case 'capture':
+          case 'settlement':
+              // Payment has been captured or settled
+              status = 'Success';
+              break;
+          case 'pending':
+              // Payment is pending
+              status = 'Pending';
+              break;
+          case 'deny':
+          case 'cancel':
+          case 'expire':
+              // Payment was denied, canceled, or expired
+              status = 'Failed';
+              break;
+          default:
+              console.log('Unknown transaction status:', transaction_status);
+              return res.status(400).json({ message: 'Unknown transaction status' });
+      }
+
+      // Update or create a payment record
+      await Payment.updateOne(
+          { order_id: order_id },
+          {
+              $set: {
+                  amount: parseFloat(gross_amount),
+                  paymentDate: new Date(),
+                  paymentMethod: payment_type,
+                  status: status,
+              },
+              $setOnInsert: {
+                  order_id: order_id, // Insert if not exists
+              },
+          },
+          { upsert: true }
+      );
+
+      console.log('Payment record updated successfully for order:', order_id);
+      res.status(200).json({ message: 'Notification processed and database updated' });
+
+  } catch (error) {
+      console.error('Error updating payment record:', error);
+      res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 
 
 async function updateStock(order, session) {

@@ -28,6 +28,45 @@ export const verifyToken = (roles) => {
     };
 };
 
+
+export const googleToken = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "No token provided" });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded; // Menyimpan decoded token di req.user
+        next();
+    } catch (err) {
+        return res.status(401).json({ message: "Invalid token" });
+    }
+};
+
+export const authMiddleware = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Token tidak tersedia' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded; // Simpan user ID ke req.user
+        console.log('Token valid, user ID:', decoded.id); // Tambahkan log ini
+        next();
+    } catch (err) {
+        console.error('Token tidak valid:', err); // Tambahkan log ini
+        res.status(401).json({ message: 'Token tidak valid' });
+    }
+};
+
 // // Middleware tambahan untuk membatasi akses peran tertentu
 // export const authorizeRole = (allowedRoles) => {
 //     return (req, res, next) => {
