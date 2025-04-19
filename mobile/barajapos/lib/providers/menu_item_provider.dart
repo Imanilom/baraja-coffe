@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final menuItemRepository =
     Provider<MenuItemRepository>((ref) => MenuItemRepository());
 
-final categoryProvider = StateProvider<String>((ref) => 'Coffee');
+// final categoryProvider = StateProvider<String>((ref) => 'Chocolate');
+// final categoryProvider = StateProvider<String>((ref) => 'Coffee');
+final categoryProvider = StateProvider<String>((ref) => 'Dessert');
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 

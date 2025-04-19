@@ -251,7 +251,7 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
                           onPressed: () {
                             if (orderDetail != null &&
                                 orderDetail.items.isNotEmpty) {
-                              print('mau disimpan');
+                              // print('mau disimpan');
                               ref
                                   .read(savedOrderProvider.notifier)
                                   .savedOrder(ref);

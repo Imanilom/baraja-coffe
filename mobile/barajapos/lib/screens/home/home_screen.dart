@@ -15,7 +15,7 @@ class HomeScreen extends ConsumerWidget {
     final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
     final orderDetail = ref.watch(orderDetailProvider);
 
-    print('menu item di UI ${menu.value}');
+    // print('menu item di UI ${menu.value}');
     return Row(
       children: [
         NavigationRail(
