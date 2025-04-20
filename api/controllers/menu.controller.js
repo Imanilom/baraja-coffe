@@ -306,6 +306,7 @@ export const getMenuItemById = async (req, res) => {
       name: menuItem.name,
       price: menuItem.price,
       description: menuItem.description, //description
+      mainCategory: menuItem.mainCategory,
       category: menuItem.category,
       imageURL: menuItem.imageURL,
       isAvailable: isMainAvailable, // Menentukan apakah menu utama tersedia
