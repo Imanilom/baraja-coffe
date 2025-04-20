@@ -1,7 +1,8 @@
 import express from 'express';
 import {
   createOrder,
-  handleMidtransNotification,
+  checkout,
+  paymentNotification,
   getUserOrders,
   getUserOrderHistory,
   getCashierOrderHistory,
@@ -13,11 +14,12 @@ const router = express.Router();
 // Route untuk membuat order dan pembayaran
 router.post('/order', createOrder);
 
+router.post("/checkout", checkout);
+
+router.post("/payment-notification", paymentNotification);
+
 // Route untuk membatalkan order
 // router.put('/order/:id/cancel', verifyToken(['customer']), cancelOrder);
-
-// Route untuk menangani notifikasi Midtrans
-router.post('/midtrans/notification', handleMidtransNotification);
 
 // Route untuk mendapatkan daftar order berdasarkan user
 router.get('/orders/:userId', verifyToken(['customer']), getUserOrders);
