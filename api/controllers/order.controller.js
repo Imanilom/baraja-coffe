@@ -4,6 +4,7 @@ import { RawMaterial } from "../models/RawMaterial.model.js";
 import { Order } from "../models/order.model.js";
 import User from "../models/user.model.js";
 import Voucher from "../models/voucher.model.js";
+import AutoPromo from '../models/AutoPromo.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
@@ -424,11 +425,11 @@ export const createOrder = async (req, res) => {
 
 
 
-// Checkout function to handle payment processing
 export const checkout = async (req, res) => {
   const { orders, user, cashier, table, paymentMethod, orderType, type, voucher } = req.body;
 
   let foundVoucher = null; // Declare foundVoucher here
+  let appliedPromotions = []; // Menyimpan daftar promosi yang diterapkan
 
   try {
     // Hitung total dari semua order
@@ -468,13 +469,88 @@ export const checkout = async (req, res) => {
       }
     }
 
-    // Ensure discount doesn't exceed total amount
-    const finalAmount = Math.max(totalAmount - discount, 0);
+    // Ambil semua promosi aktif
+    const activePromotions = await AutoPromo.find({
+      outlet: cashier.outlet._id,
+      isActive: true,
+      validFrom: { $lte: new Date() },
+      validTo: { $gte: new Date() },
+    });
 
+    // Aplikasikan promosi ke pesanan
+    let finalAmount = totalAmount - discount; // Mulai dari total setelah diskon voucher
+    for (const promo of activePromotions) {
+      switch (promo.promoType) {
+        case 'discount_on_quantity': {
+          const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+          if (totalQuantity >= (promo.conditions.minQuantity || 0)) {
+            appliedPromotions.push(promo.name);
+            finalAmount -= (finalAmount * promo.discount) / 100;
+          }
+          break;
+        }
+        case 'discount_on_total': {
+          if (totalAmount >= (promo.conditions.minTotal || 0)) {
+            appliedPromotions.push(promo.name);
+            finalAmount -= promo.discount;
+          }
+          break;
+        }
+        case 'buy_x_get_y': {
+          const buyProductCount = orderItems.reduce((count, item) => {
+            if (item.menuItem.toString() === promo.conditions.buyProduct.toString()) {
+              return count + item.quantity;
+            }
+            return count;
+          }, 0);
+
+          // Hitung berapa kali promosi dapat diterapkan
+          const freeProductCount = Math.floor(buyProductCount / promo.conditions.bundleProducts[0].quantity);
+
+          if (freeProductCount > 0) {
+            appliedPromotions.push(promo.name);
+
+            // Temukan produk gratis dalam pesanan
+            const freeProduct = orderItems.find(item => item.menuItem.toString() === promo.conditions.getProduct.toString());
+            if (freeProduct) {
+              // Pastikan jumlah gratis tidak melebihi jumlah yang dipesan
+              const maxFree = Math.min(freeProductCount, freeProduct.quantity);
+              finalAmount -= freeProduct.subtotal * maxFree; // Kurangi subtotal sesuai jumlah gratis
+            }
+          }
+          break;
+        }
+        case 'bundling': {
+          const bundleProducts = promo.conditions.bundleProducts;
+
+          // Cek apakah semua produk dalam bundling terpenuhi
+          const bundleMatch = bundleProducts.every(bundleItem => {
+            const orderItem = orderItems.find(item => item.menuItem.toString() === bundleItem.product.toString());
+            return orderItem && orderItem.quantity >= bundleItem.quantity;
+          });
+
+          if (bundleMatch) {
+            appliedPromotions.push(promo.name);
+
+            // Hitung subtotal dari produk-produk dalam bundling
+            const bundledSubtotal = bundleProducts.reduce((sum, bundleItem) => {
+              const orderItem = orderItems.find(item => item.menuItem.toString() === bundleItem.product.toString());
+              return sum + (orderItem ? orderItem.subtotal : 0);
+            }, 0);
+
+            // Aplikasikan harga bundling
+            finalAmount -= (bundledSubtotal - promo.bundlePrice);
+          }
+          break;
+        }
+      }
+    }
+
+    // Ensure final amount doesn't go below zero
+    finalAmount = Math.max(finalAmount, 0);
 
     // Check payment method
-    if (paymentMethod === 'Cash') {
-      // Save order directly if payment method is Cash
+    if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
       const order_id = `order-${Date.now()}`; // Generate order ID
       const newOrder = new Order({
         order_id: order_id,
@@ -486,11 +562,14 @@ export const checkout = async (req, res) => {
         type: type,
         tableNumber: table,
         voucher: foundVoucher ? foundVoucher._id : null, // Save voucher id if used
+        promotions: appliedPromotions.map(promoName => ({
+          name: promoName,
+          details: promoName.includes('Bundle') ? { bundleProducts: promo.conditions.bundleProducts, bundlePrice: promo.bundlePrice } : {}
+        })),
       });
 
       await newOrder.save();
 
-      // Respond with success
       return res.json({ message: 'Order placed successfully', order_id });
     }
 
@@ -555,6 +634,10 @@ export const checkout = async (req, res) => {
       type: type,
       tableNumber: table,
       voucher: foundVoucher ? foundVoucher._id : null, // Save voucher id if used
+      promotions: appliedPromotions.map(promoName => ({
+        name: promoName,
+        details: promoName.includes('Bundle') ? { bundleProducts: promo.conditions.bundleProducts, bundlePrice: promo.bundlePrice } : {}
+      })),
     });
 
     await newOrder.save();
