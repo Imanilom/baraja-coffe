@@ -22,6 +22,7 @@ const OrderSchema = new mongoose.Schema({
   tableNumber: { type: String },
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
   voucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
+  promotions: { type: String },
 }, { timestamps: true });
 
 // Virtual untuk menghitung total harga otomatis
