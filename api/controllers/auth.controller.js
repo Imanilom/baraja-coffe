@@ -60,14 +60,48 @@ export const verifyOTP = async (req, res, next) => {
   }
 };
 
+// export const signup = async (req, res, next) => {
+//   const { username, email, password } = req.body;
+//   try {
+//     const hashedPassword = bcryptjs.hashSync(password, 10);
+//     const newUser = new User({ username, email, password: hashedPassword });
+
+//     await newUser.save();
+//     res.status(201).json({ message: 'User created successfully' });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const signup = async (req, res, next) => {
   const { username, email, password } = req.body;
+
   try {
     const hashedPassword = bcryptjs.hashSync(password, 10);
     const newUser = new User({ username, email, password: hashedPassword });
 
-    await newUser.save();
-    res.status(201).json({ message: 'User created successfully' });
+    const savedUser = await newUser.save();
+
+    // Buat payload untuk token
+    const payload = {
+      id: savedUser._id,
+      username: savedUser.username,
+      email: savedUser.email
+    };
+
+    // Generate token
+    const token = jwt.sign({ id: payload.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+    // Kirimkan response
+    res.status(201).json({
+      message: 'User created successfully',
+      user: {
+        id: savedUser._id,
+        username: savedUser.username,
+        email: savedUser.email
+      },
+      token
+    });
   } catch (error) {
     next(error);
   }
