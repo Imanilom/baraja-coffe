@@ -15,13 +15,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     refreshListenable: GoRouterRefreshStream(authNotifier.stream),
     redirect: (context, state) {
-      // if (authState.isLoading) return '/';
-      return isAuthenticated ? '/main' : '/main';
-      // return isAuthenticated ? '/main' : '/login';
+      if (authState.isLoading) return '/';
+      // return isAuthenticated ? '/main' : '/main';
+      return isAuthenticated ? '/main' : '/login';
     },
     routes: [
       GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/login-cashier',
+        // builder: (context, state) => const LoginCashierScreen(),
+        redirect: (context, state) => isAuthenticated ? '/main' : null,
+      ),
       GoRoute(path: '/main', builder: (context, state) => const MainScreen()),
     ],
   );

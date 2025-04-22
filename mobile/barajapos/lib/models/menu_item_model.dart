@@ -113,11 +113,13 @@ class AddonModel {
 class AddonOptionModel {
   final String? id;
   final String label;
+  final bool? isDefault;
   final double price;
 
   AddonOptionModel({
     this.id,
     required this.label,
+    this.isDefault,
     required this.price,
   });
 
@@ -125,6 +127,7 @@ class AddonOptionModel {
     return AddonOptionModel(
       id: json['_id'],
       label: json['label'],
+      isDefault: json['isdefault'],
       price: json['price'],
     );
   }

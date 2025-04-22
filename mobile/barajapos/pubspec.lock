@@ -41,6 +41,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.12.0"
+  bcrypt:
+    dependency: "direct main"
+    description:
+      name: bcrypt
+      sha256: "9dc3f234d5935a76917a6056613e1a6d9b53f7fa56f98e24cd49b8969307764b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.3"
   bloc:
     dependency: transitive
     description:
@@ -473,7 +481,7 @@ packages:
     source: hosted
     version: "2.1.0"
   hive_ce_generator:
-    dependency: "direct main"
+    dependency: "direct dev"
     description:
       name: hive_ce_generator
       sha256: "0b1c750e2d10c55a14cde16d479ada42704be6cef43c54b728ed0e4e02f7d808"

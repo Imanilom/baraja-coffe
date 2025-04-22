@@ -40,9 +40,6 @@ mixin _$MenuItemModel {
       _$MenuItemModelCopyWithImpl<MenuItemModel>(
           this as MenuItemModel, _$identity);
 
-  /// Serializes this MenuItemModel to a JSON map.
-  Map<String, dynamic> toJson();
-
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
@@ -61,7 +58,6 @@ mixin _$MenuItemModel {
             const DeepCollectionEquality().equals(other.addons, addons));
   }
 
-  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -157,8 +153,7 @@ class _$MenuItemModelCopyWithImpl<$Res>
 }
 
 /// @nodoc
-@JsonSerializable()
-@HiveField(0)
+
 class _MenuItemModel implements MenuItemModel {
   _MenuItemModel(
       {@HiveField(1) required this.id,
@@ -172,8 +167,6 @@ class _MenuItemModel implements MenuItemModel {
       : _categories = categories,
         _toppings = toppings,
         _addons = addons;
-  factory _MenuItemModel.fromJson(Map<String, dynamic> json) =>
-      _$MenuItemModelFromJson(json);
 
   @override
   @HiveField(1)
@@ -230,13 +223,6 @@ class _MenuItemModel implements MenuItemModel {
       __$MenuItemModelCopyWithImpl<_MenuItemModel>(this, _$identity);
 
   @override
-  Map<String, dynamic> toJson() {
-    return _$MenuItemModelToJson(
-      this,
-    );
-  }
-
-  @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
@@ -254,7 +240,6 @@ class _MenuItemModel implements MenuItemModel {
             const DeepCollectionEquality().equals(other._addons, _addons));
   }
 
-  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,

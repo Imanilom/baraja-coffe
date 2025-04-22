@@ -1,4 +1,5 @@
 import 'package:barajapos/models/order_detail_model.dart';
+import 'package:barajapos/providers/auth_provider.dart';
 import 'package:barajapos/providers/navigation_provider.dart';
 import 'package:barajapos/providers/order_detail_providers/saved_order_detail_provider.dart';
 import 'package:barajapos/providers/orders/order_type_provider.dart';
@@ -6,15 +7,15 @@ import 'package:barajapos/providers/orders/saved_order_provider.dart';
 import 'package:barajapos/utils/format_rupiah.dart';
 import 'package:barajapos/widgets/dialogs/edit_order_item_dialog.dart';
 import 'package:barajapos/widgets/payment/payment_method.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' as riverpod;
 import 'package:barajapos/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-class OrderDetailScreen extends ConsumerWidget {
+class OrderDetailScreen extends riverpod.ConsumerWidget {
   const OrderDetailScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context, riverpod.WidgetRef ref) {
     final currenIndex = ref.watch(navigationProvider);
     double totalPrices = 0;
     OrderDetailModel? orderDetail;
@@ -38,10 +39,20 @@ class OrderDetailScreen extends ConsumerWidget {
     // final orderDetail = ref.watch(orderDetailProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pesanan'),
-      ),
-      body: Column(
+      headers: [
+        AppBar(
+          title: const Text('Pesanan'),
+          trailing: [
+            //logout
+            Button(
+              style: ButtonVariance.secondary,
+              child: const Icon(RadixIcons.exit),
+              onPressed: () => ref.read(authProvider.notifier).logout(),
+            ),
+          ],
+        ),
+      ],
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           //profile cashier
@@ -62,7 +73,7 @@ class OrderDetailScreen extends ConsumerWidget {
           //nama customer
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Consumer(
+            child: riverpod.Consumer(
               builder: (context, ref, child) {
                 final customerNameController = TextEditingController(
                   text: orderDetail?.customerName ?? '',
@@ -77,23 +88,6 @@ class OrderDetailScreen extends ConsumerWidget {
                   maxLines: 1,
                   style: const TextStyle(fontSize: 14),
                   readOnly: currenIndex != 0,
-                  decoration: const InputDecoration(
-                    labelText: 'Nama Customer',
-                    labelStyle: TextStyle(fontSize: 14),
-                    border: OutlineInputBorder(),
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    suffixIcon: Icon(
-                      Icons.qr_code_scanner,
-                      color: Colors.grey,
-                      shadows: [
-                        BoxShadow(
-                          color: Colors.grey,
-                          blurRadius: 10,
-                        )
-                      ],
-                    ),
-                  ),
                   controller: customerNameController,
                   onChanged: (value) {
                     if (currenIndex == 0) {
@@ -121,27 +115,31 @@ class OrderDetailScreen extends ConsumerWidget {
           //detail pesanan
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Row(children: [
-              const Text(
-                'Detail Pesanan',
-                style: TextStyle(
-                  fontSize: 18,
+            child: Row(
+              children: [
+                const Text(
+                  'Detail Pesanan',
+                  style: TextStyle(
+                    fontSize: 18,
+                  ),
                 ),
-              ),
-              const Spacer(),
-              if (currenIndex == 0)
-                ElevatedButton(
-                  onPressed: () {
-                    ref.read(orderDetailProvider.notifier).clearOrder();
-                  },
-                  child: const Text('Hapus'),
-                ),
-            ]),
+                const Spacer(),
+                if (currenIndex == 0)
+                  Button(
+                    style: ButtonVariance.primary,
+                    onPressed: () {
+                      ref.read(orderDetailProvider.notifier).clearOrder();
+                    },
+                    child: const Text('Hapus'),
+                  ),
+              ],
+            ),
           ),
           Expanded(
             child: orderDetail == null || orderDetail.items.isEmpty
                 ? Container(
-                    color: Colors.grey[200],
+                    //gray
+                    color: const Color(0xFFE5E7EB),
                     alignment: Alignment.center,
                     child: Text(
                       onNull,
@@ -152,56 +150,57 @@ class OrderDetailScreen extends ConsumerWidget {
                     itemCount: orderDetail.items.length,
                     itemBuilder: (context, index) {
                       final orderItem = orderDetail!.items[index];
-                      return ListTile(
+                      return GestureDetector(
                         onTap: () {
                           if (currenIndex != 0) return;
-                          // Tampilkan dialog edit
-                          showDialog(
+                          openSheet(
                             context: context,
-                            builder: (context) {
-                              return EditOrderItemDialog(
-                                orderItem: orderItem,
-                                onEditOrder: (editedOrderItem) {
-                                  // Panggil method editOrderItem di OrderNotifier
-                                  ref
-                                      .read(orderDetailProvider.notifier)
-                                      .editOrderItem(
-                                          orderItem, editedOrderItem);
-                                },
-                              );
-                            },
+                            position: OverlayPosition.bottom,
+                            alignment: Alignment.bottomCenter,
+                            builder: (context) => EditOrderItemDialog(
+                              orderItem: orderItem,
+                              onEditOrder: (editedOrderItem) {
+                                ref
+                                    .read(orderDetailProvider.notifier)
+                                    .editOrderItem(orderItem, editedOrderItem);
+                              },
+                            ),
                           );
                         },
-                        title: Text(
-                            '${orderItem.menuItem.name} (x${orderItem.quantity})'),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (orderItem.selectedToppings.isNotEmpty)
+                        child: Basic(
+                          title: Text(
+                              '${orderItem.menuItem.name} (x${orderItem.quantity})'),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (orderItem.selectedToppings.isNotEmpty)
+                                Text(
+                                    'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}'),
+                              if (orderItem.selectedAddons.isNotEmpty)
+                                //mengambil nama addons dan lable pada opsions
+                                if (orderItem
+                                    .selectedAddons.first.options.isNotEmpty)
+                                  Text(
+                                      'Addons: ${orderItem.selectedAddons.map((a) => a.options.map((o) => o.label).join(', ')).join(', ')}'),
                               Text(
-                                  'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}'),
-                            if (orderItem.selectedAddons.isNotEmpty)
-                              //mengambil nama addons dan lable pada opsions
-
-                              Text(
-                                  'Addons: ${orderItem.selectedAddons.map((a) => a.options.map((o) => o.label).join(', ')).join(', ')}'),
-                            Text(
-                                'Sub total: ${formatRupiah(orderItem.subTotalPrice)}'),
-                          ],
+                                  'Sub total: ${formatRupiah(orderItem.subTotalPrice)}'),
+                            ],
+                          ),
+                          trailing: currenIndex == 0
+                              ? Button(
+                                  style: ButtonVariance.outline,
+                                  child: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: Color(0xFFD32F2F),
+                                  ),
+                                  onPressed: () {
+                                    ref
+                                        .read(orderDetailProvider.notifier)
+                                        .removeItem(orderItem);
+                                  },
+                                )
+                              : null,
                         ),
-                        trailing: currenIndex == 0
-                            ? IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline_rounded,
-                                  color: Colors.grey,
-                                ),
-                                onPressed: () {
-                                  ref
-                                      .read(orderDetailProvider.notifier)
-                                      .removeItem(orderItem);
-                                },
-                              )
-                            : null,
                       );
                     },
                   ),
@@ -216,12 +215,12 @@ class OrderDetailScreen extends ConsumerWidget {
               ),
             ),
           ),
-          const Divider(),
           //tombol untuk melanjutkan pesanan.
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: currenIndex == 3
-                ? ElevatedButton(
+                ? Button(
+                    style: ButtonVariance.primary,
                     onPressed: () {
                       // hapus data order detail yang lama
                       ref.read(orderDetailProvider.notifier).clearOrder();
@@ -242,7 +241,8 @@ class OrderDetailScreen extends ConsumerWidget {
                 : Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton(
+                        child: Button(
+                          style: ButtonVariance.primary,
                           onPressed: () {
                             if (orderDetail != null &&
                                 orderDetail.items.isNotEmpty) {
@@ -261,17 +261,14 @@ class OrderDetailScreen extends ConsumerWidget {
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: ElevatedButton(
+                        child: Button(
+                          style: ButtonVariance.primary,
                           onPressed: () {
                             if (orderDetail != null &&
                                 orderDetail.items.isNotEmpty) {
-                              showModalBottomSheet(
+                              openSheet(
                                 context: context,
-                                isScrollControlled: true,
-                                shape: const RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(20)),
-                                ),
+                                position: OverlayPosition.bottom,
                                 builder: (context) => const PaymentMethod(),
                               );
                             }
@@ -288,36 +285,30 @@ class OrderDetailScreen extends ConsumerWidget {
   }
 }
 
-class SelectOrderType extends ConsumerWidget {
+class SelectOrderType extends riverpod.ConsumerWidget {
   const SelectOrderType({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context, riverpod.WidgetRef ref) {
     final orderType = ref.watch(orderTypeProvider);
     return Padding(
       padding: const EdgeInsets.all(8.0),
-      child: Row(
-        children: [
-          const Text('DI'),
-          Radio(
-            value: 'dine-in',
-            groupValue: orderType,
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(orderTypeProvider.notifier).state = value.toString();
-              }
-            },
-          ),
-          Radio(
-            value: 'take-away',
-            groupValue: orderType,
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(orderTypeProvider.notifier).state = value.toString();
-              }
-            },
-          ),
-        ],
+      child: RadioGroup(
+        value: orderType,
+        onChanged: (value) =>
+            ref.read(orderTypeProvider.notifier).state = value,
+        child: const Row(
+          children: [
+            RadioCard(
+              value: 'dine-in',
+              child: Text('Dine-in'),
+            ),
+            RadioCard(
+              value: 'take-away',
+              child: Text('Take-away'),
+            ),
+          ],
+        ),
       ),
     );
   }

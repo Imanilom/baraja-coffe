@@ -7,51 +7,358 @@ import { useNavigate } from "react-router-dom";
 const CreateMenu = () => {
   const navigate = useNavigate();
 
-  // Panggil StateFunctionCreateMenu untuk mendapatkan state dan fungsi
-  const {
-    formData,
-    categoryMap,
-    rawMaterials,
-    selectedCategories,
-    selectedRawMaterials,
-    searchTermCategories,
-    searchTermRawMaterials,
-    searchResultsRawMaterials,
-    searchResultsCategories,
-    outlets,
-    imagePreview,
-    handleDefaultOptionChange,
-    handleAddOption,
-    handleAddonOptionInputChange,
-    handleRemoveAddonRawMaterial,
-    handleRemoveAddonOption,
-    handleRemoveToppingRawMaterial,
-    searchResultsToppingRawMaterials,
-    searchResultsAddonRawMaterials,
-    selectedToppingRawMaterials,
-    selectedAddonRawMaterials,
-    searchTermToppings,
-    searchTermAddons,
-    setSearchTermToppings,
-    setSearchTermAddons,
-    handleAddToppingRawMaterial,
-    handleAddAddonRawMaterial,
-    setSearchTermCategories,
-    setSearchTermRawMaterials,
-    handleAddonInputChange,
-    handleAvailableAtChange,
-    handleRemoveCategory,
-    handleAddRawMaterial,
-    handleAddTopping,
-    handleRemoveTopping,
-    handleAddAddon,
-    handleRemoveAddon,
-    handleRemoveRawMaterial,
-    handleImageChange,
-    handleToppingInputChange,
-    handleInputChange,
-    handleAddCategory,
-  } = StateFunctionCreateMenu();
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+<<<<<<< HEAD
+        const response = await axios.get("/api/menu/categories"); // Sesuaikan URL API kategori
+        setCategories(response.data || []);
+=======
+        const response = await axios.get("/api/menu/categories");
+        const fetchedCategories = response.data.data || [];
+        setCategories(fetchedCategories);
+
+        // Create a mapping of category IDs to names
+        const map = {};
+        fetchedCategories.forEach(category => {
+          map[category._id] = category.name;
+        });
+        setCategoryMap(map);
+>>>>>>> b39d30be9cbc3fb9798da58b2924ecf38c43a164
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      }
+    };
+
+    const fetchOutlets = async () => {
+      try {
+        const response = await axios.get("/api/outlet/");
+        setOutlets(response.data || []);
+      } catch (error) {
+        console.error("Error fetching outlets:", error);
+      }
+    };
+
+    const fetchRawMaterial = async () => {
+      try {
+        const response = await axios.get("/api/storage/raw-material");
+        setRawMaterials(response.data.data || []);
+      } catch (error) {
+        console.error("Error fetching raw materials:", error);
+      }
+    };
+
+    fetchCategories();
+    fetchOutlets();
+    fetchRawMaterial();
+  }, []);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: value,
+    }));
+  };
+
+  const handleCategoryChange = (e) => {
+    const { value, checked } = e.target;
+    setFormData((prevData) => {
+      const updatedCategories = checked
+        ? [...prevData.category, value]
+        : prevData.category.filter((category) => category !== value);
+      return {
+        ...prevData,
+        category: updatedCategories,
+      };
+    });
+  };
+
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          // Mempertahankan aspek rasio tetapi mengurangi ukuran jika perlu
+          let width = img.width;
+          let height = img.height;
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Mengatur kualitas kompresi (0.7 berarti 70% kualitas)
+          canvas.toBlob((blob) => {
+            resolve(new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            }));
+          }, 'image/jpeg', 0.7); // Mengatur format ke JPEG dan kualitas 0.7
+        };
+      };
+    });
+  };
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Cek ukuran file (dalam bytes, 1MB = 1048576 bytes)
+    if (file.size > 1048576) {
+      // File lebih besar dari 1MB, kompresi diperlukan
+      const compressedFile = await compressImage(file);
+      const base64String = await convertToBase64(compressedFile);
+      setFormData((prevData) => ({
+        ...prevData,
+        imageURL: base64String,
+      }));
+      const imageUrl = URL.createObjectURL(compressedFile);
+      setImagePreview(imageUrl);
+    } else {
+      // File sudah di bawah 1MB
+      const base64String = await convertToBase64(file);
+      setFormData((prevData) => ({
+        ...prevData,
+        imageURL: base64String,
+      }));
+      const imageUrl = URL.createObjectURL(file);
+      setImagePreview(imageUrl);
+    }
+  };
+
+  // Helper function to convert file to base64
+  const convertToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleRawMaterialChange = (e) => {
+    const { value, checked } = e.target;
+    setFormData((prevData) => {
+      const updatedRawMaterials = checked
+        ? [...prevData.rawMaterials, value]
+        : prevData.rawMaterials.filter((rawMaterial) => rawMaterial !== value);
+      return {
+        ...prevData,
+        rawMaterials: updatedRawMaterials,
+      };
+    });
+  };
+
+  const handleToppingInputChange = (index, field, value) => {
+    setFormData((prevData) => {
+      const updatedToppings = [...prevData.toppings];
+      updatedToppings[index] = {
+        ...updatedToppings[index],
+        [field]: value,
+      };
+      return {
+        ...prevData,
+        toppings: updatedToppings,
+      };
+    });
+  };
+
+  const handleToppingRawMaterialChange = (toppingIndex, e) => {
+    const { value, checked } = e.target;
+    setFormData((prevData) => {
+      const updatedToppings = [...prevData.toppings];
+
+      // Initialize rawMaterials array if it doesn't exist
+      if (!updatedToppings[toppingIndex].rawMaterials) {
+        updatedToppings[toppingIndex].rawMaterials = [];
+      }
+
+      let updatedRawMaterials = [...updatedToppings[toppingIndex].rawMaterials];
+
+      if (checked) {
+        updatedRawMaterials.push(value);
+      } else {
+        updatedRawMaterials = updatedRawMaterials.filter(
+          (materialId) => materialId !== value
+        );
+      }
+
+      updatedToppings[toppingIndex] = {
+        ...updatedToppings[toppingIndex],
+        rawMaterials: updatedRawMaterials,
+      };
+
+      return {
+        ...prevData,
+        toppings: updatedToppings,
+      };
+    });
+  };
+
+  const handleAddonInputChange = (index, field, value) => {
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+      updatedAddons[index] = {
+        ...updatedAddons[index],
+        [field]: value,
+      };
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleAddonOptionInputChange = (addonIndex, optionIndex, field, value) => {
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+      updatedAddons[addonIndex].options[optionIndex] = {
+        ...updatedAddons[addonIndex].options[optionIndex],
+        [field]: field === "price" ? value : value,
+      };
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleAddonRawMaterialChange = (addonIndex, e) => {
+    const { value, checked } = e.target;
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+
+      // Initialize rawMaterials array if it doesn't exist
+      if (!updatedAddons[addonIndex].rawMaterials) {
+        updatedAddons[addonIndex].rawMaterials = [];
+      }
+
+      let updatedRawMaterials = [...updatedAddons[addonIndex].rawMaterials];
+
+      if (checked) {
+        updatedRawMaterials.push(value);
+      } else {
+        updatedRawMaterials = updatedRawMaterials.filter(
+          (materialId) => materialId !== value
+        );
+      }
+
+      updatedAddons[addonIndex] = {
+        ...updatedAddons[addonIndex],
+        rawMaterials: updatedRawMaterials,
+      };
+
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleAddTopping = () => {
+    setFormData((prevData) => ({
+      ...prevData,
+      toppings: [...prevData.toppings, { name: "", price: "", rawMaterials: [] }],
+    }));
+  };
+
+  const handleAddAddon = () => {
+    setFormData((prevData) => ({
+      ...prevData,
+      addons: [
+        ...prevData.addons,
+        { name: "", options: [{ label: "", price: "", default: false }], rawMaterials: [] },
+      ],
+    }));
+  };
+
+  const handleRemoveTopping = (index) => {
+    setFormData((prevData) => {
+      const updatedToppings = prevData.toppings.filter((_, i) => i !== index);
+      return {
+        ...prevData,
+        toppings: updatedToppings,
+      };
+    });
+  };
+
+  const handleRemoveAddon = (index) => {
+    setFormData((prevData) => {
+      const updatedAddons = prevData.addons.filter((_, i) => i !== index);
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleRemoveAddonOption = (addonIndex, optionIndex) => {
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+      updatedAddons[addonIndex].options = updatedAddons[addonIndex].options.filter(
+        (_, i) => i !== optionIndex
+      );
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleAddOption = (addonIndex) => {
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+      updatedAddons[addonIndex].options.push({ label: "", price: "", default: false });
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleDefaultOptionChange = (addonIndex, optionIndex) => {
+    setFormData((prevData) => {
+      const updatedAddons = [...prevData.addons];
+      updatedAddons[addonIndex].options = updatedAddons[addonIndex].options.map((option, index) => {
+        if (index === optionIndex) {
+          return { ...option, default: true };
+        }
+        return { ...option, default: false };
+      });
+      return {
+        ...prevData,
+        addons: updatedAddons,
+      };
+    });
+  };
+
+  const handleAvailableAtChange = (e) => {
+    setFormData((prevData) => ({
+      ...prevData,
+      availableAt: [e.target.value], // Simpan sebagai array dengan satu elemen
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -142,63 +449,51 @@ const CreateMenu = () => {
         </div>
 
         {/* Category (Checkboxes) */}
-        <div className="">
-          <label className="block font-medium">Kategori</label>
-          {/* Container untuk bubble kategori yang dipilih */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {selectedCategories.map(categoryId => (
-              <div
-                key={categoryId}
-                className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
-              >
-                {categoryMap[categoryId] || categoryId}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveCategory(categoryId)}
-                  className="ml-2 text-green-500 hover:text-green-700"
-                >
-                  ×
-                </button>
+        <div>
+          <label className="block font-medium">Categories</label>
+          <div className="space-y-2">
+<<<<<<< HEAD
+  {
+    categories.length > 0 ? (
+      categories.map((category) => (
+        <div key={category._id}>
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              value={category._id}
+              checked={formData.category.includes(category._id)}
+              onChange={handleCategoryChange}
+              className="mr-2"
+            />
+            {category.name} {/* Tampilkan nama kategori */}
+          </label>
+        </div>
+      ))
+    ) : (
+    <div>Loading categories...</div>
+  )
+  }
+=======
+            {categories.map((category) => (
+              <div key={category._id}>
+                <label className="inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    value={category._id}
+                    checked={formData.category.includes(category._id)}
+                    onChange={handleCategoryChange}
+                    className="mr-2"
+                  />
+                  {category.name}
+                </label>
               </div>
             ))}
-          </div>
+>>>>>>> b39d30be9cbc3fb9798da58b2924ecf38c43a164
+          </div >
+        </div >
 
-          {/* Input pencarian */}
-          <div className="relative">
-            <input
-              type="text"
-              value={searchTermCategories}
-              onChange={(e) => setSearchTermCategories(e.target.value)}
-              placeholder="Cari kategori..."
-              className="w-full p-2 border rounded"
-            />
-
-            {/* Dropdown hasil pencarian */}
-            {searchTermCategories && searchResultsCategories.length > 0 && (
-              <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
-                {searchResultsCategories.map(category => (
-                  <div
-                    key={category._id}
-                    onClick={() => handleAddCategory(category._id)}
-                    className="p-2 hover:bg-gray-100 cursor-pointer"
-                  >
-                    {category.name}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Pesan jika tidak ada hasil */}
-          {searchTermCategories && searchResultsCategories.length === 0 && (
-            <div className="text-gray-500 text-sm mt-2">
-              Tidak ada kategori yang cocok
-            </div>
-          )}
-        </div>
-
-        {/* Image File Input */}
-        <div>
+  {/* Image File Input */ }
+  < div >
           <label className="block font-medium">Image</label>
           <input
             type="file"
@@ -207,54 +502,161 @@ const CreateMenu = () => {
             onChange={handleImageChange}
             className="w-full p-2 border rounded"
           />
-        </div>
+        </div >
 
-        {/* Display the image preview */}
-        {imagePreview && (
-          <div className="mt-4">
-            <img src={imagePreview} alt="Image Preview" className="w-full max-h-60 object-cover rounded" />
-          </div>
-        )}
+  {/* Display the image preview */ }
+{
+  imagePreview && (
+    <div className="mt-4">
+      <img src={imagePreview} alt="Image Preview" className="w-full max-h-60 object-cover rounded" />
+    </div>
+  )
+}
 
-        {/* Available At (Dropdown) */}
-        <div>
-          <label className="block font-medium">Available At</label>
-          <select
-            name="availableAt"
-            value={formData.availableAt}
-            onChange={handleAvailableAtChange}
-            className="w-full p-2 border rounded"
+{/* Available At (Dropdown) */ }
+<div>
+  <label className="block font-medium">Available At</label>
+  <select
+    name="availableAt"
+    value={formData.availableAt}
+    onChange={handleAvailableAtChange}
+    className="w-full p-2 border rounded"
+  >
+    <option value="">Pilih Outlet</option>
+    {outlets.length > 0 ? (
+      outlets.map((outlet) => (
+        <option key={outlet._id} value={outlet._id}>
+          {outlet.name}
+        </option>
+      ))
+    ) : (
+      <option value="">Loading outlets...</option>
+    )}
+  </select>
+</div>
+
+{/* Bahan Baku */ }
+<div>
+  <label className="block font-medium">Bahan Baku</label>
+
+  {/* Container untuk bubble bahan baku yang dipilih */}
+  <div className="flex flex-wrap gap-2 mb-4">
+    {selectedRawMaterials.map(materialId => {
+      const material = rawMaterials.find(m => m._id === materialId);
+      return (
+        <div
+          key={materialId}
+          className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
+        >
+          {material ? material.name : materialId}
+          <button
+            type="button"
+            onClick={() => handleRemoveRawMaterial(materialId)}
+            className="ml-2 text-green-500 hover:text-green-700"
           >
-            <option value="">Pilih Outlet</option>
-            {outlets.length > 0 ? (
-              outlets.map((outlet) => (
-                <option key={outlet._id} value={outlet._id}>
-                  {outlet.name}
-                </option>
-              ))
-            ) : (
-              <option value="">Loading outlets...</option>
-            )}
-          </select>
+            ×
+          </button>
+        </div>
+      );
+    })}
+  </div>
+
+  {/* Input pencarian bahan baku */}
+  <div className="relative">
+    <input
+      type="text"
+      value={searchTermRawMaterials}
+      onChange={(e) => setSearchTermRawMaterials(e.target.value)}
+      placeholder="Cari bahan baku..."
+      className="w-full p-2 border rounded"
+    />
+
+    {/* Dropdown hasil pencarian bahan baku */}
+    {searchTermRawMaterials && searchResultsRawMaterials.length > 0 && (
+      <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
+        {searchResultsRawMaterials.map(material => (
+          <div
+            key={material._id}
+            onClick={() => handleAddRawMaterial(material._id)}
+            className="p-2 hover:bg-gray-100 cursor-pointer"
+          >
+            {material.name}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+
+  {/* Pesan jika tidak ada hasil bahan baku */}
+  {searchTermRawMaterials && searchResultsRawMaterials.length === 0 && (
+    <div className="text-gray-500 text-sm mt-2">
+      Tidak ada bahan baku yang cocok
+    </div>
+  )}
+</div>
+
+{/* Toppings */ }
+<div>
+  <div className="flex justify-between items-center mb-2">
+    <label className="block font-medium">Toppings</label>
+    <button
+      type="button"
+      onClick={handleAddTopping}
+      className="bg-green-500 text-white px-2 py-1 rounded text-sm"
+    >
+      + Add Topping
+    </button>
+  </div>
+
+  <div className="space-y-4">
+    {formData.toppings.map((topping, toppingIndex) => (
+      <div key={toppingIndex} className="border p-3 rounded">
+        <div className="flex justify-between items-center mb-2">
+          <h4 className="font-medium">Topping #{toppingIndex + 1}</h4>
+          <button
+            type="button"
+            onClick={() => handleRemoveTopping(toppingIndex)}
+            className="text-red-500"
+          >
+            <FaTrashAlt />
+          </button>
         </div>
 
-        {/* Bahan Baku */}
-        <div>
-          <label className="block font-medium">Bahan Baku</label>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <div>
+            <label className="block text-sm">Name</label>
+            <input
+              type="text"
+              value={topping.name}
+              onChange={(e) => handleToppingInputChange(toppingIndex, "name", e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-sm">Price</label>
+            <input
+              type="number"
+              value={topping.price}
+              onChange={(e) => handleToppingInputChange(toppingIndex, "price", e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+          </div>
+        </div>
 
-          {/* Container untuk bubble bahan baku yang dipilih */}
+        <div>
+          {/* Container untuk bubble raw materials yang dipilih */}
           <div className="flex flex-wrap gap-2 mb-4">
-            {selectedRawMaterials.map(materialId => {
+            {selectedToppingRawMaterials.map(materialId => {
               const material = rawMaterials.find(m => m._id === materialId);
               return (
                 <div
                   key={materialId}
                   className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
                 >
-                  {material ? material.name : materialId}
+                  {material.name}
                   <button
                     type="button"
-                    onClick={() => handleRemoveRawMaterial(materialId)}
+                    onClick={() => handleRemoveToppingRawMaterial(materialId)}
                     className="ml-2 text-green-500 hover:text-green-700"
                   >
                     ×
@@ -264,23 +666,23 @@ const CreateMenu = () => {
             })}
           </div>
 
-          {/* Input pencarian bahan baku */}
+          {/* Input pencarian */}
           <div className="relative">
             <input
               type="text"
-              value={searchTermRawMaterials}
-              onChange={(e) => setSearchTermRawMaterials(e.target.value)}
+              value={searchTermToppings}
+              onChange={(e) => setSearchTermToppings(e.target.value)}
               placeholder="Cari bahan baku..."
               className="w-full p-2 border rounded"
             />
 
-            {/* Dropdown hasil pencarian bahan baku */}
-            {searchTermRawMaterials && searchResultsRawMaterials.length > 0 && (
+            {/* Dropdown hasil pencarian */}
+            {searchTermToppings && searchResultsToppingRawMaterials.length > 0 && (
               <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
-                {searchResultsRawMaterials.map(material => (
+                {searchResultsToppingRawMaterials.map(material => (
                   <div
                     key={material._id}
-                    onClick={() => handleAddRawMaterial(material._id)}
+                    onClick={() => handleAddToppingRawMaterial(material._id)}
                     className="p-2 hover:bg-gray-100 cursor-pointer"
                   >
                     {material.name}
@@ -290,124 +692,19 @@ const CreateMenu = () => {
             )}
           </div>
 
-          {/* Pesan jika tidak ada hasil bahan baku */}
-          {searchTermRawMaterials && searchResultsRawMaterials.length === 0 && (
+          {/* Pesan jika tidak ada hasil */}
+          {searchTermToppings && searchResultsToppingRawMaterials.length === 0 && (
             <div className="text-gray-500 text-sm mt-2">
               Tidak ada bahan baku yang cocok
             </div>
           )}
         </div>
+      </div>
+    ))}
+  </div>
+</div>
 
-        {/* Toppings */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <label className="block font-medium">Toppings</label>
-            <button
-              type="button"
-              onClick={handleAddTopping}
-              className="bg-green-500 text-white px-2 py-1 rounded text-sm"
-            >
-              + Add Topping
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            {formData.toppings.map((topping, toppingIndex) => (
-              <div key={toppingIndex} className="border p-3 rounded">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-medium">Topping #{toppingIndex + 1}</h4>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTopping(toppingIndex)}
-                    className="text-red-500"
-                  >
-                    <FaTrashAlt />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div>
-                    <label className="block text-sm">Name</label>
-                    <input
-                      type="text"
-                      value={topping.name}
-                      onChange={(e) => handleToppingInputChange(toppingIndex, "name", e.target.value)}
-                      className="w-full p-2 border rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm">Price</label>
-                    <input
-                      type="number"
-                      value={topping.price}
-                      onChange={(e) => handleToppingInputChange(toppingIndex, "price", e.target.value)}
-                      className="w-full p-2 border rounded"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  {/* Container untuk bubble raw materials yang dipilih */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {selectedToppingRawMaterials.map(materialId => {
-                      const material = rawMaterials.find(m => m._id === materialId);
-                      return (
-                        <div
-                          key={materialId}
-                          className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
-                        >
-                          {material.name}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveToppingRawMaterial(materialId)}
-                            className="ml-2 text-green-500 hover:text-green-700"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Input pencarian */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={searchTermToppings}
-                      onChange={(e) => setSearchTermToppings(e.target.value)}
-                      placeholder="Cari bahan baku..."
-                      className="w-full p-2 border rounded"
-                    />
-
-                    {/* Dropdown hasil pencarian */}
-                    {searchTermToppings && searchResultsToppingRawMaterials.length > 0 && (
-                      <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
-                        {searchResultsToppingRawMaterials.map(material => (
-                          <div
-                            key={material._id}
-                            onClick={() => handleAddToppingRawMaterial(material._id)}
-                            className="p-2 hover:bg-gray-100 cursor-pointer"
-                          >
-                            {material.name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Pesan jika tidak ada hasil */}
-                  {searchTermToppings && searchResultsToppingRawMaterials.length === 0 && (
-                    <div className="text-gray-500 text-sm mt-2">
-                      Tidak ada bahan baku yang cocok
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Addons */}
+{/* Addons */ }
         <div>
           <div className="flex justify-between items-center mb-2">
             <label className="block font-medium">Addons</label>
@@ -573,8 +870,8 @@ const CreateMenu = () => {
             Create Menu Item
           </button>
         </div>
-      </form>
-    </div>
+      </form >
+    </div >
   );
 };
 
