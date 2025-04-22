@@ -17,12 +17,6 @@ class AuthRepository {
       await _storage.saveDetailUser(userData);
       await _storage.saveUserData(userData.token, userData.id);
       print('login dan simpan data berhasil');
-      print([
-        "Token: ${userData.token}",
-        "User ID: ${userData.id}",
-        "name: ${userData.name} - ${userData.username}",
-        "role: ${userData.role} - ${userData.cashierType}",
-      ]);
       return userData;
     } catch (e) {
       print('login dan simpan data gagal');

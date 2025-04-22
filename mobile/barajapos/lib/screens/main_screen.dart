@@ -22,63 +22,65 @@ class MainScreen extends ConsumerWidget {
       ref.read(navigationProvider.notifier).setIndex(index);
     }
 
-    return Row(
-      children: [
-        Expanded(
-          flex: 2,
-          child: Scaffold(
-            headers: [
-              AppBar(
-                title: const Text('BarajaPOS'),
-                trailing: [
-                  _NavItem(
-                    icon: LucideIcons.house,
-                    label: 'Home',
-                    index: 0,
-                    selectedIndex: selectedIndex,
-                    onTap: onItemTapped,
-                  ),
-                  _NavItem(
-                    icon: LucideIcons.smartphone,
-                    label: 'Orders',
-                    index: 1,
-                    selectedIndex: selectedIndex,
-                    onTap: onItemTapped,
-                  ),
-                  _NavItem(
-                    icon: LucideIcons.history,
-                    label: 'History',
-                    index: 2,
-                    selectedIndex: selectedIndex,
-                    onTap: onItemTapped,
-                  ),
-                  _NavItem(
-                    icon: LucideIcons.shoppingCart,
-                    label: 'Saved',
-                    index: 3,
-                    selectedIndex: selectedIndex,
-                    onTap: onItemTapped,
-                  ),
+    return Scaffold(
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Scaffold(
+              headers: [
+                AppBar(
+                  title: const Text('BarajaPOS'),
+                  trailing: [
+                    _NavItem(
+                      icon: LucideIcons.house,
+                      label: 'Home',
+                      index: 0,
+                      selectedIndex: selectedIndex,
+                      onTap: onItemTapped,
+                    ),
+                    _NavItem(
+                      icon: LucideIcons.smartphone,
+                      label: 'Orders',
+                      index: 1,
+                      selectedIndex: selectedIndex,
+                      onTap: onItemTapped,
+                    ),
+                    _NavItem(
+                      icon: LucideIcons.history,
+                      label: 'History',
+                      index: 2,
+                      selectedIndex: selectedIndex,
+                      onTap: onItemTapped,
+                    ),
+                    _NavItem(
+                      icon: LucideIcons.shoppingCart,
+                      label: 'Saved',
+                      index: 3,
+                      selectedIndex: selectedIndex,
+                      onTap: onItemTapped,
+                    ),
+                  ],
+                ),
+              ],
+              // body: _buildBody(selectedIndex),
+              child: IndexedStack(
+                index: selectedIndex,
+                children: const [
+                  HomeScreen(),
+                  OnlineOrderScreen(),
+                  HistoryScreen(),
+                  SavedOrderScreen(),
                 ],
               ),
-            ],
-            // body: _buildBody(selectedIndex),
-            child: IndexedStack(
-              index: selectedIndex,
-              children: const [
-                HomeScreen(),
-                OnlineOrderScreen(),
-                HistoryScreen(),
-                SavedOrderScreen(),
-              ],
             ),
           ),
-        ),
-        const Expanded(
-          flex: 1,
-          child: OrderDetailScreen(),
-        ),
-      ],
+          const Expanded(
+            flex: 1,
+            child: OrderDetailScreen(),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -107,7 +109,7 @@ class _NavItem extends StatelessWidget {
       child: GestureDetector(
         onTap: () => onTap(index),
         child: Container(
-          color: isSelected ? Colors.primaries.first : Colors.transparent,
+          color: isSelected ? Colors.gray[100] : Colors.transparent,
           child: Column(
             children: [
               Icon(icon),

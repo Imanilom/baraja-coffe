@@ -51,25 +51,5 @@ class MenuItemCard extends ConsumerWidget {
         ),
       ),
     );
-
-    // return CardImage(
-    //   //tambahkan background color
-
-    //   key: ValueKey(menuItem.id),
-    //   image: Image.network(
-    //     menuItem.imageURL,
-    //     errorBuilder: (context, error, stackTrace) {
-    //       return Container(
-    //         color: Colors.gray[300],
-    //         child: const Icon(Icons.image, color: Colors.gray),
-    //       );
-    //     },
-    //   ),
-    //   title: Padding(
-    //     padding: const EdgeInsets.all(8.0),
-    //     child: Text(menuItem.name).center(),
-    //   ),
-    //   onPressed: onTap,
-    // );
   }
 }
