@@ -1,77 +1,334 @@
-import { Order } from '../models/Order.model.js';
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
 import { RawMaterial } from "../models/RawMaterial.model.js";
+import { Order } from "../models/order.model.js";
+import User from "../models/user.model.js";
 import Voucher from "../models/voucher.model.js";
 import AutoPromo from '../models/AutoPromo.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
 
+// export const createOrder = async (req, res) => {
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+//   try {
+//     const {
+//       order: orderData,
+//       order: {
+//         userId,
+//         user,
+//         cashier,
+//         items,
+//         paymentMethod,
+//         orderType,
+//         outlet,
+//         deliveryAddress,
+//         tableNumber,
+//         type,
+//         voucher
+//       }
+//     } = req.body;
+//     // Validasi dasar
+//     if (!items || items.length === 0) {
+//       throw new Error("Order items cannot be empty");
+//     }
+
+//     // Hitung total harga dan validasi item
+//     let totalPrice = 0;
+//     const orderItems = [];
+
+//     for (const item of items) {
+//       const menuItem = await MenuItem.findById(item.menuItem).session(session);
+//       if (!menuItem) {
+//         throw new Error(`Menu item ${item.menuItem} not found`);
+//       }
+
+//       orderItems.push({
+//         menuItem: item.menuItem,
+//         toppings: item.toppings || [],
+//         quantity: item.quantity,
+//         subtotal,
+//         isPrinted: false,
+//       });
+
+//       totalPrice += subtotal;
+//     }
+
+//     // Pastikan gross_amount adalah integer
+//     totalPrice = Math.round(totalPrice);
+
+//     // Buat order
+//     const order = new Order({
+//       userId,
+//       user,
+//       cashier,
+//       items: orderItems,
+//       totalPrice,
+//       paymentMethod,
+//       orderType,
+//       outlet,
+//       deliveryAddress: orderType === 'Delivery' ? deliveryAddress : undefined,
+//       tableNumber: orderType === 'Dine-In' ? tableNumber : undefined,
+//       type: orderType === 'Dine-In' ? type : undefined,
+//       voucher: voucher || undefined,
+//       status: "Pending",
+//     });
+
+//     await order.save({ session });
+
+//     // Proses pembayaran
+//     let paymentResponse = {};
+//     let payment;
+
+//     if (paymentMethod === "Cash") {
+//       payment = new Payment({
+//         order: order._id,
+//         amount: totalPrice,
+//         paymentMethod,
+//         status: "Pending",
+//       });
+//       await payment.save({ session });
+//       paymentResponse = { cashPayment: "Pending confirmation" };
+//     } else {
+
+//       // Parameter transaksi
+//       const parameter = {
+//         transaction_details: {
+//           order_id: order._id.toString(),
+//           gross_amount: totalPrice,
+//         },
+//         customer_details: {
+//           first_name: user.name || 'Customer',
+//           email: user.email || 'customer@example.com',
+//         }
+//       };
+
+//       // Tentukan payment type
+//       switch (paymentMethod.toLowerCase()) {
+//         case 'qris':
+//           parameter.payment_type = 'qris';
+//           break;
+//         case 'gopay':
+//           parameter.payment_type = 'gopay';
+//           parameter.gopay = {
+//             enable_callback: true,
+//             callback_url: 'yourapp://callback'
+//           };
+//           break;
+//         case 'credit_card':
+//           parameter.payment_type = 'credit_card';
+//           parameter.credit_card = {
+//             secure: true
+//           };
+//           break;
+//         default:
+//           throw new Error('Unsupported payment method');
+//       }
+
+//       // Create Midtrans transaction
+//       const midtransResponse = await coreApi.charge(parameter);
+
+//       // Simpan detail pembayaran
+//       payment = new Payment({
+//         order: order._id,
+//         amount: totalPrice,
+//         paymentMethod,
+//         status: "Pending",
+//         paymentDate: new Date(),
+//         transactionId: midtransResponse.transaction_id,
+//         paymentDetails: midtransResponse,
+//       });
+
+//       await payment.save({ session });
+//       paymentResponse = midtransResponse;
+//     }
+
+//     // Update stok bahan baku
+//     await updateStock(order, session);
+
+//     await session.commitTransaction();
+//     res.status(201).json({
+//       success: true,
+//       order: order.toJSON(),
+//       payment: paymentResponse
+//     });
+//   } catch (error) {
+//     await session.abortTransaction();
+//     console.error('Order Error:', error);
+//     res.status(400).json({
+//       success: false,
+//       error: error.message
+//     });
+//   } finally {
+//     session.endSession();
+//   }
+// };
+
+// const updateStock = async (order, session) => {
+//   try {
+//     for (const item of order.items) {
+//       const menuItem = await MenuItem.findById(item.menuItem);
+//       if (menuItem && menuItem.ingredients) {
+//         for (const ingredient of menuItem.ingredients) {
+//           await RawMaterial.findByIdAndUpdate(
+//             ingredient.ingredient,
+//             { $inc: { stock: -ingredient.amount * item.quantity } },
+//             { session }
+//           );
+//         }
+//       }
+//     }
+//   } catch (error) {
+//     throw new Error(`Failed to update stock: ${error.message}`);
+//   }
+// };
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
+
   try {
-    const { 
-      order: orderData, 
-      order: { 
-      userId, 
-      user, 
-      cashier, 
-      items, 
-      paymentMethod, 
-      orderType, 
-      outlet, 
-      deliveryAddress, 
-      tableNumber, 
-      type, 
-      voucher 
-      } 
+    const {
+      userId,         // Diubah dari customerId menjadi userId
+      customerName,   // Nama yang akan diubah menjadi user
+      cashierId,
+      phoneNumber,
+      items,
+      orderType,
+      tableNumber,
+      paymentMethod,
+      totalPrice
     } = req.body;
-    // Validasi dasar
-    if (!items || items.length === 0) {
-      throw new Error("Order items cannot be empty");
-    }
 
-    // Hitung total harga dan validasi item
-    let totalPrice = 0;
-    const orderItems = [];
+    // Tentukan apakah order dilakukan melalui kasir atau aplikasi
+    let finalUserId = null;
+    let userName = "Guest";
 
-    for (const item of items) {
-      const menuItem = await MenuItem.findById(item.menuItem).session(session);
-      if (!menuItem) {
-        throw new Error(`Menu item ${item.menuItem} not found`);
+    if (cashierId) {
+      // Order dilakukan melalui kasir
+      // Cari informasi kasir
+      const cashier = await User.findById(cashierId).session(session);
+      if (!cashier) {
+        throw new Error("Kasir tidak ditemukan");
       }
 
-      orderItems.push({
-        menuItem: item.menuItem,
-        toppings: item.toppings || [],
-        quantity: item.quantity,
-        subtotal,
-        isPrinted: false,
-      });
+      // Untuk order melalui kasir, gunakan nama pelanggan yang disediakan
+      userName = customerName || "Guest";
 
-      totalPrice += subtotal;
+      // Buat ID user jika tidak disediakan
+      finalUserId = userId || `USER-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+      // Opsional: Simpan informasi dasar pelanggan jika Anda ingin melacak mereka
+      if (phoneNumber) {
+        // Di sini Anda bisa menyimpan informasi pelanggan ke koleksi terpisah jika diperlukan
+        // Contoh: await CashierCustomer.findOneAndUpdate(
+        //   { phoneNumber },
+        //   { name: userName, phoneNumber },
+        //   { upsert: true, new: true, session }
+        // );
+      }
+    } else {
+      // Order dilakukan melalui aplikasi - user seharusnya sudah ada
+      if (!userId) {
+        throw new Error("ID user diperlukan untuk order melalui aplikasi");
+      }
+
+      // Verifikasi user ada di database
+      const user = await User.findById(userId).session(session);
+      if (!user) {
+        throw new Error("User tidak ditemukan");
+      }
+
+      finalUserId = userId;
+      userName = user.name || "Pengguna Aplikasi";
     }
 
-    // Pastikan gross_amount adalah integer
-    totalPrice = Math.round(totalPrice);
+    // Validasi dasar
+    if (!items || items.length === 0) {
+      throw new Error("Item order tidak boleh kosong");
+    }
 
-    // Buat order
+    // Proses item order
+    const orderItems = [];
+    let calculatedTotalPrice = 0;
+
+    for (const item of items) {
+      // Ambil detail menu item
+      const menuItem = await MenuItem.findById(item.id).session(session);
+      if (!menuItem) {
+        throw new Error(`Menu item ${item.id} tidak ditemukan`);
+      }
+
+      // Hitung harga item termasuk addons dan toppings
+      let itemPrice = menuItem.price;
+      let addons = [];
+      let toppings = [];
+
+      // Proses addon yang dipilih
+      if (item.selectedAddons && item.selectedAddons.length > 0) {
+        for (const addon of item.selectedAddons) {
+          const addonInfo = menuItem.addons.find(a => a._id.toString() === addon.id);
+          if (!addonInfo) continue;
+
+          // Proses opsi yang dipilih
+          if (addon.options && addon.options.length > 0) {
+            for (const option of addon.options) {
+              const optionInfo = addonInfo.options.find(o => o._id.toString() === option.id);
+              if (optionInfo) {
+                addons.push({
+                  name: `${addonInfo.name}: ${optionInfo.name}`,
+                  price: optionInfo.price || 0
+                });
+                itemPrice += optionInfo.price || 0;
+              }
+            }
+          }
+        }
+      }
+
+      // Proses topping yang dipilih
+      if (item.selectedToppings && item.selectedToppings.length > 0) {
+        for (const topping of item.selectedToppings) {
+          const toppingInfo = menuItem.toppings.find(t => t._id.toString() === topping.id);
+          if (toppingInfo) {
+            toppings.push({
+              name: toppingInfo.name,
+              price: toppingInfo.price || 0
+            });
+            itemPrice += toppingInfo.price || 0;
+          }
+        }
+      }
+
+      // Hitung subtotal untuk item ini
+      const subtotal = itemPrice * item.quantity;
+      calculatedTotalPrice += subtotal;
+
+      // Tambahkan ke item order
+      orderItems.push({
+        menuItem: item.id,
+        quantity: item.quantity,
+        subtotal,
+        addons,
+        toppings,
+        isPrinted: false
+      });
+    }
+
+    // Buat ID order unik
+    // const order_id = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    // Buat dokumen order
     const order = new Order({
-      userId,
-      user,
-      cashier,
+      // order_id,
+      user: userName,                           // Sesuai dengan model, ini adalah nama user
+      cashier: cashierId || null,               // ID kasir jika order melalui kasir
       items: orderItems,
-      totalPrice,
       paymentMethod,
       orderType,
-      outlet,
-      deliveryAddress: orderType === 'Delivery' ? deliveryAddress : undefined,
-      tableNumber: orderType === 'Dine-In' ? tableNumber : undefined,
-      type: orderType === 'Dine-In' ? type : undefined,
-      voucher: voucher || undefined,
-      status: "Pending",
+      tableNumber: orderType === 'Dine-In' ? tableNumber : null,
+      type: orderType === 'Dine-In' ? 'Indoor' : null, // Default ke Indoor
+      status: "Pending"
     });
 
     await order.save({ session });
@@ -80,26 +337,27 @@ export const createOrder = async (req, res) => {
     let paymentResponse = {};
     let payment;
 
-    if (paymentMethod === "Cash" || paymentMethod === "EDC") {
+    // Untuk kesederhanaan, asumsikan pembayaran Cash seperti dalam contoh Anda
+    if (paymentMethod === "Cash") {
       payment = new Payment({
-        order: order._id,
-        amount: totalPrice,
+        order_id: order._id,
+        amount: parseInt(totalPrice) || calculatedTotalPrice,
         paymentMethod,
         status: "Pending",
       });
       await payment.save({ session });
-      paymentResponse = { cashPayment: "Pending confirmation" };
+      paymentResponse = { cashPayment: "Menunggu konfirmasi" };
     } else {
-
+      // Kode pemrosesan pembayaran yang ada
       // Parameter transaksi
       const parameter = {
         transaction_details: {
           order_id: order._id.toString(),
-          gross_amount: totalPrice,
+          gross_amount: parseInt(totalPrice) || calculatedTotalPrice,
         },
         customer_details: {
-          first_name: user.name || 'Customer',
-          email: user.email || 'customer@example.com',
+          first_name: userName || 'Customer',
+          email: 'customer@example.com', // Tambahkan email jika tersedia
         }
       };
 
@@ -122,16 +380,17 @@ export const createOrder = async (req, res) => {
           };
           break;
         default:
-          throw new Error('Unsupported payment method');
+          throw new Error('Metode pembayaran tidak didukung');
       }
 
-      // Create Midtrans transaction
+      // Buat transaksi Midtrans
+      // Asumsikan coreApi telah diimpor dan dikonfigurasi sebelumnya
       const midtransResponse = await coreApi.charge(parameter);
 
       // Simpan detail pembayaran
       payment = new Payment({
         order: order._id,
-        amount: totalPrice,
+        amount: parseInt(totalPrice) || calculatedTotalPrice,
         paymentMethod,
         status: "Pending",
         paymentDate: new Date(),
@@ -143,8 +402,8 @@ export const createOrder = async (req, res) => {
       paymentResponse = midtransResponse;
     }
 
-    // Update stok bahan baku
-    await updateStock(order, session);
+    // Perbarui stok jika diperlukan
+    // await updateStock(order, session);
 
     await session.commitTransaction();
     res.status(201).json({
@@ -309,52 +568,52 @@ export const paymentNotification = async (req, res) => {
   const { transaction_status, order_id, gross_amount, payment_type } = notification;
 
   try {
-      // Update the payment record in the database based on the transaction status
-      let status;
-      switch (transaction_status) {
-          case 'capture':
-          case 'settlement':
-              // Payment has been captured or settled
-              status = 'Success';
-              break;
-          case 'pending':
-              // Payment is pending
-              status = 'Pending';
-              break;
-          case 'deny':
-          case 'cancel':
-          case 'expire':
-              // Payment was denied, canceled, or expired
-              status = 'Failed';
-              break;
-          default:
-              console.log('Unknown transaction status:', transaction_status);
-              return res.status(400).json({ message: 'Unknown transaction status' });
-      }
+    // Update the payment record in the database based on the transaction status
+    let status;
+    switch (transaction_status) {
+      case 'capture':
+      case 'settlement':
+        // Payment has been captured or settled
+        status = 'Success';
+        break;
+      case 'pending':
+        // Payment is pending
+        status = 'Pending';
+        break;
+      case 'deny':
+      case 'cancel':
+      case 'expire':
+        // Payment was denied, canceled, or expired
+        status = 'Failed';
+        break;
+      default:
+        console.log('Unknown transaction status:', transaction_status);
+        return res.status(400).json({ message: 'Unknown transaction status' });
+    }
 
-      // Update or create a payment record
-      await Payment.updateOne(
-          { order_id: order_id },
-          {
-              $set: {
-                  amount: parseFloat(gross_amount),
-                  paymentDate: new Date(),
-                  paymentMethod: payment_type,
-                  status: status,
-              },
-              $setOnInsert: {
-                  order_id: order_id, // Insert if not exists
-              },
-          },
-          { upsert: true }
-      );
+    // Update or create a payment record
+    await Payment.updateOne(
+      { order_id: order_id },
+      {
+        $set: {
+          amount: parseFloat(gross_amount),
+          paymentDate: new Date(),
+          paymentMethod: payment_type,
+          status: status,
+        },
+        $setOnInsert: {
+          order_id: order_id, // Insert if not exists
+        },
+      },
+      { upsert: true }
+    );
 
-      // console.log('Payment record updated successfully for order:', order_id);
-      res.status(200).json({ message: 'Notification processed and database updated' });
+    // console.log('Payment record updated successfully for order:', order_id);
+    res.status(200).json({ message: 'Notification processed and database updated' });
 
   } catch (error) {
-      console.error('Error updating payment record:', error);
-      res.status(500).json({ message: 'Internal server error' });
+    console.error('Error updating payment record:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 

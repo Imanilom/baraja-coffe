@@ -11,8 +11,10 @@ const OrderItemSchema = new mongoose.Schema({
 
 // Model Order
 const OrderSchema = new mongoose.Schema({
+  // order_id: { type: String, required: true, unique: true },
+  user_id: { type: String, uniqiue: true },
   user: { type: String, required: true, default: 'Guest' },
-  cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User'},
+  cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [OrderItemSchema],
   status: { type: String, enum: ['Pending', 'OnProcess', 'Completed', 'Canceled'], default: 'Pending' },
   paymentMethod: { type: String, enum: ['Cash', 'Card', 'E-Wallet', 'Debit'], required: true },
@@ -32,4 +34,6 @@ OrderSchema.virtual('totalPrice').get(function () {
 // Indeks untuk mempercepat pencarian pesanan aktif
 OrderSchema.index({ status: 1, createdAt: -1 });
 
-export const Order = mongoose.model('Order', OrderSchema);
+// export const Order = mongoose.model('Order', OrderSchema);
+export const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);
+
