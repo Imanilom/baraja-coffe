@@ -1,20 +1,13 @@
 import mongoose from 'mongoose';
 
 const PaymentSchema = new mongoose.Schema({
-  order_id: { type: String, required: true },
+  order_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true },
+  method: { type: String, required: true }, // 'Cash', 'EDC', 'Gopay', etc.
+  status: { type: String, default: 'pending' }, // 'pending', 'paid', 'failed'
   amount: { type: Number, required: true },
-  paymentDate: { type: Date, default: Date.now },
-  paymentMethod: { type: String, enum: ['Cash', 'EDC', 'E-Wallet'], required: true },
-  status: { type: String, enum: ['Success', 'Failed', 'Pending'], required: true },
-  cardDetails: {
-    cardHolderName: { type: String },
-    cardNumber: { type: String },
-    expirationDate: { type: String },
-    cvv: { type: String },
-  },
+  discount: { type: Number, default: 0 },
+  midtransRedirectUrl: { type: String }, // if using Midtrans
+  paidAt: { type: Date }, // only if paid
 }, { timestamps: true });
 
-const Payment = mongoose.model('Payment', PaymentSchema);
-
-
-export default Payment;
+export default mongoose.model('Payment', PaymentSchema);

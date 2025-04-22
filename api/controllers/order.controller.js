@@ -169,11 +169,8 @@ export const createOrder = async (req, res) => {
 export const checkout = async (req, res) => {
   const { orders, user, cashier, table, paymentMethod, orderType, type, voucher } = req.body;
 
-  let foundVoucher = null; // Declare foundVoucher here
-  let appliedPromotions = []; // Menyimpan daftar promosi yang diterapkan
-
   try {
-    // Hitung total dari semua order
+    // Proses item dan hitung subtotal
     const orderItems = orders.map(order => {
       const basePrice = order.item.price || 0;
       const addons = order.item.addons || [];
@@ -194,8 +191,9 @@ export const checkout = async (req, res) => {
 
     const totalAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
 
-    // Apply voucher if provided
+    // Cek dan hitung diskon voucher
     let discount = 0;
+    let foundVoucher = null;
     if (voucher) {
       foundVoucher = await Voucher.findOne({ code: voucher, isActive: true });
       if (foundVoucher) {
@@ -210,133 +208,44 @@ export const checkout = async (req, res) => {
       }
     }
 
-    // Ambil semua promosi aktif
-    const activePromotions = await AutoPromo.find({
-      outlet: cashier.outlet._id,
-      isActive: true,
-      validFrom: { $lte: new Date() },
-      validTo: { $gte: new Date() },
+    const finalAmount = Math.max(totalAmount - discount, 0);
+
+    // Simpan order ke database
+    const order = new Order({
+      user,
+      cashier,
+      items: orderItems,
+      paymentMethod,
+      orderType,
+      type,
+      tableNumber: table,
+      voucher: foundVoucher ? foundVoucher._id : null,
     });
 
-    // Aplikasikan promosi ke pesanan
-    let finalAmount = totalAmount - discount; // Mulai dari total setelah diskon voucher
-    for (const promo of activePromotions) {
-      switch (promo.promoType) {
-        case 'discount_on_quantity': {
-          const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
-          if (totalQuantity >= (promo.conditions.minQuantity || 0)) {
-            appliedPromotions.push(promo.name);
-            finalAmount -= (finalAmount * promo.discount) / 100;
-          }
-          break;
-        }
-        case 'discount_on_total': {
-          if (totalAmount >= (promo.conditions.minTotal || 0)) {
-            appliedPromotions.push(promo.name);
-            finalAmount -= promo.discount;
-          }
-          break;
-        }
-        case 'buy_x_get_y': {
-          const buyProductCount = orderItems.reduce((count, item) => {
-            if (item.menuItem.toString() === promo.conditions.buyProduct.toString()) {
-              return count + item.quantity;
-            }
-            return count;
-          }, 0);
+    const savedOrder = await order.save();
 
-          // Hitung berapa kali promosi dapat diterapkan
-          const freeProductCount = Math.floor(buyProductCount / promo.conditions.bundleProducts[0].quantity);
-
-          if (freeProductCount > 0) {
-            appliedPromotions.push(promo.name);
-
-            // Temukan produk gratis dalam pesanan
-            const freeProduct = orderItems.find(item => item.menuItem.toString() === promo.conditions.getProduct.toString());
-            if (freeProduct) {
-              // Pastikan jumlah gratis tidak melebihi jumlah yang dipesan
-              const maxFree = Math.min(freeProductCount, freeProduct.quantity);
-              finalAmount -= freeProduct.subtotal * maxFree; // Kurangi subtotal sesuai jumlah gratis
-            }
-          }
-          break;
-        }
-        case 'bundling': {
-          const bundleProducts = promo.conditions.bundleProducts;
-
-          // Cek apakah semua produk dalam bundling terpenuhi
-          const bundleMatch = bundleProducts.every(bundleItem => {
-            const orderItem = orderItems.find(item => item.menuItem.toString() === bundleItem.product.toString());
-            return orderItem && orderItem.quantity >= bundleItem.quantity;
-          });
-
-          if (bundleMatch) {
-            appliedPromotions.push(promo.name);
-
-            // Hitung subtotal dari produk-produk dalam bundling
-            const bundledSubtotal = bundleProducts.reduce((sum, bundleItem) => {
-              const orderItem = orderItems.find(item => item.menuItem.toString() === bundleItem.product.toString());
-              return sum + (orderItem ? orderItem.subtotal : 0);
-            }, 0);
-
-            // Aplikasikan harga bundling
-            finalAmount -= (bundledSubtotal - promo.bundlePrice);
-          }
-          break;
-        }
-      }
-    }
-
-    // Ensure final amount doesn't go below zero
-    finalAmount = Math.max(finalAmount, 0);
-
-    // Check payment method
+    // Jika pembayaran tunai atau EDC, tidak perlu proses Midtrans
     if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
-      const order_id = `order-${Date.now()}`; // Generate order ID
-      const newOrder = new Order({
-        order_id: order_id,
-        user,
-        cashier,
-        items: orderItems,
-        paymentMethod: paymentMethod,
-        orderType: orderType,
-        type: type,
-        tableNumber: table,
-        voucher: foundVoucher ? foundVoucher._id : null, // Save voucher id if used
-        promotions: appliedPromotions.map(promoName => ({
-          name: promoName,
-          details: promoName.includes('Bundle') ? { bundleProducts: promo.conditions.bundleProducts, bundlePrice: promo.bundlePrice } : {}
-        })),
+      return res.json({
+        message: 'Order placed successfully',
+        order_id: savedOrder._id,
+        total: finalAmount,
       });
-
-      await newOrder.save();
-
-      return res.json({ message: 'Order placed successfully', order_id });
     }
 
-    // Buat data transaksi untuk Midtrans
+    // Data untuk Midtrans
     const transactionData = {
       payment_type: 'gopay',
       transaction_details: {
-        order_id: `order-${Date.now()}`,
+        order_id: savedOrder._id.toString(),
         gross_amount: finalAmount,
       },
-      item_details: orders.map(order => {
-        const basePrice = order.item.price || 0;
-        const addons = order.item.addons || [];
-        const toppings = order.item.toppings || [];
-
-        const addonsTotal = addons.reduce((sum, a) => sum + (a.price || 0), 0);
-        const toppingsTotal = toppings.reduce((sum, t) => sum + (t.price || 0), 0);
-        const itemTotal = basePrice + addonsTotal + toppingsTotal;
-
-        return {
-          id: order.item.id,
-          name: order.item.name,
-          price: itemTotal,
-          quantity: 1,
-        };
-      }),
+      item_details: orderItems.map(item => ({
+        id: item.menuItem,
+        name: 'Menu Item',
+        price: item.subtotal,
+        quantity: item.quantity,
+      })),
       customer_details: {
         name: 'Customer',
         email: 'customer@example.com',
@@ -347,57 +256,46 @@ export const checkout = async (req, res) => {
     // Request ke Midtrans
     const midtransSnapResponse = await axios.post(
       process.env.MIDTRANS_SANDBOX_ENDPOINT_TRANSACTION,
-      {
-        transaction_details: {
-          order_id: transactionData.transaction_details.order_id,
-          gross_amount: finalAmount,
-        },
-        item_details: transactionData.item_details,
-        customer_details: transactionData.customer_details,
-      },
+      transactionData,
       {
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Basic ${Buffer.from(process.env.MIDTRANS_SERVER_KEY + ':').toString('base64')}`,
+          Accept: 'application/json',
+          Authorization: `Basic ${Buffer.from(process.env.MIDTRANS_SERVER_KEY + ':').toString('base64')}`,
         },
       }
     );
 
-    // Simpan ke database
-    const newOrder = new Order({
-      order_id: transactionData.transaction_details.order_id,
-      user,
-      cashier,
-      items: orderItems,
-      paymentMethod: paymentMethod,
-      orderType: orderType,
-      type: type,
-      tableNumber: table,
-      voucher: foundVoucher ? foundVoucher._id : null, // Save voucher id if used
-      promotions: appliedPromotions.map(promoName => ({
-        name: promoName,
-        details: promoName.includes('Bundle') ? { bundleProducts: promo.conditions.bundleProducts, bundlePrice: promo.bundlePrice } : {}
-      })),
+    // Simpan data Payment
+    const payment = new Payment({
+      order_id: savedOrder._id,
+      amount: finalAmount,
+      method: paymentMethod,
+      status: 'pending',
+      redirectUrl: midtransSnapResponse.data.redirect_url,
     });
 
-    await newOrder.save();
+    await payment.save();
 
-    // Kembalikan URL pembayaran
-    res.json({ redirect_url: midtransSnapResponse.data.redirect_url });
+    res.json({
+      message: 'Midtrans transaction created',
+      redirect_url: midtransSnapResponse.data.redirect_url,
+      order_id: savedOrder._id,
+    });
+
   } catch (error) {
+    console.error('Checkout Error:', error);
+
     if (error.response) {
-      console.error('Midtrans error:', error.response.data);
-      res.status(error.response.status).json({ message: error.response.data.message || 'Payment processing failed.' });
-    } else if (error.request) {
-      console.error('No response received:', error.request);
-      res.status(500).json({ message: 'No response from payment gateway.' });
+      return res.status(error.response.status).json({
+        message: error.response.data.message || 'Payment processing failed.',
+      });
     } else {
-      console.error('Checkout error:', error.message);
-      res.status(500).json({ message: 'An error occurred while processing your checkout.' });
+      return res.status(500).json({ message: 'An error occurred while processing your checkout.' });
     }
   }
 };
+
 
 
 // Handling Midtrans Notification 
