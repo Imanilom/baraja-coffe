@@ -187,7 +187,7 @@ export const getMenuItems = async (req, res) => {
     const updatedMenuItems = menuItems.map(item => item.toObject());
 
     res.status(200).json({ success: true, data: updatedMenuItems });
-    console.log('Menu items fetched successfully');
+    // console.log('Menu items fetched successfully');
   } catch (error) {
     res.status(500).json({
       success: false,
