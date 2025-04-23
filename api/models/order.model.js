@@ -11,7 +11,6 @@ const OrderItemSchema = new mongoose.Schema({
 
 // Model Order
 const OrderSchema = new mongoose.Schema({
-  // order_id: { type: String, required: true, unique: true },
   user_id: { type: String, uniqiue: true },
   user: { type: String, required: true, default: 'Guest' },
   cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -23,7 +22,8 @@ const OrderSchema = new mongoose.Schema({
   tableNumber: { type: String },
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
   voucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
-  promotions: { type: String },
+  outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
+  promotions: [{ type: String }],
 }, { timestamps: true });
 
 // Virtual untuk menghitung total harga otomatis
