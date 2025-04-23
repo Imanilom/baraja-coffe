@@ -9,180 +9,7 @@ import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
 
-// export const createOrder = async (req, res) => {
-//   const session = await mongoose.startSession();
-//   session.startTransaction();
-//   try {
-//     const {
-//       order: orderData,
-//       order: {
-//         userId,
-//         user,
-//         cashier,
-//         items,
-//         paymentMethod,
-//         orderType,
-//         outlet,
-//         deliveryAddress,
-//         tableNumber,
-//         type,
-//         voucher
-//       }
-//     } = req.body;
-//     // Validasi dasar
-//     if (!items || items.length === 0) {
-//       throw new Error("Order items cannot be empty");
-//     }
 
-//     // Hitung total harga dan validasi item
-//     let totalPrice = 0;
-//     const orderItems = [];
-
-//     for (const item of items) {
-//       const menuItem = await MenuItem.findById(item.menuItem).session(session);
-//       if (!menuItem) {
-//         throw new Error(`Menu item ${item.menuItem} not found`);
-//       }
-
-//       orderItems.push({
-//         menuItem: item.menuItem,
-//         toppings: item.toppings || [],
-//         quantity: item.quantity,
-//         subtotal,
-//         isPrinted: false,
-//       });
-
-//       totalPrice += subtotal;
-//     }
-
-//     // Pastikan gross_amount adalah integer
-//     totalPrice = Math.round(totalPrice);
-
-//     // Buat order
-//     const order = new Order({
-//       userId,
-//       user,
-//       cashier,
-//       items: orderItems,
-//       totalPrice,
-//       paymentMethod,
-//       orderType,
-//       outlet,
-//       deliveryAddress: orderType === 'Delivery' ? deliveryAddress : undefined,
-//       tableNumber: orderType === 'Dine-In' ? tableNumber : undefined,
-//       type: orderType === 'Dine-In' ? type : undefined,
-//       voucher: voucher || undefined,
-//       status: "Pending",
-//     });
-
-//     await order.save({ session });
-
-//     // Proses pembayaran
-//     let paymentResponse = {};
-//     let payment;
-
-//     if (paymentMethod === "Cash") {
-//       payment = new Payment({
-//         order: order._id,
-//         amount: totalPrice,
-//         paymentMethod,
-//         status: "Pending",
-//       });
-//       await payment.save({ session });
-//       paymentResponse = { cashPayment: "Pending confirmation" };
-//     } else {
-
-//       // Parameter transaksi
-//       const parameter = {
-//         transaction_details: {
-//           order_id: order._id.toString(),
-//           gross_amount: totalPrice,
-//         },
-//         customer_details: {
-//           first_name: user.name || 'Customer',
-//           email: user.email || 'customer@example.com',
-//         }
-//       };
-
-//       // Tentukan payment type
-//       switch (paymentMethod.toLowerCase()) {
-//         case 'qris':
-//           parameter.payment_type = 'qris';
-//           break;
-//         case 'gopay':
-//           parameter.payment_type = 'gopay';
-//           parameter.gopay = {
-//             enable_callback: true,
-//             callback_url: 'yourapp://callback'
-//           };
-//           break;
-//         case 'credit_card':
-//           parameter.payment_type = 'credit_card';
-//           parameter.credit_card = {
-//             secure: true
-//           };
-//           break;
-//         default:
-//           throw new Error('Unsupported payment method');
-//       }
-
-//       // Create Midtrans transaction
-//       const midtransResponse = await coreApi.charge(parameter);
-
-//       // Simpan detail pembayaran
-//       payment = new Payment({
-//         order: order._id,
-//         amount: totalPrice,
-//         paymentMethod,
-//         status: "Pending",
-//         paymentDate: new Date(),
-//         transactionId: midtransResponse.transaction_id,
-//         paymentDetails: midtransResponse,
-//       });
-
-//       await payment.save({ session });
-//       paymentResponse = midtransResponse;
-//     }
-
-//     // Update stok bahan baku
-//     await updateStock(order, session);
-
-//     await session.commitTransaction();
-//     res.status(201).json({
-//       success: true,
-//       order: order.toJSON(),
-//       payment: paymentResponse
-//     });
-//   } catch (error) {
-//     await session.abortTransaction();
-//     console.error('Order Error:', error);
-//     res.status(400).json({
-//       success: false,
-//       error: error.message
-//     });
-//   } finally {
-//     session.endSession();
-//   }
-// };
-
-// const updateStock = async (order, session) => {
-//   try {
-//     for (const item of order.items) {
-//       const menuItem = await MenuItem.findById(item.menuItem);
-//       if (menuItem && menuItem.ingredients) {
-//         for (const ingredient of menuItem.ingredients) {
-//           await RawMaterial.findByIdAndUpdate(
-//             ingredient.ingredient,
-//             { $inc: { stock: -ingredient.amount * item.quantity } },
-//             { session }
-//           );
-//         }
-//       }
-//     }
-//   } catch (error) {
-//     throw new Error(`Failed to update stock: ${error.message}`);
-//   }
-// };
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -424,12 +251,11 @@ export const createOrder = async (req, res) => {
 };
 
 
-
 export const checkout = async (req, res) => {
-  const { orders, user, cashier, table, paymentMethod, orderType, type, voucher } = req.body;
+  const { orders, user, cashier, outlet, table, paymentMethod, orderType, type, voucher} = req.body;
 
   try {
-    // Proses item dan hitung subtotal
+    const now = new Date();
     const orderItems = orders.map(order => {
       const basePrice = order.item.price || 0;
       const addons = order.item.addons || [];
@@ -441,35 +267,131 @@ export const checkout = async (req, res) => {
 
       return {
         menuItem: order.item.id,
-        quantity: 1,
-        subtotal: itemTotal,
+        quantity: order.quantity || 1,
+        subtotal: itemTotal * (order.quantity || 1),
         addons,
         toppings,
       };
     });
 
-    const totalAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+    let totalAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
 
-    // Cek dan hitung diskon voucher
+    // AutoPromo
+    const autoPromos = await AutoPromo.find({
+      outlet: outlet,
+      isActive: true,
+      validFrom: { $lte: now },
+      validTo: { $gte: now }
+    })
+      .populate('conditions.buyProduct')
+      .populate('conditions.getProduct')
+      .populate('conditions.bundleProducts.product');
+
+    let autoPromoDiscount = 0;
+    let appliedPromos = [];
+
+    for (const promo of autoPromos) {
+      const itemsMap = {};
+      for (const item of orderItems) {
+        const id = item.menuItem.toString();
+        itemsMap[id] = (itemsMap[id] || 0) + item.quantity;
+      }
+    
+      let promoApplied = false;
+    
+      switch (promo.promoType) {
+        case 'discount_on_quantity':  
+          for (const item of orderItems) {
+            if (promo.conditions.minQuantity && itemsMap[item.menuItem.toString()] >= promo.conditions.minQuantity) {
+              autoPromoDiscount += (item.subtotal * promo.discount) / 100;
+              promoApplied = true;
+            }
+          }
+          break;
+    
+        case 'discount_on_total':
+          if (promo.conditions.minTotal && totalAmount >= promo.conditions.minTotal) {
+            autoPromoDiscount += (totalAmount * promo.discount) / 100;
+            promoApplied = true;
+          }
+          break;
+    
+        case 'buy_x_get_y':
+          const buyId = promo.conditions.buyProduct?._id?.toString();
+          const getId = promo.conditions.getProduct?._id?.toString();
+          if (buyId && getId && itemsMap[buyId]) {
+            const getItem = orderItems.find(i => i.menuItem.toString() === getId);
+            if (getItem) {
+              autoPromoDiscount += getItem.subtotal;
+              promoApplied = true;
+            }
+          }
+          break;
+    
+        case 'bundling':
+          const bundleMatch = promo.conditions.bundleProducts.every(bundle => {
+            return itemsMap[bundle.product._id.toString()] >= bundle.quantity;
+          });
+          if (bundleMatch) {
+            const bundleValue = promo.conditions.bundleProducts.reduce((sum, bundle) => {
+              const item = orderItems.find(i => i.menuItem.toString() === bundle.product._id.toString());
+              return sum + ((item?.subtotal || 0) * bundle.quantity);
+            }, 0);
+            autoPromoDiscount += Math.max(bundleValue - promo.bundlePrice, 0);
+            promoApplied = true;
+          }
+          break;
+      }
+    
+      if (promoApplied) {
+        appliedPromos.push(promo.name);
+      }
+    }
+
+    // Voucher Discount
     let discount = 0;
     let foundVoucher = null;
     if (voucher) {
       foundVoucher = await Voucher.findOne({ code: voucher, isActive: true });
-      if (foundVoucher) {
-        const now = new Date();
-        if (foundVoucher.validFrom <= now && foundVoucher.validTo >= now) {
+   
+      
+    if (foundVoucher) {
+
+        const isValidDate = now >= foundVoucher.validFrom && now <= foundVoucher.validTo;
+        const isValidOutlet = foundVoucher.applicableOutlets.length === 0 || 
+          foundVoucher.applicableOutlets.some(outletId => outletId.equals(outlet));
+        const hasQuota = foundVoucher.quota > 0;
+
+        if (!isValidDate || !isValidOutlet || !hasQuota) {
+          foundVoucher = null;
+        } else {
+          // Apply discount
           if (foundVoucher.discountType === 'percentage') {
             discount = (totalAmount * foundVoucher.discountAmount) / 100;
-          } else if (foundVoucher.discountType === 'fixed') {
+          } else {
             discount = foundVoucher.discountAmount;
           }
+          
+          // Update quota
+          foundVoucher.quota -= 1;
+          if (foundVoucher.quota === 0) {
+            foundVoucher.isActive = false;
+          }
+          await foundVoucher.save();
         }
       }
     }
 
-    const finalAmount = Math.max(totalAmount - discount, 0);
+    const totalDiscount = Math.floor(discount + autoPromoDiscount);
+    console.log('Total Discount:', totalDiscount);
+    const finalAmount = Math.max(totalAmount - totalDiscount, 0);
 
-    // Simpan order ke database
+    // Prevent negative final amount
+    if (finalAmount <= 0) {
+      return res.status(400).json({ error: 'Total amount after discounts cannot be zero or negative.' });
+    }
+
+    // Save Order
     const order = new Order({
       user,
       cashier,
@@ -478,33 +400,44 @@ export const checkout = async (req, res) => {
       orderType,
       type,
       tableNumber: table,
+      outlet,
       voucher: foundVoucher ? foundVoucher._id : null,
+      promotions: appliedPromos,
     });
 
     const savedOrder = await order.save();
 
-    // Jika pembayaran tunai atau EDC, tidak perlu proses Midtrans
+    // Non-Midtrans (Cash / EDC)
     if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
       return res.json({
         message: 'Order placed successfully',
         order_id: savedOrder._id,
         total: finalAmount,
+        discount: totalDiscount,
       });
     }
 
-    // Data untuk Midtrans
+    // Midtrans
     const transactionData = {
       payment_type: 'gopay',
       transaction_details: {
         order_id: savedOrder._id.toString(),
         gross_amount: finalAmount,
       },
-      item_details: orderItems.map(item => ({
-        id: item.menuItem,
-        name: 'Menu Item',
-        price: item.subtotal,
-        quantity: item.quantity,
-      })),
+      item_details: [
+        ...orderItems.map(item => ({
+          id: item.menuItem.toString(),
+          name: 'Menu Item',
+          price: Math.floor(item.subtotal),
+          quantity: item.quantity,
+        })),
+        ...(totalDiscount > 0 ? [{
+          id: 'discount',
+          name: 'Auto Promo & Voucher',
+          price: -totalDiscount,
+          quantity: 1,
+        }] : []),
+      ],
       customer_details: {
         name: 'Customer',
         email: 'customer@example.com',
@@ -512,7 +445,6 @@ export const checkout = async (req, res) => {
       },
     };
 
-    // Request ke Midtrans
     const midtransSnapResponse = await axios.post(
       process.env.MIDTRANS_SANDBOX_ENDPOINT_TRANSACTION,
       transactionData,
@@ -525,33 +457,27 @@ export const checkout = async (req, res) => {
       }
     );
 
-    // Simpan data Payment
     const payment = new Payment({
       order_id: savedOrder._id,
       amount: finalAmount,
       method: paymentMethod,
+      snapToken: midtransSnapResponse.data.token,
       status: 'pending',
-      redirectUrl: midtransSnapResponse.data.redirect_url,
     });
 
     await payment.save();
 
-    res.json({
-      message: 'Midtrans transaction created',
-      redirect_url: midtransSnapResponse.data.redirect_url,
+    return res.json({
+      message: 'Order placed successfully',
       order_id: savedOrder._id,
+      total: finalAmount,
+      discount: totalDiscount,
+      midtrans_token: midtransSnapResponse.data.token,
+      redirect_url: midtransSnapResponse.data.redirect_url,
     });
-
-  } catch (error) {
-    console.error('Checkout Error:', error);
-
-    if (error.response) {
-      return res.status(error.response.status).json({
-        message: error.response.data.message || 'Payment processing failed.',
-      });
-    } else {
-      return res.status(500).json({ message: 'An error occurred while processing your checkout.' });
-    }
+  } catch (err) {
+    console.error('Checkout Error:', err);
+    res.status(500).json({ error: 'Something went wrong during checkout.' });
   }
 };
 
