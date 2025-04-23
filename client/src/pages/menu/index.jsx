@@ -249,6 +249,14 @@ const Menu = () => {
                               <ul className="py-2">
                                 <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
                                   <Link
+                                    to={`/admin/menu/${item._id}`}
+                                    className="block bg-transparent"
+                                  >
+                                    View
+                                  </Link>
+                                </li>
+                                <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
+                                  <Link
                                     to={`/admin/menu-update/${item._id}`}
                                     className="block bg-transparent"
                                   >

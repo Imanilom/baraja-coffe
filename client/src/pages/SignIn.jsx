@@ -36,7 +36,11 @@ export default function SignIn() {
       }
 
       dispatch(signInSuccess(data));
-      navigate('/');
+      if (data.role === 'admin' || data.role === 'superadmin') {
+        navigate('/admin/menu');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       dispatch(signInFailure({ message: err.message })); // Pastikan error berbentuk objek
     }
