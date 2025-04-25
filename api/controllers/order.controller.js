@@ -255,7 +255,7 @@ export const checkout = async (req, res) => {
   const { orders, user, cashier, outlet, table, paymentMethod, orderType, type, voucher} = req.body;
 
   try {
-    const now = new Date();
+    const now = new Date(); 
     const orderItems = orders.map(order => {
       const basePrice = order.item.price || 0;
       const addons = order.item.addons || [];
@@ -540,6 +540,48 @@ export const paymentNotification = async (req, res) => {
   } catch (error) {
     console.error('Error updating payment record:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get Pending Orders
+export const getPendingOrders = async (req, res) => {
+  try {
+    const pendingOrders = await Order.find({ status: 'Pending' }).populate('items.menuItem');
+    res.status(200).json(pendingOrders);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching pending orders', error });
+  }
+};
+
+// Fungsi untuk mengkonfirmasi order
+export const confirmOrder = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const order = await Order.findByIdAndUpdate(
+      orderId,
+      { status: 'OnProcess', cashier: req.user.id },
+      { new: true }
+    );
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    res.status(200).json(order);
+  } catch (error) {
+    res.status(500).json({ message: 'Error confirming order', error });
+  }
+};
+
+export const getAllOrders = async (req, res) => {
+  try {
+    const orders = await Order.find()
+      .populate('items.menuItem')
+      .populate('user')
+      .populate('cashier')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, data: orders });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch orders' });
   }
 };
 
