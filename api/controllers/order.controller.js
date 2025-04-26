@@ -164,13 +164,13 @@ export const createOrder = async (req, res) => {
     let paymentResponse = {};
     let payment;
 
-    // Untuk kesederhanaan, asumsikan pembayaran Cash seperti dalam contoh Anda
-    if (paymentMethod === "Cash") {
+  
+    if (paymentMethod === "Cash" || paymentMethod === "EDC") {
       payment = new Payment({
         order_id: order._id,
         amount: parseInt(totalPrice) || calculatedTotalPrice,
-        paymentMethod,
-        status: "Pending",
+        method: paymentMethod,
+        status: "Completed",
       });
       await payment.save({ session });
       paymentResponse = { cashPayment: "Menunggu konfirmasi" };
@@ -255,7 +255,7 @@ export const checkout = async (req, res) => {
   const { orders, user, cashier, outlet, table, paymentMethod, orderType, type, voucher} = req.body;
 
   try {
-    const now = new Date();
+    const now = new Date(); 
     const orderItems = orders.map(order => {
       const basePrice = order.item.price || 0;
       const addons = order.item.addons || [];
@@ -409,11 +409,15 @@ export const checkout = async (req, res) => {
 
     // Non-Midtrans (Cash / EDC)
     if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
+      // Update order status to 'Completed'
+      savedOrder.status = 'Completed';
+      await savedOrder.save();
+
       return res.json({
-        message: 'Order placed successfully',
-        order_id: savedOrder._id,
-        total: finalAmount,
-        discount: totalDiscount,
+      message: 'Order placed successfully',
+      order_id: savedOrder._id,
+      total: finalAmount,
+      discount: totalDiscount,
       });
     }
 
@@ -540,6 +544,68 @@ export const paymentNotification = async (req, res) => {
   } catch (error) {
     console.error('Error updating payment record:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get Pending Orders
+export const getPendingOrders = async (req, res) => {
+  try {
+    const pendingOrders = await Order.find({ status: 'Pending' }).populate('items.menuItem');
+    res.status(200).json(pendingOrders);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching pending orders', error });
+  }
+};
+
+// Fungsi untuk mengkonfirmasi order
+export const confirmOrder = async (req, res) => {
+  const { cashierId, orderId } = req.body;
+
+  try {
+    // Pastikan cashierId dan orderId valid
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(cashierId)) {
+      return res.status(400).json({ message: 'Invalid orderId or cashierId' });
+    }
+
+    // Update status dan set kasir
+    const order = await Order.findByIdAndUpdate(
+      orderId,
+      {
+        status: 'Completed',
+        cashier: cashierId
+      },
+      { new: true }
+    ).populate('cashier', 'name') // Jika ingin menampilkan info kasir
+     .populate('items.menuItem'); // Jika ingin detail item
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    res.status(200).json({
+      message: 'Order confirmed and assigned to cashier',
+      order
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Error confirming order',
+      error: error.message
+    });
+  }
+};
+
+
+export const getAllOrders = async (req, res) => {
+  try {
+    const orders = await Order.find()
+      .populate('items.menuItem')
+      .populate('user')
+      .populate('cashier')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, data: orders });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch orders' });
   }
 };
 
