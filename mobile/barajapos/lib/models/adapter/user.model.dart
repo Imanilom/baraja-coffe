@@ -3,7 +3,7 @@ import 'package:hive_ce/hive.dart';
 
 part 'user.model.g.dart'; // File yang akan digenerate
 
-@HiveType(typeId: 4)
+@HiveType(typeId: 6)
 class UserModel {
   @HiveField(0)
   final String id;

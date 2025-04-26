@@ -2,7 +2,7 @@ import 'package:hive_ce/hive.dart';
 
 part 'cashier.model.g.dart'; // File yang akan digenerate
 
-@HiveType(typeId: 5)
+@HiveType(typeId: 7)
 class CashierModel {
   @HiveField(0)
   final String? id;

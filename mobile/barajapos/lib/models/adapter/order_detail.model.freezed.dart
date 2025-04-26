@@ -46,6 +46,9 @@ mixin _$OrderDetailModel {
       _$OrderDetailModelCopyWithImpl<OrderDetailModel>(
           this as OrderDetailModel, _$identity);
 
+  /// Serializes this OrderDetailModel to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
@@ -73,6 +76,7 @@ mixin _$OrderDetailModel {
                 other.totalPrice == totalPrice));
   }
 
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -189,7 +193,7 @@ class _$OrderDetailModelCopyWithImpl<$Res>
 }
 
 /// @nodoc
-
+@JsonSerializable()
 class _OrderDetailModel implements OrderDetailModel {
   _OrderDetailModel(
       {@HiveField(0) this.customerId,
@@ -204,6 +208,8 @@ class _OrderDetailModel implements OrderDetailModel {
       @HiveField(9) this.status,
       @HiveField(10) this.totalPrice})
       : _items = items;
+  factory _OrderDetailModel.fromJson(Map<String, dynamic> json) =>
+      _$OrderDetailModelFromJson(json);
 
   @override
   @HiveField(0)
@@ -254,6 +260,13 @@ class _OrderDetailModel implements OrderDetailModel {
       __$OrderDetailModelCopyWithImpl<_OrderDetailModel>(this, _$identity);
 
   @override
+  Map<String, dynamic> toJson() {
+    return _$OrderDetailModelToJson(
+      this,
+    );
+  }
+
+  @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
@@ -280,6 +293,7 @@ class _OrderDetailModel implements OrderDetailModel {
                 other.totalPrice == totalPrice));
   }
 
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,

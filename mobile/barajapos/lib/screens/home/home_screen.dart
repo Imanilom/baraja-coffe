@@ -82,7 +82,7 @@ class HomeScreen extends ConsumerWidget {
                                     ? menuItem.addons!
                                         .map(
                                           (addon) => addon.copyWith(
-                                            options: addon.options
+                                            options: addon.options!
                                                 .where(
                                                     (o) => o.isDefault == true)
                                                 .toList(), // join(', ')

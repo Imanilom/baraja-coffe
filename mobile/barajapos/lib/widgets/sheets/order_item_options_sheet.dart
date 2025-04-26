@@ -1,4 +1,4 @@
-import 'package:barajapos/models/adapter/addon.model.dart';
+// import 'package:barajapos/models/adapter/addon.model.dart';
 import 'package:barajapos/models/adapter/addon_option.model.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,7 +23,7 @@ class OrderItemOptionsSheet extends ConsumerWidget {
     final orderNotifier = ref.read(orderItemProvider(orderItem).notifier);
 
     print(order.selectedAddons
-        .map((e) => e.options.map((e) => e.label))
+        .map((e) => e.options!.map((e) => e.label))
         .toList());
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -38,14 +38,14 @@ class OrderItemOptionsSheet extends ConsumerWidget {
               child: const Text('Kembali'),
             ),
             const Text(
-              'Edit Pesanan',
+              'Tambah Pesanan',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             Button(
               style: ButtonVariance.primary,
               onPressed: () {
                 print(
-                    'length of data addon yang akan di order: ${order.selectedAddons.map((addon) => addon.options.map((option) => option.label)).toList()}');
+                    'length of data addon yang akan di order: ${order.selectedAddons.map((addon) => addon.options!.map((option) => option.label)).toList()}');
                 print('data order: ${order.menuItem}');
                 onSubmit(order);
                 closeSheet(context);
@@ -87,7 +87,7 @@ class OrderItemOptionsSheet extends ConsumerWidget {
                     state: order.selectedToppings.contains(topping)
                         ? CheckboxState.checked
                         : CheckboxState.unchecked,
-                    trailing: Text(topping.name),
+                    trailing: Text(topping.name!),
                     onChanged: (value) => orderNotifier.toggleTopping(topping),
                   )),
             ],
@@ -110,7 +110,7 @@ class OrderItemOptionsSheet extends ConsumerWidget {
                 //       price: 0,
                 //       isDefault: false), // Jika tidak ada default, biarkan null
                 // );
-                final AddonOptionModel? selectedOption = addon.options
+                final AddonOptionModel? selectedOption = addon.options!
                     .firstWhereOrNull((option) => option.isDefault == true);
                 print('selectedOption: $selectedOption');
 
@@ -125,13 +125,13 @@ class OrderItemOptionsSheet extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        addon.name,
+                        addon.name!,
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      ...addon.options.map(
+                      ...addon.options!.map(
                         (option) => RadioItem(
                           value: option,
-                          trailing: Text(option.label),
+                          trailing: Text(option.label!),
                         ),
                       ),
                     ],

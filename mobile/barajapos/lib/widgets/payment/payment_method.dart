@@ -51,7 +51,8 @@ class PaymentMethod extends ConsumerWidget {
 
                   // Kirim data orderDetail ke backend
                   final success = await orderDetail.submitOrder();
-
+                  print(
+                      'Metode pembayaran yang dipilih: $selectedPaymentMethod');
                   // Tutup modal
                   if (success && context.mounted) {
                     Navigator.pop(context);

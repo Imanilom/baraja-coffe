@@ -8,7 +8,7 @@ part of 'order_detail.model.dart';
 
 class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
   @override
-  final int typeId = 7;
+  final int typeId = 5;
 
   @override
   OrderDetailModel read(BinaryReader reader) {
@@ -69,3 +69,39 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_OrderDetailModel _$OrderDetailModelFromJson(Map<String, dynamic> json) =>
+    _OrderDetailModel(
+      customerId: json['customerId'] as String?,
+      customerName: json['customerName'] as String?,
+      cashierId: json['cashierId'] as String?,
+      phoneNumber: json['phoneNumber'] as String?,
+      items: (json['items'] as List<dynamic>)
+          .map((e) => OrderItemModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      orderType: json['orderType'] as String,
+      deliveryAddress: json['deliveryAddress'] as String?,
+      tableNumber: (json['tableNumber'] as num?)?.toInt(),
+      paymentMethod: json['paymentMethod'] as String?,
+      status: json['status'] as String?,
+      totalPrice: (json['totalPrice'] as num?)?.toDouble(),
+    );
+
+Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
+    <String, dynamic>{
+      'customerId': instance.customerId,
+      'customerName': instance.customerName,
+      'cashierId': instance.cashierId,
+      'phoneNumber': instance.phoneNumber,
+      'items': instance.items,
+      'orderType': instance.orderType,
+      'deliveryAddress': instance.deliveryAddress,
+      'tableNumber': instance.tableNumber,
+      'paymentMethod': instance.paymentMethod,
+      'status': instance.status,
+      'totalPrice': instance.totalPrice,
+    };

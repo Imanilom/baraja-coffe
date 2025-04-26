@@ -9,12 +9,14 @@ class OrderService {
   );
 
   Future<Map<String, dynamic>> createOrder(OrderDetailModel orderDetail) async {
+    // final requestBody = orderDetail.toJson();
     try {
       print('start create order...'); //
       Response response = await _dio.post(
-        '/api/order',
-        // data: orderDetail.toJson(),
+        '/api/checkout-kasir',
+        data: orderDetail.toJson(),
       );
+
       return response.data;
     } on DioException catch (e) {
       throw ApiResponseHandler.handleError(e);

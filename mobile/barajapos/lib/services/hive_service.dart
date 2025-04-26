@@ -45,4 +45,14 @@ class HiveService {
     final box = Hive.box('menuItemsBox');
     await box.put('menuItems', menuItems);
   }
+
+  static Future<List<MenuItemModel>?> getMenuItems() async {
+    final box = Hive.box('menuItemsBox');
+    return box.get('menuItems') as List<MenuItemModel>?;
+  }
+
+  static Future<void> clearMenuItems() async {
+    final box = Hive.box<MenuItemModel>('menuItemsBox');
+    await box.clear();
+  }
 }

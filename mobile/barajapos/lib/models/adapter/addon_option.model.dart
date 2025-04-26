@@ -1,34 +1,19 @@
 import 'package:hive_ce/hive.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'addon_option.model.g.dart';
+part 'addon_option.model.freezed.dart';
 
-@HiveType(typeId: 3)
-class AddonOptionModel {
-  @HiveField(0)
-  final String? id;
+@freezed
+@HiveType(typeId: 0)
+abstract class AddonOptionModel with _$AddonOptionModel {
+  factory AddonOptionModel({
+    @HiveField(0) String? id,
+    @HiveField(1) String? label,
+    @HiveField(2) bool? isDefault,
+    @HiveField(3) int? price,
+  }) = _AddonOptionModel;
 
-  @HiveField(1)
-  final String label;
-
-  @HiveField(2)
-  final bool? isDefault;
-
-  @HiveField(3)
-  final int price;
-
-  AddonOptionModel({
-    this.id,
-    required this.label,
-    this.isDefault,
-    required this.price,
-  });
-
-  factory AddonOptionModel.fromJson(Map<String, dynamic> json) {
-    return AddonOptionModel(
-      id: json['_id'],
-      label: json['label'],
-      isDefault: json['isDefault'],
-      price: json['price'],
-    );
-  }
+  factory AddonOptionModel.fromJson(Map<String, dynamic> json) =>
+      _$AddonOptionModelFromJson(json);
 }

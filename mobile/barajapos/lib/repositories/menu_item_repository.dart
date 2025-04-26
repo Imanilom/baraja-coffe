@@ -19,8 +19,15 @@ class MenuItemRepository {
           .map((json) => MenuItemModel.fromJson(json))
           .toList();
 
+      print(
+          "Data menu yg tidak diambil: ${menuItemsList.where((item) => item.categories == null).length}");
+
       // 🔹 Simpan data ke Hive
       await productBox.putAll({for (var item in menuItemsList) item.id: item});
+      // await productBox.putAll({
+      //   for (int i = 0; i < menuItemsList.length; i++)
+      //     menuItemsList[i].id ?? 'item_$i': menuItemsList[i],
+      // });
 
       return menuItemsList;
     } catch (e) {

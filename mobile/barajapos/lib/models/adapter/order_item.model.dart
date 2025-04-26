@@ -8,7 +8,7 @@ part 'order_item.model.freezed.dart';
 part 'order_item.model.g.dart';
 
 @freezed
-@HiveType(typeId: 6)
+@HiveType(typeId: 4)
 abstract class OrderItemModel with _$OrderItemModel {
   factory OrderItemModel({
     @HiveField(0) required MenuItemModel menuItem,
@@ -25,12 +25,15 @@ abstract class OrderItemModel with _$OrderItemModel {
     required List<AddonModel> selectedAddons,
     required int quantity,
   }) {
-    int total = menuItem.price;
-    total += selectedToppings.fold(0, (sum, topping) => sum + topping.price);
+    int total = menuItem.price!;
+    total += selectedToppings.fold(0, (sum, topping) => sum + topping.price!);
     total += selectedAddons.fold(
         0,
         (sum, addon) =>
-            sum + addon.options.fold(0, (sum, option) => sum + option.price));
+            sum + addon.options!.fold(0, (sum, option) => sum + option.price!));
     return total * quantity;
   }
+
+  factory OrderItemModel.fromJson(Map<String, dynamic> json) =>
+      _$OrderItemModelFromJson(json);
 }

@@ -10,14 +10,14 @@ List<Map<String, dynamic>> searchAndFilterProducts(
 
   // 1️⃣ Filter berdasarkan kategori
   var filteredProducts = allProducts
-      .where((product) => product.categories.contains(category))
+      .where((product) => product.categories!.contains(category))
       .toList();
 
   // 2️⃣ Cari produk berdasarkan nama
   if (searchQuery.isNotEmpty) {
     filteredProducts = filteredProducts
         .where((product) =>
-            product.name.toLowerCase().contains(searchQuery.toLowerCase()))
+            product.name!.toLowerCase().contains(searchQuery.toLowerCase()))
         .toList();
   }
 

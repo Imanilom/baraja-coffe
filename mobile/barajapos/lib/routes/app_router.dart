@@ -20,6 +20,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     refreshListenable: GoRouterRefreshStream(authNotifier.stream),
     redirect: (context, state) {
+      // return '/main';
+      // return null;
+
       if (authState.isLoading) return '/';
       // return isAuthenticated ? '/main' : '/main';
       if (isAuthenticatedCashier) return '/main';

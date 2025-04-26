@@ -32,6 +32,9 @@ mixin _$OrderItemModel {
       _$OrderItemModelCopyWithImpl<OrderItemModel>(
           this as OrderItemModel, _$identity);
 
+  /// Serializes this OrderItemModel to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
@@ -47,6 +50,7 @@ mixin _$OrderItemModel {
                 other.quantity == quantity));
   }
 
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -126,7 +130,7 @@ class _$OrderItemModelCopyWithImpl<$Res>
 }
 
 /// @nodoc
-
+@JsonSerializable()
 class _OrderItemModel extends OrderItemModel {
   _OrderItemModel(
       {@HiveField(0) required this.menuItem,
@@ -136,6 +140,8 @@ class _OrderItemModel extends OrderItemModel {
       : _selectedToppings = selectedToppings,
         _selectedAddons = selectedAddons,
         super._();
+  factory _OrderItemModel.fromJson(Map<String, dynamic> json) =>
+      _$OrderItemModelFromJson(json);
 
   @override
   @HiveField(0)
@@ -175,6 +181,13 @@ class _OrderItemModel extends OrderItemModel {
       __$OrderItemModelCopyWithImpl<_OrderItemModel>(this, _$identity);
 
   @override
+  Map<String, dynamic> toJson() {
+    return _$OrderItemModelToJson(
+      this,
+    );
+  }
+
+  @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
@@ -189,6 +202,7 @@ class _OrderItemModel extends OrderItemModel {
                 other.quantity == quantity));
   }
 
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,

@@ -179,9 +179,9 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
                               if (orderItem.selectedAddons.isNotEmpty)
                                 //mengambil nama addons dan lable pada opsions
                                 if (orderItem
-                                    .selectedAddons.first.options.isNotEmpty)
+                                    .selectedAddons.first.options!.isNotEmpty)
                                   Text(
-                                      'Addons: ${orderItem.selectedAddons.map((a) => a.options.map((o) => o.label).join(', ')).join(', ')}'),
+                                      'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}'),
                               Text(
                                   'Sub total: ${formatRupiah(orderItem.calculateSubTotalPrice(
                                 menuItem: orderItem.menuItem,

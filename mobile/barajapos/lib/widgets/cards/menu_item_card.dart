@@ -30,7 +30,7 @@ class MenuItemCard extends ConsumerWidget {
                 borderRadius: const BorderRadius.all(Radius.circular(12)),
                 clipBehavior: Clip.antiAlias,
                 child: Image.network(
-                  menuItem.imageURL,
+                  menuItem.imageURL!,
                   fit:
                       BoxFit.cover, // Gambar akan mengisi ruang tanpa terpotong
                   width: double.infinity, // Pastikan lebar penuh
@@ -45,7 +45,7 @@ class MenuItemCard extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(8.0),
-              child: Text(menuItem.name).center(),
+              child: Text(menuItem.name!).center(),
             ),
           ],
         ),
