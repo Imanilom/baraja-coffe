@@ -37,6 +37,7 @@ import IndexPromoPage from "./pages/promotion/promo/index";
 // auto promo
 import CreateAutoPromoPage from "./pages/promotion/autopromo/create";
 import RunningAutoPromos from "./pages/promotion/autopromo/index";
+import ViewMenu from "./pages/menu/view";
 
 
 
@@ -61,6 +62,7 @@ export default function App() {
                 <Route path="toko" element={<OutletManagementPage />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
+                <Route path="menu/:id" element={<ViewMenu />} />
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
                 <Route path="voucher" element={<Vouchermanagement />} />
                 <Route path="voucher-create" element={<CreateVoucher />} />
@@ -74,11 +76,11 @@ export default function App() {
                 <Route path="categories" element={<CategoryIndex />} />
                 <Route path="categories-create" element={<CreateCategory />} />
                 <Route path="categories-assign" element={<AssignMenuItemToCategory />} />
-                
+
                 <Route path="content" element={<ContentManagement />} />
                 <Route path="content-create" element={<CreateContent />} />
                 <Route path="content-update/:id" element={<UpdateContent />} />
-                  
+
               </Route>
             </Route>
 
