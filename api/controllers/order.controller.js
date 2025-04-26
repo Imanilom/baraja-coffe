@@ -164,13 +164,13 @@ export const createOrder = async (req, res) => {
     let paymentResponse = {};
     let payment;
 
-    // Untuk kesederhanaan, asumsikan pembayaran Cash seperti dalam contoh Anda
-    if (paymentMethod === "Cash") {
+  
+    if (paymentMethod === "Cash" || paymentMethod === "EDC") {
       payment = new Payment({
         order_id: order._id,
         amount: parseInt(totalPrice) || calculatedTotalPrice,
         paymentMethod,
-        status: "Pending",
+        status: "Completed",
       });
       await payment.save({ session });
       paymentResponse = { cashPayment: "Menunggu konfirmasi" };
@@ -409,11 +409,15 @@ export const checkout = async (req, res) => {
 
     // Non-Midtrans (Cash / EDC)
     if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
+      // Update order status to 'Completed'
+      savedOrder.status = 'Completed';
+      await savedOrder.save();
+
       return res.json({
-        message: 'Order placed successfully',
-        order_id: savedOrder._id,
-        total: finalAmount,
-        discount: totalDiscount,
+      message: 'Order placed successfully',
+      order_id: savedOrder._id,
+      total: finalAmount,
+      discount: totalDiscount,
       });
     }
 
@@ -555,21 +559,41 @@ export const getPendingOrders = async (req, res) => {
 
 // Fungsi untuk mengkonfirmasi order
 export const confirmOrder = async (req, res) => {
-  const { orderId } = req.params;
+  const { cashierId, orderId } = req.body;
+
   try {
+    // Pastikan cashierId dan orderId valid
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(cashierId)) {
+      return res.status(400).json({ message: 'Invalid orderId or cashierId' });
+    }
+
+    // Update status dan set kasir
     const order = await Order.findByIdAndUpdate(
       orderId,
-      { status: 'OnProcess', cashier: req.user.id },
+      {
+        status: 'Completed',
+        cashier: cashierId
+      },
       { new: true }
-    );
+    ).populate('cashier', 'name') // Jika ingin menampilkan info kasir
+     .populate('items.menuItem'); // Jika ingin detail item
+
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
-    res.status(200).json(order);
+
+    res.status(200).json({
+      message: 'Order confirmed and assigned to cashier',
+      order
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error confirming order', error });
+    res.status(500).json({
+      message: 'Error confirming order',
+      error: error.message
+    });
   }
 };
+
 
 export const getAllOrders = async (req, res) => {
   try {
