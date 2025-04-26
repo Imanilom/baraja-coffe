@@ -1,4 +1,5 @@
 import 'package:barajapos/providers/message_provider.dart';
+import 'package:barajapos/services/hive_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import '../models/adapter/user.model.dart';
@@ -64,6 +65,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     //delete data user di hive
     final box = Hive.box('userBox');
     await box.delete('user');
+    //delete data menuitem
+    await HiveService.clearMenuItems();
   }
 
   Future<void> checkLoginStatus() async {

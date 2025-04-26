@@ -8,7 +8,7 @@ part of 'order_item.model.dart';
 
 class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
   @override
-  final int typeId = 6;
+  final int typeId = 4;
 
   @override
   OrderItemModel read(BinaryReader reader) {
@@ -48,3 +48,30 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_OrderItemModel _$OrderItemModelFromJson(Map<String, dynamic> json) =>
+    _OrderItemModel(
+      menuItem:
+          MenuItemModel.fromJson(json['menuItem'] as Map<String, dynamic>),
+      selectedToppings: (json['selectedToppings'] as List<dynamic>?)
+              ?.map((e) => ToppingModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      selectedAddons: (json['selectedAddons'] as List<dynamic>?)
+              ?.map((e) => AddonModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+    );
+
+Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
+    <String, dynamic>{
+      'menuItem': instance.menuItem,
+      'selectedToppings': instance.selectedToppings,
+      'selectedAddons': instance.selectedAddons,
+      'quantity': instance.quantity,
+    };

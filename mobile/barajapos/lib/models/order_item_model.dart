@@ -19,12 +19,12 @@ class OrderItemModel {
   });
 
   int get subTotalPrice {
-    int total = menuItem.price;
-    total += selectedToppings.fold(0, (sum, topping) => sum + topping.price);
+    int total = menuItem.price!;
+    total += selectedToppings.fold(0, (sum, topping) => sum + topping.price!);
     total += selectedAddons.fold(
         0,
         (sum, addon) =>
-            sum + addon.options.fold(0, (sum, option) => sum + option.price));
+            sum + addon.options!.fold(0, (sum, option) => sum + option.price!));
     return total * quantity;
   }
 

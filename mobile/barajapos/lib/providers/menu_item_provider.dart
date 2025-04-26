@@ -8,25 +8,32 @@ final menuItemRepository =
 
 // final categoryProvider = StateProvider<String>((ref) => 'Chocolate');
 // final categoryProvider = StateProvider<String>((ref) => 'Coffee');
-final categoryProvider = StateProvider<String>((ref) => 'Dessert');
+final categoryProvider = StateProvider<String>((ref) => 'All');
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
 final menuItemProvider = FutureProvider<List<MenuItemModel>>((ref) async {
   final menuItems = await ref.read(menuItemRepository).getMenuItem();
+  // return menuItems ?? [];
   var category = ref.watch(categoryProvider); // Ambil kategori yang dipilih
   var searchQuery = ref.watch(searchQueryProvider);
 
   // 🔹 Filter berdasarkan kategori
-  var filteredProducts = menuItems
-      .where((menuItem) => menuItem.categories.contains(category))
-      .toList();
+  // var filteredProducts = menuItems
+  //     .where((menuItem) => menuItem.categories!.contains(category))
+  //     .toList();
+  var filteredProducts = category == 'All'
+      ? menuItems
+      : menuItems
+          .where((menuItem) =>
+              (menuItem.categories ?? []).contains(category)) // amanin null
+          .toList();
 
   // 🔹 Filter berdasarkan pencarian
   if (searchQuery.isNotEmpty) {
     filteredProducts = filteredProducts
         .where((menuItem) =>
-            menuItem.name.toLowerCase().contains(searchQuery.toLowerCase()))
+            menuItem.name!.toLowerCase().contains(searchQuery.toLowerCase()))
         .toList();
   }
 

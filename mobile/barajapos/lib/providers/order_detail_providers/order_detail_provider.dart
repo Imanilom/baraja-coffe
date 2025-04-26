@@ -88,6 +88,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       state = state!.copyWith(items: updatedItems);
     } else {
       print('menu item belum ada, menambahkannya ke daftar...');
+      print('data orderitem : $orderItem');
       //simpan orderItem ke dalam daftar pesanan
       state = state!.copyWith(
         items: [
@@ -122,8 +123,8 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     for (var i = 0; i < addons1.length; i++) {
       // final ids1 = addons1[i].options.map((e) => e.id).toList();
       // final ids2 = addons2[i].options.map((e) => e.id).toList();
-      final ids1 = addons1[i].options.map((e) => e.id).toList()..sort();
-      final ids2 = addons2[i].options.map((e) => e.id).toList()..sort();
+      final ids1 = addons1[i].options!.map((e) => e.id).toList()..sort();
+      final ids2 = addons2[i].options!.map((e) => e.id).toList()..sort();
 
       if (!listEquality.equals(ids1, ids2)) return false;
     }
@@ -241,14 +242,16 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   // Kirim data orderDetail ke backend
   Future<bool> submitOrder() async {
+    if (state == null) return false;
+    print('Mengirim data orderDetail ke backend...');
     try {
       final order = await OrderService().createOrder(state!);
-      // print('Order ID: $order');
+      print('Order ID: $order');
       if (order.isNotEmpty) {
         return true;
       }
     } catch (e) {
-      // print(e);
+      print('error apa? $e');
       return false;
     }
     return false; // Return false if state is null

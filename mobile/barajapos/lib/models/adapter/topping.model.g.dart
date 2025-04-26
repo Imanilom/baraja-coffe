@@ -8,7 +8,7 @@ part of 'topping.model.dart';
 
 class ToppingModelAdapter extends TypeAdapter<ToppingModel> {
   @override
-  final int typeId = 1;
+  final int typeId = 2;
 
   @override
   ToppingModel read(BinaryReader reader) {
@@ -18,8 +18,8 @@ class ToppingModelAdapter extends TypeAdapter<ToppingModel> {
     };
     return ToppingModel(
       id: fields[0] as String?,
-      name: fields[1] as String,
-      price: (fields[2] as num).toInt(),
+      name: fields[1] as String?,
+      price: (fields[2] as num?)?.toInt(),
     );
   }
 
@@ -45,3 +45,21 @@ class ToppingModelAdapter extends TypeAdapter<ToppingModel> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_ToppingModel _$ToppingModelFromJson(Map<String, dynamic> json) =>
+    _ToppingModel(
+      id: json['id'] as String?,
+      name: json['name'] as String?,
+      price: (json['price'] as num?)?.toInt(),
+    );
+
+Map<String, dynamic> _$ToppingModelToJson(_ToppingModel instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'name': instance.name,
+      'price': instance.price,
+    };

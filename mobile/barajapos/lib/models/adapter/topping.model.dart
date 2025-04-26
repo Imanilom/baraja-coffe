@@ -1,29 +1,18 @@
 import 'package:hive_ce/hive.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'topping.model.g.dart';
+part 'topping.model.freezed.dart';
 
-@HiveType(typeId: 1)
-class ToppingModel {
-  @HiveField(0)
-  final String? id;
+@freezed
+@HiveType(typeId: 2)
+abstract class ToppingModel with _$ToppingModel {
+  const factory ToppingModel({
+    @HiveField(0) String? id,
+    @HiveField(1) String? name,
+    @HiveField(2) int? price,
+  }) = _ToppingModel;
 
-  @HiveField(1)
-  final String name;
-
-  @HiveField(2)
-  final int price;
-
-  ToppingModel({
-    this.id,
-    required this.name,
-    required this.price,
-  });
-
-  factory ToppingModel.fromJson(Map<String, dynamic> json) {
-    return ToppingModel(
-      id: json['_id'],
-      name: json['name'],
-      price: json['price'],
-    );
-  }
+  factory ToppingModel.fromJson(Map<String, dynamic> json) =>
+      _$ToppingModelFromJson(json);
 }

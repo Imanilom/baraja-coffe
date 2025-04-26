@@ -6,7 +6,7 @@ part 'order_detail.model.freezed.dart';
 part 'order_detail.model.g.dart';
 
 @freezed
-@HiveType(typeId: 7) // Ganti dengan ID unik
+@HiveType(typeId: 5)
 abstract class OrderDetailModel with _$OrderDetailModel {
   factory OrderDetailModel({
     @HiveField(0) String? customerId,
@@ -21,4 +21,7 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(9) String? status,
     @HiveField(10) double? totalPrice,
   }) = _OrderDetailModel;
+
+  factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>
+      _$OrderDetailModelFromJson(json);
 }

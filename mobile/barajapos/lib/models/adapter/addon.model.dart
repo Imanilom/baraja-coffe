@@ -7,26 +7,15 @@ part 'addon.model.freezed.dart';
 part 'addon.model.g.dart';
 
 @freezed
-@HiveType(typeId: 2)
+@HiveType(typeId: 1)
 abstract class AddonModel with _$AddonModel {
   factory AddonModel({
-    @HiveField(1) String? id,
-    @HiveField(2) required String name,
-    @HiveField(3) String? type,
-    @HiveField(4) required List<AddonOptionModel> options,
+    @HiveField(0) String? id,
+    @HiveField(1) String? name,
+    @HiveField(2) String? type,
+    @HiveField(3) List<AddonOptionModel>? options,
   }) = _AddonModel;
 
-  factory AddonModel.fromJson(Map<String, dynamic> json) {
-    final List<AddonOptionModel> options = json['options'] != null
-        ? List<AddonOptionModel>.from(
-            json['options'].map((x) => AddonOptionModel.fromJson(x)))
-        : [];
-
-    return AddonModel(
-      id: json['_id'],
-      name: json['name'],
-      type: json['type'],
-      options: options,
-    );
-  }
+  factory AddonModel.fromJson(Map<String, dynamic> json) =>
+      _$AddonModelFromJson(json);
 }

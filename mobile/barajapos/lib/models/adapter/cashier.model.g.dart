@@ -8,7 +8,7 @@ part of 'cashier.model.dart';
 
 class CashierModelAdapter extends TypeAdapter<CashierModel> {
   @override
-  final int typeId = 5;
+  final int typeId = 7;
 
   @override
   CashierModel read(BinaryReader reader) {

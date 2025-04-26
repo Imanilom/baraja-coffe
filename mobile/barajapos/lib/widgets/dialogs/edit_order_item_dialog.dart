@@ -140,7 +140,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   ) {
     return availableToppings.map((topping) {
       return CheckboxListTile(
-        title: Text(topping.name),
+        title: Text(topping.name!),
         subtitle: Text('Rp${topping.price}'),
         value: selectedToppings.contains(topping),
         onChanged: (value) {
@@ -160,16 +160,17 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(addon.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ...addon.options.map((option) {
+          Text(addon.name!,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          ...addon.options!.map((option) {
             return RadioListTile<AddonOptionModel>(
-              title: Text(option.label),
+              title: Text(option.label!),
               value: option,
               groupValue: selectedAddons
                   .firstWhere((a) => a.id == addon.id,
                       orElse: () =>
                           AddonModel(id: '', name: '', type: '', options: []))
-                  .options
+                  .options!
                   .firstOrNull,
               onChanged: (value) {
                 if (value != null) {
