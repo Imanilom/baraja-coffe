@@ -67,7 +67,7 @@ const RawMaterialPage = () => {
       console.error(error);
     }
   };
-  
+
   // Fetch list of categories on component mount
   const fetchCategories = async () => {
     try {
@@ -83,6 +83,24 @@ const RawMaterialPage = () => {
     e.preventDefault();
 
     // Basic validation
+    // if (
+    //   !selectedOutlet ||
+    //   !datein ||
+    //   materials.some(
+    //     (m) =>
+    //       m.name === "" ||
+    //       m.category === "" ||
+    //       m.quantity <= 0 ||
+    //       m.unit === "" ||
+    //       m.costPerUnit <= 0 ||
+    //       m.supplier === "" ||
+    //       m.expiryDate === ""
+    //   )
+    // ) {
+    //   setMessage("Please fill in all required fields.");
+    //   return;
+    // }
+
     if (
       !selectedOutlet ||
       !datein ||
@@ -97,6 +115,36 @@ const RawMaterialPage = () => {
           m.expiryDate === ""
       )
     ) {
+      // Cetak isi semua data form
+      console.log("===== DATA FORM SAAT INI =====");
+      console.log("Outlet:", selectedOutlet);
+      console.log("Tanggal Masuk:", datein);
+      console.log("Catatan:", notes);
+      console.log("Daftar Material:");
+      materials.forEach((m, i) => {
+        console.log(`Material #${i + 1}:`, m);
+      });
+      console.log("================================");
+
+      // Validasi manual
+      if (!selectedOutlet) console.log("❌ Outlet belum dipilih.");
+      if (!datein) console.log("❌ Tanggal masuk belum diisi.");
+
+      materials.forEach((m, i) => {
+        const errorFields = [];
+        if (m.name === "") errorFields.push("nama kosong");
+        if (m.category === "") errorFields.push("kategori kosong");
+        if (m.quantity <= 0) errorFields.push("jumlah <= 0");
+        if (m.unit === "") errorFields.push("satuan kosong");
+        if (m.costPerUnit <= 0) errorFields.push("biaya per unit <= 0");
+        if (m.supplier === "") errorFields.push("supplier kosong");
+        if (m.expiryDate === "") errorFields.push("expired kosong");
+
+        if (errorFields.length > 0) {
+          console.log(`❌ Material #${i + 1} bermasalah:`, errorFields);
+        }
+      });
+
       setMessage("Please fill in all required fields.");
       return;
     }
@@ -127,9 +175,8 @@ const RawMaterialPage = () => {
       <h2 className="text-2xl font-semibold text-gray-700 mb-4">Batch Insert Stock</h2>
       {message && (
         <div
-          className={`bg-${
-            message.includes("Error") ? "red" : "green"
-          }-100 text-${message.includes("Error") ? "red" : "green"}-700 p-2 rounded mb-4`}
+          className={`bg-${message.includes("Error") ? "red" : "green"
+            }-100 text-${message.includes("Error") ? "red" : "green"}-700 p-2 rounded mb-4`}
         >
           {message}
         </div>
