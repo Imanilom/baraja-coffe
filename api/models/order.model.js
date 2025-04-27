@@ -11,7 +11,7 @@ const OrderItemSchema = new mongoose.Schema({
 
 // Model Order
 const OrderSchema = new mongoose.Schema({
-  user_id: { type: String, uniqiue: true },
+  user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   user: { type: String, required: true, default: 'Guest' },
   cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [OrderItemSchema],
