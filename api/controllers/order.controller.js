@@ -10,6 +10,153 @@ import mongoose from 'mongoose';
 import axios from 'axios';
 
 
+export const createAppOrder = async (req, res) => {
+  try {
+    const {
+      items,
+      orderType,
+      tableNumber,
+      deliveryAddress,
+      pickupTime,
+      paymentDetails,
+      voucherCode,
+      userId,
+      userName,
+      pricing,
+      orderDate,
+      status,
+    } = req.body;
+    console.log(pricing, orderDate, status);
+    // Validate required fields
+    if (!items || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
+    }
+    if (!orderType) {
+      return res.status(400).json({ success: false, message: 'Order type is required' });
+    }
+    if (!paymentDetails?.method) {
+      return res.status(400).json({ success: false, message: 'Payment method is required' });
+    }
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'User ID is required' });
+    }
+
+    // Verify user exists
+    const userExists = await User.findById(userId);
+    if (!userExists) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Format orderType
+    let formattedOrderType = '';
+    switch (orderType) {
+      case 'dineIn':
+        formattedOrderType = 'Dine-In';
+        if (!tableNumber) {
+          return res.status(400).json({ success: false, message: 'Table number is required for dine-in orders' });
+        }
+        break;
+      case 'delivery':
+        formattedOrderType = 'Delivery';
+        if (!deliveryAddress) {
+          return res.status(400).json({ success: false, message: 'Delivery address is required for delivery orders' });
+        }
+        break;
+      case 'pickup':
+        formattedOrderType = 'Pickup';
+        if (!pickupTime) {
+          return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
+        }
+        break;
+      default:
+        return res.status(400).json({ success: false, message: 'Invalid order type' });
+    }
+
+    // Format payment method
+    let formattedPaymentMethod = '';
+    if (paymentDetails.method.includes('cash')) {
+      formattedPaymentMethod = 'Cash';
+    } else if (paymentDetails.method.includes('card')) {
+      formattedPaymentMethod = 'Card';
+    } else if (paymentDetails.method.includes('ewallet')) {
+      formattedPaymentMethod = 'E-Wallet';
+    } else if (paymentDetails.method.includes('debit')) {
+      formattedPaymentMethod = 'Debit';
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid payment method' });
+    }
+
+    // Find voucher if provided
+    let voucherId = null;
+    if (voucherCode) {
+      const voucher = await Voucher.findOne({ code: voucherCode });
+      if (voucher) {
+        voucherId = voucher._id;
+      }
+    }
+
+    // Process items
+    const orderItems = [];
+    for (const item of items) {
+      const menuItem = await MenuItem.findById(item.menuItemId);
+      if (!menuItem) {
+        return res.status(404).json({
+          success: false,
+          message: `Menu item not found: ${item.menuItemId}`
+        });
+      }
+
+      const processedAddons = item.addons?.map(addon => ({
+        name: addon.name,
+        price: addon.price
+      })) || [];
+
+      const processedToppings = item.toppings?.map(topping => ({
+        name: topping.name,
+        price: topping.price
+      })) || [];
+
+      const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
+      const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
+      const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
+
+      orderItems.push({
+        menuItem: menuItem._id,
+        quantity: item.quantity,
+        subtotal: itemSubtotal,
+        addons: processedAddons,
+        toppings: processedToppings,
+        isPrinted: false,
+      });
+    }
+
+    // Create new order
+    const newOrder = new Order({
+      user_id: userId,
+      user: userName || userExists.name || 'Guest',
+      cashier: null, // Default kosong, karena tidak ada input cashier di request
+      items: orderItems,
+      status: 'Pending',
+      paymentMethod: formattedPaymentMethod,
+      orderType: formattedOrderType,
+      deliveryAddress: deliveryAddress || '',
+      tableNumber: tableNumber || '',
+      type: 'Indoor', // default seperti di model
+      voucher: voucherId,
+      outlet: null, // default kosong, karena tidak ada input outlet di request
+      promotions: [],
+    });
+
+    await newOrder.save();
+
+    res.status(201).json({ success: true, message: 'Order created successfully', order: newOrder });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error creating order', error: error.message });
+  }
+};
+
+
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -164,7 +311,7 @@ export const createOrder = async (req, res) => {
     let paymentResponse = {};
     let payment;
 
-  
+
     if (paymentMethod === "Cash" || paymentMethod === "EDC") {
       payment = new Payment({
         order_id: order._id,
@@ -250,12 +397,39 @@ export const createOrder = async (req, res) => {
   }
 };
 
-
-export const checkout = async (req, res) => {
-  const { orders, user, cashier, outlet, table, paymentMethod, orderType, type, voucher} = req.body;
+export const charge = async (req, res) => {
 
   try {
-    const now = new Date(); 
+    const { payment_type, transaction_details, bank_transfer } = req.body;
+    const { order_id, gross_amount } = transaction_details;
+    const { bank } = bank_transfer;
+
+    let chargeParams = {
+      "payment_type": payment_type,
+      "transaction_details": {
+        "gross_amount": gross_amount,
+        "order_id": order_id,
+      },
+      "bank_transfer": {
+        "bank": bank
+      }
+    };
+
+    const response = await coreApi.charge(chargeParams);
+    return res.json(response);
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Payment failed',
+      error: error.message || error
+    });
+  }
+};
+
+export const checkout = async (req, res) => {
+  const { orders, user, cashier, outlet, table, paymentMethod, orderType, type, voucher } = req.body;
+
+  try {
+    const now = new Date();
     const orderItems = orders.map(order => {
       const basePrice = order.item.price || 0;
       const addons = order.item.addons || [];
@@ -296,11 +470,11 @@ export const checkout = async (req, res) => {
         const id = item.menuItem.toString();
         itemsMap[id] = (itemsMap[id] || 0) + item.quantity;
       }
-    
+
       let promoApplied = false;
-    
+
       switch (promo.promoType) {
-        case 'discount_on_quantity':  
+        case 'discount_on_quantity':
           for (const item of orderItems) {
             if (promo.conditions.minQuantity && itemsMap[item.menuItem.toString()] >= promo.conditions.minQuantity) {
               autoPromoDiscount += (item.subtotal * promo.discount) / 100;
@@ -308,14 +482,14 @@ export const checkout = async (req, res) => {
             }
           }
           break;
-    
+
         case 'discount_on_total':
           if (promo.conditions.minTotal && totalAmount >= promo.conditions.minTotal) {
             autoPromoDiscount += (totalAmount * promo.discount) / 100;
             promoApplied = true;
           }
           break;
-    
+
         case 'buy_x_get_y':
           const buyId = promo.conditions.buyProduct?._id?.toString();
           const getId = promo.conditions.getProduct?._id?.toString();
@@ -327,7 +501,7 @@ export const checkout = async (req, res) => {
             }
           }
           break;
-    
+
         case 'bundling':
           const bundleMatch = promo.conditions.bundleProducts.every(bundle => {
             return itemsMap[bundle.product._id.toString()] >= bundle.quantity;
@@ -342,7 +516,7 @@ export const checkout = async (req, res) => {
           }
           break;
       }
-    
+
       if (promoApplied) {
         appliedPromos.push(promo.name);
       }
@@ -353,12 +527,12 @@ export const checkout = async (req, res) => {
     let foundVoucher = null;
     if (voucher) {
       foundVoucher = await Voucher.findOne({ code: voucher, isActive: true });
-   
-      
-    if (foundVoucher) {
+
+
+      if (foundVoucher) {
 
         const isValidDate = now >= foundVoucher.validFrom && now <= foundVoucher.validTo;
-        const isValidOutlet = foundVoucher.applicableOutlets.length === 0 || 
+        const isValidOutlet = foundVoucher.applicableOutlets.length === 0 ||
           foundVoucher.applicableOutlets.some(outletId => outletId.equals(outlet));
         const hasQuota = foundVoucher.quota > 0;
 
@@ -371,7 +545,7 @@ export const checkout = async (req, res) => {
           } else {
             discount = foundVoucher.discountAmount;
           }
-          
+
           // Update quota
           foundVoucher.quota -= 1;
           if (foundVoucher.quota === 0) {
@@ -414,10 +588,10 @@ export const checkout = async (req, res) => {
       await savedOrder.save();
 
       return res.json({
-      message: 'Order placed successfully',
-      order_id: savedOrder._id,
-      total: finalAmount,
-      discount: totalDiscount,
+        message: 'Order placed successfully',
+        order_id: savedOrder._id,
+        total: finalAmount,
+        discount: totalDiscount,
       });
     }
 
@@ -576,7 +750,7 @@ export const confirmOrder = async (req, res) => {
       },
       { new: true }
     ).populate('cashier', 'name') // Jika ingin menampilkan info kasir
-     .populate('items.menuItem'); // Jika ingin detail item
+      .populate('items.menuItem'); // Jika ingin detail item
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
