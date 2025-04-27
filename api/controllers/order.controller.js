@@ -316,7 +316,7 @@ export const createOrder = async (req, res) => {
       payment = new Payment({
         order_id: order._id,
         amount: parseInt(totalPrice) || calculatedTotalPrice,
-        paymentMethod,
+        method: paymentMethod,
         status: "Completed",
       });
       await payment.save({ session });
