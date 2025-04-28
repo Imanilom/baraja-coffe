@@ -302,7 +302,7 @@ export const createOrder = async (req, res) => {
       orderType,
       tableNumber: orderType === 'Dine-In' ? tableNumber : null,
       type: orderType === 'Dine-In' ? 'Indoor' : null, // Default ke Indoor
-      status: "Pending"
+      status: "Completed"
     });
 
     await order.save({ session });
@@ -557,8 +557,9 @@ export const checkout = async (req, res) => {
     }
 
     const totalDiscount = Math.floor(discount + autoPromoDiscount);
-    console.log('Total Discount:', totalDiscount);
+    const serviceFee = 3000;
     const finalAmount = Math.max(totalAmount - totalDiscount, 0);
+    const totalWithServiceFee = finalAmount + serviceFee;
 
     // Prevent negative final amount
     if (finalAmount <= 0) {
@@ -600,7 +601,7 @@ export const checkout = async (req, res) => {
       payment_type: 'gopay',
       transaction_details: {
         order_id: savedOrder._id.toString(),
-        gross_amount: finalAmount,
+        gross_amount: totalWithServiceFee,
       },
       item_details: [
         ...orderItems.map(item => ({
@@ -615,6 +616,12 @@ export const checkout = async (req, res) => {
           price: -totalDiscount,
           quantity: 1,
         }] : []),
+        {
+          id: 'service_fee',
+          name: 'Service Fee',
+          price: serviceFee, 
+          quantity: 1,
+        },
       ],
       customer_details: {
         name: 'Customer',
