@@ -4,7 +4,6 @@ import About from "./pages/About";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import Profile from "./pages/Profile";
-import Header from "./components/Header";
 import Footer from "./components/Footer";
 import PrivateRoute from "./components/PrivateRoute";
 import Download from "./components/download";
@@ -16,8 +15,15 @@ import OutletManagementPage from "./pages/outlet/index";
 import Menumanagement from "./pages/menu/index";
 import Menucreate from "./pages/menu/create";
 import MenuUpdate from "./pages/menu/update";
+import AddCategory from "./pages/menu/category/create";
 import Vouchermanagement from "./pages/voucher/index";
 import CreateVoucher from "./pages/voucher/create";
+
+// Report
+import ReportDashboard from "./pages/report/index";
+import Summary from "./pages/report/summary";
+import SalesTransaction from "./pages/report/sales_transaction";
+
 // inventory
 import Storagemanagement from "./pages/storage/index";
 import CreateStrorage from "./pages/storage/RawMaterial";
@@ -45,7 +51,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="flex flex-col min-h-screen">
-        <Header />
         <main className="flex-grow">
           <Routes>
             {/* Halaman Umum */}
@@ -64,6 +69,10 @@ export default function App() {
                 <Route path="menu-create" element={<Menucreate />} />
                 <Route path="menu/:id" element={<ViewMenu />} />
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
+                <Route path="category-create" element={<AddCategory />} />
+                <Route path="report" element={<ReportDashboard />} />
+                <Route path="transaction-sales" element={<SalesTransaction />} />
+                <Route path="summary" element={<Summary />} />
                 <Route path="voucher" element={<Vouchermanagement />} />
                 <Route path="voucher-create" element={<CreateVoucher />} />
                 <Route path="promotion" element={<Promotionmanagement />} />
@@ -90,7 +99,6 @@ export default function App() {
             </Route>
           </Routes>
         </main>
-        <Footer />
       </div>
     </BrowserRouter>
   );

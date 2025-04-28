@@ -140,7 +140,8 @@ export const signin = async (req, res, next) => {
       }
       tokenExpiry = "15m";
     }
-    const cashier = [];
+    // const cashier = [];
+    let cashier = [];
     if (user.role === "admin") {
       //mencari user yang rolenya casir pada outlet yang smaa dengan admin?
       const cashiers = await User.find({

@@ -235,7 +235,7 @@ export const getMenuItems = async (req, res) => {
             id: opt._id.toString(),
             label: opt.label,
             price: opt.price,
-            isDefault: opt.isDefault
+            isDefault: opt.isdefault
           })) || []
         })) || []
       };

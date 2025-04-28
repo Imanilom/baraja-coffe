@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from "react-router-dom";
 import axios from 'axios';
 
 const CategoryIndex = () => {
@@ -79,6 +80,13 @@ const CategoryIndex = () => {
 
       {/* Dropdown untuk filter berdasarkan tipe */}
       <div className="mb-4">
+
+        <Link
+          to="/admin/category-create"
+          className="bg-blue-500 text-white px-4 py-2 rounded inline-block"
+        >
+          Add Category
+        </Link>
         <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-4">
           Filter by Type:
         </label>
