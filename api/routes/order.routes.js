@@ -9,6 +9,7 @@ import {
   getUserOrders,
   getUserOrderHistory,
   getCashierOrderHistory,
+  chargeMidtrans,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -16,6 +17,8 @@ const router = express.Router();
 
 // Route untuk membuat order dan pembayaran
 router.post('/order', createOrder);
+
+router.post('/chargeMidtrans', chargeMidtrans);
 
 router.post("/checkout", checkout);
 
