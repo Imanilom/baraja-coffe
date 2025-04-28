@@ -441,14 +441,14 @@ export const checkout = async (req, res) => {
 
       return {
         menuItem: order.item.id,
-        quantity: order.quantity || 1,
-        subtotal: itemTotal * (order.quantity || 1),
+        quantity: 1,
+        subtotal: itemTotal,
         addons,
         toppings,
       };
     });
 
-    let totalAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const totalAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
 
     // AutoPromo
     const autoPromos = await AutoPromo.find({
@@ -542,7 +542,7 @@ export const checkout = async (req, res) => {
           // Apply discount
           if (foundVoucher.discountType === 'percentage') {
             discount = (totalAmount * foundVoucher.discountAmount) / 100;
-          } else {
+          } else if (foundVoucher.discountType === 'fixed') {
             discount = foundVoucher.discountAmount;
           }
 
@@ -561,12 +561,7 @@ export const checkout = async (req, res) => {
     const finalAmount = Math.max(totalAmount - totalDiscount, 0);
     const totalWithServiceFee = finalAmount + serviceFee;
 
-    // Prevent negative final amount
-    if (finalAmount <= 0) {
-      return res.status(400).json({ error: 'Total amount after discounts cannot be zero or negative.' });
-    }
-
-    // Save Order
+    // Simpan order ke database
     const order = new Order({
       user,
       cashier,
@@ -575,14 +570,12 @@ export const checkout = async (req, res) => {
       orderType,
       type,
       tableNumber: table,
-      outlet,
       voucher: foundVoucher ? foundVoucher._id : null,
-      promotions: appliedPromos,
     });
 
     const savedOrder = await order.save();
 
-    // Non-Midtrans (Cash / EDC)
+    // Jika pembayaran tunai atau EDC, tidak perlu proses Midtrans
     if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
       // Update order status to 'Completed'
       savedOrder.status = 'Completed';
@@ -592,11 +585,10 @@ export const checkout = async (req, res) => {
         message: 'Order placed successfully',
         order_id: savedOrder._id,
         total: finalAmount,
-        discount: totalDiscount,
       });
     }
 
-    // Midtrans
+    // Data untuk Midtrans
     const transactionData = {
       payment_type: 'gopay',
       transaction_details: {
@@ -616,12 +608,6 @@ export const checkout = async (req, res) => {
           price: -totalDiscount,
           quantity: 1,
         }] : []),
-        {
-          id: 'service_fee',
-          name: 'Service Fee',
-          price: serviceFee, 
-          quantity: 1,
-        },
       ],
       customer_details: {
         name: 'Customer',
@@ -630,6 +616,7 @@ export const checkout = async (req, res) => {
       },
     };
 
+    // Request ke Midtrans
     const midtransSnapResponse = await axios.post(
       process.env.MIDTRANS_SANDBOX_ENDPOINT_TRANSACTION,
       transactionData,
@@ -642,27 +629,33 @@ export const checkout = async (req, res) => {
       }
     );
 
+    // Simpan data Payment
     const payment = new Payment({
       order_id: savedOrder._id,
       amount: finalAmount,
       method: paymentMethod,
-      snapToken: midtransSnapResponse.data.token,
       status: 'pending',
+      redirectUrl: midtransSnapResponse.data.redirect_url,
     });
 
     await payment.save();
 
-    return res.json({
-      message: 'Order placed successfully',
-      order_id: savedOrder._id,
-      total: finalAmount,
-      discount: totalDiscount,
-      midtrans_token: midtransSnapResponse.data.token,
+    res.json({
+      message: 'Midtrans transaction created',
       redirect_url: midtransSnapResponse.data.redirect_url,
+      order_id: savedOrder._id,
     });
-  } catch (err) {
-    console.error('Checkout Error:', err);
-    res.status(500).json({ error: 'Something went wrong during checkout.' });
+
+  } catch (error) {
+    console.error('Checkout Error:', error);
+
+    if (error.response) {
+      return res.status(error.response.status).json({
+        message: error.response.data.message || 'Payment processing failed.',
+      });
+    } else {
+      return res.status(500).json({ message: 'An error occurred while processing your checkout.' });
+    }
   }
 };
 
@@ -728,17 +721,20 @@ export const paymentNotification = async (req, res) => {
   }
 };
 
-// Get Pending Orders
-export const getPendingOrders = async (req, res) => {
+
+export const getAllOrders = async (req, res) => {
   try {
-    const pendingOrders = await Order.find({ status: 'Pending' }).populate('items.menuItem');
-    res.status(200).json(pendingOrders);
+    const orders = await Order.find()
+      .populate('items.menuItem')
+      .populate('user')
+      .populate('cashier')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, data: orders });
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching pending orders', error });
+    res.status(500).json({ success: false, message: 'Failed to fetch orders' });
   }
 };
-
-// Fungsi untuk mengkonfirmasi order
 export const confirmOrder = async (req, res) => {
   const { cashierId, orderId } = req.body;
 
@@ -776,21 +772,14 @@ export const confirmOrder = async (req, res) => {
 };
 
 
-export const getAllOrders = async (req, res) => {
+export const getPendingOrders = async (req, res) => {
   try {
-    const orders = await Order.find()
-      .populate('items.menuItem')
-      .populate('user')
-      .populate('cashier')
-      .sort({ createdAt: -1 });
-
-    res.status(200).json({ success: true, data: orders });
+    const pendingOrders = await Order.find({ status: 'Pending' }).populate('items.menuItem');
+    res.status(200).json(pendingOrders);
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch orders' });
+    res.status(500).json({ message: 'Error fetching pending orders', error });
   }
 };
-
-
 async function updateStock(order, session) {
   if (!Array.isArray(order.items)) {
     throw new Error("Order items must be an array");
