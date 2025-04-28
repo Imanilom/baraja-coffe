@@ -9,7 +9,8 @@ import {
   getUserOrders,
   getUserOrderHistory,
   getCashierOrderHistory,
-  chargeMidtrans,
+  charge,
+  createAppOrder,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -18,15 +19,17 @@ const router = express.Router();
 // Route untuk membuat order dan pembayaran
 router.post('/order', createOrder);
 
-router.post('/chargeMidtrans', chargeMidtrans);
+router.post('/orderApp', createAppOrder);
 
 router.post("/checkout", checkout);
 
+router.post("/charge", charge);
+
 router.post("/payment-notification", paymentNotification);
 
-router.get("/pending-orders", verifyToken(['cashier']), getPendingOrders);
+router.get("/pending-orders", getPendingOrders);
 
-router.post("/confirm-order/:id", verifyToken(['cashier']), confirmOrder);
+router.post("/confirm-order", confirmOrder);
 
 router.get('/orders', getAllOrders);
 

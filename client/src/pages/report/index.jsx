@@ -9,7 +9,7 @@ const ReportDashboard = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {/* Menu Ringkasan */}
                     <Link
-                        to="/"
+                        to="/admin/summary"
                         className="p-6 bg-white shadow-md rounded-lg hover:shadow-lg transition-shadow"
                     >
                         <h2 className="text-xl font-semibold text-gray-700">Ringkasan</h2>
@@ -18,7 +18,7 @@ const ReportDashboard = () => {
 
                     {/* Transaksi Penjualan */}
                     <Link
-                        to="/transaction-sales"
+                        to="/admin/transaction-sales"
                         className="p-6 bg-white shadow-md rounded-lg hover:shadow-lg transition-shadow"
                     >
                         <h2 className="text-xl font-semibold text-gray-700">Data Transaksi Penjualan</h2>
