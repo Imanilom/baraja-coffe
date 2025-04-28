@@ -34,6 +34,7 @@ export const createAppOrder = async (req, res) => {
     if (!orderType) {
       return res.status(400).json({ success: false, message: 'Order type is required' });
     }
+    console.log('Payment method:', paymentDetails);
     if (!paymentDetails?.method) {
       return res.status(400).json({ success: false, message: 'Payment method is required' });
     }
@@ -73,18 +74,16 @@ export const createAppOrder = async (req, res) => {
     }
 
     // Format payment method
-    let formattedPaymentMethod = '';
-    if (paymentDetails.method.includes('cash')) {
-      formattedPaymentMethod = 'Cash';
-    } else if (paymentDetails.method.includes('card')) {
-      formattedPaymentMethod = 'Card';
-    } else if (paymentDetails.method.includes('ewallet')) {
-      formattedPaymentMethod = 'E-Wallet';
-    } else if (paymentDetails.method.includes('debit')) {
-      formattedPaymentMethod = 'Debit';
-    } else {
-      return res.status(400).json({ success: false, message: 'Invalid payment method' });
-    }
+    // let formattedPaymentMethod = '';
+    // if (paymentDetails.method.includes('cash')) {
+    //   formattedPaymentMethod = 'Cash';
+    // } else if (paymentDetails.method.includes('card')) {
+    //   formattedPaymentMethod = 'Card';
+    // } else if (paymentDetails.method.includes('debit')) {
+    //   formattedPaymentMethod = 'Debit';
+    // } else {
+    //   return res.status(400).json({ success: false, message: 'Invalid payment method' });
+    // }
 
     // Find voucher if provided
     let voucherId = null;
@@ -97,12 +96,13 @@ export const createAppOrder = async (req, res) => {
 
     // Process items
     const orderItems = [];
+    console.log('Order items:', items);
     for (const item of items) {
-      const menuItem = await MenuItem.findById(item.menuItemId);
+      const menuItem = await MenuItem.findById(item.productId);
       if (!menuItem) {
         return res.status(404).json({
           success: false,
-          message: `Menu item not found: ${item.menuItemId}`
+          message: `Menu item not found: ${item.productId}`
         });
       }
 
@@ -137,7 +137,7 @@ export const createAppOrder = async (req, res) => {
       cashier: null, // Default kosong, karena tidak ada input cashier di request
       items: orderItems,
       status: 'Pending',
-      paymentMethod: formattedPaymentMethod,
+      paymentMethod: paymentDetails.methode,
       orderType: formattedOrderType,
       deliveryAddress: deliveryAddress || '',
       tableNumber: tableNumber || '',
