@@ -851,9 +851,11 @@ export const getPendingOrders = async (req, res) => {
 
         // Rename user_id ke userId dan ubah user jadi customerName
         orderObj.userId = orderObj.user_id;
+        orderObj.cashierId = orderObj.cashier;
         orderObj.consumerName = orderObj.user;
         delete orderObj.user;
         delete orderObj.user_id;
+        delete orderObj.cashier;
 
         pendingOrdersWithUnpaidStatus.push(orderObj);
       }
