@@ -621,7 +621,7 @@ export const checkout = async (req, res) => {
         {
           id: 'service_fee',
           name: 'Service Fee',
-          price: serviceFee, 
+          price: serviceFee,
           quantity: 1,
         },
       ],
@@ -860,6 +860,7 @@ export const getPendingOrders = async (req, res) => {
     }
 
     res.status(200).json(pendingOrdersWithUnpaidStatus);
+    // res.status(200).json(pendingOrders);
   } catch (error) {
     console.error('Error fetching pending unpaid orders:', error);
     res.status(500).json({ message: 'Error fetching pending orders', error });

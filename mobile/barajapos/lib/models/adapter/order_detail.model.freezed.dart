@@ -16,6 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$OrderDetailModel {
   @HiveField(0)
+  @JsonKey(name: 'userId')
   String? get customerId;
   @HiveField(1)
   String? get customerName;
@@ -30,7 +31,7 @@ mixin _$OrderDetailModel {
   @HiveField(6)
   String? get deliveryAddress;
   @HiveField(7)
-  int? get tableNumber;
+  String? get tableNumber;
   @HiveField(8)
   String? get paymentMethod;
   @HiveField(9)
@@ -105,14 +106,14 @@ abstract mixin class $OrderDetailModelCopyWith<$Res> {
       _$OrderDetailModelCopyWithImpl;
   @useResult
   $Res call(
-      {@HiveField(0) String? customerId,
+      {@HiveField(0) @JsonKey(name: 'userId') String? customerId,
       @HiveField(1) String? customerName,
       @HiveField(2) String? cashierId,
       @HiveField(3) String? phoneNumber,
       @HiveField(4) List<OrderItemModel> items,
       @HiveField(5) String orderType,
       @HiveField(6) String? deliveryAddress,
-      @HiveField(7) int? tableNumber,
+      @HiveField(7) String? tableNumber,
       @HiveField(8) String? paymentMethod,
       @HiveField(9) String? status,
       @HiveField(10) double? totalPrice});
@@ -175,7 +176,7 @@ class _$OrderDetailModelCopyWithImpl<$Res>
       tableNumber: freezed == tableNumber
           ? _self.tableNumber
           : tableNumber // ignore: cast_nullable_to_non_nullable
-              as int?,
+              as String?,
       paymentMethod: freezed == paymentMethod
           ? _self.paymentMethod
           : paymentMethod // ignore: cast_nullable_to_non_nullable
@@ -196,11 +197,11 @@ class _$OrderDetailModelCopyWithImpl<$Res>
 @JsonSerializable()
 class _OrderDetailModel implements OrderDetailModel {
   _OrderDetailModel(
-      {@HiveField(0) this.customerId,
+      {@HiveField(0) @JsonKey(name: 'userId') this.customerId,
       @HiveField(1) this.customerName,
       @HiveField(2) this.cashierId,
       @HiveField(3) this.phoneNumber,
-      @HiveField(4) required final List<OrderItemModel> items,
+      @HiveField(4) final List<OrderItemModel> items = const [],
       @HiveField(5) required this.orderType,
       @HiveField(6) this.deliveryAddress,
       @HiveField(7) this.tableNumber,
@@ -213,6 +214,7 @@ class _OrderDetailModel implements OrderDetailModel {
 
   @override
   @HiveField(0)
+  @JsonKey(name: 'userId')
   final String? customerId;
   @override
   @HiveField(1)
@@ -225,6 +227,7 @@ class _OrderDetailModel implements OrderDetailModel {
   final String? phoneNumber;
   final List<OrderItemModel> _items;
   @override
+  @JsonKey()
   @HiveField(4)
   List<OrderItemModel> get items {
     if (_items is EqualUnmodifiableListView) return _items;
@@ -240,7 +243,7 @@ class _OrderDetailModel implements OrderDetailModel {
   final String? deliveryAddress;
   @override
   @HiveField(7)
-  final int? tableNumber;
+  final String? tableNumber;
   @override
   @HiveField(8)
   final String? paymentMethod;
@@ -324,14 +327,14 @@ abstract mixin class _$OrderDetailModelCopyWith<$Res>
   @override
   @useResult
   $Res call(
-      {@HiveField(0) String? customerId,
+      {@HiveField(0) @JsonKey(name: 'userId') String? customerId,
       @HiveField(1) String? customerName,
       @HiveField(2) String? cashierId,
       @HiveField(3) String? phoneNumber,
       @HiveField(4) List<OrderItemModel> items,
       @HiveField(5) String orderType,
       @HiveField(6) String? deliveryAddress,
-      @HiveField(7) int? tableNumber,
+      @HiveField(7) String? tableNumber,
       @HiveField(8) String? paymentMethod,
       @HiveField(9) String? status,
       @HiveField(10) double? totalPrice});
@@ -394,7 +397,7 @@ class __$OrderDetailModelCopyWithImpl<$Res>
       tableNumber: freezed == tableNumber
           ? _self.tableNumber
           : tableNumber // ignore: cast_nullable_to_non_nullable
-              as int?,
+              as String?,
       paymentMethod: freezed == paymentMethod
           ? _self.paymentMethod
           : paymentMethod // ignore: cast_nullable_to_non_nullable

@@ -63,7 +63,7 @@ class HomeScreen extends ConsumerWidget {
                       onTap: () {
                         if (orderDetail == null) {
                           orderDetailNotifier.initializeOrder(
-                            orderType: 'dine-in', // Default order type
+                            orderType: 'Dine-In', // Default order type
                           );
                         }
                         // Tampilkan sheet pemilihan topping dan addon

@@ -8,8 +8,6 @@ class CashierModel {
   final String? id;
 
   @HiveField(1)
-  // final String? name;
-
   final String? username;
   @HiveField(2)
   final String? role;
@@ -32,7 +30,7 @@ class CashierModel {
   });
 
   factory CashierModel.fromJson(Map<String, dynamic> json) => CashierModel(
-        id: json['id'] ?? '',
+        id: json['_id'] ?? '',
         // name: json['name'] ?? '',
         username: json['username'] ?? '',
         role: json['role'] ?? '',

@@ -19,18 +19,18 @@ abstract class OrderItemModel with _$OrderItemModel {
 
   OrderItemModel._();
 
-  int calculateSubTotalPrice({
-    required MenuItemModel menuItem,
-    required List<ToppingModel> selectedToppings,
-    required List<AddonModel> selectedAddons,
-    required int quantity,
-  }) {
-    int total = menuItem.price!;
-    total += selectedToppings.fold(0, (sum, topping) => sum + topping.price!);
+  int calculateSubTotalPrice() {
+    int total = menuItem.price ?? 0;
+    total +=
+        selectedToppings.fold(0, (sum, topping) => sum + (topping.price ?? 0));
     total += selectedAddons.fold(
-        0,
-        (sum, addon) =>
-            sum + addon.options!.fold(0, (sum, option) => sum + option.price!));
+      0,
+      (sum, addon) =>
+          sum +
+          (addon.options
+                  ?.fold(0, (sum, option) => sum! + (option.price ?? 0)) ??
+              0),
+    );
     return total * quantity;
   }
 
