@@ -16,7 +16,7 @@ const OrderSchema = new mongoose.Schema({
   cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [OrderItemSchema],
   status: { type: String, enum: ['Pending', 'OnProcess', 'Completed', 'Canceled'], default: 'Pending' },
-  paymentMethod: { type: String, enum: ['Cash', 'Card', 'E-Wallet', 'Debit'], required: true },
+  paymentMethod: { type: String, enum: ['Cash', 'Card', 'E-Wallet', 'Debit', 'Bank Transfer'] },
   orderType: { type: String, enum: ['Dine-In', 'Pickup', 'Delivery'], required: true },
   deliveryAddress: { type: String },
   tableNumber: { type: String },
