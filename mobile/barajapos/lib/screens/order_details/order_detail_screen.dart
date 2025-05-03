@@ -183,12 +183,7 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
                                   Text(
                                       'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}'),
                               Text(
-                                  'Sub total: ${formatRupiah(orderItem.calculateSubTotalPrice(
-                                menuItem: orderItem.menuItem,
-                                selectedToppings: orderItem.selectedToppings,
-                                selectedAddons: orderItem.selectedAddons,
-                                quantity: orderItem.quantity,
-                              ))}'),
+                                  'Sub total: ${formatRupiah(orderItem.calculateSubTotalPrice())}'),
                             ],
                           ),
                           trailing: currenIndex == 0
@@ -213,7 +208,8 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Text(
-              'Total: ${formatRupiah(totalPrices)}, payment: ${orderDetail?.paymentMethod}',
+              // 'Total: ${formatRupiah(totalPrices)}, payment: ${orderDetail?.paymentMethod},',
+              'Total: ${formatRupiah(totalPrices)}',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -274,7 +270,9 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
                               openSheet(
                                 context: context,
                                 position: OverlayPosition.bottom,
-                                builder: (context) => const PaymentMethod(),
+                                builder: (context) => PaymentMethod(
+                                  closeSheet: () => closeSheet(context),
+                                ),
                               );
                             }
                           },

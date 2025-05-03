@@ -25,11 +25,11 @@ class AuthService {
           "password": password,
         },
       );
-      if (response.statusCode == 200) {
-        print('Login successful: ${response.data}');
-      } else {
-        print('Login failed: ${response.statusCode}');
-      }
+      // if (response.statusCode == 200) {
+      //   print('Login successful: ${response.data}');
+      // } else {
+      //   print('Login failed: ${response.statusCode}');
+      // }
       // print('response awal : ${response.data}');
       print('response awal Login');
       return response.data;

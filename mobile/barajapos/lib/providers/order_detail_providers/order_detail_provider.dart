@@ -38,8 +38,10 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   // Set payment method
   void updatePaymentMethod(String paymentMethod) {
+    print('Payment Method: $paymentMethod');
     if (state != null) {
       state = state!.copyWith(paymentMethod: paymentMethod);
+      print(state);
     }
   }
 
@@ -47,7 +49,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   void updateCustomerDetails({
     String? customerName,
     String? phoneNumber,
-    int? tableNumber,
+    String? tableNumber,
   }) {
     if (state != null) {
       state = state!.copyWith(
@@ -226,14 +228,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     if (state != null) {
       return state!.items.fold(
         0,
-        (sum, item) =>
-            sum +
-            item.calculateSubTotalPrice(
-              menuItem: item.menuItem,
-              selectedToppings: item.selectedToppings,
-              selectedAddons: item.selectedAddons,
-              quantity: item.quantity,
-            ),
+        (sum, item) => sum + item.calculateSubTotalPrice(),
       );
     } else {
       return 0;

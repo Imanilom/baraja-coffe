@@ -24,7 +24,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       items: (fields[4] as List).cast<OrderItemModel>(),
       orderType: fields[5] as String,
       deliveryAddress: fields[6] as String?,
-      tableNumber: (fields[7] as num?)?.toInt(),
+      tableNumber: fields[7] as String?,
       paymentMethod: fields[8] as String?,
       status: fields[9] as String?,
       totalPrice: (fields[10] as num?)?.toDouble(),
@@ -76,16 +76,17 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
 
 _OrderDetailModel _$OrderDetailModelFromJson(Map<String, dynamic> json) =>
     _OrderDetailModel(
-      customerId: json['customerId'] as String?,
+      customerId: json['userId'] as String?,
       customerName: json['customerName'] as String?,
       cashierId: json['cashierId'] as String?,
       phoneNumber: json['phoneNumber'] as String?,
-      items: (json['items'] as List<dynamic>)
-          .map((e) => OrderItemModel.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      items: (json['items'] as List<dynamic>?)
+              ?.map((e) => OrderItemModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
       orderType: json['orderType'] as String,
       deliveryAddress: json['deliveryAddress'] as String?,
-      tableNumber: (json['tableNumber'] as num?)?.toInt(),
+      tableNumber: json['tableNumber'] as String?,
       paymentMethod: json['paymentMethod'] as String?,
       status: json['status'] as String?,
       totalPrice: (json['totalPrice'] as num?)?.toDouble(),
@@ -93,7 +94,7 @@ _OrderDetailModel _$OrderDetailModelFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
     <String, dynamic>{
-      'customerId': instance.customerId,
+      'userId': instance.customerId,
       'customerName': instance.customerName,
       'cashierId': instance.cashierId,
       'phoneNumber': instance.phoneNumber,

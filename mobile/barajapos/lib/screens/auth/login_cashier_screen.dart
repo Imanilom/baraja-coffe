@@ -21,6 +21,9 @@ class LoginCashierScreen extends ConsumerWidget {
     //membuat isvalidate provider boolean
     final isValid = StateProvider<bool>((ref) => false);
 
+    print('manager: ${manager.phone}');
+    print('list cashier: ${manager.cashiers}');
+
     //menampilkan message
     ref.listen(messageProvider, (previous, next) {
       if (next != null) {

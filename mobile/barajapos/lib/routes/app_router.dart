@@ -3,6 +3,7 @@ import 'package:barajapos/routes/go_router_refresh.dart';
 import 'package:barajapos/screens/auth/login_cashier_screen.dart';
 import 'package:barajapos/screens/auth/pin_input_screen.dart';
 import 'package:barajapos/screens/main_screen.dart';
+import 'package:barajapos/widgets/payment/success_payment.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/auth/login_screen.dart';
@@ -42,6 +43,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const PinInputScreen(),
       ),
       GoRoute(path: '/main', builder: (context, state) => const MainScreen()),
+      GoRoute(
+          path: '/payment-success',
+          builder: (context, state) => const SuccessPayment()),
     ],
   );
 });

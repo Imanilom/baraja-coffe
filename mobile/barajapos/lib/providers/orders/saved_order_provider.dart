@@ -43,14 +43,7 @@ class SavedOrderProvider extends StateNotifier<List<OrderDetailModel?>> {
   double get totalPrice {
     return state.expand((orderDetail) => orderDetail!.items).fold(
           0,
-          (sum, item) =>
-              sum +
-              item.calculateSubTotalPrice(
-                menuItem: item.menuItem,
-                selectedToppings: item.selectedToppings,
-                selectedAddons: item.selectedAddons,
-                quantity: item.quantity,
-              ),
+          (sum, item) => sum + item.calculateSubTotalPrice(),
         );
   }
 }
