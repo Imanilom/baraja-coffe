@@ -1,4 +1,4 @@
-import { Order } from "../models/Order.model.js";
+import { Order } from "../models/order.model.js";
 import Printer from "node-thermal-printer";
 import { MenuItem } from "../models/MenuItem.model.js";
 
