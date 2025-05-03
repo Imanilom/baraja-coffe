@@ -807,7 +807,7 @@ export const getPendingOrders = async (req, res) => {
             const menuItem = await MenuItem.findById(item.menuItem); // Asumsikan ada model MenuItem
 
             // Function to enrich addon with label
-            const enrichAddonWithLabel = async (addon) => {
+            const enrichAddonWithOptions = async (addon) => {
               if (!menuItem) {
                 return addon; // Return original addon if menuItem is not found
               }
@@ -818,8 +818,11 @@ export const getPendingOrders = async (req, res) => {
                 const option = menuItemAddon.options.find((opt) => opt.price === addon.price);
                 if (option) {
                   return {
-                    ...addon,
-                    options: option.label,
+                    name: addon.name,
+                    options: {
+                      price: addon.price,
+                      label: option.label,
+                    },
                   };
                 }
               }
@@ -827,7 +830,7 @@ export const getPendingOrders = async (req, res) => {
             };
 
             // Enrich addons with labels
-            const enrichedAddons = await Promise.all(item.addons.map(enrichAddonWithLabel));
+            const enrichedAddons = await Promise.all(item.addons.map(enrichAddonWithOptions));
 
             return {
               menuItem: menuItem ? {
@@ -836,7 +839,7 @@ export const getPendingOrders = async (req, res) => {
                 price: menuItem.price
               } : null,
               selectedToppings: item.toppings || [],
-              selectedAddons: enrichedAddons || [], // Use enriched addons here
+              selectedAddon: enrichedAddons || [], // Use enriched addons here
               subtotal: item.subtotal,
               quantity: item.quantity,
               isPrinted: item.isPrinted
