@@ -819,10 +819,10 @@ export const getPendingOrders = async (req, res) => {
                 if (option) {
                   return {
                     name: addon.name,
-                    options: {
+                    options: [{
                       price: addon.price,
                       label: option.label,
-                    },
+                    }],
                   };
                 }
               }
