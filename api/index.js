@@ -17,6 +17,7 @@ import OutletRoutes from './routes/outlet.routes.js';
 import posRoutes from './routes/pos.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import historyRoutes from './routes/history.routes.js';
+import paymentMethodsRouter from './routes/paymentMethode.js';
 
 dotenv.config();
 
@@ -58,6 +59,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/staff', posRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', orderRoutes);
+app.use('/api/paymentlist', paymentMethodsRouter);
 app.use('/api/menu', menuRoutes);
 app.use('/api/promotion', promotionRoutes);
 app.use('/api/storage', storageRoutes);
