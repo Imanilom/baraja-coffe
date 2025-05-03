@@ -803,7 +803,7 @@ export const getPendingOrders = async (req, res) => {
         const orderObj = order.toObject();
         // Rename user_id to userId
         orderObj.userId = orderObj.user_id;
-        orderObj.customer = orderObj.user;
+        orderObj.customerName = orderObj.user;
         delete orderObj.user;
         delete orderObj.user_id;
 
