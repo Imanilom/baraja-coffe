@@ -608,6 +608,12 @@ export const checkout = async (req, res) => {
           price: -totalDiscount,
           quantity: 1,
         }] : []),
+        {
+          id: 'service_fee',
+          name: 'Service Fee',
+          price: serviceFee, 
+          quantity: 1,
+        },
       ],
       customer_details: {
         name: 'Customer',
@@ -774,12 +780,35 @@ export const confirmOrder = async (req, res) => {
 
 export const getPendingOrders = async (req, res) => {
   try {
-    const pendingOrders = await Order.find({ status: 'Pending' }).populate('items.menuItem');
-    res.status(200).json(pendingOrders);
+    // Ambil semua order dengan status "Pending"
+    const pendingOrders = await Order.find({ status: 'Pending' });
+
+    const pendingOrdersWithUnpaidStatus = [];
+
+    for (const order of pendingOrders) {
+      const payment = await Payment.findOne({ order_id: order._id });
+
+      if (!payment || (payment.status !== 'Success' && payment.status !== 'paid')) {
+        // Convert Mongoose document to plain object
+        const orderObj = order.toObject();
+        // Rename user_id to userId
+        orderObj.userId = orderObj.user_id;
+        orderObj.customer = orderObj.user;
+        delete orderObj.user;
+        delete orderObj.user_id;
+
+        pendingOrdersWithUnpaidStatus.push(orderObj);
+      }
+    }
+
+    res.status(200).json(pendingOrdersWithUnpaidStatus);
   } catch (error) {
+    console.error('Error fetching pending unpaid orders:', error);
     res.status(500).json({ message: 'Error fetching pending orders', error });
   }
 };
+
+
 async function updateStock(order, session) {
   if (!Array.isArray(order.items)) {
     throw new Error("Order items must be an array");
