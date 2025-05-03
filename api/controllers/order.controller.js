@@ -839,7 +839,7 @@ export const getPendingOrders = async (req, res) => {
                 price: menuItem.price
               } : null,
               selectedToppings: item.toppings || [],
-              selectedAddon: enrichedAddons || [], // Use enriched addons here
+              selectedAddons: enrichedAddons || [], // Use enriched addons here
               subtotal: item.subtotal,
               quantity: item.quantity,
               isPrinted: item.isPrinted
