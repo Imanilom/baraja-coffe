@@ -34,6 +34,7 @@ export const createAppOrder = async (req, res) => {
     if (!orderType) {
       return res.status(400).json({ success: false, message: 'Order type is required' });
     }
+    console.log('Payment method:', paymentDetails);
     if (!paymentDetails?.method) {
       return res.status(400).json({ success: false, message: 'Payment method is required' });
     }
@@ -72,20 +73,6 @@ export const createAppOrder = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid order type' });
     }
 
-    // Format payment method
-    let formattedPaymentMethod = '';
-    if (paymentDetails.method.includes('cash')) {
-      formattedPaymentMethod = 'Cash';
-    } else if (paymentDetails.method.includes('card')) {
-      formattedPaymentMethod = 'Card';
-    } else if (paymentDetails.method.includes('ewallet')) {
-      formattedPaymentMethod = 'E-Wallet';
-    } else if (paymentDetails.method.includes('debit')) {
-      formattedPaymentMethod = 'Debit';
-    } else {
-      return res.status(400).json({ success: false, message: 'Invalid payment method' });
-    }
-
     // Find voucher if provided
     let voucherId = null;
     if (voucherCode) {
@@ -97,12 +84,13 @@ export const createAppOrder = async (req, res) => {
 
     // Process items
     const orderItems = [];
+    console.log('Order items:', items);
     for (const item of items) {
-      const menuItem = await MenuItem.findById(item.menuItemId);
+      const menuItem = await MenuItem.findById(item.productId);
       if (!menuItem) {
         return res.status(404).json({
           success: false,
-          message: `Menu item not found: ${item.menuItemId}`
+          message: `Menu item not found: ${item.productId}`
         });
       }
 
@@ -137,7 +125,7 @@ export const createAppOrder = async (req, res) => {
       cashier: null, // Default kosong, karena tidak ada input cashier di request
       items: orderItems,
       status: 'Pending',
-      paymentMethod: formattedPaymentMethod,
+      paymentMethod: paymentDetails.methode,
       orderType: formattedOrderType,
       deliveryAddress: deliveryAddress || '',
       tableNumber: tableNumber || '',
@@ -398,23 +386,44 @@ export const createOrder = async (req, res) => {
 };
 
 export const charge = async (req, res) => {
-
   try {
     const { payment_type, transaction_details, bank_transfer } = req.body;
     const { order_id, gross_amount } = transaction_details;
-    const { bank } = bank_transfer;
 
+    // Menyiapkan chargeParams dasar
     let chargeParams = {
       "payment_type": payment_type,
       "transaction_details": {
         "gross_amount": gross_amount,
         "order_id": order_id,
       },
-      "bank_transfer": {
-        "bank": bank
-      }
     };
 
+    // Kondisikan chargeParams berdasarkan payment_type
+    if (payment_type === 'bank_transfer') {
+      const { bank } = bank_transfer;
+      chargeParams['bank_transfer'] = {
+        "bank": bank
+      };
+    } else if (payment_type === 'gopay') {
+      // Untuk Gopay, tidak perlu menambahkan 'bank_transfer'
+      // Anda bisa menambahkan parameter lain jika diperlukan
+      chargeParams['gopay'] = {
+        // misalnya, menambahkan enable_callback untuk Gopay
+        "enable_callback": true,
+        "callback_url": "https://yourdomain.com/callback"
+      };
+    } else if (payment_type === 'qris') {
+      // Untuk QRIS, juga bisa diatur di sini
+      chargeParams['qris'] = {
+        // misalnya parameter tambahan untuk QRIS
+        "enable_callback": true,
+        "callback_url": "https://yourdomain.com/callback"
+      };
+    }
+    // Tambahkan kondisi lainnya sesuai dengan payment_type yang tersedia
+
+    // Lakukan permintaan API untuk memproses pembayaran
     const response = await coreApi.charge(chargeParams);
     return res.json(response);
   } catch (error) {
@@ -424,6 +433,7 @@ export const charge = async (req, res) => {
     });
   }
 };
+
 
 export const checkout = async (req, res) => {
   const { orders, user, cashier, outlet, table, paymentMethod, orderType, type, voucher } = req.body;
