@@ -799,11 +799,56 @@ export const getPendingOrders = async (req, res) => {
       const payment = await Payment.findOne({ order_id: order._id });
 
       if (!payment || (payment.status !== 'Success' && payment.status !== 'paid')) {
-        // Convert Mongoose document to plain object
         const orderObj = order.toObject();
-        // Rename user_id to userId
+
+        // Ubah struktur items
+        const updatedItems = await Promise.all(
+          orderObj.items.map(async (item) => {
+            const menuItem = await MenuItem.findById(item.menuItem); // Asumsikan ada model MenuItem
+
+            // Function to enrich addon with label
+            const enrichAddonWithLabel = async (addon) => {
+              if (!menuItem) {
+                return addon; // Return original addon if menuItem is not found
+              }
+
+              const menuItemAddon = menuItem.addons.find((ma) => ma.name === addon.name);
+
+              if (menuItemAddon) {
+                const option = menuItemAddon.options.find((opt) => opt.price === addon.price);
+                if (option) {
+                  return {
+                    ...addon,
+                    options: option.label,
+                  };
+                }
+              }
+              return addon; // Return original addon if label is not found
+            };
+
+            // Enrich addons with labels
+            const enrichedAddons = await Promise.all(item.addons.map(enrichAddonWithLabel));
+
+            return {
+              menuItem: menuItem ? {
+                _id: menuItem._id,
+                name: menuItem.name,
+                price: menuItem.price
+              } : null,
+              selectedToppings: item.toppings || [],
+              selectedAddons: enrichedAddons || [], // Use enriched addons here
+              subtotal: item.subtotal,
+              quantity: item.quantity,
+              isPrinted: item.isPrinted
+            };
+          })
+        );
+
+        orderObj.items = updatedItems;
+
+        // Rename user_id ke userId dan ubah user jadi customerName
         orderObj.userId = orderObj.user_id;
-        orderObj.customerName = orderObj.user;
+        orderObj.consumerName = orderObj.user;
         delete orderObj.user;
         delete orderObj.user_id;
 
@@ -817,6 +862,7 @@ export const getPendingOrders = async (req, res) => {
     res.status(500).json({ message: 'Error fetching pending orders', error });
   }
 };
+
 
 
 async function updateStock(order, session) {
