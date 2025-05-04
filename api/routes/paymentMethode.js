@@ -18,13 +18,13 @@ router.get('/payment-methods', (req, res) => {
             payment_method: 'gopay',
             payment_method_name: 'E-Wallet',
         },
-        {
-            name: 'DANA',
-            icon: 'dana.png',
-            color: '#64B5F6', // Colors.blue[300]
-            payment_method: 'dana',
-            payment_method_name: 'E-Wallet',
-        },
+        // {
+        //     name: 'DANA',
+        //     icon: 'dana.png',
+        //     color: '#64B5F6', // Colors.blue[300]
+        //     payment_method: 'dana',
+        //     payment_method_name: 'E-Wallet',
+        // },
         {
             name: 'BCA',
             icon: 'bca.png',

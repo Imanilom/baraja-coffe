@@ -4,7 +4,8 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import cors from 'cors';
-
+import http from 'http';
+import { initializeSocketIO } from '../api/utils/socket.js';
 // Route
 import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
@@ -33,6 +34,12 @@ mongoose
 const __dirname = path.resolve();
 
 const app = express();
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+initializeSocketIO(server);
 
 app.use(express.static(path.join(__dirname, '/client/dist')));
 
@@ -78,4 +85,3 @@ app.use((err, req, res, next) => {
     statusCode,
   });
 });
-

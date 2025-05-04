@@ -8,7 +8,9 @@ import AutoPromo from '../models/AutoPromo.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
-
+import { v4 as uuidv4 } from 'uuid';
+import QRCode from 'qrcode';
+import { getIo } from '../utils/socket.js';
 
 export const createAppOrder = async (req, res) => {
   try {
@@ -125,7 +127,7 @@ export const createAppOrder = async (req, res) => {
       cashier: null, // Default kosong, karena tidak ada input cashier di request
       items: orderItems,
       status: 'Pending',
-      paymentMethod: paymentDetails.methode,
+      paymentMethod: paymentDetails.method, // Fixed: Changed from 'methode' to 'method'
       orderType: formattedOrderType,
       deliveryAddress: deliveryAddress || '',
       tableNumber: tableNumber || '',
@@ -141,6 +143,339 @@ export const createAppOrder = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Error creating order', error: error.message });
+  }
+};
+
+export const charge = async (req, res) => {
+  try {
+    const { payment_type, transaction_details, bank_transfer } = req.body;
+    const { order_id, gross_amount } = transaction_details;
+
+    // Validasi input
+    if (!order_id || !gross_amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID and gross amount are required'
+      });
+    }
+
+    if (payment_type === 'cash') {
+      const transaction_id = uuidv4();
+      const transaction_time = new Date();
+      const expiry_time = new Date(transaction_time.getTime() + 15 * 60000); // 15 menit
+      const order_details = `ORDER:${order_id}|AMOUNT:${gross_amount}`;
+      const qr_code_url = await QRCode.toDataURL(order_details);
+
+      // Simpan data pembayaran ke database
+      const payment = new Payment({
+        transaction_id,
+        order_id,
+        amount: gross_amount,
+        method: payment_type,
+        status: 'pending',
+        transaction_time,
+        expiry_time
+      });
+
+      await payment.save();
+
+      // Format response untuk cash payment
+      const customResponse = {
+        status_code: "201",
+        status_message: "Cash transaction is created",
+        transaction_id,
+        order_id,
+        merchant_id: process.env.MERCHANT_ID || "G711879663",
+        gross_amount: parseFloat(gross_amount).toFixed(2),
+        currency: "IDR",
+        payment_type: "cash",
+        transaction_time: transaction_time.toISOString().replace('T', ' ').slice(0, 19),
+        transaction_status: "pending",
+        fraud_status: "accept",
+        actions: [
+          {
+            name: "generate-qr-code",
+            method: "GET",
+            url: qr_code_url
+          }
+        ],
+        acquirer: "manual",
+        expiry_time: expiry_time.toISOString().replace('T', ' ').slice(0, 19)
+      };
+
+      return res.status(201).json(customResponse);
+    }
+
+    // Persiapkan parameter untuk Midtrans
+    let chargeParams = {
+      payment_type: payment_type,
+      transaction_details: {
+        gross_amount: parseInt(gross_amount),
+        order_id: order_id,
+      },
+    };
+
+    // Tambahkan parameter sesuai metode pembayaran
+    if (payment_type === 'bank_transfer') {
+      if (!bank_transfer || !bank_transfer.bank) {
+        return res.status(400).json({
+          success: false,
+          message: 'Bank information is required for bank transfer'
+        });
+      }
+
+      chargeParams.bank_transfer = {
+        bank: bank_transfer.bank
+      };
+    } else if (payment_type === 'gopay') {
+      chargeParams.gopay = {};
+    } else if (payment_type === 'qris') {
+      chargeParams.qris = {};
+    } else if (payment_type === 'shopeepay') {
+      chargeParams.shopeepay = {};
+    } else if (payment_type === 'credit_card') {
+      chargeParams.credit_card = {
+        secure: true
+      };
+    }
+
+    // Kirim permintaan ke Midtrans
+    const response = await coreApi.charge(chargeParams);
+
+    // Simpan data pembayaran ke database
+    const payment = new Payment({
+      transaction_id: response.transaction_id,
+      order_id: response.order_id,
+      amount: response.gross_amount,
+      method: payment_type,
+      status: response.transaction_status || 'pending',
+      fraud_status: response.fraud_status,
+      transaction_time: response.transaction_time,
+      expiry_time: response.expiry_time
+    });
+
+    await payment.save();
+
+    // Update status pesanan jika diperlukan
+    await Order.findOneAndUpdate(
+      { _id: order_id },
+      { status: 'Waiting Payment' }
+    );
+
+    // Kirim notifikasi via socket jika diperlukan
+    const io = getIo();
+    io.emit('payment_created', {
+      orderId: order_id,
+      status: response.transaction_status,
+      payment_type
+    });
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error('Payment processing error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Payment processing failed',
+      error: error.message || error
+    });
+  }
+};
+
+export const handleNotification = async (req, res) => {
+  try {
+    const notification = req.body;
+
+    // Log notifikasi yang masuk untuk debugging
+    console.log('Received notification from Midtrans:', JSON.stringify(notification));
+
+    // Validasi notifikasi dasar
+    if (!notification || !notification.transaction_id) {
+      return res.status(400).json({
+        status: 'ERROR',
+        message: 'Invalid notification data'
+      });
+    }
+
+    // Verifikasi signature notifikasi dari Midtrans
+    let statusResponse;
+    try {
+      statusResponse = await coreApi.transaction.notification(notification);
+    } catch (error) {
+      console.error('Error verifying notification:', error);
+      return res.status(400).json({
+        status: 'ERROR',
+        message: 'Failed to verify notification'
+      });
+    }
+
+    const orderId = statusResponse.order_id;
+    const transactionStatus = statusResponse.transaction_status;
+    const fraudStatus = statusResponse.fraud_status;
+    const transactionId = statusResponse.transaction_id;
+
+    console.log(`Transaction notification received. Order ID: ${orderId}. Transaction status: ${transactionStatus}. Fraud status: ${fraudStatus}`);
+
+    // Cek apakah order dan pembayaran ada di database
+    const payment = await Payment.findOne({ transaction_id: transactionId });
+    const order = await Order.findById(orderId);
+
+    if (!payment) {
+      console.error(`Payment with transaction ID ${transactionId} not found`);
+      // Tetap return 200 untuk Midtrans tapi log error
+      return res.status(200).json({ status: 'OK', message: 'Notification received but payment not found' });
+    }
+
+    if (!order) {
+      console.error(`Order with ID ${orderId} not found`);
+      // Tetap return 200 untuk Midtrans tapi log error
+      return res.status(200).json({ status: 'OK', message: 'Notification received but order not found' });
+    }
+
+    // Mapping status transaksi
+    let paymentStatus;
+    let orderStatus;
+
+    // Logika penanganan status transaksi
+    if (transactionStatus === 'capture') {
+      if (fraudStatus === 'challenge') {
+        paymentStatus = 'challenge';
+        orderStatus = 'Payment Challenge';
+      } else if (fraudStatus === 'accept') {
+        paymentStatus = 'success';
+        orderStatus = 'Paid';
+      }
+    } else if (transactionStatus === 'settlement') {
+      paymentStatus = 'success';
+      orderStatus = 'Paid';
+    } else if (transactionStatus === 'cancel' || transactionStatus === 'deny' || transactionStatus === 'expire') {
+      paymentStatus = 'failed';
+      orderStatus = 'Payment Failed';
+    } else if (transactionStatus === 'pending') {
+      paymentStatus = 'pending';
+      orderStatus = 'Waiting Payment';
+    } else {
+      paymentStatus = transactionStatus;
+      orderStatus = 'Payment Processing';
+    }
+
+    // Update status pembayaran
+    await Payment.findOneAndUpdate(
+      { transaction_id: transactionId },
+      {
+        status: paymentStatus,
+        fraud_status: fraudStatus,
+        transaction_status: transactionStatus,
+        payment_response: statusResponse
+      }
+    );
+
+    // Update status pesanan
+    await Order.findByIdAndUpdate(
+      orderId,
+      { status: orderStatus }
+    );
+
+    // Kirim notifikasi real-time ke aplikasi client
+    await updateTransactionStatus(orderId, paymentStatus, orderStatus, transactionId);
+
+    // Return 200 OK dengan body kosong untuk Midtrans
+    return res.status(200).json({ status: 'OK', message: 'Notification processed successfully' });
+  } catch (error) {
+    console.error('Error handling notification:', error);
+    // Tetap berikan 200 OK ke Midtrans untuk mencegah percobaan ulang yang berlebihan
+    return res.status(200).json({
+      status: 'ERROR',
+      message: 'Error processing notification, but acknowledging receipt'
+    });
+  }
+};
+
+export const updateTransactionStatus = async (orderId, paymentStatus, orderStatus, transactionId) => {
+  try {
+    // Log pembaruan status
+    console.log(`Updating transaction status for order ${orderId} to ${paymentStatus}`);
+
+    // Kirim event ke sistem via Socket.IO
+    const io = getIo();
+    if (io) {
+      io.emit('payment_status_update', {
+        orderId,
+        paymentStatus,
+        orderStatus,
+        transactionId,
+        updatedAt: new Date().toISOString()
+      });
+    } else {
+      console.error('Socket.IO instance not available for notification');
+    }
+
+    // Tambahan: Anda bisa menambahkan logika bisnis lain di sini
+    // Misalnya: mengirim email konfirmasi, memperbarui inventaris, dll.
+  } catch (error) {
+    console.error('Error in updateTransactionStatus:', error);
+  }
+};
+
+// Endpoint tambahan untuk memeriksa status pembayaran secara manual
+export const checkTransactionStatus = async (req, res) => {
+  try {
+    const { order_id } = req.params;
+
+    if (!order_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID is required'
+      });
+    }
+
+    // Cek status dari Midtrans
+    const statusResponse = await coreApi.transaction.status(order_id);
+
+    // Update status di database
+    const paymentStatus = statusResponse.transaction_status;
+    const fraudStatus = statusResponse.fraud_status;
+
+    await Payment.findOneAndUpdate(
+      { order_id },
+      {
+        status: paymentStatus === 'settlement' ? 'success' : paymentStatus,
+        fraud_status: fraudStatus,
+        transaction_status: paymentStatus
+      }
+    );
+
+    // Update status pesanan
+    let orderStatus;
+    if (paymentStatus === 'settlement' || (paymentStatus === 'capture' && fraudStatus === 'accept')) {
+      orderStatus = 'Paid';
+    } else if (paymentStatus === 'pending') {
+      orderStatus = 'Waiting Payment';
+    } else if (paymentStatus === 'cancel' || paymentStatus === 'deny' || paymentStatus === 'expire') {
+      orderStatus = 'Payment Failed';
+    } else {
+      orderStatus = 'Payment Processing';
+    }
+
+    await Order.findOneAndUpdate(
+      { _id: order_id },
+      { status: orderStatus }
+    );
+
+    // Kirim notifikasi
+    await updateTransactionStatus(order_id, paymentStatus, orderStatus, statusResponse.transaction_id);
+
+    return res.status(200).json({
+      success: true,
+      transaction: statusResponse,
+      orderStatus
+    });
+  } catch (error) {
+    console.error('Error checking transaction status:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking transaction status',
+      error: error.message
+    });
   }
 };
 
@@ -384,56 +719,6 @@ export const createOrder = async (req, res) => {
     session.endSession();
   }
 };
-
-export const charge = async (req, res) => {
-  try {
-    const { payment_type, transaction_details, bank_transfer } = req.body;
-    const { order_id, gross_amount } = transaction_details;
-
-    // Menyiapkan chargeParams dasar
-    let chargeParams = {
-      "payment_type": payment_type,
-      "transaction_details": {
-        "gross_amount": gross_amount,
-        "order_id": order_id,
-      },
-    };
-
-    // Kondisikan chargeParams berdasarkan payment_type
-    if (payment_type === 'bank_transfer') {
-      const { bank } = bank_transfer;
-      chargeParams['bank_transfer'] = {
-        "bank": bank
-      };
-    } else if (payment_type === 'gopay') {
-      // Untuk Gopay, tidak perlu menambahkan 'bank_transfer'
-      // Anda bisa menambahkan parameter lain jika diperlukan
-      chargeParams['gopay'] = {
-        // misalnya, menambahkan enable_callback untuk Gopay
-        "enable_callback": true,
-        "callback_url": "https://yourdomain.com/callback"
-      };
-    } else if (payment_type === 'qris') {
-      // Untuk QRIS, juga bisa diatur di sini
-      chargeParams['qris'] = {
-        // misalnya parameter tambahan untuk QRIS
-        "enable_callback": true,
-        "callback_url": "https://yourdomain.com/callback"
-      };
-    }
-    // Tambahkan kondisi lainnya sesuai dengan payment_type yang tersedia
-
-    // Lakukan permintaan API untuk memproses pembayaran
-    const response = await coreApi.charge(chargeParams);
-    return res.json(response);
-  } catch (error) {
-    return res.status(500).json({
-      message: 'Payment failed',
-      error: error.message || error
-    });
-  }
-};
-
 
 export const checkout = async (req, res) => {
   const { orders, user, cashier, outlet, table, paymentMethod, orderType, type, voucher } = req.body;

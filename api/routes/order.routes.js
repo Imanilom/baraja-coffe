@@ -11,6 +11,8 @@ import {
   getCashierOrderHistory,
   charge,
   createAppOrder,
+  handleNotification,
+  checkTransactionStatus,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -19,11 +21,22 @@ const router = express.Router();
 // Route untuk membuat order dan pembayaran
 router.post('/order', createOrder);
 
-router.post('/orderApp', createAppOrder);
 
 router.post("/checkout", checkout);
 
+// TODO: Start route untuk melakukan charge from aplication
+
+router.post('/orderApp', createAppOrder);
+
 router.post("/charge", charge);
+
+// Midtrans webhook notification endpoint
+router.post('/notification', handleNotification);
+
+// Check transaction status manually
+router.get('/status/:order_id', checkTransactionStatus);
+
+// TODO: End route untuk melakukan charge from aplication
 
 router.post("/payment-notification", paymentNotification);
 
