@@ -1,5 +1,6 @@
 import 'package:barajapos/models/adapter/order_detail.model.dart';
 import 'package:barajapos/providers/orders/online_order_provider.dart';
+import 'package:barajapos/repositories/online_order_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,10 +10,28 @@ class OnlineOrderScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final onlineOrder = ref.watch(onlineOrderProvider);
+    final OnlineOrderRepository repository = OnlineOrderRepository();
 
     //refresh dengan menarik ke bawah
     void refresh() {
       ref.read(onlineOrderProvider);
+    }
+
+    void confirmOrder(WidgetRef ref, OrderDetailModel orderDetail) async {
+      try {
+        await repository.confirmOrder(ref, orderDetail);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Order berhasil dikonfirmasi")),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Gagal konfirmasi order: ${e.toString()}")),
+          );
+        }
+      }
     }
 
     return Scaffold(
@@ -55,8 +74,12 @@ class OnlineOrderScreen extends ConsumerWidget {
                         ),
                         actions: [
                           TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('Tutup'),
+                            onPressed: () {
+                              // Konfirmasi order saat tombol diklik
+                              confirmOrder(ref, order);
+                              Navigator.of(context).pop();
+                            },
+                            child: const Text('Confirm Order'),
                           ),
                         ],
                       ),
