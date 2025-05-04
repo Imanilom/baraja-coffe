@@ -1,6 +1,7 @@
 import 'package:barajapos/models/adapter/order_detail.model.dart';
 import 'package:barajapos/repositories/online_order_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// import 'package:barajapos/models/try/try_order_detail.model.dart';
 
 // Provider untuk SavedOrderDetailProvider
 final onlineOrderRepository =

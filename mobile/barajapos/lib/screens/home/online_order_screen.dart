@@ -16,7 +16,7 @@ class OnlineOrderScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Order Online')),
+      // appBar: AppBar(title: const Text('Order Online')),
       body: RefreshIndicator(
         onRefresh: () async => refresh(),
         child: onlineOrder.when(
@@ -32,15 +32,27 @@ class OnlineOrderScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final order = orders[index];
                 return ListTile(
-                  title: Text(order.customerName ?? 'Unknown Customer'),
-                  // subtitle: Text('Total: ${order.totalAmount}'),
+                  title: Text(order.customerId ??
+                      order.customerName ??
+                      'unknow customer'),
+                  subtitle: Text('Order Id: ${order.orderId}'),
                   onTap: () {
                     // Tampilkan detail order saat ditekan
                     showDialog(
                       context: context,
                       builder: (context) => AlertDialog(
                         title: const Text('Detail Order'),
-                        content: Text('Detail untuk ${order.customerName}'),
+                        content: Column(
+                          children: [
+                            Text('Detail untuk ${order.customerName}'),
+                            Text(
+                                'Item: ${order.items.map((item) => item.menuItem.name).join(', ')}'),
+                            Text(
+                                'Topping: ${order.items.map((item) => item.selectedToppings.map((t) => t.name).join(', ')).join(', ')}'),
+                            Text(
+                                'Addons: ${order.items.map((item) => item.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')).join(', ')}'),
+                          ],
+                        ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.of(context).pop(),

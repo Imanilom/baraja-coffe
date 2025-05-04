@@ -4,7 +4,7 @@
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
-part of 'order_detail.model.dart';
+part of 'try_order_detail.model.dart';
 
 // **************************************************************************
 // FreezedGenerator
@@ -14,7 +14,7 @@ part of 'order_detail.model.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
-mixin _$OrderDetailModel {
+mixin _$TryOrderDetailModel {
   @HiveField(0)
   @JsonKey(name: 'userId')
   String? get customerId;
@@ -25,7 +25,7 @@ mixin _$OrderDetailModel {
   @HiveField(3)
   String? get phoneNumber;
   @HiveField(4)
-  List<OrderItemModel> get items;
+  List<TryOrderItemModel> get items;
   @HiveField(5)
   String get orderType;
   @HiveField(6)
@@ -38,26 +38,23 @@ mixin _$OrderDetailModel {
   String? get status;
   @HiveField(10)
   double? get totalPrice;
-  @HiveField(11)
-  @JsonKey(name: '_id')
-  String? get orderId;
 
-  /// Create a copy of OrderDetailModel
+  /// Create a copy of TryOrderDetailModel
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
-  $OrderDetailModelCopyWith<OrderDetailModel> get copyWith =>
-      _$OrderDetailModelCopyWithImpl<OrderDetailModel>(
-          this as OrderDetailModel, _$identity);
+  $TryOrderDetailModelCopyWith<TryOrderDetailModel> get copyWith =>
+      _$TryOrderDetailModelCopyWithImpl<TryOrderDetailModel>(
+          this as TryOrderDetailModel, _$identity);
 
-  /// Serializes this OrderDetailModel to a JSON map.
+  /// Serializes this TryOrderDetailModel to a JSON map.
   Map<String, dynamic> toJson();
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is OrderDetailModel &&
+            other is TryOrderDetailModel &&
             (identical(other.customerId, customerId) ||
                 other.customerId == customerId) &&
             (identical(other.customerName, customerName) ||
@@ -77,8 +74,7 @@ mixin _$OrderDetailModel {
                 other.paymentMethod == paymentMethod) &&
             (identical(other.status, status) || other.status == status) &&
             (identical(other.totalPrice, totalPrice) ||
-                other.totalPrice == totalPrice) &&
-            (identical(other.orderId, orderId) || other.orderId == orderId));
+                other.totalPrice == totalPrice));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -95,45 +91,43 @@ mixin _$OrderDetailModel {
       tableNumber,
       paymentMethod,
       status,
-      totalPrice,
-      orderId);
+      totalPrice);
 
   @override
   String toString() {
-    return 'OrderDetailModel(customerId: $customerId, customerName: $customerName, cashierId: $cashierId, phoneNumber: $phoneNumber, items: $items, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, paymentMethod: $paymentMethod, status: $status, totalPrice: $totalPrice, orderId: $orderId)';
+    return 'TryOrderDetailModel(customerId: $customerId, customerName: $customerName, cashierId: $cashierId, phoneNumber: $phoneNumber, items: $items, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, paymentMethod: $paymentMethod, status: $status, totalPrice: $totalPrice)';
   }
 }
 
 /// @nodoc
-abstract mixin class $OrderDetailModelCopyWith<$Res> {
-  factory $OrderDetailModelCopyWith(
-          OrderDetailModel value, $Res Function(OrderDetailModel) _then) =
-      _$OrderDetailModelCopyWithImpl;
+abstract mixin class $TryOrderDetailModelCopyWith<$Res> {
+  factory $TryOrderDetailModelCopyWith(
+          TryOrderDetailModel value, $Res Function(TryOrderDetailModel) _then) =
+      _$TryOrderDetailModelCopyWithImpl;
   @useResult
   $Res call(
       {@HiveField(0) @JsonKey(name: 'userId') String? customerId,
       @HiveField(1) String? customerName,
       @HiveField(2) String? cashierId,
       @HiveField(3) String? phoneNumber,
-      @HiveField(4) List<OrderItemModel> items,
+      @HiveField(4) List<TryOrderItemModel> items,
       @HiveField(5) String orderType,
       @HiveField(6) String? deliveryAddress,
       @HiveField(7) String? tableNumber,
       @HiveField(8) String? paymentMethod,
       @HiveField(9) String? status,
-      @HiveField(10) double? totalPrice,
-      @HiveField(11) @JsonKey(name: '_id') String? orderId});
+      @HiveField(10) double? totalPrice});
 }
 
 /// @nodoc
-class _$OrderDetailModelCopyWithImpl<$Res>
-    implements $OrderDetailModelCopyWith<$Res> {
-  _$OrderDetailModelCopyWithImpl(this._self, this._then);
+class _$TryOrderDetailModelCopyWithImpl<$Res>
+    implements $TryOrderDetailModelCopyWith<$Res> {
+  _$TryOrderDetailModelCopyWithImpl(this._self, this._then);
 
-  final OrderDetailModel _self;
-  final $Res Function(OrderDetailModel) _then;
+  final TryOrderDetailModel _self;
+  final $Res Function(TryOrderDetailModel) _then;
 
-  /// Create a copy of OrderDetailModel
+  /// Create a copy of TryOrderDetailModel
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
@@ -149,7 +143,6 @@ class _$OrderDetailModelCopyWithImpl<$Res>
     Object? paymentMethod = freezed,
     Object? status = freezed,
     Object? totalPrice = freezed,
-    Object? orderId = freezed,
   }) {
     return _then(_self.copyWith(
       customerId: freezed == customerId
@@ -171,7 +164,7 @@ class _$OrderDetailModelCopyWithImpl<$Res>
       items: null == items
           ? _self.items
           : items // ignore: cast_nullable_to_non_nullable
-              as List<OrderItemModel>,
+              as List<TryOrderItemModel>,
       orderType: null == orderType
           ? _self.orderType
           : orderType // ignore: cast_nullable_to_non_nullable
@@ -196,33 +189,28 @@ class _$OrderDetailModelCopyWithImpl<$Res>
           ? _self.totalPrice
           : totalPrice // ignore: cast_nullable_to_non_nullable
               as double?,
-      orderId: freezed == orderId
-          ? _self.orderId
-          : orderId // ignore: cast_nullable_to_non_nullable
-              as String?,
     ));
   }
 }
 
 /// @nodoc
 @JsonSerializable()
-class _OrderDetailModel implements OrderDetailModel {
-  _OrderDetailModel(
+class _TryOrderDetailModel implements TryOrderDetailModel {
+  _TryOrderDetailModel(
       {@HiveField(0) @JsonKey(name: 'userId') this.customerId,
       @HiveField(1) this.customerName,
       @HiveField(2) this.cashierId,
       @HiveField(3) this.phoneNumber,
-      @HiveField(4) final List<OrderItemModel> items = const [],
+      @HiveField(4) final List<TryOrderItemModel> items = const [],
       @HiveField(5) required this.orderType,
       @HiveField(6) this.deliveryAddress,
       @HiveField(7) this.tableNumber,
       @HiveField(8) this.paymentMethod,
       @HiveField(9) this.status,
-      @HiveField(10) this.totalPrice,
-      @HiveField(11) @JsonKey(name: '_id') this.orderId})
+      @HiveField(10) this.totalPrice})
       : _items = items;
-  factory _OrderDetailModel.fromJson(Map<String, dynamic> json) =>
-      _$OrderDetailModelFromJson(json);
+  factory _TryOrderDetailModel.fromJson(Map<String, dynamic> json) =>
+      _$TryOrderDetailModelFromJson(json);
 
   @override
   @HiveField(0)
@@ -237,11 +225,11 @@ class _OrderDetailModel implements OrderDetailModel {
   @override
   @HiveField(3)
   final String? phoneNumber;
-  final List<OrderItemModel> _items;
+  final List<TryOrderItemModel> _items;
   @override
   @JsonKey()
   @HiveField(4)
-  List<OrderItemModel> get items {
+  List<TryOrderItemModel> get items {
     if (_items is EqualUnmodifiableListView) return _items;
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableListView(_items);
@@ -265,22 +253,19 @@ class _OrderDetailModel implements OrderDetailModel {
   @override
   @HiveField(10)
   final double? totalPrice;
-  @override
-  @HiveField(11)
-  @JsonKey(name: '_id')
-  final String? orderId;
 
-  /// Create a copy of OrderDetailModel
+  /// Create a copy of TryOrderDetailModel
   /// with the given fields replaced by the non-null parameter values.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
-  _$OrderDetailModelCopyWith<_OrderDetailModel> get copyWith =>
-      __$OrderDetailModelCopyWithImpl<_OrderDetailModel>(this, _$identity);
+  _$TryOrderDetailModelCopyWith<_TryOrderDetailModel> get copyWith =>
+      __$TryOrderDetailModelCopyWithImpl<_TryOrderDetailModel>(
+          this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$OrderDetailModelToJson(
+    return _$TryOrderDetailModelToJson(
       this,
     );
   }
@@ -289,7 +274,7 @@ class _OrderDetailModel implements OrderDetailModel {
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _OrderDetailModel &&
+            other is _TryOrderDetailModel &&
             (identical(other.customerId, customerId) ||
                 other.customerId == customerId) &&
             (identical(other.customerName, customerName) ||
@@ -309,8 +294,7 @@ class _OrderDetailModel implements OrderDetailModel {
                 other.paymentMethod == paymentMethod) &&
             (identical(other.status, status) || other.status == status) &&
             (identical(other.totalPrice, totalPrice) ||
-                other.totalPrice == totalPrice) &&
-            (identical(other.orderId, orderId) || other.orderId == orderId));
+                other.totalPrice == totalPrice));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -327,21 +311,20 @@ class _OrderDetailModel implements OrderDetailModel {
       tableNumber,
       paymentMethod,
       status,
-      totalPrice,
-      orderId);
+      totalPrice);
 
   @override
   String toString() {
-    return 'OrderDetailModel(customerId: $customerId, customerName: $customerName, cashierId: $cashierId, phoneNumber: $phoneNumber, items: $items, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, paymentMethod: $paymentMethod, status: $status, totalPrice: $totalPrice, orderId: $orderId)';
+    return 'TryOrderDetailModel(customerId: $customerId, customerName: $customerName, cashierId: $cashierId, phoneNumber: $phoneNumber, items: $items, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, paymentMethod: $paymentMethod, status: $status, totalPrice: $totalPrice)';
   }
 }
 
 /// @nodoc
-abstract mixin class _$OrderDetailModelCopyWith<$Res>
-    implements $OrderDetailModelCopyWith<$Res> {
-  factory _$OrderDetailModelCopyWith(
-          _OrderDetailModel value, $Res Function(_OrderDetailModel) _then) =
-      __$OrderDetailModelCopyWithImpl;
+abstract mixin class _$TryOrderDetailModelCopyWith<$Res>
+    implements $TryOrderDetailModelCopyWith<$Res> {
+  factory _$TryOrderDetailModelCopyWith(_TryOrderDetailModel value,
+          $Res Function(_TryOrderDetailModel) _then) =
+      __$TryOrderDetailModelCopyWithImpl;
   @override
   @useResult
   $Res call(
@@ -349,25 +332,24 @@ abstract mixin class _$OrderDetailModelCopyWith<$Res>
       @HiveField(1) String? customerName,
       @HiveField(2) String? cashierId,
       @HiveField(3) String? phoneNumber,
-      @HiveField(4) List<OrderItemModel> items,
+      @HiveField(4) List<TryOrderItemModel> items,
       @HiveField(5) String orderType,
       @HiveField(6) String? deliveryAddress,
       @HiveField(7) String? tableNumber,
       @HiveField(8) String? paymentMethod,
       @HiveField(9) String? status,
-      @HiveField(10) double? totalPrice,
-      @HiveField(11) @JsonKey(name: '_id') String? orderId});
+      @HiveField(10) double? totalPrice});
 }
 
 /// @nodoc
-class __$OrderDetailModelCopyWithImpl<$Res>
-    implements _$OrderDetailModelCopyWith<$Res> {
-  __$OrderDetailModelCopyWithImpl(this._self, this._then);
+class __$TryOrderDetailModelCopyWithImpl<$Res>
+    implements _$TryOrderDetailModelCopyWith<$Res> {
+  __$TryOrderDetailModelCopyWithImpl(this._self, this._then);
 
-  final _OrderDetailModel _self;
-  final $Res Function(_OrderDetailModel) _then;
+  final _TryOrderDetailModel _self;
+  final $Res Function(_TryOrderDetailModel) _then;
 
-  /// Create a copy of OrderDetailModel
+  /// Create a copy of TryOrderDetailModel
   /// with the given fields replaced by the non-null parameter values.
   @override
   @pragma('vm:prefer-inline')
@@ -383,9 +365,8 @@ class __$OrderDetailModelCopyWithImpl<$Res>
     Object? paymentMethod = freezed,
     Object? status = freezed,
     Object? totalPrice = freezed,
-    Object? orderId = freezed,
   }) {
-    return _then(_OrderDetailModel(
+    return _then(_TryOrderDetailModel(
       customerId: freezed == customerId
           ? _self.customerId
           : customerId // ignore: cast_nullable_to_non_nullable
@@ -405,7 +386,7 @@ class __$OrderDetailModelCopyWithImpl<$Res>
       items: null == items
           ? _self._items
           : items // ignore: cast_nullable_to_non_nullable
-              as List<OrderItemModel>,
+              as List<TryOrderItemModel>,
       orderType: null == orderType
           ? _self.orderType
           : orderType // ignore: cast_nullable_to_non_nullable
@@ -430,10 +411,6 @@ class __$OrderDetailModelCopyWithImpl<$Res>
           ? _self.totalPrice
           : totalPrice // ignore: cast_nullable_to_non_nullable
               as double?,
-      orderId: freezed == orderId
-          ? _self.orderId
-          : orderId // ignore: cast_nullable_to_non_nullable
-              as String?,
     ));
   }
 }

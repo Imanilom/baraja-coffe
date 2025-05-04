@@ -11,6 +11,10 @@ import 'package:barajapos/models/adapter/order_detail.model.dart';
 import 'package:barajapos/models/adapter/order_item.model.dart';
 import 'package:barajapos/models/adapter/topping.model.dart';
 import 'package:barajapos/models/adapter/user.model.dart';
+import 'package:barajapos/models/try/try_addon.model.dart';
+import 'package:barajapos/models/try/try_menu_item.model.dart';
+import 'package:barajapos/models/try/try_order_detail.model.dart';
+import 'package:barajapos/models/try/try_order_item.model.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
@@ -21,6 +25,10 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
     registerAdapter(ToppingModelAdapter());
+    registerAdapter(TryAddonModelAdapter());
+    registerAdapter(TryMenuItemModelAdapter());
+    registerAdapter(TryOrderDetailModelAdapter());
+    registerAdapter(TryOrderItemModelAdapter());
     registerAdapter(UserModelAdapter());
   }
 }

@@ -1,41 +1,40 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'order_detail.model.dart';
+part of 'try_order_detail.model.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
 // **************************************************************************
 
-class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
+class TryOrderDetailModelAdapter extends TypeAdapter<TryOrderDetailModel> {
   @override
-  final int typeId = 5;
+  final int typeId = 9;
 
   @override
-  OrderDetailModel read(BinaryReader reader) {
+  TryOrderDetailModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return OrderDetailModel(
+    return TryOrderDetailModel(
       customerId: fields[0] as String?,
       customerName: fields[1] as String?,
       cashierId: fields[2] as String?,
       phoneNumber: fields[3] as String?,
-      items: (fields[4] as List).cast<OrderItemModel>(),
+      items: (fields[4] as List).cast<TryOrderItemModel>(),
       orderType: fields[5] as String,
       deliveryAddress: fields[6] as String?,
       tableNumber: fields[7] as String?,
       paymentMethod: fields[8] as String?,
       status: fields[9] as String?,
       totalPrice: (fields[10] as num?)?.toDouble(),
-      orderId: fields[11] as String?,
     );
   }
 
   @override
-  void write(BinaryWriter writer, OrderDetailModel obj) {
+  void write(BinaryWriter writer, TryOrderDetailModel obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.customerId)
       ..writeByte(1)
@@ -57,9 +56,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..writeByte(9)
       ..write(obj.status)
       ..writeByte(10)
-      ..write(obj.totalPrice)
-      ..writeByte(11)
-      ..write(obj.orderId);
+      ..write(obj.totalPrice);
   }
 
   @override
@@ -68,7 +65,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is OrderDetailModelAdapter &&
+      other is TryOrderDetailModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
@@ -77,14 +74,15 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
 // JsonSerializableGenerator
 // **************************************************************************
 
-_OrderDetailModel _$OrderDetailModelFromJson(Map<String, dynamic> json) =>
-    _OrderDetailModel(
+_TryOrderDetailModel _$TryOrderDetailModelFromJson(Map<String, dynamic> json) =>
+    _TryOrderDetailModel(
       customerId: json['userId'] as String?,
       customerName: json['customerName'] as String?,
       cashierId: json['cashierId'] as String?,
       phoneNumber: json['phoneNumber'] as String?,
       items: (json['items'] as List<dynamic>?)
-              ?.map((e) => OrderItemModel.fromJson(e as Map<String, dynamic>))
+              ?.map(
+                  (e) => TryOrderItemModel.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
       orderType: json['orderType'] as String,
@@ -93,10 +91,10 @@ _OrderDetailModel _$OrderDetailModelFromJson(Map<String, dynamic> json) =>
       paymentMethod: json['paymentMethod'] as String?,
       status: json['status'] as String?,
       totalPrice: (json['totalPrice'] as num?)?.toDouble(),
-      orderId: json['_id'] as String?,
     );
 
-Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
+Map<String, dynamic> _$TryOrderDetailModelToJson(
+        _TryOrderDetailModel instance) =>
     <String, dynamic>{
       'userId': instance.customerId,
       'customerName': instance.customerName,
@@ -109,5 +107,4 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'paymentMethod': instance.paymentMethod,
       'status': instance.status,
       'totalPrice': instance.totalPrice,
-      '_id': instance.orderId,
     };
