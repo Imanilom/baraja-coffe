@@ -19,11 +19,16 @@ const router = express.Router();
 // Route untuk membuat order dan pembayaran
 router.post('/order', createOrder);
 
-router.post('/orderApp', createAppOrder);
 
 router.post("/checkout", checkout);
 
+// TODO: Start route untuk melakukan charge from aplication
+
+router.post('/orderApp', createAppOrder);
+
 router.post("/charge", charge);
+
+// TODO: End route untuk melakukan charge from aplication
 
 router.post("/payment-notification", paymentNotification);
 
