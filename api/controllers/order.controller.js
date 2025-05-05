@@ -144,6 +144,103 @@ export const createAppOrder = async (req, res) => {
   }
 };
 
+export const charge = async (req, res) => {
+  try {
+    const { payment_type, transaction_details, bank_transfer } = req.body;
+    const { order_id, gross_amount } = transaction_details;
+
+    if (payment_type == 'cash') {
+      const transaction_id = uuidv4();
+      const transaction_time = new Date();
+      const expiry_time = new Date(transaction_time.getTime() + 15 * 60000);
+      // const qr_string = `ORDER:${order_id}|AMOUNT:${gross_amount}|TXN_ID:${transaction_id}`;
+      const qr_code_url = await QRCode.toDataURL(order_id)
+      // Generate QR code string
+      const customResponse = {
+        status_code: "201",
+        status_message: "Cash transaction is created",
+        transaction_id,
+        order_id,
+        merchant_id: "G711879663", // ubah sesuai kebutuhan
+        gross_amount: gross_amount.toFixed(2),
+        currency: "IDR",
+        payment_type: "cash",
+        transaction_time: transaction_time.toISOString().replace('T', ' ').slice(0, 19),
+        transaction_status: "pending",
+        fraud_status: "accept",
+        actions: [
+          {
+            name: "generate-qr-code",
+            method: "GET",
+            url: qr_code_url
+          }
+        ],
+        acquirer: "manual",
+        // qr_string,
+        expiry_time: expiry_time.toISOString().replace('T', ' ').slice(0, 19)
+      };
+
+      return res.status(200).json(customResponse);
+    }
+
+    // Menyiapkan chargeParams dasar
+    let chargeParams = {
+      "payment_type": payment_type,
+      "transaction_details": {
+        "gross_amount": gross_amount,
+        "order_id": order_id,
+      },
+    };
+
+
+
+    // Kondisikan chargeParams berdasarkan payment_type
+    if (payment_type === 'bank_transfer') {
+      const { bank } = bank_transfer;
+      chargeParams['bank_transfer'] = {
+        "bank": bank
+      };
+    } else if (payment_type === 'gopay') {
+      // Untuk Gopay, tidak perlu menambahkan 'bank_transfer'
+      // Anda bisa menambahkan parameter lain jika diperlukan
+      chargeParams['gopay'] = {
+        // misalnya, menambahkan enable_callback untuk Gopay
+        // "enable_callback": true,
+        // "callback_url": "https://yourdomain.com/callback"
+      };
+    } else if (payment_type === 'qris') {
+      // Untuk QRIS, juga bisa diatur di sini
+      chargeParams['qris'] = {
+        // misalnya parameter tambahan untuk QRIS
+        // "enable_callback": true,
+        // "callback_url": "https://yourdomain.com/callback"
+      };
+    }
+
+
+
+    // Lakukan permintaan API untuk memproses pembayaran
+    const response = await coreApi.charge(chargeParams);
+    const payment = new Payment({
+      transaction_id: response.transaction_id,
+      order_id: order_id,
+      amount: gross_amount,
+      method: payment_type,
+      status: 'pending',
+      fraud_status: response.fraud_status,
+      transaction_time: response.transaction_time,
+      expiry_time: response.expiry_time
+    });
+
+    await payment.save();
+    return res.json(response);
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Payment failed',
+      error: error.message || error
+    });
+  }
+};
 
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
@@ -384,56 +481,6 @@ export const createOrder = async (req, res) => {
     session.endSession();
   }
 };
-
-export const charge = async (req, res) => {
-  try {
-    const { payment_type, transaction_details, bank_transfer } = req.body;
-    const { order_id, gross_amount } = transaction_details;
-
-    // Menyiapkan chargeParams dasar
-    let chargeParams = {
-      "payment_type": payment_type,
-      "transaction_details": {
-        "gross_amount": gross_amount,
-        "order_id": order_id,
-      },
-    };
-
-    // Kondisikan chargeParams berdasarkan payment_type
-    if (payment_type === 'bank_transfer') {
-      const { bank } = bank_transfer;
-      chargeParams['bank_transfer'] = {
-        "bank": bank
-      };
-    } else if (payment_type === 'gopay') {
-      // Untuk Gopay, tidak perlu menambahkan 'bank_transfer'
-      // Anda bisa menambahkan parameter lain jika diperlukan
-      chargeParams['gopay'] = {
-        // misalnya, menambahkan enable_callback untuk Gopay
-        "enable_callback": true,
-        "callback_url": "https://yourdomain.com/callback"
-      };
-    } else if (payment_type === 'qris') {
-      // Untuk QRIS, juga bisa diatur di sini
-      chargeParams['qris'] = {
-        // misalnya parameter tambahan untuk QRIS
-        "enable_callback": true,
-        "callback_url": "https://yourdomain.com/callback"
-      };
-    }
-    // Tambahkan kondisi lainnya sesuai dengan payment_type yang tersedia
-
-    // Lakukan permintaan API untuk memproses pembayaran
-    const response = await coreApi.charge(chargeParams);
-    return res.json(response);
-  } catch (error) {
-    return res.status(500).json({
-      message: 'Payment failed',
-      error: error.message || error
-    });
-  }
-};
-
 
 export const checkout = async (req, res) => {
   const { orders, user, cashier, outlet, table, paymentMethod, orderType, type, voucher } = req.body;
@@ -852,7 +899,7 @@ export const getPendingOrders = async (req, res) => {
         // Rename user_id ke userId dan ubah user jadi customerName
         orderObj.userId = orderObj.user_id;
         orderObj.cashierId = orderObj.cashier;
-        orderObj.consumerName = orderObj.user;
+        orderObj.customerName = orderObj.user;
         delete orderObj.user;
         delete orderObj.user_id;
         delete orderObj.cashier;
