@@ -148,7 +148,7 @@ export const charge = async (req, res) => {
   try {
     const { payment_type, transaction_details, bank_transfer } = req.body;
     const { order_id, gross_amount } = transaction_details;
-
+    const io = req.app.get('io');
     if (payment_type == 'cash') {
       const transaction_id = uuidv4();
       const transaction_time = new Date();
@@ -180,6 +180,8 @@ export const charge = async (req, res) => {
         expiry_time: expiry_time.toISOString().replace('T', ' ').slice(0, 19)
       };
 
+      // Kirim event ke semua client yang terhubung
+      io.to(order_id).emit('payment_created', customResponse);
       return res.status(200).json(customResponse);
     }
 
@@ -217,7 +219,8 @@ export const charge = async (req, res) => {
       };
     }
 
-
+    // Kirim event ke semua client yang terhubung
+    io.to(order_id).emit('payment_created', chargeParams);
 
     // Lakukan permintaan API untuk memproses pembayaran
     const response = await coreApi.charge(chargeParams);
