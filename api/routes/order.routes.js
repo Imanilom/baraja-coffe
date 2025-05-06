@@ -13,6 +13,7 @@ import {
   createAppOrder,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
+import { midtransWebhook } from '../controllers/webhookController.js';
 
 const router = express.Router();
 
@@ -27,6 +28,8 @@ router.post("/checkout", checkout);
 router.post('/orderApp', createAppOrder);
 
 router.post("/charge", charge);
+
+router.post('/midtrans/webhook', midtransWebhook);
 
 // TODO: End route untuk melakukan charge from aplication
 
