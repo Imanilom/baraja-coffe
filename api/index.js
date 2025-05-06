@@ -4,7 +4,8 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import cors from 'cors';
-
+import http from 'http';
+import { Server } from 'socket.io';
 // Route
 import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
@@ -34,6 +35,32 @@ const __dirname = path.resolve();
 
 const app = express();
 
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+
+  socket.on('join', (orderId) => {
+    socket.join(orderId);
+    console.log(`Socket ${socket.id} joined room ${orderId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
+
+// Buat io bisa diakses dari controller
+app.set('io', io);
 app.use(express.static(path.join(__dirname, '/client/dist')));
 
 // app.get('*', (req, res) => {
