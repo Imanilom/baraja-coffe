@@ -1,99 +1,105 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Home from './pages/Home';
-import About from './pages/About';
-import SignIn from './pages/SignIn';
-import SignUp from './pages/SignUp';
-import Profile from './pages/Profile';
-import Header from './components/Header';
-import Footer from './components/Footer';
-import PrivateRoute from './components/PrivateRoute';
-import Download from './components/download';
-// menu
-import Menumanagement from './pages/menu/index';
-import Menucreate from './pages/menu/create';
-import MenuUpdate from './pages/menu/update';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
+import About from "./pages/About";
+import SignIn from "./pages/SignIn";
+import SignUp from "./pages/SignUp";
+import Profile from "./pages/Profile";
+import Footer from "./components/Footer";
+import PrivateRoute from "./components/PrivateRoute";
+import Download from "./components/download";
+import AdminLayout from "./pages/admin/index"; // Gunakan Layout Admin
 
-// Topping
-import ToppingManagement from './pages/topping/index';
-import CreateTopping from './pages/topping/create';
+// Admin Pages
+import AdminDashboard from "./pages/admin/index";
+import OutletManagementPage from "./pages/outlet/index";
+import Menumanagement from "./pages/menu/index";
+import Menucreate from "./pages/menu/create";
+import MenuUpdate from "./pages/menu/update";
+import AddCategory from "./pages/menu/category/create";
+import Vouchermanagement from "./pages/voucher/index";
+import CreateVoucher from "./pages/voucher/create";
 
-// addons
-import AddonManagement from './pages/addons/index';
-import CreateAddon from './pages/addons/create';
+// Report
+import ReportDashboard from "./pages/report/index";
+import Summary from "./pages/report/summary";
+import SalesTransaction from "./pages/report/sales_transaction";
 
-// Voucher
-import Vouchermanagement from './pages/voucher/index';
-import CreateVoucher from './pages/voucher/create';
-
-// promotion
-import Promotionmanagement from './pages/promotion/index';
-import CreatePromotion from './pages/promotion/create';
-
-// order
-import Order from './pages/order/index';
-import Outlet from './pages/Outlet';
-
-// storage
-import Storagemanagement from './pages/storage/index';
-import CreateStrorage from './pages/storage/RawMaterial';
-
-// Admin
-import AdminDashboard from './pages/admin/index';
-import OutletManagementPage from './pages/outlet/index';
+// inventory
+import Storagemanagement from "./pages/storage/index";
+import CreateStrorage from "./pages/storage/RawMaterial";
+import CategoryIndex from "./pages/menu/category/index";
+import CreateCategory from "./pages/menu/category/create";
+import AssignMenuItemToCategory from "./pages/menu/category/assignmenu";
 
 // content
-import ContentManagement from './pages/content/index';
-import CreateContent from './pages/content/create';
-import UpdateContent from './pages/content/update';
+import ContentManagement from "./pages/content/index";
+import CreateContent from "./pages/content/create";
+import UpdateContent from "./pages/content/update";
+// promo
+import Promotionmanagement from "./pages/promotion/index";
+// promo khusus
+import CreatePromoPage from "./pages/promotion/promo/create";
+import IndexPromoPage from "./pages/promotion/promo/index";
+// auto promo
+import CreateAutoPromoPage from "./pages/promotion/autopromo/create";
+import RunningAutoPromos from "./pages/promotion/autopromo/index";
+import ViewMenu from "./pages/menu/view";
+
+
 
 export default function App() {
-
   return (
-    
-
     <BrowserRouter>
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-grow">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/download" element={<Download />} />
-          <Route path="/sign-in" element={<SignIn />} />
-          <Route path="/sign-up" element={<SignUp />} />
-          <Route path="/order" element={<Order />} />
-          <Route path="/outlet" element={<Outlet />} />
-          {/* Routes with restricted access */}
-          <Route element={<PrivateRoute allowedRoles={['cashier', 'superadmin']} />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/toko" element={<OutletManagementPage />} />
-            <Route path="/menu" element={<Menumanagement />} />
-            <Route path="/menu-create" element={<Menucreate />} />
-            <Route path="/menu-update/:id" element={<MenuUpdate />} />
-            <Route path="/voucher" element={<Vouchermanagement />} />
-            <Route path="/voucher-create" element={<CreateVoucher />} />
-            <Route path="/toppings" element={<ToppingManagement />} />
-            <Route path="/topping-create" element={<CreateTopping />} />
-            <Route path="/addons" element={<AddonManagement />} />
-            <Route path="/addons-create" element={<CreateAddon />} />
-            <Route path="/promotion" element={<Promotionmanagement />} />
-            <Route path="/promotion-create" element={<CreatePromotion />} />
-            <Route path="/storage" element={<Storagemanagement />} />
-            <Route path="/storage-create" element={<CreateStrorage />} />
-            <Route path="/content" element={<ContentManagement />} />
-            <Route path="/content-create" element={<CreateContent />} />
-            <Route path="/content-update/:id" element={<UpdateContent />} />
-          </Route>
-  
-          {/* Routes for authenticated users */}
-          <Route element={<PrivateRoute />}>
-            <Route path="/profile" element={<Profile />} />
-          </Route>
-        </Routes>
-      </main>
-      <Footer />
-    </div>
-  </BrowserRouter>
-  
+      <div className="flex flex-col min-h-screen">
+        <main className="flex-grow">
+          <Routes>
+            {/* Halaman Umum */}
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/download" element={<Download />} />
+            <Route path="/sign-in" element={<SignIn />} />
+            <Route path="/sign-up" element={<SignUp />} />
+
+            {/* Halaman Admin dengan Sidebar */}
+            <Route element={<PrivateRoute allowedRoles={["admin", "superadmin"]} />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="toko" element={<OutletManagementPage />} />
+                <Route path="menu" element={<Menumanagement />} />
+                <Route path="menu-create" element={<Menucreate />} />
+                <Route path="menu/:id" element={<ViewMenu />} />
+                <Route path="menu-update/:id" element={<MenuUpdate />} />
+                <Route path="category-create" element={<AddCategory />} />
+                <Route path="report" element={<ReportDashboard />} />
+                <Route path="transaction-sales" element={<SalesTransaction />} />
+                <Route path="summary" element={<Summary />} />
+                <Route path="voucher" element={<Vouchermanagement />} />
+                <Route path="voucher-create" element={<CreateVoucher />} />
+                <Route path="promotion" element={<Promotionmanagement />} />
+                <Route path="promo-khusus-create" element={<CreatePromoPage />} />
+                <Route path="promo-khusus" element={<IndexPromoPage />} />
+                <Route path="promo-otomatis-create" element={<CreateAutoPromoPage />} />
+                <Route path="promo-otomatis" element={<RunningAutoPromos />} />
+                <Route path="storage" element={<Storagemanagement />} />
+                <Route path="storage-create" element={<CreateStrorage />} />
+                <Route path="categories" element={<CategoryIndex />} />
+                <Route path="categories-create" element={<CreateCategory />} />
+                <Route path="categories-assign" element={<AssignMenuItemToCategory />} />
+
+                <Route path="content" element={<ContentManagement />} />
+                <Route path="content-create" element={<CreateContent />} />
+                <Route path="content-update/:id" element={<UpdateContent />} />
+
+              </Route>
+            </Route>
+
+            {/* Halaman Profil untuk Pengguna Login */}
+            <Route element={<PrivateRoute />}>
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
   );
 }
