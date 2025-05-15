@@ -45,7 +45,8 @@ router.get('/orders', getAllOrders);
 // router.put('/order/:id/cancel', verifyToken(['customer']), cancelOrder);
 
 // Route untuk mendapatkan daftar order berdasarkan user
-router.get('/orders/:userId', verifyToken(['customer']), getUserOrders);
+router.get('/orders/:userId', getUserOrders);
+// router.get('/orders/:userId', verifyToken(['customer']), getUserOrders);
 
 router.get('/orders/history/:userId', getUserOrderHistory);
 router.get('/orders/cashier/:cashierId', getCashierOrderHistory);

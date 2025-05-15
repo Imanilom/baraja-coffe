@@ -961,7 +961,7 @@ export const getUserOrderHistory = async (req, res) => {
     }
 
     // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
-    const orders = await Order.find({ customerId: userId })
+    const orders = await Order.find({ user_id: userId })
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
       .populate('voucher'); // Mengisi detail voucher (opsional)
 
