@@ -5,7 +5,7 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa"
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 
-const Summary = () => {
+const ProductSales = () => {
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -92,29 +92,45 @@ const Summary = () => {
             const item = product?.items?.[0];
             if (!item) return;
 
-            const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem.category
-                : [item.menuItem?.category || 'Uncategorized'];
+            const productName = item.menuItem?.name || 'Unknown';
+            const category = item.menuItem?.category || 'Uncategorized';
+            const sku = item.menuItem?.sku || '-';
             const quantity = Number(item?.quantity) || 0;
             const subtotal = Number(item?.subtotal) || 0;
+            const discount = Number(item?.discount) || 0;
 
-            categories.forEach(category => {
-                const key = `${category}`;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        category,
-                        quantity: 0,
-                        subtotal: 0
-                    };
-                }
+            const key = `${productName}`; // unique key per produk
 
-                grouped[key].quantity += quantity;
-                grouped[key].subtotal += subtotal;
-            });
+            if (!grouped[key]) {
+                grouped[key] = {
+                    productName,
+                    category,
+                    sku,
+                    quantity: 0,
+                    discount: 0,
+                    subtotal: 0,
+                    total: 0,
+                };
+            }
+
+            grouped[key].quantity += quantity;
+            grouped[key].discount += discount;
+            grouped[key].subtotal += subtotal;
+            grouped[key].total += subtotal + discount;
         });
 
         return Object.values(grouped);
     }, [filteredData]);
+
+
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return groupedArray.slice(startIndex, endIndex);
+    }, [groupedArray, currentPage]);
+
+    // Calculate total pages based on filtered data
+    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
 
     // Filter outlets based on search input
     const filteredOutlets = useMemo(() => {
@@ -124,19 +140,43 @@ const Summary = () => {
     }, [search, uniqueOutlets]);
 
     // Calculate grand totals for filtered data
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.quantity += curr.quantity;
-                acc.subtotal += curr.subtotal;
-                return acc;
-            },
-            {
-                quantity: 0,
-                subtotal: 0,
+    const {
+        grandTotalQuantity,
+        grandTotalSubtotal,
+        grandTotalDiscount,
+        grandTotalFinal,
+    } = useMemo(() => {
+        const totals = {
+            grandTotalQuantity: 0,
+            grandTotalSubtotal: 0,
+            grandTotalDiscount: 0,
+            grandTotalFinal: 0,
+        };
+
+        if (!Array.isArray(filteredData)) {
+            return totals;
+        }
+
+        filteredData.forEach(product => {
+            try {
+                const item = product?.items?.[0];
+                if (!item) return;
+
+                const quantity = Number(item.quantity) || 0;
+                const discount = Number(item.discount) || 0;
+                const subtotal = Number(item.subtotal) || 0;
+
+                totals.grandTotalQuantity += quantity;
+                totals.grandTotalSubtotal += subtotal;
+                totals.grandTotalDiscount += discount;
+                totals.grandTotalFinal += subtotal + discount;
+            } catch (err) {
+                console.error("Error calculating totals for product:", err);
             }
-        );
-    }, [groupedArray]);
+        });
+
+        return totals;
+    }, [filteredData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -152,6 +192,32 @@ const Summary = () => {
 
         // Make sure products is an array before attempting to filter
         let filtered = ensureArray([...products]);
+
+        // Filter by search term (product name, category, or SKU)
+        if (tempSearch) {
+            filtered = filtered.filter(product => {
+                try {
+                    const menuItem = product?.items?.[0]?.menuItem;
+                    if (!menuItem) {
+                        return false;
+                    }
+
+                    const name = (menuItem.name || '').toLowerCase();
+                    const categories = Array.isArray(menuItem.category)
+                        ? menuItem.category.join(' ').toLowerCase()
+                        : '';
+                    const sku = (menuItem._id || '').toLowerCase();
+
+                    const searchTerm = tempSearch.toLowerCase();
+                    return name.includes(searchTerm) ||
+                        categories.includes(searchTerm) ||
+                        sku.includes(searchTerm);
+                } catch (err) {
+                    console.error("Error filtering by search:", err);
+                    return false;
+                }
+            });
+        }
 
         // Filter by outlet
         if (tempSelectedOutlet) {
@@ -248,15 +314,6 @@ const Summary = () => {
         XLSX.writeFile(wb, "Penjualan_Produk.xlsx");
     };
 
-    useEffect(() => {
-        if (products.length > 0) {
-            const today = new Date();
-            const todayRange = { startDate: today, endDate: today };
-            setValue(todayRange);
-            setTimeout(() => applyFilter(), 0);
-        }
-    }, [products]);
-
     // Show loading state
     if (loading) {
         return (
@@ -285,7 +342,7 @@ const Summary = () => {
     }
 
     return (
-        <div className="overflow-y-scroll h-screen">
+        <div className="h-screen">
             {/* Header */}
             <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
                 <FaBell size={23} className="text-gray-400" />
@@ -303,15 +360,15 @@ const Summary = () => {
                     <FaChevronRight className="text-[15px] text-gray-500" />
                     <Link to="/admin/report" className="text-[15px] text-gray-500">Laporan Penjualan</Link>
                     <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/summary" className="text-[15px] text-[#005429]">Ringkasan</Link>
+                    <Link to="/admin/product-sales" className="text-[15px] text-[#005429]">Penjualan Produk</Link>
                 </div>
                 <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
             </div>
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-gray-50 shadow-md">
-                    <div className="flex flex-col col-span-5">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-gray-50 shadow-md">
+                    <div className="flex flex-col col-span-3">
                         <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
                         <div className="relative">
                             {!showInput ? (
@@ -351,7 +408,7 @@ const Summary = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-5">
+                    <div className="flex flex-col col-span-3">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
                         <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
                             <Datepicker
@@ -369,6 +426,17 @@ const Summary = () => {
                         </div>
                     </div>
 
+                    <div className="flex flex-col col-span-3">
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                        <input
+                            type="text"
+                            placeholder="Produk / Kategori / SKU"
+                            value={tempSearch}
+                            onChange={(e) => setTempSearch(e.target.value)}
+                            className="text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded"
+                        />
+                    </div>
+
                     <div className="flex justify-end space-x-2 items-end col-span-2">
                         <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
                         <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
@@ -378,49 +446,106 @@ const Summary = () => {
                 {/* Table */}
                 <div className="overflow-x-auto rounded shadow-md shadow-slate-200">
                     <table className="min-w-full table-auto">
-                        <tbody className="text-sm text-gray-400">
-                            <React.Fragment>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Penjualan Kotor</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal) || 0}</td>
+                        <thead className="text-gray-400">
+                            <tr className="text-left text-[13px]">
+                                <th className="px-4 py-3 font-normal">Produk</th>
+                                <th className="px-4 py-3 font-normal">Kategori</th>
+                                <th className="px-4 py-3 font-normal">SKU</th>
+                                <th className="px-4 py-3 font-normal text-right">Terjual</th>
+                                <th className="px-4 py-3 font-normal text-right">Penjualan Kotor</th>
+                                <th className="px-4 py-3 font-normal text-right">Diskon Produk</th>
+                                <th className="px-4 py-3 font-normal text-right">Total</th>
+                            </tr>
+                        </thead>
+                        {paginatedData.length > 0 ? (
+                            <tbody className="text-sm text-gray-400">
+                                {paginatedData.map((group, index) => {
+                                    try {
+                                        return (
+                                            <React.Fragment key={index}>
+                                                <tr className="text-left text-sm">
+                                                    <td className="px-4 py-3">
+                                                        {group.productName || 'N/A'}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {Array.isArray(group.category) ? group.category.join(', ') : 'N/A'}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {group.sku || 'N/A'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        {group.quantity || 'N/A'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        {formatCurrency(group.subtotal) || 'N/A'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        {formatCurrency(group.discount)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        {formatCurrency(group.total)}
+                                                    </td>
+                                                </tr>
+                                            </React.Fragment>
+                                        );
+                                    } catch (err) {
+                                        console.error(`Error rendering product ${index}:`, err, product);
+                                        return (
+                                            <tr className="text-left text-sm" key={index}>
+                                                <td colSpan="7" className="px-4 py-3 text-red-500">
+                                                    Error rendering product
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
+                                })}
+                            </tbody>
+                        ) : (
+                            <tbody>
+                                <tr className="py-6 text-center w-full h-96">
+                                    <td colSpan={7}>Tidak ada data ditemukan</td>
                                 </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Diskon Promo</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Diskon Poin</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Void</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Pembulatan</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Penjualan Bersih</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal) || 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Pajak</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal * 0.10)}</td>
-                                </tr>
-                            </React.Fragment>
-                        </tbody>
+                            </tbody>
+                        )}
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
-                                <td className="p-[15px]">Total</td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal + (grandTotal.subtotal * 0.10))}</p></td>
+                                <td className="px-4 py-2" colSpan="3">Grand Total</td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotalQuantity.toLocaleString()}</p></td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">Rp {grandTotalSubtotal.toLocaleString()}</p></td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">Rp {grandTotalDiscount.toLocaleString()}</p></td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">Rp {grandTotalFinal.toLocaleString()}</p></td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {paginatedData.length > 0 && (
+                    <div className="flex justify-between items-center mt-4">
+                        <span className="text-sm text-gray-600">
+                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, groupedArray.length)} dari {groupedArray.length} data
+                        </span>
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Sebelumnya
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Berikutnya
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
-export default Summary;
+export default ProductSales;

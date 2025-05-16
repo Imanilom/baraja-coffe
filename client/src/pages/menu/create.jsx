@@ -852,12 +852,13 @@ import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import StateFunctionCreateMenu from "./statefunction/create"
-import { FaTrashAlt, FaChevronRight, FaShoppingBag, FaBell, FaUser } from "react-icons/fa";
+import { FaTrashAlt, FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 const CreateMenu = () => {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
+  const [preview, setPreview] = useState(null);
 
   // Panggil StateFunctionCreateMenu untuk mendapatkan state dan fungsi
   const {
@@ -904,6 +905,19 @@ const CreateMenu = () => {
     handleInputChange,
     handleAddCategory,
   } = StateFunctionCreateMenu();
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file && file.size <= 1024 * 1024) { // 1 MB
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      alert("Ukuran file maksimal 1 MB");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -983,15 +997,15 @@ const CreateMenu = () => {
             </Link>
           </div>
           <div className="flex space-x-2">
-            <button
+            <span
               onClick={() => setShowModal(true)}
-              className="block border border-blue-500 text-blue-500 text-sm px-3 py-1.5 rounded"
+              className="block border border-green-600 text-green-600 text-sm px-3 py-1.5 rounded cursor-pointer"
             >
               Batal
-            </button>
+            </span>
             <button
               type="submit"
-              className="block bg-blue-500 text-white text-sm px-3 py-1.5 rounded"
+              className="block bg-green-600 text-white text-sm px-3 py-1.5 rounded"
             >
               Simpan
             </button>
@@ -1020,7 +1034,8 @@ const CreateMenu = () => {
           </div>
         )}
         <div className="bg-slate-50 p-6">
-          <div className="grid grid-cols-2 p-12 bg-white shadow-md">
+          <div className="grid grid-cols-2 p-12 space-x-4 bg-white shadow-md">
+            {/* grid 1 */}
             <div className="">
 
               {/* Name */}
@@ -1118,25 +1133,18 @@ const CreateMenu = () => {
                 />
               </div>
 
-              {/* Image File Input */}
+              {/* Barcode */}
               <div>
-                <label className="my-2.5 text-xs block font-medium">FOTO MENU</label>
+                <label className="my-2.5 text-xs block font-medium">BARCODE</label>
                 <input
-                  type="file"
-                  name="imageURL"
-                  accept="image/*"
-                  onChange={handleImageChange}
+                  type="text"
+                  name="sku"
+                  value={formData.barcode}
+                  onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg"
+                  required
                 />
               </div>
-
-              {/* Display the image preview */}
-              {imagePreview && (
-                <div className="mt-4">
-                  <img src={imagePreview} alt="Image Preview" className="w-full max-h-60 object-cover rounded" />
-                </div>
-              )}
-
 
               {/* stock unit */}
               <div>
@@ -1151,364 +1159,60 @@ const CreateMenu = () => {
                 />
               </div>
 
-              {/* Description */}
-              <div>
-                <label className="my-2.5 text-xs block font-medium">DESKRIPSI</label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg"
-                />
-              </div>
-
-              {/* Available At (Dropdown) */}
-              <div>
-                <label className="my-2.5 text-xs block font-medium">NAMA OUTLET</label>
-                <select
-                  name="availableAt"
-                  value={formData.availableAt}
-                  onChange={handleAvailableAtChange}
-                  className="w-full py-2 px-3 border rounded-lg"
-                >
-                  <option value="">Pilih Outlet</option>
-                  {outlets.length > 0 ? (
-                    outlets.map((outlet) => (
-                      <option key={outlet._id} value={outlet._id}>
-                        {outlet.name}
-                      </option>
-                    ))
+              {/* Image File Input */}
+              <div className="flex items-center space-x-4 p-4 w-full max-w-md">
+                {/* Preview Gambar */}
+                <div className="w-32 h-32 border border-gray-300 rounded flex items-center justify-center overflow-hidden bg-gray-100">
+                  {preview ? (
+                    <img src={preview} alt="Preview" className="object-cover w-full h-full" />
                   ) : (
-                    <option value="">Loading outlets...</option>
+                    <FaCamera className="text-gray-400 w-20 h-20 text-3xl" />
                   )}
-                </select>
+                </div>
+
+                {/* Form Upload */}
+                <div className="flex flex-col space-y-2">
+                  <p className="text-sm text-gray-700">Maksimal 1 MB</p>
+                  <label className="cursor-pointer inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm text-center hover:bg-blue-700 transition">
+                    Unggah Foto
+                    <input
+                      type="file"
+                      name="imageURL"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
 
-              {/* Bahan Baku */}
-              <div>
-                <label className="my-2.5 text-xs block font-medium">Bahan Baku</label>
-
-                {/* Container untuk bubble bahan baku yang dipilih */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {selectedRawMaterials.map(materialId => {
-                    const material = rawMaterials.find(m => m._id === materialId);
-                    return (
-                      <div
-                        key={materialId}
-                        className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
-                      >
-                        {material ? material.name : materialId}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveRawMaterial(materialId)}
-                          className="ml-2 text-green-500 hover:text-green-700"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
+              {/* Display the image preview */}
+              {imagePreview && (
+                <div className="mt-4">
+                  <img src={imagePreview} alt="Image Preview" className="w-full max-h-60 object-cover rounded" />
                 </div>
+              )}
+            </div>
 
-                {/* Input pencarian bahan baku */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={searchTermRawMaterials}
-                    onChange={(e) => setSearchTermRawMaterials(e.target.value)}
-                    placeholder="Cari bahan baku..."
-                    className="w-full py-2 px-3 border rounded-lg"
-                  />
-
-                  {/* Dropdown hasil pencarian bahan baku */}
-                  {searchTermRawMaterials && searchResultsRawMaterials.length > 0 && (
-                    <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
-                      {searchResultsRawMaterials.map(material => (
-                        <div
-                          key={material._id}
-                          onClick={() => handleAddRawMaterial(material._id)}
-                          className="p-2 hover:bg-gray-100 cursor-pointer"
-                        >
-                          {material.name}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Pesan jika tidak ada hasil bahan baku */}
-                {searchTermRawMaterials && searchResultsRawMaterials.length === 0 && (
-                  <div className="text-gray-500 text-sm mt-2">
-                    Tidak ada bahan baku yang cocok
+            {/* grid 2  */}
+            <div className="">
+              <div className="mb-20">
+                <div className="flex justify-between">
+                  <div className="flex">
+                    <label htmlFor="varian">Varian Produk</label>
                   </div>
-                )}
+                  <input type="radio" />
+                </div>
+                <h3>Apakah produk ini memiliki varian seperti warna dan ukuran ?</h3>
               </div>
-
-              {/* Toppings */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="my-2.5 text-xs block font-medium">Toppings</label>
-                  <button
-                    type="button"
-                    onClick={handleAddTopping}
-                    className="bg-green-500 text-white px-2 py-1 rounded text-sm"
-                  >
-                    + Add Topping
-                  </button>
+              <div className="">
+                <div className="flex justify-between">
+                  <div className="flex">
+                    <label htmlFor="varian">Varian Produk</label>
+                  </div>
+                  <input type="radio" />
                 </div>
-
-                <div className="space-y-4">
-                  {formData.toppings.map((topping, toppingIndex) => (
-                    <div key={toppingIndex} className="border p-3 rounded">
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-medium">Topping #{toppingIndex + 1}</h4>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTopping(toppingIndex)}
-                          className="text-red-500"
-                        >
-                          <FaTrashAlt />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 mb-2">
-                        <div>
-                          <label className="my-2.5 block text-sm">Name</label>
-                          <input
-                            type="text"
-                            value={topping.name}
-                            onChange={(e) => handleToppingInputChange(toppingIndex, "name", e.target.value)}
-                            className="w-full py-2 px-3 border rounded-lg"
-                          />
-                        </div>
-                        <div>
-                          <label className="my-2.5 block text-sm">Price</label>
-                          <input
-                            type="number"
-                            value={topping.price}
-                            onChange={(e) => handleToppingInputChange(toppingIndex, "price", e.target.value)}
-                            className="w-full py-2 px-3 border rounded-lg"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        {/* Container untuk bubble raw materials yang dipilih */}
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          {selectedToppingRawMaterials.map(materialId => {
-                            const material = rawMaterials.find(m => m._id === materialId);
-                            return (
-                              <div
-                                key={materialId}
-                                className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
-                              >
-                                {material.name}
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveToppingRawMaterial(materialId)}
-                                  className="ml-2 text-green-500 hover:text-green-700"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Input pencarian */}
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={searchTermToppings}
-                            onChange={(e) => setSearchTermToppings(e.target.value)}
-                            placeholder="Cari bahan baku..."
-                            className="w-full py-2 px-3 border rounded-lg"
-                          />
-
-                          {/* Dropdown hasil pencarian */}
-                          {searchTermToppings && searchResultsToppingRawMaterials.length > 0 && (
-                            <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
-                              {searchResultsToppingRawMaterials.map(material => (
-                                <div
-                                  key={material._id}
-                                  onClick={() => handleAddToppingRawMaterial(material._id)}
-                                  className="p-2 hover:bg-gray-100 cursor-pointer"
-                                >
-                                  {material.name}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Pesan jika tidak ada hasil */}
-                        {searchTermToppings && searchResultsToppingRawMaterials.length === 0 && (
-                          <div className="text-gray-500 text-sm mt-2">
-                            Tidak ada bahan baku yang cocok
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Addons */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="my-2.5 text-xs block font-medium">Addons</label>
-                  <button
-                    type="button"
-                    onClick={handleAddAddon}
-                    className="bg-green-500 text-white px-2 py-1 rounded text-sm"
-                  >
-                    + Add Addon
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {formData.addons.map((addon, addonIndex) => (
-                    <div key={addonIndex} className="border p-3 rounded">
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-medium">Addon #{addonIndex + 1}</h4>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAddon(addonIndex)}
-                          className="text-red-500"
-                        >
-                          <FaTrashAlt />
-                        </button>
-                      </div>
-
-                      <div className="mb-2">
-                        <label className="my-2.5 block text-sm">Name</label>
-                        <input
-                          type="text"
-                          value={addon.name}
-                          onChange={(e) => handleAddonInputChange(addonIndex, "name", e.target.value)}
-                          className="w-full py-2 px-3 border rounded-lg"
-                        />
-                      </div>
-
-                      {/* Addon Options Section */}
-                      <div className="mb-3">
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="my-2.5 block text-sm font-medium">Options</label>
-                          <button
-                            type="button"
-                            onClick={() => handleAddOption(addonIndex)}
-                            className="bg-blue-500 text-white px-2 py-1 rounded text-xs"
-                          >
-                            + Add Option
-                          </button>
-                        </div>
-
-                        <div className="space-y-2">
-                          {addon.options.map((option, optionIndex) => (
-                            <div key={optionIndex} className="flex items-center space-x-2 border p-2 rounded">
-                              <div className="flex-1">
-                                <label className="my-2.5 block text-xs">Label</label>
-                                <input
-                                  type="text"
-                                  value={option.label}
-                                  onChange={(e) =>
-                                    handleAddonOptionInputChange(addonIndex, optionIndex, "label", e.target.value)
-                                  }
-                                  className="w-full p-1 border rounded"
-                                />
-                              </div>
-                              <div className="w-20">
-                                <label className="my-2.5 block text-xs">Price</label>
-                                <input
-                                  type="number"
-                                  value={option.price}
-                                  onChange={(e) =>
-                                    handleAddonOptionInputChange(addonIndex, optionIndex, "price", e.target.value)
-                                  }
-                                  className="w-full p-1 border rounded"
-                                />
-                              </div>
-                              <div className="w-16 text-center">
-                                <label className="my-2.5 block text-xs">Default</label>
-                                <input
-                                  type="radio"
-                                  checked={option.default}
-                                  onChange={() => handleDefaultOptionChange(addonIndex, optionIndex)}
-                                  className="mt-1"
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveAddonOption(addonIndex, optionIndex)}
-                                className="text-red-500"
-                              >
-                                <FaTrashAlt />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Raw Materials Section */}
-                      <div>
-                        {/* Container untuk bubble raw materials yang dipilih */}
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          {selectedAddonRawMaterials?.map(materialId => {
-                            const material = rawMaterials.find(m => m._id === materialId);
-                            return (
-                              <div
-                                key={materialId}
-                                className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
-                              >
-                                {material.name}
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveAddonRawMaterial(materialId, addonIndex)}
-                                  className="ml-2 text-green-500 hover:text-green-700"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Input pencarian */}
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={searchTermAddons}
-                            onChange={(e) => setSearchTermAddons(e.target.value)}
-                            placeholder="Cari bahan baku..."
-                            className="w-full py-2 px-3 border rounded-lg"
-                          />
-
-                          {/* Dropdown hasil pencarian */}
-                          {searchTermAddons && searchResultsAddonRawMaterials.length > 0 && (
-                            <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
-                              {searchResultsAddonRawMaterials.map(material => (
-                                <div
-                                  key={material._id}
-                                  onClick={() => handleAddAddonRawMaterial(material._id, addonIndex)}
-                                  className="p-2 hover:bg-gray-100 cursor-pointer"
-                                >
-                                  {material.name}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Pesan jika tidak ada hasil */}
-                        {searchTermAddons && searchResultsAddonRawMaterials.length === 0 && (
-                          <div className="text-gray-500 text-sm mt-2">
-                            Tidak ada bahan baku yang cocok
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <h3>Anda dapat memilih lebih dari satu opsi tambahan</h3>
               </div>
             </div>
           </div>

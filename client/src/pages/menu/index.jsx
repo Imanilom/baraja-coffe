@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FaBox, FaTag } from 'react-icons/fa';
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo } from 'react-icons/fa';
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import CategoryIndex from "./category";
@@ -115,63 +115,147 @@ const Menu = () => {
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 my-4 gap-4 mb-4 border-b border-t py-4">
-        <div
-          className={`flex items-center bg-white border-b-2 border-white hover:border-b-blue-500 focus:outline-none p-4 cursor-pointer border-l-2 border-l-gray-200 ${selected === "menu" ? "border-blue-500" : ""}`}
+    <div className="container mx-auto">
+
+      <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
+        <FaBell className="text-2xl text-gray-400" />
+        <Link
+          to="/admin/menu"
+          className="text-gray-400 inline-block text-2xl"
+        >
+          <FaUser />
+        </Link>
+
+      </div>
+      <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
+        <div className="flex items-center space-x-2">
+          <FaShoppingBag size={22} className="text-gray-400 inline-block" />
+          <p className="text-gray-400 inline-block">Produk</p>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => console.log('Impor Menu')}
+            className="bg-white text-blue-500 px-4 py-2 rounded border border-blue-500 hover:text-white hover:bg-blue-500 text-[13px]"
+          >
+            Impor Produk
+          </button>
+
+          <button
+            onClick={() => console.log('Ekspor Produk')}
+            className="bg-white text-blue-500 px-4 py-2 rounded border border-blue-500 hover:text-white hover:bg-blue-500 text-[13px]"
+          >
+            Ekspor Produk
+          </button>
+
+          <Link
+            to="/admin/menu-create"
+            className="bg-blue-500 text-white px-4 py-2 rounded inline-block text-[13px]"
+          >
+            Tambah Produk
+          </Link>
+        </div>
+      </div>
+      <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-4 py-4">
+        <button
+          className={`bg-white border-b-2 py-2 border-b-white hover:border-b-blue-500 focus:outline-none ${selected === "menu" ? "border-blue-500" : ""}`}
           onClick={() => handleTabChange("menu")}
         >
-          <FaBox size={24} />
-          <h2 className="text-lg font-bold ml-2">Menu</h2>
+          <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
+            <div className="flex space-x-4">
+              <FaBox size={24} className="text-gray-400" />
+              <h2 className="text-gray-400 ml-2 text-sm">Produk</h2>
+            </div>
+            <div className="text-sm text-gray-400">
+              (18)
+            </div>
+          </div>
+        </button>
+
+        <div
+          className={`bg-white border-b-2 py-2 border-b-white hover:border-b-blue-500 focus:outline-none`}
+        >
+          <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
+            <div className="flex space-x-4">
+              <FaLayerGroup size={24} className="text-gray-400" />
+              <h2 className="text-gray-400 ml-2 text-sm">Opsi Tambahan</h2>
+              <span className="p-1">
+                <p className="border p-1 rounded-full">
+                  <FaInfo size={8} className="text-gray-400" />
+                </p>
+              </span>
+            </div>
+            <div className="text-sm text-gray-400">
+              (18)
+            </div>
+          </div>
         </div>
 
         <div
-          className={`flex items-center bg-white border-b-2 border-b-white hover:border-b-blue-500 focus:outline-none p-4 cursor-pointer border-l-2 border-l-gray-200 ${selected === "category" ? "border-blue-500" : ""}`}
+          className={`bg-white border-b-2 py-2 border-b-white hover:border-b-blue-500 focus:outline-none ${selected === "category" ? "border-blue-500" : ""}`}
           onClick={() => handleTabChange("category")}
         >
-          <FaTag size={24} />
-          <h2 className="text-lg font-bold ml-2">Kategori</h2>
+          <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
+            <div className="flex space-x-4">
+              <FaTag size={24} className="text-gray-400" />
+              <h2 className="text-gray-400 ml-2 text-sm">Kategori</h2>
+            </div>
+            <div className="text-sm text-gray-400">
+              (18)
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={`bg-white border-b-2 py-2 border-b-white hover:border-b-blue-500 focus:outline-none`}
+        >
+          <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
+            <div className="flex space-x-4">
+              <FaSquare size={24} className="text-gray-400" />
+              <h2 className="text-gray-400 ml-2 text-sm">GrabFood</h2>
+            </div>
+            <div className="text-sm text-gray-400">
+              (18)
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="w-full pb-6">
 
         {selected === "menu" && (
-          <div>
-            <div className="flex justify-between py-2 mb-6">
-              <h1 className="text-3xl font-bold">Menu</h1>
-              <div className="flex space-x-4">
-                <button
-                  onClick={() => console.log('Impor Menu')}
-                  className="bg-white text-blue-500 px-4 py-2 rounded border border-blue-500 hover:text-white hover:bg-blue-500"
-                >
-                  Impor Menu
-                </button>
+          <div className="p-4 bg-slate-50">
+            <div className="flex space-x-4 p-4 shadow-md bg-white">
 
-                <button
-                  onClick={() => console.log('Ekspor Menu')}
-                  className="bg-white text-blue-500 px-4 py-2 rounded border border-blue-500 hover:text-white hover:bg-blue-500"
-                >
-                  Ekspor Menu
-                </button>
-
-                <Link
-                  to="/admin/menu-create"
-                  className="bg-blue-500 text-white px-4 py-2 rounded inline-block"
-                >
-                  Tambah Menu
-                </Link>
-              </div>
-            </div>
-
-            <div className="flex space-x-4 mb-4">
               {/* Filter by Category */}
               <div className="flex-1">
-                <label className="block mb-2 font-medium text-lg">Kategori:</label>
+                <label className="block mb-2 text-[13px] text-gray-400">Lokasi</label>
                 <select
                   value={selectedCategory}
                   onChange={(e) => handleCategoryChange(e.target.value)}
-                  className="border rounded px-2 py-1 w-full"
+                  className="border rounded px-2 py-1 w-full text-sm text-slate-700"
+                >
+
+                  {/* Add "Semua Kategori" as an option */}
+                  <option value="Semua Kategori">Semua Outlet</option>
+
+                  {categories
+                    .filter(category => category !== "Semua Kategori")
+                    .sort((a, b) => a.localeCompare(b))
+                    .map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Filter by Category */}
+              <div className="flex-1">
+                <label className="block mb-2 text-[13px] text-gray-400">Kategori:</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
+                  className="border rounded px-2 py-1 w-full text-sm text-slate-700"
                 >
 
                   {/* Add "Semua Kategori" as an option */}
@@ -188,26 +272,49 @@ const Menu = () => {
                 </select>
               </div>
 
+              {/* Filter by Category */}
+              <div className="flex-1">
+                <label className="block mb-2 text-[13px] text-gray-400">Status Dijual:</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
+                  className="border rounded px-2 py-1 w-full text-sm text-slate-700"
+                >
+
+                  {/* Add "Semua Kategori" as an option */}
+                  <option value="Semua Kategori">Semua Status</option>
+
+                  {categories
+                    .filter(category => category !== "Semua Kategori")
+                    .sort((a, b) => a.localeCompare(b))
+                    .map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
               {/* Search by Menu */}
               <div className="flex-1">
-                <label className="block mb-2 font-medium text-lg">Cari:</label>
+                <label className="block mb-2 text-[13px] text-gray-400">Cari:</label>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari Menu..."
-                  className="border rounded px-2 py-1 w-full"
+                  placeholder="Produk / SKU / Barcode"
+                  className="border rounded px-2 py-1 w-full text-sm text-slate-700"
                 />
               </div>
             </div>
 
             {/* Menu Table */}
-            <div className="w-full mt-4 shadow-md rounded">
+            <div className="w-full mt-4 shadow-md">
               <table className="w-full table-auto">
                 <thead>
                   <tr className="bg-gray-200">
                     <th className="py-2 px-4 bg-gray-200 text-gray-700 w-16"></th>
-                    <th className="py-2 px-4 bg-gray-200 text-gray-700">Nama</th>
+                    <th className="py-2 px-4 bg-gray-200 text-gray-700">Produk</th>
                     <th className="py-2 px-4 bg-gray-200 text-gray-700">Kategori</th>
                     <th className="py-2 px-4 bg-gray-200 text-gray-700">Harga</th>
                     <th className="py-2 px-4 bg-gray-200 text-gray-700"></th>

@@ -29,6 +29,7 @@
     "node-thermal-printer": "^4.4.5",
     "nodemon": "^3.0.1",
     "qrcode": "^1.5.4",
+    "react-datepicker": "^8.3.0",
     "uuid": "^11.1.0"
   }
 }

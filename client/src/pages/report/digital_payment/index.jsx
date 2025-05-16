@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
 
-const SalesTransaction = () => {
+const DigitalPayment = () => {
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
@@ -20,6 +20,13 @@ const SalesTransaction = () => {
     const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
+    const [payMethod, setPayMethod] = useState({
+        linkAja: false,
+        qris: false,
+        dana: false,
+        mandiriQris: false,
+        briQris: false,
+    });
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -165,6 +172,29 @@ const SalesTransaction = () => {
         return totals;
     }, [filteredData]);
 
+    // Filter pay method directly
+    useEffect(() => {
+        const filtered = filterByPayMethod(products, payMethod);
+        setFilteredData(filtered);
+        setCurrentPage(1); // Reset to first page after filter
+    }, [payMethod, products]);
+
+    // Filter pay method based on selected toggle buttons
+    const filterByPayMethod = (data, payMethod) => {
+        const selectedPayMethods = [];
+        if (payMethod.qris) selectedPayMethods.push('QRIS');
+        if (payMethod.dana) selectedPayMethods.push('DANA');
+        if (payMethod.linkAja) selectedPayMethods.push('Link Aja');
+        if (payMethod.mandiriQris) selectedPayMethods.push('Mandiri QRIS');
+        if (payMethod.briQris) selectedPayMethods.push('BRI QRIS');
+
+        if (selectedPayMethods.length === 0) return data;
+
+        return data.filter(product =>
+            selectedPayMethods.includes(product.paymentMethod)
+        );
+    };
+
     // Apply filter function
     const applyFilter = () => {
 
@@ -180,14 +210,10 @@ const SalesTransaction = () => {
                         return false;
                     }
 
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
                     const receipt = (menuItem._id || '').toLowerCase();
 
                     const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
+                    return receipt.includes(searchTerm);
                 } catch (err) {
                     console.error("Error filtering by search:", err);
                     return false;
@@ -322,7 +348,7 @@ const SalesTransaction = () => {
     }
 
     return (
-        <div className="overflow-y-scroll h-screen">
+        <div className="h-screen">
             {/* Header */}
             <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
                 <FaBell size={23} className="text-gray-400" />
@@ -340,7 +366,7 @@ const SalesTransaction = () => {
                     <FaChevronRight className="text-[15px] text-gray-500" />
                     <Link to="/admin/report" className="text-[15px] text-gray-500">Laporan Penjualan</Link>
                     <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/transaction-sales" className="text-[15px] text-[#005429]">Data Transaksi Penjualan</Link>
+                    <Link to="/admin/digital-payment" className="text-[15px] text-[#005429]">Metode Pembayaran Digital</Link>
                 </div>
                 <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
             </div>
@@ -410,7 +436,7 @@ const SalesTransaction = () => {
                         <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <input
                             type="text"
-                            placeholder="Produk / Pelanggan / Kode Struk"
+                            placeholder="ID Struk"
                             value={tempSearch}
                             onChange={(e) => setTempSearch(e.target.value)}
                             className="text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded"
@@ -423,17 +449,75 @@ const SalesTransaction = () => {
                     </div>
                 </div>
 
+                <div className="w-full flex">
+                    <span>Tampilkan Data :</span>
+                    <form action="" className="space-x-2">
+                        <label className="font-medium text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-4">
+                            <span>Link Aja</span>
+                            <input type="checkbox" value="" className="sr-only peer"
+                                checked={payMethod.linkAja}
+                                onChange={() =>
+                                    setPayMethod(prev => ({ ...prev, linkAja: !prev.linkAja }))
+                                }
+                            />
+                            <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+
+                        <label className="font-medium text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-4">
+                            <span>QRIS</span>
+                            <input type="checkbox" value="" className="sr-only peer"
+                                checked={payMethod.qris}
+                                onChange={() =>
+                                    setPayMethod(prev => ({ ...prev, qris: !prev.qris }))
+                                } />
+                            <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+
+                        <label className="font-medium text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-4">
+                            <span>DANA</span>
+                            <input type="checkbox" value="" className="sr-only peer"
+                                checked={payMethod.dana}
+                                onChange={() =>
+                                    setPayMethod(prev => ({ ...prev, dana: !prev.dana }))
+                                }
+                            />
+                            <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+
+                        <label className="font-medium text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-4">
+                            <span>Mandiri QRIS</span>
+                            <input type="checkbox" value="" className="sr-only peer"
+                                checked={payMethod.mandiriQris}
+                                onChange={() =>
+                                    setPayMethod(prev => ({ ...prev, mandiriQris: !prev.mandiriQris }))
+                                } />
+                            <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+
+                        <label className="font-medium text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-4">
+                            <span>BRI QRIS</span>
+                            <input type="checkbox" value="" className="sr-only peer"
+                                checked={payMethod.briQris}
+                                onChange={() =>
+                                    setPayMethod(prev => ({ ...prev, briQris: !prev.briQris }))
+                                } />
+                            <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </form>
+                </div>
                 {/* Table */}
                 <div className="overflow-x-auto rounded shadow-slate-200 shadow-md">
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
                                 <th className="px-4 py-3 font-normal">Waktu</th>
-                                <th className="px-4 py-3 font-normal">Kasir</th>
+                                <th className="px-4 py-3 font-normal">Nama Outlet</th>
                                 <th className="px-4 py-3 font-normal">ID Struk</th>
-                                <th className="px-4 py-3 font-normal">Produk</th>
-                                <th className="px-4 py-3 font-normal">Tipe Penjualan</th>
-                                <th className="px-4 py-3 font-normal text-right">Total</th>
+                                <th className="px-4 py-3 font-normal">Kasir</th>
+                                <th className="px-4 py-3 font-normal">Metode</th>
+                                <th className="px-4 py-3 font-normal text-right">Total Transaksi</th>
+                                <th className="px-4 py-3 font-normal text-right">Total MDR</th>
+                                <th className="px-4 py-3 font-normal text-right">Total Yang Diterima</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
@@ -445,6 +529,7 @@ const SalesTransaction = () => {
                                         const cashier = product?.cashier || {};
                                         const orderType = product?.orderType || {};
                                         const menuItem = item?.menuItem || {};
+                                        const outlateName = cashier?.outlet?.[0]?.outletId?.name || 'No Outlet';
                                         let menuNames = [];
                                         let totalSubtotal = 0;
 
@@ -463,16 +548,22 @@ const SalesTransaction = () => {
                                                     {formatDateTime(date) || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {cashier?.username || 'N/A'}
+                                                    {outlateName || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {menuItem?._id || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {menuNames.join(', ')}
+                                                    {cashier?.name || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {orderType || 'N/A'}
+                                                    {product?.paymentMethod || 'N/A'}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {total.toLocaleString()}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {total.toLocaleString()}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     {total.toLocaleString()}
@@ -494,7 +585,7 @@ const SalesTransaction = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={8}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
@@ -620,4 +711,4 @@ const SalesTransaction = () => {
     );
 };
 
-export default SalesTransaction;
+export default DigitalPayment;

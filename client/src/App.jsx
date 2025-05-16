@@ -44,6 +44,17 @@ import IndexPromoPage from "./pages/promotion/promo/index";
 import CreateAutoPromoPage from "./pages/promotion/autopromo/create";
 import RunningAutoPromos from "./pages/promotion/autopromo/index";
 import ViewMenu from "./pages/menu/view";
+import ProductSales from "./pages/report/product_sales";
+import CategorySales from "./pages/report/category_sales";
+import OutletSales from "./pages/report/outlet_sales";
+import DailySales from "./pages/report/daily_sales";
+import Example from "./pages/example";
+import HourlySales from "./pages/report/hourly_sales";
+import PaymentMethodSales from "./pages/report/payment_method_sales";
+import TypeSales from "./pages/report/type_sales";
+import CustomerSales from "./pages/report/customer_sales";
+import DeviceSales from "./pages/report/device_sales";
+import DigitalPayment from "./pages/report/digital_payment";
 
 
 
@@ -55,6 +66,7 @@ export default function App() {
           <Routes>
             {/* Halaman Umum */}
             <Route path="/" element={<Home />} />
+            <Route path="/example" element={<Example />} />
             <Route path="/about" element={<About />} />
             <Route path="/download" element={<Download />} />
             <Route path="/sign-in" element={<SignIn />} />
@@ -71,7 +83,17 @@ export default function App() {
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
                 <Route path="category-create" element={<AddCategory />} />
                 <Route path="report" element={<ReportDashboard />} />
+                <Route path="digital-payment" element={<DigitalPayment />} />
                 <Route path="transaction-sales" element={<SalesTransaction />} />
+                <Route path="product-sales" element={<ProductSales />} />
+                <Route path="device-sales" element={<DeviceSales />} />
+                <Route path="daily-sales" element={<DailySales />} />
+                <Route path="hourly-sales" element={<HourlySales />} />
+                <Route path="outlet-sales" element={<OutletSales />} />
+                <Route path="customer-sales" element={<CustomerSales />} />
+                <Route path="payment-method-sales" element={<PaymentMethodSales />} />
+                <Route path="type-sales" element={<TypeSales />} />
+                <Route path="category-sales" element={<CategorySales />} />
                 <Route path="summary" element={<Summary />} />
                 <Route path="voucher" element={<Vouchermanagement />} />
                 <Route path="voucher-create" element={<CreateVoucher />} />

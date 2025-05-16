@@ -164,7 +164,7 @@ export const createOrder = async (req, res) => {
     let paymentResponse = {};
     let payment;
 
-  
+
     if (paymentMethod === "Cash" || paymentMethod === "EDC") {
       payment = new Payment({
         order_id: order._id,
@@ -252,10 +252,10 @@ export const createOrder = async (req, res) => {
 
 
 export const checkout = async (req, res) => {
-  const { orders, user, cashier, outlet, table, paymentMethod, orderType, type, voucher} = req.body;
+  const { orders, user, cashier, outlet, table, paymentMethod, orderType, type, voucher } = req.body;
 
   try {
-    const now = new Date(); 
+    const now = new Date();
     const orderItems = orders.map(order => {
       const basePrice = order.item.price || 0;
       const addons = order.item.addons || [];
@@ -296,11 +296,11 @@ export const checkout = async (req, res) => {
         const id = item.menuItem.toString();
         itemsMap[id] = (itemsMap[id] || 0) + item.quantity;
       }
-    
+
       let promoApplied = false;
-    
+
       switch (promo.promoType) {
-        case 'discount_on_quantity':  
+        case 'discount_on_quantity':
           for (const item of orderItems) {
             if (promo.conditions.minQuantity && itemsMap[item.menuItem.toString()] >= promo.conditions.minQuantity) {
               autoPromoDiscount += (item.subtotal * promo.discount) / 100;
@@ -308,14 +308,14 @@ export const checkout = async (req, res) => {
             }
           }
           break;
-    
+
         case 'discount_on_total':
           if (promo.conditions.minTotal && totalAmount >= promo.conditions.minTotal) {
             autoPromoDiscount += (totalAmount * promo.discount) / 100;
             promoApplied = true;
           }
           break;
-    
+
         case 'buy_x_get_y':
           const buyId = promo.conditions.buyProduct?._id?.toString();
           const getId = promo.conditions.getProduct?._id?.toString();
@@ -327,7 +327,7 @@ export const checkout = async (req, res) => {
             }
           }
           break;
-    
+
         case 'bundling':
           const bundleMatch = promo.conditions.bundleProducts.every(bundle => {
             return itemsMap[bundle.product._id.toString()] >= bundle.quantity;
@@ -342,7 +342,7 @@ export const checkout = async (req, res) => {
           }
           break;
       }
-    
+
       if (promoApplied) {
         appliedPromos.push(promo.name);
       }
@@ -353,12 +353,12 @@ export const checkout = async (req, res) => {
     let foundVoucher = null;
     if (voucher) {
       foundVoucher = await Voucher.findOne({ code: voucher, isActive: true });
-   
-      
-    if (foundVoucher) {
+
+
+      if (foundVoucher) {
 
         const isValidDate = now >= foundVoucher.validFrom && now <= foundVoucher.validTo;
-        const isValidOutlet = foundVoucher.applicableOutlets.length === 0 || 
+        const isValidOutlet = foundVoucher.applicableOutlets.length === 0 ||
           foundVoucher.applicableOutlets.some(outletId => outletId.equals(outlet));
         const hasQuota = foundVoucher.quota > 0;
 
@@ -371,7 +371,7 @@ export const checkout = async (req, res) => {
           } else {
             discount = foundVoucher.discountAmount;
           }
-          
+
           // Update quota
           foundVoucher.quota -= 1;
           if (foundVoucher.quota === 0) {
@@ -414,10 +414,10 @@ export const checkout = async (req, res) => {
       await savedOrder.save();
 
       return res.json({
-      message: 'Order placed successfully',
-      order_id: savedOrder._id,
-      total: finalAmount,
-      discount: totalDiscount,
+        message: 'Order placed successfully',
+        order_id: savedOrder._id,
+        total: finalAmount,
+        discount: totalDiscount,
       });
     }
 
@@ -576,7 +576,7 @@ export const confirmOrder = async (req, res) => {
       },
       { new: true }
     ).populate('cashier', 'name') // Jika ingin menampilkan info kasir
-     .populate('items.menuItem'); // Jika ingin detail item
+      .populate('items.menuItem'); // Jika ingin detail item
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
@@ -600,7 +600,14 @@ export const getAllOrders = async (req, res) => {
     const orders = await Order.find()
       .populate('items.menuItem')
       .populate('user')
-      .populate('cashier')
+      .populate({
+        path: 'cashier',
+        model: 'User',
+        populate: {
+          path: 'outlet.outletId',
+          model: 'Outlet'
+        }
+      })
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: orders });

@@ -71,6 +71,12 @@ export const deletePromotion = async (id) => {
   await axios.delete(`${API_URL}/promotion/${id}`);
 };
 
+// Order Services
+export const getAllOrders = async () => {
+  const response = await axios.get(`${API_URL}/orders`);
+  return response.data.data;
+}
+
 // Voucher Services
 export const getVouchers = async () => {
   const response = await axios.get(`${API_URL}/voucher/admin`);
