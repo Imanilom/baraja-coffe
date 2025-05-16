@@ -120,6 +120,7 @@ export const createAppOrder = async (req, res) => {
 
     // Create new order
     const newOrder = new Order({
+      order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       user_id: userId,
       user: userName || userExists.name || 'Guest',
       cashier: null, // Default kosong, karena tidak ada input cashier di request
@@ -377,7 +378,7 @@ export const createOrder = async (req, res) => {
 
     // Buat dokumen order
     const order = new Order({
-      // order_id,
+      order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // ID order unik
       user: userName,                           // Sesuai dengan model, ini adalah nama user
       cashier: cashierId || null,               // ID kasir jika order melalui kasir
       items: orderItems,
@@ -397,7 +398,7 @@ export const createOrder = async (req, res) => {
 
     if (paymentMethod === "Cash" || paymentMethod === "EDC") {
       payment = new Payment({
-        order_id: order._id,
+        order_id: order.order_id,
         amount: parseInt(totalPrice) || calculatedTotalPrice,
         method: paymentMethod,
         status: "Completed",
@@ -409,7 +410,7 @@ export const createOrder = async (req, res) => {
       // Parameter transaksi
       const parameter = {
         transaction_details: {
-          order_id: order._id.toString(),
+          order_id: order.order_id.toString(),
           gross_amount: parseInt(totalPrice) || calculatedTotalPrice,
         },
         customer_details: {
@@ -446,7 +447,7 @@ export const createOrder = async (req, res) => {
 
       // Simpan detail pembayaran
       payment = new Payment({
-        order: order._id,
+        order: order.order_id,
         amount: parseInt(totalPrice) || calculatedTotalPrice,
         paymentMethod,
         status: "Pending",
@@ -618,6 +619,7 @@ export const checkout = async (req, res) => {
 
     // Simpan order ke database
     const order = new Order({
+      order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       user,
       cashier,
       items: orderItems,
@@ -638,7 +640,7 @@ export const checkout = async (req, res) => {
 
       return res.json({
         message: 'Order placed successfully',
-        order_id: savedOrder._id,
+        order_id: savedOrder.order_id,
         total: finalAmount,
       });
     }
@@ -647,7 +649,7 @@ export const checkout = async (req, res) => {
     const transactionData = {
       payment_type: 'gopay',
       transaction_details: {
-        order_id: savedOrder._id.toString(),
+        order_id: savedOrder.order_id.toString(),
         gross_amount: totalWithServiceFee,
       },
       item_details: [
@@ -692,7 +694,7 @@ export const checkout = async (req, res) => {
 
     // Simpan data Payment
     const payment = new Payment({
-      order_id: savedOrder._id,
+      order_id: savedOrder.order_id,
       amount: finalAmount,
       method: paymentMethod,
       status: 'pending',
@@ -704,7 +706,7 @@ export const checkout = async (req, res) => {
     res.json({
       message: 'Midtrans transaction created',
       redirect_url: midtransSnapResponse.data.redirect_url,
-      order_id: savedOrder._id,
+      order_id: savedOrder.order_id,
     });
 
   } catch (error) {
