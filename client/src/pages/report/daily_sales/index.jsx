@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
+import dayjs from 'dayjs';
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 
-const Summary = () => {
+const DailySales = () => {
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -15,7 +16,6 @@ const Summary = () => {
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [value, setValue] = useState(null);
-    const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 
     // Safety function to ensure we're always working with arrays
@@ -89,32 +89,37 @@ const Summary = () => {
         const grouped = {};
 
         filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
-
-            const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem.category
-                : [item.menuItem?.category || 'Uncategorized'];
-            const quantity = Number(item?.quantity) || 0;
+            const date = dayjs(product.createdAt).format('DD-MM-YYYY'); // Group berdasarkan tanggal (tanpa jam)
+            const item = product?.items?.[0] || {};
             const subtotal = Number(item?.subtotal) || 0;
 
-            categories.forEach(category => {
-                const key = `${category}`;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        category,
-                        quantity: 0,
-                        subtotal: 0
-                    };
-                }
+            if (!grouped[date]) {
+                grouped[date] = {
+                    count: 0,
+                    subtotalTotal: 0,
+                    products: []
+                };
+            }
 
-                grouped[key].quantity += quantity;
-                grouped[key].subtotal += subtotal;
-            });
+            grouped[date].products.push(product);
+            grouped[date].count++;
+            grouped[date].subtotalTotal += subtotal;
         });
 
-        return Object.values(grouped);
+        return Object.entries(grouped).map(([date, data]) => ({
+            date,
+            ...data
+        }));
     }, [filteredData]);
+
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return groupedArray.slice(startIndex, endIndex);
+    }, [groupedArray, currentPage]);
+
+    // Calculate total pages based on filtered data
+    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
 
     // Filter outlets based on search input
     const filteredOutlets = useMemo(() => {
@@ -124,19 +129,35 @@ const Summary = () => {
     }, [search, uniqueOutlets]);
 
     // Calculate grand totals for filtered data
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.quantity += curr.quantity;
-                acc.subtotal += curr.subtotal;
-                return acc;
-            },
-            {
-                quantity: 0,
-                subtotal: 0,
+    const {
+        grandTotalItems,
+        grandTotalSubtotal,
+    } = useMemo(() => {
+        const totals = {
+            grandTotalItems: 0,
+            grandTotalSubtotal: 0,
+        };
+
+        if (!Array.isArray(filteredData)) {
+            return totals;
+        }
+
+        filteredData.forEach(product => {
+            try {
+                const item = product?.items?.[0];
+                if (!item) return;
+
+                const subtotal = Number(item.subtotal) || 0;
+
+                totals.grandTotalItems += 1;
+                totals.grandTotalSubtotal += subtotal;
+            } catch (err) {
+                console.error("Error calculating totals for product:", err);
             }
-        );
-    }, [groupedArray]);
+        });
+
+        return totals;
+    }, [filteredData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -213,7 +234,6 @@ const Summary = () => {
 
     // Reset filters
     const resetFilter = () => {
-        setTempSearch("");
         setTempSelectedOutlet("");
         setValue(null);
         setSearch("");
@@ -223,39 +243,22 @@ const Summary = () => {
 
     // Export current data to Excel
     const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-            const addonsPrice = item.addons?.reduce((sum, addon) => sum + (addon?.price || 0), 0) || 0;
+        const rows = [];
 
-            return {
-                "Produk": menuItem.name || 'N/A',
-                "Kategori": menuItem.category?.join(', ') || 'N/A',
-                "SKU": menuItem._id || 'N/A',
-                "Terjual": item.quantity || 0,
-                "Penjualan Kotor": item.subtotal || 0,
-                "Diskon Produk": addonsPrice || 0,
-                "Total": (item.subtotal || 0) + addonsPrice,
-                "Outlet": product.cashier?.outlet?.[0]?.outletId?.name || 'N/A',
-                "Tanggal": new Date(product.createdAt).toLocaleDateString('id-ID')
-            };
+        groupedArray.forEach(group => {
+            rows.push({
+                'Tanggal': group.date,
+                'Jumlah Transaksi': group.count,
+                'Penjualan': group.subtotalTotal,
+                'Rata-Rata': Math.round(group.subtotalTotal / group.count)
+            });
         });
 
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
-        XLSX.writeFile(wb, "Penjualan_Produk.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Harian");
+        XLSX.writeFile(wb, "Penjualan_Harian.xlsx");
     };
-
-    useEffect(() => {
-        if (products.length > 0) {
-            const today = new Date();
-            const todayRange = { startDate: today, endDate: today };
-            setValue(todayRange);
-            setTimeout(() => applyFilter(), 0);
-        }
-    }, [products]);
 
     // Show loading state
     if (loading) {
@@ -303,7 +306,7 @@ const Summary = () => {
                     <FaChevronRight className="text-[15px] text-gray-500" />
                     <Link to="/admin/report" className="text-[15px] text-gray-500">Laporan Penjualan</Link>
                     <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/summary" className="text-[15px] text-[#005429]">Ringkasan</Link>
+                    <Link to="/admin/daily-sales" className="text-[15px] text-[#005429]">Penjualan Harian</Link>
                 </div>
                 <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
             </div>
@@ -325,7 +328,7 @@ const Summary = () => {
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     autoFocus
-                                    placeholder="Cari outlet..."
+                                    placeholder=""
                                 />
                             )}
                             {showInput && (
@@ -338,7 +341,7 @@ const Summary = () => {
                                                     setTempSelectedOutlet(outlet);
                                                     setShowInput(false);
                                                 }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                                className="px-4 py-2 cursor-pointer text-gray-500 hover:bg-[#005429] hover:text-white"
                                             >
                                                 {outlet}
                                             </li>
@@ -378,49 +381,74 @@ const Summary = () => {
                 {/* Table */}
                 <div className="overflow-x-auto rounded shadow-md shadow-slate-200">
                     <table className="min-w-full table-auto">
-                        <tbody className="text-sm text-gray-400">
-                            <React.Fragment>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Penjualan Kotor</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal) || 0}</td>
+                        <thead className="text-gray-400">
+                            <tr className="text-left text-[13px]">
+                                <th className="px-4 py-3 font-normal">Tanggal</th>
+                                <th className="px-4 py-3 font-normal text-right">Jumlah Transaksi</th>
+                                <th className="px-4 py-3 font-normal text-right">Penjualan</th>
+                                <th className="px-4 py-3 font-normal text-right">Rata-Rata</th>
+                            </tr>
+                        </thead>
+                        {paginatedData.length > 0 ? (
+                            <tbody className="text-sm text-gray-400">
+                                {paginatedData.map((group, index) => (
+                                    <React.Fragment key={index}>
+                                        <tr className="">
+                                            <td className="px-4 py-3">{group.date}</td>
+                                            <td className="px-4 py-3 text-right">{group.count}</td>
+                                            <td className="px-4 py-3 text-right">{formatCurrency(group.subtotalTotal)}</td>
+                                            <td className="px-4 py-3 text-right">{formatCurrency((group.subtotalTotal / group.count).toFixed(0))}</td>
+                                        </tr>
+                                    </React.Fragment>
+                                ))}
+                            </tbody>
+                        ) : (
+                            <tbody>
+                                <tr className="py-6 text-center w-full h-96">
+                                    <td colSpan={7}>Tidak ada data ditemukan</td>
                                 </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Diskon Promo</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Diskon Poin</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Void</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Pembulatan</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Penjualan Bersih</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal) || 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Pajak</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal * 0.10)}</td>
-                                </tr>
-                            </React.Fragment>
-                        </tbody>
+                            </tbody>
+                        )}
+
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
-                                <td className="p-[15px]">Total</td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal + (grandTotal.subtotal * 0.10))}</p></td>
+                                <td className="px-4 py-2">Grand Total</td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotalItems.toLocaleString()}</p></td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotalSubtotal)}</p></td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency((grandTotalSubtotal / grandTotalItems).toFixed(0))}</p></td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {filteredData.length > 0 && (
+                    <div className="flex justify-between items-center mt-4">
+                        <span className="text-sm text-gray-600">
+                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, groupedArray.length)} dari {groupedArray.length} data
+                        </span>
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Sebelumnya
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Berikutnya
+                            </button>
+                        </div>
+                    </div>
+                )}
+
             </div>
         </div>
     );
 };
 
-export default Summary;
+export default DailySales;
