@@ -3,6 +3,7 @@ import 'package:barajapos/models/adapter/addon_option.model.dart';
 import 'package:barajapos/models/adapter/menu_item.model.dart';
 import 'package:barajapos/models/adapter/order_detail.model.dart';
 import 'package:barajapos/models/adapter/order_item.model.dart';
+import 'package:barajapos/models/adapter/saved_printer.model.dart';
 import 'package:barajapos/models/adapter/topping.model.dart';
 import 'package:barajapos/models/adapter/user.model.dart';
 import 'package:barajapos/models/adapter/cashier.model.dart';
@@ -19,6 +20,7 @@ class HiveService {
     Hive.registerAdapter(AddonOptionModelAdapter());
     Hive.registerAdapter(OrderItemModelAdapter());
     Hive.registerAdapter(OrderDetailModelAdapter());
+    Hive.registerAdapter(SavedPrinterModelAdapter());
 
     await Hive.openBox('userBox'); // membuka box 'userBox'
     await Hive.openBox<MenuItemModel>('menuItemsBox');
