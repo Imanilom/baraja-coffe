@@ -6,7 +6,6 @@ import path from 'path';
 import cors from 'cors';
 import http from 'http';
 import { Server } from 'socket.io';
-import amqp from 'amqp';
 import WebSocket from 'ws';
 // Routes imports...
 import userRoutes from './routes/user.route.js';
@@ -113,64 +112,6 @@ server.listen(3000, () => {
   console.log('Socket.IO + Express server listening on port 3000');
 });
 
-// Create a connection to RabbitMQ
-const connection = amqp.createConnection({ host: 'dev.rabbitmq.com' });
-
-// Local references to the exchange, queue, and consumer tag
-let _exchange = null;
-let _queue = null;
-let _consumerTag = null;
-
-// Report connection errors
-connection.on('error', (err) => {
-    console.error('Connection error', err);
-});
-
-// Update the stored tag when it changes
-connection.on('tag.change', (event) => {
-    if (_consumerTag === event.oldConsumerTag) {
-        _consumerTag = event.consumerTag;
-        // Unsubscribe from the old tag just in case it lingers
-        _queue.unsubscribe(event.oldConsumerTag);
-    }
-});
-
-// Initialize the exchange, queue, and subscription
-connection.on('ready', () => {
-    // Create or get the exchange
-    connection.exchange('exchange-name', (exchange) => {
-        _exchange = exchange;
-
-        // Create or get the queue
-        connection.queue('queue-name', (queue) => {
-            _queue = queue;
-
-            // Bind the queue to the exchange
-            queue.bind('exchange-name', 'routing-key');
-
-            // Subscribe to the queue
-            queue.subscribe((message) => {
-                // Handle the incoming message
-                console.log('Got message:', message);
-                queue.shift(false, false); // Acknowledge the message
-            }).addCallback((res) => {
-                // Hold on to the consumer tag for future unsubscribing
-                _consumerTag = res.consumerTag;
-            });
-        });
-    });
-});
-
-// Unsubscribe or shutdown after a certain timeout (1 minute in this case)
-setTimeout(() => {
-    if (_queue) {
-        _queue.unsubscribe(_consumerTag).addCallback(() => {
-            console.log('Unsubscribed from the queue');
-        });
-    } else {
-        console.log('No queue to unsubscribe from');
-    }
-}, 60000);
 
 // WebSocket server setup
 const wss = new WebSocket.Server({ port: 8080 });
