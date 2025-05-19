@@ -1,8 +1,9 @@
 import mongoose from 'mongoose';
+import { MenuItem } from './MenuItem.model.js'; 
 
 const RawMaterialSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
-  category: { type: mongoose.Schema.Types.ObjectId, ref: 'categories' }, // Kategori Masakan
+  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
   quantity: { 
     type: Number, 
     required: true, 
@@ -13,26 +14,26 @@ const RawMaterialSchema = new mongoose.Schema({
       },
       message: 'Quantity cannot exceed maximum stock limit'
     }
-  }, // Jumlah stok tersedia
-  unit: { type: String, required: true, trim: true }, // Satuan (kg, liter, pcs, dll.)
-  minimumStock: { type: Number, required: true, min: 0 }, // Stok minimum sebelum perlu restock
-  maximumStock: { type: Number, required: true, min: 1 }, // Stok maksimum untuk mencegah overstock
-  costPerUnit: { type: Number, required: true, min: 0 }, // Harga per satuan bahan baku
-  supplier: { type: String }, // Referensi ke pemasok
-  datein: { type: Date, default: Date.now }, // Tanggal masuk bahan baku
-  notes: { type: String }, // Catatan tambahan (jika ada)
-  expiryDate: { type: Date }, // Tanggal kadaluwarsa (jika ada)
-  lastUpdated: { type: Date, default: Date.now }, // Terakhir diperbarui
-  lastUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // User terakhir yang memperbarui
-  availableAt: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', index: true }, // Outlet tempat bahan baku tersedia
+  },
+  unit: { type: String, required: true, trim: true },
+  minimumStock: { type: Number, required: true, min: 0 },
+  maximumStock: { type: Number, required: true, min: 1 },
+  costPerUnit: { type: Number, required: true, min: 0 },
+  supplier: { type: String },
+  datein: { type: Date, default: Date.now },
+  notes: { type: String },
+  expiryDate: { type: Date },
+  lastUpdated: { type: Date, default: Date.now },
+  lastUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  availableAt: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', index: true },
   status: { 
     type: String, 
     enum: ['Available', 'Low Stock', 'Out of Stock', 'Overstocked', 'Expired'], 
     default: 'Available' 
-  } // Status bahan baku
+  }
 }, { timestamps: true });
 
-// Middleware: Update `lastUpdated` dan `status` sebelum menyimpan
+// Middleware: Update `lastUpdated` and `status` before saving
 RawMaterialSchema.pre('save', function (next) {
   this.lastUpdated = new Date();
 
@@ -49,6 +50,21 @@ RawMaterialSchema.pre('save', function (next) {
   }
 
   next();
+});
+
+// Post-save hook to update related menu items
+RawMaterialSchema.post('save', async function (doc) {
+  if (doc.quantity < doc.minimumStock) {
+    await MenuItem.updateMany(
+      { 'rawMaterials.materialId': doc._id },
+      { $set: { isActive: false } }
+    );
+  } else {
+    await MenuItem.updateMany(
+      { 'rawMaterials.materialId': doc._id, isActive: false },
+      { $set: { isActive: true } }
+    );
+  }
 });
 
 export const RawMaterial = mongoose.model('RawMaterial', RawMaterialSchema);
