@@ -5,7 +5,7 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa"
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 
-const Summary = () => {
+const PaymentMethodSales = () => {
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -92,29 +92,36 @@ const Summary = () => {
             const item = product?.items?.[0];
             if (!item) return;
 
-            const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem.category
-                : [item.menuItem?.category || 'Uncategorized'];
-            const quantity = Number(item?.quantity) || 0;
+            const paymentMethod = product?.paymentMethod || '';
             const subtotal = Number(item?.subtotal) || 0;
 
-            categories.forEach(category => {
-                const key = `${category}`;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        category,
-                        quantity: 0,
-                        subtotal: 0
-                    };
-                }
+            const key = `${paymentMethod}`; // unique key per produk
 
-                grouped[key].quantity += quantity;
-                grouped[key].subtotal += subtotal;
-            });
+            if (!grouped[key]) {
+                grouped[key] = {
+                    paymentMethod,
+                    count: 0,
+                    subtotal: 0
+                };
+            }
+
+            grouped[key].count++;
+            grouped[key].subtotal += subtotal;
+
         });
 
         return Object.values(grouped);
     }, [filteredData]);
+
+
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return groupedArray.slice(startIndex, endIndex);
+    }, [groupedArray, currentPage]);
+
+    // Calculate total pages based on filtered data
+    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
 
     // Filter outlets based on search input
     const filteredOutlets = useMemo(() => {
@@ -127,12 +134,12 @@ const Summary = () => {
     const grandTotal = useMemo(() => {
         return groupedArray.reduce(
             (acc, curr) => {
-                acc.quantity += curr.quantity;
+                acc.count += curr.count;
                 acc.subtotal += curr.subtotal;
                 return acc;
             },
             {
-                quantity: 0,
+                count: 0,
                 subtotal: 0,
             }
         );
@@ -224,38 +231,21 @@ const Summary = () => {
     // Export current data to Excel
     const exportToExcel = () => {
         // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-            const addonsPrice = item.addons?.reduce((sum, addon) => sum + (addon?.price || 0), 0) || 0;
+        const rows = [];
 
-            return {
-                "Produk": menuItem.name || 'N/A',
-                "Kategori": menuItem.category?.join(', ') || 'N/A',
-                "SKU": menuItem._id || 'N/A',
-                "Terjual": item.quantity || 0,
-                "Penjualan Kotor": item.subtotal || 0,
-                "Diskon Produk": addonsPrice || 0,
-                "Total": (item.subtotal || 0) + addonsPrice,
-                "Outlet": product.cashier?.outlet?.[0]?.outletId?.name || 'N/A',
-                "Tanggal": new Date(product.createdAt).toLocaleDateString('id-ID')
-            };
+        groupedArray.forEach(group => {
+            rows.push({
+                'Metode Pembayaran': group.paymentMethod,
+                'Jumlah Transaksi': group.count,
+                'Total': group.subtotal,
+            });
         });
 
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
-        XLSX.writeFile(wb, "Penjualan_Produk.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Metode Pembayaran");
+        XLSX.writeFile(wb, "Metode_Pembayaran.xlsx");
     };
-
-    useEffect(() => {
-        if (products.length > 0) {
-            const today = new Date();
-            const todayRange = { startDate: today, endDate: today };
-            setValue(todayRange);
-            setTimeout(() => applyFilter(), 0);
-        }
-    }, [products]);
 
     // Show loading state
     if (loading) {
@@ -303,15 +293,15 @@ const Summary = () => {
                     <FaChevronRight className="text-[15px] text-gray-500" />
                     <Link to="/admin/report" className="text-[15px] text-gray-500">Laporan Penjualan</Link>
                     <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/summary" className="text-[15px] text-[#005429]">Ringkasan</Link>
+                    <Link to="/admin/payment-method-sales" className="text-[15px] text-[#005429]">Metode Pembayaran</Link>
                 </div>
                 <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
             </div>
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-gray-50 shadow-md">
-                    <div className="flex flex-col col-span-5">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-10 gap-[10px] items-end rounded bg-gray-50 shadow-md">
+                    <div className="flex flex-col col-span-4">
                         <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
                         <div className="relative">
                             {!showInput ? (
@@ -351,7 +341,7 @@ const Summary = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-5">
+                    <div className="flex flex-col col-span-4">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
                         <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
                             <Datepicker
@@ -378,49 +368,88 @@ const Summary = () => {
                 {/* Table */}
                 <div className="overflow-x-auto rounded shadow-md shadow-slate-200">
                     <table className="min-w-full table-auto">
-                        <tbody className="text-sm text-gray-400">
-                            <React.Fragment>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Penjualan Kotor</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal) || 0}</td>
+                        <thead className="text-gray-400">
+                            <tr className="text-left text-[13px]">
+                                <th className="px-4 py-3 font-normal">Metode Pembayaran</th>
+                                <th className="px-4 py-3 font-normal text-right">Jumlah Transaksi</th>
+                                <th className="px-4 py-3 font-normal text-right">Total</th>
+                            </tr>
+                        </thead>
+                        {paginatedData.length > 0 ? (
+                            <tbody className="text-sm text-gray-400">
+                                {paginatedData.map((group, index) => {
+                                    try {
+                                        return (
+                                            <React.Fragment key={index}>
+                                                <tr className="text-left text-sm">
+                                                    <td className="px-4 py-3">
+                                                        {group.paymentMethod}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        {group.count || 'N/A'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        {formatCurrency(group.subtotal) || 'N/A'}
+                                                    </td>
+                                                </tr>
+                                            </React.Fragment>
+                                        );
+                                    } catch (err) {
+                                        console.error(`Error rendering product ${index}:`, err, product);
+                                        return (
+                                            <tr className="text-left text-sm" key={index}>
+                                                <td colSpan="7" className="px-4 py-3 text-red-500">
+                                                    Error rendering product
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
+                                })}
+                            </tbody>
+                        ) : (
+                            <tbody>
+                                <tr className="py-6 text-center w-full h-96">
+                                    <td colSpan={7}>Tidak ada data ditemukan</td>
                                 </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Diskon Promo</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Diskon Poin</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Void</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Pembulatan</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Penjualan Bersih</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal) || 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Pajak</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal * 0.10)}</td>
-                                </tr>
-                            </React.Fragment>
-                        </tbody>
+                            </tbody>
+                        )}
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
-                                <td className="p-[15px]">Total</td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal + (grandTotal.subtotal * 0.10))}</p></td>
+                                <td className="px-4 py-2">Grand Total</td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotal.count.toLocaleString()}</p></td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal.toFixed())}</p></td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {paginatedData.length > 0 && (
+                    <div className="flex justify-between items-center mt-4">
+                        <span className="text-sm text-gray-600">
+                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, groupedArray.length)} dari {groupedArray.length} data
+                        </span>
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Sebelumnya
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Berikutnya
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
-export default Summary;
+export default PaymentMethodSales;
