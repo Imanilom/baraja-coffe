@@ -705,6 +705,7 @@ orderQueue.process(async (job) => {
       appliedPromos
     } = await checkAutoPromos(orderItems, outlet, type);
 
+
     // 4. Cek voucher
     const {
       discount: voucherDiscount,
@@ -862,20 +863,109 @@ async function processOrderItems(items, session) {
 // Fungsi cek promo otomatis
 async function checkAutoPromos(orderItems, outlet, orderType) {
   const now = new Date();
+
+  // Ambil semua promo aktif di outlet tersebut yang sedang berlaku
   const autoPromos = await AutoPromo.find({
     outlet,
     isActive: true,
     validFrom: { $lte: now },
     validTo: { $gte: now }
-  });
+  }).populate('conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
 
   let totalDiscount = 0;
   let appliedPromos = [];
 
-  // Implementasi logika promo otomatis seperti di fungsi checkout
-  // ...
+  for (const promo of autoPromos) {
+    let discountAmount = 0;
 
-  return { totalDiscount: totalDiscount, appliedPromos };
+    switch (promo.promoType) {
+      case 'discount_on_quantity': {
+        // Cari apakah ada item yang cocok dengan syarat minimum quantity
+        const conditionProduct = promo.conditions.buyProduct;
+        if (!conditionProduct) break;
+
+        const orderItem = orderItems.find(item => item.menuItemId.toString() === conditionProduct._id.toString());
+        if (orderItem && orderItem.quantity >= promo.conditions.minQuantity) {
+          discountAmount = (orderItem.price * orderItem.quantity) * (promo.discount / 100);
+        }
+        break;
+      }
+
+      case 'discount_on_total': {
+        // Hitung total harga pesanan
+        let totalOrderPrice = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+        if (totalOrderPrice >= promo.conditions.minTotal) {
+          discountAmount = totalOrderPrice * (promo.discount / 100);
+        }
+        break;
+      }
+
+      case 'buy_x_get_y': {
+        const buyProduct = promo.conditions.buyProduct;
+        const getProduct = promo.conditions.getProduct;
+
+        if (!buyProduct || !getProduct) break;
+
+        const buyItem = orderItems.find(item => item.menuItemId.toString() === buyProduct._id.toString());
+        const getItem = orderItems.find(item => item.menuItemId.toString() === getProduct._id.toString());
+
+        if (buyItem && getItem) {
+          const freeCount = Math.floor(buyItem.quantity / 2); // Misalnya beli 2 dapat 1 gratis
+          if (freeCount > 0) {
+            discountAmount = freeCount * getItem.price;
+          }
+        }
+        break;
+      }
+
+      case 'bundling': {
+        const bundleProducts = promo.conditions.bundleProducts || [];
+        let allInBundle = true;
+        let minQty = Infinity;
+
+        for (const bp of bundleProducts) {
+          const item = orderItems.find(i => i.menuItemId.toString() === bp.product._id.toString());
+
+          if (!item || item.quantity < bp.quantity) {
+            allInBundle = false;
+            break;
+          }
+
+          minQty = Math.min(minQty, Math.floor(item.quantity / bp.quantity));
+        }
+
+        if (allInBundle) {
+          let bundleOriginalPrice = bundleProducts.reduce(
+            (sum, bp) => sum + (bp.product.price * bp.quantity),
+            0
+          );
+
+          discountAmount = bundleOriginalPrice * minQty - promo.bundlePrice * minQty;
+        }
+        break;
+      }
+
+      default:
+        console.warn(`Unknown promo type: ${promo.promoType}`);
+        break;
+    }
+
+    if (discountAmount > 0) {
+      totalDiscount += discountAmount;
+      appliedPromos.push({
+        promoId: promo._id,
+        name: promo.name,
+        promoType: promo.promoType,
+        discountAmount
+      });
+    }
+  }
+
+  return {
+    totalDiscount: totalDiscount,
+    appliedPromos
+  };
 }
 
 // Fungsi cek voucher
@@ -908,6 +998,50 @@ async function checkVoucher(voucherCode, totalAmount, outlet) {
 
   return { discount, voucher };
 }
+
+// Fungsi cek promo manual sesuai kriteria konsumen
+async function checkManualPromo(totalAmount, outletId, customerType = 'all') {
+  if (!totalAmount || !outletId) {
+    return { discount: 0, appliedPromo: null };
+  }
+
+  const now = new Date();
+
+  // Cari promo aktif di outlet ini yang cocok dengan customer type
+  const promo = await Promo.findOne({
+    isActive: true,
+    validFrom: { $lte: now },
+    validTo: { $gte: now },
+    outlet: outletId,
+    $or: [
+      { customerType: 'all' },
+      { customerType }
+    ]
+  });
+
+  if (!promo) {
+    return { discount: 0, appliedPromo: null };
+  }
+
+  let discount = 0;
+
+  if (promo.discountType === 'percentage') {
+    discount = totalAmount * (promo.discountAmount / 100);
+  } else if (promo.discountType === 'fixed') {
+    discount = Math.min(promo.discountAmount, totalAmount);
+  }
+
+  return {
+    discount,
+    appliedPromo: {
+      promoId: promo._id,
+      name: promo.name,
+      discountAmount: discount,
+      discountType: promo.discountType
+    }
+  };
+}
+
 
 // Fungsi proses pembayaran
 async function processPayment({ order, paymentMethod, amount, source }) {
