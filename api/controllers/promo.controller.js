@@ -3,12 +3,23 @@ import Promo from '../models/Promo.model.js';
 // Get all promos
 export const getPromos = async (req, res) => {
   try {
+    const now = new Date();
+
+    // Update promos that are expired and still marked as active
+    await Promo.updateMany(
+      { validTo: { $lt: now }, isActive: true },
+      { $set: { isActive: false } }
+    );
+
+    // Get updated promos
     const promos = await Promo.find().populate('outlet createdBy');
+
     res.status(200).json(promos);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 // Get a single promo by ID
 export const getPromoById = async (req, res) => {

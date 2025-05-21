@@ -42,46 +42,78 @@ export default function SignIn() {
         navigate('/');
       }
     } catch (err) {
-      dispatch(signInFailure({ message: err.message })); // Pastikan error berbentuk objek
+      dispatch(signInFailure({ message: err.message }));
     }
   };
 
   return (
-    <div className='p-3 max-w-lg mx-auto'>
-      <h1 className='text-3xl text-center font-semibold my-7'>Sign In</h1>
-      <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-        <input
-          type='text'
-          placeholder='Username or Email'
-          id='identifier'
-          className='bg-slate-100 p-3 rounded-lg'
-          onChange={handleChange}
-        />
-        <input
-          type='password'
-          placeholder='Password'
-          id='password'
-          className='bg-slate-100 p-3 rounded-lg'
-          onChange={handleChange}
-        />
-        <button
-          disabled={loading}
-          className='bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80'
-        >
-          {loading ? 'Loading...' : 'Sign In'}
-        </button>
-        <OAuth />
-      </form>
-      <div className='flex gap-2 mt-5'>
-        <p>Dont Have an account?</p>
-        <Link to='/sign-up'>
-          <span className='text-blue-500'>Sign up</span>
-        </Link>
-      </div>
-      <p className='text-red-700 mt-5'>
-        {error && typeof error === 'object' ? error.message || 'Something went wrong!' : ''}
-      </p>
+    <div className="min-h-screen flex items-center justify-center bg-beige px-4">
+      <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-xl border border-army/20 transform transition-all hover:scale-[1.01]">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-army mb-2">Baraja Coffee</h1>
+          <p className="text-xl text-army/80">Welcome back</p>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <label htmlFor="identifier" className="block text-sm font-medium text-army/80">Username or Email</label>
+            <input
+              type="text"
+              id="identifier"
+              onChange={handleChange}
+              className="w-full px-4 py-3 rounded-lg bg-beige border border-army/30 focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
+              placeholder="Your username or email"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <label htmlFor="password" className="block text-sm font-medium text-army/80">Password</label>
+            <input
+              type="password"
+              id="password"
+              onChange={handleChange}
+              className="w-full px-4 py-3 rounded-lg bg-beige border border-army/30 focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
+              placeholder="••••••••"
+            />
+          </div>
+          
+          <button
+            disabled={loading}
+            type="submit"
+            className="w-full bg-army text-army py-3 rounded-lg uppercase font-semibold tracking-wider hover:bg-army-dark hover:text-beige transition-all disabled:opacity-80 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+          >
+            {loading ? 'Signing In...' : 'Sign In'}
+          </button>
+        </form>
 
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-army/20"></span>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-beige px-2 text-army/70">Or continue with</span>
+            </div>
+          </div>
+          <br />
+            <div className="relative flex justify-center text-xs uppercase">
+              <OAuth />
+            </div>
+        </div>
+
+        <p className="mt-6 text-center text-sm text-army/80">
+          Don't have an account?{' '}
+          <Link to="/sign-up" className="font-medium text-army hover:text-army-dark hover:underline transition-colors">
+            Create account
+          </Link>
+        </p>
+
+        {error && (
+          <div className="mt-5 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-center text-sm">
+            {typeof error === 'object' ? error.message || 'Something went wrong!' : error}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

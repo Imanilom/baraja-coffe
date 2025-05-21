@@ -43,6 +43,9 @@ import IndexPromoPage from "./pages/promotion/promo/index";
 // auto promo
 import CreateAutoPromoPage from "./pages/promotion/autopromo/create";
 import RunningAutoPromos from "./pages/promotion/autopromo/index";
+// point
+import PointManagement from "./pages/promotion/points/index";
+
 import ViewMenu from "./pages/menu/view";
 import ProductSales from "./pages/report/product_sales";
 import CategorySales from "./pages/report/category_sales";
@@ -95,13 +98,18 @@ export default function App() {
                 <Route path="type-sales" element={<TypeSales />} />
                 <Route path="category-sales" element={<CategorySales />} />
                 <Route path="summary" element={<Summary />} />
+                {/* Voucher */}
                 <Route path="voucher" element={<Vouchermanagement />} />
                 <Route path="voucher-create" element={<CreateVoucher />} />
+                {/* promosi */}
                 <Route path="promotion" element={<Promotionmanagement />} />
                 <Route path="promo-khusus-create" element={<CreatePromoPage />} />
                 <Route path="promo-khusus" element={<IndexPromoPage />} />
                 <Route path="promo-otomatis-create" element={<CreateAutoPromoPage />} />
                 <Route path="promo-otomatis" element={<RunningAutoPromos />} />
+                {/* point */}
+                 <Route path="poin" element={<PointManagement />} />
+                {/* Storage */}
                 <Route path="storage" element={<Storagemanagement />} />
                 <Route path="storage-create" element={<CreateStrorage />} />
                 <Route path="categories" element={<CategoryIndex />} />
