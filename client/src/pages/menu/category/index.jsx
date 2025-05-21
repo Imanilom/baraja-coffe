@@ -7,16 +7,15 @@ const CategoryIndex = () => {
   const [filteredCategories, setFilteredCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedType, setSelectedType] = useState('all'); // State untuk menyimpan tipe yang dipilih
-  const [currentPage, setCurrentPage] = useState(1); // Halaman saat ini
-  const itemsPerPage = 6; // Jumlah kategori per halaman
+  const [selectedType, setSelectedType] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
-  // Fungsi untuk mengambil daftar kategori dari API
   const fetchCategories = async (type) => {
     try {
-      let url = '/api/storage/category'; // URL default untuk mendapatkan semua kategori
+      let url = '/api/storage/category';
       if (type && type !== 'all') {
-        url += `/${type}`; // Tambahkan parameter type jika ada
+        url += `/${type}`;
       }
 
       const response = await axios.get(url);
@@ -30,125 +29,109 @@ const CategoryIndex = () => {
     }
   };
 
-  // Fungsi untuk menghapus kategori
   const handleDeleteCategory = async (categoryId) => {
     if (!window.confirm('Are you sure you want to delete this category?')) return;
 
     try {
       await axios.delete(`/category/${categoryId}`);
-      setCategories((prevCategories) =>
-        prevCategories.filter((category) => category._id !== categoryId)
-      );
-      setFilteredCategories((prevFilteredCategories) =>
-        prevFilteredCategories.filter((category) => category._id !== categoryId)
-      );
+      setCategories((prev) => prev.filter((c) => c._id !== categoryId));
+      setFilteredCategories((prev) => prev.filter((c) => c._id !== categoryId));
     } catch (err) {
       alert('Failed to delete category');
       console.error('Error deleting category:', err);
     }
   };
 
-  // Fungsi untuk menangani perubahan filter berdasarkan tipe
   const handleTypeChange = async (e) => {
     const type = e.target.value;
     setSelectedType(type);
-
-    if (type === 'all') {
-      // Jika pilihan adalah "all", muat semua kategori
-      await fetchCategories();
-    } else {
-      // Jika pilihan bukan "all", muat kategori berdasarkan tipe
-      await fetchCategories(type);
-    }
-    setCurrentPage(1); // Reset halaman ketika filter diubah
+    await fetchCategories(type === 'all' ? undefined : type);
+    setCurrentPage(1);
   };
 
   useEffect(() => {
-    // Saat komponen dimuat, ambil semua kategori
     fetchCategories();
   }, []);
 
-  // Menghitung kategori yang ditampilkan untuk halaman saat ini
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredCategories.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredCategories.length / itemsPerPage);
 
   return (
-    <div className="">
-      <h1 className="text-3xl font-bold mb-6">Kategori</h1>
-
-      {/* Dropdown untuk filter berdasarkan tipe */}
-      <div className="mb-4">
-
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h1 className="text-3xl font-bold text-gray-800 mb-4 sm:mb-0">Kategori</h1>
         <Link
           to="/admin/category-create"
-          className="bg-blue-500 text-white px-4 py-2 rounded inline-block"
+          className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-md transition"
         >
-          Add Category
+          + Add Category
         </Link>
-        <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-4">
+      </div>
+
+      <div className="mb-6">
+        <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">
           Filter by Type:
         </label>
         <select
           id="type"
           value={selectedType}
           onChange={handleTypeChange}
-          className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          className="w-full sm:w-60 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 py-2 px-3"
         >
           <option value="all">All</option>
           <option value="food">Food</option>
           <option value="beverage">Beverages</option>
           <option value="instan">Dessert</option>
-          {/* Tambahkan opsi lain sesuai kebutuhan */}
         </select>
       </div>
 
       {loading ? (
-        <p>Loading...</p>
+        <p className="text-gray-600">Loading...</p>
       ) : error ? (
         <p className="text-red-500">{error}</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto bg-white shadow rounded-lg">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead>
+            <thead className="bg-gray-100">
               <tr>
-                <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Name
                 </th>
-                <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Type
                 </th>
-                <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200">
               {currentItems.length > 0 ? (
                 currentItems.map((category) => (
-                  <tr key={category._id}>
+                  <tr key={category._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">{category.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{category.type}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap capitalize">{category.type || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap space-x-2">
                       <button
                         onClick={() => handleDeleteCategory(category._id)}
-                        className="text-red-500 hover:text-red-700 mr-2"
+                        className="text-red-600 hover:text-red-800 text-sm"
                       >
                         Delete
                       </button>
-                      <a
-                        href={`/category/${category._id}/menu`}
-                        className="text-blue-500 hover:text-blue-700"
+                      <Link
+                        to={`/category/${category._id}/menu`}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
                       >
                         View Menu
-                      </a>
+                      </Link>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="3" className="text-center py-4">
+                  <td colSpan="3" className="text-center py-4 text-gray-500">
                     No categories found.
                   </td>
                 </tr>
@@ -159,31 +142,37 @@ const CategoryIndex = () => {
       )}
 
       {/* Pagination */}
-      <div className="flex justify-center mt-4">
-        <button
-          onClick={() => setCurrentPage(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="px-4 py-2 mx-1 rounded bg-gray-300 text-gray-700"
-        >
-          Previous
-        </button>
-        {Array.from({ length: totalPages }, (_, i) => (
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-6 flex-wrap gap-2">
           <button
-            key={i + 1}
-            onClick={() => setCurrentPage(i + 1)}
-            className={`px-4 py-2 mx-1 rounded ${currentPage === i + 1 ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700"}`}
+            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50"
           >
-            {i + 1}
+            Previous
           </button>
-        ))}
-        <button
-          onClick={() => setCurrentPage(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="px-4 py-2 mx-1 rounded bg-gray-300 text-gray-700"
-        >
-          Next
-        </button>
-      </div>
+          {Array.from({ length: totalPages }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrentPage(i + 1)}
+              className={`px-4 py-2 rounded ${
+                currentPage === i + 1
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+              }`}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 };
