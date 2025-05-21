@@ -10,7 +10,7 @@ import axios from 'axios';
 import { v4 } from 'uuid';
 import { format } from 'date-fns';
 import Bull from 'bull';
- 
+
 
 
 export const createAppOrder = async (req, res) => {
@@ -538,7 +538,7 @@ export const checkout = async (req, res) => {
     });
 
     const savedOrder = await order.save();
-    io.emit('newOrder', savedOrder); 
+    io.emit('newOrder', savedOrder);
     // Jika pembayaran tunai atau EDC, tidak perlu proses Midtrans
     if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
       // Update order status to 'Completed'
@@ -645,16 +645,16 @@ const orderQueue = new Bull('orderQueue', {
 export const createUnifiedOrder = async (req, res) => {
   try {
     const { source } = req.body; // mobile/web/cashier
-    
+
     // Validasi input berdasarkan sumber
     const validatedData = validateOrderData(req.body, source);
-    
+
     // Enqueue ke Bull
     const job = await orderQueue.add({
       ...validatedData,
       socketId: req.socketId || null
     });
-    
+
     res.status(202).json({
       status: 'queued',
       jobId: job.id,
@@ -671,50 +671,50 @@ export const createUnifiedOrder = async (req, res) => {
 // Queue processor
 orderQueue.process(async (job) => {
   const { data } = job;
-  const { 
-    source, 
-    socketId, 
-    userId, 
-    userName, 
-    cashierId, 
-    items, 
-    orderType, 
-    tableNumber, 
-    deliveryAddress, 
-    pickupTime, 
-    paymentMethod, 
-    voucherCode, 
-    totalPrice, 
-    outlet, 
-    type 
+  const {
+    source,
+    socketId,
+    userId,
+    userName,
+    cashierId,
+    items,
+    orderType,
+    tableNumber,
+    deliveryAddress,
+    pickupTime,
+    paymentMethod,
+    voucherCode,
+    totalPrice,
+    outlet,
+    type
   } = data;
-  
+
   try {
     const session = await mongoose.startSession();
     session.startTransaction();
-    
+
     // 1. Validasi & persiapan item
     const orderItems = await processOrderItems(items, session);
-    
+
     // 2. Hitung total harga awal
     const baseTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
-    
+
     // 3. Cek promo otomatis
-    const { 
-      totalDiscount: autoPromoDiscount, 
-      appliedPromos 
+    const {
+      totalDiscount: autoPromoDiscount,
+      appliedPromos
     } = await checkAutoPromos(orderItems, outlet, type);
-    
+
     // 4. Cek voucher
-    const { 
-      discount: voucherDiscount, 
-      voucher 
+    const {
+      discount: voucherDiscount,
+      voucher
     } = await checkVoucher(voucherCode, baseTotal - autoPromoDiscount, outlet);
-    
+
     // 5. Hitung total akhir
     const finalAmount = Math.max(baseTotal - autoPromoDiscount - voucherDiscount, 0);
     const totalWithServiceFee = finalAmount;
-    
+
     // 6. Buat order
     const newOrder = new Order({
       order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -734,7 +734,7 @@ orderQueue.process(async (job) => {
       source
     });
     await newOrder.save({ session });
-    
+
     // 7. Proses pembayaran
     const paymentResult = await processPayment({
       order: newOrder,
@@ -742,22 +742,22 @@ orderQueue.process(async (job) => {
       amount: source === 'web' ? totalWithServiceFee : (totalPrice || finalAmount),
       source
     });
-    
+
     // 8. Update status order jika pembayaran langsung
     if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
       newOrder.status = 'Completed';
       await newOrder.save({ session });
     }
-    
+
     // 9. Commit transaction
     await session.commitTransaction();
-    
+
     // 10. Emit via socket.io
     if (socketId) {
       io.to(socketId).emit('orderCreated', newOrder);
     }
     io.emit('newOrder', newOrder); // Broadcast ke semua client
-    
+
     return {
       order: newOrder,
       payment: paymentResult
@@ -771,21 +771,21 @@ orderQueue.process(async (job) => {
 // Fungsi validasi data berdasarkan sumber
 function validateOrderData(data, source) {
   // Implementasi validasi berbeda untuk setiap sumber
-  switch(source) {
+  switch (source) {
     case 'mobile':
       // Validasi untuk aplikasi mobile
       if (!data.items || !data.userId || !data.paymentDetails) {
         throw new Error('Field wajib tidak lengkap untuk order mobile');
       }
       break;
-      
+
     case 'cashier':
       // Validasi untuk kasir
       if (!data.items || !data.cashierId || !data.paymentMethod) {
         throw new Error('Field wajib tidak lengkap untuk order kasir');
       }
       break;
-      
+
     case 'web':
       // Validasi untuk web
       if (!data.orders || !data.user || !data.paymentMethod) {
@@ -793,28 +793,28 @@ function validateOrderData(data, source) {
       }
       break;
   }
-  
+
   return data;
 }
 
 // Fungsi proses item
 async function processOrderItems(items, session) {
   const orderItems = [];
-  
+
   for (const item of items) {
     const menuItem = await MenuItem.findById(item.id).session(session);
     if (!menuItem) throw new Error(`Menu item ${item.id} tidak ditemukan`);
-    
+
     let itemPrice = menuItem.price;
     let addons = [];
     let toppings = [];
-    
+
     // Proses addon
     if (item.selectedAddons && item.selectedAddons.length > 0) {
       for (const addon of item.selectedAddons) {
         const addonInfo = menuItem.addons.find(a => a._id.toString() === addon.id);
         if (!addonInfo) continue;
-        
+
         if (addon.options && addon.options.length > 0) {
           for (const option of addon.options) {
             const optionInfo = addonInfo.options.find(o => o._id.toString() === option.id);
@@ -829,7 +829,7 @@ async function processOrderItems(items, session) {
         }
       }
     }
-    
+
     // Proses topping
     if (item.selectedToppings && item.selectedToppings.length > 0) {
       for (const topping of item.selectedToppings) {
@@ -843,9 +843,9 @@ async function processOrderItems(items, session) {
         }
       }
     }
-    
+
     const subtotal = itemPrice * item.quantity;
-    
+
     orderItems.push({
       menuItem: item.id,
       quantity: item.quantity,
@@ -855,7 +855,7 @@ async function processOrderItems(items, session) {
       isPrinted: false
     });
   }
-  
+
   return orderItems;
 }
 
@@ -868,13 +868,13 @@ async function checkAutoPromos(orderItems, outlet, orderType) {
     validFrom: { $lte: now },
     validTo: { $gte: now }
   });
-  
+
   let totalDiscount = 0;
   let appliedPromos = [];
-  
+
   // Implementasi logika promo otomatis seperti di fungsi checkout
   // ...
-  
+
   return { totalDiscount: totalDiscount, appliedPromos };
 }
 
@@ -882,14 +882,14 @@ async function checkAutoPromos(orderItems, outlet, orderType) {
 async function checkVoucher(voucherCode, totalAmount, outlet) {
   let discount = 0;
   let voucher = null;
-  
+
   if (voucherCode) {
     voucher = await Voucher.findOne({ code: voucherCode });
     if (voucher && voucher.isActive) {
       const isValidDate = new Date() >= voucher.validFrom && new Date() <= voucher.validTo;
-      const isValidOutlet = voucher.applicableOutlets.length === 0 || 
+      const isValidOutlet = voucher.applicableOutlets.length === 0 ||
         voucher.applicableOutlets.some(outletId => outletId.equals(outlet));
-      
+
       if (isValidDate && isValidOutlet && voucher.quota > 0) {
         // Hitung diskon
         if (voucher.discountType === 'percentage') {
@@ -897,7 +897,7 @@ async function checkVoucher(voucherCode, totalAmount, outlet) {
         } else if (voucher.discountType === 'fixed') {
           discount = voucher.discountAmount;
         }
-        
+
         // Update kuota voucher
         voucher.quota -= 1;
         if (voucher.quota === 0) voucher.isActive = false;
@@ -905,7 +905,7 @@ async function checkVoucher(voucherCode, totalAmount, outlet) {
       }
     }
   }
-  
+
   return { discount, voucher };
 }
 
@@ -917,7 +917,7 @@ async function processPayment({ order, paymentMethod, amount, source }) {
       method: paymentMethod
     };
   }
-  
+
   // Midtrans Core API untuk mobile
   if (source === 'mobile') {
     const parameter = {
@@ -927,10 +927,10 @@ async function processPayment({ order, paymentMethod, amount, source }) {
       },
       payment_type: paymentMethod
     };
-    
+
     return await coreApi.charge(parameter);
   }
-  
+
   // Midtrans Snap untuk web
   if (source === 'web') {
     const snapData = {
@@ -939,24 +939,24 @@ async function processPayment({ order, paymentMethod, amount, source }) {
         gross_amount: amount
       }
     };
-    
+
     return await snap.createTransaction(snapData);
   }
-  
+
   throw new Error('Metode pembayaran tidak didukung');
 }
 
 // Socket.io setup
 // io.on('connection', (socket) => {
 //   console.log('Client terhubung');
-  
+
 //   socket.on('createOrder', async (orderData) => {
 //     try {
 //       const job = await orderQueue.add({
 //         ...orderData,
 //         socketId: socket.id
 //       });
-      
+
 //       const result = await job.finished();
 //       io.to(socket.id).emit('orderResponse', result);
 //     } catch (error) {
