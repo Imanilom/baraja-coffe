@@ -55,6 +55,8 @@ import TypeSales from "./pages/report/type_sales";
 import CustomerSales from "./pages/report/customer_sales";
 import DeviceSales from "./pages/report/device_sales";
 import DigitalPayment from "./pages/report/digital_payment";
+import CreateAddOns from "./pages/menu/add_ons/create";
+import AddOns from "./pages/menu/add_ons";
 
 
 
@@ -66,7 +68,6 @@ export default function App() {
           <Routes>
             {/* Halaman Umum */}
             <Route path="/" element={<Home />} />
-            <Route path="/example" element={<Example />} />
             <Route path="/about" element={<About />} />
             <Route path="/download" element={<Download />} />
             <Route path="/sign-in" element={<SignIn />} />
@@ -77,10 +78,13 @@ export default function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="toko" element={<OutletManagementPage />} />
+                <Route path="example" element={<Example />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
                 <Route path="menu/:id" element={<ViewMenu />} />
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
+                <Route path="add-ons" element={<AddOns />} />
+                <Route path="create-addons" element={<CreateAddOns />} />
                 <Route path="category-create" element={<AddCategory />} />
                 <Route path="report" element={<ReportDashboard />} />
                 <Route path="digital-payment" element={<DigitalPayment />} />
