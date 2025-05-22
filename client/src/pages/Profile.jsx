@@ -28,11 +28,13 @@ export default function Profile() {
   const [updateSuccess, setUpdateSuccess] = useState(false);
 
   const { currentUser, loading, error } = useSelector((state) => state.user);
+  
   useEffect(() => {
     if (image) {
       handleFileUpload(image);
     }
   }, [image]);
+
   const handleFileUpload = async (image) => {
     const storage = getStorage(app);
     const fileName = new Date().getTime() + image.name;
@@ -55,6 +57,7 @@ export default function Profile() {
       }
     );
   };
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
@@ -102,14 +105,15 @@ export default function Profile() {
   const handleSignOut = async () => {
     try {
       await fetch('/api/auth/signout');
-      dispatch(signOut())
+      dispatch(signOut());
     } catch (error) {
       console.log(error);
     }
   };
+
   return (
-    <div className='p-3 max-w-lg mx-auto'>
-      <h1 className='text-3xl font-semibold text-center my-7'>Profile</h1>
+    <div className='p-4 max-w-lg mx-auto bg-white rounded-lg shadow-lg mt-10'>
+      <h1 className='text-3xl font-semibold text-center text-army my-7'>Profile</h1>
       <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
         <input
           type='file'
@@ -118,12 +122,6 @@ export default function Profile() {
           accept='image/*'
           onChange={(e) => setImage(e.target.files[0])}
         />
-        {/* 
-      firebase storage rules:  
-      allow read;
-      allow write: if
-      request.resource.size < 2 * 1024 * 1024 &&
-      request.resource.contentType.matches('image/.*') */}
         <img
           src={formData.profilePicture || currentUser.profilePicture}
           alt='profile'
@@ -148,7 +146,7 @@ export default function Profile() {
           type='text'
           id='username'
           placeholder='Username'
-          className='bg-slate-100 rounded-lg p-3'
+          className='bg-beige-100 rounded-lg p-3 border border-army focus:outline-none focus:ring-2 focus:ring-army'
           onChange={handleChange}
         />
         <input
@@ -156,25 +154,25 @@ export default function Profile() {
           type='email'
           id='email'
           placeholder='Email'
-          className='bg-slate-100 rounded-lg p-3'
+          className='bg-beige-100 rounded-lg p-3 border border-army focus:outline-none focus:ring-2 focus:ring-army'
           onChange={handleChange}
         />
         <input
           type='password'
           id='password'
           placeholder='Password'
-          className='bg-slate-100 rounded-lg p-3'
+          className='bg-beige-100 rounded-lg p-3 border border-army focus:outline-none focus:ring-2 focus:ring-army'
           onChange={handleChange}
         />
-        <button className='bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80'>
+        <button
+          className='bg-army text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80'
+          disabled={loading}
+        >
           {loading ? 'Loading...' : 'Update'}
         </button>
       </form>
       <div className='flex justify-between mt-5'>
-        <span
-          onClick={handleDeleteAccount}
-          className='text-red-700 cursor-pointer'
-        >
+        <span onClick={handleDeleteAccount} className='text-red-700 cursor-pointer'>
           Delete Account
         </span>
         <span onClick={handleSignOut} className='text-red-700 cursor-pointer'>

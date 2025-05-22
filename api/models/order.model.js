@@ -25,6 +25,7 @@ const OrderSchema = new mongoose.Schema({
   voucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
   outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
   promotions: [{ type: String }],
+  source: { type: String, enum: ['Web', 'App', 'Cashier'], required: true }, 
 }, { timestamps: true });
 
 // Virtual untuk menghitung total harga otomatis

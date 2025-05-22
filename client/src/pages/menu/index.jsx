@@ -3,14 +3,13 @@ import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, Fa
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import CategoryIndex from "./category";
-import { FaTrash } from 'react-icons/fa';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-white p-6 rounded shadow-md text-center w-96"> {/* Set width to 96 (24rem) for medium size */}
+      <div className="bg-white p-6 rounded shadow-md text-center w-96">
         <FaTrash className="text-red-500 mx-auto mb-4" size={72} />
         <h2 className="text-lg font-bold">Konfirmasi Penghapusan</h2>
         <p>Apakah Anda yakin ingin menghapus item ini?</p>
@@ -22,6 +21,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
     </div>
   );
 };
+
 const Menu = () => {
   const location = useLocation();
   const [showInput, setShowInput] = useState(false);
@@ -46,7 +46,6 @@ const Menu = () => {
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Get category and selected from URL query
   const queryParams = new URLSearchParams(location.search);
   const ensureArray = (data) => Array.isArray(data) ? data : [];
   const [currentPage, setCurrentPage] = useState(1);
@@ -248,21 +247,19 @@ const Menu = () => {
 
   const handleCategoryChange = (category) => {
     setSelectedCategory(category);
-    // Update the URL with the selected category using `navigate`
     navigate(`/admin/menu?category=${category === "Semua Kategori" ? "" : category}&selected=${selected}`);
   };
 
   const handleTabChange = (item) => {
-    setselected(item);
-    // Update the URL to reflect the selected tab
+    setSelected(item);
     navigate(`/admin/menu?category=${selectedCategory === "Semua Kategori" ? "" : selectedCategory}&selected=${item}`);
   };
 
   const handleDelete = async (itemId) => {
     try {
-      await axios.delete(`/api/menu/menu-items/${itemId}`); // Adjust the endpoint based on your backend API
-      setMenuItems(menuItems.filter(item => item._id !== itemId)); // Update the state to remove the deleted item
-      setIsModalOpen(false); // Close the modal
+      await axios.delete(`/api/menu/menu-items/${itemId}`);
+      setMenuItems(menuItems.filter(item => item._id !== itemId));
+      setIsModalOpen(false);
     } catch (error) {
       console.error("Error deleting item:", error);
     }
@@ -296,18 +293,14 @@ const Menu = () => {
   }
 
   return (
-    <div className="container mx-auto">
-
+    <div className="container mx-auto p-4">
       <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
         <FaBell className="text-2xl text-gray-400" />
-        <Link
-          to="/admin/menu"
-          className="text-gray-400 inline-block text-2xl"
-        >
+        <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
           <FaUser />
         </Link>
-
       </div>
+
       <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
         <div className="flex items-center space-x-2">
           <FaShoppingBag size={22} className="text-gray-400 inline-block" />
@@ -320,7 +313,6 @@ const Menu = () => {
           >
             Impor Produk
           </button>
-
           <button
             onClick={() => console.log('Ekspor Produk')}
             className="bg-white text-blue-500 px-4 py-2 rounded border border-blue-500 hover:text-white hover:bg-blue-500 text-[13px]"
@@ -336,6 +328,7 @@ const Menu = () => {
           </Link>
         </div>
       </div>
+
       <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-4 py-4">
         <button
           className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
@@ -626,4 +619,4 @@ const Menu = () => {
   );
 };
 
-export default Menu;
+export default Menu;  

@@ -59,7 +59,7 @@ export const getRawMaterials = async (req, res) => {
     }
 
     // Ambil data bahan baku berdasarkan filter
-    const rawMaterials = await RawMaterial.find(filter).populate('availableAt lastUpdatedBy');
+    const rawMaterials = await RawMaterial.find(filter).populate('availableAt lastUpdatedBy category');
 
     res.status(200).json({
       message: 'Raw materials retrieved successfully',

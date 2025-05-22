@@ -64,12 +64,16 @@ export const assignMenuItemsToCategory = async (req, res) => {
 // Controller untuk mengambil daftar kategori
 export const getCategories = async (req, res) => {
   try {
-    // Daftar tipe yang diperbolehkan
-    // const allowedTypes = ['food', 'beverage', 'instan'];
+    const allowedTypes = ['food', 'beverage', 'instan'];
 
-    // Ambil kategori yang hanya sesuai dengan tipe yang diizinkan
-    // const categories = await Category.find({ type: { $in: allowedTypes } });
-    const categories = await Category.find();
+    // Ambil kategori yang bertipe tertentu atau tidak memiliki tipe
+    const categories = await Category.find({
+      $or: [
+        { type: { $in: allowedTypes } },
+        { type: { $exists: false } }, // field tidak ada
+        { type: null } // field ada tapi null
+      ]
+    });
 
     res.status(200).json({ success: true, data: categories });
   } catch (error) {
@@ -77,6 +81,7 @@ export const getCategories = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch categories', error: error.message });
   }
 };
+
 
 
 // Controller untuk memfilter menu berdasarkan kategori

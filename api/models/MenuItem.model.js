@@ -4,7 +4,6 @@ const MenuItemSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   price: { type: Number, required: true, min: 0 },
   description: { type: String, trim: true },
-  mainCategory: { type: String, trim: true },
   category: {
     type: [String],
     default: []
@@ -48,8 +47,9 @@ const MenuItemSchema = new mongoose.Schema({
     }
   ],
   availableAt: [
-    { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' }
+    { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', required: true }
   ], // Menyimpan daftar outlet tempat menu tersedia
+  isActive: { type: Boolean, default: true }, // Status aktif menu
 }, { timestamps: true });
 
 
