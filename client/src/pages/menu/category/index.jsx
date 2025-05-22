@@ -89,18 +89,13 @@ const CategoryIndex = () => {
     fetchData();
   }, []);
 
-  // Fungsi untuk menghapus kategori
   const handleDeleteCategory = async (categoryId) => {
     if (!window.confirm('Are you sure you want to delete this category?')) return;
 
     try {
       await axios.delete(`/category/${categoryId}`);
-      setCategories((prevCategories) =>
-        prevCategories.filter((category) => category._id !== categoryId)
-      );
-      setFilteredCategories((prevFilteredCategories) =>
-        prevFilteredCategories.filter((category) => category._id !== categoryId)
-      );
+      setCategories((prev) => prev.filter((c) => c._id !== categoryId));
+      setFilteredCategories((prev) => prev.filter((c) => c._id !== categoryId));
     } catch (err) {
       alert('Failed to delete category');
       console.error('Error deleting category:', err);
@@ -339,7 +334,7 @@ const CategoryIndex = () => {
             ) : (
               <tbody>
                 <tr>
-                  <td colSpan="3" className="text-center py-4">
+                  <td colSpan="3" className="text-center py-4 text-gray-500">
                     No categories found.
                   </td>
                 </tr>

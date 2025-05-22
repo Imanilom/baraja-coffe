@@ -1,6 +1,5 @@
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
-import { RawMaterial } from "../models/RawMaterial.model.js";
 import { Order } from "../models/order.model.js";
 import User from "../models/user.model.js";
 import Voucher from "../models/voucher.model.js";
@@ -8,6 +7,10 @@ import AutoPromo from '../models/AutoPromo.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
+import { v4 } from 'uuid';
+import { format } from 'date-fns';
+import Bull from 'bull';
+
 
 
 export const createAppOrder = async (req, res) => {
@@ -142,102 +145,6 @@ export const createAppOrder = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Error creating order', error: error.message });
-  }
-};
-
-export const charge = async (req, res) => {
-  try {
-    const { payment_type, transaction_details, bank_transfer } = req.body;
-    const { order_id, gross_amount } = transaction_details;
-    if (payment_type == 'cash') {
-      const transaction_id = uuidv4();
-      const transaction_time = new Date();
-      const expiry_time = new Date(transaction_time.getTime() + 15 * 60000);
-      // const qr_string = `ORDER:${order_id}|AMOUNT:${gross_amount}|TXN_ID:${transaction_id}`;
-      const qr_code_url = await QRCode.toDataURL(order_id)
-      // Generate QR code string
-      const customResponse = {
-        status_code: "201",
-        status_message: "Cash transaction is created",
-        transaction_id,
-        order_id,
-        merchant_id: "G711879663", // ubah sesuai kebutuhan
-        gross_amount: gross_amount.toFixed(2),
-        currency: "IDR",
-        payment_type: "cash",
-        transaction_time: transaction_time.toISOString().replace('T', ' ').slice(0, 19),
-        transaction_status: "pending",
-        fraud_status: "accept",
-        actions: [
-          {
-            name: "generate-qr-code",
-            method: "GET",
-            url: qr_code_url
-          }
-        ],
-        acquirer: "manual",
-        // qr_string,
-        expiry_time: expiry_time.toISOString().replace('T', ' ').slice(0, 19)
-      };
-
-      return res.status(200).json(customResponse);
-    }
-
-    // Menyiapkan chargeParams dasar
-    let chargeParams = {
-      "payment_type": payment_type,
-      "transaction_details": {
-        "gross_amount": gross_amount,
-        "order_id": order_id,
-      },
-    };
-
-
-
-    // Kondisikan chargeParams berdasarkan payment_type
-    if (payment_type === 'bank_transfer') {
-      const { bank } = bank_transfer;
-      chargeParams['bank_transfer'] = {
-        "bank": bank
-      };
-    } else if (payment_type === 'gopay') {
-      // Untuk Gopay, tidak perlu menambahkan 'bank_transfer'
-      // Anda bisa menambahkan parameter lain jika diperlukan
-      chargeParams['gopay'] = {
-        // misalnya, menambahkan enable_callback untuk Gopay
-        // "enable_callback": true,
-        // "callback_url": "https://yourdomain.com/callback"
-      };
-    } else if (payment_type === 'qris') {
-      // Untuk QRIS, juga bisa diatur di sini
-      chargeParams['qris'] = {
-        // misalnya parameter tambahan untuk QRIS
-        // "enable_callback": true,
-        // "callback_url": "https://yourdomain.com/callback"
-      };
-    }
-
-
-    // Lakukan permintaan API untuk memproses pembayaran
-    const response = await coreApi.charge(chargeParams);
-    const payment = new Payment({
-      transaction_id: response.transaction_id,
-      order_id: order_id,
-      amount: gross_amount,
-      method: payment_type,
-      status: 'pending',
-      fraud_status: response.fraud_status,
-      transaction_time: response.transaction_time,
-      expiry_time: response.expiry_time
-    });
-
-    await payment.save();
-    return res.json(response);
-  } catch (error) {
-    return res.status(500).json({
-      message: 'Payment failed',
-      error: error.message || error
-    });
   }
 };
 
@@ -631,7 +538,7 @@ export const checkout = async (req, res) => {
     });
 
     const savedOrder = await order.save();
-
+    io.emit('newOrder', savedOrder);
     // Jika pembayaran tunai atau EDC, tidak perlu proses Midtrans
     if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
       // Update order status to 'Completed'
@@ -722,7 +629,572 @@ export const checkout = async (req, res) => {
   }
 };
 
+// Create queue
+const orderQueue = new Bull('orderQueue', {
+  redis: {
+    host: '127.0.0.1',
+    port: 6379
+  },
+  limiter: {
+    max: 10,
+    duration: 1000
+  }
+});
 
+// Unified order controller
+export const createUnifiedOrder = async (req, res) => {
+  try {
+    const { source } = req.body; // mobile/web/cashier
+
+    // Validasi input berdasarkan sumber
+    const validatedData = validateOrderData(req.body, source);
+
+    // Enqueue ke Bull
+    const job = await orderQueue.add({
+      ...validatedData,
+      socketId: req.socketId || null
+    });
+
+    res.status(202).json({
+      status: 'queued',
+      jobId: job.id,
+      message: 'Order sedang diproses'
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Queue processor
+orderQueue.process(async (job) => {
+  const { data } = job;
+  const {
+    source,
+    socketId,
+    userId,
+    userName,
+    cashierId,
+    items,
+    orderType,
+    tableNumber,
+    deliveryAddress,
+    pickupTime,
+    paymentMethod,
+    voucherCode,
+    totalPrice,
+    outlet,
+    type
+  } = data;
+
+  try {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    // 1. Validasi & persiapan item
+    const orderItems = await processOrderItems(items, session);
+
+    // 2. Hitung total harga awal
+    const baseTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+    // 3. Cek promo otomatis
+    const {
+      totalDiscount: autoPromoDiscount,
+      appliedPromos
+    } = await checkAutoPromos(orderItems, outlet, type);
+
+
+    // 4. Cek voucher
+    const {
+      discount: voucherDiscount,
+      voucher
+    } = await checkVoucher(voucherCode, baseTotal - autoPromoDiscount, outlet);
+
+    // 5. Hitung total akhir
+    const finalAmount = Math.max(baseTotal - autoPromoDiscount - voucherDiscount, 0);
+    const totalWithServiceFee = finalAmount;
+
+    // 6. Buat order
+    const newOrder = new Order({
+      order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      user: userName || (await User.findById(userId))?.name || 'Guest',
+      cashier: cashierId || null,
+      items: orderItems,
+      paymentMethod,
+      orderType,
+      tableNumber,
+      deliveryAddress,
+      pickupTime,
+      voucher: voucher?._id || null,
+      promotions: appliedPromos,
+      outlet,
+      type: type || (orderType === 'Dine-In' ? 'Indoor' : null),
+      status: 'Pending',
+      source
+    });
+    await newOrder.save({ session });
+
+    // 7. Proses pembayaran
+    const paymentResult = await processPayment({
+      order: newOrder,
+      paymentMethod,
+      amount: source === 'web' ? totalWithServiceFee : (totalPrice || finalAmount),
+      source
+    });
+
+    // 8. Update status order jika pembayaran langsung
+    if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
+      newOrder.status = 'Completed';
+      await newOrder.save({ session });
+    }
+
+    // 9. Commit transaction
+    await session.commitTransaction();
+
+    // 10. Emit via socket.io
+    if (socketId) {
+      io.to(socketId).emit('orderCreated', newOrder);
+    }
+    io.emit('newOrder', newOrder); // Broadcast ke semua client
+
+    return {
+      order: newOrder,
+      payment: paymentResult
+    };
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  }
+});
+
+// Fungsi validasi data berdasarkan sumber
+function validateOrderData(data, source) {
+  // Implementasi validasi berbeda untuk setiap sumber
+  switch (source) {
+    case 'mobile':
+      // Validasi untuk aplikasi mobile
+      if (!data.items || !data.userId || !data.paymentDetails) {
+        throw new Error('Field wajib tidak lengkap untuk order mobile');
+      }
+      break;
+
+    case 'cashier':
+      // Validasi untuk kasir
+      if (!data.items || !data.cashierId || !data.paymentMethod) {
+        throw new Error('Field wajib tidak lengkap untuk order kasir');
+      }
+      break;
+
+    case 'web':
+      // Validasi untuk web
+      if (!data.orders || !data.user || !data.paymentMethod) {
+        throw new Error('Field wajib tidak lengkap untuk order web');
+      }
+      break;
+  }
+
+  return data;
+}
+
+// Fungsi proses item
+async function processOrderItems(items, session) {
+  const orderItems = [];
+
+  for (const item of items) {
+    const menuItem = await MenuItem.findById(item.id).session(session);
+    if (!menuItem) throw new Error(`Menu item ${item.id} tidak ditemukan`);
+
+    let itemPrice = menuItem.price;
+    let addons = [];
+    let toppings = [];
+
+    // Proses addon
+    if (item.selectedAddons && item.selectedAddons.length > 0) {
+      for (const addon of item.selectedAddons) {
+        const addonInfo = menuItem.addons.find(a => a._id.toString() === addon.id);
+        if (!addonInfo) continue;
+
+        if (addon.options && addon.options.length > 0) {
+          for (const option of addon.options) {
+            const optionInfo = addonInfo.options.find(o => o._id.toString() === option.id);
+            if (optionInfo) {
+              addons.push({
+                name: `${addonInfo.name}: ${optionInfo.name}`,
+                price: optionInfo.price || 0
+              });
+              itemPrice += optionInfo.price || 0;
+            }
+          }
+        }
+      }
+    }
+
+    // Proses topping
+    if (item.selectedToppings && item.selectedToppings.length > 0) {
+      for (const topping of item.selectedToppings) {
+        const toppingInfo = menuItem.toppings.find(t => t._id.toString() === topping.id);
+        if (toppingInfo) {
+          toppings.push({
+            name: toppingInfo.name,
+            price: toppingInfo.price || 0
+          });
+          itemPrice += toppingInfo.price || 0;
+        }
+      }
+    }
+
+    const subtotal = itemPrice * item.quantity;
+
+    orderItems.push({
+      menuItem: item.id,
+      quantity: item.quantity,
+      subtotal,
+      addons,
+      toppings,
+      isPrinted: false
+    });
+  }
+
+  return orderItems;
+}
+
+// Fungsi cek promo otomatis
+async function checkAutoPromos(orderItems, outlet, orderType) {
+  const now = new Date();
+
+  // Ambil semua promo aktif di outlet tersebut yang sedang berlaku
+  const autoPromos = await AutoPromo.find({
+    outlet,
+    isActive: true,
+    validFrom: { $lte: now },
+    validTo: { $gte: now }
+  }).populate('conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
+
+  let totalDiscount = 0;
+  let appliedPromos = [];
+
+  for (const promo of autoPromos) {
+    let discountAmount = 0;
+
+    switch (promo.promoType) {
+      case 'discount_on_quantity': {
+        // Cari apakah ada item yang cocok dengan syarat minimum quantity
+        const conditionProduct = promo.conditions.buyProduct;
+        if (!conditionProduct) break;
+
+        const orderItem = orderItems.find(item => item.menuItemId.toString() === conditionProduct._id.toString());
+        if (orderItem && orderItem.quantity >= promo.conditions.minQuantity) {
+          discountAmount = (orderItem.price * orderItem.quantity) * (promo.discount / 100);
+        }
+        break;
+      }
+
+      case 'discount_on_total': {
+        // Hitung total harga pesanan
+        let totalOrderPrice = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+        if (totalOrderPrice >= promo.conditions.minTotal) {
+          discountAmount = totalOrderPrice * (promo.discount / 100);
+        }
+        break;
+      }
+
+      case 'buy_x_get_y': {
+        const buyProduct = promo.conditions.buyProduct;
+        const getProduct = promo.conditions.getProduct;
+
+        if (!buyProduct || !getProduct) break;
+
+        const buyItem = orderItems.find(item => item.menuItemId.toString() === buyProduct._id.toString());
+        const getItem = orderItems.find(item => item.menuItemId.toString() === getProduct._id.toString());
+
+        if (buyItem && getItem) {
+          const freeCount = Math.floor(buyItem.quantity / 2); // Misalnya beli 2 dapat 1 gratis
+          if (freeCount > 0) {
+            discountAmount = freeCount * getItem.price;
+          }
+        }
+        break;
+      }
+
+      case 'bundling': {
+        const bundleProducts = promo.conditions.bundleProducts || [];
+        let allInBundle = true;
+        let minQty = Infinity;
+
+        for (const bp of bundleProducts) {
+          const item = orderItems.find(i => i.menuItemId.toString() === bp.product._id.toString());
+
+          if (!item || item.quantity < bp.quantity) {
+            allInBundle = false;
+            break;
+          }
+
+          minQty = Math.min(minQty, Math.floor(item.quantity / bp.quantity));
+        }
+
+        if (allInBundle) {
+          let bundleOriginalPrice = bundleProducts.reduce(
+            (sum, bp) => sum + (bp.product.price * bp.quantity),
+            0
+          );
+
+          discountAmount = bundleOriginalPrice * minQty - promo.bundlePrice * minQty;
+        }
+        break;
+      }
+
+      default:
+        console.warn(`Unknown promo type: ${promo.promoType}`);
+        break;
+    }
+
+    if (discountAmount > 0) {
+      totalDiscount += discountAmount;
+      appliedPromos.push({
+        promoId: promo._id,
+        name: promo.name,
+        promoType: promo.promoType,
+        discountAmount
+      });
+    }
+  }
+
+  return {
+    totalDiscount: totalDiscount,
+    appliedPromos
+  };
+}
+
+// Fungsi cek voucher
+async function checkVoucher(voucherCode, totalAmount, outlet) {
+  let discount = 0;
+  let voucher = null;
+
+  if (voucherCode) {
+    voucher = await Voucher.findOne({ code: voucherCode });
+    if (voucher && voucher.isActive) {
+      const isValidDate = new Date() >= voucher.validFrom && new Date() <= voucher.validTo;
+      const isValidOutlet = voucher.applicableOutlets.length === 0 ||
+        voucher.applicableOutlets.some(outletId => outletId.equals(outlet));
+
+      if (isValidDate && isValidOutlet && voucher.quota > 0) {
+        // Hitung diskon
+        if (voucher.discountType === 'percentage') {
+          discount = (totalAmount * voucher.discountAmount) / 100;
+        } else if (voucher.discountType === 'fixed') {
+          discount = voucher.discountAmount;
+        }
+
+        // Update kuota voucher
+        voucher.quota -= 1;
+        if (voucher.quota === 0) voucher.isActive = false;
+        await voucher.save();
+      }
+    }
+  }
+
+  return { discount, voucher };
+}
+
+// Fungsi cek promo manual sesuai kriteria konsumen
+async function checkManualPromo(totalAmount, outletId, customerType = 'all') {
+  if (!totalAmount || !outletId) {
+    return { discount: 0, appliedPromo: null };
+  }
+
+  const now = new Date();
+
+  // Cari promo aktif di outlet ini yang cocok dengan customer type
+  const promo = await Promo.findOne({
+    isActive: true,
+    validFrom: { $lte: now },
+    validTo: { $gte: now },
+    outlet: outletId,
+    $or: [
+      { customerType: 'all' },
+      { customerType }
+    ]
+  });
+
+  if (!promo) {
+    return { discount: 0, appliedPromo: null };
+  }
+
+  let discount = 0;
+
+  if (promo.discountType === 'percentage') {
+    discount = totalAmount * (promo.discountAmount / 100);
+  } else if (promo.discountType === 'fixed') {
+    discount = Math.min(promo.discountAmount, totalAmount);
+  }
+
+  return {
+    discount,
+    appliedPromo: {
+      promoId: promo._id,
+      name: promo.name,
+      discountAmount: discount,
+      discountType: promo.discountType
+    }
+  };
+}
+
+
+// Fungsi proses pembayaran
+async function processPayment({ order, paymentMethod, amount, source }) {
+  if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
+    return {
+      status: 'Completed',
+      method: paymentMethod
+    };
+  }
+
+  // Midtrans Core API untuk mobile
+  if (source === 'mobile') {
+    const parameter = {
+      transaction_details: {
+        order_id: order.order_id,
+        gross_amount: amount
+      },
+      payment_type: paymentMethod
+    };
+
+    return await coreApi.charge(parameter);
+  }
+
+  // Midtrans Snap untuk web
+  if (source === 'web') {
+    const snapData = {
+      transaction_details: {
+        order_id: order.order_id,
+        gross_amount: amount
+      }
+    };
+
+    return await snap.createTransaction(snapData);
+  }
+
+  throw new Error('Metode pembayaran tidak didukung');
+}
+
+// Socket.io setup
+// io.on('connection', (socket) => {
+//   console.log('Client terhubung');
+
+//   socket.on('createOrder', async (orderData) => {
+//     try {
+//       const job = await orderQueue.add({
+//         ...orderData,
+//         socketId: socket.id
+//       });
+
+//       const result = await job.finished();
+//       io.to(socket.id).emit('orderResponse', result);
+//     } catch (error) {
+//       io.to(socket.id).emit('orderError', error.message);
+//     }
+//   });
+// });
+
+// Helper untuk pembayaran di aplikasi
+export const charge = async (req, res) => {
+  try {
+    const { payment_type, transaction_details, bank_transfer } = req.body;
+    const { order_id, gross_amount } = transaction_details;
+    if (payment_type == 'cash') {
+      const transaction_id = uuidv4();
+      const transaction_time = new Date();
+      const expiry_time = new Date(transaction_time.getTime() + 15 * 60000);
+      // const qr_string = `ORDER:${order_id}|AMOUNT:${gross_amount}|TXN_ID:${transaction_id}`;
+      const qr_code_url = await QRCode.toDataURL(order_id)
+      // Generate QR code string
+      const customResponse = {
+        status_code: "201",
+        status_message: "Cash transaction is created",
+        transaction_id,
+        order_id,
+        merchant_id: "G711879663", // ubah sesuai kebutuhan
+        gross_amount: gross_amount.toFixed(2),
+        currency: "IDR",
+        payment_type: "cash",
+        transaction_time: transaction_time.toISOString().replace('T', ' ').slice(0, 19),
+        transaction_status: "pending",
+        fraud_status: "accept",
+        actions: [
+          {
+            name: "generate-qr-code",
+            method: "GET",
+            url: qr_code_url
+          }
+        ],
+        acquirer: "manual",
+        // qr_string,
+        expiry_time: expiry_time.toISOString().replace('T', ' ').slice(0, 19)
+      };
+
+      return res.status(200).json(customResponse);
+    }
+
+    // Menyiapkan chargeParams dasar
+    let chargeParams = {
+      "payment_type": payment_type,
+      "transaction_details": {
+        "gross_amount": gross_amount,
+        "order_id": order_id,
+      },
+    };
+
+
+
+    // Kondisikan chargeParams berdasarkan payment_type
+    if (payment_type === 'bank_transfer') {
+      const { bank } = bank_transfer;
+      chargeParams['bank_transfer'] = {
+        "bank": bank
+      };
+    } else if (payment_type === 'gopay') {
+      // Untuk Gopay, tidak perlu menambahkan 'bank_transfer'
+      // Anda bisa menambahkan parameter lain jika diperlukan
+      chargeParams['gopay'] = {
+        // misalnya, menambahkan enable_callback untuk Gopay
+        // "enable_callback": true,
+        // "callback_url": "https://yourdomain.com/callback"
+      };
+    } else if (payment_type === 'qris') {
+      // Untuk QRIS, juga bisa diatur di sini
+      chargeParams['qris'] = {
+        // misalnya parameter tambahan untuk QRIS
+        // "enable_callback": true,
+        // "callback_url": "https://yourdomain.com/callback"
+      };
+    }
+
+
+    // Lakukan permintaan API untuk memproses pembayaran
+    const response = await coreApi.charge(chargeParams);
+    const payment = new Payment({
+      transaction_id: response.transaction_id,
+      order_id: order_id,
+      amount: gross_amount,
+      method: payment_type,
+      status: 'pending',
+      fraud_status: response.fraud_status,
+      transaction_time: response.transaction_time,
+      expiry_time: response.expiry_time
+    });
+
+    await payment.save();
+    return res.json(response);
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Payment failed',
+      error: error.message || error
+    });
+  }
+};
 
 // Handling Midtrans Notification 
 export const paymentNotification = async (req, res) => {
@@ -784,7 +1256,7 @@ export const paymentNotification = async (req, res) => {
   }
 };
 
-
+// Mengambil semua order
 export const getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find()
@@ -798,6 +1270,8 @@ export const getAllOrders = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch orders' });
   }
 };
+
+// Konfirmasi Order oleh kasir
 export const confirmOrder = async (req, res) => {
   const { cashierId, orderId } = req.body;
 
@@ -834,7 +1308,7 @@ export const confirmOrder = async (req, res) => {
   }
 };
 
-
+// Mengambil order yang pending
 export const getPendingOrders = async (req, res) => {
   try {
     // Ambil semua order dengan status "Pending"
@@ -915,8 +1389,6 @@ export const getPendingOrders = async (req, res) => {
   }
 };
 
-
-
 async function updateStock(order, session) {
   if (!Array.isArray(order.items)) {
     throw new Error("Order items must be an array");
@@ -952,7 +1424,6 @@ export const getUserOrders = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch orders' });
   }
 };
-
 
 // Get History User orders
 export const getUserOrderHistory = async (req, res) => {
