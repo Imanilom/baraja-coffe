@@ -43,6 +43,9 @@ import IndexPromoPage from "./pages/promotion/promo/index";
 // auto promo
 import CreateAutoPromoPage from "./pages/promotion/autopromo/create";
 import RunningAutoPromos from "./pages/promotion/autopromo/index";
+// point
+import PointManagement from "./pages/promotion/points/index";
+
 import ViewMenu from "./pages/menu/view";
 import ProductSales from "./pages/report/product_sales";
 import CategorySales from "./pages/report/category_sales";
@@ -55,6 +58,8 @@ import TypeSales from "./pages/report/type_sales";
 import CustomerSales from "./pages/report/customer_sales";
 import DeviceSales from "./pages/report/device_sales";
 import DigitalPayment from "./pages/report/digital_payment";
+import CreateAddOns from "./pages/menu/add_ons/create";
+import AddOns from "./pages/menu/add_ons";
 
 
 
@@ -66,7 +71,6 @@ export default function App() {
           <Routes>
             {/* Halaman Umum */}
             <Route path="/" element={<Home />} />
-            <Route path="/example" element={<Example />} />
             <Route path="/about" element={<About />} />
             <Route path="/download" element={<Download />} />
             <Route path="/sign-in" element={<SignIn />} />
@@ -77,10 +81,13 @@ export default function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="toko" element={<OutletManagementPage />} />
+                <Route path="example" element={<Example />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
                 <Route path="menu/:id" element={<ViewMenu />} />
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
+                <Route path="add-ons" element={<AddOns />} />
+                <Route path="create-addons" element={<CreateAddOns />} />
                 <Route path="category-create" element={<AddCategory />} />
                 <Route path="report" element={<ReportDashboard />} />
                 <Route path="digital-payment" element={<DigitalPayment />} />
@@ -95,13 +102,18 @@ export default function App() {
                 <Route path="type-sales" element={<TypeSales />} />
                 <Route path="category-sales" element={<CategorySales />} />
                 <Route path="summary" element={<Summary />} />
+                {/* Voucher */}
                 <Route path="voucher" element={<Vouchermanagement />} />
                 <Route path="voucher-create" element={<CreateVoucher />} />
+                {/* promosi */}
                 <Route path="promotion" element={<Promotionmanagement />} />
                 <Route path="promo-khusus-create" element={<CreatePromoPage />} />
                 <Route path="promo-khusus" element={<IndexPromoPage />} />
                 <Route path="promo-otomatis-create" element={<CreateAutoPromoPage />} />
                 <Route path="promo-otomatis" element={<RunningAutoPromos />} />
+                {/* point */}
+                 <Route path="poin" element={<PointManagement />} />
+                {/* Storage */}
                 <Route path="storage" element={<Storagemanagement />} />
                 <Route path="storage-create" element={<CreateStrorage />} />
                 <Route path="categories" element={<CategoryIndex />} />

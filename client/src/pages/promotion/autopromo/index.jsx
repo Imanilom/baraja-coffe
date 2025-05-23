@@ -122,7 +122,7 @@ const RunningAutoPromos = () => {
                       promo.conditions?.getProduct?.name || "Unknown"
                     }`
                   : `${promo.discount} ${
-                      promo.promoType === "discount_on_total" ? "%" : "IDR"
+                      promo.promoType === "discount_on_total" ? "IDR" : "%"
                     }`}
               </p>
               <p
