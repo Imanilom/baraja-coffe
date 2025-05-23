@@ -28,6 +28,7 @@ export const createAppOrder = async (req, res) => {
       pricing,
       orderDate,
       status,
+
     } = req.body;
     // console.log(pricing, orderDate, status);
     // Validate required fields
@@ -137,6 +138,7 @@ export const createAppOrder = async (req, res) => {
       voucher: voucherId,
       outlet: null, // default kosong, karena tidak ada input outlet di request
       promotions: [],
+      source: 'App', // <- ADD DEFAULT VALUE
     });
 
     await newOrder.save();
