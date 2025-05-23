@@ -87,7 +87,7 @@ const AddCategory = () => {
             <option value="food">Food</option>
             <option value="beverage">Beverage</option>
             <option value="instan">Instant Food</option>
-            <option value="instan">Inventory</option>
+            <option value="inventory">Inventory</option>
           </select>
         </div>
 

@@ -19,7 +19,7 @@ const PromoPage = () => {
 
         {/* Card 2: Promo Otomatis */}
         <Link
-          to="/promo-otomatis"
+          to="/admin/promo-otomatis"
           className="card h-[260px] text-gray-400 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
         >
           <h2 className="text-lg font-bold mb-2">Promo Otomatis</h2>
@@ -29,7 +29,7 @@ const PromoPage = () => {
 
         {/* Card 3: Voucher */}
         <Link
-          to="/voucher"
+          to="/admin/voucher"
           className="card h-[260px] text-gray-400 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
         >
           <h2 className="text-lg font-bold mb-2">Voucher</h2>
@@ -39,7 +39,7 @@ const PromoPage = () => {
 
         {/* Card 4: Poin */}
         <Link
-          to="/poin"
+          to="/admin/poin"
           className="card h-[260px] text-gray-400 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
         >
           <h2 className="text-lg font-bold mb-2">Poin</h2>

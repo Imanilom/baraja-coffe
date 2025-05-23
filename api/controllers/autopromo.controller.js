@@ -3,14 +3,31 @@ import AutoPromo from '../models/AutoPromo.model.js';
 // Get all automatic promos
 export const getAutoPromos = async (req, res) => {
   try {
-    // Mengambil semua promosi otomatis dan melakukan populate pada relasi
+    // Ambil semua auto promos
+    const promos = await AutoPromo.find();
+
+    const now = new Date();
+
+    // Cek dan update status isActive jika sudah expired
+    const expiredIds = promos
+      .filter(promo => promo.isActive && promo.validTo < now)
+      .map(promo => promo._id);
+
+    if (expiredIds.length > 0) {
+      await AutoPromo.updateMany(
+        { _id: { $in: expiredIds } },
+        { $set: { isActive: false } }
+      );
+    }
+
+    // Ambil ulang data dengan populate setelah update
     const autoPromos = await AutoPromo.find()
-      .populate('outlet', 'name _id') // Hanya ambil nama dan ID outlet
-      .populate('conditions.buyProduct', 'name _id') // Hanya ambil nama dan ID produk yang dibeli
-      .populate('conditions.getProduct', 'name _id') // Hanya ambil nama dan ID produk yang didapatkan
+      .populate('outlet', 'name _id')
+      .populate('conditions.buyProduct', 'name _id')
+      .populate('conditions.getProduct', 'name _id')
       .populate({
-        path: 'conditions.bundleProducts.product', // Untuk bundling, populate produk dalam bundle
-        select: 'name _id', // Hanya ambil nama dan ID produk
+        path: 'conditions.bundleProducts.product',
+        select: 'name _id',
       });
 
     if (!autoPromos || autoPromos.length === 0) {
@@ -19,10 +36,11 @@ export const getAutoPromos = async (req, res) => {
 
     res.status(200).json(autoPromos);
   } catch (error) {
-    console.error("Error fetching auto promos:", error.message); // Log error ke konsol
+    console.error("Error fetching auto promos:", error.message);
     res.status(500).json({ message: "Server error while fetching auto promos.", details: error.message });
   }
 };
+
 
 // Get a single automatic promo by ID
 export const getAutoPromoById = async (req, res) => {
