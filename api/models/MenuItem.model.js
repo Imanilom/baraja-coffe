@@ -15,8 +15,10 @@ const MenuItemSchema = new mongoose.Schema({
       price: { type: Number, required: true },
       rawMaterials: [
         {
+          _id: false, 
           materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
-          quantityRequired: { type: Number, required: true }
+          quantityRequired: { type: Number, required: true },
+          unit: { type: String, required: true } // Menyimpan satuan bahan baku
         }
       ]
     }
@@ -33,17 +35,20 @@ const MenuItemSchema = new mongoose.Schema({
       ],
       rawMaterials: [
         {
+          _id: false, 
           materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
-          quantityRequired: { type: Number, required: true }
+          quantityRequired: { type: Number, required: true },
+          unit: { type: String, required: true } // Menyimpan satuan bahan baku
         }
       ]
     }
   ], // Menyimpan daftar addons dengan harga berbeda-beda per menu
   rawMaterials: [
     {
-      _id: false,  // Tambahkan ini agar tidak ada `_id` otomatis di dalam subdokumen
+     _id: false,   // Tambahkan ini agar tidak ada `_id` otomatis di dalam subdokumen
       materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
-      quantityRequired: { type: Number, required: true, min: 0 }
+      quantityRequired: { type: Number, required: true, min: 0 },
+      unit: { type: String, required: true } // Menyimpan satuan bahan baku
     }
   ],
   availableAt: [

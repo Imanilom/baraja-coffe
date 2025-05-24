@@ -26,7 +26,7 @@ import SalesTransaction from "./pages/report/sales_transaction";
 
 // inventory
 import Storagemanagement from "./pages/storage/index";
-import CreateStrorage from "./pages/storage/RawMaterial";
+import CreateStrorage from "./pages/storage/newStock";
 import CategoryIndex from "./pages/menu/category/index";
 import CreateCategory from "./pages/menu/category/create";
 import AssignMenuItemToCategory from "./pages/menu/category/assignmenu";

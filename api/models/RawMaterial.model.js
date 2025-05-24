@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import { MenuItem } from './MenuItem.model.js'; 
 
 const RawMaterialSchema = new mongoose.Schema({
+  sku: { type: String, required: true, unique: true, trim: true },
+  barcode: { type: String, unique: true, trim: true },
   name: { type: String, required: true, trim: true },
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
   quantity: { 

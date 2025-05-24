@@ -4,6 +4,8 @@ import { Order } from "../models/order.model.js";
 import User from "../models/user.model.js";
 import Voucher from "../models/voucher.model.js";
 import AutoPromo from '../models/AutoPromo.model.js';
+import Promo from '../models/Promo.model.js';
+import { RawMaterial } from '../models/RawMaterial.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
@@ -522,7 +524,7 @@ export const checkout = async (req, res) => {
     }
 
     const totalDiscount = Math.floor(discount + autoPromoDiscount);
-    const serviceFee = 3000;
+    const serviceFee = 0;
     const finalAmount = Math.max(totalAmount - totalDiscount, 0);
     const totalWithServiceFee = finalAmount + serviceFee;
 
@@ -701,24 +703,60 @@ orderQueue.process(async (job) => {
     // 2. Hitung total harga awal
     const baseTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
 
+    // Update stock for raw materials in the menu item
+    for (const orderItem of orderItems) {
+      const menuItem = await MenuItem.findById(orderItem.menuItem).session(session);
+      if (!menuItem) throw new Error(`Menu item not found: ${orderItem.menuItem}`);
+
+      // Update stock for raw materials in the menu item
+      for (const material of menuItem.rawMaterials) {
+        const rawMaterial = await RawMaterial.findById(material.materialId).session(session);
+        if (rawMaterial) {
+          const requiredQuantityInBaseUnit = convertToBaseUnit(material.quantityRequired * orderItem.quantity, material.unit);
+          const availableQuantityInBaseUnit = convertToBaseUnit(rawMaterial.quantity, rawMaterial.unit);
+
+          if (availableQuantityInBaseUnit >= requiredQuantityInBaseUnit) {
+            rawMaterial.quantity -= convertToBaseUnit(material.quantityRequired * orderItem.quantity, material.unit);
+            await rawMaterial.save({ session });
+          } else {
+            throw new Error(`Insufficient stock for raw material: ${rawMaterial.name}`);
+          }
+        } else {
+          throw new Error(`Raw material not found: ${material.materialId}`);
+        }
+      }
+    }
+
     // 3. Cek promo otomatis
     const {
       totalDiscount: autoPromoDiscount,
       appliedPromos
     } = await checkAutoPromos(orderItems, outlet, type);
 
+    // 4. Cek voucher hanya jika tidak ada promo otomatis
+    let voucherDiscount = 0;
+    let voucher = null;
 
-    // 4. Cek voucher
-    const {
-      discount: voucherDiscount,
-      voucher
-    } = await checkVoucher(voucherCode, baseTotal - autoPromoDiscount, outlet);
+    if (appliedPromos.length === 0) {
+      const voucherResult = await checkVoucher(voucherCode, baseTotal - autoPromoDiscount, outlet);
+      voucherDiscount = voucherResult.discount;
+      voucher = voucherResult.voucher;
+    }
 
-    // 5. Hitung total akhir
-    const finalAmount = Math.max(baseTotal - autoPromoDiscount - voucherDiscount, 0);
-    const totalWithServiceFee = finalAmount;
+    // 5. Cek promo manual hanya jika tidak ada promo otomatis atau voucher
+    let manualPromoDiscount = 0;
+    let manualPromo = null;
 
-    // 6. Buat order
+    if (appliedPromos.length === 0 && voucherDiscount === 0) {
+      const manualPromoResult = await checkManualPromo(baseTotal - autoPromoDiscount, outlet, userType);
+      manualPromoDiscount = manualPromoResult.discount;
+      manualPromo = manualPromoResult.appliedPromo;
+    }
+
+    // 6. Hitung total akhir
+    const finalAmount = Math.max(baseTotal - autoPromoDiscount - voucherDiscount - manualPromoDiscount, 0);
+
+    // 7. Buat order
     const newOrder = new Order({
       order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       user: userName || (await User.findById(userId))?.name || 'Guest',
@@ -738,7 +776,7 @@ orderQueue.process(async (job) => {
     });
     await newOrder.save({ session });
 
-    // 7. Proses pembayaran
+    // 8. Proses pembayaran
     const paymentResult = await processPayment({
       order: newOrder,
       paymentMethod,
@@ -746,16 +784,16 @@ orderQueue.process(async (job) => {
       source
     });
 
-    // 8. Update status order jika pembayaran langsung
+    // 9. Update status order jika pembayaran langsung
     if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
       newOrder.status = 'Completed';
       await newOrder.save({ session });
     }
 
-    // 9. Commit transaction
+    // 10. Commit transaction
     await session.commitTransaction();
 
-    // 10. Emit via socket.io
+    // 11. Emit via socket.io
     if (socketId) {
       io.to(socketId).emit('orderCreated', newOrder);
     }
@@ -1100,6 +1138,25 @@ async function processPayment({ order, paymentMethod, amount, source }) {
 //     }
 //   });
 // });
+
+// Helper untuk konversi satuan unit
+// Utility function to convert quantities to a common unit
+function convertToBaseUnit(quantity, unit) {
+  switch (unit) {
+    case 'kg':
+      return quantity * 1000; // Convert kg to grams
+    case 'grams':
+      return quantity; // Grams remain as is
+    case 'liters':
+      return quantity * 1000; // Convert liters to mililiters
+    case 'ml':
+      return quantity; // Milliliters remain as is
+    case 'pieces':
+      return quantity; // Pieces remain as is
+    default:
+      throw new Error(`Unknown unit: ${unit}`);
+  }
+}
 
 // Helper untuk pembayaran di aplikasi
 export const charge = async (req, res) => {
