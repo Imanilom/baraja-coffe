@@ -9,10 +9,10 @@ export const createMenuItem = async (req, res) => {
   try {
     const { name, price, description, category, imageURL, toppings, addons, rawMaterials, availableAt } = req.body;
     console.log(req.body)
-    if (!name || !price || !category || !imageURL || !availableAt) {
+    if (!name || !price || !category || !imageURL) {
       return res.status(400).json({
         success: false,
-        message: 'Name, price, category, imageURL, and availableAt are required fields.',
+        message: 'Name, price, category, imageURL are required fields.',
       });
     }
 
@@ -54,26 +54,26 @@ export const createMenuItem = async (req, res) => {
     }
 
     // Validate availableAt (outlets)
-    if (!Array.isArray(availableAt) || availableAt.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'availableAt must be a non-empty array of outlet IDs.',
-      });
-    }
+    // if (!Array.isArray(availableAt) || availableAt.length === 0) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'availableAt must be a non-empty array of outlet IDs.',
+    //   });
+    // }
 
-    const outletPromises = availableAt.map(async (outletId) => {
-      const outlet = await Outlet.findById(outletId);
-      if (!outlet) {
-        throw new Error(`Outlet with ID ${outletId} not found.`);
-      }
-      return outlet;
-    });
+    // const outletPromises = availableAt.map(async (outletId) => {
+    //   const outlet = await Outlet.findById(outletId);
+    //   if (!outlet) {
+    //     throw new Error(`Outlet with ID ${outletId} not found.`);
+    //   }
+    //   return outlet;
+    // });
 
-    try {
-      await Promise.all(outletPromises);
-    } catch (error) {
-      return res.status(404).json({ success: false, message: error.message });
-    }
+    // try {
+    //   await Promise.all(outletPromises);
+    // } catch (error) {
+    //   return res.status(404).json({ success: false, message: error.message });
+    // }
 
     // Validate raw materials availability
     const rawMaterialPromises = rawMaterials.map(async ({ materialId, quantityRequired }) => {
@@ -102,7 +102,7 @@ export const createMenuItem = async (req, res) => {
       toppings: toppings || [],
       addons: addons || [],
       rawMaterials: rawMaterials || [],
-      availableAt,
+      availableAt: availableAt || []
     });
 
     const savedMenuItem = await menuItem.save();
