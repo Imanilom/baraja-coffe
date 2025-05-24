@@ -43,8 +43,13 @@ import IndexPromoPage from "./pages/promotion/promo/index";
 // auto promo
 import CreateAutoPromoPage from "./pages/promotion/autopromo/create";
 import RunningAutoPromos from "./pages/promotion/autopromo/index";
-// point
-import PointManagement from "./pages/promotion/points/index";
+// levels 
+import LevelManagement from "./pages/promotion/loyaltylevels/index";
+
+// Loyalty Program
+import LoyaltyIndex from "./pages/promotion/loyaltyprograms/index";
+import CreateLoyaltyProgram from "./pages/promotion/loyaltyprograms/create";
+import EditLoyaltyProgram from "./pages/promotion/loyaltyprograms/update";
 
 import ViewMenu from "./pages/menu/view";
 import ProductSales from "./pages/report/product_sales";
@@ -108,7 +113,11 @@ export default function App() {
                 <Route path="promo-otomatis-create" element={<CreateAutoPromoPage />} />
                 <Route path="promo-otomatis" element={<RunningAutoPromos />} />
                 {/* point */}
-                 <Route path="poin" element={<PointManagement />} />
+                 <Route path="loyalty-levels" element={<LevelManagement />} />
+                 {/* Loyalty Programs */}
+                <Route path="loyalty" element={<LoyaltyIndex />} />
+                <Route path="loyalty/create" element={<CreateLoyaltyProgram />} />
+                <Route path="loyalty/edit/:id" element={<EditLoyaltyProgram />} />
                 {/* Storage */}
                 <Route path="storage" element={<Storagemanagement />} />
                 <Route path="storage-create" element={<CreateStrorage />} />
