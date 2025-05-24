@@ -29,6 +29,8 @@ export const batchInsertStock = async (req, res) => {
       const update = {
         $inc: { quantity: material.quantity },
         $setOnInsert: {
+          sku: material.sku,
+          barcode: material.barcode,
           name: material.name,
           category: material.category,
           unit: material.unit,
@@ -100,6 +102,8 @@ export const getRawMaterials = async (req, res) => {
 export const updateRawMaterial = async (req, res) => {
   try {
     const {
+      sku,
+      barcode,
       name,
       category,
       quantity,
@@ -112,6 +116,8 @@ export const updateRawMaterial = async (req, res) => {
     } = req.body;
 
     const updates = {
+      sku,
+      barcode,
       name,
       category,
       quantity,

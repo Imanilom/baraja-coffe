@@ -9,6 +9,8 @@ const RawMaterialPage = () => {
   const [notes, setNotes] = useState("");
   const [materials, setMaterials] = useState([
     {
+      sku: "",
+      barcode: "",
       name: "",
       category: "",
       quantity: 0,
@@ -32,6 +34,8 @@ const RawMaterialPage = () => {
     setMaterials([
       ...materials,
       {
+        sku: "",
+        barcode: "",
         name: "",
         category: "",
         quantity: 0,
@@ -176,6 +180,26 @@ const RawMaterialPage = () => {
               className="grid grid-cols-12 gap-2 mb-4 items-end bg-gray-50 p-4 rounded"
             >
               <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">SKU</label>
+                <input
+                  type="text"
+                  value={material.sku}
+                  onChange={(e) => handleMaterialChange(index, "sku", e.target.value)}
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Barcode</label>
+                <input
+                  type="text"
+                  value={material.barcode}
+                  onChange={(e) => handleMaterialChange(index, "barcode", e.target.value)}
+                  className="w-full p-2 border rounded"
+                  
+                />
+              </div>
+              <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700">Nama</label>
                 <input
                   type="text"
@@ -218,17 +242,25 @@ const RawMaterialPage = () => {
 
               <div className="col-span-1">
                 <label className="block text-sm font-medium text-gray-700">Unit</label>
-                <input
-                  type="text"
+                <select
                   value={material.unit}
                   onChange={(e) => handleMaterialChange(index, "unit", e.target.value)}
                   className="w-full p-2 border rounded"
                   required
-                />
+                >
+                  <option value="" disabled hidden>
+                    Pilih Unit...
+                  </option>
+                  <option value="grams">grams</option>
+                  <option value="kg">kg</option>
+                  <option value="litters">litters</option>
+                  <option value="ml">ml</option>
+                  <option value="pieces">pieces</option>
+                </select>
               </div>
 
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700">Min</label>
+                <label className="block text-sm font-medium text-gray-700">Min qty</label>
                 <input
                   type="number"
                   value={material.minimumStock}
@@ -240,7 +272,7 @@ const RawMaterialPage = () => {
               </div>
 
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700">Max</label>
+                <label className="block text-sm font-medium text-gray-700">Max qty</label>
                 <input
                   type="number"
                   value={material.maximumStock}
@@ -252,7 +284,7 @@ const RawMaterialPage = () => {
               </div>
 
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700">Cost</label>
+                <label className="block text-sm font-medium text-gray-700">Cost / unit</label>
                 <input
                   type="number"
                   value={material.costPerUnit}
@@ -294,7 +326,7 @@ const RawMaterialPage = () => {
                 <button
                   type="button"
                   onClick={() => removeMaterial(index)}
-                  className="text-red-500 hover:text-red-700"
+                  className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                 >
                   Hapus
                 </button>
