@@ -28,6 +28,7 @@ export const createAppOrder = async (req, res) => {
       pricing,
       orderDate,
       status,
+
     } = req.body;
     // console.log(pricing, orderDate, status);
     // Validate required fields
@@ -126,17 +127,18 @@ export const createAppOrder = async (req, res) => {
       order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       user_id: userId,
       user: userName || userExists.name || 'Guest',
-      cashier: null, // Default kosong, karena tidak ada input cashier di request
+      cashier: null,
       items: orderItems,
       status: 'Pending',
       paymentMethod: paymentDetails.methode,
       orderType: formattedOrderType,
       deliveryAddress: deliveryAddress || '',
       tableNumber: tableNumber || '',
-      type: 'Indoor', // default seperti di model
+      type: 'Indoor',
       voucher: voucherId,
-      outlet: null, // default kosong, karena tidak ada input outlet di request
+      outlet: null,
       promotions: [],
+      source: 'App',
     });
 
     await newOrder.save();
@@ -1448,6 +1450,48 @@ export const getUserOrderHistory = async (req, res) => {
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
+
+export const getOrderById = async (req, res) => {
+
+  try {
+    const orderId = req.params.orderId; // Mengambil ID order dari parameter URL
+    if (!orderId) {
+      return res.status(400).json({ message: 'Order ID is required.' });
+    }
+
+    // Mencari pesanan berdasarkan ID
+    const order = await Order.findById(orderId)
+      .populate('items.menuItem') // Mengisi detail menu item (opsional)
+      .populate('voucher'); // Mengisi detail voucher (opsional)
+
+    const payment = await Payment.findOne({ order_id: orderId });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    const orderDetails = {
+      order_id: order.order_id,
+      user: order.user,
+      cashier: order.cashier,
+      items: order.items,
+      amount: payment.amount,
+      paymentstatus: payment.status,
+      paymentMethod: payment.paymentMethod,
+      orderType: order.orderType,
+      tableNumber: order.tableNumber,
+      voucher: order.voucher,
+      status: order.status,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt
+    }
+
+    res.status(200).json({ orderDetails });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+}
 
 // Get Cashier Order History
 export const getCashierOrderHistory = async (req, res) => {

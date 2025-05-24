@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaTrash } from 'react-icons/fa';
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo } from 'react-icons/fa';
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import CategoryIndex from "./category";
@@ -24,50 +24,225 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
 
 const Menu = () => {
   const location = useLocation();
-  const navigate = useNavigate();
+  const [showInput, setShowInput] = useState(false);
+  const [showInputCategory, setShowInputCategory] = useState(false);
+  const navigate = useNavigate(); // Use the new hook
   const [menuItems, setMenuItems] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [category, setCategory] = useState([]);
+  const [tempSelectedCategory, setTempSelectedCategory] = useState("");
+  const [tempSearch, setTempSearch] = useState("");
+  const [error, setError] = useState(null);
+
+  const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
+  const [outlets, setOutlets] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("Semua Kategori");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selected, setSelected] = useState("menu");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [openDropdown, setOpenDropdown] = useState(null);
+  const [search, setSearch] = useState("");
+  const [searchCategory, setSearchCategory] = useState("");
+  const [selected, setselected] = useState("menu");
+  const [openDropdown, setOpenDropdown] = useState(null); // Menyimpan status dropdown
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
-  const itemsPerPage = 6;
+
+  const [filteredData, setFilteredData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const queryParams = new URLSearchParams(location.search);
-  const categoryFromUrl = queryParams.get('category');
-  const selectedFromUrl = queryParams.get('selected');
+  const ensureArray = (data) => Array.isArray(data) ? data : [];
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
+
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
-    if (categoryFromUrl) {
-      setSelectedCategory(categoryFromUrl);
-    }
-    if (selectedFromUrl) {
-      setSelected(selectedFromUrl);
-    }
-    fetchMenuItems(categoryFromUrl || "");
-    fetchCategories();
-  }, [categoryFromUrl, selectedFromUrl]);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch products data
+        const menuResponse = await axios.get('/api/menu/menu-items');
 
-  const fetchMenuItems = async (category = "") => {
-    try {
-      const url = category ? `/api/menu/categories/filter?category=${category}` : "/api/menu/menu-items";
-      const response = await axios.get(url);
-      setMenuItems(response.data?.data || []);
-    } catch (error) {
-      console.error("Error fetching menu items:", error);
+        // Ensure menuResponse.data is an array
+        const menuData = Array.isArray(menuResponse.data) ?
+          menuResponse.data :
+          (menuResponse.data && Array.isArray(menuResponse.data.data)) ?
+            menuResponse.data.data : [];
+
+        setMenuItems(menuData);
+        setFilteredData(menuData); // Initialize filtered data with all products
+
+        // Fetch outlets data
+        const outletsResponse = await axios.get('/api/outlet');
+
+        // Ensure outletsResponse.data is an array
+        const outletsData = Array.isArray(outletsResponse.data) ?
+          outletsResponse.data :
+          (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
+            outletsResponse.data.data : [];
+
+        setOutlets(outletsData);
+
+        const categoryResponse = await axios.get('/api/storage/category');
+
+        const categoryData = Array.isArray(categoryResponse.data) ?
+          categoryResponse.data :
+          (categoryResponse.data && Array.isArray(categoryResponse.data.data)) ?
+            categoryResponse.data.data : [];
+
+        setCategory(categoryData);
+
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError("Failed to load data. Please try again later.");
+        // Set empty arrays as fallback
+        setMenuItems([]);
+        setFilteredData([]);
+        setOutlets([]);
+        setCategory([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Get unique outlet names for the dropdown
+  const uniqueOutlets = useMemo(() => {
+    return outlets.map(item => item.name);
+  }, [outlets]);
+
+  // Get unique outlet names for the dropdown
+  const uniqueCategory = useMemo(() => {
+    return category.map(item => item.name);
+  }, [category]);
+
+  const paginatedData = useMemo(() => {
+
+    // Ensure filteredData is an array before calling slice
+    if (!Array.isArray(filteredData)) {
+      console.error('filteredData is not an array:', filteredData);
+      return [];
     }
+
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const result = filteredData.slice(startIndex, endIndex);
+    return result;
+  }, [currentPage, filteredData]);
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
   };
 
-  const fetchCategories = async () => {
-    try {
-      const response = await axios.get("/api/menu/categories");
-      setCategories(["Semua Kategori", ...response.data.data?.map((category) => category.name || "")]);
-    } catch (error) {
-      console.error("Error fetching categories:", error);
+  // Calculate total pages based on filtered data
+  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+
+  // Filter outlets based on search input
+  const filteredOutlets = useMemo(() => {
+    return uniqueOutlets.filter(outlet =>
+      outlet.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [search, uniqueOutlets]);
+
+  // Filter outlets based on search input
+  const filteredCategory = useMemo(() => {
+    return uniqueCategory.filter(outlet =>
+      outlet.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [search, uniqueCategory]);
+
+
+  // Apply filter function
+  const applyFilter = () => {
+
+    // Make sure products is an array before attempting to filter
+    let filtered = ensureArray([...menuItems]);
+
+    // Filter by search term (product name, category, or SKU)
+    if (tempSearch) {
+      filtered = filtered.filter(menu => {
+        try {
+          if (!menu) {
+            return false;
+          }
+
+          const name = (menu.name || '').toLowerCase();
+          const customer = (menu.user || '').toLowerCase();
+          const receipt = (menu._id || '').toLowerCase();
+
+          const searchTerm = tempSearch.toLowerCase();
+          return name.includes(searchTerm) ||
+            customer.includes(searchTerm) ||
+            receipt.includes(searchTerm);
+        } catch (err) {
+          console.error("Error filtering by search:", err);
+          return false;
+        }
+      });
     }
+
+    // Filter by outlet
+    if (tempSelectedOutlet) {
+      filtered = filtered.filter(menu => {
+        try {
+          if (!menu?.availableAt?.length > 0) {
+            return false;
+          }
+
+          const outletName = menu?.availableAt;
+          const matches = outletName === tempSelectedOutlet;
+
+          if (!matches) {
+          }
+
+          return matches;
+        } catch (err) {
+          console.error("Error filtering by outlet:", err);
+          return false;
+        }
+      });
+    }
+
+    // Filter by category
+    if (tempSelectedCategory) {
+      filtered = filtered.filter(menu => {
+        try {
+          if (!menu?.category?.length > 0) {
+            return false;
+          }
+
+          const categoryName = menu?.category[0];
+          const matches = categoryName === tempSelectedCategory;
+
+          if (!matches) {
+          }
+
+          return matches;
+        } catch (err) {
+          console.error("Error filtering by outlet:", err);
+          return false;
+        }
+      });
+    }
+
+    setFilteredData(filtered);
+    setCurrentPage(1); // Reset to first page after filter
+  };
+
+  // Reset filters
+  const resetFilter = () => {
+    setTempSearch("");
+    setTempSelectedOutlet("");
+    setTempSelectedCategory("");
+    setSearch("");
+    setSearchCategory("");
+    setFilteredData(ensureArray(menuItems));
+    setCurrentPage(1);
   };
 
   const handleCategoryChange = (category) => {
@@ -90,17 +265,32 @@ const Menu = () => {
     }
   };
 
-  const filteredItems = menuItems.filter((item) => {
-    const matchesCategory = selectedCategory === "Semua Kategori" || item.category.some((cat) => cat.toLowerCase() === selectedCategory.toLowerCase());
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+      </div>
+    );
+  }
 
-  // Pagination logic
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-red-500 text-center">
+          <p className="text-xl font-semibold mb-2">Error</p>
+          <p>{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4">
@@ -129,75 +319,179 @@ const Menu = () => {
           >
             Ekspor Produk
           </button>
-          <Link to="/admin/menu-create" className="bg-blue-500 text-white px-4 py-2 rounded inline-block text-[13px]">
+
+          <Link
+            to="/admin/menu-create"
+            className="bg-[#005429] text-white px-4 py-2 rounded inline-block text-[13px]"
+          >
             Tambah Produk
           </Link>
         </div>
       </div>
 
       <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-4 py-4">
-        {["menu", "options", "category", "grabfood"].map((item) => (
-          <button
-            key={item}
-            className={`bg-white border-b-2 py-2 border-b-white hover:border-b-blue-500 focus:outline-none ${selected === item ? "border-blue-500" : ""}`}
-            onClick={() => handleTabChange(item)}
-          >
-            <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
-              <div className="flex space-x-4">
-                {item === "menu" && <FaBox size={24} className="text-gray-400" />}
-                {item === "options" && <FaLayerGroup size={24} className="text-gray-400" />}
-                {item === "category" && <FaTag size={24} className="text-gray-400" />}
-                {item === "grabfood" && <FaSquare size={24} className="text-gray-400" />}
-                <h2 className="text-gray-400 ml-2 text-sm">{item.charAt(0).toUpperCase() + item.slice(1)}</h2>
-              </div>
-              <div className="text-sm text-gray-400">(18)</div>
+        <button
+          className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
+          onClick={() => handleTabChange("menu")}
+        >
+          <Link className="flex justify-between items-center border-l border-l-gray-200 p-4">
+            <div className="flex space-x-4">
+              <FaBox size={24} className="text-gray-400" />
+              <h2 className="text-gray-400 ml-2 text-sm">Produk</h2>
             </div>
-          </button>
-        ))}
+            <div className="text-sm text-gray-400">
+              (18)
+            </div>
+          </Link>
+        </button>
+
+        <div
+          className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+        >
+          <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
+            to="/admin/add-ons">
+            <div className="flex space-x-4">
+              <FaLayerGroup size={24} className="text-gray-400" />
+              <h2 className="text-gray-400 ml-2 text-sm">Opsi Tambahan</h2>
+              <span className="p-1">
+                <p className="border p-1 rounded-full">
+                  <FaInfo size={8} className="text-gray-400" />
+                </p>
+              </span>
+            </div>
+            <div className="text-sm text-gray-400">
+              (18)
+            </div>
+          </Link>
+        </div>
+
+        <div
+          className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+        >
+          <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
+            to={"/admin/categories"}>
+            <div className="flex space-x-4">
+              <FaTag size={24} className="text-gray-400" />
+              <h2 className="text-gray-400 ml-2 text-sm">Kategori</h2>
+            </div>
+            <div className="text-sm text-gray-400">
+              (18)
+            </div>
+          </Link>
+        </div>
+
+        <div
+          className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+        >
+          <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
+            <div className="flex space-x-4">
+              <FaSquare size={24} className="text-gray-400" />
+              <h2 className="text-gray-400 ml-2 text-sm">GrabFood</h2>
+            </div>
+            <div className="text-sm text-gray-400">
+              (18)
+            </div>
+          </div>
+        </div>
       </div>
 
-      {selected === "menu" && (
-        <div className="p-4 bg-slate-50">
-          <div className="flex space-x-4 p-4 shadow-md bg-white">
-            <div className="flex-1">
-              <label className="block mb-2 text-[13px] text-gray-400">Lokasi</label>
-              <select value={selectedCategory} onChange={(e) => handleCategoryChange(e.target.value)} className="border rounded px-2 py-1 w-full text-sm text-slate-700">
-                <option value="Semua Kategori">Semua Outlet</option>
-                {categories.filter(category => category !== "Semua Kategori").sort((a, b) => a.localeCompare(b)).map((category) => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
+      <div className="w-full pb-6">
+        <div className="px-[15px] pb-[15px]">
+          <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+            <div className="flex flex-col col-span-3">
+              <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
+              <div className="relative">
+                {!showInput ? (
+                  <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
+                    {tempSelectedOutlet || "Semua Outlet"}
+                  </button>
+                ) : (
+                  <input
+                    type="text"
+                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    autoFocus
+                    placeholder=""
+                  />
+                )}
+                {showInput && (
+                  <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                    {filteredOutlets.length > 0 ? (
+                      filteredOutlets.map((outlet, idx) => (
+                        <li
+                          key={idx}
+                          onClick={() => {
+                            setTempSelectedOutlet(outlet);
+                            setShowInput(false);
+                          }}
+                          className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                        >
+                          {outlet}
+                        </li>
+                      ))
+                    ) : (
+                      <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                    )}
+                  </ul>
+                )}
+              </div>
             </div>
 
-            <div className="flex-1">
-              <label className="block mb-2 text-[13px] text-gray-400">Kategori:</label>
-              <select value={selectedCategory} onChange={(e) => handleCategoryChange(e.target.value)} className="border rounded px-2 py-1 w-full text-sm text-slate-700">
-                <option value="Semua Kategori">Semua Kategori</option>
-                {categories.filter(category => category !== "Semua Kategori").sort((a, b) => a.localeCompare(b)).map((category) => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
+            <div className="flex flex-col col-span-3">
+              <label className="text-[13px] mb-1 text-gray-500">Kategori</label>
+              <div className="relative">
+                {!showInputCategory ? (
+                  <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputCategory(true)}>
+                    {tempSelectedCategory || "Semua Kategori"}
+                  </button>
+                ) : (
+                  <input
+                    type="text"
+                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                    value={search}
+                    onChange={(e) => setSearchCategory(e.target.value)}
+                    autoFocus
+                    placeholder=""
+                  />
+                )}
+                {showInputCategory && (
+                  <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                    {filteredCategory.length > 0 ? (
+                      filteredCategory.map((category, idx) => (
+                        <li
+                          key={idx}
+                          onClick={() => {
+                            setTempSelectedCategory(category);
+                            setShowInputCategory(false);
+                          }}
+                          className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                        >
+                          {category}
+                        </li>
+                      ))
+                    ) : (
+                      <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                    )}
+                  </ul>
+                )}
+              </div>
             </div>
 
-            <div className="flex-1">
-              <label className="block mb-2 text-[13px] text-gray-400">Status Dijual:</label>
-              <select value={selectedCategory} onChange={(e) => handleCategoryChange(e.target.value)} className="border rounded px-2 py-1 w-full text-sm text-slate-700">
-                <option value="Semua Kategori">Semua Status</option>
-                {categories.filter(category => category !== "Semua Kategori").sort((a, b) => a.localeCompare(b)).map((category) => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex-1">
-              <label className="block mb-2 text-[13px] text-gray-400">Cari:</label>
+            <div className="flex flex-col col-span-3">
+              <label className="text-[13px] mb-1 text-gray-500">Cari</label>
               <input
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Produk / SKU / Barcode"
-                className="border rounded px-2 py-1 w-full text-sm text-slate-700"
+                placeholder="Produk / SKU / Barkode"
+                value={tempSearch}
+                onChange={(e) => setTempSearch(e.target.value)}
+                className="text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded"
               />
+            </div>
+
+            <div className="flex justify-end space-x-2 items-end col-span-2">
+              <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
+              <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
             </div>
           </div>
 
@@ -207,92 +501,115 @@ const Menu = () => {
               <thead>
                 <tr className="bg-gray-200">
                   <th className="py-2 px-4 bg-gray-200 text-gray-700 w-16"></th>
-                  <th className="py-2 px-4 bg-gray-200 text-gray-700">Produk</th>
-                  <th className="py-2 px-4 bg-gray-200 text-gray-700">Kategori</th>
-                  <th className="py-2 px-4 bg-gray-200 text-gray-700">Harga</th>
+                  <th className="py-2 px-4 bg-gray-200 text-gray-700 text-left">Produk</th>
+                  <th className="py-2 px-4 bg-gray-200 text-gray-700 text-left">Kategori</th>
+                  <th className="py-2 px-4 bg-gray-200 text-gray-700 text-right">Harga</th>
                   <th className="py-2 px-4 bg-gray-200 text-gray-700"></th>
                 </tr>
               </thead>
-              <tbody>
-                {currentItems.map((item) => (
-                  <tr key={item._id} className="hover:bg-gray-100">
-                    <td className="px-4 py-2"></td>
-                    <td className="px-4 py-2">
-                      <div className="flex items-center">
-                        <img src={item.imageURL || "https://via.placeholder.com/100"} alt={item.name} className="w-16 h-16 object-cover rounded-lg" />
-                        <div className="ml-4">
-                          <h3 className="text-sm font-bold">{item.name}</h3>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2">{item.category.join(", ")}</td>
-                    <td className="px-4 py-2">
-                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(parseFloat(item.price))}
-                    </td>
-                    <td className="px-4 py-2">
-                      {/* Dropdown Menu */}
-                      <div className="relative text-right">
-                        <button className="px-2 bg-white border border-gray-200 hover:border-none hover:bg-green-800 rounded-sm" onClick={() => setOpenDropdown(openDropdown === item._id ? null : item._id)}>
-                          <span className="text-xl text-gray-200 hover:text-white">•••</span>
-                        </button>
-                        {openDropdown === item._id && (
-                          <div className="absolute text-left right-0 top-full mt-2 bg-white border rounded-md shadow-md w-40 z-10">
-                            <ul className="py-2">
-                              <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
-                                <Link to={`/admin/menu/${item._id}`} className="block bg-transparent">View</Link>
-                              </li>
-                              <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
-                                <Link to={`/admin/menu-update/${item._id}`} className="block bg-transparent">Edit</Link>
-                              </li>
-                              <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
-                                <button onClick={() => {
-                                  setItemToDelete(item._id);
-                                  setIsModalOpen(true);
-                                }}>Delete</button>
-                              </li>
-                            </ul>
+              {paginatedData.length > 0 ? (
+                <tbody>
+                  {paginatedData.map((item) => (
+                    <tr key={item._id} className="hover:bg-gray-100">
+                      <td className="px-4 py-2"></td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center">
+                          <img
+                            src={item.imageURL || "https://via.placeholder.com/100"}
+                            alt={item.name}
+                            className="w-16 h-16 object-cover rounded-lg"
+                          />
+                          <div className="ml-4">
+                            <h3 className="text-sm font-bold">{item.name}</h3>
                           </div>
-                        )}
-                      </div>
-                    </td>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        {item.category.join(", ")}
+                      </td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(item.price)}</td>
+                      <td className="px-4 py-2">
+                        {/* Dropdown Menu */}
+                        <div className="relative text-right">
+                          <button
+                            className="px-2 bg-white border border-gray-200 hover:border-none hover:bg-green-800 rounded-sm"
+                            onClick={() => setOpenDropdown(openDropdown === item._id ? null : item._id)}
+                          >
+                            <span className="text-xl text-gray-200 hover:text-white">
+                              •••
+                            </span>
+                          </button>
+                          {openDropdown === item._id && (
+                            <div className="absolute text-left right-0 top-full mt-2 bg-white border rounded-md shadow-md w-40 z-10">
+                              <ul className="py-2">
+                                <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
+                                  <Link
+                                    to={`/admin/menu/${item._id}`}
+                                    className="block bg-transparent"
+                                  >
+                                    View
+                                  </Link>
+                                </li>
+                                <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
+                                  <Link
+                                    to={`/admin/menu-update/${item._id}`}
+                                    className="block bg-transparent"
+                                  >
+                                    Edit
+                                  </Link>
+                                </li>
+                                <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
+                                  <button onClick={() => {
+                                    setItemToDelete(item._id);
+                                    setIsModalOpen(true);
+                                  }}>
+                                    Delete
+                                  </button>
+                                </li>
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              ) : (
+                <tbody>
+                  <tr className="py-6 text-center w-full h-96">
+                    <td colSpan={7}>Tidak ada data ditemukan</td>
                   </tr>
-                ))}
-              </tbody>
+                </tbody>
+              )}
             </table>
           </div>
 
-       {/* Pagination */}
-          <div className="flex justify-center mt-4">
-            {(() => {
-              const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-              const pageLimit = 5;
-              let startPage = Math.max(1, currentPage - Math.floor(pageLimit / 2));
-              let endPage = startPage + pageLimit - 1;
-
-              if (endPage > totalPages) {
-                endPage = totalPages;
-                startPage = Math.max(1, endPage - pageLimit + 1);
-              }
-
-              return Array.from({ length: endPage - startPage + 1 }, (_, i) => (
+          {/* Pagination */}
+          {paginatedData.length > 0 && (
+            <div className="flex justify-between items-center mt-4">
+              <span className="text-sm text-gray-600">
+                Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
+              </span>
+              <div className="flex space-x-2">
                 <button
-                  key={startPage + i}
-                  onClick={() => setCurrentPage(startPage + i)}
-                  className={`px-4 py-2 mx-1 rounded ${currentPage === startPage + i ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700"}`}
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {startPage + i}
+                  Sebelumnya
                 </button>
-              ));
-            })()}
-          </div>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Berikutnya
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-
-      {selected === "category" && (
-        <div>
-          <CategoryIndex />
-        </div>
-      )}
+      </div>
       <ConfirmationModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

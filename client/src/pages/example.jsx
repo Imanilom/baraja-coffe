@@ -1,398 +1,339 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import { useNavigate } from "react-router-dom";
 
+const Example = () => {
+    //     const [formData, setFormData] = useState({
+    //         name: "",
+    //         price: "",
+    //         description: "",
+    //         category: "",
+    //         promotionTitle: "",
+    //         discount: "",
+    //         imageURL: "",
+    //         toppings: [],
+    //         addons: [],
+    //     });
+    //     const [toppingsList, setToppingsList] = useState([]);
+    //     const [addonsList, setAddonsList] = useState([]);
+    //     const [imagePreview, setImagePreview] = useState(null);
+    //     const navigate = useNavigate();
 
-const SalesTransaction = () => {
-    const [transactions, setTransactions] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [selectedTrx, setSelectedTrx] = useState(null);
-    const [filters, setFilters] = useState({
-        outlet: "",
-        tanggal: "",
-        status: "",
-        search: "",
-    });
-    const [range, setRange] = useState([
-        {
-            startDate: new Date(),
-            endDate: new Date(),
-            key: 'selection'
-        }
-    ]);
-    const [showCalendar, setShowCalendar] = useState(false);
+    //     useEffect(() => {
+    //         // Fetch available toppings and addons
+    //         const fetchOptions = async () => {
+    //             try {
+    //                 const toppings = await axios.get("/api/menu/toppings");
+    //                 const addons = await axios.get("/api/menu/addons");
+    //                 setToppingsList(toppings.data.data);
+    //                 setAddonsList(addons.data.data);
+    //             } catch (error) {
+    //                 console.error("Error fetching options:", error);
+    //             }
+    //         };
+    //         fetchOptions();
+    //     }, []);
 
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
+    //     const handleInputChange = (e) => {
+    //         const { name, value, files } = e.target;
+    //         if (name === "imageURL" && files?.length > 0) {
+    //             setImagePreview(URL.createObjectURL(files[0]));
+    //         }
+    //         setFormData({ ...formData, [name]: value });
+    //     };
 
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
+    //     const handleCheckboxChange = (field, id) => {
+    //         const selected = formData[field].includes(id);
+    //         const newSelection = selected
+    //             ? formData[field].filter((item) => item !== id)
+    //             : [...formData[field], id];
+    //         setFormData({ ...formData, [field]: newSelection });
+    //     };
 
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
+    //     const handleSubmit = async (e) => {
+    //         e.preventDefault();
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [transactionsResponse, outletsResponse] = await Promise.all([
-                    axios.get("/api/orders"),
-                    axios.get("/api/outlet"),
-                ]);
+    //         try {
+    //             const formDataToSend = new FormData();
+    //             Object.entries(formData).forEach(([key, value]) => {
+    //                 if (Array.isArray(value)) {
+    //                     value.forEach((id) => formDataToSend.append(key, id));
+    //                 } else {
+    //                     formDataToSend.append(key, value);
+    //                 }
+    //             });
 
-                // Set Transactions
-                if (transactionsResponse.data && transactionsResponse.data.data) {
-                    setTransactions(transactionsResponse.data.data);
-                } else {
-                    console.error('Data transaksi tidak ditemukan atau format salah.');
-                }
+    //             await axios.post("/api/menu/menu-items", formDataToSend);
+    //             navigate("/");
+    //         } catch (error) {
+    //             console.error("Error creating menu item:", error);
 
-                // Set Outlets
-                if (outletsResponse.data) {
-                    setOutlets(outletsResponse.data);
-                } else {
-                    console.error('Data outlet tidak ditemukan atau format salah.');
-                }
+    //             alert("Gagal menambahkan menu. Periksa koneksi atau data Anda.");
+    //         }
+    //     };
 
-            } catch (error) {
-                console.error('Gagal fetch data:', error);
-            }
-        };
+    //     return (
+    //         <div className="container mx-auto p-8">
+    //             <h1 className="text-3xl font-bold mb-8 text-center">Tambah Menu</h1>
+    //             <form
+    //                 onSubmit={handleSubmit}
+    //                 className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md"
+    //             >
 
-        fetchData();
-    }, []);
+    //                 {/* Nama Menu */}
+    //                 <div className="mb-4">
+    //                     <label className="block text-gray-700 text-sm font-bold mb-2">
+    //                         Nama Menu
+    //                     </label>
+    //                     <input
+    //                         type="text"
+    //                         name="name"
+    //                         value={formData.name}
+    //                         onChange={handleInputChange}
+    //                         className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+    //                         required
+    //                     />
+    //                 </div>
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
+    //                 {/* Deskripsi */}
+    //                 <div className="mb-4">
+    //                     <label className="block text-gray-700 text-sm font-bold mb-2">
+    //                         Deskripsi
+    //                     </label>
+    //                     <textarea
+    //                         name="description"
+    //                         value={formData.description}
+    //                         onChange={handleInputChange}
+    //                         className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+    //                         rows="4"
+    //                     ></textarea>
+    //                 </div>
 
-    const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
+    //                 {/* Harga */}
+    //                 <div className="mb-4">
+    //                     <label className="block text-gray-700 text-sm font-bold mb-2">
+    //                         Harga
+    //                     </label>
+    //                     <input
+    //                         type="number"
+    //                         name="price"
+    //                         value={formData.price}
+    //                         onChange={handleInputChange}
+    //                         className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+    //                         required
+    //                     />
+    //                 </div>
 
-    const formatDate = (date) => {
-        // Mengubah tanggal menjadi waktu lokal terlebih dahulu
-        const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-        return localDate.toISOString().slice(0, 10);  // Format YYYY-MM-DD
-    };
+    //                 {/* Kategori */}
+    //                 <div className="mb-4">
 
-    const setQuickRange = (start, end) => {
-        // Mendapatkan zona waktu offset untuk lokal
-        const timezoneOffset = new Date().getTimezoneOffset() * 60000;
+    //                     <label className="block text-gray-700 text-sm font-bold mb-2">
+    //                         Kategori
+    //                     </label>
+    //                     <select
+    //                         name="category"
+    //                         value={formData.category}
+    //                         onChange={handleInputChange}
+    //                         className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+    //                         required
+    //                     />
+    //                     <option value="">Pilih Kategori</option>
+    //                     <option value="makanan">Makanan</option>
+    //                     <option value="minuman">Minuman</option>
+    //                     <option value="snack">Snack</option>
+    //                 </select>
+    //         </div >
 
-        // Set startDate ke jam 00:00 pada tanggal tersebut (zona waktu lokal)
-        const startDate = new Date(start.getTime() - timezoneOffset).setHours(0, 0, 0, 0);
+    //         {/* Gambar */ }
+    //     < div className="mb-4" >
+    //         <label className="block text-gray-700">Image</label>
+    //         <img
+    //             src={formData.imageURL}
+    //             alt="Uploaded"
+    //             className="h-24 w-24 object-cover rounded mb-2"
+    //             onClick={() => fileRef.current.click()}
+    //         />
+    //         <label className="block text-gray-700 text-sm font-bold mb-2">
+    //             Gambar
+    //         </label>
+    //         <input
+    //             ref={fileRef}
+    //             type="file"
+    //             className="hidden"
+    //             onChange={(e) => setImage(e.target.files[0])}
+    //             name="imageURL"
+    //             onChange={handleInputChange}
+    //             className="block w-full text-sm text-gray-500
+    //                 file:mr-4 file:py-2 file:px-4
+    //                 file:rounded-full file:border-0
+    //                 file:text-sm file:font-semibold
+    //                 file:bg-blue-500 file:text-white
+    //                 hover:file:bg-blue-600"
+    //             accept="image/*"
+    //         />
+    //         {imagePercent > 0 && <div>Upload Progress: {imagePercent}%</div>}
+    //         {imageError && <div className="text-red-500">Image upload failed</div>}
+    //         {
+    //             imagePreview && (
+    //                 <img
+    //                     src={imagePreview}
+    //                     alt="preview"
+    //                     className="mt-2 w-full h-48 object-cover rounded-lg"
+    //                 />
+    //             )
+    //         }
+    //     </div >
 
-        // Set endDate ke jam 23:59:59.999 pada tanggal tersebut (zona waktu lokal)
-        const endDate = new Date(end.getTime() - timezoneOffset).setHours(23, 59, 59, 999);
+    //     {/* Promo */ }
+    //     < div className="mb-4" >
+    //         <label className="block text-gray-700">Toppings</label>
+    //         {
+    //             toppings.map((topping) => (
+    //                 <div key={topping._id} className="flex items-center">
+    //                     <input
+    //                         type="checkbox"
+    //                         value={topping._id}
+    //                         checked={formData.toppings.includes(topping._id)}
+    //                         onChange={(e) => handleCheckboxChange(e, "toppings")}
+    //                     />
+    //                     <label className="ml-2">{topping.name}</label>
+    //                 </div>
+    //             ))
+    //         }
+    //         <label className="block text-gray-700 text-sm font-bold mb-2">
+    //             Promo (Opsional)
+    //         </label>
+    //         <div className="flex space-x-4">
+    //             <input
+    //                 type="text"
+    //                 name="promotionTitle"
+    //                 value={formData.promotionTitle}
+    //                 onChange={handleInputChange}
+    //                 placeholder="Judul promo"
+    //                 className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+    //             />
+    //             <input
+    //                 type="number"
+    //                 name="discount"
+    //                 value={formData.discount}
+    //                 onChange={handleInputChange}
+    //                 placeholder="Diskon (%)"
+    //                 className="w-1/2 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+    //             />
+    //         </div>
+    //     </div >
 
-        console.log("startDate:", new Date(startDate).toISOString());  // Harusnya di 00:00:00 lokal
-        console.log("endDate:", new Date(endDate).toISOString());
+    //     {/* Topping Section */ }
+    //     < div className="mb-4" >
+    //         <label className="block text-gray-700">Add-Ons</label>
+    //         {
+    //             addOns.map((addOn) => (
+    //                 <div key={addOn._id} className="flex items-center">
+    //                     <input
+    //                         type="checkbox"
+    //                         value={addOn._id}
+    //                         checked={formData.addOns.includes(addOn._id)}
+    //                         onChange={(e) => handleCheckboxChange(e, "addOns")}
+    //                     />
+    //                     <label className="ml-2">{addOn.name}</label>
+    //                 </div>
+    //             ))
+    //         }
+    //         <h3 className="text-lg font-semibold mb-2">Topping</h3>
+    //         <div className="space-y-2">
+    //             {toppingsList.map((topping) => (
+    //                 <div key={topping._id} className="flex items-center">
+    //                     <input
+    //                         type="checkbox"
+    //                         checked={formData.toppings.includes(topping._id)}
+    //                         onChange={() => handleCheckboxChange("toppings", topping._id)}
+    //                         className="form-checkbox h-5 w-5 text-blue-500"
+    //                     />
+    //                     <label className="ml-2 text-gray-700">{topping.name}</label>
+    //                 </div>
+    //             ))}
+    //         </div>
+    //     </div >
 
-        // Update state dengan startDate dan endDate yang sudah dimanipulasi
-        setRange([{
-            startDate: new Date(startDate),
-            endDate: new Date(endDate),
-            key: 'selection',
-        }]);
-    };
+    //     {/* Add-Ons Section */ }
+    //     < div className="mb-4" >
+    //         <label className="block text-gray-700">Raw Materials</label>
+    //         <select
+    //             onChange={handleRawMaterialSelect}
+    //             className="w-full border rounded px-3 py-2 mb-2"
+    //         >
+    //             <option value="">Select Raw Material</option>
+    //             {rawMaterials.map((rawMaterial) => (
+    //                   <option key={rawMaterial._id} value={rawMaterial._id}>
+    //                     {rawMaterial.name}
+    //                   </option>
+    //               <h3 className="text-lg font-semibold mb-2">Add-Ons</h3>
+    //               <div className="space-y-2">
+    //                 {addonsList.map((addon) => (
+    //                   <div key={addon._id} className="flex items-center">
+    //                     <input
+    //                       type="checkbox"
+    //                       checked={formData.addons.includes(addon._id)}
+    //                       onChange={() => handleCheckboxChange("addons", addon._id)}
+    //                       className="form-checkbox h-5 w-5 text-blue-500"
+    //                     />
+    //                     <label className="ml-2 text-gray-700">{addon.name}</label>
+    //                   </div>
+    //                 ))}
+    //               </select>
+    //               {
+    //                     formData.rawMaterials.map((material, index) => (
+    //                         <div key={index} className="flex items-center mb-2">
+    //                             <label className="w-2/3 text-gray-700">
+    //                                 {rawMaterials.find((item) => item._id === material.materialId)?.name}
+    //                             </label>
+    //                             <input
+    //                                 type="number"
+    //                                 value={material.quantityRequired}
+    //                                 onChange={(e) => handleRawMaterialChange(e, material.materialId)}
+    //                                 className="w-20 border rounded px-3 py-2 mr-2"
+    //                                 placeholder="Quantity"
+    //                                 min="1"
+    //                             />
+    //                             <button
+    //                                 type="button"
+    //                                 onClick={() => handleRemoveRawMaterial(material.materialId)}
+    //                                 className="bg-red-500 text-white px-3 py-1 rounded"
+    //                             >
+    //                                 Remove
+    //                             </button>
+    //                         </div>
+    //                     ))
+    //                 }
+    //               </div>
+    //             </div >
 
-    const handleSubmit = () => {
-        // Save the selected range for processing
-        const startDate = range[0].startDate;
-        const endDate = range[0].endDate;
-
-        // Format the date range for filtering
-        setFilters({
-            ...filters,
-            tanggal: {
-                start: formatDate(startDate),
-                end: formatDate(endDate)
-            }
-        });
-
-        setShowCalendar(false); // Close the calendar after submit
-    };
-
-    const filteredTransactions = transactions.filter((trx) => {
-        const matchOutlet = filters.outlet ? trx.cashier?.outlet?.[0]?.outletId?.name === filters.outlet : true;
-        const matchStatus = filters.status ? trx.status === filters.status : true;
-        const matchSearch = filters.search ? (
-            trx.cashier?.name?.toLowerCase().includes(filters.search.toLowerCase()) ||
-            trx._id?.toLowerCase().includes(filters.search.toLowerCase()) ||
-            trx.items?.some(item => item.menuItem?.name?.toLowerCase().includes(filters.search.toLowerCase()))
-        ) : true;
-
-        return matchOutlet && matchStatus && matchSearch;
-    });
-
-    const handleChange = (e) => {
-        setFilters({
-            ...filters,
-            [e.target.name]: e.target.value,
-        });
-    };
-
-    const exportToExcel = () => {
-        const dataToExport = transactions.map(trx => ({
-            "Waktu": formatDateTime(trx.createdAt),
-            "Kasir": trx.cashier?.name || "-",
-            "ID Struk": trx._id,
-            "Produk": trx.items?.map(item => item.menuItem?.name).join(', '),
-            "Tipe Penjualan": trx.orderType,
-            "Total (Rp)": trx.totalPrice
-        }));
-
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        // Buat workbook dan simpan
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Riwayat Transaksi");
-
-        const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-        const dataBlob = new Blob([excelBuffer], { type: "application/octet-stream" });
-        saveAs(dataBlob, "Riwayat_Transaksi_Penjualan.xlsx");
-    };
-
-
-    return (
-        <div className="">
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell className="text-2xl text-gray-400" />
-                <Link
-                    to="/admin/menu"
-                    className="text-gray-400 inline-block text-2xl"
-                >
-                    <FaUser />
-                </Link>
-
-            </div>
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList className="text-gray-400 inline-block" />
-                    <p className="text-gray-400 inline-block">Laporan</p>
-                    <FaChevronRight className="text-gray-400 inline-block" />
-                    <Link
-                        to="/admin/report"
-                        className="text-gray-400 inline-block"
-                    >
-                        Laporan Penjualan
-                    </Link>
-                    <FaChevronRight className="text-gray-400 inline-block" />
-                    <Link
-                        to="/admin/transaction-sales"
-                        className="text-green-600 inline-block"
-                    >
-                        Data Transaksi Penjulan
-                    </Link>
-                </div>
-
-                <button
-                    onClick={exportToExcel}
-                    className="bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 transition"
-                >
-                    Ekspor
-                </button>
-            </div>
-            <div className="grid grid-cols-4 bg-slate-50 gap-4 px-6 py-3 shadow-slate-200 shadow-sm mb-2">
-                {/* Dropdown Outlet */}
-                <div className="flex flex-col">
-                    <label htmlFor="outlet" className="text-sm font-medium mb-1">Outlet</label>
-                    <select
-                        id="outlet"
-                        name="outlet"
-                        value={filters.outlet}
-                        onChange={handleChange}
-                        className="border rounded-lg p-2"
-                    >
-                        <option value="">Semua Outlet</option>
-                        {outlets.map((outlet) => (
-                            <option key={outlet._id} value={outlet.name}>
-                                {outlet.name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-
-                {/* Dropdown Status */}
-                <div className="flex flex-col">
-                    <label htmlFor="status" className="text-sm font-medium mb-1">Status</label>
-                    <select
-                        id="status"
-                        name="status"
-                        value={filters.status}
-                        onChange={handleChange}
-                        className="border rounded-lg p-2"
-                    >
-                        <option value="">Semua Status</option>
-                        {[...new Set(transactions.map((trx) => trx.status).filter(Boolean))]
-                            .sort()
-                            .map((status) => (
-                                <option key={status} value={status}>
-                                    {status}
-                                </option>
-                            ))
-                        }
-                    </select>
-                </div>
-
-                {/* Input Search */}
-                <div className="flex flex-col">
-                    <label htmlFor="search" className="text-sm font-medium mb-1">Cari</label>
-                    <input
-                        type="text"
-                        id="search"
-                        name="search"
-                        value={filters.search}
-                        onChange={handleChange}
-                        className="border rounded-lg p-2"
-                        placeholder="Cari sesuatu..."
-                    />
-                </div>
-            </div>
-            <div className="bg-slate-50 p-3">
-                <div className="overflow-x-auto bg-white shadow-md">
-                    <table className="min-w-full table-auto">
-                        <thead>
-                            <tr className="bg-gray-100 text-left text-sm font-semibold text-gray-700">
-                                <th className="px-4 py-3">Waktu</th>
-                                <th className="px-4 py-3">Kasir</th>
-                                <th className="px-4 py-3">ID Struk</th>
-                                <th className="px-4 py-3">Produk</th>
-                                <th className="px-4 py-3">Tipe Penjualan</th>
-                                <th className="px-4 py-3">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody className="text-sm text-gray-600">
-                            {filteredTransactions.length > 0 ? (
-                                filteredTransactions.map((trx) => (
-                                    <tr key={trx._id} className="border-t cursor-pointer hover:bg-gray-100 transition"
-                                        onClick={() => setSelectedTrx(trx)}>
-                                        <td className="px-4 py-2">{formatDateTime(trx.createdAt)}</td>
-                                        <td className="px-4 py-2">{trx.cashier?.name}</td>
-                                        <td className="px-4 py-2">{trx._id}</td>
-                                        <td className="px-4 py-2">
-                                            {trx.items?.map(item => item.menuItem?.name).join(', ')}
-                                        </td>
-                                        <td className="px-4 py-2">{trx.orderType}</td>
-                                        <td className="px-4 py-2">{formatCurrency(
-                                            trx.items?.reduce((total, item) => total + item.subtotal + 10000, 0) || 0
-                                        )}</td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan="6" className="px-4 py-6 text-center text-gray-400">
-                                        Tidak ada transaksi.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                    {selectedTrx && (
-                        <div className="fixed inset-0 z-50 flex justify-end">
-                            {/* Backdrop */}
-                            <div
-                                className="absolute inset-0 bg-black bg-opacity-40"
-                                onClick={() => setSelectedTrx(null)}
-                            ></div>
-
-                            {/* Modal panel */}
-                            <div className={`relative w-full max-w-md bg-white shadow-xl transform transition-transform duration-300 ease-in-out translate-x-0`}>
-                                <div className="p-3 border-b font-semibold text-lg text-gray-700 flex justify-between items-center">
-                                    DATA TRANSAKSI PENJUALAN
-                                    <button onClick={() => setSelectedTrx(null)} className="text-gray-400 hover:text-red-500 text-2xl leading-none">
-                                        &times;
-                                    </button>
-                                </div>
-                                <div className="p-4 bg-gray-300 min-h-screen">
-                                    <div className="w-full overflow-hidden">
-                                        <div className="flex">
-                                            {Array.from({ length: 50 }).map((_, i) => (
-                                                <div
-                                                    key={i}
-                                                    className="w-4 h-4 rotate-45 bg-white origin-bottom-left"
-                                                    style={{ marginRight: '4px' }}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="text-center">
-                                        <h3 className="text-lg text-gray-700 bg-white font-medium">Baraja Coffee Indonesia</h3>
-                                    </div>
-                                    <div className="p-6 text-sm text-gray-700 space-y-2 bg-white">
-                                        <p>ID Struk: {selectedTrx._id}</p>
-                                        <p>Waktu: {formatDateTime(selectedTrx.createdAt)}</p>
-                                        <p>
-                                            Outlet:
-                                            {selectedTrx.cashier?.outlet?.[0]?.outletId?.name || 'No Outlet'}
-                                        </p>
-
-                                        <p>Kasir: {selectedTrx.cashier?.name}</p>
-                                        <p>Pelanggan: {selectedTrx.customer}</p>
-                                        <p className="text-center text-lg font-medium">{selectedTrx.orderType}</p>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                        <div className="grid grid-cols-3 text-sm">
-                                            {selectedTrx.items?.map((item, index) => (
-                                                <React.Fragment key={index}>
-                                                    <div>{item.menuItem?.name || '-'}</div>
-                                                    <div className="text-center">× {item.quantity}</div>
-                                                    <div className="text-right">{formatCurrency(item.subtotal)}</div>
-                                                </React.Fragment>
-                                            ))}
-                                        </div>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                        <div className="">
-                                            <div className="flex justify-between">
-                                                <p>Total Subtotal</p>
-                                                <p>{formatCurrency(totalSubtotal)}</p>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <p>PB1 (10%)</p>
-                                                <p>{formatCurrency(pb1)}</p>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <strong>Total</strong>
-                                                <p>{formatCurrency(finalTotal)}</p>
-                                            </div>
-                                        </div>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                        <div className="">
-                                            <div className="flex justify-between">
-                                                <p>Tunai</p>
-                                                <p>{formatCurrency(finalTotal)}</p>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <p>Kembali</p>
-                                                <p>{formatCurrency(0)}</p>
-                                            </div>
-                                        </div>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
+    //     <div className="flex justify-between">
+    //         <button
+    //             type="button"
+    //             onClick={onCancel}
+    //             className="bg-gray-400 text-white px-4 py-2 rounded"
+    //         >
+    //             Cancel
+    //         </button>
+    //         <button
+    //             type="submit"
+    //             disabled={loading}
+    //             className="bg-blue-500 text-white px-4 py-2 rounded"
+    //         >
+    //             {loading ? "Saving..." : "Save"}
+    //         </button>
+    //     </div>
+    // {/* Submit Button */ }
+    // <button
+    //     type="submit"
+    //     className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-200"
+    // >
+    //     Simpan Menu
+    // </button>
+    //           </form >
+    //         </div >
+    //       );
 };
 
-export default SalesTransaction;
+export default Example;
