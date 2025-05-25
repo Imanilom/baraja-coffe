@@ -1509,17 +1509,16 @@ export const getUserOrderHistory = async (req, res) => {
 };
 
 export const getOrderById = async (req, res) => {
-
   try {
-    const orderId = req.params.orderId; // Mengambil ID order dari parameter URL
+    const orderId = req.params.orderId;
     if (!orderId) {
       return res.status(400).json({ message: 'Order ID is required.' });
     }
 
     // Mencari pesanan berdasarkan ID
     const order = await Order.findById(orderId)
-      .populate('items.menuItem') // Mengisi detail menu item (opsional)
-      .populate('voucher'); // Mengisi detail voucher (opsional)
+      .populate('items.menuItem')
+      .populate('voucher');
 
     const payment = await Payment.findOne({ order_id: orderId });
 
@@ -1527,28 +1526,138 @@ export const getOrderById = async (req, res) => {
       return res.status(404).json({ message: 'Order not found.' });
     }
 
-    const orderDetails = {
-      order_id: order.order_id,
-      user: order.user,
-      cashier: order.cashier,
-      items: order.items,
-      amount: payment.amount,
-      paymentstatus: payment.status,
-      paymentMethod: payment.paymentMethod,
-      orderType: order.orderType,
-      tableNumber: order.tableNumber,
-      voucher: order.voucher,
-      status: order.status,
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt
-    }
+    // Format tanggal
+    const formatDate = (date) => {
+      const options = {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
+      };
+      return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
+    };
 
-    res.status(200).json({ orderDetails });
+    // Hitung subtotal, addon price, dan total
+    let subtotal = 0;
+    let addonPrice = 0;
+
+    const formattedItems = order.items.map(item => {
+      const basePrice = item.price || item.menuItem?.price || 0;
+      const quantity = item.quantity || 1;
+
+      // Hitung addon price untuk item ini
+      const itemAddonPrice = (item.addons?.length || 0) * 3000 + (item.toppings?.length || 0) * 2000;
+
+      subtotal += basePrice * quantity;
+      addonPrice += itemAddonPrice * quantity;
+
+      return {
+        name: item.menuItem?.name || item.name || 'Unknown Item',
+        price: basePrice,
+        quantity: quantity,
+        size: item.size || 'Regular',
+        temperature: item.temperature || 'Hot',
+        addons: item.addons || [],
+        toppings: item.toppings || []
+      };
+    });
+
+    // Hitung pajak (10% dari subtotal + addonPrice)
+    const tax = Math.round((subtotal + addonPrice) * 0.1);
+    const total = subtotal + addonPrice + tax;
+
+    // Format status pembayaran
+    const getPaymentStatus = (status) => {
+      switch (status?.toLowerCase()) {
+        case 'paid':
+        case 'completed':
+        case 'success':
+          return 'Lunas';
+        case 'pending':
+          return 'Menunggu';
+        case 'failed':
+        case 'cancelled':
+          return 'Gagal';
+        default:
+          return 'Menunggu';
+      }
+    };
+
+    // Generate order number dari order_id atau _id
+    const generateOrderNumber = (orderId) => {
+      if (typeof orderId === 'string' && orderId.includes('ORD-')) {
+        // Extract number dari format ORD-2024-001234
+        const parts = orderId.split('-');
+        return parts.length > 2 ? `#${parts[parts.length - 1]}` : `#${orderId.slice(-4)}`;
+      }
+      // Jika menggunakan MongoDB ObjectId, ambil 4 digit terakhir
+      return `#${orderId.toString().slice(-4)}`;
+    };
+
+    const orderData = {
+      orderId: order.order_id || order._id.toString(),
+      orderNumber: generateOrderNumber(order.order_id || order._id),
+      orderDate: formatDate(order.createdAt),
+      items: formattedItems,
+      subtotal: subtotal,
+      addonPrice: addonPrice,
+      tax: tax,
+      total: total,
+      paymentMethod: payment?.paymentMethod || 'Cash',
+      paymentStatus: getPaymentStatus(payment?.status)
+    };
+
+    res.status(200).json({ orderData });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal server error.' });
   }
-}
+};
+
+// export const getOrderById = async (req, res) => {
+
+//   try {
+//     const orderId = req.params.orderId; // Mengambil ID order dari parameter URL
+//     if (!orderId) {
+//       return res.status(400).json({ message: 'Order ID is required.' });
+//     }
+
+//     // Mencari pesanan berdasarkan ID
+//     const order = await Order.findById(orderId)
+//       .populate('items.menuItem') // Mengisi detail menu item (opsional)
+//       .populate('voucher'); // Mengisi detail voucher (opsional)
+
+//     const payment = await Payment.findOne({ order_id: orderId });
+
+//     if (!order) {
+//       return res.status(404).json({ message: 'Order not found.' });
+//     }
+
+//     const orderDetails = {
+//       id: order._id,
+//       order_id: order.order_id,
+//       user: order.user,
+//       cashier: order.cashier,
+//       items: order.items,
+//       amount: payment.amount,
+//       paymentstatus: payment.status,
+//       paymentMethod: payment.paymentMethod,
+//       orderType: order.orderType,
+//       tableNumber: order.tableNumber,
+//       voucher: order.voucher,
+//       status: order.status,
+//       createdAt: order.createdAt,
+//       updatedAt: order.updatedAt
+//     }
+
+//     res.status(200).json({ orderDetails });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Internal server error.' });
+//   }
+// }
 
 // Get Cashier Order History
 export const getCashierOrderHistory = async (req, res) => {
