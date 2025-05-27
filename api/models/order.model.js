@@ -16,6 +16,7 @@ const OrderSchema = new mongoose.Schema({
   user: { type: String, required: true, default: 'Guest' },
   cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [OrderItemSchema],
+  notes: { type: String, default: '' },
   status: { type: String, enum: ['Pending', 'OnProcess', 'Completed', 'Canceled'], default: 'Pending' },
   paymentMethod: { type: String, enum: ['Cash', 'Card', 'E-Wallet', 'Debit', 'Bank Transfer'] },
   orderType: { type: String, enum: ['Dine-In', 'Pickup', 'Delivery'], required: true },
@@ -25,7 +26,7 @@ const OrderSchema = new mongoose.Schema({
   voucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
   outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
   promotions: [{ type: String }],
-  source: { type: String, enum: ['Web', 'App', 'Cashier'], required: true }, 
+  source: { type: String, enum: ['Web', 'App', 'Cashier'], required: true },
 }, { timestamps: true });
 
 // Virtual untuk menghitung total harga otomatis
