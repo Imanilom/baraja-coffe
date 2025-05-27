@@ -28,6 +28,9 @@ export const createAppOrder = async (req, res) => {
       voucherCode,
       userId,
       userName,
+      // pricing,
+      // orderDate,
+      // status,
 
     } = req.body;
     // console.log(pricing, orderDate, status);
@@ -1166,7 +1169,7 @@ export const charge = async (req, res) => {
       const transaction_id = uuidv4();
       const transaction_time = new Date();
       const expiry_time = new Date(transaction_time.getTime() + 15 * 60000);
-      // const qr_string = `ORDER:${order_id}|AMOUNT:${gross_amount}|TXN_ID:${transaction_id}`;
+      // const qr_string = ORDER:${order_id}|AMOUNT:${gross_amount}|TXN_ID:${transaction_id};
       const qr_code_url = await QRCode.toDataURL(order_id)
       // Generate QR code string
       const customResponse = {
@@ -1204,8 +1207,11 @@ export const charge = async (req, res) => {
         "order_id": order_id,
       },
     };
-    const { bank } = bank_transfer;
-    const bankCode = bank;
+
+    const bankValue = payment_type === 'bank_transfer'
+      ? bank_transfer?.bank || null
+      : payment_type;
+
 
     // Kondisikan chargeParams berdasarkan payment_type
     if (payment_type === 'bank_transfer') {
@@ -1238,11 +1244,11 @@ export const charge = async (req, res) => {
       order_id: order_id,
       amount: gross_amount,
       method: payment_type,
-      bankCode: bankCode,
       status: 'pending',
       fraud_status: response.fraud_status,
       transaction_time: response.transaction_time,
-      expiry_time: response.expiry_time
+      expiry_time: response.expiry_time,
+      bank: bankValue
     });
 
     await payment.save();
@@ -1254,6 +1260,7 @@ export const charge = async (req, res) => {
     });
   }
 };
+
 
 // Handling Midtrans Notification 
 export const paymentNotification = async (req, res) => {
@@ -1574,7 +1581,7 @@ export const getOrderById = async (req, res) => {
       items: formattedItems,
       total: payment.amount,
       orderStatus: order.status,
-      paymentMethod: payment.method.toUpperCase(),
+      paymentMethod: payment.bank.toUpperCase(),
       paymentStatus: payment.status
     };
 
