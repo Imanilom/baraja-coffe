@@ -15,8 +15,10 @@
   "dependencies": {
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
+    "bull": "^4.16.5",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
     "escpos": "^3.0.0-alpha.6",
     "express": "^4.18.2",
@@ -29,6 +31,9 @@
     "node-thermal-printer": "^4.4.5",
     "nodemon": "^3.0.1",
     "qrcode": "^1.5.4",
-    "uuid": "^11.1.0"
+    "react-datepicker": "^8.3.0",
+    "socket.io": "^4.8.1",
+    "uuid": "^11.1.0",
+    "websocket": "^1.0.35"
   }
 }

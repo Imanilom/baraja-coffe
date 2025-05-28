@@ -9,10 +9,10 @@ export const createMenuItem = async (req, res) => {
   try {
     const { name, price, description, category, imageURL, toppings, addons, rawMaterials, availableAt } = req.body;
     console.log(req.body)
-    if (!name || !price || !category || !imageURL || !availableAt) {
+    if (!name || !price || !category || !imageURL) {
       return res.status(400).json({
         success: false,
-        message: 'Name, price, category, imageURL, and availableAt are required fields.',
+        message: 'Name, price, category, imageURL are required fields.',
       });
     }
 
@@ -54,26 +54,26 @@ export const createMenuItem = async (req, res) => {
     }
 
     // Validate availableAt (outlets)
-    if (!Array.isArray(availableAt) || availableAt.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'availableAt must be a non-empty array of outlet IDs.',
-      });
-    }
+    // if (!Array.isArray(availableAt) || availableAt.length === 0) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'availableAt must be a non-empty array of outlet IDs.',
+    //   });
+    // }
 
-    const outletPromises = availableAt.map(async (outletId) => {
-      const outlet = await Outlet.findById(outletId);
-      if (!outlet) {
-        throw new Error(`Outlet with ID ${outletId} not found.`);
-      }
-      return outlet;
-    });
+    // const outletPromises = availableAt.map(async (outletId) => {
+    //   const outlet = await Outlet.findById(outletId);
+    //   if (!outlet) {
+    //     throw new Error(`Outlet with ID ${outletId} not found.`);
+    //   }
+    //   return outlet;
+    // });
 
-    try {
-      await Promise.all(outletPromises);
-    } catch (error) {
-      return res.status(404).json({ success: false, message: error.message });
-    }
+    // try {
+    //   await Promise.all(outletPromises);
+    // } catch (error) {
+    //   return res.status(404).json({ success: false, message: error.message });
+    // }
 
     // Validate raw materials availability
     const rawMaterialPromises = rawMaterials.map(async ({ materialId, quantityRequired }) => {
@@ -102,7 +102,7 @@ export const createMenuItem = async (req, res) => {
       toppings: toppings || [],
       addons: addons || [],
       rawMaterials: rawMaterials || [],
-      availableAt,
+      availableAt: availableAt || []
     });
 
     const savedMenuItem = await menuItem.save();
@@ -168,35 +168,6 @@ export const getSimpleMenuItems = async (req, res) => {
 };
 
 
-// Get all menu items
-// export const getMenuItems = async (req, res) => {
-//   try {
-//     const { outletId } = req.query; // Ambil ID outlet dari query parameter
-
-//     // Buat query filter jika outletId diberikan
-//     const filter = outletId ? { availableAt: outletId } : {};
-
-//     // Ambil menu berdasarkan outlet (jika diberikan)
-//     const menuItems = await MenuItem.find()
-//       .populate([
-//         { path: 'rawMaterials.materialId' },
-//         { path: 'availableAt' }
-//       ]);
-
-//     // Konversi ke objek JavaScript
-//     const updatedMenuItems = menuItems.map(item => item.toObject());
-
-//     res.status(200).json({ success: true, data: updatedMenuItems });
-//     console.log('Menu items fetched successfully');
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch menu items',
-//       error: error.message,
-//     });
-//   }
-// };
-
 export const getMenuItems = async (req, res) => {
   try {
     const menuItems = await MenuItem.find()
@@ -248,7 +219,6 @@ export const getMenuItems = async (req, res) => {
       formattedData: formattedMenuItems // data terformat untuk frontend
     });
 
-    console.log('Menu items fetched successfully');
   } catch (error) {
     console.error('Error fetching menu items:', error);
     res.status(500).json({

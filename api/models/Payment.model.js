@@ -1,8 +1,9 @@
 import mongoose from 'mongoose';
 
 const PaymentSchema = new mongoose.Schema({
-  order_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true },
-  method: { type: String, required: true }, // 'Cash', 'EDC', 'Gopay', etc.
+  order_id: { type: String, ref: 'Order', required: true },
+  method: { type: String, required: true },
+  bank: { type: String, default: "" }, // e.g., 'bca', 'mandiri', 'gopay', 'dana', etc.
   status: { type: String, default: 'pending' }, // 'pending', 'paid', 'failed'
   amount: { type: Number, required: true },
   phone: { type: String }, // phone number for E-Wallet payments

@@ -6,39 +6,67 @@ import { StockOpname } from '../models/StockOpname.model.js';
 // Batch insert or update stock with outlet, date, and notes
 export const batchInsertStock = async (req, res) => {
   try {
-    const { outletId, datein, notes, materials } = req.body;     
+    const { outletId, datein, notes, materials } = req.body;
+
+    // Validasi request
     if (!outletId || !datein || !Array.isArray(materials) || materials.length === 0) {
       return res.status(400).json({ message: 'Invalid request data' });
     }
-    
-    const bulkOps = materials.map(material => ({
-      updateOne: {
-        filter: { name: material.name, category: material.category, availableAt: outletId },
-        update: {
-          $inc: { quantity: material.quantity },
-          $setOnInsert: {
-            name: material.name,
-            category: material.category,
-            unit: material.unit,
-            minimumStock: material.minimumStock,
-            maximumStock: material.maximumStock,
-            costPerUnit: material.costPerUnit,
-            supplier: material.supplier,
-            expiryDate: material.expiryDate,
-            availableAt: outletId,
-            datein: datein,
-            notes: notes,
-            lastUpdatedBy: req.user._id,
-          }
+
+    // Validasi user
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ message: 'Unauthorized: User not found in request' });
+    }
+
+
+    const bulkOps = materials.map((material) => {
+      const filter = {
+        name: material.name,
+        category: material.category,
+        availableAt: outletId,
+      };
+
+      const update = {
+        $inc: { quantity: material.quantity },
+        $setOnInsert: {
+          sku: material.sku,
+          barcode: material.barcode,
+          name: material.name,
+          category: material.category,
+          unit: material.unit,
+          minimumStock: material.minimumStock,
+          maximumStock: material.maximumStock,
+          costPerUnit: material.costPerUnit,
+          supplier: material.supplier,
+          expiryDate: material.expiryDate,
+          availableAt: outletId,
+          datein,
+          notes,
+          lastUpdatedBy: req.user._id,
         },
-        upsert: true,
-      }
-    }));
-    
+      };
+
+      return {
+        updateOne: {
+          filter,
+          update,
+          upsert: true,
+        },
+      };
+    });
+
     const result = await RawMaterial.bulkWrite(bulkOps);
-    res.status(200).json({ message: 'Stock batch processed successfully', result });
+
+    res.status(200).json({
+      message: 'Stock batch processed successfully',
+      result,
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error processing batch stock', error });
+    console.error('Batch insert error:', error);
+    res.status(500).json({
+      message: 'Error processing batch stock',
+      error: error.message,
+    });
   }
 };
 
@@ -59,7 +87,7 @@ export const getRawMaterials = async (req, res) => {
     }
 
     // Ambil data bahan baku berdasarkan filter
-    const rawMaterials = await RawMaterial.find(filter).populate('availableAt lastUpdatedBy');
+    const rawMaterials = await RawMaterial.find(filter).populate('availableAt lastUpdatedBy category');
 
     res.status(200).json({
       message: 'Raw materials retrieved successfully',
@@ -74,6 +102,8 @@ export const getRawMaterials = async (req, res) => {
 export const updateRawMaterial = async (req, res) => {
   try {
     const {
+      sku,
+      barcode,
       name,
       category,
       quantity,
@@ -86,6 +116,8 @@ export const updateRawMaterial = async (req, res) => {
     } = req.body;
 
     const updates = {
+      sku,
+      barcode,
       name,
       category,
       quantity,
