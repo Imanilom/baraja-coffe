@@ -26,7 +26,7 @@ import SalesTransaction from "./pages/report/sales_transaction";
 
 // inventory
 import Storagemanagement from "./pages/storage/index";
-import CreateStrorage from "./pages/storage/RawMaterial";
+import CreateStrorage from "./pages/storage/newStock";
 import CategoryIndex from "./pages/menu/category/index";
 import CreateCategory from "./pages/menu/category/create";
 import AssignMenuItemToCategory from "./pages/menu/category/assignmenu";
@@ -43,7 +43,28 @@ import IndexPromoPage from "./pages/promotion/promo/index";
 // auto promo
 import CreateAutoPromoPage from "./pages/promotion/autopromo/create";
 import RunningAutoPromos from "./pages/promotion/autopromo/index";
+// levels 
+import LevelManagement from "./pages/promotion/loyaltylevels/index";
+
+// Loyalty Program
+import LoyaltyIndex from "./pages/promotion/loyaltyprograms/index";
+import CreateLoyaltyProgram from "./pages/promotion/loyaltyprograms/create";
+import EditLoyaltyProgram from "./pages/promotion/loyaltyprograms/update";
+
 import ViewMenu from "./pages/menu/view";
+import ProductSales from "./pages/report/product_sales";
+import CategorySales from "./pages/report/category_sales";
+import OutletSales from "./pages/report/outlet_sales";
+import DailySales from "./pages/report/daily_sales";
+import Example from "./pages/example";
+import HourlySales from "./pages/report/hourly_sales";
+import PaymentMethodSales from "./pages/report/payment_method_sales";
+import TypeSales from "./pages/report/type_sales";
+import CustomerSales from "./pages/report/customer_sales";
+import DeviceSales from "./pages/report/device_sales";
+import DigitalPayment from "./pages/report/digital_payment";
+import CreateAddOns from "./pages/menu/add_ons/create";
+import AddOns from "./pages/menu/add_ons";
 
 
 
@@ -65,21 +86,43 @@ export default function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="toko" element={<OutletManagementPage />} />
+                <Route path="example" element={<Example />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
                 <Route path="menu/:id" element={<ViewMenu />} />
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
+                <Route path="add-ons" element={<AddOns />} />
+                <Route path="create-addons" element={<CreateAddOns />} />
                 <Route path="category-create" element={<AddCategory />} />
                 <Route path="report" element={<ReportDashboard />} />
+                <Route path="digital-payment" element={<DigitalPayment />} />
                 <Route path="transaction-sales" element={<SalesTransaction />} />
+                <Route path="product-sales" element={<ProductSales />} />
+                <Route path="device-sales" element={<DeviceSales />} />
+                <Route path="daily-sales" element={<DailySales />} />
+                <Route path="hourly-sales" element={<HourlySales />} />
+                <Route path="outlet-sales" element={<OutletSales />} />
+                <Route path="customer-sales" element={<CustomerSales />} />
+                <Route path="payment-method-sales" element={<PaymentMethodSales />} />
+                <Route path="type-sales" element={<TypeSales />} />
+                <Route path="category-sales" element={<CategorySales />} />
                 <Route path="summary" element={<Summary />} />
+                {/* Voucher */}
                 <Route path="voucher" element={<Vouchermanagement />} />
                 <Route path="voucher-create" element={<CreateVoucher />} />
+                {/* promosi */}
                 <Route path="promotion" element={<Promotionmanagement />} />
                 <Route path="promo-khusus-create" element={<CreatePromoPage />} />
                 <Route path="promo-khusus" element={<IndexPromoPage />} />
                 <Route path="promo-otomatis-create" element={<CreateAutoPromoPage />} />
                 <Route path="promo-otomatis" element={<RunningAutoPromos />} />
+                {/* point */}
+                 <Route path="loyalty-levels" element={<LevelManagement />} />
+                 {/* Loyalty Programs */}
+                <Route path="loyalty" element={<LoyaltyIndex />} />
+                <Route path="loyalty/create" element={<CreateLoyaltyProgram />} />
+                <Route path="loyalty/edit/:id" element={<EditLoyaltyProgram />} />
+                {/* Storage */}
                 <Route path="storage" element={<Storagemanagement />} />
                 <Route path="storage-create" element={<CreateStrorage />} />
                 <Route path="categories" element={<CategoryIndex />} />

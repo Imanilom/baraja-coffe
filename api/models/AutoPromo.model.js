@@ -11,33 +11,33 @@ const AutoPromoSchema = new mongoose.Schema({
     required: true
   },
   conditions: {
-    minQuantity: Number, // For 'discount_on_quantity'
-    minTotal: Number, // For 'discount_on_total'
+    minQuantity: Number,
+    minTotal: Number,
     buyProduct: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'MenuItem'
-    }, // For 'buy_x_get_y'
+    },
     getProduct: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'MenuItem'
-    }, // For 'buy_x_get_y'
+    },
     bundleProducts: [{
       product: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'MenuItem'
       },
       quantity: Number
-    }], // For 'bundling'
+    }]
   },
   discount: {
-    type: Number, // Discount percentage or fixed amount
-    required: function() {
+    type: Number,
+    required: function () {
       return this.promoType !== 'buy_x_get_y';
     }
   },
   bundlePrice: {
     type: Number,
-    required: function() {
+    required: function () {
       return this.promoType === 'bundling';
     }
   },
@@ -68,6 +68,28 @@ const AutoPromoSchema = new mongoose.Schema({
     default: true
   }
 }, { timestamps: true });
+
+/**
+ * Middleware to check expiration before save
+ */
+AutoPromoSchema.pre('save', function (next) {
+  if (this.validTo && new Date() > this.validTo) {
+    this.isActive = false;
+  }
+  next();
+});
+
+/**
+ * Middleware to check expiration before update
+ */
+AutoPromoSchema.pre('findOneAndUpdate', function (next) {
+  const update = this.getUpdate();
+  if (update.validTo && new Date() > new Date(update.validTo)) {
+    update.isActive = false;
+    this.setUpdate(update);
+  }
+  next();
+});
 
 const AutoPromo = mongoose.model('AutoPromo', AutoPromoSchema);
 

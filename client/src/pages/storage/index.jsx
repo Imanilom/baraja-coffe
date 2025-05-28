@@ -162,7 +162,7 @@ const RawMaterialsPage = () => {
             {currentMaterials.map((material) => (
               <tr key={material._id} className="hover:bg-gray-100">
                 <td className="border p-2">{material.name || "N/A"}</td>
-                <td className="border p-2">{material.category || "N/A"}</td>
+                <td className="border p-2">{material.category?.name || "N/A"}</td>
                 <td className="border p-2">
                   {material.quantity !== undefined ? material.quantity : "N/A"}
                 </td>

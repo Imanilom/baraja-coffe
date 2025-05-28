@@ -2,14 +2,15 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 
 const RawMaterialPage = () => {
-  const [outlets, setOutlets] = useState([]); // List of outlets fetched from API
-  const [selectedOutlet, setSelectedOutlet] = useState(null); // Selected outlet object
-  const [categories, setCategories] = useState([]); // List of categories fetched from API
-  const [selectedCategories, setSelectedCategories] = useState(null); // Selected category object
+  const [outlets, setOutlets] = useState([]);
+  const [selectedOutlet, setSelectedOutlet] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [datein, setDatein] = useState("");
   const [notes, setNotes] = useState("");
   const [materials, setMaterials] = useState([
     {
+      sku: "",
+      barcode: "",
       name: "",
       category: "",
       quantity: 0,
@@ -23,18 +24,18 @@ const RawMaterialPage = () => {
   ]);
   const [message, setMessage] = useState("");
 
-  // Handle input changes for materials
   const handleMaterialChange = (index, key, value) => {
     const updatedMaterials = [...materials];
     updatedMaterials[index][key] = value;
     setMaterials(updatedMaterials);
   };
 
-  // Add a new material row
   const addMaterial = () => {
     setMaterials([
       ...materials,
       {
+        sku: "",
+        barcode: "",
         name: "",
         category: "",
         quantity: 0,
@@ -48,58 +49,35 @@ const RawMaterialPage = () => {
     ]);
   };
 
-  // Remove a material row
   const removeMaterial = (index) => {
     if (materials.length > 1) {
       setMaterials(materials.filter((_, i) => i !== index));
     }
   };
 
-  // Fetch list of outlets on component mount
   const fetchOutlets = async () => {
     try {
       const response = await axios.get("/api/outlet");
       setOutlets(response.data || []);
-      if (response.data && response.data.length > 0) {
-        setSelectedOutlet(response.data[0]); // Set default outlet
+      if (response.data.length > 0) {
+        setSelectedOutlet(response.data[0]);
       }
     } catch (error) {
       console.error(error);
     }
   };
 
-  // Fetch list of categories on component mount
   const fetchCategories = async () => {
     try {
-      const response = await axios.get("/api/storage/category/inventory");
+      const response = await axios.get("/api/storage/category");
       setCategories(response.data.data || []);
     } catch (error) {
       console.error(error);
     }
   };
 
-  // Submit form data
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Basic validation
-    // if (
-    //   !selectedOutlet ||
-    //   !datein ||
-    //   materials.some(
-    //     (m) =>
-    //       m.name === "" ||
-    //       m.category === "" ||
-    //       m.quantity <= 0 ||
-    //       m.unit === "" ||
-    //       m.costPerUnit <= 0 ||
-    //       m.supplier === "" ||
-    //       m.expiryDate === ""
-    //   )
-    // ) {
-    //   setMessage("Please fill in all required fields.");
-    //   return;
-    // }
 
     if (
       !selectedOutlet ||
@@ -115,43 +93,13 @@ const RawMaterialPage = () => {
           m.expiryDate === ""
       )
     ) {
-      // Cetak isi semua data form
-      console.log("===== DATA FORM SAAT INI =====");
-      console.log("Outlet:", selectedOutlet);
-      console.log("Tanggal Masuk:", datein);
-      console.log("Catatan:", notes);
-      console.log("Daftar Material:");
-      materials.forEach((m, i) => {
-        console.log(`Material #${i + 1}:`, m);
-      });
-      console.log("================================");
-
-      // Validasi manual
-      if (!selectedOutlet) console.log("❌ Outlet belum dipilih.");
-      if (!datein) console.log("❌ Tanggal masuk belum diisi.");
-
-      materials.forEach((m, i) => {
-        const errorFields = [];
-        if (m.name === "") errorFields.push("nama kosong");
-        if (m.category === "") errorFields.push("kategori kosong");
-        if (m.quantity <= 0) errorFields.push("jumlah <= 0");
-        if (m.unit === "") errorFields.push("satuan kosong");
-        if (m.costPerUnit <= 0) errorFields.push("biaya per unit <= 0");
-        if (m.supplier === "") errorFields.push("supplier kosong");
-        if (m.expiryDate === "") errorFields.push("expired kosong");
-
-        if (errorFields.length > 0) {
-          console.log(`❌ Material #${i + 1} bermasalah:`, errorFields);
-        }
-      });
-
       setMessage("Please fill in all required fields.");
       return;
     }
 
     try {
       const response = await axios.post("/api/storage/stock/batch", {
-        outletId: selectedOutlet._id, // Send outletId, not name
+        outletId: selectedOutlet._id,
         datein,
         notes,
         materials,
@@ -163,11 +111,9 @@ const RawMaterialPage = () => {
     }
   };
 
-  // Fetch outlets when the component mounts
   useEffect(() => {
     fetchOutlets();
     fetchCategories();
-    console.log(categories);
   }, []);
 
   return (
@@ -183,7 +129,6 @@ const RawMaterialPage = () => {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Outlet Selection */}
         <div>
           <label className="block font-medium text-gray-700">Outlet</label>
           <select
@@ -207,7 +152,6 @@ const RawMaterialPage = () => {
           </select>
         </div>
 
-        {/* Date In */}
         <div>
           <label className="block font-medium text-gray-700">Tanggal Masuk</label>
           <input
@@ -219,7 +163,6 @@ const RawMaterialPage = () => {
           />
         </div>
 
-        {/* Notes */}
         <div>
           <label className="block font-medium text-gray-700">Catatan</label>
           <textarea
@@ -229,40 +172,49 @@ const RawMaterialPage = () => {
           ></textarea>
         </div>
 
-        {/* Material List */}
         <div>
           <label className="block font-medium text-gray-700">Material</label>
           {materials.map((material, index) => (
             <div
               key={index}
-              className="grid grid-cols-12 gap-2 mb-2 items-center"
+              className="grid grid-cols-12 gap-2 mb-4 items-end bg-gray-50 p-4 rounded"
             >
-              {/* Name */}
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Nama
-                </label>
+                <label className="block text-sm font-medium text-gray-700">SKU</label>
+                <input
+                  type="text"
+                  value={material.sku}
+                  onChange={(e) => handleMaterialChange(index, "sku", e.target.value)}
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Barcode</label>
+                <input
+                  type="text"
+                  value={material.barcode}
+                  onChange={(e) => handleMaterialChange(index, "barcode", e.target.value)}
+                  className="w-full p-2 border rounded"
+                  
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Nama</label>
                 <input
                   type="text"
                   value={material.name}
-                  onChange={(e) =>
-                    handleMaterialChange(index, "name", e.target.value)
-                  }
+                  onChange={(e) => handleMaterialChange(index, "name", e.target.value)}
                   className="w-full p-2 border rounded"
                   required
                 />
               </div>
 
-              {/* Category */}
               <div className="col-span-2">
-                <label className="block font-sm font-medium text-gray-700">Kategori</label>
+                <label className="block text-sm font-medium text-gray-700">Kategori</label>
                 <select
-                  value={selectedCategories?.name || ""}
-                  onChange={(e) => {
-                    const selectedName = e.target.value;
-                    const category = categories.find((o) => o.name === selectedName);
-                    setSelectedCategories(category);
-                  }}
+                  value={material.category}
+                  onChange={(e) => handleMaterialChange(index, "category", e.target.value)}
                   className="w-full p-2 border rounded"
                   required
                 >
@@ -270,50 +222,45 @@ const RawMaterialPage = () => {
                     Select a Category...
                   </option>
                   {categories.map((category) => (
-                    <option key={category._id} value={category.name}>
+                    <option key={category._id} value={category._id}>
                       {category.name}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Quantity */}
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  Qty
-                </label>
+                <label className="block text-sm font-medium text-gray-700">Qty</label>
                 <input
                   type="number"
                   value={material.quantity}
-                  onChange={(e) =>
-                    handleMaterialChange(index, "quantity", e.target.value)
-                  }
+                  onChange={(e) => handleMaterialChange(index, "quantity", e.target.value)}
                   className="w-full p-2 border rounded"
                   required
                 />
               </div>
 
-              {/* Unit */}
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  Unit
-                </label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-700">Unit</label>
+                <select
                   value={material.unit}
-                  onChange={(e) =>
-                    handleMaterialChange(index, "unit", e.target.value)
-                  }
+                  onChange={(e) => handleMaterialChange(index, "unit", e.target.value)}
                   className="w-full p-2 border rounded"
                   required
-                />
+                >
+                  <option value="" disabled hidden>
+                    Pilih Unit...
+                  </option>
+                  <option value="grams">grams</option>
+                  <option value="kg">kg</option>
+                  <option value="litters">litters</option>
+                  <option value="ml">ml</option>
+                  <option value="pieces">pieces</option>
+                </select>
               </div>
 
-              {/* Minimum Stock */}
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  Min Stock
-                </label>
+                <label className="block text-sm font-medium text-gray-700">Min qty</label>
                 <input
                   type="number"
                   value={material.minimumStock}
@@ -324,11 +271,8 @@ const RawMaterialPage = () => {
                 />
               </div>
 
-              {/* Maximum Stock */}
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  Max Stock
-                </label>
+                <label className="block text-sm font-medium text-gray-700">Max qty</label>
                 <input
                   type="number"
                   value={material.maximumStock}
@@ -339,11 +283,8 @@ const RawMaterialPage = () => {
                 />
               </div>
 
-              {/* Cost Per Unit */}
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  Harga per Unit
-                </label>
+                <label className="block text-sm font-medium text-gray-700">Cost / unit</label>
                 <input
                   type="number"
                   value={material.costPerUnit}
@@ -355,11 +296,8 @@ const RawMaterialPage = () => {
                 />
               </div>
 
-              {/* Supplier */}
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  Supplier
-                </label>
+                <label className="block text-sm font-medium text-gray-700">Supplier</label>
                 <input
                   type="text"
                   value={material.supplier}
@@ -371,11 +309,8 @@ const RawMaterialPage = () => {
                 />
               </div>
 
-              {/* Expiry Date */}
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  Expire Date
-                </label>
+                <label className="block text-sm font-medium text-gray-700">Expiry</label>
                 <input
                   type="date"
                   value={material.expiryDate}
@@ -387,33 +322,32 @@ const RawMaterialPage = () => {
                 />
               </div>
 
-              {/* Remove Button */}
               <div className="col-span-1 flex justify-center">
                 <button
                   type="button"
                   onClick={() => removeMaterial(index)}
-                  className="bg-red-500 text-white px-3 py-2 rounded"
+                  className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                 >
                   Hapus
                 </button>
               </div>
             </div>
           ))}
+
           <button
             type="button"
             onClick={addMaterial}
-            className="bg-blue-500 text-white px-4 py-2 rounded mt-2"
+            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
-            + Tambah Material
+            Tambah Material
           </button>
         </div>
 
-        {/* Submit Button */}
         <button
           type="submit"
-          className="bg-green-500 text-white px-4 py-2 rounded w-full"
+          className="w-full py-2 px-4 bg-green-600 text-white rounded hover:bg-green-700"
         >
-          Submit
+          Simpan Data
         </button>
       </form>
     </div>
