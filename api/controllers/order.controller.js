@@ -299,7 +299,8 @@ export const createOrder = async (req, res) => {
       orderType,
       tableNumber: orderType === 'Dine-In' ? tableNumber : null,
       type: orderType === 'Dine-In' ? 'Indoor' : null, // Default ke Indoor
-      status: "Completed"
+      status: "Completed",
+      source: "Cashier",
     });
 
     await order.save({ session });

@@ -11,6 +11,7 @@ import {
   getCashierOrderHistory,
   charge,
   createAppOrder,
+  createUnifiedOrder,
   getOrderById,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
@@ -24,6 +25,7 @@ router.post('/order', createOrder);
 
 router.post("/checkout", checkout);
 
+router.post("/unified-order", createUnifiedOrder);
 // TODO: Start route untuk melakukan charge from aplication
 
 router.post('/orderApp', createAppOrder);
