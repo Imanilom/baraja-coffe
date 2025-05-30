@@ -7,6 +7,8 @@ import {
   deleteOutlet,
   findNearestOutlet
 } from '../controllers/outlet.controller.js';
+
+
 import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
