@@ -11,6 +11,12 @@ const ReservationSchema = new mongoose.Schema({
     ref: 'Outlet',
     required: true
   },
+  tableId: {
+    type: mongoose.Schema.Types.ObjectId, // Menunjuk ke section & table (dapat dari TableLayout)
+    ref: 'TableLayout.sections.tables._id', // opsional, tapi bisa juga diatur via logika
+    required: false
+  },
+  peopleCount: { type: Number, required: true, min: 1 },
   items: [
     {
       menuItem: {
@@ -18,11 +24,7 @@ const ReservationSchema = new mongoose.Schema({
         ref: 'MenuItem',
         required: true
       },
-      quantity: {
-        type: Number,
-        required: true,
-        min: 1
-      },
+      quantity: { type: Number, required: true, min: 1 },
       selectedAddons: [
         {
           name: { type: String, required: true },
@@ -39,30 +41,11 @@ const ReservationSchema = new mongoose.Schema({
       notes: { type: String }
     }
   ],
-  totalPrice: {
-    type: Number,
-    required: true,
-    min: 0
-  },
-  paymentType: {
-    type: String,
-    enum: ['full', 'partial'],
-    default: 'full' // 'partial' artinya bayar DP dulu
-  },
-  downPayment: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  isDownPaymentPaid: {
-    type: Boolean,
-    default: false
-  },
-  remainingBalance: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
+  totalPrice: { type: Number, required: true, min: 0 },
+  paymentType: { type: String, enum: ['full', 'partial'], default: 'full' },
+  downPayment: { type: Number, default: 0, min: 0 },
+  isDownPaymentPaid: { type: Boolean, default: false },
+  remainingBalance: { type: Number, default: 0, min: 0 },
   paymentStatus: {
     type: String,
     enum: ['unpaid', 'dp_paid', 'paid'],
@@ -78,10 +61,7 @@ const ReservationSchema = new mongoose.Schema({
     enum: ['pending', 'confirmed', 'cancelled', 'completed'],
     default: 'pending'
   },
-  reservedAt: {
-    type: Date,
-    default: Date.now
-  },
+  reservedAt: { type: Date, default: Date.now },
   completedAt: Date
 }, { timestamps: true });
 
