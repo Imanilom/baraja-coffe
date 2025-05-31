@@ -17,6 +17,8 @@ const ReservationSchema = new mongoose.Schema({
     required: false
   },
   peopleCount: { type: Number, required: true, min: 1 },
+  checkInTime: { type: Date, default: Date.now },
+  checkOutTime: { type: Date, required: false }, // Opsional, bisa diisi saat check-out
   items: [
     {
       menuItem: {

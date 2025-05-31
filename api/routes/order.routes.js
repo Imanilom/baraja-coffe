@@ -13,6 +13,8 @@ import {
   createAppOrder,
   createUnifiedOrder,
   getOrderById,
+  getQueuedOrders,
+  confirmOrderByCashier,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
@@ -43,6 +45,9 @@ router.get("/pending-orders", getPendingOrders);
 router.post("/confirm-order", confirmOrder);
 
 router.get('/orders', getAllOrders);
+
+router.get('/orders/queued', getQueuedOrders);
+router.post('/orders/:jobId/confirm', confirmOrderByCashier);
 
 // Route untuk membatalkan order
 // router.put('/order/:id/cancel', verifyToken(['customer']), cancelOrder);

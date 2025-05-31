@@ -1,19 +1,16 @@
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
-import { Order } from "../models/order.model.js";
+import { Order } from "../models/Order.model.js";
 import User from "../models/user.model.js";
 import Voucher from "../models/voucher.model.js";
 import AutoPromo from '../models/AutoPromo.model.js';
 import Promo from '../models/Promo.model.js';
-import { RawMaterial } from '../models/RawMaterial.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
-import { v4 } from 'uuid';
-import { format } from 'date-fns';
-import Bull from 'bull';
-
-
+import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
+import { orderQueue } from '../queues/order.queue.js';
+import { processOrderItems } from '../services/order.service.js';
 
 export const createAppOrder = async (req, res) => {
   try {
@@ -636,530 +633,153 @@ export const checkout = async (req, res) => {
   }
 };
 
-// Create queue
-const orderQueue = new Bull('orderQueue', {
-  redis: {
-    host: '127.0.0.1',
-    port: 6379
-  },
-  limiter: {
-    max: 10,
-    duration: 1000
-  }
-});
-
-// Unified order controller
-export const createUnifiedOrder = async (req, res) => {
-  try {
-    const { source } = req.body; // mobile/web/cashier
-
-    // Validasi input berdasarkan sumber
-    const validatedData = validateOrderData(req.body, source);
-
-    // Enqueue ke Bull
-    const job = await orderQueue.add({
-      ...validatedData,
-      socketId: req.socketId || null
-    });
-
-    res.status(202).json({
-      status: 'queued',
-      jobId: job.id,
-      message: 'Order sedang diproses'
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-// Queue processor
-orderQueue.process(async (job) => {
-  const { data } = job;
-  const {
-    source,
-    socketId,
-    userId,
-    userName,
-    cashierId,
-    items,
-    orderType,
-    tableNumber,
-    deliveryAddress,
-    pickupTime,
-    paymentMethod,
-    voucherCode,
-    totalPrice,
-    outlet,
-    type
-  } = data;
-
-  try {
+  export const createUnifiedOrder = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
 
-    // 1. Validasi & persiapan item
-    const orderItems = await processOrderItems(items, session);
+    try {
+      const { source } = req.body;
 
-    // 2. Hitung total harga awal
-    const baseTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+      // Validasi data
+      const validated = validateOrderData(req.body, source);
+      const orderId = `${source.toUpperCase()}-${Date.now()}`;
+      console.log('Payment Method:', validated.paymentDetails?.method);
 
-    // Update stock for raw materials in the menu item
-    for (const orderItem of orderItems) {
-      const menuItem = await MenuItem.findById(orderItem.menuItem).session(session);
-      if (!menuItem) throw new Error(`Menu item not found: ${orderItem.menuItem}`);
+      // Process items supaya lengkap (menuItem ObjectId, subtotal, dll)
+      const processedItems = await processOrderItems(validated.items || validated.orders, session);
 
-      // Update stock for raw materials in the menu item
-      for (const material of menuItem.rawMaterials) {
-        const rawMaterial = await RawMaterial.findById(material.materialId).session(session);
-        if (rawMaterial) {
-          const requiredQuantityInBaseUnit = convertToBaseUnit(material.quantityRequired * orderItem.quantity, material.unit);
-          const availableQuantityInBaseUnit = convertToBaseUnit(rawMaterial.quantity, rawMaterial.unit);
+      // Siapkan data order yang lengkap
+      const orderData = {
+        ...validated,
+        order_id: orderId,
+        items: processedItems,
+        status: 'Pending',
+        source,
+      };
 
-          if (availableQuantityInBaseUnit >= requiredQuantityInBaseUnit) {
-            rawMaterial.quantity -= convertToBaseUnit(material.quantityRequired * orderItem.quantity, material.unit);
-            await rawMaterial.save({ session });
-          } else {
-            throw new Error(`Insufficient stock for raw material: ${rawMaterial.name}`);
-          }
-        } else {
-          throw new Error(`Raw material not found: ${material.materialId}`);
-        }
-      }
-    }
-
-    // 3. Cek promo otomatis
-    const {
-      totalDiscount: autoPromoDiscount,
-      appliedPromos
-    } = await checkAutoPromos(orderItems, outlet, type);
-
-    // 4. Cek voucher hanya jika tidak ada promo otomatis
-    let voucherDiscount = 0;
-    let voucher = null;
-
-    if (appliedPromos.length === 0) {
-      const voucherResult = await checkVoucher(voucherCode, baseTotal - autoPromoDiscount, outlet);
-      voucherDiscount = voucherResult.discount;
-      voucher = voucherResult.voucher;
-    }
-
-    // 5. Cek promo manual hanya jika tidak ada promo otomatis atau voucher
-    let manualPromoDiscount = 0;
-    let manualPromo = null;
-
-    if (appliedPromos.length === 0 && voucherDiscount === 0) {
-      const manualPromoResult = await checkManualPromo(baseTotal - autoPromoDiscount, outlet, userType);
-      manualPromoDiscount = manualPromoResult.discount;
-      manualPromo = manualPromoResult.appliedPromo;
-    }
-
-    // 6. Hitung total akhir
-    const finalAmount = Math.max(baseTotal - autoPromoDiscount - voucherDiscount - manualPromoDiscount, 0);
-
-    // 7. Buat order
-    const newOrder = new Order({
-      order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      user: userName || (await User.findById(userId))?.name || 'Guest',
-      cashier: cashierId || null,
-      items: orderItems,
-      paymentMethod,
-      orderType,
-      tableNumber,
-      deliveryAddress,
-      pickupTime,
-      voucher: voucher?._id || null,
-      promotions: appliedPromos,
-      outlet,
-      type: type || (orderType === 'Dine-In' ? 'Indoor' : null),
-      status: 'Pending',
-      source
-    });
-    await newOrder.save({ session });
-
-    // 8. Proses pembayaran
-    const paymentResult = await processPayment({
-      order: newOrder,
-      paymentMethod,
-      amount: source === 'web' ? totalWithServiceFee : (totalPrice || finalAmount),
-      source
-    });
-
-    // 9. Update status order jika pembayaran langsung
-    if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
-      newOrder.status = 'Completed';
+      // Simpan order dulu sebagai Pending
+      const newOrder = new Order(orderData);
       await newOrder.save({ session });
-    }
 
-    // 10. Commit transaction
-    await session.commitTransaction();
+      if (source === 'Cashier') {
+        // Kasir langsung proses kalau cash atau edc
+        const method = validated.paymentMethod;
+        if (method === 'Cash' || method === 'EDC') {
+          await orderQueue.add('create-order', sanitizeForRedis(orderData));
+          await session.commitTransaction();
 
-    // 11. Emit via socket.io
-    if (socketId) {
-      io.to(socketId).emit('orderCreated', newOrder);
-    }
-    io.emit('newOrder', newOrder); // Broadcast ke semua client
-
-    return {
-      order: newOrder,
-      payment: paymentResult
-    };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  }
-});
-
-// Fungsi validasi data berdasarkan sumber
-function validateOrderData(data, source) {
-  // Implementasi validasi berbeda untuk setiap sumber
-  switch (source) {
-    case 'mobile':
-      // Validasi untuk aplikasi mobile
-      if (!data.items || !data.userId || !data.paymentDetails) {
-        throw new Error('Field wajib tidak lengkap untuk order mobile');
-      }
-      break;
-
-    case 'cashier':
-      // Validasi untuk kasir
-      if (!data.items || !data.cashierId || !data.paymentMethod) {
-        throw new Error('Field wajib tidak lengkap untuk order kasir');
-      }
-      break;
-
-    case 'web':
-      // Validasi untuk web
-      if (!data.orders || !data.user || !data.paymentMethod) {
-        throw new Error('Field wajib tidak lengkap untuk order web');
-      }
-      break;
-  }
-
-  return data;
-}
-
-// Fungsi proses item
-async function processOrderItems(items, session) {
-  const orderItems = [];
-
-  for (const item of items) {
-    const menuItem = await MenuItem.findById(item.id).session(session);
-    if (!menuItem) throw new Error(`Menu item ${item.id} tidak ditemukan`);
-
-    let itemPrice = menuItem.price;
-    let addons = [];
-    let toppings = [];
-
-    // Proses addon
-    if (item.selectedAddons && item.selectedAddons.length > 0) {
-      for (const addon of item.selectedAddons) {
-        const addonInfo = menuItem.addons.find(a => a._id.toString() === addon.id);
-        if (!addonInfo) continue;
-
-        if (addon.options && addon.options.length > 0) {
-          for (const option of addon.options) {
-            const optionInfo = addonInfo.options.find(o => o._id.toString() === option.id);
-            if (optionInfo) {
-              addons.push({
-                name: `${addonInfo.name}: ${optionInfo.name}`,
-                price: optionInfo.price || 0
-              });
-              itemPrice += optionInfo.price || 0;
-            }
-          }
-        }
-      }
-    }
-
-    // Proses topping
-    if (item.selectedToppings && item.selectedToppings.length > 0) {
-      for (const topping of item.selectedToppings) {
-        const toppingInfo = menuItem.toppings.find(t => t._id.toString() === topping.id);
-        if (toppingInfo) {
-          toppings.push({
-            name: toppingInfo.name,
-            price: toppingInfo.price || 0
+          return res.status(202).json({
+            status: 'queued',
+            orderId,
+            message: 'Order kasir diproses dan sudah dibayar',
           });
-          itemPrice += toppingInfo.price || 0;
+        } else {
+          throw new Error('Metode pembayaran kasir tidak didukung');
         }
       }
-    }
 
-    const subtotal = itemPrice * item.quantity;
+      // Untuk App, buat transaksi Core Midtrans
+     if (source === 'App') {
+        const midtransRes = await createMidtransCoreTransaction(
+          orderId,
+          validated.paymentDetails.amount,
+          validated.paymentDetails.method 
+        );
+        await session.commitTransaction();
 
-    orderItems.push({
-      menuItem: item.id,
-      quantity: item.quantity,
-      subtotal,
-      addons,
-      toppings,
-      isPrinted: false
-    });
-  }
-
-  return orderItems;
-}
-
-// Fungsi cek promo otomatis
-async function checkAutoPromos(orderItems, outlet, orderType) {
-  const now = new Date();
-
-  // Ambil semua promo aktif di outlet tersebut yang sedang berlaku
-  const autoPromos = await AutoPromo.find({
-    outlet,
-    isActive: true,
-    validFrom: { $lte: now },
-    validTo: { $gte: now }
-  }).populate('conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
-
-  let totalDiscount = 0;
-  let appliedPromos = [];
-
-  for (const promo of autoPromos) {
-    let discountAmount = 0;
-
-    switch (promo.promoType) {
-      case 'discount_on_quantity': {
-        // Cari apakah ada item yang cocok dengan syarat minimum quantity
-        const conditionProduct = promo.conditions.buyProduct;
-        if (!conditionProduct) break;
-
-        const orderItem = orderItems.find(item => item.menuItemId.toString() === conditionProduct._id.toString());
-        if (orderItem && orderItem.quantity >= promo.conditions.minQuantity) {
-          discountAmount = (orderItem.price * orderItem.quantity) * (promo.discount / 100);
-        }
-        break;
+        return res.status(200).json({
+          status: 'waiting_payment',
+          orderId,
+          midtrans: midtransRes,
+        });
       }
 
-      case 'discount_on_total': {
-        // Hitung total harga pesanan
-        let totalOrderPrice = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-        if (totalOrderPrice >= promo.conditions.minTotal) {
-          discountAmount = totalOrderPrice * (promo.discount / 100);
-        }
-        break;
+      // Untuk Web, buat transaksi Snap Midtrans
+      if (source === 'Web') {
+        const totalPrice = newOrder.totalPrice; // ambil dari virtual mongoose
+        const midtransRes = await createMidtransSnapTransaction( 
+          orderId,
+          validated.paymentDetails.amount,
+          validated.paymentDetails.method 
+        );
+        await session.commitTransaction();
+
+        return res.status(200).json({
+          status: 'waiting_payment',
+          orderId,
+          snapToken: midtransRes.token,
+          redirectUrl: midtransRes.redirect_url,
+        });
       }
 
-      case 'buy_x_get_y': {
-        const buyProduct = promo.conditions.buyProduct;
-        const getProduct = promo.conditions.getProduct;
-
-        if (!buyProduct || !getProduct) break;
-
-        const buyItem = orderItems.find(item => item.menuItemId.toString() === buyProduct._id.toString());
-        const getItem = orderItems.find(item => item.menuItemId.toString() === getProduct._id.toString());
-
-        if (buyItem && getItem) {
-          const freeCount = Math.floor(buyItem.quantity / 2); // Misalnya beli 2 dapat 1 gratis
-          if (freeCount > 0) {
-            discountAmount = freeCount * getItem.price;
-          }
-        }
-        break;
-      }
-
-      case 'bundling': {
-        const bundleProducts = promo.conditions.bundleProducts || [];
-        let allInBundle = true;
-        let minQty = Infinity;
-
-        for (const bp of bundleProducts) {
-          const item = orderItems.find(i => i.menuItemId.toString() === bp.product._id.toString());
-
-          if (!item || item.quantity < bp.quantity) {
-            allInBundle = false;
-            break;
-          }
-
-          minQty = Math.min(minQty, Math.floor(item.quantity / bp.quantity));
-        }
-
-        if (allInBundle) {
-          let bundleOriginalPrice = bundleProducts.reduce(
-            (sum, bp) => sum + (bp.product.price * bp.quantity),
-            0
-          );
-
-          discountAmount = bundleOriginalPrice * minQty - promo.bundlePrice * minQty;
-        }
-        break;
-      }
-
-      default:
-        console.warn(`Unknown promo type: ${promo.promoType}`);
-        break;
-    }
-
-    if (discountAmount > 0) {
-      totalDiscount += discountAmount;
-      appliedPromos.push({
-        promoId: promo._id,
-        name: promo.name,
-        promoType: promo.promoType,
-        discountAmount
+      throw new Error('Sumber order tidak valid');
+    } catch (err) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        error: err.message,
       });
-    }
-  }
-
-  return {
-    totalDiscount: totalDiscount,
-    appliedPromos
-  };
-}
-
-// Fungsi cek voucher
-async function checkVoucher(voucherCode, totalAmount, outlet) {
-  let discount = 0;
-  let voucher = null;
-
-  if (voucherCode) {
-    voucher = await Voucher.findOne({ code: voucherCode });
-    if (voucher && voucher.isActive) {
-      const isValidDate = new Date() >= voucher.validFrom && new Date() <= voucher.validTo;
-      const isValidOutlet = voucher.applicableOutlets.length === 0 ||
-        voucher.applicableOutlets.some(outletId => outletId.equals(outlet));
-
-      if (isValidDate && isValidOutlet && voucher.quota > 0) {
-        // Hitung diskon
-        if (voucher.discountType === 'percentage') {
-          discount = (totalAmount * voucher.discountAmount) / 100;
-        } else if (voucher.discountType === 'fixed') {
-          discount = voucher.discountAmount;
-        }
-
-        // Update kuota voucher
-        voucher.quota -= 1;
-        if (voucher.quota === 0) voucher.isActive = false;
-        await voucher.save();
-      }
-    }
-  }
-
-  return { discount, voucher };
-}
-
-// Fungsi cek promo manual sesuai kriteria konsumen
-async function checkManualPromo(totalAmount, outletId, customerType = 'all') {
-  if (!totalAmount || !outletId) {
-    return { discount: 0, appliedPromo: null };
-  }
-
-  const now = new Date();
-
-  // Cari promo aktif di outlet ini yang cocok dengan customer type
-  const promo = await Promo.findOne({
-    isActive: true,
-    validFrom: { $lte: now },
-    validTo: { $gte: now },
-    outlet: outletId,
-    $or: [
-      { customerType: 'all' },
-      { customerType }
-    ]
-  });
-
-  if (!promo) {
-    return { discount: 0, appliedPromo: null };
-  }
-
-  let discount = 0;
-
-  if (promo.discountType === 'percentage') {
-    discount = totalAmount * (promo.discountAmount / 100);
-  } else if (promo.discountType === 'fixed') {
-    discount = Math.min(promo.discountAmount, totalAmount);
-  }
-
-  return {
-    discount,
-    appliedPromo: {
-      promoId: promo._id,
-      name: promo.name,
-      discountAmount: discount,
-      discountType: promo.discountType
+    } finally {
+      session.endSession();
     }
   };
-}
 
 
-// Fungsi proses pembayaran
-async function processPayment({ order, paymentMethod, amount, source }) {
-  if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
-    return {
-      status: 'Completed',
-      method: paymentMethod
-    };
+
+
+
+// GET /api/orders/queued
+export const getQueuedOrders = async (req, res) => {
+  try {
+    const jobs = await orderQueue.getJobs(['waiting']);
+
+    const orders = jobs.map(job => ({
+      jobId: job.id,
+      data: job.data,
+      timestamp: job.timestamp,
+      attemptsMade: job.attemptsMade,
+    }));
+
+    res.status(200).json({ success: true, orders });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// POST /api/orders/:jobId/confirm
+export const confirmOrderByCashier = async (req, res) => {
+  const { jobId } = req.params;
+  const { cashierId } = req.body;
+
+  if (!cashierId) {
+    return res.status(400).json({ success: false, error: 'cashierId wajib diisi' });
   }
 
-  // Midtrans Core API untuk mobile
-  if (source === 'mobile') {
-    const parameter = {
-      transaction_details: {
-        order_id: order.order_id,
-        gross_amount: amount
-      },
-      payment_type: paymentMethod
-    };
+  try {
+    const job = await orderQueue.getJob(jobId);
+    if (!job) {
+      return res.status(404).json({ success: false, error: 'Job tidak ditemukan' });
+    }
 
-    return await coreApi.charge(parameter);
+    // Tambahkan cashierId ke job data (opsional)
+    const updatedData = { ...job.data, cashierId };
+
+    // Proses manual (langsung eksekusi processor job)
+    await job.update(updatedData);
+    const result = await job.process();
+
+    res.status(200).json({
+      success: true,
+      message: 'Order berhasil dikonfirmasi dan diproses',
+      result,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
+};
 
-  // Midtrans Snap untuk web
-  if (source === 'web') {
-    const snapData = {
-      transaction_details: {
-        order_id: order.order_id,
-        gross_amount: amount
-      }
-    };
 
-    return await snap.createTransaction(snapData);
-  }
-
-  throw new Error('Metode pembayaran tidak didukung');
-}
-
-// Socket.io setup
-// io.on('connection', (socket) => {
-//   console.log('Client terhubung');
-
-//   socket.on('createOrder', async (orderData) => {
-//     try {
-//       const job = await orderQueue.add({
-//         ...orderData,
-//         socketId: socket.id
-//       });
-
-//       const result = await job.finished();
-//       io.to(socket.id).emit('orderResponse', result);
-//     } catch (error) {
-//       io.to(socket.id).emit('orderError', error.message);
-//     }
-//   });
-// });
-
-// Helper untuk konversi satuan unit
-// Utility function to convert quantities to a common unit
-function convertToBaseUnit(quantity, unit) {
-  switch (unit) {
-    case 'kg':
-      return quantity * 1000; // Convert kg to grams
-    case 'grams':
-      return quantity; // Grams remain as is
-    case 'liters':
-      return quantity * 1000; // Convert liters to mililiters
-    case 'ml':
-      return quantity; // Milliliters remain as is
-    case 'pieces':
-      return quantity; // Pieces remain as is
-    default:
-      throw new Error(`Unknown unit: ${unit}`);
-  }
-}
 
 // Helper untuk pembayaran di aplikasi
 export const charge = async (req, res) => {
