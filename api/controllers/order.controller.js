@@ -126,7 +126,7 @@ export const createAppOrder = async (req, res) => {
     const newOrder = new Order({
       order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       user_id: userId,
-      user: userName || userExists.name || 'Guest',
+      user: userName || userExists.username || 'Guest',
       cashier: null,
       items: orderItems,
       notes: notes,
@@ -1140,27 +1140,97 @@ export const getUserOrders = async (req, res) => {
   }
 };
 
+// // Get History User orders
+// export const getUserOrderHistory = async (req, res) => {
+//   try {
+//     const userId = req.params.userId; // Mengambil ID user dari parameter URL
+//     if (!userId) {
+//       return res.status(400).json({ message: 'User ID is required.' });
+//     }
+
+//     // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
+//     const orders = await Order.find({ user_id: userId })
+//       .populate('items.menuItem') // Mengisi detail menu item (opsional)
+//       .populate('voucher'); // Mengisi detail voucher (opsional)
+
+//     if (!orders || orders.length === 0) {
+//       return res.status(404).json({ message: 'No order history found for this user.' });
+//     }
+
+//     res.status(200).json({ orders });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Internal server error.' });
+//   }
+// };
+
 // Get History User orders
 export const getUserOrderHistory = async (req, res) => {
   try {
-    const userId = req.params.userId; // Mengambil ID user dari parameter URL
+    const userId = req.params.userId;
     if (!userId) {
       return res.status(400).json({ message: 'User ID is required.' });
     }
 
-    // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
-    const orders = await Order.find({ user_id: userId })
-      .populate('items.menuItem') // Mengisi detail menu item (opsional)
-      .populate('voucher'); // Mengisi detail voucher (opsional)
+    // Mencari semua pesanan dengan field "user_id" yang sesuai dengan ID user
+    const orderHistorys = await Order.find({ user_id: userId })
+      .populate('items.menuItem')
+      .select('_id order_id user_id items status')
+      .lean();
 
-    if (!orders || orders.length === 0) {
+    if (!orderHistorys || orderHistorys.length === 0) {
       return res.status(404).json({ message: 'No order history found for this user.' });
     }
 
-    res.status(200).json({ orders });
+    // Mengambil semua order_id untuk mencari payment status
+    const orderIds = orderHistorys.map(order => order._id);
+
+
+    // Mencari payment data berdasarkan order_id (gunakan field 'status' bukan 'paymentStatus')
+    const payments = await Payment.find({ order_id: orderIds })
+      .select('order_id status')
+      .lean();
+
+    // Membuat mapping payment berdasarkan order_id untuk akses yang lebih cepat
+    const paymentMap = {};
+    payments.forEach(payment => {
+      paymentMap[payment.order_id] = payment.status;
+    });
+
+    // Mapping data untuk mengcustom response
+    const customOrderHistory = orderHistorys.map(order => ({
+      _id: order._id,
+      order_id: order.order_id,
+      user_id: order.user_id,
+      items: order.items.map(item => ({
+        _id: item._id,
+        menuItem: {
+          _id: item.menuItem._id,
+          name: item.menuItem.name,
+          price: item.menuItem.price,
+          category: item.menuItem.category,
+          imageURL: item.menuItem.imageURL
+        },
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        addons: item.addons,
+        toppings: item.toppings
+      })),
+      status: order.status,
+      paymentStatus: paymentMap[order._id] || null,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: customOrderHistory.length,
+      orderHistory: customOrderHistory
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error.' });
+    console.error('Error fetching user order history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error.'
+    });
   }
 };
 
@@ -1178,6 +1248,7 @@ export const getOrderById = async (req, res) => {
 
     const payment = await Payment.findOne({ order_id: orderId });
     console.log('Payment:', payment);
+    console.log('Order:', orderId);
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found.' });
@@ -1222,6 +1293,7 @@ export const getOrderById = async (req, res) => {
       // Jika menggunakan MongoDB ObjectId, ambil 4 digit terakhir
       return `#${orderId.toString().slice(-4)}`;
     };
+    console.log(payment);
 
     const orderData = {
       orderId: order.order_id || order._id.toString(),
