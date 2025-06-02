@@ -1,19 +1,28 @@
 import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
-import { Order } from '../models/Order.model.js';
+import { Order } from '../models/Order.model.js'; // Fix import
 import { orderQueue } from '../queues/order.queue.js';
 
 export const midtransWebhook = async (req, res) => {
   try {
     const notificationJson = req.body;
-    const { transaction_status, order_id, payment_type, fraud_status, gross_amount, bank, va_numbers, ewallet } = notificationJson;
+    const {
+      transaction_status,
+      order_id,
+      payment_type,
+      fraud_status,
+      gross_amount,
+      bank,
+      va_numbers,
+      ewallet
+    } = notificationJson;
 
     console.log('Received Midtrans notification:', notificationJson);
 
-    // Update or insert Payment
+    // Simpan/update data pembayaran
     const paymentData = {
       order_id,
-      method: paymentMethod || 'unknown',
+      method: payment_type || 'unknown', // Fixed
       status: transaction_status,
       amount: Number(gross_amount),
       bank: bank || (va_numbers?.[0]?.bank) || '',
@@ -21,28 +30,22 @@ export const midtransWebhook = async (req, res) => {
       paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : null
     };
 
-    await Payment.findOneAndUpdate(
-      { order_id },
-      paymentData,
-      { upsert: true, new: true }
-    );
+    await Payment.findOneAndUpdate({ order_id }, paymentData, { upsert: true, new: true });
 
-    // Ambil order untuk update status
+    // Cari order
     const order = await Order.findOne({ order_id });
     if (!order) {
       console.warn(`Order ${order_id} tidak ditemukan di DB`);
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // Update status order berdasarkan status pembayaran
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      order.status = 'OnProcess'; // atau 'Completed' sesuai logika bisnis
+      order.status = 'Completed'; // Atau 'OnProcess' sesuai logika
       await order.save();
 
-      // Masukkan order ke queue untuk proses selanjutnya (misal print, persiapan, dsb)
-      await orderQueue.add('process-order', order.toObject());
+      // Masukkan ke antrian untuk diproses (print, kitchen, dll)
+      await orderQueue.add('create-order', order.toObject());
 
-      // Emit event ke client jika ada
       io.to(order_id).emit('payment_status_update', {
         order_id,
         transaction_status,
@@ -58,7 +61,6 @@ export const midtransWebhook = async (req, res) => {
         status: order.status
       });
     } else {
-      // Bisa handle status lain seperti pending, refund, etc sesuai kebutuhan
       io.to(order_id).emit('payment_status_update', {
         order_id,
         transaction_status,
@@ -66,7 +68,6 @@ export const midtransWebhook = async (req, res) => {
       });
     }
 
-    // Emit broadcast fallback
     io.emit('payment_status_update', {
       order_id,
       transaction_status,
