@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import Payment from '../models/Payment.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 
 export function validateOrderData(data, source) {

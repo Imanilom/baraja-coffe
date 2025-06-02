@@ -633,97 +633,125 @@ export const checkout = async (req, res) => {
   }
 };
 
-  export const createUnifiedOrder = async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      const { source } = req.body;
-
-      // Validasi data
-      const validated = validateOrderData(req.body, source);
-      const orderId = `${source.toUpperCase()}-${Date.now()}`;
-      console.log('Payment Method:', validated.paymentDetails?.method);
-
-      // Process items supaya lengkap (menuItem ObjectId, subtotal, dll)
-      const processedItems = await processOrderItems(validated.items || validated.orders, session);
-
-      // Siapkan data order yang lengkap
-      const orderData = {
-        ...validated,
-        order_id: orderId,
-        items: processedItems,
-        status: 'Pending',
-        source,
-      };
-
-      // Simpan order dulu sebagai Pending
-      const newOrder = new Order(orderData);
-      await newOrder.save({ session });
-
-      if (source === 'Cashier') {
-        // Kasir langsung proses kalau cash atau edc
-        const method = validated.paymentMethod;
-        if (method === 'Cash' || method === 'EDC') {
-          await orderQueue.add('create-order', sanitizeForRedis(orderData));
-          await session.commitTransaction();
-
-          return res.status(202).json({
-            status: 'queued',
-            orderId,
-            message: 'Order kasir diproses dan sudah dibayar',
-          });
-        } else {
-          throw new Error('Metode pembayaran kasir tidak didukung');
-        }
-      }
-
-      // Untuk App, buat transaksi Core Midtrans
-     if (source === 'App') {
-        const midtransRes = await createMidtransCoreTransaction(
-          orderId,
-          validated.paymentDetails.amount,
-          validated.paymentDetails.method 
-        );
-        await session.commitTransaction();
-
-        return res.status(200).json({
-          status: 'waiting_payment',
-          orderId,
-          midtrans: midtransRes,
-        });
-      }
 
 
-      // Untuk Web, buat transaksi Snap Midtrans
-      if (source === 'Web') {
-        const totalPrice = newOrder.totalPrice; // ambil dari virtual mongoose
-        const midtransRes = await createMidtransSnapTransaction( 
-          orderId,
-          validated.paymentDetails.amount,
-          validated.paymentDetails.method 
-        );
-        await session.commitTransaction();
+export const createUnifiedOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-        return res.status(200).json({
-          status: 'waiting_payment',
-          orderId,
-          snapToken: midtransRes.token,
-          redirectUrl: midtransRes.redirect_url,
-        });
-      }
+  try {
+    const { source } = req.body;
 
-      throw new Error('Sumber order tidak valid');
-    } catch (err) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        success: false,
-        error: err.message,
+    // Validasi data order
+    const validated = validateOrderData(req.body, source);
+    const { tableNumber } = validated;
+
+    let orderId;
+
+    // Buat order_id format custom jika ada nomor meja
+    if (tableNumber) {
+      const today = new Date();
+      const day = String(today.getDate()).padStart(2, '0');
+
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+      const orderCount = await Order.countDocuments({
+        tableNumber,
+        createdAt: { $gte: startOfDay, $lte: endOfDay }
       });
-    } finally {
-      session.endSession();
+
+      const personNumber = String(orderCount + 1).padStart(3, '0');
+      orderId = `ORD-${day}${tableNumber}-${personNumber}`;
+    } else {
+      orderId = `${source.toUpperCase()}-${Date.now()}`;
     }
-  };
+
+    console.log('Payment Method:', validated.paymentDetails?.method);
+
+    // Proses item menjadi bentuk lengkap (subtotal, menuId, dst.)
+    const processedItems = await processOrderItems(validated.items || validated.orders, session);
+
+    const orderData = {
+      ...validated,
+      order_id: orderId,
+      items: processedItems,
+      status: 'Pending',
+      source,
+    };
+
+    const newOrder = new Order(orderData);
+    await newOrder.save({ session });
+
+    // === Kasir ===
+    if (source === 'Cashier') {
+      const method = validated.paymentMethod;
+      if (method === 'Cash' || method === 'EDC') {
+        newOrder.status = 'Completed';
+        await newOrder.save({ session });
+
+        // Masukkan ke antrian
+        await orderQueue.add('create-order', sanitizeForRedis(newOrder));
+
+        await session.commitTransaction();
+
+        return res.status(202).json({
+          status: 'queued',
+          orderId,
+          message: 'Order kasir diproses dan sudah dibayar',
+        });
+      } else {
+        throw new Error('Metode pembayaran kasir tidak didukung');
+      }
+    }
+
+    // === App ===
+    if (source === 'App') {
+      const midtransRes = await createMidtransCoreTransaction(
+        orderId,
+        validated.paymentDetails.amount,
+        validated.paymentDetails.method 
+      );
+
+      await session.commitTransaction();
+
+      return res.status(200).json({
+        status: 'waiting_payment',
+        orderId,
+        midtrans: midtransRes,
+      });
+    }
+
+    // === Web ===
+    if (source === 'Web') {
+      const midtransRes = await createMidtransSnapTransaction(
+        orderId,
+        validated.paymentDetails.amount,
+        validated.paymentDetails.method 
+      );
+
+      await session.commitTransaction();
+
+      return res.status(200).json({
+        status: 'waiting_payment',
+        orderId,
+        snapToken: midtransRes.token,
+        redirectUrl: midtransRes.redirect_url,
+      });
+    }
+
+    throw new Error('Sumber order tidak valid');
+  } catch (err) {
+    await session.abortTransaction();
+    return res.status(400).json({
+      success: false,
+      error: err.message,
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
 
 
 

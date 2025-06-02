@@ -3,6 +3,24 @@ import { processOrderItems } from '../services/order.service.js';
 import Order from '../models/Order.model.js';
 import mongoose from 'mongoose';
 
+// Ambil tanggal (misal: 31)
+const today = new Date();
+const day = String(today.getDate()).padStart(2, '0');
+
+// Hitung jumlah orang yang sudah order di meja ini hari ini
+const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+const orderCount = await Order.countDocuments({
+  tableNumber,
+  createdAt: { $gte: startOfDay, $lte: endOfDay }
+});
+
+// Format: ORD-31E03-003
+const personNumber = String(orderCount + 1).padStart(3, '0');
+const formattedOrderId = `ORD-${day}${tableNumber}-${personNumber}`;
+
+
 orderQueue.process(async (job) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -38,7 +56,7 @@ orderQueue.process(async (job) => {
 
     // Simpan order ke database
     const newOrder = new Order({
-      order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      order_id: formattedOrderId,
       user: userName || (await User.findById(userId))?.name || 'Guest',
       cashier: cashierId || null,
       items: orderItems,
