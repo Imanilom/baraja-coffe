@@ -1,22 +1,22 @@
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
-import { Order } from "../models/order.model.js";
+import { Order } from "../models/Order.model.js";
 import User from "../models/user.model.js";
 import Voucher from "../models/voucher.model.js";
 import AutoPromo from '../models/AutoPromo.model.js';
+import Promo from '../models/Promo.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
-import { v4 } from 'uuid';
-import { format } from 'date-fns';
-import Bull from 'bull';
-
-
+import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
+import { orderQueue } from '../queues/order.queue.js';
+import { processOrderItems } from '../services/order.service.js';
 
 export const createAppOrder = async (req, res) => {
   try {
     const {
       items,
+      notes,
       orderType,
       tableNumber,
       deliveryAddress,
@@ -25,9 +25,10 @@ export const createAppOrder = async (req, res) => {
       voucherCode,
       userId,
       userName,
-      pricing,
-      orderDate,
-      status,
+      // pricing,
+      // orderDate,
+      // status,
+
     } = req.body;
     // console.log(pricing, orderDate, status);
     // Validate required fields
@@ -125,18 +126,20 @@ export const createAppOrder = async (req, res) => {
     const newOrder = new Order({
       order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       user_id: userId,
-      user: userName || userExists.name || 'Guest',
-      cashier: null, // Default kosong, karena tidak ada input cashier di request
+      user: userName || userExists.username || 'Guest',
+      cashier: null,
       items: orderItems,
+      notes: notes,
       status: 'Pending',
-      paymentMethod: paymentDetails.methode,
+      paymentMethod: paymentDetails.method,
       orderType: formattedOrderType,
       deliveryAddress: deliveryAddress || '',
       tableNumber: tableNumber || '',
-      type: 'Indoor', // default seperti di model
+      type: 'Indoor',
       voucher: voucherId,
-      outlet: null, // default kosong, karena tidak ada input outlet di request
+      outlet: null,
       promotions: [],
+      source: 'App',
     });
 
     await newOrder.save();
@@ -293,7 +296,8 @@ export const createOrder = async (req, res) => {
       orderType,
       tableNumber: orderType === 'Dine-In' ? tableNumber : null,
       type: orderType === 'Dine-In' ? 'Indoor' : null, // Default ke Indoor
-      status: "Completed"
+      status: "Completed",
+      source: "Cashier",
     });
 
     await order.save({ session });
@@ -520,7 +524,7 @@ export const checkout = async (req, res) => {
     }
 
     const totalDiscount = Math.floor(discount + autoPromoDiscount);
-    const serviceFee = 3000;
+    const serviceFee = 0;
     const finalAmount = Math.max(totalAmount - totalDiscount, 0);
     const totalWithServiceFee = finalAmount + serviceFee;
 
@@ -629,475 +633,181 @@ export const checkout = async (req, res) => {
   }
 };
 
-// Create queue
-const orderQueue = new Bull('orderQueue', {
-  redis: {
-    host: '127.0.0.1',
-    port: 6379
-  },
-  limiter: {
-    max: 10,
-    duration: 1000
-  }
-});
 
-// Unified order controller
+
 export const createUnifiedOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { source } = req.body; // mobile/web/cashier
+    const { source } = req.body;
 
-    // Validasi input berdasarkan sumber
-    const validatedData = validateOrderData(req.body, source);
+    // Validasi data order
+    const validated = validateOrderData(req.body, source);
+    const { tableNumber } = validated;
 
-    // Enqueue ke Bull
-    const job = await orderQueue.add({
-      ...validatedData,
-      socketId: req.socketId || null
-    });
+    let orderId;
 
-    res.status(202).json({
-      status: 'queued',
-      jobId: job.id,
-      message: 'Order sedang diproses'
-    });
-  } catch (error) {
-    res.status(400).json({
+    // Buat order_id format custom jika ada nomor meja
+    if (tableNumber) {
+      const today = new Date();
+      const day = String(today.getDate()).padStart(2, '0');
+
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+      const orderCount = await Order.countDocuments({
+        tableNumber,
+        createdAt: { $gte: startOfDay, $lte: endOfDay }
+      });
+
+      const personNumber = String(orderCount + 1).padStart(3, '0');
+      orderId = `ORD-${day}${tableNumber}-${personNumber}`;
+    } else {
+      orderId = `${source.toUpperCase()}-${Date.now()}`;
+    }
+
+    console.log('Payment Method:', validated.paymentDetails?.method);
+
+    // Proses item menjadi bentuk lengkap (subtotal, menuId, dst.)
+    const processedItems = await processOrderItems(validated.items || validated.orders, session);
+
+    const orderData = {
+      ...validated,
+      order_id: orderId,
+      items: processedItems,
+      status: 'Pending',
+      source,
+    };
+
+    const newOrder = new Order(orderData);
+    await newOrder.save({ session });
+
+    // === Kasir ===
+    if (source === 'Cashier') {
+      const method = validated.paymentMethod;
+      if (method === 'Cash' || method === 'EDC') {
+        newOrder.status = 'Completed';
+        await newOrder.save({ session });
+
+        // Masukkan ke antrian
+        await orderQueue.add('create-order', sanitizeForRedis(newOrder));
+
+        await session.commitTransaction();
+
+        return res.status(202).json({
+          status: 'queued',
+          orderId,
+          message: 'Order kasir diproses dan sudah dibayar',
+        });
+      } else {
+        throw new Error('Metode pembayaran kasir tidak didukung');
+      }
+    }
+
+    // === App ===
+    if (source === 'App') {
+      const midtransRes = await createMidtransCoreTransaction(
+        orderId,
+        validated.paymentDetails.amount,
+        validated.paymentDetails.method 
+      );
+
+      await session.commitTransaction();
+
+      return res.status(200).json({
+        status: 'waiting_payment',
+        orderId,
+        midtrans: midtransRes,
+      });
+    }
+
+    // === Web ===
+    if (source === 'Web') {
+      const midtransRes = await createMidtransSnapTransaction(
+        orderId,
+        validated.paymentDetails.amount,
+        validated.paymentDetails.method 
+      );
+
+      await session.commitTransaction();
+
+      return res.status(200).json({
+        status: 'waiting_payment',
+        orderId,
+        snapToken: midtransRes.token,
+        redirectUrl: midtransRes.redirect_url,
+      });
+    }
+
+    throw new Error('Sumber order tidak valid');
+  } catch (err) {
+    await session.abortTransaction();
+    return res.status(400).json({
       success: false,
-      error: error.message
+      error: err.message,
     });
+  } finally {
+    session.endSession();
   }
 };
 
-// Queue processor
-orderQueue.process(async (job) => {
-  const { data } = job;
-  const {
-    source,
-    socketId,
-    userId,
-    userName,
-    cashierId,
-    items,
-    orderType,
-    tableNumber,
-    deliveryAddress,
-    pickupTime,
-    paymentMethod,
-    voucherCode,
-    totalPrice,
-    outlet,
-    type
-  } = data;
+
+
+
+
+
+// GET /api/orders/queued
+export const getQueuedOrders = async (req, res) => {
+  try {
+    const jobs = await orderQueue.getJobs(['waiting']);
+
+    const orders = jobs.map(job => ({
+      jobId: job.id,
+      data: job.data,
+      timestamp: job.timestamp,
+      attemptsMade: job.attemptsMade,
+    }));
+
+    res.status(200).json({ success: true, orders });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// POST /api/orders/:jobId/confirm
+export const confirmOrderByCashier = async (req, res) => {
+  const { jobId } = req.params;
+  const { cashierId } = req.body;
+
+  if (!cashierId) {
+    return res.status(400).json({ success: false, error: 'cashierId wajib diisi' });
+  }
 
   try {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    // 1. Validasi & persiapan item
-    const orderItems = await processOrderItems(items, session);
-
-    // 2. Hitung total harga awal
-    const baseTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
-
-    // 3. Cek promo otomatis
-    const {
-      totalDiscount: autoPromoDiscount,
-      appliedPromos
-    } = await checkAutoPromos(orderItems, outlet, type);
-
-
-    // 4. Cek voucher
-    const {
-      discount: voucherDiscount,
-      voucher
-    } = await checkVoucher(voucherCode, baseTotal - autoPromoDiscount, outlet);
-
-    // 5. Hitung total akhir
-    const finalAmount = Math.max(baseTotal - autoPromoDiscount - voucherDiscount, 0);
-    const totalWithServiceFee = finalAmount;
-
-    // 6. Buat order
-    const newOrder = new Order({
-      order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      user: userName || (await User.findById(userId))?.name || 'Guest',
-      cashier: cashierId || null,
-      items: orderItems,
-      paymentMethod,
-      orderType,
-      tableNumber,
-      deliveryAddress,
-      pickupTime,
-      voucher: voucher?._id || null,
-      promotions: appliedPromos,
-      outlet,
-      type: type || (orderType === 'Dine-In' ? 'Indoor' : null),
-      status: 'Pending',
-      source
-    });
-    await newOrder.save({ session });
-
-    // 7. Proses pembayaran
-    const paymentResult = await processPayment({
-      order: newOrder,
-      paymentMethod,
-      amount: source === 'web' ? totalWithServiceFee : (totalPrice || finalAmount),
-      source
-    });
-
-    // 8. Update status order jika pembayaran langsung
-    if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
-      newOrder.status = 'Completed';
-      await newOrder.save({ session });
+    const job = await orderQueue.getJob(jobId);
+    if (!job) {
+      return res.status(404).json({ success: false, error: 'Job tidak ditemukan' });
     }
 
-    // 9. Commit transaction
-    await session.commitTransaction();
+    // Tambahkan cashierId ke job data (opsional)
+    const updatedData = { ...job.data, cashierId };
 
-    // 10. Emit via socket.io
-    if (socketId) {
-      io.to(socketId).emit('orderCreated', newOrder);
-    }
-    io.emit('newOrder', newOrder); // Broadcast ke semua client
+    // Proses manual (langsung eksekusi processor job)
+    await job.update(updatedData);
+    const result = await job.process();
 
-    return {
-      order: newOrder,
-      payment: paymentResult
-    };
+    res.status(200).json({
+      success: true,
+      message: 'Order berhasil dikonfirmasi dan diproses',
+      result,
+    });
   } catch (error) {
-    await session.abortTransaction();
-    throw error;
+    res.status(500).json({ success: false, error: error.message });
   }
-});
-
-// Fungsi validasi data berdasarkan sumber
-function validateOrderData(data, source) {
-  // Implementasi validasi berbeda untuk setiap sumber
-  switch (source) {
-    case 'mobile':
-      // Validasi untuk aplikasi mobile
-      if (!data.items || !data.userId || !data.paymentDetails) {
-        throw new Error('Field wajib tidak lengkap untuk order mobile');
-      }
-      break;
-
-    case 'cashier':
-      // Validasi untuk kasir
-      if (!data.items || !data.cashierId || !data.paymentMethod) {
-        throw new Error('Field wajib tidak lengkap untuk order kasir');
-      }
-      break;
-
-    case 'web':
-      // Validasi untuk web
-      if (!data.orders || !data.user || !data.paymentMethod) {
-        throw new Error('Field wajib tidak lengkap untuk order web');
-      }
-      break;
-  }
-
-  return data;
-}
-
-// Fungsi proses item
-async function processOrderItems(items, session) {
-  const orderItems = [];
-
-  for (const item of items) {
-    const menuItem = await MenuItem.findById(item.id).session(session);
-    if (!menuItem) throw new Error(`Menu item ${item.id} tidak ditemukan`);
-
-    let itemPrice = menuItem.price;
-    let addons = [];
-    let toppings = [];
-
-    // Proses addon
-    if (item.selectedAddons && item.selectedAddons.length > 0) {
-      for (const addon of item.selectedAddons) {
-        const addonInfo = menuItem.addons.find(a => a._id.toString() === addon.id);
-        if (!addonInfo) continue;
-
-        if (addon.options && addon.options.length > 0) {
-          for (const option of addon.options) {
-            const optionInfo = addonInfo.options.find(o => o._id.toString() === option.id);
-            if (optionInfo) {
-              addons.push({
-                name: `${addonInfo.name}: ${optionInfo.name}`,
-                price: optionInfo.price || 0
-              });
-              itemPrice += optionInfo.price || 0;
-            }
-          }
-        }
-      }
-    }
-
-    // Proses topping
-    if (item.selectedToppings && item.selectedToppings.length > 0) {
-      for (const topping of item.selectedToppings) {
-        const toppingInfo = menuItem.toppings.find(t => t._id.toString() === topping.id);
-        if (toppingInfo) {
-          toppings.push({
-            name: toppingInfo.name,
-            price: toppingInfo.price || 0
-          });
-          itemPrice += toppingInfo.price || 0;
-        }
-      }
-    }
-
-    const subtotal = itemPrice * item.quantity;
-
-    orderItems.push({
-      menuItem: item.id,
-      quantity: item.quantity,
-      subtotal,
-      addons,
-      toppings,
-      isPrinted: false
-    });
-  }
-
-  return orderItems;
-}
-
-// Fungsi cek promo otomatis
-async function checkAutoPromos(orderItems, outlet, orderType) {
-  const now = new Date();
-
-  // Ambil semua promo aktif di outlet tersebut yang sedang berlaku
-  const autoPromos = await AutoPromo.find({
-    outlet,
-    isActive: true,
-    validFrom: { $lte: now },
-    validTo: { $gte: now }
-  }).populate('conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
-
-  let totalDiscount = 0;
-  let appliedPromos = [];
-
-  for (const promo of autoPromos) {
-    let discountAmount = 0;
-
-    switch (promo.promoType) {
-      case 'discount_on_quantity': {
-        // Cari apakah ada item yang cocok dengan syarat minimum quantity
-        const conditionProduct = promo.conditions.buyProduct;
-        if (!conditionProduct) break;
-
-        const orderItem = orderItems.find(item => item.menuItemId.toString() === conditionProduct._id.toString());
-        if (orderItem && orderItem.quantity >= promo.conditions.minQuantity) {
-          discountAmount = (orderItem.price * orderItem.quantity) * (promo.discount / 100);
-        }
-        break;
-      }
-
-      case 'discount_on_total': {
-        // Hitung total harga pesanan
-        let totalOrderPrice = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-        if (totalOrderPrice >= promo.conditions.minTotal) {
-          discountAmount = totalOrderPrice * (promo.discount / 100);
-        }
-        break;
-      }
-
-      case 'buy_x_get_y': {
-        const buyProduct = promo.conditions.buyProduct;
-        const getProduct = promo.conditions.getProduct;
-
-        if (!buyProduct || !getProduct) break;
-
-        const buyItem = orderItems.find(item => item.menuItemId.toString() === buyProduct._id.toString());
-        const getItem = orderItems.find(item => item.menuItemId.toString() === getProduct._id.toString());
-
-        if (buyItem && getItem) {
-          const freeCount = Math.floor(buyItem.quantity / 2); // Misalnya beli 2 dapat 1 gratis
-          if (freeCount > 0) {
-            discountAmount = freeCount * getItem.price;
-          }
-        }
-        break;
-      }
-
-      case 'bundling': {
-        const bundleProducts = promo.conditions.bundleProducts || [];
-        let allInBundle = true;
-        let minQty = Infinity;
-
-        for (const bp of bundleProducts) {
-          const item = orderItems.find(i => i.menuItemId.toString() === bp.product._id.toString());
-
-          if (!item || item.quantity < bp.quantity) {
-            allInBundle = false;
-            break;
-          }
-
-          minQty = Math.min(minQty, Math.floor(item.quantity / bp.quantity));
-        }
-
-        if (allInBundle) {
-          let bundleOriginalPrice = bundleProducts.reduce(
-            (sum, bp) => sum + (bp.product.price * bp.quantity),
-            0
-          );
-
-          discountAmount = bundleOriginalPrice * minQty - promo.bundlePrice * minQty;
-        }
-        break;
-      }
-
-      default:
-        console.warn(`Unknown promo type: ${promo.promoType}`);
-        break;
-    }
-
-    if (discountAmount > 0) {
-      totalDiscount += discountAmount;
-      appliedPromos.push({
-        promoId: promo._id,
-        name: promo.name,
-        promoType: promo.promoType,
-        discountAmount
-      });
-    }
-  }
-
-  return {
-    totalDiscount: totalDiscount,
-    appliedPromos
-  };
-}
-
-// Fungsi cek voucher
-async function checkVoucher(voucherCode, totalAmount, outlet) {
-  let discount = 0;
-  let voucher = null;
-
-  if (voucherCode) {
-    voucher = await Voucher.findOne({ code: voucherCode });
-    if (voucher && voucher.isActive) {
-      const isValidDate = new Date() >= voucher.validFrom && new Date() <= voucher.validTo;
-      const isValidOutlet = voucher.applicableOutlets.length === 0 ||
-        voucher.applicableOutlets.some(outletId => outletId.equals(outlet));
-
-      if (isValidDate && isValidOutlet && voucher.quota > 0) {
-        // Hitung diskon
-        if (voucher.discountType === 'percentage') {
-          discount = (totalAmount * voucher.discountAmount) / 100;
-        } else if (voucher.discountType === 'fixed') {
-          discount = voucher.discountAmount;
-        }
-
-        // Update kuota voucher
-        voucher.quota -= 1;
-        if (voucher.quota === 0) voucher.isActive = false;
-        await voucher.save();
-      }
-    }
-  }
-
-  return { discount, voucher };
-}
-
-// Fungsi cek promo manual sesuai kriteria konsumen
-async function checkManualPromo(totalAmount, outletId, customerType = 'all') {
-  if (!totalAmount || !outletId) {
-    return { discount: 0, appliedPromo: null };
-  }
-
-  const now = new Date();
-
-  // Cari promo aktif di outlet ini yang cocok dengan customer type
-  const promo = await Promo.findOne({
-    isActive: true,
-    validFrom: { $lte: now },
-    validTo: { $gte: now },
-    outlet: outletId,
-    $or: [
-      { customerType: 'all' },
-      { customerType }
-    ]
-  });
-
-  if (!promo) {
-    return { discount: 0, appliedPromo: null };
-  }
-
-  let discount = 0;
-
-  if (promo.discountType === 'percentage') {
-    discount = totalAmount * (promo.discountAmount / 100);
-  } else if (promo.discountType === 'fixed') {
-    discount = Math.min(promo.discountAmount, totalAmount);
-  }
-
-  return {
-    discount,
-    appliedPromo: {
-      promoId: promo._id,
-      name: promo.name,
-      discountAmount: discount,
-      discountType: promo.discountType
-    }
-  };
-}
+};
 
 
-// Fungsi proses pembayaran
-async function processPayment({ order, paymentMethod, amount, source }) {
-  if (paymentMethod === 'Cash' || paymentMethod === 'EDC') {
-    return {
-      status: 'Completed',
-      method: paymentMethod
-    };
-  }
-
-  // Midtrans Core API untuk mobile
-  if (source === 'mobile') {
-    const parameter = {
-      transaction_details: {
-        order_id: order.order_id,
-        gross_amount: amount
-      },
-      payment_type: paymentMethod
-    };
-
-    return await coreApi.charge(parameter);
-  }
-
-  // Midtrans Snap untuk web
-  if (source === 'web') {
-    const snapData = {
-      transaction_details: {
-        order_id: order.order_id,
-        gross_amount: amount
-      }
-    };
-
-    return await snap.createTransaction(snapData);
-  }
-
-  throw new Error('Metode pembayaran tidak didukung');
-}
-
-// Socket.io setup
-// io.on('connection', (socket) => {
-//   console.log('Client terhubung');
-
-//   socket.on('createOrder', async (orderData) => {
-//     try {
-//       const job = await orderQueue.add({
-//         ...orderData,
-//         socketId: socket.id
-//       });
-
-//       const result = await job.finished();
-//       io.to(socket.id).emit('orderResponse', result);
-//     } catch (error) {
-//       io.to(socket.id).emit('orderError', error.message);
-//     }
-//   });
-// });
 
 // Helper untuk pembayaran di aplikasi
 export const charge = async (req, res) => {
@@ -1108,7 +818,7 @@ export const charge = async (req, res) => {
       const transaction_id = uuidv4();
       const transaction_time = new Date();
       const expiry_time = new Date(transaction_time.getTime() + 15 * 60000);
-      // const qr_string = `ORDER:${order_id}|AMOUNT:${gross_amount}|TXN_ID:${transaction_id}`;
+      // const qr_string = ORDER:${order_id}|AMOUNT:${gross_amount}|TXN_ID:${transaction_id};
       const qr_code_url = await QRCode.toDataURL(order_id)
       // Generate QR code string
       const customResponse = {
@@ -1147,6 +857,9 @@ export const charge = async (req, res) => {
       },
     };
 
+    const bankValue = payment_type === 'bank_transfer'
+      ? bank_transfer?.bank || null
+      : payment_type;
 
 
     // Kondisikan chargeParams berdasarkan payment_type
@@ -1183,7 +896,8 @@ export const charge = async (req, res) => {
       status: 'pending',
       fraud_status: response.fraud_status,
       transaction_time: response.transaction_time,
-      expiry_time: response.expiry_time
+      expiry_time: response.expiry_time,
+      bank: bankValue
     });
 
     await payment.save();
@@ -1195,6 +909,7 @@ export const charge = async (req, res) => {
     });
   }
 };
+
 
 // Handling Midtrans Notification 
 export const paymentNotification = async (req, res) => {
@@ -1425,24 +1140,173 @@ export const getUserOrders = async (req, res) => {
   }
 };
 
+// // Get History User orders
+// export const getUserOrderHistory = async (req, res) => {
+//   try {
+//     const userId = req.params.userId; // Mengambil ID user dari parameter URL
+//     if (!userId) {
+//       return res.status(400).json({ message: 'User ID is required.' });
+//     }
+
+//     // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
+//     const orders = await Order.find({ user_id: userId })
+//       .populate('items.menuItem') // Mengisi detail menu item (opsional)
+//       .populate('voucher'); // Mengisi detail voucher (opsional)
+
+//     if (!orders || orders.length === 0) {
+//       return res.status(404).json({ message: 'No order history found for this user.' });
+//     }
+
+//     res.status(200).json({ orders });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Internal server error.' });
+//   }
+// };
+
 // Get History User orders
 export const getUserOrderHistory = async (req, res) => {
   try {
-    const userId = req.params.userId; // Mengambil ID user dari parameter URL
+    const userId = req.params.userId;
     if (!userId) {
       return res.status(400).json({ message: 'User ID is required.' });
     }
 
-    // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
-    const orders = await Order.find({ user_id: userId })
-      .populate('items.menuItem') // Mengisi detail menu item (opsional)
-      .populate('voucher'); // Mengisi detail voucher (opsional)
+    // Mencari semua pesanan dengan field "user_id" yang sesuai dengan ID user
+    const orderHistorys = await Order.find({ user_id: userId })
+      .populate('items.menuItem')
+      .select('_id order_id user_id items status')
+      .lean();
 
-    if (!orders || orders.length === 0) {
+    if (!orderHistorys || orderHistorys.length === 0) {
       return res.status(404).json({ message: 'No order history found for this user.' });
     }
 
-    res.status(200).json({ orders });
+    // Mengambil semua order_id untuk mencari payment status
+    const orderIds = orderHistorys.map(order => order._id);
+
+
+    // Mencari payment data berdasarkan order_id (gunakan field 'status' bukan 'paymentStatus')
+    const payments = await Payment.find({ order_id: orderIds })
+      .select('order_id status')
+      .lean();
+
+    // Membuat mapping payment berdasarkan order_id untuk akses yang lebih cepat
+    const paymentMap = {};
+    payments.forEach(payment => {
+      paymentMap[payment.order_id] = payment.status;
+    });
+
+    // Mapping data untuk mengcustom response
+    const customOrderHistory = orderHistorys.map(order => ({
+      _id: order._id,
+      order_id: order.order_id,
+      user_id: order.user_id,
+      items: order.items.map(item => ({
+        _id: item._id,
+        menuItem: {
+          _id: item.menuItem._id,
+          name: item.menuItem.name,
+          price: item.menuItem.price,
+          category: item.menuItem.category,
+          imageURL: item.menuItem.imageURL
+        },
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        addons: item.addons,
+        toppings: item.toppings
+      })),
+      status: order.status,
+      paymentStatus: paymentMap[order._id] || null,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: customOrderHistory.length,
+      orderHistory: customOrderHistory
+    });
+  } catch (error) {
+    console.error('Error fetching user order history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error.'
+    });
+  }
+};
+
+export const getOrderById = async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+    if (!orderId) {
+      return res.status(400).json({ message: 'Order ID is required.' });
+    }
+
+    // Mencari pesanan berdasarkan ID
+    const order = await Order.findById(orderId)
+      .populate('items.menuItem')
+      .populate('voucher');
+
+    const payment = await Payment.findOne({ order_id: orderId });
+    console.log('Payment:', payment);
+    console.log('Order:', orderId);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    // Format tanggal
+    const formatDate = (date) => {
+      const options = {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
+      };
+      return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
+    };
+
+    const formattedItems = order.items.map(item => {
+      const basePrice = item.price || item.menuItem?.price || 0;
+      const quantity = item.quantity || 1;
+
+      return {
+        name: item.menuItem?.name || item.name || 'Unknown Item',
+        price: basePrice,
+        quantity: quantity,
+        size: item.size || 'Regular',
+        temperature: item.temperature || 'Hot',
+        addons: item.addons || [],
+        toppings: item.toppings || []
+      };
+    });
+
+
+    // Generate order number dari order_id atau _id
+    const generateOrderNumber = (orderId) => {
+      if (typeof orderId === 'string' && orderId.includes('ORD-')) {
+        // Extract number dari format ORD-2024-001234
+        const parts = orderId.split('-');
+        return parts.length > 2 ? `#${parts[parts.length - 1]}` : `#${orderId.slice(-4)}`;
+      }
+      // Jika menggunakan MongoDB ObjectId, ambil 4 digit terakhir
+      return `#${orderId.toString().slice(-4)}`;
+    };
+    console.log(payment);
+
+    const orderData = {
+      orderId: order.order_id || order._id.toString(),
+      orderNumber: generateOrderNumber(order.order_id || order._id),
+      orderDate: formatDate(order.createdAt),
+      items: formattedItems,
+      total: payment.amount,
+      orderStatus: order.status,
+      paymentMethod: payment.bank.toUpperCase(),
+      paymentStatus: payment.status
+    };
+
+    res.status(200).json({ orderData });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal server error.' });

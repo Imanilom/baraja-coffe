@@ -11,6 +11,10 @@ import {
   getCashierOrderHistory,
   charge,
   createAppOrder,
+  createUnifiedOrder,
+  getOrderById,
+  getQueuedOrders,
+  confirmOrderByCashier,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
@@ -23,6 +27,7 @@ router.post('/order', createOrder);
 
 router.post("/checkout", checkout);
 
+router.post("/unified-order", createUnifiedOrder);
 // TODO: Start route untuk melakukan charge from aplication
 
 router.post('/orderApp', createAppOrder);
@@ -41,6 +46,9 @@ router.post("/confirm-order", confirmOrder);
 
 router.get('/orders', getAllOrders);
 
+router.get('/orders/queued', getQueuedOrders);
+router.post('/orders/:jobId/confirm', confirmOrderByCashier);
+
 // Route untuk membatalkan order
 // router.put('/order/:id/cancel', verifyToken(['customer']), cancelOrder);
 
@@ -49,6 +57,8 @@ router.get('/orders/:userId', getUserOrders);
 // router.get('/orders/:userId', verifyToken(['customer']), getUserOrders);
 
 router.get('/orders/history/:userId', getUserOrderHistory);
+
+router.get('/order/:orderId', getOrderById);
 router.get('/orders/cashier/:cashierId', getCashierOrderHistory);
 
 export default router;

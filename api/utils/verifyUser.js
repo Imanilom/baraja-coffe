@@ -20,7 +20,7 @@ export const verifyToken = (roles) => {
             if (!roles.includes(user.role)) {
                 return res.status(403).json({ error: "Forbidden" });
             }
-
+            console.log(user.role);
             next();
         } catch (err) {
             return next(errorHandler(403, 'Token is not valid!'));

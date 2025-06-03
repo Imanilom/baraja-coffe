@@ -1,54 +1,82 @@
-// webhookController.js
-import { io } from '../index.js'; // Make sure the path is correct
-import { coreApi } from '../utils/MidtransConfig.js';
+import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
+import { Order } from '../models/Order.model.js'; // Fix import
+import { orderQueue } from '../queues/order.queue.js';
 
 export const midtransWebhook = async (req, res) => {
-    try {
-        const notificationJson = req.body;
-        const { transaction_status, order_id } = notificationJson;
+  try {
+    const notificationJson = req.body;
+    const {
+      transaction_status,
+      order_id,
+      payment_type,
+      fraud_status,
+      gross_amount,
+      bank,
+      va_numbers,
+      ewallet
+    } = notificationJson;
 
-        console.log('Received notification:', notificationJson);
-        console.log('Transaction status:', transaction_status);
-        console.log('Order ID:', order_id);
+    console.log('Received Midtrans notification:', notificationJson);
 
-        if (transaction_status === 'settlement' || transaction_status === 'capture' ||
-            transaction_status === 'pending') {
+    // Simpan/update data pembayaran
+    const paymentData = {
+      order_id,
+      method: payment_type || 'unknown', // Fixed
+      status: transaction_status,
+      amount: Number(gross_amount),
+      bank: bank || (va_numbers?.[0]?.bank) || '',
+      phone: ewallet?.phone || '',
+      paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : null
+    };
 
-            // First, check if the room exists and log information
-            const roomExists = io.sockets.adapter.rooms.has(order_id);
-            console.log(`Does room ${order_id} exist?`, roomExists);
-            console.log('Current rooms:', Array.from(io.sockets.adapter.rooms.keys()));
+    await Payment.findOneAndUpdate({ order_id }, paymentData, { upsert: true, new: true });
 
-            // Try to emit to specific room first
-            if (roomExists) {
-                console.log(`Emitting to room ${order_id}`);
-                io.to(order_id).emit('payment_status_update', {
-                    order_id,
-                    transaction_status
-                });
-            }
-
-            // Also emit to all connected clients as a fallback
-            console.log('Broadcasting payment update to all clients');
-            io.emit('payment_status_update', {
-                order_id,
-                transaction_status
-            });
-
-            // Update payment status in database
-            await Payment.updateOne(
-                { order_id: order_id },
-                { $set: { status: transaction_status } },
-                { upsert: true }
-            );
-
-            console.log(`Payment record updated for order ${order_id} with status ${transaction_status}`);
-        }
-
-        res.status(200).json({ status: 'ok' });
-    } catch (error) {
-        console.error('Webhook error:', error);
-        res.status(500).json({ message: 'Failed to handle webhook', error: error.message });
+    // Cari order
+    const order = await Order.findOne({ order_id });
+    if (!order) {
+      console.warn(`Order ${order_id} tidak ditemukan di DB`);
+      return res.status(404).json({ message: 'Order not found' });
     }
+
+    if (transaction_status === 'settlement' || transaction_status === 'capture') {
+      order.status = 'Completed'; // Atau 'OnProcess' sesuai logika
+      await order.save();
+
+      // Masukkan ke antrian untuk diproses (print, kitchen, dll)
+      await orderQueue.add('create-order', order.toObject());
+
+      io.to(order_id).emit('payment_status_update', {
+        order_id,
+        transaction_status,
+        status: order.status
+      });
+    } else if (['deny', 'cancel', 'expire'].includes(transaction_status)) {
+      order.status = 'Canceled';
+      await order.save();
+
+      io.to(order_id).emit('payment_status_update', {
+        order_id,
+        transaction_status,
+        status: order.status
+      });
+    } else {
+      io.to(order_id).emit('payment_status_update', {
+        order_id,
+        transaction_status,
+        status: order.status
+      });
+    }
+
+    io.emit('payment_status_update', {
+      order_id,
+      transaction_status,
+      status: order.status
+    });
+
+    res.status(200).json({ status: 'ok' });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).json({ message: 'Failed to handle webhook', error: error.message });
+  }
 };
