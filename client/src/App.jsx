@@ -16,8 +16,8 @@ import Menumanagement from "./pages/menu/index";
 import Menucreate from "./pages/menu/create";
 import MenuUpdate from "./pages/menu/update";
 import AddCategory from "./pages/menu/category/create";
-import Vouchermanagement from "./pages/voucher/index";
-import CreateVoucher from "./pages/voucher/create";
+import Vouchermanagement from "./pages/promotion/voucher/index";
+import CreateVoucher from "./pages/promotion/voucher/create";
 
 // Report
 import ReportDashboard from "./pages/report/index";
@@ -60,6 +60,7 @@ import DeviceSales from "./pages/report/device_sales";
 import DigitalPayment from "./pages/report/digital_payment";
 import CreateAddOns from "./pages/menu/add_ons/create";
 import AddOns from "./pages/menu/add_ons";
+import Dashboard from "./pages/dashboard";
 
 
 
@@ -72,6 +73,7 @@ export default function App() {
             {/* Halaman Umum */}
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
+            <Route path="example" element={<Example />} />
             <Route path="/download" element={<Download />} />
             <Route path="/sign-in" element={<SignIn />} />
             <Route path="/sign-up" element={<SignUp />} />
@@ -80,7 +82,8 @@ export default function App() {
             <Route element={<PrivateRoute allowedRoles={["admin", "superadmin"]} />}>
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
-                <Route path="toko" element={<OutletManagementPage />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="outlet" element={<OutletManagementPage />} />
                 <Route path="example" element={<Example />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
@@ -112,7 +115,7 @@ export default function App() {
                 <Route path="promo-otomatis-create" element={<CreateAutoPromoPage />} />
                 <Route path="promo-otomatis" element={<RunningAutoPromos />} />
                 {/* point */}
-                 <Route path="poin" element={<PointManagement />} />
+                <Route path="poin" element={<PointManagement />} />
                 {/* Storage */}
                 <Route path="storage" element={<Storagemanagement />} />
                 <Route path="storage-create" element={<CreateStrorage />} />

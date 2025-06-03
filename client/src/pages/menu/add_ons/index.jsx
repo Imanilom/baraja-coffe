@@ -107,7 +107,7 @@ const AddOns = () => {
                     </Link>
                 </button>
 
-                <div
+                {/* <div
                     className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
                 >
                     <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
@@ -125,7 +125,7 @@ const AddOns = () => {
                             (18)
                         </div>
                     </Link>
-                </div>
+                </div> */}
 
                 <div
                     className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}

@@ -1,10 +1,27 @@
 import { Link } from "react-router-dom";
-
+import { FaCut, FaBell, FaUser } from "react-icons/fa";
 const PromoPage = () => {
   return (
-    <div className="container mx-auto p-4 h-screen overflow-y-auto">
+
+    <div className="container mx-auto h-screen overflow-y-auto">
+      {/* Header */}
+      <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
+        <FaBell size={23} className="text-gray-400" />
+        <span className="text-[14px]">Hi Baraja</span>
+        <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
+          <FaUser size={30} />
+        </Link>
+      </div>
+
+      {/* Breadcrumb */}
+      <div className="px-3 py-4 flex justify-between items-center border-b">
+        <div className="flex items-center space-x-2">
+          <FaCut size={21} className="text-gray-500 inline-block" />
+          <p className="text-[15px] text-gray-500">Promo</p>
+        </div>
+      </div>
       {/* Card Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
         {/* Card 1: Promo Khusus */}
         <Link
           to="/admin/promo-khusus"

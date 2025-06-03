@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 
 
 const SalesTransaction = () => {
