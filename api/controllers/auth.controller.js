@@ -135,7 +135,7 @@ export const signin = async (req, res, next) => {
           populate: { path: "admin", select: "name" }
 
         });
-      if (!user || !["superadmin", "admin", "staff", "cashier junior", "cashier senior"].includes(user.role)) {
+      if (!user || !["superadmin", "admin", "inventory", "staff", "cashier junior", "cashier senior"].includes(user.role)) {
         return next(errorHandler(403, "Access denied"));
       }
       tokenExpiry = "7d";
