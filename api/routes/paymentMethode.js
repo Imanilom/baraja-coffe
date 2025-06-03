@@ -10,6 +10,7 @@ router.get('/payment-methods', (req, res) => {
             color: '#2196F3', // Colors.blue
             payment_method: 'qris',
             payment_method_name: 'E-Wallet',
+            bank_code: 'qris',
         },
         {
             name: 'Gopay',
@@ -17,13 +18,7 @@ router.get('/payment-methods', (req, res) => {
             color: '#2196F3', // Colors.blue
             payment_method: 'gopay',
             payment_method_name: 'E-Wallet',
-        },
-        {
-            name: 'DANA',
-            icon: 'dana.png',
-            color: '#64B5F6', // Colors.blue[300]
-            payment_method: 'dana',
-            payment_method_name: 'E-Wallet',
+            bank_code: 'gopay',
         },
         {
             name: 'BCA',
@@ -49,6 +44,7 @@ router.get('/payment-methods', (req, res) => {
             color: '#4CAF50', // Colors.green
             payment_method: 'cash',
             payment_method_name: 'Cash',
+            bank_code: 'cash',
             isCash: true,
         },
     ];

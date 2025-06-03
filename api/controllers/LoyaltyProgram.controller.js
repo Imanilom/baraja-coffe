@@ -1,5 +1,7 @@
 import LoyaltyProgram from '../models/LoyaltyProgram.model.js'; // Pastikan path sesuai dengan struktur proyek Anda
 import LoyaltyLevel from '../models/LoyaltyLevel.model.js';
+import mongoose from 'mongoose';
+
 // 1. Membuat Program Loyalty Baru
 export const createLoyaltyProgram = async (req, res) => {
   try {

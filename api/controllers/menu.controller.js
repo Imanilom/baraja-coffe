@@ -168,35 +168,6 @@ export const getSimpleMenuItems = async (req, res) => {
 };
 
 
-// Get all menu items
-// export const getMenuItems = async (req, res) => {
-//   try {
-//     const { outletId } = req.query; // Ambil ID outlet dari query parameter
-
-//     // Buat query filter jika outletId diberikan
-//     const filter = outletId ? { availableAt: outletId } : {};
-
-//     // Ambil menu berdasarkan outlet (jika diberikan)
-//     const menuItems = await MenuItem.find()
-//       .populate([
-//         { path: 'rawMaterials.materialId' },
-//         { path: 'availableAt' }
-//       ]);
-
-//     // Konversi ke objek JavaScript
-//     const updatedMenuItems = menuItems.map(item => item.toObject());
-
-//     res.status(200).json({ success: true, data: updatedMenuItems });
-//     console.log('Menu items fetched successfully');
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch menu items',
-//       error: error.message,
-//     });
-//   }
-// };
-
 export const getMenuItems = async (req, res) => {
   try {
     const menuItems = await MenuItem.find()
@@ -248,7 +219,6 @@ export const getMenuItems = async (req, res) => {
       formattedData: formattedMenuItems // data terformat untuk frontend
     });
 
-    console.log('Menu items fetched successfully');
   } catch (error) {
     console.error('Error fetching menu items:', error);
     res.status(500).json({

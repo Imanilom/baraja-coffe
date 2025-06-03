@@ -15,7 +15,7 @@ const LoyaltyLevelSchema = new mongoose.Schema({
     type: String,
   },
 }, { timestamps: true });
-
+  
 const LoyaltyLevel = mongoose.model('LoyaltyLevel', LoyaltyLevelSchema);
 
 export default LoyaltyLevel;
