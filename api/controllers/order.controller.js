@@ -24,7 +24,7 @@ export const createAppOrder = async (req, res) => {
       paymentDetails,
       voucherCode,
       userId,
-      userName,
+      // userName,
       // pricing,
       // orderDate,
       // status,
@@ -51,6 +51,8 @@ export const createAppOrder = async (req, res) => {
     if (!userExists) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
+
+    console.log('User exists:', userExists);
 
     // Format orderType
     let formattedOrderType = '';
@@ -126,7 +128,7 @@ export const createAppOrder = async (req, res) => {
     const newOrder = new Order({
       order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       user_id: userId,
-      user: userName || userExists.username || 'Guest',
+      user: userExists.username || 'Guest',
       cashier: null,
       items: orderItems,
       notes: notes,
@@ -1250,6 +1252,13 @@ export const getOrderById = async (req, res) => {
     console.log('Payment:', payment);
     console.log('Order:', orderId);
 
+    // Verify user exists
+    const userExists = await User.findById(order.user_id);
+    if (!userExists) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    console.log('User:', userExists);
     if (!order) {
       return res.status(404).json({ message: 'Order not found.' });
     }
@@ -1298,6 +1307,7 @@ export const getOrderById = async (req, res) => {
       orderNumber: generateOrderNumber(order.order_id || order._id),
       orderDate: formatDate(order.createdAt),
       items: formattedItems,
+      notes: order.notes,
       total: payment.amount,
       orderStatus: order.status,
       paymentMethod: payment.bank.toUpperCase(),
