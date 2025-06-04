@@ -16,7 +16,6 @@ export const createAppOrder = async (req, res) => {
   try {
     const {
       items,
-      notes,
       orderType,
       tableNumber,
       deliveryAddress,
@@ -118,6 +117,7 @@ export const createAppOrder = async (req, res) => {
         subtotal: itemSubtotal,
         addons: processedAddons,
         toppings: processedToppings,
+        notes: item.notes || '',
         isPrinted: false,
       });
     }
@@ -129,7 +129,6 @@ export const createAppOrder = async (req, res) => {
       user: userName || userExists.username || 'Guest',
       cashier: null,
       items: orderItems,
-      notes: notes,
       status: 'Pending',
       paymentMethod: paymentDetails.method,
       orderType: formattedOrderType,

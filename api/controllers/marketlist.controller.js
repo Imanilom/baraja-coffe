@@ -152,23 +152,29 @@ export const getRequests = async (req, res) => {
 
 
   // Input belanja harian berdasarkan request
- export const createMarketList = async (req, res) => {
+export const createMarketList = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user || user.role !== 'inventory') {
       return res.status(403).json({ message: 'Hanya petugas belanja yang bisa mencatat belanja' });
     }
 
-    const { date, items, payment } = req.body;
+    const { date, items, payment, additionalExpenses } = req.body;
 
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: 'Items tidak boleh kosong' });
+    // Validasi minimal salah satu harus ada: items atau additionalExpenses
+    const hasItems = Array.isArray(items) && items.length > 0;
+    const hasAdditionalExpenses = Array.isArray(additionalExpenses) && additionalExpenses.length > 0;
+
+    if (!hasItems && !hasAdditionalExpenses) {
+      return res.status(400).json({
+        message: 'Harus ada setidaknya satu item atau pengeluaran tambahan'
+      });
     }
 
-    const day = getDayName(date);
+    const day = getDayName(date); // Pastikan fungsi ini tersedia
 
-    // Validasi hanya untuk item yang dibeli
-    const purchasedItems = items.filter(item => item.status !== 'tidak tersedia');
+    // Validasi item yang dibeli
+    const purchasedItems = items?.filter(item => item.status !== 'tidak tersedia') || [];
 
     purchasedItems.forEach(item => {
       const quantity = Number(item.quantity);
@@ -183,65 +189,87 @@ export const getRequests = async (req, res) => {
       item.total = price * quantity;
     });
 
-    const notPurchasedItems = items.filter(item => item.status === 'tidak tersedia');
+    // Validasi item yang tidak dibeli
+    const notPurchasedItems = items?.filter(item => item.status === 'tidak tersedia') || [];
     notPurchasedItems.forEach(item => {
       if (!item.notes || item.notes.trim() === '') {
         throw new Error(`Catatan wajib diisi untuk item "${item.item}"`);
       }
     });
 
-    // Ambil semua request untuk update status
-    const allRequests = await Request.find({});
-    const updatedRequestIds = new Set();
-
-    for (const purchasedItem of items) {
-      for (const request of allRequests) {
-        let changed = false;
-        for (const reqItem of request.items) {
-          if (
-            reqItem.item.toLowerCase() === purchasedItem.item.toLowerCase() &&
-            reqItem.status === 'pending'
-          ) {
-            updatedRequestIds.add(request._id.toString());
-
-            const reqQty = reqItem.quantity;
-            const fulfilledQty = purchasedItem.quantity;
-
-            reqItem.fulfilledQuantity = fulfilledQty;
-
-            if (fulfilledQty === 0) {
-              reqItem.status = 'tidak tersedia';
-            } else if (fulfilledQty === reqQty) {
-              reqItem.status = 'dibeli';
-            } else if (fulfilledQty > reqQty) {
-              reqItem.status = 'lebih';
-            } else if (fulfilledQty < reqQty) {
-              reqItem.status = 'kurang';
-            }
-
-            changed = true;
-            break;
-          }
+    // Validasi pengeluaran tambahan jika ada
+    let totalAdditionalExpenses = 0;
+    if (hasAdditionalExpenses) {
+      for (const expense of additionalExpenses) {
+        const amount = Number(expense.amount);
+        if (isNaN(amount) || amount <= 0) {
+          throw new Error(`Jumlah pengeluaran tambahan tidak valid: ${expense.name}`);
         }
-        if (changed) await request.save();
+        expense.amount = amount;
+        totalAdditionalExpenses += amount;
       }
     }
 
+    // Ambil semua request untuk update status (hanya jika ada items)
+    const updatedRequestIds = new Set();
+    if (hasItems) {
+      const allRequests = await Request.find({});
+      for (const purchasedItem of purchasedItems) {
+        for (const request of allRequests) {
+          let changed = false;
+          for (const reqItem of request.items) {
+            if (
+              reqItem.item.toLowerCase() === purchasedItem.item.toLowerCase() &&
+              reqItem.status === 'pending'
+            ) {
+              updatedRequestIds.add(request._id.toString());
+
+              const reqQty = reqItem.quantity;
+              const fulfilledQty = purchasedItem.quantity;
+
+              reqItem.fulfilledQuantity = fulfilledQty;
+
+              if (fulfilledQty === 0) {
+                reqItem.status = 'tidak tersedia';
+              } else if (fulfilledQty === reqQty) {
+                reqItem.status = 'dibeli';
+              } else if (fulfilledQty > reqQty) {
+                reqItem.status = 'lebih';
+              } else if (fulfilledQty < reqQty) {
+                reqItem.status = 'kurang';
+              }
+
+              changed = true;
+              break;
+            }
+          }
+          if (changed) await request.save();
+        }
+      }
+    }
+
+    // Simpan MarketList
     const marketList = new MarketList({
+      date,
       day,
-      items,
+      ...(hasItems && { items }), // Hanya masukkan jika items ada
       payment,
       createdBy: user.username,
       relatedRequests: Array.from(updatedRequestIds),
+      ...(hasAdditionalExpenses && { additionalExpenses })
     });
 
     await marketList.save();
 
-    const totalOut = items.reduce((sum, item) => sum + (item.total || 0), 0);
+    // Hitung totalOut: total belanja + pengeluaran tambahan
+    const totalBelanja = (items || []).reduce((sum, item) => sum + (item.total || 0), 0);
+    const totalOut = totalBelanja + totalAdditionalExpenses;
 
-    const lastBalance = await getLastBalance();
+    // Dapatkan saldo terakhir
+    const lastBalance = await getLastBalance(); // Fungsi ini harus tersedia
     const newBalance = lastBalance - totalOut;
 
+    // Simpan ke CashFlow
     const cashFlow = new CashFlow({
       day,
       description: `Belanja harian oleh ${user.username}`,
@@ -258,7 +286,7 @@ export const getRequests = async (req, res) => {
 
   } catch (error) {
     console.error('Error saat membuat market list:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: error.message || 'Terjadi kesalahan internal server' });
   }
 };
 
@@ -373,10 +401,7 @@ export const addCashIn = async (req, res) => {
 };
 
 
-const getLastBalance = async () => {
-  const lastEntry = await CashFlow.findOne().sort({ date: -1 });
-  return lastEntry ? lastEntry.balance : 0;
-};
+
 
 // GET /api/marketlist/cashflow?start=YYYY-MM-DD&end=YYYY-MM-DD
 export const getFilteredCashFlow = async (req, res) => {
@@ -402,27 +427,90 @@ export const getFilteredCashFlow = async (req, res) => {
 export const getWeeklyReport = async (req, res) => {
   try {
     const { start, end } = req.query;
+
+    if (!start || !end) {
+      return res.status(400).json({ message: 'Tanggal mulai dan akhir harus disertakan.' });
+    }
+
+    // Konversi ke Date object
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+
+    // 1. Ambil semua transaksi dalam rentang waktu dan populate relatedMarketList
     const flows = await CashFlow.find({
-      date: { $gte: new Date(start), $lte: new Date(end) }
+      date: { $gte: startDate, $lte: endDate }
+    }).populate('relatedMarketList').sort({ date: 1 });
+
+    // 2. Hitung Saldo Awal: semua transaksi sebelum start
+    const initialFlows = await CashFlow.find({
+      date: { $lt: startDate }
     });
 
-    const totalIn = flows.reduce((sum, f) => sum + f.cashIn, 0);
-    const totalOut = flows.reduce((sum, f) => sum + f.cashOut, 0);
-    const net = totalIn - totalOut;
+    const startingBalance = initialFlows.reduce((sum, f) => sum + (f.cashIn - f.cashOut), 0);
 
+    // 3. Hitung total masuk/keluar dalam periode
+    const totalCashIn = flows.reduce((sum, f) => sum + f.cashIn, 0);
+    const totalCashOut = flows.reduce((sum, f) => sum + f.cashOut, 0);
+
+    // 4. Hitung Saldo Akhir
+    let currentBalance = startingBalance;
+
+    // 5. Kirim response
     res.json({
       start,
       end,
       summary: {
-        totalCashIn: totalIn,
-        totalCashOut: totalOut,
-        netCash: net
+        startingBalance,
+        totalCashIn,
+        totalCashOut,
+        endingBalance: currentBalance + totalCashIn - totalCashOut
       },
-      data: flows
+      data: flows.map(f => {
+        currentBalance += f.cashIn - f.cashOut;
+        const balance = Math.max(currentBalance, 0);
+        
+        // Ambil item dari relatedMarketList
+        const purchasedItems = f.relatedMarketList 
+          ? f.relatedMarketList.items.map(item => ({
+              item: item.item,
+              quantity: item.quantity,
+              total: item.total,
+            }))
+          : [];
+
+        // Ambil additional expenses
+        const additionalExpenses = f.relatedMarketList
+          ? f.relatedMarketList.additionalExpenses.map(exp => ({
+              name: exp.name,
+              amount: exp.amount,
+              notes: exp.notes,
+            }))
+          : [];
+
+        return {
+          day: new Date(f.date).toLocaleDateString('id-ID', { weekday: 'long' }),
+          date: f.date.toISOString().split('T')[0],
+          description: f.description,
+          cashIn: f.cashIn,
+          cashOut: f.cashOut,
+          balance,
+          purchasedItems, // Menambahkan detail barang yang dibeli
+          additionalExpenses // Menambahkan detail tambahan biaya
+        };
+      })
     });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error saat mengambil laporan mingguan:', error);
+    res.status(500).json({ message: error.message || 'Terjadi kesalahan internal server' });
   }
+};
+
+
+
+const getLastBalance = async () => {
+  const lastEntry = await CashFlow.findOne().sort({ date: -1 });
+  return lastEntry ? lastEntry.balance : 0;
 };
 
 export const getMarketListReportByDate = async (req, res, next) => {

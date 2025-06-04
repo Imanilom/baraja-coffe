@@ -22,15 +22,21 @@ const paymentSchema = new mongoose.Schema({
   notes: String,
 });
 
+const additionalExpenseSchema = new mongoose.Schema({
+  name: String,
+  amount: { type: Number, min: 0 },
+  notes: String
+});
+
 const marketListSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
   day: String,
   items: [marketListItemSchema],
-  relatedRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Request' }], // Tambahan
+  additionalExpenses: [additionalExpenseSchema], // <== TAMBAHAN
+  relatedRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Request' }],
   payment: paymentSchema,
   createdBy: String,
 });
-
 
 const MarketList = mongoose.model('MarketList', marketListSchema);
 
