@@ -124,6 +124,8 @@ export const createAppOrder = async (req, res) => {
       });
     }
 
+    console.log('Processed order items:', orderItems);
+
     // Create new order
     const newOrder = new Order({
       order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
