@@ -93,6 +93,7 @@ export async function processOrderItems({ items, outletId, orderType, voucherCod
       subtotal,
       addons,
       toppings,
+      notes: item.notes || '',
       isPrinted: false
     });
   }
