@@ -1286,7 +1286,8 @@ export const getOrderById = async (req, res) => {
         price: basePrice,
         quantity: quantity,
         addons: item.addons || [],
-        toppings: item.toppings || []
+        toppings: item.toppings || [],
+        notes: item.notes,
       };
     });
 
@@ -1308,7 +1309,6 @@ export const getOrderById = async (req, res) => {
       orderNumber: generateOrderNumber(order.order_id || order._id),
       orderDate: formatDate(order.createdAt),
       items: formattedItems,
-      notes: order.notes,
       total: payment.amount,
       orderStatus: order.status,
       paymentMethod: payment.bank.toUpperCase(),
