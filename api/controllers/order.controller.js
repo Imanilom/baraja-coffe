@@ -4,7 +4,6 @@ import { Order } from "../models/Order.model.js";
 import User from "../models/user.model.js";
 import Voucher from "../models/voucher.model.js";
 import AutoPromo from '../models/AutoPromo.model.js';
-import Promo from '../models/Promo.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
@@ -694,7 +693,11 @@ export const createUnifiedOrder = async (req, res) => {
         await newOrder.save({ session });
 
         // Masukkan ke antrian
-        await orderQueue.add('create-order', sanitizeForRedis(newOrder));
+      await orderQueue.add('create-order', {
+        type: 'create-order',
+        payload: sanitizeForRedis(newOrder),
+      });
+
 
         await session.commitTransaction();
 
@@ -756,10 +759,6 @@ export const createUnifiedOrder = async (req, res) => {
 };
 
 
-
-
-
-
 // GET /api/orders/queued
 export const getQueuedOrders = async (req, res) => {
   try {
@@ -793,23 +792,39 @@ export const confirmOrderByCashier = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Job tidak ditemukan' });
     }
 
-    // Tambahkan cashierId ke job data (opsional)
-    const updatedData = { ...job.data, cashierId };
+    const orderId = job.data?.order_id;
+    if (!orderId) {
+      return res.status(400).json({ success: false, error: 'order_id tidak ditemukan dalam job data' });
+    }
 
-    // Proses manual (langsung eksekusi processor job)
+    // Update status order di MongoDB ke 'OnProcess'
+    const order = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      { status: 'OnProcess', cashier: cashierId },
+      { new: true }
+    );
+
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order tidak ditemukan di database' });
+    }
+
+    // Tambahkan cashierId ke job data
+    const updatedData = { ...job.data, cashierId };
     await job.update(updatedData);
+
+    // Eksekusi processor job secara manual (jika memang tidak otomatis dikerjakan oleh worker)
     const result = await job.process();
 
     res.status(200).json({
       success: true,
-      message: 'Order berhasil dikonfirmasi dan diproses',
+      message: 'Order dikonfirmasi dan status diubah ke OnProcess',
+      order,
       result,
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 };
-
 
 
 // Helper untuk pembayaran di aplikasi
