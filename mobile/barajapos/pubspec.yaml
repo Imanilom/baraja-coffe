@@ -33,7 +33,7 @@ dependencies:
   bcrypt: ^1.1.3
   collection: ^1.19.1
   json_annotation: ^4.9.0
-  flutter_blue_plus: 1.35.5
+  flutter_reactive_ble: ^5.4.0
 
 assets:
   - .env
