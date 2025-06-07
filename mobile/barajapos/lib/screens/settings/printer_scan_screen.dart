@@ -1,50 +1,46 @@
-// lib/screens/printer_scan_screen.dart
+// screens/printer_scan_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import '../../providers/bluetooth_scan_provider.dart';
+import '../../providers/ble_scan_provider.dart';
 
 class PrinterScanScreen extends ConsumerWidget {
   const PrinterScanScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scannedDevices = ref.watch(bluetoothScanProvider);
+    final devices = ref.watch(bleScanProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pilih Printer'),
+        title: const Text('Scan Printer'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.read(bluetoothScanProvider.notifier).startScan();
-            },
-          ),
+            onPressed: () => ref.read(bleScanProvider.notifier).startScan(),
+          )
         ],
       ),
-      body: scannedDevices.isEmpty
-          ? const Center(child: Text("Tidak ada printer ditemukan"))
+      body: devices.isEmpty
+          ? const Center(child: Text('Belum ada printer terdeteksi'))
           : ListView.builder(
-              itemCount: scannedDevices.length,
+              itemCount: devices.length,
               itemBuilder: (context, index) {
-                final device = scannedDevices[index];
+                final device = devices[index];
                 return ListTile(
-                  title: Text(device.platformName),
-                  subtitle: Text(device.remoteId.str),
+                  title:
+                      Text(device.name.isNotEmpty ? device.name : 'Tanpa Nama'),
+                  subtitle: Text(device.id),
                   trailing: PopupMenuButton<String>(
                     onSelected: (role) {
-                      // Simpan ke Hive sebagai printer bar/dapur
+                      // TODO: Simpan sebagai printer bar/dapur
                     },
                     itemBuilder: (_) => const [
                       PopupMenuItem(
-                        value: 'bar',
-                        child: Text('Set sebagai Printer Bar'),
-                      ),
+                          value: 'bar',
+                          child: Text('Pilih sebagai Printer Bar')),
                       PopupMenuItem(
-                        value: 'dapur',
-                        child: Text('Set sebagai Printer Dapur'),
-                      ),
+                          value: 'dapur',
+                          child: Text('Pilih sebagai Printer Dapur')),
                     ],
                   ),
                 );
