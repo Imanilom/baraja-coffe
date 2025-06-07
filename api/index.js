@@ -54,6 +54,7 @@ const io = new Server(server, {
 
 // Gunakan handler socket
 socketHandler(io);
+export { io }; // Export io for use in other modules
 
 // Middleware and routes setup...
 app.use(express.json());
