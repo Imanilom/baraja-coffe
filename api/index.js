@@ -22,6 +22,7 @@ import historyRoutes from './routes/history.routes.js';
 import paymentMethodsRouter from './routes/paymentMethode.js'; 
 import tableLayoutRoutes from './routes/tableLayout.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
+import marketListRoutes from './routes/marketlist.routes.js';
 
 dotenv.config();
 
@@ -107,9 +108,10 @@ app.use('/api/content', contentRoutes);
 app.use('/api/outlet', outletRoutes);
 app.use('/api/workstation', posRoutes);
 app.use('/api/report', reportRoutes);
-app.use('/api/history', historyRoutes);
+app.use('/api/history', historyRoutes); 
 app.use('/api/table-layout', tableLayoutRoutes);
 app.use('/api/reservation', reservationRoutes);
+app.use('/api/marketlist', marketListRoutes);
 
 // Start server
 server.listen(3000, () => {
