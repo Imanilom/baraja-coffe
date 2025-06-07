@@ -1,16 +1,15 @@
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
-import { Order } from "../models/Order.model.js";
+import { Order } from "../models/order.model.js";
 import User from "../models/user.model.js";
 import Voucher from "../models/voucher.model.js";
 import AutoPromo from '../models/AutoPromo.model.js';
-import Promo from '../models/Promo.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
 import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
 import { orderQueue } from '../queues/order.queue.js';
-import { processOrderItems } from '../services/order.service.js';
+import { db } from '../utils/mongo.js';
 
 export const createAppOrder = async (req, res) => {
   try {
@@ -638,77 +637,94 @@ export const checkout = async (req, res) => {
 
 
 
+// Fungsi untuk generate order ID dengan sequence harian per tableNumber
+export async function generateOrderId(tableNumber) {
+  // Dapatkan tanggal sekarang dalam format YYYYMMDD
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const dateStr = `${year}${month}${day}`; // misal "20250605"
+
+  // Kunci sequence unik per tableNumber dan tanggal
+  const key = `order_seq_${tableNumber}_${dateStr}`;
+
+  // Atomic increment dengan upsert dan reset setiap hari (jika document tidak ada, dibuat dengan seq=1)
+  const result = await db.collection('counters').findOneAndUpdate(
+    { _id: key },
+    { $inc: { seq: 1 } },
+    { upsert: true, returnDocument: 'after' }
+  );
+
+  const seq = result.value.seq;
+
+  // Format orderId sesuai yang kamu mau:
+  // ORD-{day}{tableNumber}-{personNumber}
+  // day = tanggal 2 digit (dd)
+  // personNumber = seq 3 digit padStart
+  return `ORD-${day}${tableNumber}-${String(seq).padStart(3, '0')}`;
+}
+
 export const createUnifiedOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
     const { source } = req.body;
-
-    // Validasi data order
     const validated = validateOrderData(req.body, source);
     const { tableNumber } = validated;
 
     let orderId;
 
-    // Buat order_id format custom jika ada nomor meja
     if (tableNumber) {
-      const today = new Date();
-      const day = String(today.getDate()).padStart(2, '0');
-
-      const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(today.setHours(23, 59, 59, 999));
-
-      const orderCount = await Order.countDocuments({
-        tableNumber,
-        createdAt: { $gte: startOfDay, $lte: endOfDay }
-      });
-
-      const personNumber = String(orderCount + 1).padStart(3, '0');
-      orderId = `ORD-${day}${tableNumber}-${personNumber}`;
+      // Gunakan generateOrderId versi sequence per hari per table
+      orderId = await generateOrderId(String(tableNumber));
     } else {
+      // fallback untuk selain tableNumber
       orderId = `${source.toUpperCase()}-${Date.now()}`;
     }
 
-    console.log('Payment Method:', validated.paymentDetails?.method);
+    const items = [];
 
-    // Proses item menjadi bentuk lengkap (subtotal, menuId, dst.)
-    const processedItems = await processOrderItems(validated.items || validated.orders, session);
+    for (const item of validated.items) {
+      const menuItem = await MenuItem.findById(item.id).session(session);
+      if (!menuItem) throw new Error('Menu item not found: ' + item.id);
 
-    const orderData = {
-      ...validated,
-      order_id: orderId,
-      items: processedItems,
-      status: 'Pending',
-      source,
-    };
-
-    const newOrder = new Order(orderData);
-    await newOrder.save({ session });
-
-    // === Kasir ===
-    if (source === 'Cashier') {
-      const method = validated.paymentMethod;
-      if (method === 'Cash' || method === 'EDC') {
-        newOrder.status = 'Completed';
-        await newOrder.save({ session });
-
-        // Masukkan ke antrian
-        await orderQueue.add('create-order', sanitizeForRedis(newOrder));
-
-        await session.commitTransaction();
-
-        return res.status(202).json({
-          status: 'queued',
-          orderId,
-          message: 'Order kasir diproses dan sudah dibayar',
-        });
-      } else {
-        throw new Error('Metode pembayaran kasir tidak didukung');
-      }
+      items.push({
+        menuItem: menuItem._id,
+        quantity: item.quantity,
+        subtotal: menuItem.price * item.quantity,
+      });
     }
 
-    // === App ===
+    const newOrder = new Order({
+      order_id: orderId,
+      source,
+      userId: validated.userId,
+      items,
+      paymentMethod: validated.paymentMethod,
+      paymentDetails: validated.paymentDetails,
+      orderType: validated.orderType,
+      tableNumber: validated.tableNumber,
+      outlet: validated.outlet,
+      status: 'Pending',
+    });
+
+    if (source === 'Cashier') {
+      await session.commitTransaction();
+
+      await orderQueue.add('create_order', {
+        type: 'create_order',
+        payload: { orderId, orderData: validated, source }
+      }, { jobId: orderId });
+
+      return res.status(202).json({
+        status: 'completed',
+        orderId,
+        message: 'Order kasir diproses dan sudah dibayar',
+      });
+    }
+
     if (source === 'App') {
       const midtransRes = await createMidtransCoreTransaction(
         orderId,
@@ -718,6 +734,11 @@ export const createUnifiedOrder = async (req, res) => {
 
       await session.commitTransaction();
 
+      await orderQueue.add('create_order', {
+        type: 'create_order',
+        payload: { orderId, orderData: validated, source }
+      }, { jobId: orderId });
+
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
@@ -725,7 +746,6 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    // === Web ===
     if (source === 'Web') {
       const midtransRes = await createMidtransSnapTransaction(
         orderId,
@@ -734,6 +754,11 @@ export const createUnifiedOrder = async (req, res) => {
       );
 
       await session.commitTransaction();
+
+      await orderQueue.add('create_order', {
+        type: 'create_order',
+        payload: { orderId, orderData: validated, source }
+      }, { jobId: orderId });
 
       return res.status(200).json({
         status: 'waiting_payment',
@@ -746,16 +771,11 @@ export const createUnifiedOrder = async (req, res) => {
     throw new Error('Sumber order tidak valid');
   } catch (err) {
     await session.abortTransaction();
-    return res.status(400).json({
-      success: false,
-      error: err.message,
-    });
+    return res.status(400).json({ success: false, error: err.message });
   } finally {
     session.endSession();
   }
 };
-
-
 
 
 
@@ -793,23 +813,39 @@ export const confirmOrderByCashier = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Job tidak ditemukan' });
     }
 
-    // Tambahkan cashierId ke job data (opsional)
-    const updatedData = { ...job.data, cashierId };
+    const orderId = job.data?.order_id;
+    if (!orderId) {
+      return res.status(400).json({ success: false, error: 'order_id tidak ditemukan dalam job data' });
+    }
 
-    // Proses manual (langsung eksekusi processor job)
+    // Update status order di MongoDB ke 'OnProcess'
+    const order = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      { status: 'OnProcess', cashier: cashierId },
+      { new: true }
+    );
+
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order tidak ditemukan di database' });
+    }
+
+    // Tambahkan cashierId ke job data
+    const updatedData = { ...job.data, cashierId };
     await job.update(updatedData);
+
+    // Eksekusi processor job secara manual (jika memang tidak otomatis dikerjakan oleh worker)
     const result = await job.process();
 
     res.status(200).json({
       success: true,
-      message: 'Order berhasil dikonfirmasi dan diproses',
+      message: 'Order dikonfirmasi dan status diubah ke OnProcess',
+      order,
       result,
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 };
-
 
 
 // Helper untuk pembayaran di aplikasi

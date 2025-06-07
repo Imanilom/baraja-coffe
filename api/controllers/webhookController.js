@@ -1,6 +1,6 @@
 import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
-import { Order } from '../models/Order.model.js'; // Fix import
+import { Order } from '../models/order.model.js'; // Fix import
 import { orderQueue } from '../queues/order.queue.js';
 
 export const midtransWebhook = async (req, res) => {
