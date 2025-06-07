@@ -1,6 +1,6 @@
 import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
-import { Order } from '../models/order.model.js'; // Fix import
+import { Order } from '../models/order.model.js';
 import { orderQueue } from '../queues/order.queue.js';
 
 export const midtransWebhook = async (req, res) => {
@@ -17,12 +17,16 @@ export const midtransWebhook = async (req, res) => {
       ewallet
     } = notificationJson;
 
-    console.log('Received Midtrans notification:', notificationJson);
+    console.log('Received Midtrans notification:', {
+      order_id,
+      transaction_status,
+      payment_type
+    });
 
     // Simpan/update data pembayaran
     const paymentData = {
       order_id,
-      method: payment_type || 'unknown', // Fixed
+      method: payment_type || 'unknown',
       status: transaction_status,
       amount: Number(gross_amount),
       bank: bank || (va_numbers?.[0]?.bank) || '',
@@ -39,40 +43,59 @@ export const midtransWebhook = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
+    const previousStatus = order.status;
+
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      order.status = 'Completed'; // Atau 'OnProcess' sesuai logika
+      order.status = 'Completed';
       await order.save();
 
       // Masukkan ke antrian untuk diproses (print, kitchen, dll)
       await orderQueue.add('create-order', order.toObject());
 
-      io.to(order_id).emit('payment_status_update', {
+      // Emit ke customer yang menunggu pembayaran
+      io.to(`order_${order_id}`).emit('payment_status_update', {
         order_id,
         transaction_status,
-        status: order.status
+        status: order.status,
+        message: 'Payment successful! Your order is being processed.'
       });
+
+      // Emit ke aplikasi kasir untuk menampilkan order baru
+      io.to('cashier_room').emit('new_order', {
+        order_id,
+        order: order.toObject(),
+        transaction_status,
+        timestamp: new Date().toISOString(),
+        message: 'New paid order received!'
+      });
+
+      console.log(`Order ${order_id} payment completed - notified customer and cashier`);
+
     } else if (['deny', 'cancel', 'expire'].includes(transaction_status)) {
       order.status = 'Canceled';
       await order.save();
 
-      io.to(order_id).emit('payment_status_update', {
+      // Notifikasi customer bahwa pembayaran gagal
+      io.to(`order_${order_id}`).emit('payment_status_update', {
         order_id,
         transaction_status,
-        status: order.status
+        status: order.status,
+        message: 'Payment failed or expired. Please try again.'
       });
+
+      console.log(`Order ${order_id} payment failed: ${transaction_status}`);
+
     } else {
-      io.to(order_id).emit('payment_status_update', {
+      io.to(`order_${order_id}`).emit('payment_status_update', {
         order_id,
         transaction_status,
-        status: order.status
+        status: order.status,
+        message: `Payment status: ${transaction_status}`
       });
     }
 
-    io.emit('payment_status_update', {
-      order_id,
-      transaction_status,
-      status: order.status
-    });
+    // Log untuk debugging
+    console.log(`Order ${order_id} status changed from ${previousStatus} to ${order.status}`);
 
     res.status(200).json({ status: 'ok' });
   } catch (error) {

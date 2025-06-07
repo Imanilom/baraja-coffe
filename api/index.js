@@ -12,17 +12,18 @@ import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
 import orderRoutes from './routes/order.routes.js';
 import menuRoutes from './routes/menu.routes.js';
-import promotionRoutes from './routes/promotion.routes.js'; 
+import promotionRoutes from './routes/promotion.routes.js';
 import storageRoutes from './routes/storage.routes.js';
 import contentRoutes from './routes/content.routes.js';
-import outletRoutes from './routes/outlet.routes.js'; 
+import outletRoutes from './routes/outlet.routes.js';
 import posRoutes from './routes/pos.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import historyRoutes from './routes/history.routes.js';
-import paymentMethodsRouter from './routes/paymentMethode.js'; 
+import paymentMethodsRouter from './routes/paymentMethode.js';
 import tableLayoutRoutes from './routes/tableLayout.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
+import socketHandler from './socket/index.js';
 
 dotenv.config();
 
@@ -36,12 +37,13 @@ mongoose
   });
 
 const __dirname = path.resolve();
+// Setup express dan server
 const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*", 
+    origin: "*",
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"]
   },
@@ -50,40 +52,8 @@ const io = new Server(server, {
   transports: ['websocket', 'polling']
 });
 
-export { io };
-
-// Socket connection handling
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-
-  // Debug ping (keep for debugging)
-  setInterval(() => {
-    io.emit('ping', { message: 'Ping from server', timestamp: new Date().toISOString() });
-    console.log('Sent ping to all clients');
-  }, 10000);
-
-  // Handle room joining with acknowledgement
-  socket.on('join_order_room', (orderId, callback) => {
-    console.log(`Client ${socket.id} joining room for order: ${orderId}`);
-    socket.join(orderId);
-
-    // Send acknowledgement back to client
-    if (typeof callback === 'function') {
-      callback({ status: 'joined', room: orderId });
-    }
-
-    // Emit a message to verify room joining
-    socket.to(orderId).emit('room_joined', { message: `You joined room ${orderId}` });
-
-    // Log rooms after joining
-    console.log('Rooms after joining:', io.sockets.adapter.rooms);
-  });
-
-  // Handle explicit disconnection
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-  });
-});
+// Gunakan handler socket
+socketHandler(io);
 
 // Middleware and routes setup...
 app.use(express.json());
@@ -108,7 +78,7 @@ app.use('/api/content', contentRoutes);
 app.use('/api/outlet', outletRoutes);
 app.use('/api/workstation', posRoutes);
 app.use('/api/report', reportRoutes);
-app.use('/api/history', historyRoutes); 
+app.use('/api/history', historyRoutes);
 app.use('/api/table-layout', tableLayoutRoutes);
 app.use('/api/reservation', reservationRoutes);
 app.use('/api/marketlist', marketListRoutes);
