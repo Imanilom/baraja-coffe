@@ -15,7 +15,7 @@ export async function processOrderItems({ items, outletId, orderType, voucherCod
     let addons = [];
     let toppings = [];
 
-    // Kurangi bahan baku utama menu
+    // Kurangi bahan baku utama menua
     if (menuItem.rawMaterials?.length > 0) {
       for (const material of menuItem.rawMaterials) {
         const totalQty = material.quantityRequired * item.quantity;
