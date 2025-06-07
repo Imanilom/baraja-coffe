@@ -1,6 +1,6 @@
 import Payment from '../models/Payment.model.js';
 import { MenuItem } from "../models/MenuItem.model.js";
-import { Order } from "../models/Order.model.js";
+import { Order } from "../models/order.model.js";
 import User from "../models/user.model.js";
 import Voucher from "../models/voucher.model.js";
 import AutoPromo from '../models/AutoPromo.model.js';
@@ -710,7 +710,7 @@ export const createUnifiedOrder = async (req, res) => {
       const midtransRes = await createMidtransCoreTransaction(
         orderId,
         validated.paymentDetails.amount,
-        validated.paymentDetails.method 
+        validated.paymentDetails.method
       );
 
       await session.commitTransaction();
@@ -727,7 +727,7 @@ export const createUnifiedOrder = async (req, res) => {
       const midtransRes = await createMidtransSnapTransaction(
         orderId,
         validated.paymentDetails.amount,
-        validated.paymentDetails.method 
+        validated.paymentDetails.method
       );
 
       await session.commitTransaction();
