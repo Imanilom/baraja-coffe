@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:barajapos/models/menu_item_model.dart';
-import 'package:barajapos/models/order_item_model.dart';
+import 'package:barajapos/models/adapter/topping.model.dart';
+import 'package:barajapos/models/adapter/addon.model.dart';
+import 'package:barajapos/models/adapter/addon_option.model.dart';
+import 'package:barajapos/models/adapter/order_item.model.dart';
 
 class EditOrderItemDialog extends StatefulWidget {
   final OrderItemModel orderItem;
@@ -96,10 +98,10 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               ),
             ],
           ),
-          if (menuItem.toppings.isNotEmpty)
+          if (menuItem.toppings!.isNotEmpty)
             const Text('Topping:',
                 style: TextStyle(fontWeight: FontWeight.bold)),
-          ..._buildToppingList(menuItem.toppings, selectedToppings, (topping) {
+          ..._buildToppingList(menuItem.toppings!, selectedToppings, (topping) {
             setState(() {
               if (selectedToppings.contains(topping)) {
                 selectedToppings.remove(topping);
@@ -138,7 +140,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   ) {
     return availableToppings.map((topping) {
       return CheckboxListTile(
-        title: Text(topping.name),
+        title: Text(topping.name!),
         subtitle: Text('Rp${topping.price}'),
         value: selectedToppings.contains(topping),
         onChanged: (value) {
@@ -158,16 +160,17 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(addon.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ...addon.options.map((option) {
+          Text(addon.name!,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          ...addon.options!.map((option) {
             return RadioListTile<AddonOptionModel>(
-              title: Text(option.label),
+              title: Text(option.label!),
               value: option,
               groupValue: selectedAddons
                   .firstWhere((a) => a.id == addon.id,
                       orElse: () =>
                           AddonModel(id: '', name: '', type: '', options: []))
-                  .options
+                  .options!
                   .firstOrNull,
               onChanged: (value) {
                 if (value != null) {

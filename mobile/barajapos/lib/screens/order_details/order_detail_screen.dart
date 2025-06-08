@@ -1,14 +1,18 @@
-import 'package:barajapos/models/order_detail_model.dart';
+import 'package:barajapos/models/adapter/order_detail.model.dart';
 import 'package:barajapos/providers/auth_provider.dart';
 import 'package:barajapos/providers/navigation_provider.dart';
+import 'package:barajapos/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:barajapos/providers/order_detail_providers/saved_order_detail_provider.dart';
 import 'package:barajapos/providers/orders/order_type_provider.dart';
 import 'package:barajapos/providers/orders/saved_order_provider.dart';
+import 'package:barajapos/repositories/online_order_repository.dart';
 import 'package:barajapos/utils/format_rupiah.dart';
 import 'package:barajapos/widgets/dialogs/edit_order_item_dialog.dart';
 import 'package:barajapos/widgets/payment/payment_method.dart';
+import 'package:flutter/material.dart' as material;
 import 'package:flutter_riverpod/flutter_riverpod.dart' as riverpod;
 import 'package:barajapos/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:barajapos/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 class OrderDetailScreen extends riverpod.ConsumerWidget {
@@ -17,9 +21,31 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
   @override
   Widget build(BuildContext context, riverpod.WidgetRef ref) {
     final currenIndex = ref.watch(navigationProvider);
-    double totalPrices = 0;
+    int totalPrices = 0;
     OrderDetailModel? orderDetail;
     String onNull = 'Pilih detail pesanan';
+    final OnlineOrderRepository repository = OnlineOrderRepository();
+    final currentCashier = ref.watch(authCashierProvider);
+
+    void confirmOrder(
+        riverpod.WidgetRef ref, OrderDetailModel orderDetail) async {
+      try {
+        await repository.confirmOrder(ref, orderDetail);
+        if (context.mounted) {
+          material.ScaffoldMessenger.of(context).showSnackBar(
+            const material.SnackBar(
+                content: Text("Order berhasil dikonfirmasi")),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          material.ScaffoldMessenger.of(context).showSnackBar(
+            material.SnackBar(
+                content: Text("Gagal konfirmasi order: ${e.toString()}")),
+          );
+        }
+      }
+    }
 
     switch (currenIndex) {
       case 0:
@@ -27,10 +53,20 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
         totalPrices = ref.watch(orderDetailProvider.notifier).totalPrice;
         onNull = 'Pilih menu untuk memulai pesanan';
         break;
+      case 1:
+        orderDetail = ref.watch(onlineOrderDetailProvider);
+        totalPrices = ref.watch(onlineOrderDetailProvider.notifier).totalPrice;
+        onNull = 'Pilih pesanan untuk konfirmasi';
+        break;
+      case 2:
+        orderDetail = ref.watch(historyDetailProvider);
+        totalPrices = ref.watch(historyDetailProvider.notifier).totalPrice;
+        onNull = 'Pilih detail history pesanan';
+        break;
       case 3:
         orderDetail = ref.watch(savedOrderDetailProvider);
         totalPrices = ref.watch(savedOrderDetailProvider.notifier).totalPrice;
-        onNull = 'Pilih menu untuk memulai pesanan';
+        onNull = 'Pilih pesanan tersimpan';
         break;
       default:
     }
@@ -41,13 +77,45 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
     return Scaffold(
       headers: [
         AppBar(
-          title: const Text('Pesanan'),
+          title: material.Container(
+            padding: const EdgeInsets.all(6.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.gray[300]),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Basic(
+              title: Text(
+                '${currentCashier.value?.username}',
+              ),
+              subtitle: Text('${currentCashier.value?.cashierType}'),
+              leading: const Icon(
+                Icons.account_circle,
+                size: 24,
+                color: Colors.black,
+              ),
+            ),
+          ),
           trailing: [
+            //pengaturan,
+            Button(
+              style: ButtonVariance.secondary,
+              child: const Icon(RadixIcons.gear),
+              onPressed: () {
+                //buka halaman pengaturan
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
+                  ),
+                );
+              },
+            ),
             //logout
             Button(
               style: ButtonVariance.secondary,
               child: const Icon(RadixIcons.exit),
-              onPressed: () => ref.read(authProvider.notifier).logout(),
+              onPressed: () => ref.read(authCashierProvider.notifier).logout(),
             ),
           ],
         ),
@@ -55,18 +123,17 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          //profile cashier
-          const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: Text(
-              'Cashier : Imanuel',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ),
+          // const Padding(
+          //   padding: EdgeInsets.all(8.0),
+          //   child: Text(
+          //     'Cashier : Imanuel',
+          //     style: TextStyle(
+          //       fontSize: 16,
+          //       fontWeight: FontWeight.bold,
+          //       color: Colors.black,
+          //     ),
+          //   ),
+          // ),
           //memilih tipe order dine-in atau take away,
           //menggunakan radio button group.
           if (currenIndex == 0) const SelectOrderType(),
@@ -179,11 +246,11 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
                               if (orderItem.selectedAddons.isNotEmpty)
                                 //mengambil nama addons dan lable pada opsions
                                 if (orderItem
-                                    .selectedAddons.first.options.isNotEmpty)
+                                    .selectedAddons.first.options!.isNotEmpty)
                                   Text(
-                                      'Addons: ${orderItem.selectedAddons.map((a) => a.options.map((o) => o.label).join(', ')).join(', ')}'),
+                                      'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}'),
                               Text(
-                                  'Sub total: ${formatRupiah(orderItem.subTotalPrice)}'),
+                                  'Sub total: ${formatRupiah(orderItem.calculateSubTotalPrice())}'),
                             ],
                           ),
                           trailing: currenIndex == 0
@@ -208,7 +275,8 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Text(
-              'Total: ${formatRupiah(totalPrices)}, payment: ${orderDetail?.paymentMethod}',
+              // 'Total: ${formatRupiah(totalPrices)}, payment: ${orderDetail?.paymentMethod},',
+              'Total: ${formatRupiah(totalPrices)}',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -238,46 +306,116 @@ class OrderDetailScreen extends riverpod.ConsumerWidget {
                     },
                     child: const Text('Lanjutkan Pesanan'),
                   )
-                : Row(
-                    children: [
-                      Expanded(
-                        child: Button(
-                          style: ButtonVariance.primary,
-                          onPressed: () {
-                            if (orderDetail != null &&
-                                orderDetail.items.isNotEmpty) {
-                              print('mau disimpan');
-                              ref
-                                  .read(savedOrderProvider.notifier)
-                                  .savedOrder(ref);
+                : currenIndex == 1
+                    ? Row(
+                        children: [
+                          material.Expanded(
+                            child: Button(
+                              style: ButtonVariance.secondary,
+                              onPressed: () {
+                                if (orderDetail != null &&
+                                    orderDetail.items.isNotEmpty) {
+                                  // hapus data order detail yang lama
+                                  ref
+                                      .read(onlineOrderDetailProvider.notifier)
+                                      .clearOnlineOrderDetail();
+                                }
+                              },
+                              child: const Text('Batal'),
+                            ),
+                          ),
+                          const SizedBox(
+                            width: 8,
+                          ),
+                          material.Expanded(
+                            child: Button(
+                              style: orderDetail != null &&
+                                      orderDetail.items.isNotEmpty
+                                  ? ButtonVariance.primary
+                                  : ButtonVariance.muted,
+                              onPressed: () {
+                                if (orderDetail != null &&
+                                    orderDetail.items.isNotEmpty) {
+                                  //confirm order
+                                  confirmOrder(ref, orderDetail);
+                                  // hapus data order detail yang lama
+                                  ref
+                                      .read(onlineOrderDetailProvider.notifier)
+                                      .clearOnlineOrderDetail();
+                                }
+                              },
+                              child: const Text('Confirm'),
+                            ),
+                          ),
+                        ],
+                      )
+                    : currenIndex == 2
+                        ? const SizedBox()
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: Button(
+                                  style: ButtonVariance.primary,
+                                  onPressed: () {
+                                    if (orderDetail != null &&
+                                        orderDetail.items.isNotEmpty) {
+                                      // print('mau disimpan');
+                                      ref
+                                          .read(savedOrderProvider.notifier)
+                                          .savedOrder(ref);
 
-                              ref
-                                  .read(orderDetailProvider.notifier)
-                                  .clearOrder();
-                            }
-                          },
-                          child: const Text('Save Order'),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Button(
-                          style: ButtonVariance.primary,
-                          onPressed: () {
-                            if (orderDetail != null &&
-                                orderDetail.items.isNotEmpty) {
-                              openSheet(
-                                context: context,
-                                position: OverlayPosition.bottom,
-                                builder: (context) => const PaymentMethod(),
-                              );
-                            }
-                          },
-                          child: const Text('Bayar'),
-                        ),
-                      ),
-                    ],
-                  ),
+                                      ref
+                                          .read(orderDetailProvider.notifier)
+                                          .clearOrder();
+                                    }
+                                  },
+                                  child: const Text('Save Order'),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Button(
+                                  style: ButtonVariance.primary,
+                                  onPressed: () {
+                                    if (orderDetail != null &&
+                                        orderDetail.items.isNotEmpty) {
+                                      openSheet(
+                                        context: context,
+                                        position: OverlayPosition.bottom,
+                                        builder: (context) => PaymentMethod(
+                                          closeSheet: () => closeSheet(context),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  child: const Text('Bayar'),
+                                ),
+                              ),
+                            ],
+                          ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsScreen extends riverpod.ConsumerWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, riverpod.WidgetRef ref) {
+    return Scaffold(
+      child: Column(
+        children: [
+          const Text('Settings'),
+          const SizedBox(height: 16),
+          Button(
+            style: ButtonVariance.primary,
+            onPressed: () {
+              ref.read(authCashierProvider.notifier).logout();
+            },
+            child: const Text('Logout'),
           ),
         ],
       ),

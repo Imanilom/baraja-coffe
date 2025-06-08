@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:barajapos/models/order_item_model.dart';
-import 'package:barajapos/models/menu_item_model.dart';
+import 'package:barajapos/models/adapter/order_item.model.dart';
+import 'package:barajapos/models/adapter/topping.model.dart';
+import 'package:barajapos/models/adapter/addon.model.dart';
+import 'package:barajapos/models/adapter/addon_option.model.dart';
 
 class OrderItemNotifier extends StateNotifier<OrderItemModel> {
   OrderItemNotifier(super.initialOrder);
