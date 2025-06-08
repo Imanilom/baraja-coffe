@@ -1137,6 +1137,7 @@ export const getPendingOrders = async (req, res) => {
     }
 
     res.status(200).json(pendingOrdersWithUnpaidStatus);
+    // res.status(200).json(pendingOrders);
   } catch (error) {
     console.error('Error fetching pending unpaid orders:', error);
     res.status(500).json({ message: 'Error fetching pending orders', error });
@@ -1375,7 +1376,52 @@ export const getCashierOrderHistory = async (req, res) => {
       return res.status(404).json({ message: 'No order history found for this cashier.' });
     }
 
-    res.status(200).json({ orders });
+    // Mapping data sesuai kebutuhan frontend
+    const mappedOrders = orders.map(order => ({
+      _id: order._id,
+      userId: order.user_id, // renamed
+      customerName: order.user, // renamed
+      cashierId: order.cashier, // renamed
+      items: order.items.map(item => ({
+        _id: item._id,
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        isPrinted: item.isPrinted,
+        menuItem: {
+          ...item.menuItem.toObject(),
+          categories: item.menuItem.category, // renamed
+        },
+        selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
+          name: addon.name,
+          _id: addon._id,
+          options: [{
+            id: addon._id, // assuming _id as id for options
+            label: addon.label || addon.name, // fallback
+            price: addon.price
+          }]
+        })) : [],
+        selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
+          id: topping._id || topping.id, // fallback if structure changes
+          name: topping.name,
+          price: topping.price
+        })) : []
+      })),
+      status: order.status,
+      orderType: order.orderType,
+      deliveryAddress: order.deliveryAddress,
+      tableNumber: order.tableNumber,
+      type: order.type,
+      paymentMethod: order.paymentMethod || "Cash", // default value
+      totalPrice: order.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
+      voucher: order.voucher || null,
+      outlet: order.outlet || null,
+      promotions: order.promotions || [],
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+      __v: order.__v
+    }));
+
+    res.status(200).json({ orders: mappedOrders });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal server error.' });
