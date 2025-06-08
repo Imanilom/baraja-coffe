@@ -372,7 +372,7 @@ class PaymentMethodScreen extends ConsumerWidget {
   void _processPayment(BuildContext context, WidgetRef ref) async {
     final state = ref.read(paymentProvider);
     final orderDetail = ref.watch(orderDetailProvider.notifier);
-    final cashierId = ref.watch(authCashierProvider).value?.id ?? '';
+    // final cashierId = ref.watch(authCashierProvider).value?.id ?? '';
 
     // Proses pembayaran
     if (state.selectedMethod == null) {
@@ -385,7 +385,7 @@ class PaymentMethodScreen extends ConsumerWidget {
     // Simpan metode pembayaran ke orderDetailProvider
     orderDetail.updatePaymentMethod(state.selectedMethod!.type);
 
-    final success = await orderDetail.submitOrder(cashierId);
+    final success = await orderDetail.submitOrder();
 
     // Navigasi ke halaman sukses
     if (success && context.mounted) {

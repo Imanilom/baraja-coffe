@@ -43,17 +43,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
   Future<void> login(String username, String password) async {
     try {
       final user = await _authRepository.login(username, password);
-      print('null tidak $user');
-      print('login berhasil akhir!');
       state = AsyncValue.data(user);
     } catch (e) {
-      print('login gagal akhir!');
-      print(e);
-      //menyimpan state error ke messageProvider
       ref.read(messageProvider.notifier).showMessage(e.toString());
-      // state = AsyncValue.error(e, StackTrace.current);
-      print('ini isi dari state: $state');
-      print('ini isi dari state value: ${state.value}');
     }
   }
 
@@ -88,7 +80,8 @@ class CashierNotifier extends StateNotifier<AsyncValue<CashierModel?>> {
 
   Future<void> login(CashierModel cashier) async {
     state = AsyncValue.data(cashier);
-    print('cek login data cashier: ${cashier.id!}');
+    print('cek login data cashier: $cashier');
+    await HiveService.saveCashier(cashier);
     await ref
         .read(tryAuthProvider.notifier)
         .loginCashier(cashier.id!, cashier.password!);
@@ -159,10 +152,15 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
       print('cek login status disini dulu ngga?: ${user.toString()}');
 
       if (user != null) {
-        state = const AsyncValue.data(AuthStatus.authenticated);
+        if (cashier != null) {
+          state = const AsyncValue.data(AuthStatus.authenticated);
+          print('cashier !null ${state.value}');
+          return;
+        }
+        state = const AsyncValue.data(AuthStatus.needPin);
         print('user !null ${state.value}');
       } else if (cashier != null) {
-        state = const AsyncValue.data(AuthStatus.needPin);
+        state = const AsyncValue.data(AuthStatus.authenticated);
         print('cashier !null ${state.value}');
       } else {
         state = const AsyncValue.data(AuthStatus.unauthenticated);
@@ -186,10 +184,9 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
 
   Future<void> login(String username, String password) async {
     try {
-      final user = await _authRepository.login(username, password);
+      await _authRepository.login(username, password);
+      print('kita berada di try auth provider login manager');
 
-      print('null tidak $user');
-      print('login berhasil akhir!');
       state = const AsyncValue.data(AuthStatus.needPin);
     } catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
@@ -206,7 +203,12 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
 
   //logout cashier
   Future<void> logoutCashier() async {
-    state = const AsyncValue.data(AuthStatus.unauthenticated);
+    final box = Hive.box('userBox');
+    await box.delete('cashier');
+    ref.read(selectedCashierProvider.notifier).state = null;
+    ref.read(messageProvider.notifier).clearMessage();
+
+    state = const AsyncValue.data(AuthStatus.needPin);
   }
 }
 

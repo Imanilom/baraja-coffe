@@ -3,6 +3,7 @@ import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
@@ -275,10 +276,10 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Kirim data orderDetail ke backend
-  Future<bool> submitOrder(String cashierId) async {
-    print('mengecek kashir id: $cashierId');
+  Future<bool> submitOrder() async {
+    final cashier = await HiveService.getCashier();
     //update cashier id di order detail model
-    state = state!.copyWith(cashierId: cashierId);
+    state = state!.copyWith(cashierId: cashier!.id);
     if (state == null) return false;
     print('Mengirim data orderDetail ke backend...');
     try {

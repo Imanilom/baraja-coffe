@@ -95,7 +95,7 @@ class MainScreen extends ConsumerWidget {
               title: const Text('Ganti Operator'),
               onTap: () {
                 // Handle item 2 tap
-                ref.read(tryAuthProvider.notifier).logout();
+                ref.read(tryAuthProvider.notifier).logoutCashier();
                 // context.goNamed('login-cashier');
               },
             ),
