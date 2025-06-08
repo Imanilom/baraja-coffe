@@ -20,6 +20,7 @@ class PrinterService {
     BluetoothPrinterModel printer,
     bool isKitchenReceipt,
   ) async {
+    await disconnectPrinter();
     await connectPrinter(printer);
     final bytes =
         isKitchenReceipt
@@ -29,7 +30,6 @@ class PrinterService {
     for (var i = 0; i < copies; i++) {
       await PrintBluetoothThermal.writeBytes(bytes);
     }
-    await disconnectPrinter();
   }
 
   static Future<void> disconnectPrinter() async {
@@ -41,9 +41,14 @@ class PrinterService {
     String macAddress,
   ) async {
     try {
+      await disconnectPrinter();
+      await connectPrinter(printer);
       // 1. Buat generator
       print('printer yang dipilih: $printer');
+
       final profile = await CapabilityProfile.load();
+
+      print('profile sudah di buat: $profile');
       PaperSize paperSize = PaperSize.mm58;
       if (printer.paperSize == 'mm58') {
         paperSize = PaperSize.mm58;
@@ -99,8 +104,9 @@ class PrinterService {
       bytes.addAll(generator.cut());
 
       // 3. Kirim ke printer
+      print('print bytes: $bytes');
       final result = await PrintBluetoothThermal.writeBytes(bytes);
-
+      print('result: $result');
       return result;
     } catch (e) {
       print('Print error: $e');

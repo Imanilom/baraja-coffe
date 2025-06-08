@@ -71,6 +71,7 @@ class PrinterHomeScreen extends ConsumerWidget {
                                   TextButton(
                                     child: const Text('Ya'),
                                     onPressed: () {
+                                      print('bersiap mencetak...');
                                       _testPrint(ref, context, printer);
                                       Navigator.pop(context);
                                     },
@@ -143,12 +144,14 @@ class PrinterHomeScreen extends ConsumerWidget {
   ) async {
     final connectionState = ref.watch(printerConnectionProvider);
     if (connectionState != PrinterConnectionState.connected) {
+      print('connecting printer...');
       _connectPrinter(ref, selectedPrinter!);
     }
     // final selectedPrinter = ref.read(selectedPrinterProvider);
     if (selectedPrinter == null) return;
 
     final scaffoldMessenger = ScaffoldMessenger.of(context);
+    print('ready to print...');
     final success = await PrinterService.testPrint(
       selectedPrinter,
       selectedPrinter.address,

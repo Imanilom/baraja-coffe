@@ -40,7 +40,7 @@ class LoginCashierScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
-              ref.read(authProvider.notifier).logout();
+              ref.read(tryAuthProvider.notifier).logout();
             },
           ),
         ],

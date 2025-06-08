@@ -36,9 +36,25 @@ class HiveService {
     await box.put('user', user);
   }
 
+  //simpan data cashier ke hive dengan cashierModel
+  static Future<void> saveCashier(CashierModel cashier) async {
+    final box = Hive.box('userBox');
+    await box.put('cashier', cashier);
+  }
+
   static Future<UserModel?> getUser() async {
     final box = Hive.box('userBox');
     return box.get('user');
+  }
+
+  static Future<CashierModel?> getCashier() async {
+    final box = Hive.box('userBox');
+    return box.get('cashier');
+  }
+
+  static Future<void> clearCashier() async {
+    final box = Hive.box('userBox');
+    await box.delete('cashier');
   }
 
   static Future<void> clearUser() async {
