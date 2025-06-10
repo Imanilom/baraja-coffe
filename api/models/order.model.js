@@ -6,6 +6,7 @@ const OrderItemSchema = new mongoose.Schema({
   subtotal: { type: Number, required: true, min: 0 },
   addons: [{ name: String, price: Number }],
   toppings: [{ name: String, price: Number }],
+  notes: { type: String, default: '' },
   isPrinted: { type: Boolean, default: false },
 });
 
@@ -16,7 +17,6 @@ const OrderSchema = new mongoose.Schema({
   user: { type: String, required: true, default: 'Guest' },
   cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [OrderItemSchema],
-  notes: { type: String, default: '' },
   status: { type: String, enum: ['Pending', 'OnProcess', 'Completed', 'Canceled'], default: 'Pending' },
   paymentMethod: { type: String, enum: ['Cash', 'Card', 'E-Wallet', 'Debit', 'Bank Transfer'] },
   orderType: { type: String, enum: ['Dine-In', 'Pickup', 'Delivery'], required: true },
