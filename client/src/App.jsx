@@ -66,6 +66,10 @@ import DigitalPayment from "./pages/report/digital_payment";
 import CreateAddOns from "./pages/menu/add_ons/create";
 import AddOns from "./pages/menu/add_ons";
 import Dashboard from "./pages/dashboard";
+import CreateOutlet from "./pages/outlet/create";
+import TaxManagementPage from "./pages/tax";
+import TargetSalesManagementPage from "./pages/target_sales";
+import ReceiptDesign from "./pages/recepit_design";
 
 
 
@@ -88,7 +92,7 @@ export default function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<Dashboard />} />
-                <Route path="outlet" element={<OutletManagementPage />} />
+                <Route path="outlet-sales" element={<OutletSales />} />
                 <Route path="example" element={<Example />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
@@ -104,12 +108,17 @@ export default function App() {
                 <Route path="device-sales" element={<DeviceSales />} />
                 <Route path="daily-sales" element={<DailySales />} />
                 <Route path="hourly-sales" element={<HourlySales />} />
-                <Route path="outlet-sales" element={<OutletSales />} />
                 <Route path="customer-sales" element={<CustomerSales />} />
                 <Route path="payment-method-sales" element={<PaymentMethodSales />} />
                 <Route path="type-sales" element={<TypeSales />} />
                 <Route path="category-sales" element={<CategorySales />} />
                 <Route path="summary" element={<Summary />} />
+                {/* Outlet */}
+                <Route path="outlet" element={<OutletManagementPage />} />
+                <Route path="create-outlet" element={<CreateOutlet />} />
+                <Route path="tax-and-service" element={<TaxManagementPage />} />
+                <Route path="target-sales" element={<TargetSalesManagementPage />} />
+                <Route path="receipt-design" element={<ReceiptDesign />} />
                 {/* Voucher */}
                 <Route path="voucher" element={<Vouchermanagement />} />
                 <Route path="voucher-create" element={<CreateVoucher />} />

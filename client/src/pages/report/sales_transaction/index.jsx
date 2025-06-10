@@ -435,6 +435,7 @@ const SalesTransaction = () => {
                                 <th className="px-4 py-3 font-normal text-right">Total</th>
                             </tr>
                         </thead>
+                        {console.log(paginatedData)}
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {paginatedData.map((product, index) => {
@@ -442,6 +443,7 @@ const SalesTransaction = () => {
                                         const item = product?.items?.[0] || {};
                                         const date = product?.createdAt || {};
                                         const cashier = product?.cashier || {};
+                                        const outlet = product?.outlet || {};
                                         const orderType = product?.orderType || {};
                                         const menuItem = item?.menuItem || {};
                                         let menuNames = [];
@@ -540,8 +542,10 @@ const SalesTransaction = () => {
                                         <p>Waktu: {formatDateTime(selectedTrx?.createdAt)}</p>
                                         <p>
                                             Outlet:
-                                            {selectedTrx.cashier?.outlet?.[0]?.outletId?.name || 'No Outlet'}
+                                            {selectedTrx.outlet?.[0]?.outletId?.name || 'No Outlet'}
                                         </p>
+
+                                        {console.log(selectedTrx)}
 
                                         <p>Kasir: {selectedTrx.cashier?.username}</p>
                                         <p>Pelanggan: {selectedTrx.user}</p>
