@@ -1,6 +1,6 @@
 import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
-import { Order } from '../models/Order.model.js'; // Fix import
+import { Order } from '../models/order.model.js'; // Fix import
 import { orderQueue } from '../queues/order.queue.js';
 
 export const midtransWebhook = async (req, res) => {
@@ -32,10 +32,11 @@ export const midtransWebhook = async (req, res) => {
 
     await Payment.findOneAndUpdate({ order_id }, paymentData, { upsert: true, new: true });
 
-    // Cari order
-    const order = await Order.findOne({ order_id });
+
+    // Cari order berdasarkan _id
+    const order = await Order.findById(order_id);
     if (!order) {
-      console.warn(`Order ${order_id} tidak ditemukan di DB`);
+      console.warn(`Order dengan _id ${id} tidak ditemukan di DB`);
       return res.status(404).json({ message: 'Order not found' });
     }
 
