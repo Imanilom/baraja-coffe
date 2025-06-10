@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Order } from '../../models/Order.model.js';
+import { Order } from '../../models/order.model.js';
 import { processOrderItems } from '../../services/order.service.js';
 
 export async function createOrderHandler({ orderId, orderData, source }) {
