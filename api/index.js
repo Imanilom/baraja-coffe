@@ -12,17 +12,18 @@ import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
 import orderRoutes from './routes/order.routes.js';
 import menuRoutes from './routes/menu.routes.js';
-import promotionRoutes from './routes/promotion.routes.js'; 
+import promotionRoutes from './routes/promotion.routes.js';
 import storageRoutes from './routes/storage.routes.js';
 import contentRoutes from './routes/content.routes.js';
-import outletRoutes from './routes/outlet.routes.js'; 
+import outletRoutes from './routes/outlet.routes.js';
 import posRoutes from './routes/pos.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import historyRoutes from './routes/history.routes.js';
-import paymentMethodsRouter from './routes/paymentMethode.js'; 
+import paymentMethodsRouter from './routes/paymentMethode.js';
 import tableLayoutRoutes from './routes/tableLayout.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
+import ratingRoutes from './routes/rating.routes.js';
 
 dotenv.config();
 
@@ -41,7 +42,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*", 
+    origin: "*",
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"]
   },
@@ -102,13 +103,14 @@ app.use('/api/auth', authRoutes);
 app.use('/api', orderRoutes);
 app.use('/api/paymentlist', paymentMethodsRouter);
 app.use('/api/menu', menuRoutes);
+app.use('/api/rating', ratingRoutes);
 app.use('/api/promotion', promotionRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/outlet', outletRoutes);
 app.use('/api/workstation', posRoutes);
 app.use('/api/report', reportRoutes);
-app.use('/api/history', historyRoutes); 
+app.use('/api/history', historyRoutes);
 app.use('/api/table-layout', tableLayoutRoutes);
 app.use('/api/reservation', reservationRoutes);
 app.use('/api/marketlist', marketListRoutes);
