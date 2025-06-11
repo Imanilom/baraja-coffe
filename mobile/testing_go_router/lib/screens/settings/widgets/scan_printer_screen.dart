@@ -77,6 +77,10 @@ class ScanPrinterScreen extends ConsumerWidget {
     );
 
     await ref.read(savedPrintersProvider.notifier).addPrinter(printer);
+    //munculkan snackbar berhasil tersimpan,
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Printer berhasil disimpan.')));
     if (context.mounted) Navigator.pop(context);
   }
 }

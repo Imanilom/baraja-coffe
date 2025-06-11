@@ -106,6 +106,7 @@ class OrderService {
 
 Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
   print('order.cashierId: ${order.cashierId}');
+  print('order item first: ${order.items.first.menuItem.id}');
   return {
     'userId': order.customerId ?? "",
     'customerName': order.customerName ?? 'Guest',

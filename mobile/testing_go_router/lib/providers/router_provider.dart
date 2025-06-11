@@ -21,6 +21,7 @@ import 'package:flutter/widgets.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/providers/go_router_refresh.dart';
+import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
 import 'package:kasirbaraja/screens/auth/login_cashier_screen.dart';
 import 'package:kasirbaraja/screens/auth/pin_input_screen.dart';
 import 'package:kasirbaraja/screens/main_screen.dart';
@@ -33,6 +34,7 @@ import 'package:kasirbaraja/screens/settings/setting_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/detail_printer_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/printer_connection.dart';
 import 'package:kasirbaraja/screens/settings/widgets/scan_printer_screen.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/boarding/splash_screen.dart';
 import 'package:flutter/material.dart';
@@ -208,6 +210,8 @@ import 'package:flutter/material.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(tryAuthProvider);
+  final authCashierState = ref.watch(authCashierProvider);
+  final cashierId = HiveService.getCashier();
 
   return GoRouter(
     errorBuilder: (context, state) {
@@ -476,9 +480,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           print('pertama disini');
           return '/main';
         }
-        print('disini');
       }
       print('authStatus di go router 3: $authStatus');
+      final socket = ref.read(socketServiceProvider);
+      print('sedang connect socket...');
+      if (cashierId.toString() != '') {
+        socket.connect(cashierId.toString());
+      }
+      print('connect socket di go router: ${socket.socket.connected}');
+
       return state.uri.toString(); // Allow navigation
     },
   );

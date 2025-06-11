@@ -13,11 +13,15 @@ class PaymentSuccessScreen extends ConsumerWidget {
     final orderDetail = ref.watch(orderDetailProvider);
     final savedPrinter = ref.read(savedPrintersProvider.notifier);
 
+    //menerima extra
+    final arguments = GoRouterState.of(context).extra as Map<String, dynamic>;
+
     return Scaffold(
       body: Center(
         child: Column(
           children: [
             Text('PaymentSuccessScreen'),
+            Text('Kembalian : ${arguments['change']}'),
             ElevatedButton(
               onPressed: () {
                 savedPrinter.printToPrinter(orderDetail!, 'bar');
