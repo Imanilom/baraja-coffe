@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/screens/orders/order_details/order_detail.dart';
 import 'package:kasirbaraja/screens/orders/widgets/list_menu.dart';
+import 'package:kasirbaraja/screens/orders/widgets/online_order.dart';
 import 'package:kasirbaraja/screens/orders/widgets/order_history.dart';
 import 'package:kasirbaraja/screens/orders/widgets/saved_order.dart';
 
@@ -20,11 +21,8 @@ class OrderScreen extends ConsumerWidget {
           child: IndexedStack(
             index: currentWidgetIndex,
             children: [
-              Container(color: Colors.red, child: ListMenu()),
-              Container(
-                color: Colors.blue,
-                child: Center(child: Text('Online Order')),
-              ),
+              Container(color: Colors.grey[200], child: ListMenu()),
+              Container(color: Colors.grey[200], child: OnlineOrder()),
               Container(
                 color: Colors.grey[200],
                 child: Center(child: OrderHistory()),

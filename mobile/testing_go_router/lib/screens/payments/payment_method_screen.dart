@@ -282,28 +282,28 @@ class PaymentMethodScreen extends ConsumerWidget {
                 );
               }).toList(),
         ),
-        if (state.selectedCashAmount != null)
-          Container(
-            margin: const EdgeInsets.only(top: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Kembalian:', style: TextStyle(fontSize: 16)),
-                Text(
-                  formatRupiah(state.change),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        // if (state.selectedCashAmount != null)
+        //   Container(
+        //     margin: const EdgeInsets.only(top: 16),
+        //     padding: const EdgeInsets.all(16),
+        //     decoration: BoxDecoration(
+        //       color: Colors.grey[100],
+        //       borderRadius: BorderRadius.circular(8),
+        //     ),
+        //     child: Row(
+        //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        //       children: [
+        //         const Text('Kembalian:', style: TextStyle(fontSize: 16)),
+        //         Text(
+        //           formatRupiah(state.change),
+        //           style: const TextStyle(
+        //             fontSize: 18,
+        //             fontWeight: FontWeight.bold,
+        //           ),
+        //         ),
+        //       ],
+        //     ),
+        //   ),
       ],
     );
   }

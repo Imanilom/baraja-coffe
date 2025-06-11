@@ -10,6 +10,8 @@ import axios from 'axios';
 import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
 import { orderQueue } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
+//io
+import { io } from '../index.js';
 
 export const createAppOrder = async (req, res) => {
   try {
@@ -28,7 +30,7 @@ export const createAppOrder = async (req, res) => {
       // status,
 
     } = req.body;
-    // console.log(pricing, orderDate, status);
+    // console.log(items);
     // Validate required fields
     if (!items || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
