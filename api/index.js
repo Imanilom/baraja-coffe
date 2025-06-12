@@ -24,6 +24,8 @@ import tableLayoutRoutes from './routes/tableLayout.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
 import ratingRoutes from './routes/rating.routes.js';
+import taxAndServiceRoutes from './routes/taxAndService.routes.js';
+import ReceiptSetting from './routes/receiptSetting.routes.js';
 
 dotenv.config();
 
@@ -114,6 +116,9 @@ app.use('/api/history', historyRoutes);
 app.use('/api/table-layout', tableLayoutRoutes);
 app.use('/api/reservation', reservationRoutes);
 app.use('/api/marketlist', marketListRoutes);
+app.use('/api/tax-service', taxAndServiceRoutes);
+app.use('/api/receipt-setting', ReceiptSetting);
+
 
 // Start server
 server.listen(3000, () => {
