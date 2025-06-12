@@ -3,6 +3,8 @@ import bcryptjs from 'bcryptjs';
 import { errorHandler } from '../utils/error.js';
 import jwt from 'jsonwebtoken';
 import admin from 'firebase-admin';
+import { Device } from "../models/Device.model.js";
+import { DeviceQuota } from "../models/DeviceQuota.model.js";
 import { verifyToken } from '../utils/verifyUser.js';
 import { Outlet } from '../models/Outlet.model.js';
 import { OAuth2Client } from "google-auth-library";
@@ -60,19 +62,6 @@ export const verifyOTP = async (req, res, next) => {
   }
 };
 
-// export const signup = async (req, res, next) => {
-//   const { username, email, password } = req.body;
-//   try {
-//     const hashedPassword = bcryptjs.hashSync(password, 10);
-//     const newUser = new User({ username, email, password: hashedPassword });
-
-//     await newUser.save();
-//     res.status(201).json({ message: 'User created successfully' });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
 export const signup = async (req, res, next) => {
   const { username, email, password } = req.body;
 
@@ -107,10 +96,9 @@ export const signup = async (req, res, next) => {
   }
 };
 
-
 export const signin = async (req, res, next) => {
   try {
-    const { identifier, password } = req.body;
+    const { identifier, password, deviceId, deviceName, location } = req.body;
 
     if (!identifier || !password) {
       return next(errorHandler(400, "Identifier and password are required"));
@@ -119,36 +107,26 @@ export const signin = async (req, res, next) => {
     let user = null;
     let tokenExpiry = "1h";
 
-
     if (typeof identifier === "string" && identifier.includes("@")) {
-
       user = await User.findOne({ email: identifier });
       if (!user || user.role !== "customer") {
         return next(errorHandler(403, "Access denied"));
       }
       tokenExpiry = "7d";
     } else {
-      user = await User.findOne({ username: identifier })
-        .populate({
-          path: "outlet.outletId",
-          select: ["name", "admin"],
-          populate: { path: "admin", select: "name" }
+      user = await User.findOne({ username: identifier }).populate({
+        path: "outlet.outletId",
+        select: ["name", "admin"],
+        populate: { path: "admin", select: "name" },
+      });
 
-        });
-      if (!user || !["superadmin", "admin", "inventory", "staff", "cashier junior", "cashier senior"].includes(user.role)) {
+      if (
+        !user ||
+        !["superadmin", "admin", "inventory", "staff", "cashier junior", "cashier senior"].includes(user.role)
+      ) {
         return next(errorHandler(403, "Access denied"));
       }
       tokenExpiry = "7d";
-    }
-    // const cashier = [];
-    let cashier = [];
-    if (user.role === "admin") {
-      //mencari user yang rolenya casir pada outlet yang smaa dengan admin?
-      const cashiers = await User.find({
-        role: ["cashier junior", "cashier senior"],
-      }).populate("outlet.outletId", "admin");
-
-      cashier = cashiers;
     }
 
     if (!user) return next(errorHandler(404, "User not found"));
@@ -156,6 +134,43 @@ export const signin = async (req, res, next) => {
     const isValidPassword = bcryptjs.compareSync(password, user.password);
     if (!isValidPassword) return next(errorHandler(401, "Wrong credentials"));
 
+    // 🌟 Tambahan: Validasi perangkat jika user bukan customer atau superadmin
+    const isDeviceRestricted = !["customer", "superadmin"].includes(user.role);
+    if (isDeviceRestricted) {
+      if (!deviceId || !location) {
+        return next(errorHandler(400, "Device ID dan lokasi wajib diisi"));
+      }
+
+      const outletId = user.outlet?.outletId?._id || user.outlet?.outletId;
+
+      const quota = await DeviceQuota.findOne({ outlet: outletId });
+      const roleQuota = quota?.quotas?.find(q => q.role === user.role);
+      const maxAllowed = roleQuota?.maxDevices || 0;
+
+      const activeDevicesCount = await Device.countDocuments({
+        outlet: outletId,
+        role: user.role,
+        isActive: true
+      });
+
+      if (activeDevicesCount >= maxAllowed) {
+        return next(errorHandler(403, `Kuota perangkat untuk role ${user.role} sudah penuh di outlet ini.`));
+      }
+
+      // Simpan atau update device login
+      await Device.findOneAndUpdate(
+        { deviceId, outlet: outletId },
+        {
+          outlet: outletId,
+          role: user.role,
+          deviceName: deviceName || `Perangkat ${user.role}`,
+          location,
+          isActive: true,
+          lastLogin: new Date()
+        },
+        { upsert: true, new: true }
+      );
+    }
 
     const token = jwt.sign(
       { id: user._id, role: user.role, cashierType: user.cashierType },
@@ -163,19 +178,26 @@ export const signin = async (req, res, next) => {
       { expiresIn: tokenExpiry }
     );
 
-
     const { password: hashedPassword, ...rest } = user._doc;
+
+    let response = { ...rest, token };
+
+    // Jika admin, tambahkan daftar kasir
+    if (user.role === "admin") {
+      const cashiers = await User.find({
+        role: ["cashier junior", "cashier senior"],
+      }).populate("outlet.outletId", "admin");
+      response.cashier = cashiers;
+    }
+
     res.cookie("access_token", token, {
       httpOnly: true,
-      maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 7 hari atau 1 hari dalam ms
-    }).status(200).json(user.role !== "admin" ? { ...rest, token } : { ...rest, token, cashier });
-
+      maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+    }).status(200).json(response);
   } catch (error) {
     next(error);
   }
 };
-
-
 
 
 export const googleAuth = async (req, res) => {
