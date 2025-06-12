@@ -36,9 +36,9 @@ const Sidebar = () => {
           name: "Laporan",
           icon: <FaClipboardList />,
           subMenu: [
-            { name: "Laporan Penjualan", path: "/admin/report" },
-            { name: "Laporan Operasional", path: "/admin/report/stock" },
-            { name: "Laporan Laba & Rugi", path: "/admin/report/finance" },
+            { name: "Laporan Penjualan", path: "/admin/sales-menu" },
+            { name: "Laporan Operasional", path: "/admin/operational-menu" },
+            { name: "Laporan Laba & Rugi", path: "/admin/profit-menu" },
           ]
         },
       ]
@@ -50,12 +50,12 @@ const Sidebar = () => {
         {
           name: "Inventori", icon: <FaBoxes />,
           subMenu: [
-            { name: "Kartu Stok", path: "/admin/storage" },
-            { name: "Stok Masuk", path: "/admin/storage" },
-            { name: "Stok Keluar", path: "/admin/storage" },
-            { name: "Transfer Stok", path: "/admin/storage" },
-            { name: "Stok Opname", path: "/admin/storage" },
-            { name: "Produksi Stok", path: "/admin/storage" },
+            { name: "Kartu Stok", path: "/admin/stockcard" },
+            { name: "Stok Masuk", path: "/admin/in" },
+            { name: "Stok Keluar", path: "/admin/out" },
+            { name: "Transfer Stok", path: "/admin/transfer" },
+            { name: "Stok Opname", path: "/admin/stockopname" },
+            { name: "Produksi Stok", path: "/admin/production" },
           ]
         },
         {
