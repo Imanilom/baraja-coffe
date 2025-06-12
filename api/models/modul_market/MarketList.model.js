@@ -18,7 +18,7 @@ const paymentSchema = new mongoose.Schema({
   bankFrom: String,       // hanya untuk online
   bankTo: String,         // hanya untuk online
   recipientName: String,  // hanya untuk online
-  profofPayment: String, // URL or path to the proof of payment document
+  proof: String, // URL or path to the proof of payment document
   notes: String,
 });
 
