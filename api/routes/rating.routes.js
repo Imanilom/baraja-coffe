@@ -1,6 +1,6 @@
 import express from 'express';
 import { MenuRatingController } from '../controllers/menuRating.controller.js';
-// import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
+import { authMiddleware, adminMiddleware } from '../utils/middleware/auth.js';
 import { validateRating } from '../utils/middleware/validateRating.js';
 
 const router = express.Router();
@@ -23,7 +23,8 @@ router.patch('/:ratingId/helpful', MenuRatingController.markHelpful);
 // router.use(authMiddleware); // Semua route dibawah ini perlu authentication
 
 // Membuat rating baru
-router.post('/', validateRating, MenuRatingController.createRating);
+// router.post('/create', MenuRatingController.createRating);
+router.post('/create', validateRating, MenuRatingController.createRating);
 
 // Mendapatkan rating customer untuk menu dan order tertentu
 router.get('/my-rating/:menuItemId/:orderId', MenuRatingController.getCustomerRating);
