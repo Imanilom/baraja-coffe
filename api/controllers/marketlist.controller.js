@@ -231,10 +231,8 @@ export const createMarketList = async (req, res) => {
 
               if (fulfilledQty === 0) {
                 reqItem.status = 'tidak tersedia';
-              } else if (fulfilledQty === reqQty) {
+              } else if (fulfilledQty >= reqQty) {
                 reqItem.status = 'dibeli';
-              } else if (fulfilledQty > reqQty) {
-                reqItem.status = 'lebih';
               } else if (fulfilledQty < reqQty) {
                 reqItem.status = 'kurang';
               }
@@ -248,12 +246,17 @@ export const createMarketList = async (req, res) => {
       }
     }
 
+    // 💡 JIKA ADA BUKTI PEMBAYARAN DI PAYMENT.PROOF
+    if (req.body.payment?.proof) {
+      payment.proof = req.body.payment.proof; // simpan path file
+    }
+
     // Simpan MarketList
     const marketList = new MarketList({
       date,
       day,
       ...(hasItems && { items }), // Hanya masukkan jika items ada
-      payment,
+      payment, // Sudah termasuk proof jika di-upload
       createdBy: user.username,
       relatedRequests: Array.from(updatedRequestIds),
       ...(hasAdditionalExpenses && { additionalExpenses })
@@ -359,7 +362,7 @@ export const getCashFlow = async (req, res) => {
 
 export const addCashIn = async (req, res) => {
   try {
-    const { date, description, cashIn, source, destination } = req.body;
+    const { date, description, cashIn, source, destination, proof} = req.body;
     const day = getDayName(date);
     // Validasi input
     if (!day || !date || !description || typeof cashIn !== 'number' || cashIn <= 0) {
@@ -387,6 +390,7 @@ export const addCashIn = async (req, res) => {
       balance: newBalance,
       source,
       destination,
+      proof,
       createdBy: user.username
     });
 

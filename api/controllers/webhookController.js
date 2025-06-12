@@ -41,7 +41,7 @@ export const midtransWebhook = async (req, res) => {
     }
 
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      order.status = 'Completed'; // Atau 'OnProcess' sesuai logika
+      order.status = 'OnProcess'; // Atau 'OnProcess' sesuai logika
       await order.save();
 
       // Masukkan ke antrian untuk diproses (print, kitchen, dll)
