@@ -20,9 +20,9 @@ import Vouchermanagement from "./pages/promotion/voucher/index";
 import CreateVoucher from "./pages/promotion/voucher/create";
 
 // Report
-import ReportDashboard from "./pages/report/index";
-import Summary from "./pages/report/summary";
-import SalesTransaction from "./pages/report/sales_transaction";
+import Summary from "./pages/report/sales/summary";
+import SalesTransaction from "./pages/report/sales/sales_transaction";
+import SalesMenu from "./pages/report/sales/index";
 
 // inventory
 import Storagemanagement from "./pages/storage/index";
@@ -52,17 +52,17 @@ import CreateLoyaltyProgram from "./pages/promotion/loyaltyprograms/create";
 import EditLoyaltyProgram from "./pages/promotion/loyaltyprograms/update";
 
 import ViewMenu from "./pages/menu/view";
-import ProductSales from "./pages/report/product_sales";
-import CategorySales from "./pages/report/category_sales";
-import OutletSales from "./pages/report/outlet_sales";
-import DailySales from "./pages/report/daily_sales";
+import ProductSales from "./pages/report/sales/product_sales";
+import CategorySales from "./pages/report/sales/category_sales";
+import OutletSales from "./pages/report/sales/outlet_sales";
+import DailySales from "./pages/report/sales/daily_sales";
 import Example from "./pages/example";
-import HourlySales from "./pages/report/hourly_sales";
-import PaymentMethodSales from "./pages/report/payment_method_sales";
-import TypeSales from "./pages/report/type_sales";
-import CustomerSales from "./pages/report/customer_sales";
-import DeviceSales from "./pages/report/device_sales";
-import DigitalPayment from "./pages/report/digital_payment";
+import HourlySales from "./pages/report/sales/hourly_sales";
+import PaymentMethodSales from "./pages/report/sales/payment_method_sales";
+import TypeSales from "./pages/report/sales/type_sales";
+import CustomerSales from "./pages/report/sales/customer_sales";
+import DeviceSales from "./pages/report/sales/device_sales";
+import DigitalPayment from "./pages/report/sales/digital_payment";
 import CreateAddOns from "./pages/menu/add_ons/create";
 import AddOns from "./pages/menu/add_ons";
 import Dashboard from "./pages/dashboard";
@@ -70,6 +70,25 @@ import CreateOutlet from "./pages/outlet/create";
 import TaxManagementPage from "./pages/tax";
 import TargetSalesManagementPage from "./pages/target_sales";
 import ReceiptDesign from "./pages/recepit_design";
+import OperationalMenu from "./pages/report/operational";
+import Reconciliation from "./pages/report/operational/reconciliation";
+import StockManagement from "./pages/report/operational/stock";
+import UserAttendancesManagement from "./pages/report/operational/user_attendances";
+import ExpenditureManagement from "./pages/report/operational/expenditure";
+import CommissionManagement from "./pages/report/operational/commission";
+import InstallmentManagement from "./pages/report/operational/installment";
+import TableManagement from "./pages/report/operational/table";
+import InStockManagement from "./pages/inventory/in_stock";
+import OutStockManagement from "./pages/inventory/out_stock";
+import StockCardManagement from "./pages/inventory/stockcard";
+import ProductionStockManagement from "./pages/inventory/production_stock";
+import StockOpnameManagement from "./pages/inventory/stock_opname";
+import TransferStockManagement from "./pages/inventory/transfer_stock";
+import ProfitMenu from "./pages/report/profit";
+import TaxRevenueManagement from "./pages/report/profit/tax_revenue";
+import DiscountManagement from "./pages/report/profit/discount";
+import DailyProfitManagement from "./pages/report/profit/daily-profit";
+import ProfitByProductManagement from "./pages/report/profit/profit_by_product";
 
 
 
@@ -92,7 +111,6 @@ export default function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<Dashboard />} />
-                <Route path="outlet-sales" element={<OutletSales />} />
                 <Route path="example" element={<Example />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
@@ -101,7 +119,12 @@ export default function App() {
                 <Route path="add-ons" element={<AddOns />} />
                 <Route path="create-addons" element={<CreateAddOns />} />
                 <Route path="category-create" element={<AddCategory />} />
-                <Route path="report" element={<ReportDashboard />} />
+
+                {/* Report */}
+                <Route path="sales-menu" element={<SalesMenu />} />
+                <Route path="operational-menu" element={<OperationalMenu />} />
+                <Route path="profit-menu" element={<ProfitMenu />} />
+                {/* Sales */}
                 <Route path="digital-payment" element={<DigitalPayment />} />
                 <Route path="transaction-sales" element={<SalesTransaction />} />
                 <Route path="product-sales" element={<ProductSales />} />
@@ -113,6 +136,30 @@ export default function App() {
                 <Route path="type-sales" element={<TypeSales />} />
                 <Route path="category-sales" element={<CategorySales />} />
                 <Route path="summary" element={<Summary />} />
+                <Route path="outlet-sales" element={<OutletSales />} />
+                {/* Operational */}
+                <Route path="reconciliation" element={<Reconciliation />} />
+                <Route path="stock" element={<StockManagement />} />
+                <Route path="user-attendances" element={<UserAttendancesManagement />} />
+                <Route path="installment" element={<InstallmentManagement />} />
+                <Route path="expenditure" element={<ExpenditureManagement />} />
+                <Route path="commission" element={<CommissionManagement />} />
+                <Route path="table" element={<TableManagement />} />
+                {/* Profit */}
+                <Route path="tax-revenue" element={<TaxRevenueManagement />} />
+                <Route path="discount" element={<DiscountManagement />} />
+                <Route path="daily-profit" element={<DailyProfitManagement />} />
+                <Route path="profit-by-product" element={<ProfitByProductManagement />} />
+
+
+                {/* Inventory */}
+                <Route path="stockcard" element={<StockCardManagement />} />
+                <Route path="in" element={<InStockManagement />} />
+                <Route path="out" element={<OutStockManagement />} />
+                <Route path="production" element={<ProductionStockManagement />} />
+                <Route path="stockopname" element={<StockOpnameManagement />} />
+                <Route path="transfer" element={<TransferStockManagement />} />
+
                 {/* Outlet */}
                 <Route path="outlet" element={<OutletManagementPage />} />
                 <Route path="create-outlet" element={<CreateOutlet />} />
