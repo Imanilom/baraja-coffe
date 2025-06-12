@@ -157,7 +157,7 @@ const TargetSalesManagementPage = () => {
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Outlet / Kota"
+                                placeholder="Outlet"
                                 value=""
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
                             />
