@@ -697,18 +697,6 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    const newOrder = new Order({
-      order_id: orderId,
-      source,
-      userId: validated.userId,
-      items,
-      paymentMethod: validated.paymentMethod,
-      paymentDetails: validated.paymentDetails,
-      orderType: validated.orderType,
-      tableNumber: validated.tableNumber,
-      outlet: validated.outlet,
-      status: 'Pending',
-    });
 
     if (source === 'Cashier') {
       await session.commitTransaction();

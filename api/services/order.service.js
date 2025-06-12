@@ -1,6 +1,7 @@
 import { MenuItem } from '../models/MenuItem.model.js';
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import { checkAutoPromos, checkManualPromo, checkVoucher } from '../helpers/promo.helper.js';
+import { TaxAndService } from '../models/TaxAndService.model.js';
 import mongoose from 'mongoose';
 
 export async function processOrderItems({ items, outletId, orderType, voucherCode, customerType = 'all' }, session) {
@@ -105,6 +106,53 @@ export async function processOrderItems({ items, outletId, orderType, voucherCod
 
   const totalDiscount = autoPromoDiscount + manualDiscount + voucherDiscount;
   const totalAfterDiscount = totalBeforeDiscount - totalDiscount;
+  // === TAX & SERVICE SECTION ===
+  const taxesAndServices = await TaxAndService.find({
+    isActive: true,
+    appliesToOutlets: outletId,
+    $or: [
+      { appliesToCustomerTypes: 'all' },
+      { appliesToCustomerTypes: customerType }
+    ]
+  }).session(session);
+
+  let taxAndServiceDetails = [];
+  let totalTax = 0;
+  let totalServiceFee = 0;
+
+  for (const charge of taxesAndServices) {
+    // Jika charge memiliki appliesToMenuItems, filter hanya yg match
+    const applicableItems = charge.appliesToMenuItems?.length > 0
+      ? orderItems.filter(item => charge.appliesToMenuItems.some(menuId => menuId.equals(item.menuItem)))
+      : orderItems;
+
+    const applicableSubtotal = applicableItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+    if (charge.type === 'tax') {
+      const taxAmount = (charge.percentage / 100) * applicableSubtotal;
+      totalTax += taxAmount;
+      taxAndServiceDetails.push({
+        name: charge.name,
+        type: 'tax',
+        amount: taxAmount
+      });
+    } else if (charge.type === 'service') {
+      let fee = 0;
+      if (charge.fixedFee && charge.fixedFee > 0) {
+        fee = charge.fixedFee;
+      } else if (charge.percentage && charge.percentage > 0) {
+        fee = (charge.percentage / 100) * applicableSubtotal;
+      }
+      totalServiceFee += fee;
+      taxAndServiceDetails.push({
+        name: charge.name,
+        type: 'service',
+        amount: fee
+      });
+    }
+  }
+
+  const grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
 
   return {
     orderItems,
@@ -117,6 +165,10 @@ export async function processOrderItems({ items, outletId, orderType, voucherCod
     },
     appliedPromos,
     appliedManualPromo: appliedPromo,
-    appliedVoucher: voucher
+    appliedVoucher: voucher,
+    taxAndServiceDetails,
+    totalTax,
+    totalServiceFee,
+    grandTotal
   };
 }
