@@ -12,7 +12,9 @@ class OrderHistory extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // final cashierId = ref.read(authCashierProvider).value?.id ?? '';
     // ref.read(orderHistoryProvider.notifier).getOrderHistory(cashierId);
+    print('build order history');
     final history = ref.watch(orderHistoryProvider);
+    print('get build order history: $history');
 
     return history.when(
       data:

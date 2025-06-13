@@ -13,11 +13,13 @@ final orderHistoryProvider =
     );
 
 class OrderHistoryNotifier extends AsyncNotifier<List<OrderDetailModel>> {
-  late final OrderHistoryRepository _repository;
+  // late final OrderHistoryRepository _repository;
+  OrderHistoryRepository get _repository =>
+      ref.read(orderHistoryRepositoryProvider);
 
   @override
   Future<List<OrderDetailModel>> build() async {
-    _repository = ref.read(orderHistoryRepositoryProvider);
+    // _repository = ref.read(orderHistoryRepositoryProvider);
     final cashierId = ref.read(authCashierProvider).value?.id ?? '';
     return await _repository.fetchOrderHistory(cashierId);
   }

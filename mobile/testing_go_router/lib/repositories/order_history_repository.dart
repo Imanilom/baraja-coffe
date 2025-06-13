@@ -8,19 +8,13 @@ class OrderHistoryRepository {
     try {
       final response = await _orderHistoryService.fetchOrderHistory(cashierId);
 
-      final orders = response['orders'];
-
-      if (orders == null || orders is! List) {
-        return [];
-      }
-
+      final orders = response['orders'] as List;
+      print("response order history: $response");
+      print('konversi json ke model');
       final orderHistory =
-          orders
-              .map((json) => OrderDetailModel.fromJson(json))
-              .toList()
-              .cast<OrderDetailModel>();
+          orders.map((json) => OrderDetailModel.fromJson(json)).toList();
 
-      print("Data order history yg diambil: ${orderHistory.length}");
+      print("Data order history yg diambils: ${orderHistory.length}");
 
       return orderHistory;
     } catch (e) {

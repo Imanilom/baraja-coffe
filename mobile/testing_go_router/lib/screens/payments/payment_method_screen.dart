@@ -5,6 +5,7 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
@@ -389,6 +390,9 @@ class PaymentMethodScreen extends ConsumerWidget {
 
     // Navigasi ke halaman sukses
     if (success && context.mounted) {
+      // ref.read(orderHistoryProvider.notifier).refreshHistory();
+      ref.invalidate(orderHistoryProvider);
+
       context.goNamed(
         'payment-success',
         extra: {
