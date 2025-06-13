@@ -284,7 +284,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     print('Mengirim data orderDetail ke backend...');
     try {
       final order = await OrderService().createOrder(state!);
-      print('Order ID: $order');
+      print('Order ID : $order');
       if (order.isNotEmpty) {
         return true;
       }

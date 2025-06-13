@@ -1365,15 +1365,17 @@ export const getOrderById = async (req, res) => {
 export const getCashierOrderHistory = async (req, res) => {
   try {
     const cashierId = req.params.cashierId; // Mengambil ID kasir dari parameter URL
+    console.log(cashierId);
     if (!cashierId) {
       return res.status(400).json({ message: 'Cashier ID is required.' });
     }
 
     // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
     const orders = await Order.find({ cashier: cashierId })
+      // const orders = await Order.find();
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
       .populate('voucher'); // Mengisi detail voucher (opsional)
-
+    console.log(orders.length);
     if (!orders || orders.length === 0) {
       return res.status(404).json({ message: 'No order history found for this cashier.' });
     }
@@ -1429,3 +1431,12 @@ export const getCashierOrderHistory = async (req, res) => {
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
+
+// test socket
+export const testSocket = async (req, res) => {
+  console.log('Emitting order created to cashier room...');
+  io.to('cashier_room').emit('order_created', { message: 'Order created' });
+  console.log('Emitting order created to cashier room success.');
+
+  res.status(200).json({ success: true });
+}

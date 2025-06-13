@@ -1,3 +1,5 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/services/order_history_service.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:kasirbaraja/models/order_detail.model.dart';
 // import 'package:dio/dio.dart';
@@ -53,11 +55,14 @@ import 'package:kasirbaraja/configs/app_config.dart';
 class SocketService {
   late IO.Socket socket;
   final String _serverUrl = AppConfig.baseUrl;
+  final Ref ref;
+
+  SocketService(this.ref);
 
   void connect(String cashierId) {
     socket = IO.io(_serverUrl, <String, dynamic>{
       'transports': ['websocket'],
-      'autoConnect': false,
+      'autoConnect': true,
     });
 
     socket.connect();
@@ -66,6 +71,17 @@ class SocketService {
       print('Socket connected');
       // socket.emit('kasir:join', {'id': cashierId});
       socket.emit('join_cashier_room', {'id': cashierId});
+      print('success join cashier room');
+    });
+
+    socket.on('order_created', (data) {
+      try {
+        print('Received order_created: $data');
+        // void _ = ref.refresh(activityProvider.future);
+        ref.invalidate(activityProvider);
+      } catch (e) {
+        print('Error refreshing activityProvider: $e');
+      }
     });
 
     socket.onDisconnect((_) => print('Socket disconnected'));
