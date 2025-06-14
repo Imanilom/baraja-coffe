@@ -1,125 +1,190 @@
+import 'package:assorted_layout_widgets/assorted_layout_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/widgets/cards/menu_item_card.dart';
 
-class ListMenu extends ConsumerWidget {
+class ListMenu extends ConsumerStatefulWidget {
   const ListMenu({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // buat provider selected index category
-    final selectedCategoryIndex = ref.watch(selectedCategoryIndexProvider);
+  ConsumerState<ListMenu> createState() => _ListMenuState();
+}
+
+class _ListMenuState extends ConsumerState<ListMenu> {
+  late final TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _handleAddToOrder(MenuItemModel menuItem) {
+    final orderDetail = ref.read(orderDetailProvider);
+    final notifier = ref.read(orderDetailProvider.notifier);
+
+    if (orderDetail == null) {
+      notifier.initializeOrder(orderType: 'Dine-In');
+    }
+
+    notifier.addItemToOrder(
+      OrderItemModel(
+        menuItem: menuItem,
+        selectedToppings: [],
+        selectedAddons: [],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedCategory = ref.watch(categoryProvider);
     final menu = ref.watch(menuItemProvider);
-    final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
-    final orderDetail = ref.watch(orderDetailProvider);
+    final isSearchBarVisible = ref.watch(searchBarProvider);
+
+    const categories = [
+      'All',
+      'Additional',
+      'Appetizer',
+      'Asian',
+      'Ayam dan Bebek Goreng',
+      'Black Coffee',
+    ];
 
     return Row(
       children: [
-        NavigationRail(
-          selectedIndex: selectedCategoryIndex,
-          backgroundColor: Colors.white,
-          labelType: NavigationRailLabelType.all,
-          useIndicator: false,
-          onDestinationSelected: (int index) {
-            ref.read(selectedCategoryIndexProvider.notifier).state = index;
-          },
-          selectedLabelTextStyle: const TextStyle(
-            color: Color.fromARGB(255, 24, 138, 39),
-            fontWeight: FontWeight.w600,
-          ),
-          unselectedLabelTextStyle: const TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w400,
-          ),
-          destinations: [
-            NavigationRailDestination(
-              icon: const SizedBox.shrink(),
-              label: Text('Popular'),
-            ),
-            NavigationRailDestination(
-              icon: const SizedBox.shrink(),
-              label: Text('Promo'),
-            ),
-            NavigationRailDestination(
-              icon: const SizedBox.shrink(),
-              label: Text('Makanan'),
-            ),
-            NavigationRailDestination(
-              icon: const SizedBox.shrink(),
-              label: Text('Minuman'),
-            ),
-            NavigationRailDestination(
-              icon: const SizedBox.shrink(),
-              label: Text('Snack'),
-            ),
-          ],
-        ),
-        Divider(color: Colors.grey.shade500, thickness: 2),
+        // Categories Sidebar
         Expanded(
+          flex: 1,
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            bottomNavigationBar: BottomAppBar(
+              color: Colors.white,
+              padding: const EdgeInsets.all(8.0),
+              height: 52,
+              surfaceTintColor: Colors.white,
+              child: IconButton(
+                icon: Icon(
+                  isSearchBarVisible
+                      ? Icons.search_off_rounded
+                      : Icons.search_rounded,
+                ),
+                onPressed: () {
+                  ref.read(searchBarProvider.notifier).state =
+                      !isSearchBarVisible;
+                  if (!isSearchBarVisible) {
+                    _searchController.clear();
+                    ref.read(searchQueryProvider.notifier).state = '';
+                  }
+                },
+              ),
+            ),
+            body: ListView(
+              children:
+                  categories.map((category) {
+                    return ListTile(
+                      horizontalTitleGap: 4,
+                      visualDensity: const VisualDensity(vertical: -2),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      dense: true,
+                      selected: selectedCategory == category,
+                      selectedTileColor: Colors.green.shade50,
+                      title: Text(
+                        category,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      onTap:
+                          () =>
+                              ref.read(categoryProvider.notifier).state =
+                                  category,
+                    );
+                  }).toList(),
+            ),
+          ),
+        ),
+
+        VerticalDivider(width: 2, color: Colors.grey.shade200),
+
+        // Main Content
+        Expanded(
+          flex: 4,
           child: Container(
             color: Colors.grey.shade200,
             child: Column(
               children: [
-                // Search Input (TIDAK memerlukan Expanded)
-                // Padding(
-                //   padding: const EdgeInsets.all(8.0),
-                //   child: TextField(
-                //     decoration: InputDecoration(
-                //       hintText: 'Cari menu...',
-                //       prefixIcon: const Icon(Icons.search),
-                //       border: OutlineInputBorder(
-                //         borderRadius: BorderRadius.circular(8),
-                //         borderSide: BorderSide.none,
-                //       ),
-                //       filled: true,
-                //       fillColor: Colors.white,
-                //     ),
-                //   ),
-                // ),
+                // Search Bar
+                if (isSearchBarVisible)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Cari menu...',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            ref.read(searchQueryProvider.notifier).state = '';
+                          },
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      onChanged:
+                          (value) =>
+                              ref.read(searchQueryProvider.notifier).state =
+                                  value,
+                      autofocus: true,
+                    ),
+                  ),
 
-                // GridView (MEMERLUKAN Expanded)
+                // Menu Grid
                 Expanded(
                   child: menu.when(
                     loading:
                         () => const Center(child: CircularProgressIndicator()),
                     error:
                         (error, stack) => Center(child: Text('Error: $error')),
-                    data: (data) {
-                      return GridView.builder(
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 4,
-                              mainAxisSpacing: 4,
-                              crossAxisSpacing: 4,
-                              childAspectRatio: 1,
-                            ),
-                        padding: const EdgeInsets.all(8),
-                        itemCount: data.length,
-                        itemBuilder: (context, index) {
-                          final menuItem = data[index];
-                          return MenuItemCard(
-                            menuItem: menuItem,
-                            onTap: () {
-                              if (orderDetail == null) {
-                                orderDetailNotifier.initializeOrder(
-                                  orderType: 'Dine-In', // Default order type
-                                );
-                              }
-                              orderDetailNotifier.addItemToOrder(
-                                OrderItemModel(
-                                  menuItem: menuItem,
-                                  selectedToppings: [],
-                                  selectedAddons: [],
+                    data:
+                        (data) =>
+                            data.isEmpty
+                                ? const Center(
+                                  child: Text('Tidak ada menu ditemukan'),
+                                )
+                                : GridView.builder(
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 4,
+                                        mainAxisSpacing: 4,
+                                        crossAxisSpacing: 4,
+                                        childAspectRatio: 1,
+                                      ),
+                                  padding: const EdgeInsets.all(8),
+                                  itemCount: data.length,
+                                  itemBuilder:
+                                      (context, index) => MenuItemCard(
+                                        menuItem: data[index],
+                                        onTap:
+                                            () =>
+                                                _handleAddToOrder(data[index]),
+                                      ),
                                 ),
-                              );
-                            },
-                          );
-                        },
-                      );
-                    },
                   ),
                 ),
               ],
@@ -130,5 +195,3 @@ class ListMenu extends ConsumerWidget {
     );
   }
 }
-
-final selectedCategoryIndexProvider = StateProvider<int>((ref) => 0);

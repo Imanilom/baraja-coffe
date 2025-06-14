@@ -18,6 +18,7 @@ class MenuItemCard extends ConsumerWidget {
       child: Card(
         color: Colors.white,
         clipBehavior: Clip.antiAlias,
+        elevation: 0,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(4)),
         ),
@@ -43,7 +44,10 @@ class MenuItemCard extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(8.0),
-              child: Text(menuItem.name!),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(menuItem.name!),
+              ),
             ),
           ],
         ),
