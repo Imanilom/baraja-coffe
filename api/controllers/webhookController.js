@@ -106,13 +106,7 @@ export const midtransWebhook = async (req, res) => {
       };
 
       // Emit ke aplikasi kasir untuk menampilkan order baru
-      io.to('cashier_room').emit('new_order', {
-        order_id,
-        order: mappedOrders.toObject(),
-        transaction_status,
-        timestamp: new Date().toISOString(),
-        message: 'New paid order received!'
-      });
+      io.to('cashier_room').emit('new_order', { mappedOrders });
 
       console.log(`Order ${order_id} payment completed - notified customer and cashier`);
 

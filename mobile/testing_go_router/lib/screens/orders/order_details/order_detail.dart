@@ -252,10 +252,7 @@ class OrderDetail extends ConsumerWidget {
                   orderDetail == null || orderDetail.items.isEmpty
                       ? Center(child: Text(onNull, textAlign: TextAlign.center))
                       : ListView.builder(
-                        itemCount:
-                            orderDetail
-                                .items
-                                .length, // Ganti dengan jumlah item yang sesuai
+                        itemCount: orderDetail.items.length,
                         // urutan terbalik
                         // reverse: true,
                         physics: const BouncingScrollPhysics(),

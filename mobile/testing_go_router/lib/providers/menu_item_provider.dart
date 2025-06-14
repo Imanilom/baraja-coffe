@@ -8,10 +8,12 @@ final menuItemRepository = Provider<MenuItemRepository>(
 );
 
 // final categoryProvider = StateProvider<String>((ref) => 'Chocolate');
-// final categoryProvider = StateProvider<String>((ref) => 'Coffee');
+// final categoryProvider = StateProvider<String>((ref) => 'Appetizer');
 final categoryProvider = StateProvider<String>((ref) => 'All');
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
+
+final searchBarProvider = StateProvider<bool>((ref) => false);
 
 final menuItemProvider = FutureProvider<List<MenuItemModel>>((ref) async {
   final menuItems = await ref.read(menuItemRepository).getMenuItem();

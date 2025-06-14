@@ -84,6 +84,14 @@ class SocketService {
       }
     });
 
+    socket.on('new_order', (data) {
+      try {
+        print('Received new_order: $data');
+      } catch (e) {
+        print('Error refreshing activityProvider: $e');
+      }
+    });
+
     socket.onDisconnect((_) => print('Socket disconnected'));
   }
 
