@@ -1271,7 +1271,8 @@ export const getOrderById = async (req, res) => {
     // Mencari pesanan berdasarkan ID
     const order = await Order.findById(orderId)
       .populate('items.menuItem')
-      .populate('voucher');
+    // .populate('voucher');
+    // console.log('Order:', order);
 
     const payment = await Payment.findOne({ order_id: orderId });
     console.log('Payment:', payment);
@@ -1306,6 +1307,7 @@ export const getOrderById = async (req, res) => {
       const quantity = item.quantity || 1;
 
       return {
+        menuItemId: item.menuItem?._id || item.menuItem || item._id,
         name: item.menuItem?.name || item.name || 'Unknown Item',
         price: basePrice,
         quantity: quantity,
@@ -1329,6 +1331,7 @@ export const getOrderById = async (req, res) => {
     // console.log(payment);
 
     const orderData = {
+      _id: order._id.toString(),
       orderId: order.order_id || order._id.toString(),
       orderNumber: generateOrderNumber(order.order_id || order._id),
       orderDate: formatDate(order.createdAt),
@@ -1338,6 +1341,7 @@ export const getOrderById = async (req, res) => {
       paymentMethod: payment.bank.toUpperCase(),
       paymentStatus: payment.status
     };
+    console.log('Order Data:', orderData);
 
     res.status(200).json({ orderData });
   } catch (error) {
