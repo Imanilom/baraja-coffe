@@ -10,6 +10,7 @@ const cashFlowSchema = new mongoose.Schema({
   source: { type: String },        // Sumber dana untuk cashIn (optional)
   destination: { type: String },   // tujuan dana yang dikirim
   relatedMarketList: { type: mongoose.Schema.Types.ObjectId, ref: 'MarketList' },
+  proof: String, // Bukti transaksi (optional)
   createdBy: String,
 });
 

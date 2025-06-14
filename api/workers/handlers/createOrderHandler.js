@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
-import { Order } from '../../models/Order.model.js';
+import { Order } from '../../models/order.model.js';
 import { processOrderItems } from '../../services/order.service.js';
+import { orderQueue } from '../../queues/order.queue.js';
 
 export async function createOrderHandler({ orderId, orderData, source }) {
   const session = await mongoose.startSession();
@@ -25,9 +26,12 @@ export async function createOrderHandler({ orderId, orderData, source }) {
     const newOrder = new Order(fullOrderData);
     await newOrder.save({ session });
 
-    // Update stok dan lain-lain di sini atau dengan job terpisah
-
     await session.commitTransaction();
+
+    await orderQueue.add('update_inventory', {
+      orderId: newOrder._id.toString(),
+      items: processed.orderItems,
+    }, { jobId: `update_inventory-${newOrder._id.toString()}` });
 
     return { success: true, orderId: newOrder._id };
   } catch (err) {

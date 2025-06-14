@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  app:
+    image: barajacoffee/baraja1:latest # Pull the image from Docker Hub
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "3000:3000"
+    # environment:
+    #   - DB_HOST=mysql
+    #   - DB_USER=root
+    #   - DB_PASSWORD=rilsprod2000
+    #   - DB_NAME=mitra_bu
+    #   - DB_PORT=3306
+    # depends_on:
+    #   - mysql
+    # volumes:
+    #   - .env:/app/.env
+    #   - ./wait-for-it.sh:/app/wait-for-it.sh
+    # command:
+    #   [
+    #     "sh",
+    #     "-c",
+    #     "/app/wait-for-it.sh mysql:3306 -- echo 'MySQL is up!' && npm start",
+    #   ]
+    restart: always
+
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: mysql
+  #   restart: always
+  #   ports:
+  #     - "3306:3306"
+  #   environment:
+  #     MYSQL_DATABASE: mitra_bu
+  #     MYSQL_ROOT_PASSWORD: rilsprod2000
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+#   watchtower:
+#     image: containrrr/watchtower:latest
+#     container_name: watchtower
+#     restart: always
+#     volumes:
+#       - /var/run/docker.sock:/var/run/docker.sock
+#       - ./dockerconfigjson:/config.json
+#     environment:
+#       WATCHTOWER_CLEANUP: "true"
+#       WATCHTOWER_LABEL_ENABLE: "true"
+#       WATCHTOWER_POLL_INTERVAL: "180"
+#       DOCKER_CONFIG: "/config.json"
+
+# volumes:
+#   mysql_data:
