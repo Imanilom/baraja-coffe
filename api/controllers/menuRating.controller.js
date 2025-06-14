@@ -202,15 +202,14 @@ export class MenuRatingController {
     static async getCustomerRating(req, res) {
         try {
             const { menuItemId, orderId } = req.params;
-            const customerId = req.user.id;
+            const order = await Order.findById(orderId);
+            const customerId = order.user_id;
 
             const rating = await MenuRating.findOne({
                 menuItemId,
                 customerId,
                 orderId
             })
-                .populate('menuItemId', 'name imageURL')
-                .populate('outletId', 'name');
 
             if (!rating) {
                 return res.status(404).json({
@@ -381,7 +380,6 @@ export class MenuRatingController {
             })
                 .populate('menuItemId', 'name imageURL')
                 .populate('customerId', 'name email')
-                .populate('outletId', 'name')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(parseInt(limit));
