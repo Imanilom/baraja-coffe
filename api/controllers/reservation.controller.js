@@ -1,9 +1,20 @@
 import Reservation from '../models/Reservation.model.js';
 import { TableLayout } from '../models/TableLayout.model.js';
+import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
+import { orderQueue } from '../queues/order.queue.js';
+import { db } from '../utils/mongo.js';
+import { Order } from '../models/order.model.js';
 import mongoose from 'mongoose';
 
 const MAX_HOURS = 2;
 const OVERTIME_RATE = 20000; 
+
+function generateOrderId() {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const timeStr = now.getTime().toString().slice(-6);
+  return `RESV-${dateStr}-${timeStr}`;
+}
 
 export const createReservation = async (req, res) => {
   const session = await mongoose.startSession();
@@ -12,6 +23,7 @@ export const createReservation = async (req, res) => {
   try {
     const {
       user,
+      username,
       outlet,
       tableId,
       peopleCount,
@@ -19,10 +31,16 @@ export const createReservation = async (req, res) => {
       totalPrice,
       paymentType,
       downPayment,
-      paymentMethod
+      paymentMethod,
+      source
     } = req.body;
 
-    // Validasi jika ada tableId, maka harus terkait dengan outlet
+    // Validasi items
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'At least one menu item is required' });
+    }
+
+    // Validasi tableId
     if (tableId) {
       const layout = await TableLayout.findOne({ outletId: outlet }).session(session);
       if (!layout) {
@@ -49,7 +67,38 @@ export const createReservation = async (req, res) => {
       await layout.save({ session });
     }
 
-    // Buat reservasi
+    // Mapping items untuk Order
+    const orderItems = items.map(item => ({
+      menuItem: item.menuItemId, // Harus ObjectId MenuItem
+      quantity: item.quantity,
+      subtotal: item.subtotal,
+      addons: item.addons || [],
+      toppings: item.toppings || [],
+      notes: item.notes || ''
+    }));
+
+    // Buat Order
+    const order = new Order({
+      order_id: generateOrderId(),
+      user_id: user, // Jika user adalah ObjectId User
+      user: username, // Bisa diisi sesuai sumber
+      cashier: null, // Jika tidak ada cashier, bisa kosong
+      items: orderItems,
+      status: 'Pending',
+      paymentMethod,
+      orderType: 'Dine-In', // Karena ada tableId
+      tableNumber: tableId ? tableId.toString() : undefined,
+      outlet,
+      totalBeforeDiscount: totalPrice, // Sesuaikan nanti jika ada diskon
+      totalAfterDiscount: totalPrice,
+      grandTotal: totalPrice,
+      source: source,
+      type: 'Indoor'
+    });
+
+    await order.save({ session });
+
+    // Buat Reservasi
     const reservation = new Reservation({
       user,
       outlet,
@@ -59,7 +108,8 @@ export const createReservation = async (req, res) => {
       totalPrice,
       paymentType,
       downPayment,
-      paymentMethod
+      paymentMethod,
+      orderId: order._id // Opsional: simpan orderId di reservasi
     });
 
     await reservation.save({ session });
@@ -67,7 +117,10 @@ export const createReservation = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    res.status(201).json(reservation);
+    res.status(201).json({
+      reservation,
+      order
+    });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
