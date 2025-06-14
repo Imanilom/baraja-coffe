@@ -1,13 +1,5 @@
-import { useSelector } from 'react-redux';
-import { useRef, useState, useEffect } from 'react';
-import {
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytesResumable,
-} from 'firebase/storage';
-import { app } from '../firebase';
-import { useDispatch } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { useState } from 'react';
 import {
   updateUserStart,
   updateUserSuccess,
@@ -17,46 +9,18 @@ import {
   deleteUserFailure,
   signOut,
 } from '../redux/user/userSlice';
+import ImageUploader from '../utils/uploadImage';
 
 export default function Profile() {
   const dispatch = useDispatch();
-  const fileRef = useRef(null);
-  const [image, setImage] = useState(undefined);
-  const [imagePercent, setImagePercent] = useState(0);
-  const [imageError, setImageError] = useState(false);
-  const [formData, setFormData] = useState({});
-  const [updateSuccess, setUpdateSuccess] = useState(false);
-
   const { currentUser, loading, error } = useSelector((state) => state.user);
-  
-  useEffect(() => {
-    if (image) {
-      handleFileUpload(image);
-    }
-  }, [image]);
 
-  const handleFileUpload = async (image) => {
-    const storage = getStorage(app);
-    const fileName = new Date().getTime() + image.name;
-    const storageRef = ref(storage, fileName);
-    const uploadTask = uploadBytesResumable(storageRef, image);
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const progress =
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setImagePercent(Math.round(progress));
-      },
-      (error) => {
-        setImageError(true);
-      },
-      () => {
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) =>
-          setFormData({ ...formData, profilePicture: downloadURL })
-        );
-      }
-    );
-  };
+  const [formData, setFormData] = useState({
+    username: currentUser.username,
+    email: currentUser.email,
+    profilePicture: currentUser.profilePicture || '',
+  });
+  const [updateSuccess, setUpdateSuccess] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
@@ -64,8 +28,8 @@ export default function Profile() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    dispatch(updateUserStart());
     try {
-      dispatch(updateUserStart());
       const res = await fetch(`/api/user/update/${currentUser._id}`, {
         method: 'POST',
         headers: {
@@ -80,14 +44,14 @@ export default function Profile() {
       }
       dispatch(updateUserSuccess(data));
       setUpdateSuccess(true);
-    } catch (error) {
-      dispatch(updateUserFailure(error));
+    } catch (err) {
+      dispatch(updateUserFailure(err));
     }
   };
 
   const handleDeleteAccount = async () => {
+    dispatch(deleteUserStart());
     try {
-      dispatch(deleteUserStart());
       const res = await fetch(`/api/user/delete/${currentUser._id}`, {
         method: 'DELETE',
       });
@@ -97,8 +61,8 @@ export default function Profile() {
         return;
       }
       dispatch(deleteUserSuccess(data));
-    } catch (error) {
-      dispatch(deleteUserFailure(error));
+    } catch (err) {
+      dispatch(deleteUserFailure(err));
     }
   };
 
@@ -106,83 +70,63 @@ export default function Profile() {
     try {
       await fetch('/api/auth/signout');
       dispatch(signOut());
-    } catch (error) {
-      console.log(error);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   return (
-    <div className='p-4 max-w-lg mx-auto bg-white rounded-lg shadow-lg mt-10'>
-      <h1 className='text-3xl font-semibold text-center text-army my-7'>Profile</h1>
-      <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-        <input
-          type='file'
-          ref={fileRef}
-          hidden
-          accept='image/*'
-          onChange={(e) => setImage(e.target.files[0])}
+    <div className="p-4 max-w-lg mx-auto bg-white rounded-lg shadow-lg mt-10">
+      <h1 className="text-3xl font-semibold text-center text-army my-7">Profile</h1>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <ImageUploader
+          currentImage={formData.profilePicture}
+          onUploadSuccess={(url) => setFormData({ ...formData, profilePicture: url })}
         />
-        <img
-          src={formData.profilePicture || currentUser.profilePicture}
-          alt='profile'
-          className='h-24 w-24 self-center cursor-pointer rounded-full object-cover mt-2'
-          onClick={() => fileRef.current.click()}
-        />
-        <p className='text-sm self-center'>
-          {imageError ? (
-            <span className='text-red-700'>
-              Error uploading image (file size must be less than 2 MB)
-            </span>
-          ) : imagePercent > 0 && imagePercent < 100 ? (
-            <span className='text-slate-700'>{`Uploading: ${imagePercent} %`}</span>
-          ) : imagePercent === 100 ? (
-            <span className='text-green-700'>Image uploaded successfully</span>
-          ) : (
-            ''
-          )}
-        </p>
+
         <input
-          defaultValue={currentUser.username}
-          type='text'
-          id='username'
-          placeholder='Username'
-          className='bg-beige-100 rounded-lg p-3 border border-army focus:outline-none focus:ring-2 focus:ring-army'
+          type="text"
+          id="username"
+          value={formData.username}
+          placeholder="Username"
+          className="bg-beige-100 rounded-lg p-3 border border-army focus:outline-none focus:ring-2 focus:ring-army"
           onChange={handleChange}
         />
         <input
-          defaultValue={currentUser.email}
-          type='email'
-          id='email'
-          placeholder='Email'
-          className='bg-beige-100 rounded-lg p-3 border border-army focus:outline-none focus:ring-2 focus:ring-army'
+          type="email"
+          id="email"
+          value={formData.email}
+          placeholder="Email"
+          className="bg-beige-100 rounded-lg p-3 border border-army focus:outline-none focus:ring-2 focus:ring-army"
           onChange={handleChange}
         />
         <input
-          type='password'
-          id='password'
-          placeholder='Password'
-          className='bg-beige-100 rounded-lg p-3 border border-army focus:outline-none focus:ring-2 focus:ring-army'
+          type="password"
+          id="password"
+          placeholder="Password"
+          className="bg-beige-100 rounded-lg p-3 border border-army focus:outline-none focus:ring-2 focus:ring-army"
           onChange={handleChange}
         />
         <button
-          className='bg-army text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80'
+          type="submit"
+          className="bg-army text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80"
           disabled={loading}
         >
           {loading ? 'Loading...' : 'Update'}
         </button>
       </form>
-      <div className='flex justify-between mt-5'>
-        <span onClick={handleDeleteAccount} className='text-red-700 cursor-pointer'>
+
+      <div className="flex justify-between mt-5">
+        <span className="text-red-700 cursor-pointer" onClick={handleDeleteAccount}>
           Delete Account
         </span>
-        <span onClick={handleSignOut} className='text-red-700 cursor-pointer'>
-          Sign out
+        <span className="text-red-700 cursor-pointer" onClick={handleSignOut}>
+          Sign Out
         </span>
       </div>
-      <p className='text-red-700 mt-5'>{error && 'Something went wrong!'}</p>
-      <p className='text-green-700 mt-5'>
-        {updateSuccess && 'User is updated successfully!'}
-      </p>
+
+      {error && <p className="text-red-700 mt-5">Something went wrong!</p>}
+      {updateSuccess && <p className="text-green-700 mt-5">User updated successfully!</p>}
     </div>
   );
 }

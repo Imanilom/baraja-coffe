@@ -11,7 +11,7 @@ const DeviceQuotaSchema = new mongoose.Schema({
     {
       role: {
         type: String,
-        enum: ['cashier', 'inventory', 'kitchen', 'drive-thru', 'waiter'],
+        enum: ['cashier senior', 'cashier junior', 'inventory', 'kitchen', 'drive-thru', 'waiter'],
         required: true
       },
       maxDevices: {
