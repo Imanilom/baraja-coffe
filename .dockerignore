@@ -1,0 +1,8 @@
+# Ignore node_modules karena akan di-install ulang dalam container
+node_modules
+
+# Ignore log file
+*.log
+
+# Ignore environment file jika tidak perlu di-build ke container
+.env
