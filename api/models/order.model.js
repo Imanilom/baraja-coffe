@@ -16,6 +16,12 @@ const OrderSchema = new mongoose.Schema({
   user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   user: { type: String, required: true, default: 'Guest' },
   cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reservationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Reservation',
+    required: false,
+    default: null
+  },
   items: [OrderItemSchema],
   status: {
     type: String,

@@ -213,12 +213,12 @@ export const getMenuItems = async (req, res) => {
       const itemRatings = ratingMap[itemId] || [];
 
       // Debug: Log untuk menu spesifik
-      if (itemId === "682a8bc8fb7080440f1f5bf1") {
-        console.log('=== DEBUG SPECIFIC MENU ===');
-        console.log('Menu ID:', itemId);
-        console.log('Found ratings:', itemRatings);
-        console.log('Rating map has this key?', ratingMap.hasOwnProperty(itemId));
-      }
+      // if (itemId === "682a8bc8fb7080440f1f5bf1") {
+      //   console.log('=== DEBUG SPECIFIC MENU ===');
+      //   console.log('Menu ID:', itemId);
+      //   console.log('Found ratings:', itemRatings);
+      //   console.log('Rating map has this key?', ratingMap.hasOwnProperty(itemId));
+      // }
 
       const averageRating = itemRatings.length > 0
         ? Math.round((itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) * 10) / 10
