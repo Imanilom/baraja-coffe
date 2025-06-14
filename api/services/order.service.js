@@ -2,7 +2,6 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import { RawMaterial } from '../models/RawMaterial.model.js';
 import { checkAutoPromos, checkManualPromo, checkVoucher } from '../helpers/promo.helper.js';
 import { TaxAndService } from '../models/TaxAndService.model.js';
-import mongoose from 'mongoose';
 
 export async function processOrderItems({ items, outletId, orderType, voucherCode, customerType = 'all' }, session) {
   const orderItems = [];
