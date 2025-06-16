@@ -75,6 +75,11 @@ export const createAppOrder = async (req, res) => {
         if (!pickupTime) {
           return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
         }
+      case 'reservation':
+        formattedOrderType = 'Reservation';
+        // if (!reservation) {
+        //   return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
+        // }
         break;
       default:
         return res.status(400).json({ success: false, message: 'Invalid order type' });
