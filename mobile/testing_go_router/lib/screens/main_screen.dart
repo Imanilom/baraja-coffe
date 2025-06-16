@@ -12,6 +12,16 @@ class MainScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentPageIndex = ref.watch(currentPageIndexProvider);
     final currentWidgetIndex = ref.watch(currentWidgetIndexProvider);
+    //order onlineindicator provider
+    final orderOnlineIndicatorProvider = Provider<bool>((ref) => false);
+    final orderOnlineIndicator = ref.watch(orderOnlineIndicatorProvider);
+
+    //kalo true tampilkan snackbar
+    if (orderOnlineIndicator) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ada Orderan Masuk!')));
+    }
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
