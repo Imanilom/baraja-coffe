@@ -22,15 +22,15 @@ export default function socketHandler(io) {
         });
 
         // Join cashier room (for cashier app)
-        // socket.on('join_cashier_room', (callback) => {
-        //     console.log(`Client ${socket.id} joining cashier room`);
-        //     socket.join('cashier_room');
+        socket.on('join_cashier_room', (callback) => {
+            console.log(`Client ${socket.id} joining cashier room`);
+            socket.join('cashier_room');
 
-        //     if (typeof callback === 'function') {
-        //         callback({ status: 'joined', room: 'cashier_room' });
-        //     }
-        //     console.log('Client joined cashier room');
-        // });
+            if (typeof callback === 'function') {
+                callback({ status: 'joined', room: 'cashier_room' });
+            }
+            console.log('Client joined cashier room');
+        });
         socket.on('join_cashier_room', (payload, callback) => {
             console.log(`Client ${socket.id} joining cashier room`);
             socket.join('cashier_room');

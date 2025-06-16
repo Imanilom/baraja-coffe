@@ -1366,7 +1366,7 @@ export const getCashierOrderHistory = async (req, res) => {
     const orders = await Order.find({ cashier: cashierId })
       // const orders = await Order.find();
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
-      .populate('voucher'); // Mengisi detail voucher (opsional)
+    // .populate('voucher'); // Mengisi detail voucher (opsional)
     console.log(orders.length);
     if (!orders || orders.length === 0) {
       return res.status(404).json({ message: 'No order history found for this cashier.' });
