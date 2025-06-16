@@ -27,6 +27,7 @@ import ratingRoutes from './routes/rating.routes.js';
 import taxAndServiceRoutes from './routes/taxAndService.routes.js';
 import ReceiptSetting from './routes/receiptSetting.routes.js';
 import socketHandler from './socket/index.js';
+import { midtransWebhook } from './controllers/webhookController.js';
 
 dotenv.config();
 

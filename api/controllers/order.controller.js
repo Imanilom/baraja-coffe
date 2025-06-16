@@ -24,6 +24,7 @@ export const createAppOrder = async (req, res) => {
       paymentDetails,
       voucherCode,
       userId,
+      outlet
       // userName,
       // pricing,
       // orderDate,
@@ -141,7 +142,7 @@ export const createAppOrder = async (req, res) => {
       tableNumber: tableNumber || '',
       type: 'Indoor',
       voucher: voucherId,
-      outlet: null,
+      outlet: outlet,
       promotions: [],
       source: 'App',
     });
