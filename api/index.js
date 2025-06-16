@@ -23,7 +23,9 @@ import paymentMethodsRouter from './routes/paymentMethode.js';
 import tableLayoutRoutes from './routes/tableLayout.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
-import socketHandler from './socket/index.js';
+import ratingRoutes from './routes/rating.routes.js';
+import taxAndServiceRoutes from './routes/taxAndService.routes.js';
+import ReceiptSetting from './routes/receiptSetting.routes.js';
 
 dotenv.config();
 
@@ -37,7 +39,6 @@ mongoose
   });
 
 const __dirname = path.resolve();
-// Setup express dan server
 const app = express();
 const server = http.createServer(app);
 
@@ -52,9 +53,40 @@ const io = new Server(server, {
   transports: ['websocket', 'polling']
 });
 
-// Gunakan handler socket
-socketHandler(io);
-export { io }; // Export io for use in other modules
+export { io };
+
+// Socket connection handling
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+
+  // Debug ping (keep for debugging)
+  setInterval(() => {
+    io.emit('ping', { message: 'Ping from server', timestamp: new Date().toISOString() });
+    console.log('Sent ping to all clients');
+  }, 10000);
+
+  // Handle room joining with acknowledgement
+  socket.on('join_order_room', (orderId, callback) => {
+    console.log(`Client ${socket.id} joining room for order: ${orderId}`);
+    socket.join(orderId);
+
+    // Send acknowledgement back to client
+    if (typeof callback === 'function') {
+      callback({ status: 'joined', room: orderId });
+    }
+
+    // Emit a message to verify room joining
+    socket.to(orderId).emit('room_joined', { message: `You joined room ${orderId}` });
+
+    // Log rooms after joining
+    console.log('Rooms after joining:', io.sockets.adapter.rooms);
+  });
+
+  // Handle explicit disconnection
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
 
 // Middleware and routes setup...
 app.use(express.json());
@@ -73,6 +105,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', orderRoutes);
 app.use('/api/paymentlist', paymentMethodsRouter);
 app.use('/api/menu', menuRoutes);
+app.use('/api/rating', ratingRoutes);
 app.use('/api/promotion', promotionRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/content', contentRoutes);
@@ -83,6 +116,9 @@ app.use('/api/history', historyRoutes);
 app.use('/api/table-layout', tableLayoutRoutes);
 app.use('/api/reservation', reservationRoutes);
 app.use('/api/marketlist', marketListRoutes);
+app.use('/api/tax-service', taxAndServiceRoutes);
+app.use('/api/receipt-setting', ReceiptSetting);
+
 
 // Start server
 server.listen(3000, () => {

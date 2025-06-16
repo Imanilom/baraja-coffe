@@ -1,97 +1,36 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { getDownloadURL, getStorage, ref, uploadBytesResumable } from "firebase/storage";
-import { app } from "../../firebase";  // Import your Firebase app initialization
+import { Link } from "react-router-dom";
+import { FaClipboardList, FaBell, FaUser, FaTag, FaStoreAlt, FaBullseye, FaReceipt, FaSearch, FaPencilAlt, FaTrash } from "react-icons/fa";
 
 const OutletManagementPage = () => {
+  const [openDropdown, setOpenDropdown] = useState(null);
   const [outlets, setOutlets] = useState([]);
-  const [formData, setFormData] = useState({
-    name: "",
-    location: "",
-    contactNumber: "",
-    latitude: "",
-    longitude: "",
-    outletPictures: [],  // Store multiple pictures in an array
-  });
-  const [images, setImages] = useState([]);  // Track selected images
-  const [imagePercent, setImagePercent] = useState([]); // Progress for each image
-  const [imageError, setImageError] = useState(false);
-  const fileRef = useRef(null);
+  const [filteredData, setFilteredData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
+  // Calculate total pages based on filtered data
+  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
   const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(true);
 
 
   useEffect(() => {
     fetchOutlets();
-
+    setLoading(true);
   }, []);
 
   const fetchOutlets = async () => {
     try {
       const response = await axios.get("/api/outlet");
       setOutlets(response.data || []);
+      setFilteredData(response.data || []);
     } catch (error) {
       console.error("Error fetching outlets:", error);
-    }
-  };
-
-  const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleImageChange = (e) => {
-    const files = e.target.files;
-    setImages(Array.from(files));
-  };
-
-  const handleFileUpload = async (image, index) => {
-    const storage = getStorage(app);
-    const fileName = new Date().getTime() + image.name;
-    const storageRef = ref(storage, fileName);
-    const uploadTask = uploadBytesResumable(storageRef, image);
-
-    uploadTask.on(
-      "state_changed",
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setImagePercent((prevPercent) => {
-          const newPercent = [...prevPercent];
-          newPercent[index] = Math.round(progress);
-          return newPercent;
-        });
-      },
-      (error) => {
-        setImageError(true);
-      },
-      () => {
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-          setFormData((prevData) => ({
-            ...prevData,
-            outletPictures: [...prevData.outletPictures, downloadURL],  // Add new image URL to the array
-          }));
-        });
-      }
-    );
-  };
-
-  useEffect(() => {
-    if (images.length > 0) {
-      images.forEach((image, index) => {
-        handleFileUpload(image, index);
-      });
-    }
-  }, [images]);
-
-  const handleCreateOutlet = async () => {
-    try {
-      const response = await axios.post("/api/outlet", formData);
-      alert(response.data.message);
-      fetchOutlets();
-    } catch (error) {
-      alert("Error creating outlet.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -105,124 +44,235 @@ const OutletManagementPage = () => {
     }
   };
 
+  const paginatedData = useMemo(() => {
+
+    // Ensure filteredData is an array before calling slice
+    if (!Array.isArray(filteredData)) {
+      console.error('filteredData is not an array:', filteredData);
+      return [];
+    }
+
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const result = filteredData.slice(startIndex, endIndex);
+    return result;
+  }, [currentPage, filteredData]);
+
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="mb-6 flex justify-between items-center">
-        <h2 className="text-3xl font-semibold">Outlet Management</h2>
-        <button
-          className="bg-blue-500 text-white px-4 py-2 rounded-md"
-          onClick={() => navigate("/create-outlet")}
-        >
-          Create Outlet
-        </button>
+    <div className="overflow-y-auto pb-[100px]">
+      {/* Header */}
+      <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
+        <FaBell size={23} className="text-gray-400" />
+        <span className="text-[14px]">Hi Baraja</span>
+        <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
+          <FaUser size={30} />
+        </Link>
       </div>
 
-      <div className="overflow-x-auto shadow-md border-b border-gray-200 rounded-lg">
-        <table className="min-w-full text-sm text-left text-gray-500">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+      {/* Breadcrumb */}
+      <div className="px-3 py-2 flex justify-between items-center border-b">
+        <div className="flex items-center space-x-2">
+          <FaStoreAlt size={21} className="text-gray-500 inline-block" />
+          <p className="text-[15px] text-gray-500">Outlet</p>
+        </div>
+        <button onClick={() => navigate("/admin/create-outlet")} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Outlet</button>
+      </div>
+
+      <div className="px-[15px]">
+        <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-4 py-4">
+          <button
+            className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
+            onClick={() => handleTabChange("menu")}
+          >
+            <Link className="flex justify-between items-center p-4">
+              <div className="flex space-x-4">
+                <FaStoreAlt size={24} className="text-gray-400" />
+                <h2 className="text-gray-400 ml-2 text-sm">Outlet</h2>
+              </div>
+              <div className="text-sm text-gray-400">
+                (18)
+              </div>
+            </Link>
+          </button>
+
+          <div
+            className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+          >
+            <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
+              to={"/admin/tax-and-service"}>
+              <div className="flex space-x-4">
+                <FaClipboardList size={24} className="text-gray-400" />
+                <h2 className="text-gray-400 ml-2 text-sm">Pajak & Service</h2>
+              </div>
+              <div className="text-sm text-gray-400">
+                (18)
+              </div>
+            </Link>
+          </div>
+
+          <div
+            className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+          >
+            <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
+              to="/admin/target-sales">
+              <div className="flex space-x-4">
+                <FaBullseye size={24} className="text-gray-400" />
+                <h2 className="text-gray-400 ml-2 text-sm">Target Penjualan</h2>
+              </div>
+              <div className="text-sm text-gray-400">
+                (18)
+              </div>
+            </Link>
+          </div>
+
+          <div
+            className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+          >
+            <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
+              to="/admin/receipt-design">
+              <div className="flex space-x-4">
+                <FaReceipt size={24} className="text-gray-400" />
+                <h2 className="text-gray-400 ml-2 text-sm">Desain Struk</h2>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </div>
+      <div className="px-[15px]">
+        <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+          <div className="flex flex-col col-span-11">
+            <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+            <div className="relative">
+              <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Outlet / Kota"
+                value=""
+                className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <table className="min-w-full text-sm text-left text-gray-500 shadow-lg">
+          <thead className="text-[14px]">
             <tr>
-              <th className="px-6 py-3">Name</th>
-              <th className="px-6 py-3">Location</th>
-              <th className="px-6 py-3">Contact</th>
-              <th className="px-6 py-3">Actions</th>
+              <th className="px-[15px] py-[21px] font-normal">Outlet</th>
+              <th className="px-[15px] py-[21px] font-normal">Kota</th>
+              <th className="px-[15px] py-[21px] font-normal">Telepon</th>
+              <th className="px-[15px] py-[21px] font-normal">Pajak</th>
+              <th className="px-[15px] py-[21px] font-normal">Tipe Penjualan</th>
+              <th className="px-[15px] py-[21px] font-normal">Pawoon Order</th>
+              <th className="px-[15px] py-[21px] font-normal"></th>
             </tr>
           </thead>
-          <tbody>
-            {outlets.map((outlet) => (
-              <tr key={outlet._id} className="bg-white border-b">
-                <td className="px-6 py-4">{outlet.name}</td>
-                <td className="px-6 py-4">{outlet.address}</td>
-                <td className="px-6 py-4">{outlet.contactNumber}</td>
-                <td className="px-6 py-4">
-                  <button
-                    onClick={() => handleDeleteOutlet(outlet._id)}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    Delete
-                  </button>
-                </td>
+          {paginatedData.length > 0 ? (
+            <tbody>
+              {paginatedData.map((outlet) => (
+                <tr key={outlet._id} className="bg-white text-[14px]">
+                  <td className="p-[15px]">{outlet.name}</td>
+                  <td className="p-[15px]">{outlet.address}</td>
+                  <td className="p-[15px]">{outlet.contactNumber}</td>
+                  <td className="p-[15px]">Tanpa Pajak</td>
+                  <td className="p-[15px]">Tanpa tipe penjualan</td>
+                  <td className="p-[15px] text-red-600">Tidak aktif</td>
+                  <td className="p-[15px]">
+
+                    {/* Dropdown Menu */}
+                    <div className="relative text-right">
+                      <button
+                        className="px-2 bg-white border border-gray-200 hover:border-[#005429] hover:bg-[#005429] rounded-sm"
+                        onClick={() => setOpenDropdown(openDropdown === outlet._id ? null : outlet._id)}
+                      >
+                        <span className="text-xl text-gray-200 hover:text-white">
+                          •••
+                        </span>
+                      </button>
+                      {openDropdown === outlet._id && (
+                        <div className="absolute text-left right-0 top-full mt-2 bg-white border rounded-md shadow-md w-52 z-10">
+                          <ul className="">
+                            <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
+                              <Link
+                                to={`/admin/outlet-update/${outlet._id}`}
+                                className="bg-transparent flex items-center space-x-4 text-[14px]"
+                              >
+                                <FaPencilAlt size={18} />
+                                <span>Ubah</span>
+                              </Link>
+                            </li>
+                            <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
+                              <button
+                                onClick={() => handleDeleteOutlet(outlet._id)}
+                                className="text-red-600 flex items-center space-x-4 text-[14px]"
+                              >
+                                <FaTrash size={18} />
+                                <span>Hapus</span>
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          ) : (
+            <tbody>
+              <tr className="py-6 text-center w-full h-96 text-gray-500">
+                <td colSpan={7}>TIDAK ADA OUTLET</td>
               </tr>
-            ))}
-          </tbody>
+            </tbody>
+          )}
         </table>
       </div>
 
-      <div className="mt-6">
-        <h3 className="text-2xl font-semibold">Create New Outlet</h3>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleCreateOutlet();
-          }}
-          className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6"
-        >
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleInputChange}
-            placeholder="Outlet Name"
-            className="px-4 py-2 border rounded-md"
-            required
-          />
-          <input
-            type="text"
-            name="location"
-            value={formData.location}
-            onChange={handleInputChange}
-            placeholder="Location"
-            className="px-4 py-2 border rounded-md"
-          />
-          <input
-            type="text"
-            name="contactNumber"
-            value={formData.contactNumber}
-            onChange={handleInputChange}
-            placeholder="Contact Number"
-            className="px-4 py-2 border rounded-md"
-          />
-          <input
-            type="number"
-            name="latitude"
-            value={formData.latitude}
-            onChange={handleInputChange}
-            placeholder="Latitude"
-            className="px-4 py-2 border rounded-md"
-            required
-          />
-          <input
-            type="number"
-            name="longitude"
-            value={formData.longitude}
-            onChange={handleInputChange}
-            placeholder="Longitude"
-            className="px-4 py-2 border rounded-md"
-            required
-          />
-          
-          {/* Image upload section */}
-          <input
-            type="file"
-            ref={fileRef}
-            multiple
-            accept="image/*"
-            onChange={handleImageChange}
-            className="px-4 py-2 border rounded-md"
-          />
-          {imagePercent.length > 0 && imagePercent.map((percent, index) => (
-            <div key={index}>
-              <p>Uploading image {index + 1}: {percent}%</p>
-            </div>
-          ))}
-          {imageError && <p className="text-red-500">Error uploading images</p>}
 
-          <button
-            type="submit"
-            className="mt-4 bg-green-500 text-white px-6 py-2 rounded-md"
-          >
-            Create Outlet
-          </button>
-        </form>
+      {/* Pagination */}
+      {paginatedData.length > 0 && (
+        <div className="flex justify-between items-center mt-4 px-[15px]">
+          <span className="text-sm text-gray-500">
+            Menampilkan <b>{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</b> – <b>{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}</b> dari <b>{filteredData.length}</b> data
+          </span>
+          {currentPage === 1 ? (
+            <div className="flex"></div>
+          ) : (
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sebelumnya
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Berikutnya
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+
+      <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
+        <div className="w-full h-[2px] bg-[#005429]">
+        </div>
       </div>
     </div>
   );
