@@ -34,7 +34,7 @@ router.post('/orderApp', createAppOrder);
 
 router.post("/charge", charge);
 
-router.post('/midtrans/webhook', midtransWebhook);
+// router.post('/midtrans/webhook', midtransWebhook);
 
 // TODO: End route untuk melakukan charge from aplication
 
