@@ -1,7 +1,8 @@
-import '../models/user_model.dart';
+import '../models/adapter/user.model.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
+import '../services/hive_service.dart';
 
 class AuthRepository {
   final AuthService _authService;
@@ -16,11 +17,13 @@ class AuthRepository {
 
       await _storage.saveDetailUser(userData);
       await _storage.saveUserData(userData.token, userData.id);
-      print('login dan simpan data berhasil');
+      print('login berhasil $userData');
+      //masukan data cashier ke hive?
+      await HiveService.saveUser(userData);
+
       return userData;
     } catch (e) {
-      print('login dan simpan data gagal');
-      print(e);
+      print('login dan simpan data gagal $e');
       rethrow;
     }
   }

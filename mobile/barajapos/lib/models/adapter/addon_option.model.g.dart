@@ -8,7 +8,7 @@ part of 'addon_option.model.dart';
 
 class AddonOptionModelAdapter extends TypeAdapter<AddonOptionModel> {
   @override
-  final int typeId = 3;
+  final int typeId = 0;
 
   @override
   AddonOptionModel read(BinaryReader reader) {
@@ -18,20 +18,23 @@ class AddonOptionModelAdapter extends TypeAdapter<AddonOptionModel> {
     };
     return AddonOptionModel(
       id: fields[0] as String?,
-      name: fields[1] as String,
-      price: (fields[2] as num).toDouble(),
+      label: fields[1] as String?,
+      isDefault: fields[2] as bool?,
+      price: (fields[3] as num?)?.toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, AddonOptionModel obj) {
     writer
-      ..writeByte(3)
+      ..writeByte(4)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.name)
+      ..write(obj.label)
       ..writeByte(2)
+      ..write(obj.isDefault)
+      ..writeByte(3)
       ..write(obj.price);
   }
 
@@ -45,3 +48,23 @@ class AddonOptionModelAdapter extends TypeAdapter<AddonOptionModel> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_AddonOptionModel _$AddonOptionModelFromJson(Map<String, dynamic> json) =>
+    _AddonOptionModel(
+      id: json['id'] as String?,
+      label: json['label'] as String?,
+      isDefault: json['isDefault'] as bool?,
+      price: (json['price'] as num?)?.toInt(),
+    );
+
+Map<String, dynamic> _$AddonOptionModelToJson(_AddonOptionModel instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'label': instance.label,
+      'isDefault': instance.isDefault,
+      'price': instance.price,
+    };
