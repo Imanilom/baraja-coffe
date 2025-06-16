@@ -16,18 +16,36 @@ import {
   getMarketListReportByDate
 } from '../controllers/marketlist.controller.js';
 
+import {
+  createProduct,
+  getAllProducts,
+  getProductById,
+  updateProduct,
+  deleteProduct,
+  searchProducts
+} from '../controllers/product.controller.js';
+
+import {
+  createSupplier,
+  getAllSuppliers,
+  getSupplierById,
+  updateSupplier,
+  deleteSupplier,
+  createBulkSuppliers
+} from '../controllers/supplier.controller.js';
+
 import { authMiddleware, verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
 // Middleware akses berdasarkan role
-const staffAccess = verifyToken(['staff']);
+const staffAccess = verifyToken(['staff', 'inventory', 'admin', 'superadmin']);
 const inventoryAccess = verifyToken(['inventory', 'admin', 'superadmin']);
 const allAuthenticated = authMiddleware;
 
 router.post('/request', staffAccess, createRequest);
 
-router.get('/requests', inventoryAccess, getAllRequests);
+router.get('/requests', staffAccess, getAllRequests);
 
 router.post('/approve/:id', staffAccess, approveRequestItems);
 
@@ -52,5 +70,29 @@ router.get('/cashflow', getFilteredCashFlow);
 router.get('/marketlist', getMarketListReportByDate);
 
 router.get('/cashflow/weekly-report', getWeeklyReport);
+
+router.post('/product', createProduct);
+
+// router.get('/product', getAllProducts);
+
+router.get('/product', searchProducts);
+
+router.get('/product/:id', getProductById);
+
+router.patch('/product/:id', updateProduct);
+
+router.delete('/product/:id', deleteProduct);
+
+router.post('/supplier', createSupplier);
+
+router.get('/supplier', getAllSuppliers);
+
+router.get('/supplier/:id', getSupplierById);
+
+router.patch('/supplier/:id', updateSupplier);
+
+router.delete('/supplier/:id', deleteSupplier);
+
+router.post('/supplier/bulk', createBulkSuppliers);
 
 export default router;
