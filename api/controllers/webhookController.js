@@ -37,7 +37,7 @@ export const midtransWebhook = async (req, res) => {
     );
 
     // ✅ Cari order berdasarkan field order_id, bukan _id
-    const order = await Order.findOne({ order_id });
+    const order = await Order.findOne({ _id: order_id });
 
     if (!order) {
       console.warn(`⚠️ Order dengan order_id ${order_id} tidak ditemukan di database`);
@@ -72,7 +72,7 @@ export const midtransWebhook = async (req, res) => {
           subtotal: item.subtotal,
           isPrinted: item.isPrinted,
           menuItem: {
-            ...item.menuItem.toObject(),
+            ...item.menuItem,
             categories: item.menuItem.category, // renamed
           },
           selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({

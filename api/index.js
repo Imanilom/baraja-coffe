@@ -26,6 +26,7 @@ import marketListRoutes from './routes/marketlist.routes.js';
 import ratingRoutes from './routes/rating.routes.js';
 import taxAndServiceRoutes from './routes/taxAndService.routes.js';
 import ReceiptSetting from './routes/receiptSetting.routes.js';
+import socketHandler from './socket/index.js';
 
 dotenv.config();
 
@@ -52,41 +53,42 @@ const io = new Server(server, {
   pingInterval: 25000,
   transports: ['websocket', 'polling']
 });
+socketHandler(io);
 
 export { io };
 
 // Socket connection handling
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+// io.on('connection', (socket) => {
+//   console.log('Client connected:', socket.id);
 
-  // Debug ping (keep for debugging)
-  setInterval(() => {
-    io.emit('ping', { message: 'Ping from server', timestamp: new Date().toISOString() });
-    console.log('Sent ping to all clients');
-  }, 10000);
+//   // Debug ping (keep for debugging)
+//   setInterval(() => {
+//     io.emit('ping', { message: 'Ping from server', timestamp: new Date().toISOString() });
+//     console.log('Sent ping to all clients');
+//   }, 10000);
 
-  // Handle room joining with acknowledgement
-  socket.on('join_order_room', (orderId, callback) => {
-    console.log(`Client ${socket.id} joining room for order: ${orderId}`);
-    socket.join(orderId);
+//   // Handle room joining with acknowledgement
+//   socket.on('join_order_room', (orderId, callback) => {
+//     console.log(`Client ${socket.id} joining room for order: ${orderId}`);
+//     socket.join(orderId);
 
-    // Send acknowledgement back to client
-    if (typeof callback === 'function') {
-      callback({ status: 'joined', room: orderId });
-    }
+//     // Send acknowledgement back to client
+//     if (typeof callback === 'function') {
+//       callback({ status: 'joined', room: orderId });
+//     }
 
-    // Emit a message to verify room joining
-    socket.to(orderId).emit('room_joined', { message: `You joined room ${orderId}` });
+//     // Emit a message to verify room joining
+//     socket.to(orderId).emit('room_joined', { message: `You joined room ${orderId}` });
 
-    // Log rooms after joining
-    console.log('Rooms after joining:', io.sockets.adapter.rooms);
-  });
+//     // Log rooms after joining
+//     console.log('Rooms after joining:', io.sockets.adapter.rooms);
+//   });
 
-  // Handle explicit disconnection
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-  });
-});
+//   // Handle explicit disconnection
+//   socket.on('disconnect', () => {
+//     console.log('Client disconnected:', socket.id);
+//   });
+// });
 
 // Middleware and routes setup...
 app.use(express.json());
