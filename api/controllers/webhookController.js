@@ -47,7 +47,7 @@ export const midtransWebhook = async (req, res) => {
 
     // Handle status pembayaran
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      order.status = 'OnProcess';
+      order.status = 'Waiting';
       await order.save();
 
       // ✅ Masukkan ke antrian BullMQ dengan job type yang benar: create_order
