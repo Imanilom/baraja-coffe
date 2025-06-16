@@ -11,17 +11,40 @@ export async function createOrderHandler({ orderId, orderData, source }) {
     // Proses order items lengkap di sini
     const processed = await processOrderItems(orderData, session);
 
+    const {
+      orderItems,
+      totalBeforeDiscount,
+      totalAfterDiscount,
+      discounts,
+      appliedPromos,
+      appliedManualPromo,
+      appliedVoucher,
+      taxAndServiceDetails,
+      totalTax,
+      totalServiceFee,
+      grandTotal
+    } = processed;
+
+
     // Gabungkan hasil dengan order data asli
     const fullOrderData = {
       ...orderData,
       order_id: orderId,
-      items: processed.orderItems,
-      totalBeforeDiscount: processed.totalBeforeDiscount,
-      totalAfterDiscount: processed.totalAfterDiscount,
-      discounts: processed.discounts,
+      items: orderItems,
+      totalBeforeDiscount,
+      totalAfterDiscount,
+      discounts,
       status: source === 'Cashier' ? 'Completed' : 'Pending',
       source,
+      appliedPromos,
+      appliedManualPromo,
+      appliedVoucher,
+      taxAndServiceDetails,
+      totalTax,
+      totalServiceFee,
+      grandTotal,
     };
+
 
     const newOrder = new Order(fullOrderData);
     await newOrder.save({ session });
@@ -31,7 +54,12 @@ export async function createOrderHandler({ orderId, orderData, source }) {
     await orderQueue.add('update_inventory', {
       orderId: newOrder._id.toString(),
       items: processed.orderItems,
-    }, { jobId: `update_inventory-${newOrder._id.toString()}` });
+    }, { jobId: `update_inventory-${newOrder._id.toString()}`,
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 5000
+    }});
 
     return { success: true, orderId: newOrder._id };
   } catch (err) {
