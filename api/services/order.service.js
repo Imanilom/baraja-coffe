@@ -99,12 +99,16 @@ export async function processOrderItems({ items, outletId, orderType, voucherCod
   }
 
   // === PROMO SECTION ===
-  const { discount: autoPromoDiscount, appliedPromos } = await checkAutoPromos(orderItems, outletId, orderType);
-  const { discount: manualDiscount, appliedPromo } = await checkManualPromo(totalBeforeDiscount, outletId, customerType);
-  const { discount: voucherDiscount, voucher } = await checkVoucher(voucherCode, totalBeforeDiscount, outletId);
+  const { discount: autoPromoDiscount = 0, appliedPromos } = await checkAutoPromos(orderItems, outletId, orderType);
+  const { discount: manualDiscount = 0, appliedPromo } = await checkManualPromo(totalBeforeDiscount, outletId, customerType);
+  const { discount: voucherDiscount = 0, voucher } = await checkVoucher(voucherCode, totalBeforeDiscount, outletId);
 
-  const totalDiscount = autoPromoDiscount + manualDiscount + voucherDiscount;
+
+
+  const totalDiscount = (autoPromoDiscount || 0) + (manualDiscount || 0) + (voucherDiscount || 0);
   const totalAfterDiscount = totalBeforeDiscount - totalDiscount;
+
+  if (isNaN(totalAfterDiscount)) throw new Error("Calculated totalAfterDiscount is NaN");
   // === TAX & SERVICE SECTION ===
   const taxesAndServices = await TaxAndService.find({
     isActive: true,
@@ -151,7 +155,11 @@ export async function processOrderItems({ items, outletId, orderType, voucherCod
     }
   }
 
-  const grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
+
+  const grandTotal = totalAfterDiscount + (totalTax || 0) + (totalServiceFee || 0);
+
+  if (isNaN(grandTotal)) throw new Error("Calculated grandTotal is NaN");
+
 
   return {
     orderItems,

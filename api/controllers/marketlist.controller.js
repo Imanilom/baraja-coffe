@@ -4,53 +4,72 @@ import Request from '../models/modul_market/Request.model.js';
 import CashFlow from '../models/modul_market/CashFlow.model.js';
 import User from '../models/user.model.js';
 import { getDayName } from '../services/getDay.js';
+import mongoose from 'mongoose';
 
-// Buat Request dari staff (perlu login)
+
 export const createRequest = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const user = await User.findById(userId);
-    if (!user || user.role !== 'staff') {
-      return res.status(403).json({ message: 'Hanya staff yang bisa membuat request' });
+    const user = await User.findById(req.user._id);
+    if (!user || !['staff', 'admin', 'superadmin'].includes(user.role)) {
+      return res.status(403).json({ message: 'Akses ditolak' });
     }
 
-    const { department, items, date } = req.body;
+    const { department, items } = req.body;
 
-    const request = new Request({
-      requester: user.username,
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Items wajib diisi' });
+    }
+
+    const newRequest = new Request({
       department,
-      items,
-      date: date ? new Date(date) : undefined // pakai jika ada, kalau tidak default
+      requester: user.username,
+      items: items.map(item => ({
+        ...item,
+        status: item.status || 'pending',
+        fulfilledQuantity: item.fulfilledQuantity || 0
+      }))
     });
 
-    await request.save();
-    res.status(201).json(request);
+    await newRequest.save();
+
+    res.status(201).json({
+      message: 'Request berhasil dibuat.',
+      data: newRequest
+    });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error saat membuat request:', error.message);
+    res.status(500).json({ message: 'Terjadi kesalahan server.' });
   }
 };
 
-
-// Lihat semua request (hanya untuk pembeli)
+// Ambil semua request (hanya untuk role inventory)
 export const getAllRequests = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    if (!user || user.role !== 'inventory') {
+    if (!user || !['staff', 'inventory', 'admin', 'superadmin'].includes(user.role)) {
       return res.status(403).json({ message: 'Hanya petugas belanja yang bisa melihat request' });
     }
-    const requests = await Request.find().sort({ date: -1 });
+
+    const requests = await Request.find().populate({
+      path: 'items.productId',
+      select: 'name sku category unit'
+    });
+
     res.json(requests);
   } catch (error) {
+    console.error('Error saat mengambil semua request:', error.message);
     res.status(500).json({ message: error.message });
   }
 };
 
+// Setujui beberapa item dalam request
 export const approveRequestItems = async (req, res) => {
   try {
     const { requestId, items, reviewedBy } = req.body;
 
     if (!requestId || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: 'Request ID dan item yang diupdate harus disediakan' });
+      return res.status(400).json({ message: 'Request ID dan daftar item harus disediakan' });
     }
 
     const request = await Request.findById(requestId);
@@ -58,13 +77,24 @@ export const approveRequestItems = async (req, res) => {
       return res.status(404).json({ message: 'Request tidak ditemukan' });
     }
 
-    items.forEach(({ itemId, status, fulfilledQuantity }) => {
-      const item = request.items.id(itemId);
-      if (!item) return; // lewati jika item tidak ditemukan
+    // Validasi dan update status item
+    for (const updatedItem of items) {
+      const item = request.items.id(updatedItem.itemId);
+      if (!item) continue; // Lewati jika item tidak ditemukan
 
-      if (status) item.status = status;
-      if (fulfilledQuantity !== undefined) item.fulfilledQuantity = fulfilledQuantity;
-    });
+      if (updatedItem.status) item.status = updatedItem.status;
+      if (updatedItem.fulfilledQuantity !== undefined) item.fulfilledQuantity = updatedItem.fulfilledQuantity;
+
+      // Jika status "dibeli", isi fulfilledQuantity otomatis jika belum ada
+      if (updatedItem.status === 'dibeli' && item.fulfilledQuantity === undefined) {
+        item.fulfilledQuantity = item.quantity;
+      }
+
+      // Jika status "tidak tersedia", set fulfilledQuantity ke 0
+      if (updatedItem.status === 'tidak tersedia') {
+        item.fulfilledQuantity = 0;
+      }
+    }
 
     // Tandai bahwa request sudah direview
     request.reviewed = true;
@@ -73,6 +103,7 @@ export const approveRequestItems = async (req, res) => {
     request.status = 'approved'; // Set status ke approved
 
     await request.save();
+
     res.status(200).json({ message: 'Request berhasil direview', request });
   } catch (error) {
     console.error('Gagal mereview request:', error);
@@ -80,7 +111,7 @@ export const approveRequestItems = async (req, res) => {
   }
 };
 
-
+// Tolak seluruh request
 export const rejectRequest = async (req, res) => {
   try {
     const { requestId, rejectedBy, reason } = req.body;
@@ -115,30 +146,25 @@ export const rejectRequest = async (req, res) => {
   }
 };
 
+// Filter request berdasarkan status, department, atau rentang tanggal
 export const getRequests = async (req, res) => {
   try {
     const { status, department, startDate, endDate } = req.query;
-
     const query = {};
 
-    // Filter by status (e.g., pending, approved, rejected)
-    if (status) {
-      query.status = status;
-    }
+    if (status) query.status = status;
+    if (department) query.department = department;
 
-    // Filter by department (e.g., dapur, bar)
-    if (department) {
-      query.department = department;
-    }
-
-    // Filter by date range
     if (startDate || endDate) {
       query.date = {};
       if (startDate) query.date.$gte = new Date(startDate);
       if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    const requests = await Request.find(query).sort({ date: -1 });
+    const requests = await Request.find(query).sort({ date: -1 }).populate({
+      path: 'items.productId',
+      select: 'name sku category unit'
+    });
 
     res.status(200).json(requests);
   } catch (error) {
@@ -159,117 +185,117 @@ export const createMarketList = async (req, res) => {
       return res.status(403).json({ message: 'Hanya petugas belanja yang bisa mencatat belanja' });
     }
 
-    const { date, items, payment, additionalExpenses } = req.body;
+    const { date, items = [], payment, additionalExpenses = [] } = req.body;
 
-    // Validasi minimal salah satu harus ada: items atau additionalExpenses
-    const hasItems = Array.isArray(items) && items.length > 0;
-    const hasAdditionalExpenses = Array.isArray(additionalExpenses) && additionalExpenses.length > 0;
+    const hasItems = items.length > 0;
+    const hasAdditionalExpenses = additionalExpenses.length > 0;
 
     if (!hasItems && !hasAdditionalExpenses) {
-      return res.status(400).json({
-        message: 'Harus ada setidaknya satu item atau pengeluaran tambahan'
+      return res.status(400).json({ message: 'Harus ada setidaknya satu item atau pengeluaran tambahan' });
+    }
+
+    const day = new Date(date || Date.now()).toLocaleDateString('id-ID', { weekday: 'long' });
+
+    // Validasi & proses item belanja
+    let totalItemBelanja = 0;
+    const processedItems = [];
+
+    for (const item of items) {
+      const {
+        productId, productName, productSku, category,
+        unit, quantityPurchased, pricePerUnit,
+        supplierId, supplierName,
+        amountPaid = 0,
+        paymentMethod = 'cash',
+        proofOfPayment = ''
+      } = item;
+
+      if (
+        !productId || !productName || !productSku || !category || !unit ||
+        quantityPurchased <= 0 || pricePerUnit <= 0 || !supplierName
+      ) {
+        throw new Error(`Data tidak valid pada item ${productName || '(tidak diketahui)'}`);
+      }
+
+      const amountCharged = quantityPurchased * pricePerUnit;
+      const remainingBalance = Math.max(0, amountCharged - amountPaid);
+      let paymentStatus = 'unpaid';
+      if (amountPaid >= amountCharged) {
+        paymentStatus = 'paid';
+      } else if (amountPaid > 0) {
+        paymentStatus = 'partial';
+      }
+
+      totalItemBelanja += amountCharged;
+
+      processedItems.push({
+        productId,
+        productName,
+        productSku,
+        category,
+        unit,
+        quantityRequested: 0, // jika berasal dari request, boleh diisi
+        quantityPurchased,
+        pricePerUnit,
+        supplierId,
+        supplierName,
+        amountCharged,
+        amountPaid,
+        remainingBalance,
+        paymentMethod,
+        paymentStatus,
+        proofOfPayment
       });
     }
 
-    const day = getDayName(date); // Pastikan fungsi ini tersedia
-
-    // Validasi item yang dibeli
-    const purchasedItems = items?.filter(item => item.status !== 'tidak tersedia') || [];
-
-    purchasedItems.forEach(item => {
-      const quantity = Number(item.quantity);
-      const price = Number(item.price);
-
-      if (isNaN(quantity) || isNaN(price) || quantity <= 0 || price <= 0) {
-        throw new Error(`Item "${item.item}" memiliki price atau quantity tidak valid`);
+    // Validasi & hitung pengeluaran tambahan
+    let totalAdditional = 0;
+    for (const exp of additionalExpenses) {
+      if (!exp.name || Number(exp.amount) <= 0) {
+        throw new Error(`Pengeluaran tambahan tidak valid: ${exp.name || 'Tanpa nama'}`);
       }
-
-      item.quantity = quantity;
-      item.price = price;
-      item.total = price * quantity;
-    });
-
-    // Validasi item yang tidak dibeli
-    const notPurchasedItems = items?.filter(item => item.status === 'tidak tersedia') || [];
-    notPurchasedItems.forEach(item => {
-      if (!item.notes || item.notes.trim() === '') {
-        throw new Error(`Catatan wajib diisi untuk item "${item.item}"`);
-      }
-    });
-
-    // Validasi pengeluaran tambahan jika ada
-    let totalAdditionalExpenses = 0;
-    if (hasAdditionalExpenses) {
-      for (const expense of additionalExpenses) {
-        const amount = Number(expense.amount);
-        if (isNaN(amount) || amount <= 0) {
-          throw new Error(`Jumlah pengeluaran tambahan tidak valid: ${expense.name}`);
-        }
-        expense.amount = amount;
-        totalAdditionalExpenses += amount;
-      }
+      totalAdditional += Number(exp.amount);
     }
 
-    // Ambil semua request untuk update status (hanya jika ada items)
+    // Update status pada Request (jika ada relasi)
     const updatedRequestIds = new Set();
-    if (hasItems) {
-      const allRequests = await Request.find({});
-      for (const purchasedItem of purchasedItems) {
-        for (const request of allRequests) {
-          let changed = false;
-          for (const reqItem of request.items) {
-            if (
-              reqItem.item.toLowerCase() === purchasedItem.item.toLowerCase() &&
-              reqItem.status === 'pending'
-            ) {
-              updatedRequestIds.add(request._id.toString());
-
-              const reqQty = reqItem.quantity;
-              const fulfilledQty = purchasedItem.quantity;
-
-              reqItem.fulfilledQuantity = fulfilledQty;
-
-              if (fulfilledQty === 0) {
-                reqItem.status = 'tidak tersedia';
-              } else if (fulfilledQty >= reqQty) {
-                reqItem.status = 'dibeli';
-              } else if (fulfilledQty < reqQty) {
-                reqItem.status = 'kurang';
-              }
-
-              changed = true;
-              break;
-            }
+    const allRequests = await Request.find({});
+    for (const req of allRequests) {
+      let changed = false;
+      for (const item of req.items) {
+        const matched = processedItems.find(p => p.productName.toLowerCase() === item.item.toLowerCase());
+        if (matched && item.status === 'pending') {
+          item.fulfilledQuantity = matched.quantityPurchased;
+          if (matched.quantityPurchased === 0) {
+            item.status = 'tidak tersedia';
+          } else if (matched.quantityPurchased >= item.quantity) {
+            item.status = 'dibeli';
+          } else {
+            item.status = 'kurang';
           }
-          if (changed) await request.save();
+          updatedRequestIds.add(req._id.toString());
+          changed = true;
         }
       }
-    }
-
-    // 💡 JIKA ADA BUKTI PEMBAYARAN DI PAYMENT.PROOF
-    if (req.body.payment?.proof) {
-      payment.proof = req.body.payment.proof; // simpan path file
+      if (changed) await req.save();
     }
 
     // Simpan MarketList
     const marketList = new MarketList({
-      date,
+      date: date || new Date(),
       day,
-      ...(hasItems && { items }), // Hanya masukkan jika items ada
-      payment, // Sudah termasuk proof jika di-upload
-      createdBy: user.username,
+      items: processedItems,
+      payment,
+      additionalExpenses,
       relatedRequests: Array.from(updatedRequestIds),
-      ...(hasAdditionalExpenses && { additionalExpenses })
+      createdBy: user.username
     });
 
     await marketList.save();
 
-    // Hitung totalOut: total belanja + pengeluaran tambahan
-    const totalBelanja = (items || []).reduce((sum, item) => sum + (item.total || 0), 0);
-    const totalOut = totalBelanja + totalAdditionalExpenses;
-
-    // Dapatkan saldo terakhir
-    const lastBalance = await getLastBalance(); // Fungsi ini harus tersedia
+    // Hitung total pengeluaran
+    const totalOut = totalItemBelanja + totalAdditional;
+    const lastBalance = await getLastBalance(); // Implementasikan sesuai struktur saldo kamu
     const newBalance = lastBalance - totalOut;
 
     // Simpan ke CashFlow
@@ -286,12 +312,12 @@ export const createMarketList = async (req, res) => {
     await cashFlow.save();
 
     res.status(201).json({ marketList, cashFlow });
-
   } catch (error) {
-    console.error('Error saat membuat market list:', error);
+    console.error('Error saat membuat MarketList:', error);
     res.status(500).json({ message: error.message || 'Terjadi kesalahan internal server' });
   }
 };
+
 
 
 export const getUnpaidMarketLists = async (req, res) => {
