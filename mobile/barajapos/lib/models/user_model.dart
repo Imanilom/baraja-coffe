@@ -6,9 +6,10 @@ class UserModel {
   String phone;
   String profilePicture;
   String role;
-  String cashierType;
+  // String cashierType;
   // final List<Outlet> outlet;
   String token;
+  List<CashierModel>? cashiers;
 
   UserModel({
     required this.id,
@@ -18,12 +19,22 @@ class UserModel {
     required this.phone,
     required this.profilePicture,
     required this.role,
-    required this.cashierType,
+    // required this.cashierType,
     // required this.outlet,
     required this.token,
+    this.cashiers,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    // final List<CashierModel> cashiers = json['cashiers'] != null
+    //     ? List<CashierModel>.from(
+    //         json['cashiers'].map((x) => CashierModel.fromJson(x)))
+    //     : [];
+    final List<CashierModel> cashiers = (json['cashiers'] as List?)
+            ?.map((x) => CashierModel.fromJson(x))
+            .toList() ??
+        [];
+
     return UserModel(
       id: json['_id'],
       // name: json['name'],
@@ -32,11 +43,12 @@ class UserModel {
       phone: json['phone'] ?? '',
       profilePicture: json['profilePicture'] ?? '',
       role: json['role'],
-      cashierType: json['cashierType'] ?? '',
+      // cashierType: json['cashierType'] ?? '',
       // outlet: (json['outlet'] as List<dynamic>)
       //     .map((o) => Outlet.fromJson(o))
       //     .toList(),
       token: json['token'],
+      cashiers: cashiers,
     );
   }
 
@@ -49,10 +61,42 @@ class UserModel {
       'phone': phone,
       'profilePicture': profilePicture,
       'role': role,
-      'cashierType': cashierType,
+      // 'cashierType': cashierType,
       // 'outlet': outlet.map((o) => o.toJson()).toList(),
       'token': token,
     };
+  }
+}
+
+class CashierModel {
+  final String id;
+  final String name;
+  final String username;
+  final String role;
+  final String? cashierType;
+  final String password;
+  final String? profilePicture;
+
+  CashierModel({
+    required this.id,
+    required this.name,
+    required this.username,
+    required this.role,
+    this.cashierType,
+    required this.password,
+    this.profilePicture,
+  });
+
+  factory CashierModel.fromJson(Map<String, dynamic> json) {
+    return CashierModel(
+      id: json['_id'] ?? '',
+      name: json['name'] ?? '',
+      username: json['username'] ?? '',
+      role: json['role'] ?? '',
+      cashierType: json['cashierType'] ?? '',
+      password: json['password'] ?? '',
+      profilePicture: json['profilePicture'] ?? '',
+    );
   }
 }
 

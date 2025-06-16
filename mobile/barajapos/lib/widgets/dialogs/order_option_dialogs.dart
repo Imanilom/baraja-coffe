@@ -1,7 +1,10 @@
 // import 'package:barajapos/models/order_detail_model.dart';
 import 'package:barajapos/utils/format_rupiah.dart';
 import 'package:flutter/material.dart';
-import 'package:barajapos/models/menu_item_model.dart';
+import 'package:barajapos/models/adapter/menu_item.model.dart';
+import 'package:barajapos/models/adapter/topping.model.dart';
+import 'package:barajapos/models/adapter/addon.model.dart';
+import 'package:barajapos/models/adapter/addon_option.model.dart';
 import 'package:barajapos/models/order_item_model.dart';
 
 class OrderOptionDialogs extends StatefulWidget {
@@ -32,7 +35,7 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
   void _initializeDefaultAddons() {
     setState(() {
       selectedAddons = widget.menuItem.addons!.map((addon) {
-        return addon.copyWith(options: [addon.options.first]);
+        return addon.copyWith(options: [addon.options!.first]);
       }).toList();
     });
   }
@@ -75,7 +78,7 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
             ],
           ),
           // Pilih Topping,
-          if (widget.menuItem.toppings.isNotEmpty)
+          if (widget.menuItem.toppings!.isNotEmpty)
             const Text(
               'Topping',
               style: TextStyle(
@@ -224,10 +227,10 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
     // data toping diambil dari menu item itu sendiri
     final toppings = widget.menuItem.toppings;
 
-    return toppings.map((topping) {
+    return toppings!.map((topping) {
       return CheckboxListTile(
-        title: Text(topping.name),
-        subtitle: Text(formatRupiah(topping.price)),
+        title: Text(topping.name!),
+        subtitle: Text(formatRupiah(topping.price!)),
         value: selectedToppings.contains(topping),
         onChanged: (value) {
           onToppingSelected(topping);
@@ -246,17 +249,18 @@ class OrderOptionDialogsState extends State<OrderOptionDialogs> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(addon.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ...addon.options.map((option) {
+          Text(addon.name!,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          ...addon.options!.map((option) {
             return RadioListTile<AddonOptionModel>(
-              title: Text(option.label),
-              subtitle: Text(formatRupiah(option.price)),
+              title: Text(option.label!),
+              subtitle: Text(formatRupiah(option.price!)),
               value: option,
               groupValue: selectedAddons
                   .firstWhere((a) => a.id == addon.id,
                       orElse: () =>
-                          addon.copyWith(options: [addon.options.first]))
-                  .options
+                          addon.copyWith(options: [addon.options!.first]))
+                  .options!
                   .firstOrNull,
               onChanged: (value) {
                 if (value != null) {

@@ -16,17 +16,19 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$MenuItemModel {
   @HiveField(1)
+  @JsonKey(name: '_id')
   String get id;
   @HiveField(2)
-  String get name;
+  String? get name;
   @HiveField(3)
-  double get price;
+  int? get price;
   @HiveField(4)
-  String get description;
+  String? get description;
   @HiveField(5)
-  List<String> get categories;
+  @JsonKey(name: 'category')
+  List<String>? get categories;
   @HiveField(6)
-  String get imageURL;
+  String? get imageURL;
   @HiveField(7)
   List<ToppingModel>? get toppings;
   @HiveField(8)
@@ -39,6 +41,9 @@ mixin _$MenuItemModel {
   $MenuItemModelCopyWith<MenuItemModel> get copyWith =>
       _$MenuItemModelCopyWithImpl<MenuItemModel>(
           this as MenuItemModel, _$identity);
+
+  /// Serializes this MenuItemModel to a JSON map.
+  Map<String, dynamic> toJson();
 
   @override
   bool operator ==(Object other) {
@@ -58,6 +63,7 @@ mixin _$MenuItemModel {
             const DeepCollectionEquality().equals(other.addons, addons));
   }
 
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -83,12 +89,12 @@ abstract mixin class $MenuItemModelCopyWith<$Res> {
       _$MenuItemModelCopyWithImpl;
   @useResult
   $Res call(
-      {@HiveField(1) String id,
-      @HiveField(2) String name,
-      @HiveField(3) double price,
-      @HiveField(4) String description,
-      @HiveField(5) List<String> categories,
-      @HiveField(6) String imageURL,
+      {@HiveField(1) @JsonKey(name: '_id') String id,
+      @HiveField(2) String? name,
+      @HiveField(3) int? price,
+      @HiveField(4) String? description,
+      @HiveField(5) @JsonKey(name: 'category') List<String>? categories,
+      @HiveField(6) String? imageURL,
       @HiveField(7) List<ToppingModel>? toppings,
       @HiveField(8) List<AddonModel>? addons});
 }
@@ -107,11 +113,11 @@ class _$MenuItemModelCopyWithImpl<$Res>
   @override
   $Res call({
     Object? id = null,
-    Object? name = null,
-    Object? price = null,
-    Object? description = null,
-    Object? categories = null,
-    Object? imageURL = null,
+    Object? name = freezed,
+    Object? price = freezed,
+    Object? description = freezed,
+    Object? categories = freezed,
+    Object? imageURL = freezed,
     Object? toppings = freezed,
     Object? addons = freezed,
   }) {
@@ -120,26 +126,26 @@ class _$MenuItemModelCopyWithImpl<$Res>
           ? _self.id
           : id // ignore: cast_nullable_to_non_nullable
               as String,
-      name: null == name
+      name: freezed == name
           ? _self.name
           : name // ignore: cast_nullable_to_non_nullable
-              as String,
-      price: null == price
+              as String?,
+      price: freezed == price
           ? _self.price
           : price // ignore: cast_nullable_to_non_nullable
-              as double,
-      description: null == description
+              as int?,
+      description: freezed == description
           ? _self.description
           : description // ignore: cast_nullable_to_non_nullable
-              as String,
-      categories: null == categories
+              as String?,
+      categories: freezed == categories
           ? _self.categories
           : categories // ignore: cast_nullable_to_non_nullable
-              as List<String>,
-      imageURL: null == imageURL
+              as List<String>?,
+      imageURL: freezed == imageURL
           ? _self.imageURL
           : imageURL // ignore: cast_nullable_to_non_nullable
-              as String,
+              as String?,
       toppings: freezed == toppings
           ? _self.toppings
           : toppings // ignore: cast_nullable_to_non_nullable
@@ -153,45 +159,51 @@ class _$MenuItemModelCopyWithImpl<$Res>
 }
 
 /// @nodoc
-
+@JsonSerializable()
 class _MenuItemModel implements MenuItemModel {
   _MenuItemModel(
-      {@HiveField(1) required this.id,
-      @HiveField(2) required this.name,
-      @HiveField(3) required this.price,
-      @HiveField(4) required this.description,
-      @HiveField(5) required final List<String> categories,
-      @HiveField(6) required this.imageURL,
+      {@HiveField(1) @JsonKey(name: '_id') required this.id,
+      @HiveField(2) this.name,
+      @HiveField(3) this.price,
+      @HiveField(4) this.description,
+      @HiveField(5) @JsonKey(name: 'category') final List<String>? categories,
+      @HiveField(6) this.imageURL,
       @HiveField(7) final List<ToppingModel>? toppings,
       @HiveField(8) final List<AddonModel>? addons})
       : _categories = categories,
         _toppings = toppings,
         _addons = addons;
+  factory _MenuItemModel.fromJson(Map<String, dynamic> json) =>
+      _$MenuItemModelFromJson(json);
 
   @override
   @HiveField(1)
+  @JsonKey(name: '_id')
   final String id;
   @override
   @HiveField(2)
-  final String name;
+  final String? name;
   @override
   @HiveField(3)
-  final double price;
+  final int? price;
   @override
   @HiveField(4)
-  final String description;
-  final List<String> _categories;
+  final String? description;
+  final List<String>? _categories;
   @override
   @HiveField(5)
-  List<String> get categories {
+  @JsonKey(name: 'category')
+  List<String>? get categories {
+    final value = _categories;
+    if (value == null) return null;
     if (_categories is EqualUnmodifiableListView) return _categories;
     // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_categories);
+    return EqualUnmodifiableListView(value);
   }
 
   @override
   @HiveField(6)
-  final String imageURL;
+  final String? imageURL;
   final List<ToppingModel>? _toppings;
   @override
   @HiveField(7)
@@ -223,6 +235,13 @@ class _MenuItemModel implements MenuItemModel {
       __$MenuItemModelCopyWithImpl<_MenuItemModel>(this, _$identity);
 
   @override
+  Map<String, dynamic> toJson() {
+    return _$MenuItemModelToJson(
+      this,
+    );
+  }
+
+  @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
@@ -240,6 +259,7 @@ class _MenuItemModel implements MenuItemModel {
             const DeepCollectionEquality().equals(other._addons, _addons));
   }
 
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -267,12 +287,12 @@ abstract mixin class _$MenuItemModelCopyWith<$Res>
   @override
   @useResult
   $Res call(
-      {@HiveField(1) String id,
-      @HiveField(2) String name,
-      @HiveField(3) double price,
-      @HiveField(4) String description,
-      @HiveField(5) List<String> categories,
-      @HiveField(6) String imageURL,
+      {@HiveField(1) @JsonKey(name: '_id') String id,
+      @HiveField(2) String? name,
+      @HiveField(3) int? price,
+      @HiveField(4) String? description,
+      @HiveField(5) @JsonKey(name: 'category') List<String>? categories,
+      @HiveField(6) String? imageURL,
       @HiveField(7) List<ToppingModel>? toppings,
       @HiveField(8) List<AddonModel>? addons});
 }
@@ -291,11 +311,11 @@ class __$MenuItemModelCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   $Res call({
     Object? id = null,
-    Object? name = null,
-    Object? price = null,
-    Object? description = null,
-    Object? categories = null,
-    Object? imageURL = null,
+    Object? name = freezed,
+    Object? price = freezed,
+    Object? description = freezed,
+    Object? categories = freezed,
+    Object? imageURL = freezed,
     Object? toppings = freezed,
     Object? addons = freezed,
   }) {
@@ -304,26 +324,26 @@ class __$MenuItemModelCopyWithImpl<$Res>
           ? _self.id
           : id // ignore: cast_nullable_to_non_nullable
               as String,
-      name: null == name
+      name: freezed == name
           ? _self.name
           : name // ignore: cast_nullable_to_non_nullable
-              as String,
-      price: null == price
+              as String?,
+      price: freezed == price
           ? _self.price
           : price // ignore: cast_nullable_to_non_nullable
-              as double,
-      description: null == description
+              as int?,
+      description: freezed == description
           ? _self.description
           : description // ignore: cast_nullable_to_non_nullable
-              as String,
-      categories: null == categories
+              as String?,
+      categories: freezed == categories
           ? _self._categories
           : categories // ignore: cast_nullable_to_non_nullable
-              as List<String>,
-      imageURL: null == imageURL
+              as List<String>?,
+      imageURL: freezed == imageURL
           ? _self.imageURL
           : imageURL // ignore: cast_nullable_to_non_nullable
-              as String,
+              as String?,
       toppings: freezed == toppings
           ? _self._toppings
           : toppings // ignore: cast_nullable_to_non_nullable

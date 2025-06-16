@@ -15,14 +15,14 @@ T _$identity<T>(T value) => value;
 
 /// @nodoc
 mixin _$AddonModel {
-  @HiveField(1)
+  @HiveField(0)
   String? get id;
+  @HiveField(1)
+  String? get name;
   @HiveField(2)
-  String get name;
-  @HiveField(3)
   String? get type;
-  @HiveField(4)
-  List<AddonOptionModel> get options;
+  @HiveField(3)
+  List<AddonOptionModel>? get options;
 
   /// Create a copy of AddonModel
   /// with the given fields replaced by the non-null parameter values.
@@ -30,6 +30,9 @@ mixin _$AddonModel {
   @pragma('vm:prefer-inline')
   $AddonModelCopyWith<AddonModel> get copyWith =>
       _$AddonModelCopyWithImpl<AddonModel>(this as AddonModel, _$identity);
+
+  /// Serializes this AddonModel to a JSON map.
+  Map<String, dynamic> toJson();
 
   @override
   bool operator ==(Object other) {
@@ -42,6 +45,7 @@ mixin _$AddonModel {
             const DeepCollectionEquality().equals(other.options, options));
   }
 
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, id, name, type,
       const DeepCollectionEquality().hash(options));
@@ -59,10 +63,10 @@ abstract mixin class $AddonModelCopyWith<$Res> {
       _$AddonModelCopyWithImpl;
   @useResult
   $Res call(
-      {@HiveField(1) String? id,
-      @HiveField(2) String name,
-      @HiveField(3) String? type,
-      @HiveField(4) List<AddonOptionModel> options});
+      {@HiveField(0) String? id,
+      @HiveField(1) String? name,
+      @HiveField(2) String? type,
+      @HiveField(3) List<AddonOptionModel>? options});
 }
 
 /// @nodoc
@@ -78,57 +82,61 @@ class _$AddonModelCopyWithImpl<$Res> implements $AddonModelCopyWith<$Res> {
   @override
   $Res call({
     Object? id = freezed,
-    Object? name = null,
+    Object? name = freezed,
     Object? type = freezed,
-    Object? options = null,
+    Object? options = freezed,
   }) {
     return _then(_self.copyWith(
       id: freezed == id
           ? _self.id
           : id // ignore: cast_nullable_to_non_nullable
               as String?,
-      name: null == name
+      name: freezed == name
           ? _self.name
           : name // ignore: cast_nullable_to_non_nullable
-              as String,
+              as String?,
       type: freezed == type
           ? _self.type
           : type // ignore: cast_nullable_to_non_nullable
               as String?,
-      options: null == options
+      options: freezed == options
           ? _self.options
           : options // ignore: cast_nullable_to_non_nullable
-              as List<AddonOptionModel>,
+              as List<AddonOptionModel>?,
     ));
   }
 }
 
 /// @nodoc
-
+@JsonSerializable()
 class _AddonModel implements AddonModel {
   _AddonModel(
-      {@HiveField(1) this.id,
-      @HiveField(2) required this.name,
-      @HiveField(3) this.type,
-      @HiveField(4) required final List<AddonOptionModel> options})
+      {@HiveField(0) this.id,
+      @HiveField(1) this.name,
+      @HiveField(2) this.type,
+      @HiveField(3) final List<AddonOptionModel>? options})
       : _options = options;
+  factory _AddonModel.fromJson(Map<String, dynamic> json) =>
+      _$AddonModelFromJson(json);
 
   @override
-  @HiveField(1)
+  @HiveField(0)
   final String? id;
   @override
+  @HiveField(1)
+  final String? name;
+  @override
   @HiveField(2)
-  final String name;
+  final String? type;
+  final List<AddonOptionModel>? _options;
   @override
   @HiveField(3)
-  final String? type;
-  final List<AddonOptionModel> _options;
-  @override
-  @HiveField(4)
-  List<AddonOptionModel> get options {
+  List<AddonOptionModel>? get options {
+    final value = _options;
+    if (value == null) return null;
     if (_options is EqualUnmodifiableListView) return _options;
     // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_options);
+    return EqualUnmodifiableListView(value);
   }
 
   /// Create a copy of AddonModel
@@ -138,6 +146,13 @@ class _AddonModel implements AddonModel {
   @pragma('vm:prefer-inline')
   _$AddonModelCopyWith<_AddonModel> get copyWith =>
       __$AddonModelCopyWithImpl<_AddonModel>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$AddonModelToJson(
+      this,
+    );
+  }
 
   @override
   bool operator ==(Object other) {
@@ -150,6 +165,7 @@ class _AddonModel implements AddonModel {
             const DeepCollectionEquality().equals(other._options, _options));
   }
 
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, id, name, type,
       const DeepCollectionEquality().hash(_options));
@@ -169,10 +185,10 @@ abstract mixin class _$AddonModelCopyWith<$Res>
   @override
   @useResult
   $Res call(
-      {@HiveField(1) String? id,
-      @HiveField(2) String name,
-      @HiveField(3) String? type,
-      @HiveField(4) List<AddonOptionModel> options});
+      {@HiveField(0) String? id,
+      @HiveField(1) String? name,
+      @HiveField(2) String? type,
+      @HiveField(3) List<AddonOptionModel>? options});
 }
 
 /// @nodoc
@@ -188,27 +204,27 @@ class __$AddonModelCopyWithImpl<$Res> implements _$AddonModelCopyWith<$Res> {
   @pragma('vm:prefer-inline')
   $Res call({
     Object? id = freezed,
-    Object? name = null,
+    Object? name = freezed,
     Object? type = freezed,
-    Object? options = null,
+    Object? options = freezed,
   }) {
     return _then(_AddonModel(
       id: freezed == id
           ? _self.id
           : id // ignore: cast_nullable_to_non_nullable
               as String?,
-      name: null == name
+      name: freezed == name
           ? _self.name
           : name // ignore: cast_nullable_to_non_nullable
-              as String,
+              as String?,
       type: freezed == type
           ? _self.type
           : type // ignore: cast_nullable_to_non_nullable
               as String?,
-      options: null == options
+      options: freezed == options
           ? _self._options
           : options // ignore: cast_nullable_to_non_nullable
-              as List<AddonOptionModel>,
+              as List<AddonOptionModel>?,
     ));
   }
 }
