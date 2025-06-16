@@ -28,14 +28,14 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'customer', 'staff', 'cashier junior', 'cashier senior', 'akuntan', 'inventory', 'marketing', 'operational'],
+    enum: ['admin', 'customer', 'waiter', 'kitchen', 'cashier junior', 'cashier senior', 'akuntan', 'inventory', 'marketing', 'operational'],
     required: true,
     default: 'customer',
   },
   cashierType: {
     type: String,
     enum: [null, 'bar-1-amphi', 'bar-2-amphi', 'bar-3-amphi', 'bar-tp', 'bar-dp', 'drive-thru'],
-    required: function () { return this.role === 'cashier'; },
+    required: function () { return this.role === 'cashier junior' || this.role === 'cashier senior'; },
     default: null
   },
   outlet: [

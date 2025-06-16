@@ -3,6 +3,7 @@ import { RawMaterial } from '../models/RawMaterial.model.js';
 import { Outlet } from '../models/Outlet.model.js';
 import mongoose from 'mongoose';
 import { response } from 'express';
+import { MenuRating } from '../models/MenuRating.model.js';
 
 // Create a new menu item
 export const createMenuItem = async (req, res) => {
@@ -166,8 +167,6 @@ export const getSimpleMenuItems = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch menu items', error: error.message });
   }
 };
-
-
 export const getMenuItems = async (req, res) => {
   try {
     const menuItems = await MenuItem.find()
@@ -177,15 +176,58 @@ export const getMenuItems = async (req, res) => {
         { path: 'availableAt' },
         {
           path: 'addons',
-          populate: {
-            path: 'options',
-          },
-        }
+          populate: { path: 'options' },
+        },
       ]);
 
+    // Ambil semua rating dari database
+    const ratings = await MenuRating.find({ isActive: true });
+
+    // Debug: Log semua data rating
+    console.log('=== DEBUG RATINGS ===');
+    console.log('Total ratings found:', ratings.length);
+    ratings.forEach((r, idx) => {
+      console.log(`Rating ${idx + 1}:`, {
+        menuItemId: r.menuItemId,
+        menuItemIdType: typeof r.menuItemId,
+        rating: r.rating
+      });
+    });
+
+    // Buat peta menuItemId ke array rating
+    const ratingMap = {};
+    ratings.forEach(r => {
+      const menuId = r.menuItemId;
+      if (!ratingMap[menuId]) ratingMap[menuId] = [];
+      ratingMap[menuId].push(r.rating);
+    });
+
+    // Debug: Log rating map
+    console.log('=== DEBUG RATING MAP ===');
+    Object.keys(ratingMap).forEach(key => {
+      console.log(`Menu ID: ${key}, Ratings: [${ratingMap[key].join(', ')}], Average: ${ratingMap[key].reduce((sum, r) => sum + r, 0) / ratingMap[key].length}`);
+    });
+
     const formattedMenuItems = menuItems.map(item => {
+      const itemId = item._id.toString();
+      const itemRatings = ratingMap[itemId] || [];
+
+      // Debug: Log untuk menu spesifik
+      // if (itemId === "682a8bc8fb7080440f1f5bf1") {
+      //   console.log('=== DEBUG SPECIFIC MENU ===');
+      //   console.log('Menu ID:', itemId);
+      //   console.log('Found ratings:', itemRatings);
+      //   console.log('Rating map has this key?', ratingMap.hasOwnProperty(itemId));
+      // }
+
+      const averageRating = itemRatings.length > 0
+        ? Math.round((itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) * 10) / 10
+        : null;
+
+      const reviewCount = itemRatings.length;
+
       return {
-        id: item._id.toString(),
+        id: itemId,
         name: item.name,
         category: item.category || [],
         mainCategory: item.mainCategory || 'Uncategorized',
@@ -194,6 +236,8 @@ export const getMenuItems = async (req, res) => {
         discountPrice: item.discountedPrice || item.price,
         description: item.description || '',
         discountPercentage: item.discount ? `${item.discount}%` : null,
+        averageRating,
+        reviewCount,
         toppings: item.toppings?.map(topping => ({
           id: topping._id.toString(),
           name: topping.name,
@@ -212,13 +256,11 @@ export const getMenuItems = async (req, res) => {
       };
     });
 
-    // Kirim response
     res.status(200).json({
       success: true,
-      data: menuItems,             // data asli dari MongoDB
-      formattedData: formattedMenuItems // data terformat untuk frontend
+      data: menuItems,
+      formattedData: formattedMenuItems
     });
-
   } catch (error) {
     console.error('Error fetching menu items:', error);
     res.status(500).json({
@@ -228,6 +270,67 @@ export const getMenuItems = async (req, res) => {
     });
   }
 };
+
+// export const getMenuItems = async (req, res) => {
+//   try {
+//     const menuItems = await MenuItem.find()
+//       .populate([
+//         { path: 'toppings' },
+//         { path: 'rawMaterials.materialId' },
+//         { path: 'availableAt' },
+//         {
+//           path: 'addons',
+//           populate: {
+//             path: 'options',
+//           },
+//         }
+//       ]);
+
+//     const formattedMenuItems = menuItems.map(item => {
+//       return {
+//         id: item._id.toString(),
+//         name: item.name,
+//         category: item.category || [],
+//         mainCategory: item.mainCategory || 'Uncategorized',
+//         imageUrl: item.imageUrl || '',
+//         originalPrice: item.price,
+//         discountPrice: item.discountedPrice || item.price,
+//         description: item.description || '',
+//         discountPercentage: item.discount ? `${item.discount}%` : null,
+//         toppings: item.toppings?.map(topping => ({
+//           id: topping._id.toString(),
+//           name: topping.name,
+//           price: topping.price
+//         })) || [],
+//         addons: item.addons?.map(addon => ({
+//           id: addon._id.toString(),
+//           name: addon.name,
+//           options: addon.options?.map(opt => ({
+//             id: opt._id.toString(),
+//             label: opt.label,
+//             price: opt.price,
+//             isDefault: opt.isdefault
+//           })) || []
+//         })) || []
+//       };
+//     });
+
+//     // Kirim response
+//     res.status(200).json({
+//       success: true,
+//       data: menuItems,             // data asli dari MongoDB
+//       formattedData: formattedMenuItems // data terformat untuk frontend
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching menu items:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch menu items',
+//       error: error.message,
+//     });
+//   }
+// };
 
 
 export const getMenuItemById = async (req, res) => {

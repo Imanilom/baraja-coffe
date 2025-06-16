@@ -83,7 +83,7 @@ export const deleteOutlet = async (req, res) => {
 // Find nearest outlets
 export const findNearestOutlet = async (req, res) => {
   try {
-    const { latitude, longitude, maxDistance = 10 } = req.query;
+    const { latitude, longitude, maxDistance = 10 } = req.body;
 
     if (!latitude || !longitude) {
       return res.status(400).json({ message: 'Latitude and longitude are required' });
