@@ -16,7 +16,8 @@ export default function ImageUploader({ onUploadSuccess, currentImage }) {
     setPreview(URL.createObjectURL(file));
 
     const formData = new FormData();
-    formData.append('foto', file);
+    formData.append('nama', "file");
+    formData.append('image', file);
 
     try {
       const response = await fetch('https://img.barajacoffee.com/test.php', {
