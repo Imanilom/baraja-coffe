@@ -1,13 +1,21 @@
 import 'package:barajapos/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:barajapos/utils/format_rupiah.dart';
+import 'package:barajapos/widgets/payment/success_payment.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
 
 // Provider untuk menyimpan metode pembayaran yang dipilih
 final paymentMethodProvider = StateProvider<String?>((ref) => null);
 
 class PaymentMethod extends ConsumerWidget {
-  const PaymentMethod({super.key});
+  const PaymentMethod({
+    super.key,
+    required this.closeSheet,
+  });
+
+  //function untuk menutup sheet
+  final Function closeSheet;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,9 +33,7 @@ class PaymentMethod extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
+                onPressed: () {},
                 child: const Text('Kembali'),
               ),
               const Text(
@@ -51,10 +57,17 @@ class PaymentMethod extends ConsumerWidget {
 
                   // Kirim data orderDetail ke backend
                   final success = await orderDetail.submitOrder();
-
+                  print(
+                      'Metode pembayaran yang dipilih: $selectedPaymentMethod');
                   // Tutup modal
                   if (success && context.mounted) {
-                    Navigator.pop(context);
+                    // Navigator.pop(context);
+                    closeSheet();
+                    shadcn.openSheet(
+                      context: context,
+                      builder: (context) => const SuccessPayment(),
+                      position: shadcn.OverlayPosition.bottom,
+                    );
                   } else if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -77,9 +90,9 @@ class PaymentMethod extends ConsumerWidget {
           // Opsi Metode Pembayaran
           ListTile(
             leading: const Icon(Icons.payment),
-            title: const Text('Tunai'),
+            title: const Text('Cash'),
             trailing: Radio<String>(
-              value: 'Tunai',
+              value: 'Cash',
               groupValue: selectedPaymentMethod,
               onChanged: (value) {
                 ref.read(paymentMethodProvider.notifier).state = value;
