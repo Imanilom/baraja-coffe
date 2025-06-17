@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo } from 'react-icons/fa';
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash } from 'react-icons/fa';
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import CategoryIndex from "./category";
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
   if (!isOpen) return null;
@@ -25,20 +24,23 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
 const Menu = () => {
   const location = useLocation();
   const [showInput, setShowInput] = useState(false);
+  const [showInputStatus, setShowInputStatus] = useState(false);
   const [showInputCategory, setShowInputCategory] = useState(false);
   const navigate = useNavigate(); // Use the new hook
   const [menuItems, setMenuItems] = useState([]);
   const [category, setCategory] = useState([]);
+  const [status, setStatus] = useState([]);
   const [tempSelectedCategory, setTempSelectedCategory] = useState("");
+  const [tempSelectedStatus, setTempSelectedStatus] = useState("");
   const [tempSearch, setTempSearch] = useState("");
   const [error, setError] = useState(null);
+  const [checkedItems, setCheckedItems] = useState([]);
+  const [checkAll, setCheckAll] = useState(false);
 
   const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
   const [outlets, setOutlets] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("Semua Kategori");
   const [search, setSearch] = useState("");
   const [searchCategory, setSearchCategory] = useState("");
-  const [selected, setselected] = useState("menu");
   const [openDropdown, setOpenDropdown] = useState(null); // Menyimpan status dropdown
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
@@ -89,6 +91,13 @@ const Menu = () => {
 
         setCategory(categoryData);
 
+        const statusResponse = [
+          { _id: "ya", name: "Ya" },
+          { _id: "tidak", name: "Tidak" }
+        ]
+
+        setStatus(statusResponse);
+
         setError(null);
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -115,6 +124,11 @@ const Menu = () => {
   const uniqueCategory = useMemo(() => {
     return category.map(item => item.name);
   }, [category]);
+
+  // Get unique Status names for the dropdown
+  const uniqueStatus = useMemo(() => {
+    return status.map(item => item.name);
+  }, [status]);
 
   const paginatedData = useMemo(() => {
 
@@ -155,6 +169,13 @@ const Menu = () => {
       outlet.toLowerCase().includes(search.toLowerCase())
     );
   }, [search, uniqueCategory]);
+
+  // Filter status based on search input
+  const filteredStatus = useMemo(() => {
+    return uniqueStatus.filter(status =>
+      status.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [search, uniqueStatus]);
 
 
   // Apply filter function
@@ -234,27 +255,6 @@ const Menu = () => {
     setCurrentPage(1); // Reset to first page after filter
   };
 
-  // Reset filters
-  const resetFilter = () => {
-    setTempSearch("");
-    setTempSelectedOutlet("");
-    setTempSelectedCategory("");
-    setSearch("");
-    setSearchCategory("");
-    setFilteredData(ensureArray(menuItems));
-    setCurrentPage(1);
-  };
-
-  const handleCategoryChange = (category) => {
-    setSelectedCategory(category);
-    navigate(`/admin/menu?category=${category === "Semua Kategori" ? "" : category}&selected=${selected}`);
-  };
-
-  const handleTabChange = (item) => {
-    setSelected(item);
-    navigate(`/admin/menu?category=${selectedCategory === "Semua Kategori" ? "" : selectedCategory}&selected=${item}`);
-  };
-
   const handleDelete = async (itemId) => {
     try {
       await axios.delete(`/api/menu/menu-items/${itemId}`);
@@ -293,7 +293,7 @@ const Menu = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container">
       <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
         <FaBell className="text-2xl text-gray-400" />
         <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
@@ -309,13 +309,13 @@ const Menu = () => {
         <div className="flex space-x-2">
           <button
             onClick={() => console.log('Impor Menu')}
-            className="bg-white text-blue-500 px-4 py-2 rounded border border-blue-500 hover:text-white hover:bg-blue-500 text-[13px]"
+            className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
           >
             Impor Produk
           </button>
           <button
             onClick={() => console.log('Ekspor Produk')}
-            className="bg-white text-blue-500 px-4 py-2 rounded border border-blue-500 hover:text-white hover:bg-blue-500 text-[13px]"
+            className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
           >
             Ekspor Produk
           </button>
@@ -329,7 +329,7 @@ const Menu = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-4 py-4">
+      <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-3 py-4">
         <button
           className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
           onClick={() => handleTabChange("menu")}
@@ -345,11 +345,11 @@ const Menu = () => {
           </Link>
         </button>
 
-        {/* <div
+        <div
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
         >
           <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-            to="/admin/add-ons">
+            to="/admin/modifier">
             <div className="flex space-x-4">
               <FaLayerGroup size={24} className="text-gray-400" />
               <h2 className="text-gray-400 ml-2 text-sm">Opsi Tambahan</h2>
@@ -363,7 +363,7 @@ const Menu = () => {
               (18)
             </div>
           </Link>
-        </div> */}
+        </div>
 
         <div
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
@@ -380,24 +380,24 @@ const Menu = () => {
           </Link>
         </div>
 
-        <div
+        {/* <div
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
         >
           <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
             <div className="flex space-x-4">
               <FaSquare size={24} className="text-gray-400" />
-              <h2 className="text-gray-400 ml-2 text-sm">GrabFood</h2>
+              <h2 className="text-gray-400 ml-2 text-sm">Grab</h2>
             </div>
             <div className="text-sm text-gray-400">
               (18)
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
 
-      <div className="w-full pb-6">
+      <div className="w-full pb-6 mb-[60px]">
         <div className="px-[15px] pb-[15px]">
-          <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+          <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
             <div className="flex flex-col col-span-3">
               <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
               <div className="relative">
@@ -479,6 +479,46 @@ const Menu = () => {
             </div>
 
             <div className="flex flex-col col-span-3">
+              <label className="text-[13px] mb-1 text-gray-500">Status Dijual</label>
+              <div className="relative">
+                {!showInputStatus ? (
+                  <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputStatus(true)}>
+                    {tempSelectedCategory || "Semua Status"}
+                  </button>
+                ) : (
+                  <input
+                    type="text"
+                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                    value={search}
+                    onChange={(e) => setSearchStatus(e.target.value)}
+                    autoFocus
+                    placeholder=""
+                  />
+                )}
+                {showInputStatus && (
+                  <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                    {filteredStatus.length > 0 ? (
+                      filteredStatus.map((status, idx) => (
+                        <li
+                          key={idx}
+                          onClick={() => {
+                            setTempSelectedStatus(status);
+                            setShowInputStatus(false);
+                          }}
+                          className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                        >
+                          {status}
+                        </li>
+                      ))
+                    ) : (
+                      <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col col-span-3">
               <label className="text-[13px] mb-1 text-gray-500">Cari</label>
               <input
                 type="text"
@@ -489,46 +529,74 @@ const Menu = () => {
               />
             </div>
 
-            <div className="flex justify-end space-x-2 items-end col-span-2">
+            {/* <div className="flex justify-end space-x-2 items-end col-span-2">
               <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
               <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
-            </div>
+            </div> */}
           </div>
 
           {/* Menu Table */}
           <div className="w-full mt-4 shadow-md">
-            <table className="w-full table-auto">
+            <table className="w-full table-auto text-gray-500">
               <thead>
-                <tr className="bg-gray-200">
-                  <th className="py-2 px-4 bg-gray-200 text-gray-700 w-16"></th>
-                  <th className="py-2 px-4 bg-gray-200 text-gray-700 text-left">Produk</th>
-                  <th className="py-2 px-4 bg-gray-200 text-gray-700 text-left">Kategori</th>
-                  <th className="py-2 px-4 bg-gray-200 text-gray-700 text-right">Harga</th>
-                  <th className="py-2 px-4 bg-gray-200 text-gray-700"></th>
+                <tr className="text-[14px]">
+                  <th className="p-[15px] font-normal text-right">
+                    <input
+                      type="checkbox"
+                      className="w-[20px] h-[20px] accent-[#005429]"
+                      checked={checkAll}
+                      onChange={(e) => {
+                        const isChecked = e.target.checked;
+                        setCheckAll(isChecked);
+                        setCheckedItems(isChecked ? paginatedData.map(item => item._id) : []);
+                      }}
+                    />
+                  </th>
+                  <th className="p-[15px] font-normal text-left">Produk</th>
+                  <th className="p-[15px] font-normal text-left">Kategori</th>
+                  <th className="p-[15px] font-normal text-right">Harga</th>
+                  <th className="p-[15px] font-normal"></th>
                 </tr>
               </thead>
               {paginatedData.length > 0 ? (
                 <tbody>
                   {paginatedData.map((item) => (
-                    <tr key={item._id} className="hover:bg-gray-100">
-                      <td className="px-4 py-2"></td>
-                      <td className="px-4 py-2">
+                    <tr key={item._id} className="hover:bg-gray-100 text-[14px]">
+                      <td className="p-[15px] text-right">
+                        <input
+                          type="checkbox"
+                          className="w-[20px] h-[20px] accent-[#005429]"
+                          checked={checkedItems.includes(item._id)}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setCheckedItems(prev => {
+                              const updated = isChecked
+                                ? [...prev, item._id]
+                                : prev.filter(id => id !== item._id);
+                              setCheckAll(updated.length === paginatedData.length);
+                              return updated;
+                            });
+                          }}
+                        />
+
+                      </td>
+                      <td className="p-[15px]">
                         <div className="flex items-center">
                           <img
                             src={item.imageURL || "https://via.placeholder.com/100"}
                             alt={item.name}
-                            className="w-16 h-16 object-cover rounded-lg"
+                            className="w-[35px] h-[35px] object-cover rounded-lg"
                           />
                           <div className="ml-4">
-                            <h3 className="text-sm font-bold">{item.name}</h3>
+                            <h3>{item.name}</h3>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="p-[15px]">
                         {item.category.join(", ")}
                       </td>
-                      <td className="px-4 py-2 text-right">{formatCurrency(item.price)}</td>
-                      <td className="px-4 py-2">
+                      <td className="p-[15px] text-right">{formatCurrency(item.price)}</td>
+                      <td className="p-[15px]">
                         {/* Dropdown Menu */}
                         <div className="relative text-right">
                           <button
@@ -540,17 +608,28 @@ const Menu = () => {
                             </span>
                           </button>
                           {openDropdown === item._id && (
-                            <div className="absolute text-left right-0 top-full mt-2 bg-white border rounded-md shadow-md w-40 z-10">
-                              <ul className="py-2">
-                                <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
+                            <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
+                              <ul className="w-full">
+                                <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
+                                  <FaThLarge size={18} />
                                   <Link
-                                    to={`/admin/menu/${item._id}`}
+                                    to={`/admin/manage-stock/${item._id}`}
                                     className="block bg-transparent"
                                   >
-                                    View
+                                    Kelola Stok
                                   </Link>
                                 </li>
-                                <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
+                                <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100 border-b">
+                                  <FaDollarSign size={18} />
+                                  <Link
+                                    to={`/admin/manage-price-and-selling-status/${item._id}`}
+                                    className="block bg-transparent"
+                                  >
+                                    Kelola Harga & Status Jual
+                                  </Link>
+                                </li>
+                                <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
+                                  <FaPencilAlt size={18} />
                                   <Link
                                     to={`/admin/menu-update/${item._id}`}
                                     className="block bg-transparent"
@@ -558,7 +637,8 @@ const Menu = () => {
                                     Edit
                                   </Link>
                                 </li>
-                                <li className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100">
+                                <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
+                                  <FaTrash size={18} />
                                   <button onClick={() => {
                                     setItemToDelete(item._id);
                                     setIsModalOpen(true);
@@ -608,6 +688,11 @@ const Menu = () => {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
+        <div className="w-full h-[2px] bg-[#005429]">
         </div>
       </div>
       <ConfirmationModal
