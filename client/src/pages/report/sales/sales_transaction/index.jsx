@@ -31,7 +31,7 @@ const SalesTransaction = () => {
     const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
 
     // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
+    const pb1 = totalSubtotal * 0.10;
 
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
@@ -435,15 +435,14 @@ const SalesTransaction = () => {
                                 <th className="px-4 py-3 font-normal text-right">Total</th>
                             </tr>
                         </thead>
-                        {console.log(paginatedData)}
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {paginatedData.map((product, index) => {
                                     try {
                                         const item = product?.items?.[0] || {};
+                                        const orderId = product?.order_id || {};
                                         const date = product?.createdAt || {};
                                         const cashier = product?.cashier || {};
-                                        const outlet = product?.outlet || {};
                                         const orderType = product?.orderType || {};
                                         const menuItem = item?.menuItem || {};
                                         let menuNames = [];
@@ -456,7 +455,8 @@ const SalesTransaction = () => {
                                             }, 0);
                                         }
 
-                                        const total = totalSubtotal + pb1;
+                                        const pbn = totalSubtotal * 0.10;
+                                        const total = totalSubtotal + pbn;
 
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={product._id} onClick={() => setSelectedTrx(product)}>
@@ -467,7 +467,7 @@ const SalesTransaction = () => {
                                                     {cashier?.username || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {menuItem?._id || 'N/A'}
+                                                    {orderId || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {menuNames.join(', ')}
@@ -538,14 +538,12 @@ const SalesTransaction = () => {
                                         <h3 className="text-lg text-gray-700 bg-white font-medium">Baraja Coffee Indonesia</h3>
                                     </div>
                                     <div className="p-6 text-sm text-gray-700 space-y-2 bg-white">
-                                        <p>ID Struk: {selectedTrx._id}</p>
+                                        <p>ID Struk: {selectedTrx.order_id}</p>
                                         <p>Waktu: {formatDateTime(selectedTrx?.createdAt)}</p>
                                         <p>
-                                            Outlet:
-                                            {selectedTrx.outlet?.[0]?.outletId?.name || 'No Outlet'}
+                                            Outlet: Baraja Coffe Tentara Pelajar
+                                            {/* {selectedTrx.outlet?.[0]?.name || 'No Outlet'} */}
                                         </p>
-
-                                        {console.log(selectedTrx)}
 
                                         <p>Kasir: {selectedTrx.cashier?.username}</p>
                                         <p>Pelanggan: {selectedTrx.user}</p>

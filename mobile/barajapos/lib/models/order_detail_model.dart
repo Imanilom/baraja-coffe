@@ -59,8 +59,8 @@ class OrderDetailModel {
   // Konversi ke format JSON untuk request backend
   Map<String, dynamic> toJson() {
     return {
-      'customerId': customerId,
-      'customer': customerName,
+      'userId': customerId,
+      'user': customerName,
       'cashier': cashierId,
       'items': items.map((item) => item.toJson()).toList(),
       'orderType': orderType,

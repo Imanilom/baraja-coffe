@@ -36,8 +36,9 @@ export const midtransWebhook = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // ✅ Cari order berdasarkan field order_id, bukan _id
+
     const order = await Order.findOne({ _id: order_id });
+
 
     if (!order) {
       console.warn(`⚠️ Order dengan order_id ${order_id} tidak ditemukan di database`);
@@ -46,7 +47,7 @@ export const midtransWebhook = async (req, res) => {
 
     // Handle status pembayaran
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      order.status = 'OnProcess';
+      order.status = 'Waiting';
       await order.save();
 
       // // ✅ Masukkan ke antrian BullMQ dengan job type yang benar: create_order
@@ -59,6 +60,56 @@ export const midtransWebhook = async (req, res) => {
         transaction_status,
         status: order.status
       });
+
+      // Mapping data sesuai kebutuhan frontend
+      const mappedOrders = {
+        _id: order._id,
+        userId: order.user_id, // renamed
+        customerName: order.user, // renamed
+        cashierId: order.cashier, // renamed
+        items: order.items.map(item => ({
+          _id: item._id,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+          isPrinted: item.isPrinted,
+          menuItem: {
+            ...item.menuItem,
+            categories: item.menuItem.category, // renamed
+          },
+          selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
+            name: addon.name,
+            _id: addon._id,
+            options: [{
+              id: addon._id, // assuming _id as id for options
+              label: addon.label || addon.name, // fallback
+              price: addon.price
+            }]
+          })) : [],
+          selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
+            id: topping._id || topping.id, // fallback if structure changes
+            name: topping.name,
+            price: topping.price
+          })) : []
+        })),
+        status: order.status,
+        orderType: order.orderType,
+        deliveryAddress: order.deliveryAddress,
+        tableNumber: order.tableNumber,
+        type: order.type,
+        paymentMethod: order.paymentMethod || "Cash", // default value
+        totalPrice: order.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
+        voucher: order.voucher || null,
+        outlet: order.outlet || null,
+        promotions: order.promotions || [],
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        __v: order.__v
+      };
+
+      // Emit ke aplikasi kasir untuk menampilkan order baru
+      io.to('cashier_room').emit('new_order', { mappedOrders });
+      console.log('mappedOrders:', mappedOrders);
+
 
       console.log(`✅ Order ${order._id} updated to 'OnProcess' and queued`);
 

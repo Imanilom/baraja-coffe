@@ -1,8 +1,8 @@
 import 'package:barajapos/routes/app_router.dart';
+import 'package:barajapos/services/hive_service.dart';
 // import 'package:barajapos/screens/layout/layout.dart';
 // import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -10,7 +10,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
-  await Hive.initFlutter();
+  await HiveService.init();
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);

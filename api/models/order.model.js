@@ -25,7 +25,7 @@ const OrderSchema = new mongoose.Schema({
   items: [OrderItemSchema],
   status: {
     type: String,
-    enum: ['Pending', 'OnProcess', 'Completed', 'Canceled'],
+    enum: ['Pending', 'Waiting', 'OnProcess', 'Completed', 'Canceled'],
     default: 'Pending'
   },
   paymentMethod: {
@@ -34,7 +34,7 @@ const OrderSchema = new mongoose.Schema({
   },
   orderType: {
     type: String,
-    enum: ['Dine-In', 'Pickup', 'Delivery'],
+    enum: ['Dine-In', 'Pickup', 'Delivery', 'Reservation'],
     required: true
   },
   deliveryAddress: { type: String },

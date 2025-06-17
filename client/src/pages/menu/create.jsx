@@ -8,13 +8,14 @@ import {
 } from 'firebase/storage';
 import { app } from '../../firebase';
 import { Link } from "react-router-dom";
-import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera } from "react-icons/fa";
+import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 const CreateMenu = () => {
   const fileRef = useRef(null);
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [isOptional, setIsOptional] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [image, setImage] = useState(undefined);
   const [imagePercent, setImagePercent] = useState(0);
@@ -294,7 +295,6 @@ const CreateMenu = () => {
                   value={formData.name}
                   onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg"
-                  required
                 />
               </div>
 
@@ -363,7 +363,6 @@ const CreateMenu = () => {
                   value={formData.price}
                   onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg"
-                  required
                 />
               </div>
 
@@ -461,6 +460,125 @@ const CreateMenu = () => {
               </div>
             </div>
           </div>
+        </div>
+        <div className="p-6">
+          {/* Header */}
+          <button
+            onClick={() => setIsOptional(!isOptional)}
+            className="w-full text-left px-6 py-4 bg-slate-100 hover:bg-slate-200 transition font-medium flex justify-between items-center"
+          >
+            <span>Pengaturan Lanjutan (Opsional)</span>
+            <span>{isOptional ? "−" : "+"}</span>
+          </button>
+
+          {/* Body */}
+          {isOptional && (
+            <div className="bg-slate-50 px-6 py-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="row">
+                  <div className="flex items-center space-x-2">
+                    <span>Jual Di POS</span>
+                    <FaInfoCircle />
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-1">
+                      <input type="radio" name="pos" value="yes" />
+                      <span>Ya</span>
+                    </label>
+                    <label className="flex items-center space-x-1">
+                      <input type="radio" name="pos" value="no" />
+                      <span>Tidak</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="row">
+                  <div className="flex items-center space-x-2">
+                    <span className="uppercase">Jual Di Pawoon Order</span>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-1">
+                      <input type="radio" name="po" value="yes" />
+                      <span>Ya</span>
+                    </label>
+                    <label className="flex items-center space-x-1">
+                      <input type="radio" name="po" value="no" />
+                      <span>Tidak</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="row">
+                  <div className="flex items-center space-x-2">
+                    <span className="uppercase">Jual Di Digital Pawoon</span>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-1">
+                      <input type="radio" name="digital" value="yes" />
+                      <span>Ya</span>
+                    </label>
+                    <label className="flex items-center space-x-1">
+                      <input type="radio" name="digital" value="no" />
+                      <span>Tidak</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="row">
+                  <div className="flex items-center space-x-2">
+                    <span className="uppercase">Kelola Stok</span>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-1">
+                      <input type="radio" name="stock" value="yes" />
+                      <span>Ya</span>
+                    </label>
+                    <label className="flex items-center space-x-1">
+                      <input type="radio" name="stock" value="no" />
+                      <span>Tidak</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="row">
+                  <div className="flex items-center space-x-2">
+                    <span className="uppercase">Penjualan berdasarkan stok</span>
+                    <FaInfoCircle />
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-1">
+                      <input type="radio" name="pos" value="yes" />
+                      <span>Ya</span>
+                    </label>
+                    <label className="flex items-center space-x-1">
+                      <input type="radio" name="pos" value="no" />
+                      <span>Tidak</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="row w-full">
+                  <div className="flex items-center space-x-2">
+                    <label htmlFor="" className="uppercase">deskripsi produk</label>
+                    <FaInfoCircle />
+                  </div>
+                  <textarea name="" id="" className="w-full h-[120px] block border rounded"></textarea>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="row">
+                  <div className="flex items-center space-x-2">
+                    <label htmlFor="" className="uppercase">Pajak</label>
+                    <FaInfoCircle />
+                  </div>
+                  <select name="" id="" className="block border w-full p-2 rounded">
+                    <option value="">Mengikuti pajak outlet</option>
+                    <option value="">Tidak ada pajak</option>
+                  </select>
+                </div>
+              </div>
+              <div className="w-full">
+                <span className="p-3 uppercase bg-gray-500">detail produk</span>
+              </div>
+            </div>
+          )}
         </div>
       </form>
 
