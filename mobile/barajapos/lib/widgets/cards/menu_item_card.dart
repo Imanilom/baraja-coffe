@@ -1,5 +1,5 @@
 // import 'package:flutter/material.dart';
-import 'package:barajapos/models/menu_item_model.dart';
+import 'package:barajapos/models/adapter/menu_item.model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -30,7 +30,7 @@ class MenuItemCard extends ConsumerWidget {
                 borderRadius: const BorderRadius.all(Radius.circular(12)),
                 clipBehavior: Clip.antiAlias,
                 child: Image.network(
-                  menuItem.imageURL,
+                  menuItem.imageURL!,
                   fit:
                       BoxFit.cover, // Gambar akan mengisi ruang tanpa terpotong
                   width: double.infinity, // Pastikan lebar penuh
@@ -45,7 +45,7 @@ class MenuItemCard extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(8.0),
-              child: Text(menuItem.name).center(),
+              child: Text(menuItem.name!).center(),
             ),
           ],
         ),
