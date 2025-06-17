@@ -15,6 +15,7 @@ import {
   getOrderById,
   getQueuedOrders,
   confirmOrderByCashier,
+  testSocket,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
@@ -34,7 +35,7 @@ router.post('/orderApp', createAppOrder);
 
 router.post("/charge", charge);
 
-router.post('/midtrans/webhook', midtransWebhook);
+// router.post('/midtrans/webhook', midtransWebhook);
 
 // TODO: End route untuk melakukan charge from aplication
 
@@ -60,5 +61,8 @@ router.get('/orders/history/:userId', getUserOrderHistory);
 
 router.get('/order/:orderId', getOrderById);
 router.get('/orders/cashier/:cashierId', getCashierOrderHistory);
+
+//test socket
+router.get('/testsocket', testSocket);
 
 export default router;

@@ -1,51 +1,49 @@
-import 'package:barajapos/models/order_detail_model.dart';
+import 'package:barajapos/models/adapter/order_detail.model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
 
-class HistoryDetailProvider extends StateNotifier<List<OrderDetailModel?>> {
-  HistoryDetailProvider() : super([]);
+class HistoryDetailProvider extends StateNotifier<OrderDetailModel?> {
+  HistoryDetailProvider() : super(null);
 
   //ini harusnya buat List History
   void addToHistoryDetail(OrderDetailModel orderDetail) {
-    state = [...state, orderDetail];
+    state = orderDetail;
   }
 
   //memindahkan state history detail provider ke order detail provider
   void moveToOrderDetail() {
-    if (state.isNotEmpty) {
+    if (state != null) {
       // state = state;
     }
   }
 
   void removeItem(String menuItemId) {
-    if (state.isNotEmpty) {
-      state = [
-        ...state.map((orderDetail) => orderDetail?.copyWith(
-              items: orderDetail.items
-                  .where((item) => item.menuItem.id != menuItemId)
-                  .toList(),
-            )),
-      ];
+    if (state != null && state!.items.isNotEmpty) {
+      state = state!.copyWith(
+        items: state!.items
+            .where((item) => item.menuItem.id != menuItemId)
+            .toList(),
+      );
     }
   }
 
   // Kosongkan daftar pesanan
   void clearHistoryDetail() {
-    state = [];
+    state = null;
   }
 
   // Hitung total harga dari daftar pesanan
-  double get totalPrice {
-    return state.expand((orderDetail) => orderDetail!.items).fold(
+  int get totalPrice {
+    return state?.items.fold(
           0,
-          (sum, item) => sum + item.subTotalPrice,
-        );
+          (sum, item) => sum! + item.calculateSubTotalPrice(),
+        ) ??
+        0;
   }
 }
 
 // Provider untuk HistoryDetailProvider
 final historyDetailProvider =
-    StateNotifierProvider<HistoryDetailProvider, List<OrderDetailModel?>>(
-        (ref) {
+    StateNotifierProvider<HistoryDetailProvider, OrderDetailModel?>((ref) {
   return HistoryDetailProvider();
 });

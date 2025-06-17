@@ -1,7 +1,15 @@
 import mongoose from 'mongoose';
 
 export const validateRating = (req, res, next) => {
-    const { menuItemId, orderId, rating, review, images, tags } = req.body;
+    // Tambahkan logging untuk debug
+    console.log('=== DEBUG VALIDATION ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('Request headers:', req.headers);
+    console.log('========================');
+
+    // const { menuItemId, orderId, rating, review, images, tags } = req.body;
+    // const errors = [];
+    const { menuItemId, orderId, rating, review } = req.body;
     const errors = [];
 
     // Validasi menuItemId
@@ -39,37 +47,37 @@ export const validateRating = (req, res, next) => {
         }
     }
 
-    // Validasi images (opsional)
-    if (images !== undefined) {
-        if (!Array.isArray(images)) {
-            errors.push('Images must be an array');
-        } else {
-            images.forEach((image, index) => {
-                if (!image.url || typeof image.url !== 'string') {
-                    errors.push(`Image ${index + 1}: URL is required and must be a string`);
-                }
-                if (image.caption && typeof image.caption !== 'string') {
-                    errors.push(`Image ${index + 1}: Caption must be a string`);
-                }
-                if (image.caption && image.caption.length > 200) {
-                    errors.push(`Image ${index + 1}: Caption cannot exceed 200 characters`);
-                }
-            });
-        }
-    }
+    // // Validasi images (opsional)
+    // if (images !== undefined) {
+    //     if (!Array.isArray(images)) {
+    //         errors.push('Images must be an array');
+    //     } else {
+    //         images.forEach((image, index) => {
+    //             if (!image.url || typeof image.url !== 'string') {
+    //                 errors.push(`Image ${index + 1}: URL is required and must be a string`);
+    //             }
+    //             if (image.caption && typeof image.caption !== 'string') {
+    //                 errors.push(`Image ${index + 1}: Caption must be a string`);
+    //             }
+    //             if (image.caption && image.caption.length > 200) {
+    //                 errors.push(`Image ${index + 1}: Caption cannot exceed 200 characters`);
+    //             }
+    //         });
+    //     }
+    // }
 
-    // Validasi tags (opsional)
-    if (tags !== undefined) {
-        if (!Array.isArray(tags)) {
-            errors.push('Tags must be an array');
-        } else {
-            tags.forEach((tag, index) => {
-                if (typeof tag !== 'string') {
-                    errors.push(`Tag ${index + 1}: Must be a string`);
-                }
-            });
-        }
-    }
+    // // Validasi tags (opsional)
+    // if (tags !== undefined) {
+    //     if (!Array.isArray(tags)) {
+    //         errors.push('Tags must be an array');
+    //     } else {
+    //         tags.forEach((tag, index) => {
+    //             if (typeof tag !== 'string') {
+    //                 errors.push(`Tag ${index + 1}: Must be a string`);
+    //             }
+    //         });
+    //     }
+    // }
 
     // Jika ada error, return bad request
     if (errors.length > 0) {
