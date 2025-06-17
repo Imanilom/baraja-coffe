@@ -89,6 +89,16 @@ import TaxRevenueManagement from "./pages/report/profit/tax_revenue";
 import DiscountManagement from "./pages/report/profit/discount";
 import DailyProfitManagement from "./pages/report/profit/daily-profit";
 import ProfitByProductManagement from "./pages/report/profit/profit_by_product";
+import ManageStock from "./pages/menu/managestock";
+import ModifierManagement from "./pages/menu/modifier";
+import PriceSellingStatusManagement from "./pages/menu/pricesellingstatus";
+import SupplierManagement from "./pages/purchase/supplier";
+import PurchaseOrderManagement from "./pages/purchase/purchaseorder";
+import ShoppingList from "./pages/purchase/shoppinglist";
+import Table from "./pages/table/tablemanagement";
+import UpdateCategory from "./pages/menu/category/update";
+import EmployeeManagement from "./pages/employee";
+import CustomerManagement from "./pages/customer";
 
 
 
@@ -117,8 +127,16 @@ export default function App() {
                 <Route path="menu/:id" element={<ViewMenu />} />
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
                 <Route path="add-ons" element={<AddOns />} />
+                <Route path="modifier" element={<ModifierManagement />} />
                 <Route path="create-addons" element={<CreateAddOns />} />
                 <Route path="category-create" element={<AddCategory />} />
+                <Route path="category-update/:id" element={<UpdateCategory />} />
+                <Route path="manage-stock/:id" element={<ManageStock />} />
+                <Route path="manage-price-and-selling-status/:id" element={<PriceSellingStatusManagement />} />
+                <Route path="supplier" element={<SupplierManagement />} />
+                <Route path="purchase-order" element={<PurchaseOrderManagement />} />
+                <Route path="shopping-list" element={<ShoppingList />} />
+                <Route path="table-management" element={<Table />} />
 
                 {/* Report */}
                 <Route path="sales-menu" element={<SalesMenu />} />
@@ -151,14 +169,19 @@ export default function App() {
                 <Route path="daily-profit" element={<DailyProfitManagement />} />
                 <Route path="profit-by-product" element={<ProfitByProductManagement />} />
 
-
                 {/* Inventory */}
-                <Route path="stockcard" element={<StockCardManagement />} />
+                {/* <Route path="stockcard" element={<StockCardManagement />} />
                 <Route path="in" element={<InStockManagement />} />
                 <Route path="out" element={<OutStockManagement />} />
                 <Route path="production" element={<ProductionStockManagement />} />
                 <Route path="stockopname" element={<StockOpnameManagement />} />
-                <Route path="transfer" element={<TransferStockManagement />} />
+                <Route path="transfer" element={<TransferStockManagement />} /> */}
+
+                {/* Employee */}
+                <Route path="employee" element={<EmployeeManagement />} />
+
+                {/* Customer */}
+                <Route path="customer" element={<CustomerManagement />} />
 
                 {/* Outlet */}
                 <Route path="outlet" element={<OutletManagementPage />} />
