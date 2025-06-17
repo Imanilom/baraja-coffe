@@ -1,15 +1,18 @@
 import { MenuRating } from '../models/MenuRating.model.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 import mongoose from 'mongoose';
+import { Order } from '../models/order.model.js';
 
 export class MenuRatingController {
 
     // CREATE - Membuat rating baru
     static async createRating(req, res) {
         try {
-            const { menuItemId, orderId, rating, review, images, tags } = req.body;
-            const customerId = req.user.id; // Dari middleware authentication
-            const outletId = req.body.outletId; // Atau bisa dari order data
+            const { menuItemId, orderId, rating, review } = req.body;
+            const order = await Order.findById(orderId);
+            const customerId = order.user_id;
+
+            // const outletId = req.body.outletId; // Atau bisa dari order data
 
             // Validasi input
             if (!menuItemId || !orderId || !rating) {
@@ -38,20 +41,20 @@ export class MenuRatingController {
                 menuItemId,
                 customerId,
                 orderId,
-                outletId,
+                // outletId,
                 rating,
                 review,
-                images: images || [],
-                tags: tags || []
+                // images: images || [],
+                // tags: tags || []
             });
 
             await newRating.save();
 
             // Populate data untuk response
             const populatedRating = await MenuRating.findById(newRating._id)
-                .populate('menuItemId', 'name imageURL')
+                // .populate('menuItemId', 'name imageURL')
                 .populate('customerId', 'name email')
-                .populate('outletId', 'name address');
+            // .populate('outletId', 'name address');
 
             res.status(201).json({
                 success: true,
@@ -199,15 +202,14 @@ export class MenuRatingController {
     static async getCustomerRating(req, res) {
         try {
             const { menuItemId, orderId } = req.params;
-            const customerId = req.user.id;
+            const order = await Order.findById(orderId);
+            const customerId = order.user_id;
 
             const rating = await MenuRating.findOne({
                 menuItemId,
                 customerId,
                 orderId
             })
-                .populate('menuItemId', 'name imageURL')
-                .populate('outletId', 'name');
 
             if (!rating) {
                 return res.status(404).json({
@@ -378,7 +380,6 @@ export class MenuRatingController {
             })
                 .populate('menuItemId', 'name imageURL')
                 .populate('customerId', 'name email')
-                .populate('outletId', 'name')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(parseInt(limit));

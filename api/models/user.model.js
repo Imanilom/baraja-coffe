@@ -35,7 +35,7 @@ const UserSchema = new mongoose.Schema({
   cashierType: {
     type: String,
     enum: [null, 'bar-1-amphi', 'bar-2-amphi', 'bar-3-amphi', 'bar-tp', 'bar-dp', 'drive-thru'],
-    required: function () { return this.role === 'cashier'; },
+    required: function () { return this.role === 'cashier junior' || this.role === 'cashier senior'; },
     default: null
   },
   outlet: [

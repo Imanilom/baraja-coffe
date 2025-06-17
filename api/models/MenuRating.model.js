@@ -8,7 +8,7 @@ const MenuRatingSchema = new mongoose.Schema({
     },
     customerId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Customer',
+        ref: 'User',
         required: true
     },
     orderId: {
@@ -16,11 +16,11 @@ const MenuRatingSchema = new mongoose.Schema({
         ref: 'Order',
         required: true
     },
-    outletId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Outlet',
-        required: true
-    },
+    // outletId: {
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     ref: 'Outlet',
+    //     required: true
+    // },
     rating: {
         type: Number,
         required: true,
@@ -38,12 +38,12 @@ const MenuRatingSchema = new mongoose.Schema({
         trim: true,
         maxlength: 1000
     },
-    images: [
-        {
-            url: { type: String, trim: true },
-            caption: { type: String, trim: true, maxlength: 200 }
-        }
-    ],
+    // images: [
+    //     {
+    //         url: { type: String, trim: true },
+    //         caption: { type: String, trim: true, maxlength: 200 }
+    //     }
+    // ],
     helpfulCount: {
         type: Number,
         default: 0,
@@ -62,12 +62,12 @@ const MenuRatingSchema = new mongoose.Schema({
         enum: ['pending', 'approved', 'rejected'],
         default: 'pending'
     },
-    tags: [
-        {
-            type: String,
-            trim: true
-        }
-    ],
+    // tags: [
+    //     {
+    //         type: String,
+    //         trim: true
+    //     }
+    // ],
     adminNotes: {
         type: String,
         trim: true
@@ -206,16 +206,26 @@ MenuRatingSchema.pre('save', async function (next) {
         if (!order) {
             throw new Error('Order not found');
         }
+        // console.log('order.user_id:', order?.user_id?.toString?.());
+        // console.log('this.customerId:', this?.customerId?.toString?.());
 
-        // Cek apakah customer yang memberikan rating adalah pemilik order
-        if (order.customerId.toString() !== this.customerId.toString()) {
-            throw new Error('Customer mismatch with order');
+        if (!order?.user_id || !this?.customerId) {
+            throw new Error('Missing customerId or order.user_id');
         }
 
+        // if (order.user_id.toString() !== this.customerId.toString()) {
+        //     throw new Error('Customer mismatch with order');
+        // }
+
+
+
         // Cek apakah menu item ada dalam order tersebut
-        const hasMenuItem = order.items.some(item =>
-            item.menuItemId.toString() === this.menuItemId.toString()
-        );
+        const hasMenuItem = order.items.some(item => {
+            console.log('item.menuItemId:', item.menuItem.toString(), 'this.menuItemId:', this.menuItemId.toString());
+            return item.menuItem.toString() === this.menuItemId.toString();
+        });
+
+
 
         if (!hasMenuItem) {
             throw new Error('Menu item not found in the order');
