@@ -19,30 +19,7 @@ const ReservationSchema = new mongoose.Schema({
   peopleCount: { type: Number, required: true, min: 1 },
   checkInTime: { type: Date, default: Date.now },
   checkOutTime: { type: Date, required: false }, // Opsional, bisa diisi saat check-out
-  items: [
-    {
-      menuItem: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'MenuItem',
-        required: true
-      },
-      quantity: { type: Number, required: true, min: 1 },
-      selectedAddons: [
-        {
-          name: { type: String, required: true },
-          option: { type: String, required: true },
-          price: { type: Number, required: true }
-        }
-      ],
-      selectedToppings: [
-        {
-          name: { type: String, required: true },
-          price: { type: Number, required: true }
-        }
-      ],
-      notes: { type: String }
-    }
-  ],
+
   totalPrice: { type: Number, required: true, min: 0 },
   paymentType: { type: String, enum: ['full', 'partial'], default: 'full' },
   downPayment: { type: Number, default: 0, min: 0 },

@@ -36,8 +36,9 @@ export const midtransWebhook = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // ✅ Cari order berdasarkan field order_id, bukan _id
+
     const order = await Order.findOne({ _id: order_id });
+
 
     if (!order) {
       console.warn(`⚠️ Order dengan order_id ${order_id} tidak ditemukan di database`);
@@ -46,13 +47,13 @@ export const midtransWebhook = async (req, res) => {
 
     // Handle status pembayaran
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      order.status = 'OnProcess';
+      order.status = 'Waiting';
       await order.save();
 
-      // ✅ Masukkan ke antrian BullMQ dengan job type yang benar: create_order
-      await orderQueue.add('create_order', order.toObject(), {
-        jobId: order._id.toString(), // Hindari duplikasi
-      });
+      // // ✅ Masukkan ke antrian BullMQ dengan job type yang benar: create_order
+      // await orderQueue.add('create_order', order.toObject(), {
+      //   jobId: order._id.toString(), // Hindari duplikasi
+      // });
 
       io.to(order._id.toString()).emit('payment_status_update', {
         order_id,
@@ -107,7 +108,8 @@ export const midtransWebhook = async (req, res) => {
 
       // Emit ke aplikasi kasir untuk menampilkan order baru
       io.to('cashier_room').emit('new_order', { mappedOrders });
-      console.log(`✅ has been sent to cashier_room`);
+      console.log('mappedOrders:', mappedOrders);
+
 
       console.log(`✅ Order ${order._id} updated to 'OnProcess' and queued`);
 
