@@ -8,8 +8,10 @@ import 'package:kasirbaraja/providers/order_detail_providers/history_detail_prov
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/saved_order_detail_provider.dart';
+import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/orders/saved_order_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
+import 'package:kasirbaraja/repositories/online_order_repository.dart';
 import 'package:kasirbaraja/widgets/buttons/vertical_icon_text_button.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
@@ -24,7 +26,7 @@ class OrderDetail extends ConsumerWidget {
     String onNull = 'Pilih detail pesanan';
     int subTotalPrices = 0;
     OrderDetailModel? orderDetail;
-    // orderDetailNotifier = ref.read(orderDetailProvider.notifier);
+    final OnlineOrderRepository repository = OnlineOrderRepository();
 
     switch (currentWidgetIndex) {
       case 0:
@@ -57,6 +59,24 @@ class OrderDetail extends ConsumerWidget {
         onNull = 'Pilih pesanan tersimpan';
         break;
       default:
+    }
+
+    void confirmOrder(WidgetRef ref, OrderDetailModel orderDetail) async {
+      try {
+        await repository.confirmOrder(ref, orderDetail);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Order berhasil dikonfirmasi")),
+          );
+        }
+        ref.invalidate(onlineOrderProvider);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Gagal konfirmasi order: ${e.toString()}")),
+          );
+        }
+      }
     }
 
     return Padding(
@@ -385,7 +405,37 @@ class OrderDetail extends ConsumerWidget {
                         : currentWidgetIndex == 2
                         ? SizedBox.shrink()
                         : currentWidgetIndex == 1
-                        ? SizedBox.shrink()
+                        ? Row(
+                          spacing: 8,
+                          children: [
+                            ElevatedButton(
+                              onPressed: () {
+                                ref
+                                    .read(onlineOrderDetailProvider.notifier)
+                                    .clearOnlineOrderDetail();
+                              },
+                              child: Text('cancel'),
+                            ),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  if (orderDetail != null &&
+                                      orderDetail.items.isNotEmpty) {
+                                    //confirm order
+                                    confirmOrder(ref, orderDetail);
+                                    // hapus data order detail yang lama
+                                    ref
+                                        .read(
+                                          onlineOrderDetailProvider.notifier,
+                                        )
+                                        .clearOnlineOrderDetail();
+                                  }
+                                },
+                                child: Text('confirm'),
+                              ),
+                            ),
+                          ],
+                        )
                         : Row(
                           children: [
                             Expanded(

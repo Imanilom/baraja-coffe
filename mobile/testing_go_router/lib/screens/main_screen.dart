@@ -13,7 +13,6 @@ class MainScreen extends ConsumerWidget {
     final currentPageIndex = ref.watch(currentPageIndexProvider);
     final currentWidgetIndex = ref.watch(currentWidgetIndexProvider);
     //order onlineindicator provider
-    final orderOnlineIndicatorProvider = Provider<bool>((ref) => false);
     final orderOnlineIndicator = ref.watch(orderOnlineIndicatorProvider);
 
     //kalo true tampilkan snackbar

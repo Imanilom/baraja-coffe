@@ -27,12 +27,12 @@ class OrderHistory extends ConsumerWidget {
                 title: Text(order.customerName ?? 'Tanpa ID'),
                 subtitle: Text(formatRupiah(order.totalPrice!.toInt())),
                 onTap: () {
-                  // Clear previous history detail
-                  ref.read(historyDetailProvider.notifier).clearHistoryDetail();
-                  // Navigate to order detail screen
-                  ref
-                      .read(historyDetailProvider.notifier)
-                      .addToHistoryDetail(order);
+                  // // Clear previous history detail
+                  // ref.read(historyDetailProvider.notifier).clearHistoryDetail();
+                  // // Navigate to order detail screen
+                  // ref
+                  //     .read(historyDetailProvider.notifier)
+                  //     .addToHistoryDetail(order);
                 },
               );
             },
