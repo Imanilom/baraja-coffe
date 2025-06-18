@@ -1,5 +1,30 @@
 import mongoose from 'mongoose';
 
+// Skema untuk detail pembayaran (bukti pembayaran)
+const paymentSchema = new mongoose.Schema({
+  type: { 
+    type: String,
+    enum: ['offline', 'online'], 
+    required: true 
+  },
+  method: { 
+    type: String, 
+    enum: ['cash', 'card', 'transfer'], 
+    required: true 
+  },
+  status: { 
+    type: String, 
+    enum: ['paid', 'unpaid'], 
+    default: 'unpaid' 
+  },
+  bankFrom: String,
+  bankTo: String,
+  recipientName: String,
+  proofOfPayment: String, // URL gambar bukti
+  notes: String
+});
+
+// Skema item belanja
 const marketListItemSchema = new mongoose.Schema({
   // Informasi Produk
   productId: {
@@ -78,10 +103,10 @@ const marketListItemSchema = new mongoose.Schema({
     enum: ['unpaid', 'partial', 'paid'],
     default: 'unpaid'
   },
-  proofOfPayment: String, // Bukti pembayaran per item (opsional)
+  payment: paymentSchema // Bukti pembayaran per item
 });
 
-// Pengeluaran Tambahan (misal: biaya transfer, parkir)
+// Skema pengeluaran tambahan
 const additionalExpenseSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -92,34 +117,11 @@ const additionalExpenseSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
-  notes: String
+  notes: String,
+  payment: paymentSchema // Bukti pembayaran untuk pengeluaran tambahan
 });
 
-// Detail Pembayaran Utama
-const paymentSchema = new mongoose.Schema({
-  type: { 
-    type: String,
-    enum: ['offline', 'online'], 
-    required: true 
-  },
-  method: { 
-    type: String, 
-    enum: ['cash', 'card', 'transfer'], 
-    required: true 
-  },
-  status: { 
-    type: String, 
-    enum: ['paid', 'unpaid'], 
-    default: 'unpaid' 
-  },
-  bankFrom: String,
-  bankTo: String,
-  recipientName: String,
-  proofOfPayment: String, // Bukti pembayaran utama
-  notes: String
-});
-
-// MarketList Utama
+// Skema utama MarketList
 const marketListSchema = new mongoose.Schema({
   date: { 
     type: Date, 
@@ -132,25 +134,26 @@ const marketListSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Request' 
   }],
-  payment: paymentSchema,
   createdBy: String
 });
 
-// Middleware untuk update nilai otomatis
+// Middleware: Hitung amountCharged, remainingBalance, paymentStatus otomatis
 marketListSchema.pre('save', function (next) {
   this.day = new Date(this.date).toLocaleDateString('id-ID', { weekday: 'long' });
+
   this.items.forEach(item => {
     item.amountCharged = item.quantityPurchased * item.pricePerUnit;
     item.remainingBalance = Math.max(0, item.amountCharged - item.amountPaid);
 
     if (item.amountPaid >= item.amountCharged) {
       item.paymentStatus = 'paid';
-    } else if (item.amountPaid > 0 && item.amountPaid < item.amountCharged) {
+    } else if (item.amountPaid > 0) {
       item.paymentStatus = 'partial';
     } else {
       item.paymentStatus = 'unpaid';
     }
   });
+
   next();
 });
 
