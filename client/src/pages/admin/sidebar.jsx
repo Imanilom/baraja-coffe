@@ -61,10 +61,10 @@ const Sidebar = () => {
         {
           name: "Pembelian", icon: <FaReceipt />,
           subMenu: [
-            { name: "Supplier", path: "/admin/storage" },
-            { name: "Purchase Order", path: "/admin/storage" },
-            { name: "Daftar Belanja", path: "/admin/storage" },
-            { name: "Daftar Pengeluaran", path: "/admin/storage" },
+            { name: "Supplier", path: "/admin/supplier" },
+            { name: "Purchase Order", path: "/admin/purchase-order" },
+            { name: "Daftar Belanja", path: "/admin/shopping-list" },
+            { name: "Daftar Pengeluaran", path: "/admin/expenditure-list" },
           ]
         },
       ],
@@ -73,18 +73,18 @@ const Sidebar = () => {
       section: "Bisnis",
       items: [
         { name: "Outlet", path: "/admin/outlet", icon: <FaStoreAlt /> },
-        { name: "Karyawan", path: "/profile", icon: <FaIdBadge /> },
-        { name: "Pelanggan", path: "/profile", icon: <FaUserFriends /> },
+        { name: "Karyawan", path: "/admin/employee", icon: <FaIdBadge /> },
+        { name: "Pelanggan", path: "/admin/customer", icon: <FaUserFriends /> },
         {
           name: "Pengaturan Meja", icon: <FaUserCircle />,
           subMenu: [
-            { name: "Atur Meja", path: "/admin/storage" },
-            { name: "Denah Meja", path: "/admin/storage" }
+            { name: "Atur Meja", path: "/admin/table-management" },
+            { name: "Denah Meja", path: "/admin/table-plan" }
           ]
         },
-        { name: "Perangkat", path: "/profile", icon: <FaTabletAlt /> },
+        { name: "Perangkat", path: "/admin/perangkat", icon: <FaTabletAlt /> },
         { name: "Promo", path: "/admin/promotion", icon: <FaCut /> },
-        { name: "Komisi", path: "/profile", icon: <FaHandshake /> },
+        { name: "Komisi", path: "/commission", icon: <FaHandshake /> },
       ],
     },
     {

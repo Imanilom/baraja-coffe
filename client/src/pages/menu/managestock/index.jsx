@@ -1,0 +1,277 @@
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaChevronRight, FaInfoCircle } from 'react-icons/fa';
+import axios from "axios";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+
+const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div className="bg-white p-6 rounded shadow-md text-center w-96">
+                <FaTrash className="text-red-500 mx-auto mb-4" size={72} />
+                <h2 className="text-lg font-bold">Konfirmasi Penghapusan</h2>
+                <p>Apakah Anda yakin ingin menghapus item ini?</p>
+                <div className="flex justify-center mt-4">
+                    <button onClick={onClose} className="mr-2 px-4 py-2 bg-gray-300 rounded">Batal</button>
+                    <button onClick={onConfirm} className="px-4 py-2 bg-red-500 text-white rounded">Hapus</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ManageStock = () => {
+    const location = useLocation();
+    const [showInput, setShowInput] = useState(false);
+    const [showInputStatus, setShowInputStatus] = useState(false);
+    const [showInputCategory, setShowInputCategory] = useState(false);
+    const navigate = useNavigate(); // Use the new hook
+    const [menuItems, setMenuItems] = useState([]);
+    const [category, setCategory] = useState([]);
+    const [status, setStatus] = useState([]);
+    const [tempSelectedCategory, setTempSelectedCategory] = useState("");
+    const [tempSelectedStatus, setTempSelectedStatus] = useState("");
+    const [tempSearch, setTempSearch] = useState("");
+    const [error, setError] = useState(null);
+    const [checkedItems, setCheckedItems] = useState([]);
+    const [checkAll, setCheckAll] = useState(false);
+
+    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
+    const [outlets, setOutlets] = useState([]);
+    const [search, setSearch] = useState("");
+    const [searchCategory, setSearchCategory] = useState("");
+    const [openDropdown, setOpenDropdown] = useState(null); // Menyimpan status dropdown
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
+
+    const [filteredData, setFilteredData] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const queryParams = new URLSearchParams(location.search);
+    const ensureArray = (data) => Array.isArray(data) ? data : [];
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 50;
+
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                // Fetch products data
+                const menuResponse = await axios.get('/api/menu/menu-items');
+
+                // Ensure menuResponse.data is an array
+                const menuData = Array.isArray(menuResponse.data) ?
+                    menuResponse.data :
+                    (menuResponse.data && Array.isArray(menuResponse.data.data)) ?
+                        menuResponse.data.data : [];
+
+                setMenuItems(menuData);
+                setFilteredData(menuData); // Initialize filtered data with all products
+
+                // Fetch outlets data
+                const outletsResponse = await axios.get('/api/outlet');
+
+                // Ensure outletsResponse.data is an array
+                const outletsData = Array.isArray(outletsResponse.data) ?
+                    outletsResponse.data :
+                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
+                        outletsResponse.data.data : [];
+
+                setOutlets(outletsData);
+
+                const categoryResponse = await axios.get('/api/storage/category');
+
+                const categoryData = Array.isArray(categoryResponse.data) ?
+                    categoryResponse.data :
+                    (categoryResponse.data && Array.isArray(categoryResponse.data.data)) ?
+                        categoryResponse.data.data : [];
+
+                setCategory(categoryData);
+
+                const statusResponse = [
+                    { _id: "ya", name: "Ya" },
+                    { _id: "tidak", name: "Tidak" }
+                ]
+
+                setStatus(statusResponse);
+
+                setError(null);
+            } catch (err) {
+                console.error("Error fetching data:", err);
+                setError("Failed to load data. Please try again later.");
+                // Set empty arrays as fallback
+                setMenuItems([]);
+                setFilteredData([]);
+                setOutlets([]);
+                setCategory([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    // Show loading state
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+            </div>
+        );
+    }
+
+    // Show error state
+    if (error) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <div className="text-red-500 text-center">
+                    <p className="text-xl font-semibold mb-2">Error</p>
+                    <p>{error}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                    >
+                        Refresh
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="container">
+            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
+                <FaBell className="text-2xl text-gray-400" />
+                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
+                    <FaUser />
+                </Link>
+            </div>
+
+            <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
+                <div className="flex items-center space-x-2 text-gray-400">
+                    <FaShoppingBag size={21} />
+                    <Link to="/admin/menu">Produk</Link>
+                    <FaChevronRight />
+                    <p>Produk</p>
+                    <FaChevronRight />
+                    <span>Kelola Stok</span>
+                    <FaInfoCircle className="" />
+                </div>
+                <div className="flex space-x-2">
+                    <button
+                        onClick={() => console.log('back')}
+                        className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        onClick={() => console.log('Simpan')}
+                        className="bg-[#005429] text-white px-4 py-2 rounded border text-[13px]"
+                    >
+                        Simpan
+                    </button>
+                </div>
+            </div>
+            <div className="w-full pb-6 mb-[60px]">
+                <div className="px-[15px] pb-[15px]">
+                    <div className="my-[13px] p-[25px] shadow-lg">
+                        <div className="flex justify-end items-center space-x-2">
+                            <input type="checkbox" name="" id="" className="accent-[#005429] w-[20px] h-[20px]" />
+                            <span className="text-gray-500">Samakan pengaturan stok untuk semua outlet</span>
+                        </div>
+                        <table className="w-full table-auto text-gray-500">
+                            <thead className="border-b">
+                                <tr className="text-[12px] items-end">
+                                    <th className="p-[15px] w-1/2 align-bottom"></th>
+                                    <th className="p-[15px] text-right uppercase align-bottom">SKU</th>
+                                    <th className="p-[15px] text-right uppercase align-bottom">Kelola Stok</th>
+
+                                    <th className="p-[15px] text-right uppercase align-bottom">
+                                        <div className="inline-flex items-center flex-wrap justify-end space-x-1">
+                                            <span>Penjualan Berdasarkan</span>
+                                            <span className="inline-flex items-center space-x-1">
+                                                <span>Stok</span>
+                                                <FaInfoCircle className="mb-[1px]" />
+                                            </span>
+                                        </div>
+                                    </th>
+
+
+                                    <th className="p-[15px] text-right uppercase align-bottom">
+                                        <div className="inline-flex items-center space-x-1">
+                                            <span>Stok Alert</span>
+                                            <FaInfoCircle className="mb-[1px]" />
+                                        </div>
+                                    </th>
+
+                                    <th className="p-[15px] text-right uppercase align-bottom">
+                                        <div className="inline-flex items-center space-x-1">
+                                            <span>Alert Ketika</span>
+                                            <FaInfoCircle className="mb-[1px]" />
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                <tr>
+                                    <td className="p-[15px]">Produk</td>
+                                    <td className="p-[15px]">-</td>
+                                    <td className="p-[15px]">
+                                        <div className="flex space-x-4 justify-end">
+                                            <label className="font-medium text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
+                                                <span>Tidak</span>
+                                                <input type="checkbox" value="" className="sr-only peer" />
+                                                <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                            </label>
+                                        </div>
+                                    </td>
+                                    <td className="p-[15px]">
+                                        <div className="flex space-x-4 justify-end">
+                                            <label className="font-medium text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
+                                                <span>Tidak</span>
+                                                <input type="checkbox" value="" className="sr-only peer" />
+                                                <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                            </label>
+                                        </div>
+                                    </td>
+                                    <td className="p-[15px]">
+                                        <div className="flex space-x-4 justify-end">
+                                            <label className="font-medium text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
+                                                <span>Tidak</span>
+                                                <input type="checkbox" value="" className="sr-only peer" />
+                                                <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                            </label>
+                                        </div>
+
+                                    </td>
+                                    <td className="p-[15px]">
+                                        <div>
+                                            <input
+                                                type="number"
+                                                placeholder="0"
+                                                className="block w-[100px] text-[13px] border py-[6px] pl-[10px] rounded"
+                                            />
+                                        </div>
+
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
+                <div className="w-full h-[2px] bg-[#005429]">
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default ManageStock;  
