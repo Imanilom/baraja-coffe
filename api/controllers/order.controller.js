@@ -24,6 +24,7 @@ export const createAppOrder = async (req, res) => {
       paymentDetails,
       voucherCode,
       userId,
+      outlet
       // userName,
       // pricing,
       // orderDate,
@@ -74,6 +75,11 @@ export const createAppOrder = async (req, res) => {
         if (!pickupTime) {
           return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
         }
+      case 'reservation':
+        formattedOrderType = 'Reservation';
+        // if (!reservation) {
+        //   return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
+        // }
         break;
       default:
         return res.status(400).json({ success: false, message: 'Invalid order type' });
@@ -141,7 +147,7 @@ export const createAppOrder = async (req, res) => {
       tableNumber: tableNumber || '',
       type: 'Indoor',
       voucher: voucherId,
-      outlet: null,
+      outlet: outlet,
       promotions: [],
       source: 'App',
     });
@@ -671,23 +677,21 @@ export const createUnifiedOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
+  let transactionCommitted = false;
+
   try {
     const { source } = req.body;
     const validated = validateOrderData(req.body, source);
     const { tableNumber } = validated;
 
     let orderId;
-
     if (tableNumber) {
-      // Gunakan generateOrderId versi sequence per hari per table
       orderId = await generateOrderId(String(tableNumber));
     } else {
-      // fallback untuk selain tableNumber
       orderId = `${source.toUpperCase()}-${Date.now()}`;
     }
 
     const items = [];
-
     for (const item of validated.items) {
       const menuItem = await MenuItem.findById(item.id).session(session);
       if (!menuItem) throw new Error('Menu item not found: ' + item.id);
@@ -699,18 +703,21 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
+    // Komit transaksi sebelum masuk queue
+    await session.commitTransaction();
+    transactionCommitted = true;
 
+    const job = await orderQueue.add('create_order', {
+      type: 'create_order',
+      payload: { orderId, orderData: validated, source }
+    }, { jobId: orderId });
+
+    // Respons berdasarkan sumber
     if (source === 'Cashier') {
-      await session.commitTransaction();
-
-      await orderQueue.add('create_order', {
-        type: 'create_order',
-        payload: { orderId, orderData: validated, source }
-      }, { jobId: orderId });
-
       return res.status(202).json({
         status: 'completed',
         orderId,
+        jobId: job.id,
         message: 'Order kasir diproses dan sudah dibayar',
       });
     }
@@ -722,16 +729,10 @@ export const createUnifiedOrder = async (req, res) => {
         validated.paymentDetails.method
       );
 
-      await session.commitTransaction();
-
-      await orderQueue.add('create_order', {
-        type: 'create_order',
-        payload: { orderId, orderData: validated, source }
-      }, { jobId: orderId });
-
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
+        jobId: job.id,
         midtrans: midtransRes,
       });
     }
@@ -743,16 +744,10 @@ export const createUnifiedOrder = async (req, res) => {
         validated.paymentDetails.method
       );
 
-      await session.commitTransaction();
-
-      await orderQueue.add('create_order', {
-        type: 'create_order',
-        payload: { orderId, orderData: validated, source }
-      }, { jobId: orderId });
-
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
+        jobId: job.id,
         snapToken: midtransRes.token,
         redirectUrl: midtransRes.redirect_url,
       });
@@ -760,7 +755,9 @@ export const createUnifiedOrder = async (req, res) => {
 
     throw new Error('Sumber order tidak valid');
   } catch (err) {
-    await session.abortTransaction();
+    if (!transactionCommitted) {
+      await session.abortTransaction();
+    }
     return res.status(400).json({ success: false, error: err.message });
   } finally {
     session.endSession();
@@ -770,10 +767,11 @@ export const createUnifiedOrder = async (req, res) => {
 
 
 
+
 // GET /api/orders/queued
 export const getQueuedOrders = async (req, res) => {
   try {
-    const jobs = await orderQueue.getJobs(['waiting']);
+    const jobs = await orderQueue.getJobs(['completed', 'waiting', 'active']);
 
     const orders = jobs.map(job => ({
       jobId: job.id,
@@ -809,7 +807,12 @@ export const confirmOrderByCashier = async (req, res) => {
       return res.status(400).json({ success: false, error: 'order_id tidak ditemukan dalam job data' });
     }
 
-    // Update status order di MongoDB ke 'OnProcess'
+    // Cegah jika sudah diklaim
+    if (job.data?.cashierId) {
+      return res.status(400).json({ success: false, error: 'Order sudah diklaim oleh kasir lain' });
+    }
+
+    // Update status order di MongoDB
     const order = await Order.findOneAndUpdate(
       { order_id: orderId },
       { status: 'OnProcess', cashier: cashierId },
@@ -820,18 +823,14 @@ export const confirmOrderByCashier = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Order tidak ditemukan di database' });
     }
 
-    // Tambahkan cashierId ke job data
-    const updatedData = { ...job.data, cashierId };
-    await job.update(updatedData);
+    // Tambahkan cashierId ke job data agar worker tahu siapa yang ambil
+    await job.update({ ...job.data, cashierId });
 
-    // Eksekusi processor job secara manual (jika memang tidak otomatis dikerjakan oleh worker)
-    const result = await job.process();
-
+    // TIDAK perlu job.process(), biarkan worker eksekusi otomatis
     res.status(200).json({
       success: true,
-      message: 'Order dikonfirmasi dan status diubah ke OnProcess',
+      message: 'Order diklaim dan akan segera diproses',
       order,
-      result,
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

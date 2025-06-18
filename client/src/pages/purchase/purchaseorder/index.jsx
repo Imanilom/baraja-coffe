@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaShoppingCart } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 
 
-const SalesTransaction = () => {
-    const [products, setProducts] = useState([]);
+const PurchaseOrderManagement = () => {
+    const [attendances, setAttendances] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -31,27 +31,21 @@ const SalesTransaction = () => {
     const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
 
     // Calculate PB1 as 10% of the total subtotal
-    const pb1 = totalSubtotal * 0.10;
+    const pb1 = 10000;
 
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch products and outlets data
+    // Fetch attendances and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch products data
-                const productsResponse = await axios.get('/api/orders');
+                // Fetch attendances data
+                const attendancesResponse = [];
 
-                // Ensure productsResponse.data is an array
-                const productsData = Array.isArray(productsResponse.data) ?
-                    productsResponse.data :
-                    (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
-                        productsResponse.data.data : [];
-
-                setProducts(productsData);
-                setFilteredData(productsData); // Initialize filtered data with all products
+                setAttendances(attendancesResponse);
+                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -69,7 +63,7 @@ const SalesTransaction = () => {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
                 // Set empty arrays as fallback
-                setProducts([]);
+                setAttendances([]);
                 setFilteredData([]);
                 setOutlets([]);
             } finally {
@@ -126,9 +120,51 @@ const SalesTransaction = () => {
         return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     };
 
+    const formatDate = (dat) => {
+        const date = new Date(dat);
+        const pad = (n) => n.toString().padStart(2, "0");
+        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
+    };
+
+    const formatTime = (time) => {
+        const date = new Date(time);
+        const pad = (n) => n.toString().padStart(2, "0");
+        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    };
+
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
+    const groupedArray = useMemo(() => {
+        const grouped = {};
+
+        filteredData.forEach(product => {
+            const item = product?.items?.[0];
+            if (!item) return;
+
+            const categories = Array.isArray(item.menuItem?.category)
+                ? item.menuItem.category
+                : [item.menuItem?.category || 'Uncategorized'];
+            const quantity = Number(item?.quantity) || 0;
+            const subtotal = Number(item?.subtotal) || 0;
+
+            categories.forEach(category => {
+                const key = `${category}`;
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        category,
+                        quantity: 0,
+                        subtotal: 0
+                    };
+                }
+
+                grouped[key].quantity += quantity;
+                grouped[key].subtotal += subtotal;
+            });
+        });
+
+        return Object.values(grouped);
+    }, [filteredData]);
     // Filter outlets based on search input
     const filteredOutlets = useMemo(() => {
         return uniqueOutlets.filter(outlet =>
@@ -137,38 +173,25 @@ const SalesTransaction = () => {
     }, [search, uniqueOutlets]);
 
     // Calculate grand totals for filtered data
-    const {
-        grandTotalFinal,
-    } = useMemo(() => {
-        const totals = {
-            grandTotalFinal: 0,
-        };
-
-        if (!Array.isArray(filteredData)) {
-            return totals;
-        }
-
-        filteredData.forEach(product => {
-            try {
-                const item = product?.items?.[0];
-                if (!item) return;
-
-                const subtotal = Number(item.subtotal) || 0;
-
-                totals.grandTotalFinal += subtotal + pb1;
-            } catch (err) {
-                console.error("Error calculating totals for product:", err);
+    const grandTotal = useMemo(() => {
+        return groupedArray.reduce(
+            (acc, curr) => {
+                acc.quantity += curr.quantity;
+                acc.subtotal += curr.subtotal;
+                return acc;
+            },
+            {
+                quantity: 0,
+                subtotal: 0,
             }
-        });
-
-        return totals;
-    }, [filteredData]);
+        );
+    }, [groupedArray]);
 
     // Apply filter function
     const applyFilter = () => {
 
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
+        // Make sure attendances is an array before attempting to filter
+        let filtered = ensureArray([...attendances]);
 
         // Filter by search term (product name, category, or SKU)
         if (tempSearch) {
@@ -258,7 +281,7 @@ const SalesTransaction = () => {
         setTempSelectedOutlet("");
         setValue(null);
         setSearch("");
-        setFilteredData(ensureArray(products));
+        setFilteredData(ensureArray(attendances));
         setCurrentPage(1);
     };
 
@@ -321,7 +344,7 @@ const SalesTransaction = () => {
     }
 
     return (
-        <div className="overflow-y-scroll h-screen">
+        <div className="">
             {/* Header */}
             <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
                 <FaBell size={23} className="text-gray-400" />
@@ -335,24 +358,66 @@ const SalesTransaction = () => {
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
                     <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
+                    <p className="text-[15px] text-gray-500">Pembelian</p>
                     <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/sales-menu" className="text-[15px] text-gray-500">Laporan Penjualan</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/transaction-sales" className="text-[15px] text-[#005429]">Data Transaksi Penjualan</Link>
+                    <span className="text-[15px] text-[#005429]">Purchase Order</span>
+                    <FaInfoCircle className="text-[15px] text-gray-500" />
                 </div>
-                <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                <div className="flex space-x-2">
+                    <button className="bg-white border-[#005429] border text-[#005429] text-[13px] px-[15px] py-[7px] rounded hover:bg-[#005429] hover:text-white">Import Purchase Order</button>
+                    <button className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</button>
+                </div>
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+            <div className="px-[15px] pb-[15px] mb-[60px]">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
                     <div className="flex flex-col col-span-3">
                         <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
                         <div className="relative">
                             {!showInput ? (
                                 <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
                                     {tempSelectedOutlet || "Semua Outlet"}
+                                </button>
+                            ) : (
+                                <input
+                                    type="text"
+                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    autoFocus
+                                    placeholder=""
+                                />
+                            )}
+                            {showInput && (
+                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                    {filteredOutlets.length > 0 ? (
+                                        filteredOutlets.map((outlet, idx) => (
+                                            <li
+                                                key={idx}
+                                                onClick={() => {
+                                                    setTempSelectedOutlet(outlet);
+                                                    setShowInput(false);
+                                                }}
+                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                            >
+                                                {outlet}
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                                    )}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Supplier</label>
+                        <div className="relative">
+                            {!showInput ? (
+                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
+                                    {tempSelectedOutlet || "Semua Supplier"}
                                 </button>
                             ) : (
                                 <input
@@ -405,20 +470,58 @@ const SalesTransaction = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-                        <input
-                            type="text"
-                            placeholder="Produk / Pelanggan / Kode Struk"
-                            value={tempSearch}
-                            onChange={(e) => setTempSearch(e.target.value)}
-                            className="text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded"
-                        />
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Status</label>
+                        <div className="relative">
+                            {!showInput ? (
+                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
+                                    {tempSelectedOutlet || "Semua Status"}
+                                </button>
+                            ) : (
+                                <input
+                                    type="text"
+                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    autoFocus
+                                    placeholder=""
+                                />
+                            )}
+                            {showInput && (
+                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                    {filteredOutlets.length > 0 ? (
+                                        filteredOutlets.map((outlet, idx) => (
+                                            <li
+                                                key={idx}
+                                                onClick={() => {
+                                                    setTempSelectedOutlet(outlet);
+                                                    setShowInput(false);
+                                                }}
+                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                            >
+                                                {outlet}
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                                    )}
+                                </ul>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                        <div className="relative">
+                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                placeholder="Cari No PO"
+                                value={tempSearch}
+                                onChange={(e) => setTempSearch(e.target.value)}
+                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -427,56 +530,33 @@ const SalesTransaction = () => {
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Waktu</th>
-                                <th className="px-4 py-3 font-normal">Kasir</th>
-                                <th className="px-4 py-3 font-normal">ID Struk</th>
-                                <th className="px-4 py-3 font-normal">Produk</th>
-                                <th className="px-4 py-3 font-normal">Tipe Penjualan</th>
-                                <th className="px-4 py-3 font-normal text-right">Total</th>
+                                <th className="px-4 py-3 font-normal">ID PO</th>
+                                <th className="px-4 py-3 font-normal">Supplier</th>
+                                <th className="px-4 py-3 font-normal">No. PO</th>
+                                <th className="px-4 py-3 font-normal">Tanggal</th>
+                                <th className="px-4 py-3 font-normal">Status</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((product, index) => {
+                                {paginatedData.map((data, index) => {
                                     try {
-                                        const item = product?.items?.[0] || {};
-                                        const orderId = product?.order_id || {};
-                                        const date = product?.createdAt || {};
-                                        const cashier = product?.cashier || {};
-                                        const orderType = product?.orderType || {};
-                                        const menuItem = item?.menuItem || {};
-                                        let menuNames = [];
-                                        let totalSubtotal = 0;
-
-                                        if (Array.isArray(product?.items)) {
-                                            menuNames = product.items.map(i => i?.menuItem.name || 'N/A');
-                                            totalSubtotal = product.items.reduce((sum, i) => {
-                                                return sum + (Number(i?.subtotal) || 0);
-                                            }, 0);
-                                        }
-
-                                        const pbn = totalSubtotal * 0.10;
-                                        const total = totalSubtotal + pbn;
-
                                         return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={product._id} onClick={() => setSelectedTrx(product)}>
+                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
                                                 <td className="px-4 py-3">
-                                                    {formatDateTime(date) || 'N/A'}
+                                                    {formatDate(data.tanggal) || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {cashier?.username || 'N/A'}
+                                                    {data.jenis || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {orderId || 'N/A'}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {menuNames.join(', ')}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {orderType || 'N/A'}
+                                                    {data.jumlah || []}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    {total.toLocaleString()}
+                                                    {data.supplier || []}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {data.keterangan || []}
                                                 </td>
                                             </tr>
                                         );
@@ -484,7 +564,7 @@ const SalesTransaction = () => {
                                         console.error(`Error rendering product ${index}:`, err, product);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="7" className="px-4 py-3 text-red-500">
+                                                <td colSpan="5" className="px-4 py-3 text-red-500">
                                                     Error rendering product
                                                 </td>
                                             </tr>
@@ -495,101 +575,23 @@ const SalesTransaction = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={5}>
+                                        <div className="flex justify-center items-center min-h-[300px] text-gray-500">
+                                            <div className="grid grid-cols-3 gap-6 text-center">
+                                                <div className="col-span-3 flex flex-col items-center justify-center space-y-4 max-w-[700px]">
+                                                    <FaShoppingCart size={60} className="text-gray-500" />
+                                                    <p className="text-lg font-semibold">Purchase Order</p>
+                                                    <span className="text-sm text-justify">
+                                                        Purchase Order (PO) adalah proses pemesanan stok melalui supplier.
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
                                 </tr>
                             </tbody>
                         )}
-                        <tfoot className="border-t font-semibold text-sm">
-                            <tr>
-                                <td className="px-4 py-2" colSpan="4">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded" colSpan="2"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotalFinal.toLocaleString()}</p></td>
-                            </tr>
-                        </tfoot>
                     </table>
-                    {selectedTrx && (
-                        <div className="fixed inset-0 z-50 flex justify-end">
-                            {/* Backdrop */}
-                            <div
-                                className="absolute inset-0 bg-black bg-opacity-40"
-                                onClick={() => setSelectedTrx(null)}
-                            ></div>
-
-                            {/* Modal panel */}
-                            <div className={`relative w-full max-w-md bg-white shadow-slate-200 shadow-md transform transition-transform duration-300 ease-in-out translate-x-0 overflow-y-scroll`}>
-                                <div className="p-3 border-b font-semibold text-lg text-gray-700 flex justify-between items-center">
-                                    DATA TRANSAKSI PENJUALAN
-                                    <button onClick={() => setSelectedTrx(null)} className="text-gray-400 hover:text-red-500 text-2xl leading-none">
-                                        &times;
-                                    </button>
-                                </div>
-                                <div className="p-4 bg-gray-300 min-h-screen">
-                                    <div className="w-full overflow-hidden">
-                                        <div className="flex">
-                                            {Array.from({ length: 50 }).map((_, i) => (
-                                                <div
-                                                    key={i}
-                                                    className="w-4 h-4 rotate-45 bg-white origin-bottom-left"
-                                                    style={{ marginRight: '4px' }}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="text-center">
-                                        <h3 className="text-lg text-gray-700 bg-white font-medium">Baraja Coffee Indonesia</h3>
-                                    </div>
-                                    <div className="p-6 text-sm text-gray-700 space-y-2 bg-white">
-                                        <p>ID Struk: {selectedTrx.order_id}</p>
-                                        <p>Waktu: {formatDateTime(selectedTrx?.createdAt)}</p>
-                                        <p>
-                                            Outlet: Baraja Coffe Tentara Pelajar
-                                            {/* {selectedTrx.outlet?.[0]?.name || 'No Outlet'} */}
-                                        </p>
-
-                                        <p>Kasir: {selectedTrx.cashier?.username}</p>
-                                        <p>Pelanggan: {selectedTrx.user}</p>
-                                        <p className="text-center text-lg font-medium">{selectedTrx.orderType}</p>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                        <div className="grid grid-cols-3 text-sm">
-                                            {selectedTrx.items?.map((item, index) => (
-                                                <React.Fragment key={index}>
-                                                    <div>{item.menuItem?.name || '-'}</div>
-                                                    <div className="text-center">× {item.quantity}</div>
-                                                    <div className="text-right">{formatCurrency(item.subtotal)}</div>
-                                                </React.Fragment>
-                                            ))}
-                                        </div>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                        <div className="">
-                                            <div className="flex justify-between">
-                                                <p>Total Subtotal</p>
-                                                <p>{formatCurrency(totalSubtotal)}</p>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <p>PB1 (10%)</p>
-                                                <p>{formatCurrency(pb1)}</p>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <strong>Total</strong>
-                                                <p>{formatCurrency(finalTotal)}</p>
-                                            </div>
-                                        </div>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                        <div className="">
-                                            <div className="flex justify-between">
-                                                <p>Tunai</p>
-                                                <p>{formatCurrency(finalTotal)}</p>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <p>Kembali</p>
-                                                <p>{formatCurrency(0)}</p>
-                                            </div>
-                                        </div>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Pagination Controls */}
@@ -617,8 +619,13 @@ const SalesTransaction = () => {
                     </div>
                 )}
             </div>
+
+            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
+                <div className="w-full h-[2px] bg-[#005429]">
+                </div>
+            </div>
         </div>
     );
 };
 
-export default SalesTransaction;
+export default PurchaseOrderManagement;

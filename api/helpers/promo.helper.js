@@ -19,7 +19,11 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
     // Logika cek promo otomatis
   }
 
-  return { totalDiscount, appliedPromos };
+return {
+  totalDiscount: Number(totalDiscount) || 0,
+  appliedPromos: appliedPromos || []
+};
+
 }
 
 export async function checkVoucher(voucherCode, totalAmount, outlet) {
@@ -49,7 +53,11 @@ export async function checkVoucher(voucherCode, totalAmount, outlet) {
     }
   }
 
-  return { discount, voucher };
+return {
+  discount: Number(discount) || 0,
+  voucher
+};
+
 }
 
 
@@ -85,7 +93,8 @@ export async function checkManualPromo(totalAmount, outletId, customerType = 'al
   }
 
   return {
-    discount,
+    discount: Number(discount) || 0,
+
     appliedPromo: {
       promoId: promo._id,
       name: promo.name,
