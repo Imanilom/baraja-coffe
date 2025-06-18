@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 
 const UpdateCategory = () => {
     const [name, setName] = useState('');
@@ -39,7 +40,7 @@ const UpdateCategory = () => {
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Add New Category</h1>
+            <h1 className="text-2xl font-bold mb-4">Ubah Kategori</h1>
 
             {successMessage && (
                 <p className="text-green-500 mb-4">{successMessage}</p>
@@ -50,7 +51,7 @@ const UpdateCategory = () => {
             <form onSubmit={handleSubmit}>
                 <div className="mb-4">
                     <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                        Name:
+                        Nama Kategori
                     </label>
                     <input
                         type="text"
@@ -62,7 +63,7 @@ const UpdateCategory = () => {
                     />
                 </div>
 
-                <div className="mb-4">
+                {/* <div className="mb-4">
                     <label htmlFor="description" className="block text-sm font-medium text-gray-700">
                         Description:
                     </label>
@@ -89,15 +90,46 @@ const UpdateCategory = () => {
                         <option value="instan">Instant Food</option>
                         <option value="inventory">Inventory</option>
                     </select>
+                </div> */}
+                <div className="flex items-center justify-between space-x-4 mb-4">
+                    <span>Tampilkan pada Pawoon Order</span>
+                    <div className="flex items-center space-x-4">
+                        <label className="flex items-center space-x-1">
+                            <input type="radio" name="pawoon_order" value="yes" />
+                            <span>Ya</span>
+                        </label>
+                        <label className="flex items-center space-x-1">
+                            <input type="radio" name="pawoon_order" value="no" />
+                            <span>Tidak</span>
+                        </label>
+                    </div>
                 </div>
 
-                <button
-                    type="submit"
-                    disabled={loading}
-                    className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                    {loading ? 'Adding...' : 'Add Category'}
-                </button>
+                <div className="flex items-center justify-between space-x-4">
+                    <span>Tampilkan pada Digi Pawon</span>
+                    <div className="flex items-center space-x-4">
+                        <label className="flex items-center space-x-1">
+                            <input type="radio" name="digi_pawon" value="yes" />
+                            <span>Ya</span>
+                        </label>
+                        <label className="flex items-center space-x-1">
+                            <input type="radio" name="digi_pawon" value="no" />
+                            <span>Tidak</span>
+                        </label>
+                    </div>
+                </div>
+
+
+                <div className="absolute h-[50px] bottom-0 right-6 space-x-2">
+                    <Link to="/admin/categories" className="bg-white text-[#005429] border border-[#005429] inline-flex justify-center py-2 px-4 shadow-sm text-sm font-medium rounded-md hover:text-white hover:bg-[#005429]">Batal</Link>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#005429]"
+                    >
+                        {loading ? 'Adding...' : 'Simpan'}
+                    </button>
+                </div>
             </form>
         </div>
     );
