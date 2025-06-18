@@ -1,3 +1,4 @@
+import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/services/api_response_handler.dart';
@@ -23,7 +24,7 @@ class OrderService {
           },
         ),
       );
-      print('response status code: ${response.statusCode}');
+      print('response status code create order: ${response.statusCode}');
       return response.data;
     } on DioException catch (e) {
       print('error create order: ${e.response?.data}');
@@ -54,18 +55,21 @@ class OrderService {
     WidgetRef ref,
     OrderDetailModel orderDetail,
   ) async {
-    final cashier = ref.read(authCashierProvider);
+    final box = Hive.box('userBox');
+    final cashierId = box.get('cashier').id;
+
+    print('cashierId: $cashierId , orderId: ${orderDetail.orderId}');
 
     try {
       if (orderDetail.orderId == null) {
         throw Exception("orderId atau cashierId tidak boleh null");
       }
       Response response = await _dio.post(
-        '/api/confirm-order',
+        '/api/orders/${orderDetail.orderId}/confirm',
         data: {
           //cashierId dari authCashierProvider
-          'cashierId': cashier.value?.id,
-          'orderId': orderDetail.orderId,
+          'cashierId': cashierId,
+          'jobId': orderDetail.orderId,
         },
         options: Options(
           headers: {
@@ -75,7 +79,7 @@ class OrderService {
         ),
       );
 
-      print('response confirm order: ${response.data}');
+      // print('response confirm order: ${response.data}');
 
       return response.data;
     } on DioException catch (e) {

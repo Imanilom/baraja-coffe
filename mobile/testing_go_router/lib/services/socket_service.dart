@@ -1,57 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/providers/global_provider/provider.dart';
+import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/services/order_history_service.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
-import 'package:kasirbaraja/models/order_detail.model.dart';
 // import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 
-// class SocketService {
-//   // final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
-
-//   static final SocketService _instance = SocketService._internal();
-//   late io.Socket _socket;
-//   final String _serverUrl = AppConfig.baseUrl;
-
-//   factory SocketService() => _instance;
-
-//   SocketService._internal() {
-//     _socket = io.io(_serverUrl, {
-//       'transports': ['websocket'],
-//       'autoConnect': false, // for manual connection
-//     });
-//   }
-
-//   void connect() {
-//     _socket.connect();
-//     _socket.onConnect((_) {
-//       print('Connected to Socket.io server');
-//     });
-//   }
-
-//   void joinRoom(String room) {
-//     _socket.emit('newOrder', room);
-//   }
-
-//   void sendOrder(OrderDetailModel order) {
-//     _socket.emit('newOrder', order.toJson());
-//   }
-
-//   void updateOrderStatus(String orderId, String status) {
-//     _socket.emit('update-status', {'orderId': orderId, 'status': status});
-//   }
-
-//   void listenToOrders(Function(OrderDetailModel) callback) {
-//     _socket.on('order-update', (data) {
-//       final order = OrderDetailModel.fromJson(data);
-//       callback(order);
-//     });
-//   }
-
-//   void dispose() {
-//     _socket.disconnect();
-//     _socket.clearListeners();
-//   }
-// }
 class SocketService {
   late IO.Socket socket;
   final String _serverUrl = AppConfig.baseUrl;
@@ -63,8 +17,17 @@ class SocketService {
     socket = IO.io(_serverUrl, <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': true,
+      'reconnection': true,
+      'reconnectionAttempts': 5,
     });
+    socket
+      ..onConnect((_) => print('CONNECTED: ${socket.id}'))
+      ..onDisconnect((_) => print('DISCONNECTED'))
+      ..onError((err) => print('ERROR: $err'));
 
+    socket.onAny(
+      (event, data) => print('<<< Incoming event: $event | Data: $data'),
+    );
     socket.connect();
 
     socket.onConnect((_) {
@@ -86,7 +49,24 @@ class SocketService {
 
     socket.on('new_order', (data) {
       try {
-        print('Received new_order: $data');
+        print('ready received new_order');
+        // ref.read(orderOnlineIndicatorProvider.notifier).state = true;
+        // ref.read(orderOnlineIndicatorProvider.notifier).state = false;
+        // Notifikasi sistem
+        // notificationService.showLocalNotification(
+        //   'Pesanan Baru',
+        //   'Pesanan #${data['order_id']} diterima',
+        // );
+
+        // // Notifikasi in-app
+        // notificationService.showInAppNotification(
+        //   'Pesanan Baru',
+        //   'Pelanggan: ${data['customerName']}\nTotal: Rp ${data['totalPrice']}',
+        // );
+        // Refresh data jika perlu
+        ref.invalidate(onlineOrderProvider);
+        // void _ = ref.refresh(onlineOrderProvider.future);
+        print('success received new_order: $data');
       } catch (e) {
         print('Error refreshing activityProvider: $e');
       }
