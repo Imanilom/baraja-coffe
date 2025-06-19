@@ -11,7 +11,7 @@ import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, cre
 import { orderQueue } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
-import { io } from '../index.js';
+import { io, broadcastNewOrder  } from '../index.js';
 
 export const createAppOrder = async (req, res) => {
   try {
@@ -75,11 +75,6 @@ export const createAppOrder = async (req, res) => {
         if (!pickupTime) {
           return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
         }
-      case 'reservation':
-        formattedOrderType = 'Reservation';
-        // if (!reservation) {
-        //   return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
-        // }
         break;
       default:
         return res.status(400).json({ success: false, message: 'Invalid order type' });
@@ -764,14 +759,74 @@ export const createUnifiedOrder = async (req, res) => {
   }
 };
 
+export const confirmOrder = async (req, res) => {
+  const { orderId } = req.params;
+  
+  try {
+    // 1. Find order and update status
+    const order = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: 'OnProcess' } },
+      { new: true }
+    ).populate('items.menuItem').populate('outlet');
 
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
 
+    // 2. Update payment status
+    const payment = await Payment.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: 'paid', paidAt: new Date() } },
+      { new: true }
+    );
+
+    // 3. Send notification to cashier if order is from Web/App
+    if (order.source === 'Web' || order.source === 'App') {
+      const orderData = {
+        orderId: order.order_id,
+        source: order.source,
+        orderType: order.orderType,
+        tableNumber: order.tableNumber || null,
+        items: order.items.map(item => ({
+          name: item.menuItem?.name || 'Unknown Item',
+          quantity: item.quantity
+        })),
+        createdAt: order.createdAt,
+        paymentMethod: order.paymentMethod, // Use paymentMethod from order
+        totalAmount: order.grandTotal,     // Use grandTotal from order
+        outletId: order.outlet._id
+      };
+
+      // Broadcast to all cashiers in that outlet
+      if (typeof broadcastNewOrder === 'function') {
+        broadcastNewOrder(order.outlet._id.toString(), orderData);
+      } else {
+        console.error('broadcastNewOrder function not available');
+      }
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Order confirmed and being processed',
+      order: order,
+      payment: payment
+    });
+
+  } catch (err) {
+    console.error('Error in confirmOrder:', err);
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};
 
 
 // GET /api/orders/queued
 export const getQueuedOrders = async (req, res) => {
   try {
-    const jobs = await orderQueue.getJobs(['completed', 'waiting', 'active']);
+    const jobs = await orderQueue.getJobs(['waiting', 'active']);
 
     const orders = jobs.map(job => ({
       jobId: job.id,
@@ -886,6 +941,7 @@ export const charge = async (req, res) => {
       },
     };
 
+
     const bankValue = payment_type === 'bank_transfer'
       ? bank_transfer?.bank || null
       : payment_type;
@@ -914,12 +970,13 @@ export const charge = async (req, res) => {
       };
     }
 
+    const id_order = await Order.findOne({ order_id: order_id });
 
     // Lakukan permintaan API untuk memproses pembayaran
     const response = await coreApi.charge(chargeParams);
     const payment = new Payment({
       transaction_id: response.transaction_id,
-      order_id: order_id,
+      order_id: id_order._id.toString(),
       amount: gross_amount,
       method: payment_type,
       status: 'pending',
@@ -938,6 +995,46 @@ export const charge = async (req, res) => {
     });
   }
 };
+
+export const chargeCash = async (req, res) => {
+  try {
+    const { payment_type, order_id, gross_amount } = req.body;
+    console.log('Payment type:', payment_type, 'Order ID:', order_id, 'Gross Amount:', gross_amount);
+
+    const id_order = await Order.findOne({ order_id: order_id });
+    console.log('Order found:', id_order._id.toString());
+
+    const payment = new Payment({
+      order_id: id_order._id.toString(),
+      amount: gross_amount,
+      method: payment_type,
+      status: 'pending',
+    });
+
+    await payment.save();
+
+    // ✅ PERBAIKAN: Kirim response yang proper
+    return res.status(200).json({
+      success: true,
+      message: 'Cash payment processed successfully',
+      data: {
+        payment_id: payment._id,
+        order_id: order_id,
+        amount: gross_amount,
+        method: payment_type,
+        status: 'pending',
+        transaction_id: payment._id.toString() // Tambahan untuk UI
+      }
+    });
+  } catch (error) {
+    console.error('Cash payment error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Cash payment failed',
+      error: error.message || error
+    });
+  }
+}
 
 
 // Handling Midtrans Notification 
@@ -1015,42 +1112,6 @@ export const getAllOrders = async (req, res) => {
   }
 };
 
-// Konfirmasi Order oleh kasir
-export const confirmOrder = async (req, res) => {
-  const { cashierId, orderId } = req.body;
-
-  try {
-    // Pastikan cashierId dan orderId valid
-    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(cashierId)) {
-      return res.status(400).json({ message: 'Invalid orderId or cashierId' });
-    }
-
-    // Update status dan set kasir
-    const order = await Order.findByIdAndUpdate(
-      orderId,
-      {
-        status: 'Completed',
-        cashier: cashierId
-      },
-      { new: true }
-    ).populate('cashier', 'name') // Jika ingin menampilkan info kasir
-      .populate('items.menuItem'); // Jika ingin detail item
-
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
-    res.status(200).json({
-      message: 'Order confirmed and assigned to cashier',
-      order
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error confirming order',
-      error: error.message
-    });
-  }
-};
 
 // Mengambil order yang pending
 export const getPendingOrders = async (req, res) => {
@@ -1270,12 +1331,14 @@ export const getOrderById = async (req, res) => {
     if (!orderId) {
       return res.status(400).json({ message: 'Order ID is required.' });
     }
+    console.log('Fetching order with ID:', orderId);
 
     // Mencari pesanan berdasarkan ID
     const order = await Order.findById(orderId)
       .populate('items.menuItem')
     // .populate('voucher');
     // console.log('Order:', order);
+
 
     const payment = await Payment.findOne({ order_id: orderId });
     console.log('Payment:', payment);

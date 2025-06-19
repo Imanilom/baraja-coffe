@@ -237,9 +237,14 @@ export const createMarketList = async (req, res) => {
       return res.status(400).json({ message: 'Harus ada setidaknya satu item atau pengeluaran tambahan' });
     }
 
+    // Validasi payment jika digunakan
+    if (!payment || !payment.method) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: 'Metode pembayaran harus diisi' });
+    }
+
     const day = new Date(date).toLocaleDateString('id-ID', { weekday: 'long' });
 
-    // Proses item belanja
     const processedItems = [];
     const debtsToCreate = [];
     const relatedRequestIds = new Set();
@@ -247,14 +252,12 @@ export const createMarketList = async (req, res) => {
     let totalPaid = 0;
 
     for (const item of items) {
-      // Validasi item
       if (!item.productId || !item.productName || !item.productSku || !item.category || !item.unit ||
-          item.quantityPurchased <= 0 || item.pricePerUnit <= 0 || !item.supplierName) {
+        item.quantityPurchased <= 0 || item.pricePerUnit <= 0 || !item.supplierName) {
         await session.abortTransaction();
         return res.status(400).json({ message: `Data tidak valid pada item ${item.productName}` });
       }
 
-      // Jika item berasal dari request, tambahkan requestId ke relatedRequestIds
       if (item.requestId) {
         relatedRequestIds.add(item.requestId);
       }
@@ -262,7 +265,7 @@ export const createMarketList = async (req, res) => {
       const amountCharged = item.quantityPurchased * item.pricePerUnit;
       const amountPaid = item.amountPaid || 0;
       const remainingBalance = Math.max(0, amountCharged - amountPaid);
-      
+
       let paymentStatus = 'unpaid';
       if (amountPaid >= amountCharged) {
         paymentStatus = 'paid';
@@ -316,7 +319,6 @@ export const createMarketList = async (req, res) => {
       }
     }
 
-    // Update status request yang terkait
     for (const requestId of relatedRequestIds) {
       const request = await Request.findById(requestId).session(session);
       if (!request) continue;
@@ -324,53 +326,55 @@ export const createMarketList = async (req, res) => {
       let allItemsFulfilled = true;
       let anyItemUnavailable = false;
       let anyItemShort = false;
+      let anyItemExcess = false;
 
-      // Update each item in the request
       for (const requestItem of request.items) {
-        // Find matching purchased item
-        const purchasedItem = items.find(
-          item => item.requestItemId === requestItem._id.toString()
+        const purchasedItems = items.filter(
+          item => item.requestItemId && item.requestItemId === requestItem._id.toString()
         );
 
-        if (purchasedItem) {
-          requestItem.fulfilledQuantity = purchasedItem.quantityPurchased;
+        if (purchasedItems.length > 0) {
+          const totalPurchased = purchasedItems.reduce((sum, item) => sum + item.quantityPurchased, 0);
+          requestItem.fulfilledQuantity = totalPurchased;
 
-          // Determine item status based on purchased quantity
-          if (purchasedItem.quantityPurchased === 0) {
+          if (totalPurchased === 0) {
             requestItem.status = 'tidak tersedia';
             anyItemUnavailable = true;
-          } else if (purchasedItem.quantityPurchased >= requestItem.quantity) {
-            requestItem.status = 'dibeli';
-            if (purchasedItem.quantityPurchased > requestItem.quantity) {
-              requestItem.status = 'lebih';
-            }
+          } else if (totalPurchased >= requestItem.quantity) {
+            requestItem.status = totalPurchased > requestItem.quantity ? 'lebih' : 'dibeli';
+            if (totalPurchased > requestItem.quantity) anyItemExcess = true;
           } else {
             requestItem.status = 'kurang';
             anyItemShort = true;
           }
         }
 
-        // Check if all requested quantity is fulfilled
         if (requestItem.status !== 'dibeli' && requestItem.status !== 'lebih') {
           allItemsFulfilled = false;
         }
       }
 
-      // Update overall request status
+      if (request.status !== 'approved') request.status = 'approved';
+
       if (anyItemUnavailable) {
-        request.status = 'tidak tersedia';
+        request.fulfillmentStatus = 'tidak tersedia';
       } else if (anyItemShort) {
-        request.status = 'kurang';
+        request.fulfillmentStatus = 'kurang';
       } else if (allItemsFulfilled) {
-        request.status = 'dibeli';
+        request.fulfillmentStatus = anyItemExcess ? 'lebih' : 'dibeli';
       } else {
-        request.status = 'partial';
+        request.fulfillmentStatus = 'partial';
+      }
+
+      if (!request.reviewed) {
+        request.reviewed = true;
+        request.reviewedBy = user.username;
+        request.reviewedAt = new Date();
       }
 
       await request.save({ session });
     }
 
-    // Proses pengeluaran tambahan
     const processedExpenses = [];
     for (const expense of additionalExpenses) {
       if (!expense.name || !expense.amount || expense.amount <= 0) {
@@ -396,7 +400,6 @@ export const createMarketList = async (req, res) => {
       });
     }
 
-    // Buat MarketList
     const marketList = new MarketList({
       date,
       day,
@@ -420,14 +423,12 @@ export const createMarketList = async (req, res) => {
 
     const savedMarketList = await marketList.save({ session });
 
-    // Update debt records dengan marketListId
     for (const debt of debtsToCreate) {
       debt.marketListId = savedMarketList._id;
       const newDebt = new Debt(debt);
       await newDebt.save({ session });
     }
 
-    // Update cash flow
     const cashFlow = new CashFlow({
       date,
       day,
@@ -442,7 +443,7 @@ export const createMarketList = async (req, res) => {
     await cashFlow.save({ session });
 
     await session.commitTransaction();
-    
+
     res.status(201).json({
       success: true,
       data: {
@@ -455,7 +456,7 @@ export const createMarketList = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     console.error('Error creating market list:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: error.message || 'Gagal menyimpan data belanja'
     });
@@ -463,6 +464,7 @@ export const createMarketList = async (req, res) => {
     session.endSession();
   }
 };
+
 
 export const getUnpaidMarketLists = async (req, res) => {
   try {
@@ -603,80 +605,125 @@ export const getWeeklyReport = async (req, res) => {
     const { start, end } = req.query;
 
     if (!start || !end) {
-      return res.status(400).json({ message: 'Tanggal mulai dan akhir harus disertakan.' });
+      return res.status(400).json({ message: 'Start and end dates are required' });
     }
 
-    // Konversi ke Date object
     const startDate = new Date(start);
     const endDate = new Date(end);
 
-    // 1. Ambil semua transaksi dalam rentang waktu dan populate relatedMarketList
-    const flows = await CashFlow.find({
+    // Get cash flows with populated market lists
+    const cashFlows = await CashFlow.find({
       date: { $gte: startDate, $lte: endDate }
-    }).populate('relatedMarketList').sort({ date: 1 });
+    }).populate({
+      path: 'relatedMarketList',
+      populate: {
+        path: 'items additionalExpenses',
+        select: 'productName quantityPurchased pricePerUnit paymentMethod paymentStatus name amount'
+      }
+    }).sort({ date: 1 });
 
-    // 2. Hitung Saldo Awal: semua transaksi sebelum start
-    const initialFlows = await CashFlow.find({
-      date: { $lt: startDate }
-    });
-
+    // Calculate starting balance (sum of all transactions before start date)
+    const initialFlows = await CashFlow.find({ date: { $lt: startDate } });
     const startingBalance = initialFlows.reduce((sum, f) => sum + (f.cashIn - f.cashOut), 0);
 
-    // 3. Hitung total masuk/keluar dalam periode
-    const totalCashIn = flows.reduce((sum, f) => sum + f.cashIn, 0);
-    const totalCashOut = flows.reduce((sum, f) => sum + f.cashOut, 0);
-
-    // 4. Hitung Saldo Akhir
-    let currentBalance = startingBalance;
-
-    // 5. Kirim response
-    res.json({
-      start,
-      end,
+    // Initialize categorized data
+    const result = {
       summary: {
         startingBalance,
-        totalCashIn,
-        totalCashOut,
-        endingBalance: currentBalance + totalCashIn - totalCashOut
+        cash: { in: 0, out: 0, balance: 0 },
+        transfer: { in: 0, out: 0, balance: 0 },
+        credit: { in: 0, out: 0, balance: 0 },
+        totalIn: 0,
+        totalOut: 0,
+        endingBalance: startingBalance
       },
-      data: flows.map(f => {
-        currentBalance += f.cashIn - f.cashOut;
-        const balance = Math.max(currentBalance, 0);
-        
-        // Ambil item dari relatedMarketList
-        const purchasedItems = f.relatedMarketList 
-          ? f.relatedMarketList.items.map(item => ({
-              item: item.item,
-              quantity: item.quantity,
-              total: item.total,
-            }))
-          : [];
+      transactions: {
+        cash: [],
+        transfer: [],
+        credit: [],
+        all: []
+      }
+    };
 
-        // Ambil additional expenses
-        const additionalExpenses = f.relatedMarketList
-          ? f.relatedMarketList.additionalExpenses.map(exp => ({
-              name: exp.name,
-              amount: exp.amount,
-              notes: exp.notes,
-            }))
-          : [];
+    let currentBalance = startingBalance;
 
-        return {
-          day: new Date(f.date).toLocaleDateString('id-ID', { weekday: 'long' }),
-          date: f.date.toISOString().split('T')[0],
-          description: f.description,
-          cashIn: f.cashIn,
-          cashOut: f.cashOut,
-          balance,
-          purchasedItems, // Menambahkan detail barang yang dibeli
-          additionalExpenses // Menambahkan detail tambahan biaya
-        };
-      })
+    // Process each cash flow
+    for (const flow of cashFlows) {
+      currentBalance += flow.cashIn - flow.cashOut;
+      
+      // Determine payment method from related market list
+      let paymentMethod = 'cash'; // default
+      if (flow.relatedMarketList) {
+        // Check items for payment methods
+        const methods = flow.relatedMarketList.items.map(i => i.paymentMethod);
+        if (methods.includes('transfer')) paymentMethod = 'transfer';
+        if (methods.includes('credit')) paymentMethod = 'credit';
+      }
+
+      // Build transaction object
+      const transaction = {
+        date: flow.date,
+        day: flow.day,
+        description: flow.description,
+        cashIn: flow.cashIn,
+        cashOut: flow.cashOut,
+        balance: currentBalance,
+        paymentMethod,
+        purchasedItems: flow.relatedMarketList?.items?.map(item => ({
+          name: item.productName,
+          quantity: item.quantityPurchased,
+          price: item.pricePerUnit,
+          total: item.quantityPurchased * item.pricePerUnit,
+          paymentMethod: item.paymentMethod,
+          paymentStatus: item.paymentStatus
+        })) || [],
+        additionalExpenses: flow.relatedMarketList?.additionalExpenses || []
+      };
+
+      // Categorize by payment method
+      if (paymentMethod === 'cash') {
+        result.summary.cash.in += flow.cashIn;
+        result.summary.cash.out += flow.cashOut;
+        result.transactions.cash.push(transaction);
+      } 
+      else if (paymentMethod === 'transfer') {
+        result.summary.transfer.in += flow.cashIn;
+        result.summary.transfer.out += flow.cashOut;
+        result.transactions.transfer.push(transaction);
+      } 
+      else if (paymentMethod === 'credit') {
+        result.summary.credit.in += flow.cashIn;
+        result.summary.credit.out += flow.cashOut;
+        result.transactions.credit.push(transaction);
+      }
+
+      result.transactions.all.push(transaction);
+      result.summary.totalIn += flow.cashIn;
+      result.summary.totalOut += flow.cashOut;
+    }
+
+    // Calculate final balances
+    result.summary.endingBalance = currentBalance;
+    result.summary.cash.balance = result.summary.cash.in - result.summary.cash.out;
+    result.summary.transfer.balance = result.summary.transfer.in - result.summary.transfer.out;
+    result.summary.credit.balance = result.summary.credit.in - result.summary.credit.out;
+    
+    res.json({
+      success: true,
+      data: {
+        start,
+        end,
+        ...result
+      }
     });
 
   } catch (error) {
-    console.error('Error saat mengambil laporan mingguan:', error);
-    res.status(500).json({ message: error.message || 'Terjadi kesalahan internal server' });
+    console.error('Error generating weekly report:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate report',
+      error: error.message
+    });
   }
 };
 
