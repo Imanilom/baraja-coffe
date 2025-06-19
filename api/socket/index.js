@@ -31,6 +31,28 @@ export default function socketHandler(io) {
             }
             console.log('Client joined cashier room');
         });
+
+        // Join specific outlet cashier room
+        socket.on('join_cashier_room', (outletId) => {
+            const roomName = `cashiers_${outletId}`;
+            socket.join(roomName);
+            console.log(`Cashier ${socket.id} joined room: ${roomName}`);
+        });
+
+        // Join order room for specific order ID (for cashier app)
+        socket.on('join_order_room', (orderId, callback) => {
+            socket.join(orderId);
+            if (typeof callback === 'function') {
+                callback({ status: 'success', room: orderId });
+            }
+            console.log(`Client ${socket.id} joined order room: ${orderId}`);
+        });
+
+          // Handle disconnect
+        socket.on('disconnect', () => {
+            console.log('Client disconnected:', socket.id);
+        });
+
         socket.on('join_cashier_room', (payload, callback) => {
             console.log(`Client ${socket.id} joining cashier room`);
             socket.join('cashier_room');
@@ -52,4 +74,18 @@ export default function socketHandler(io) {
             clearInterval(pingInterval);
         });
     });
+
+      const broadcastNewOrder = (outletId, orderData) => {
+        const roomName = `cashiers_${outletId}`;
+        io.to(roomName).emit('new_order', {
+        event: 'new_order',
+        data: orderData,
+        timestamp: new Date()
+        });
+        console.log(`Broadcast new order to room: ${roomName}`);
+    };
+
+    return {
+        broadcastNewOrder
+    };
 }
