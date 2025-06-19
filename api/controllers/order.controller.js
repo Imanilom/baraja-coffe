@@ -892,6 +892,7 @@ export const charge = async (req, res) => {
       },
     };
 
+
     const bankValue = payment_type === 'bank_transfer'
       ? bank_transfer?.bank || null
       : payment_type;
@@ -920,12 +921,13 @@ export const charge = async (req, res) => {
       };
     }
 
+    const id_order = await Order.findOne({ order_id: order_id });
 
     // Lakukan permintaan API untuk memproses pembayaran
     const response = await coreApi.charge(chargeParams);
     const payment = new Payment({
       transaction_id: response.transaction_id,
-      order_id: order_id,
+      order_id: id_order._id.toString(),
       amount: gross_amount,
       method: payment_type,
       status: 'pending',
@@ -944,6 +946,46 @@ export const charge = async (req, res) => {
     });
   }
 };
+
+export const chargeCash = async (req, res) => {
+  try {
+    const { payment_type, order_id, gross_amount } = req.body;
+    console.log('Payment type:', payment_type, 'Order ID:', order_id, 'Gross Amount:', gross_amount);
+
+    const id_order = await Order.findOne({ order_id: order_id });
+    console.log('Order found:', id_order._id.toString());
+
+    const payment = new Payment({
+      order_id: id_order._id.toString(),
+      amount: gross_amount,
+      method: payment_type,
+      status: 'pending',
+    });
+
+    await payment.save();
+
+    // ✅ PERBAIKAN: Kirim response yang proper
+    return res.status(200).json({
+      success: true,
+      message: 'Cash payment processed successfully',
+      data: {
+        payment_id: payment._id,
+        order_id: order_id,
+        amount: gross_amount,
+        method: payment_type,
+        status: 'pending',
+        transaction_id: payment._id.toString() // Tambahan untuk UI
+      }
+    });
+  } catch (error) {
+    console.error('Cash payment error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Cash payment failed',
+      error: error.message || error
+    });
+  }
+}
 
 
 // Handling Midtrans Notification 
@@ -1276,12 +1318,14 @@ export const getOrderById = async (req, res) => {
     if (!orderId) {
       return res.status(400).json({ message: 'Order ID is required.' });
     }
+    console.log('Fetching order with ID:', orderId);
 
     // Mencari pesanan berdasarkan ID
     const order = await Order.findById(orderId)
       .populate('items.menuItem')
     // .populate('voucher');
     // console.log('Order:', order);
+
 
     const payment = await Payment.findOne({ order_id: orderId });
     console.log('Payment:', payment);
