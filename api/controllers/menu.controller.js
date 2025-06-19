@@ -184,15 +184,15 @@ export const getMenuItems = async (req, res) => {
     const ratings = await MenuRating.find({ isActive: true });
 
     // Debug: Log semua data rating
-    console.log('=== DEBUG RATINGS ===');
-    console.log('Total ratings found:', ratings.length);
-    ratings.forEach((r, idx) => {
-      console.log(`Rating ${idx + 1}:`, {
-        menuItemId: r.menuItemId,
-        menuItemIdType: typeof r.menuItemId,
-        rating: r.rating
-      });
-    });
+    // console.log('=== DEBUG RATINGS ===');
+    // console.log('Total ratings found:', ratings.length);
+    // ratings.forEach((r, idx) => {
+    //   console.log(`Rating ${idx + 1}:`, {
+    //     menuItemId: r.menuItemId,
+    //     menuItemIdType: typeof r.menuItemId,
+    //     rating: r.rating
+    //   });
+    // });
 
     // Buat peta menuItemId ke array rating
     const ratingMap = {};
@@ -203,10 +203,10 @@ export const getMenuItems = async (req, res) => {
     });
 
     // Debug: Log rating map
-    console.log('=== DEBUG RATING MAP ===');
-    Object.keys(ratingMap).forEach(key => {
-      console.log(`Menu ID: ${key}, Ratings: [${ratingMap[key].join(', ')}], Average: ${ratingMap[key].reduce((sum, r) => sum + r, 0) / ratingMap[key].length}`);
-    });
+    // console.log('=== DEBUG RATING MAP ===');
+    // Object.keys(ratingMap).forEach(key => {
+    //   console.log(`Menu ID: ${key}, Ratings: [${ratingMap[key].join(', ')}], Average: ${ratingMap[key].reduce((sum, r) => sum + r, 0) / ratingMap[key].length}`);
+    // });
 
     const formattedMenuItems = menuItems.map(item => {
       const itemId = item._id.toString();
