@@ -11,7 +11,7 @@ import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, cre
 import { orderQueue } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
-import { io } from '../index.js';
+import { io, broadcastNewOrder  } from '../index.js';
 
 export const createAppOrder = async (req, res) => {
   try {
@@ -764,14 +764,74 @@ export const createUnifiedOrder = async (req, res) => {
   }
 };
 
+export const confirmOrder = async (req, res) => {
+  const { orderId } = req.params;
+  
+  try {
+    // 1. Find order and update status
+    const order = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: 'OnProcess' } },
+      { new: true }
+    ).populate('items.menuItem').populate('outlet');
 
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
 
+    // 2. Update payment status
+    const payment = await Payment.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: 'paid', paidAt: new Date() } },
+      { new: true }
+    );
+
+    // 3. Send notification to cashier if order is from Web/App
+    if (order.source === 'Web' || order.source === 'App') {
+      const orderData = {
+        orderId: order.order_id,
+        source: order.source,
+        orderType: order.orderType,
+        tableNumber: order.tableNumber || null,
+        items: order.items.map(item => ({
+          name: item.menuItem?.name || 'Unknown Item',
+          quantity: item.quantity
+        })),
+        createdAt: order.createdAt,
+        paymentMethod: order.paymentMethod, // Use paymentMethod from order
+        totalAmount: order.grandTotal,     // Use grandTotal from order
+        outletId: order.outlet._id
+      };
+
+      // Broadcast to all cashiers in that outlet
+      if (typeof broadcastNewOrder === 'function') {
+        broadcastNewOrder(order.outlet._id.toString(), orderData);
+      } else {
+        console.error('broadcastNewOrder function not available');
+      }
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Order confirmed and being processed',
+      order: order,
+      payment: payment
+    });
+
+  } catch (err) {
+    console.error('Error in confirmOrder:', err);
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};
 
 
 // GET /api/orders/queued
 export const getQueuedOrders = async (req, res) => {
   try {
-    const jobs = await orderQueue.getJobs(['completed', 'waiting', 'active']);
+    const jobs = await orderQueue.getJobs(['waiting', 'active']);
 
     const orders = jobs.map(job => ({
       jobId: job.id,
@@ -1014,42 +1074,6 @@ export const getAllOrders = async (req, res) => {
   }
 };
 
-// Konfirmasi Order oleh kasir
-export const confirmOrder = async (req, res) => {
-  const { cashierId, orderId } = req.body;
-
-  try {
-    // Pastikan cashierId dan orderId valid
-    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(cashierId)) {
-      return res.status(400).json({ message: 'Invalid orderId or cashierId' });
-    }
-
-    // Update status dan set kasir
-    const order = await Order.findByIdAndUpdate(
-      orderId,
-      {
-        status: 'Completed',
-        cashier: cashierId
-      },
-      { new: true }
-    ).populate('cashier', 'name') // Jika ingin menampilkan info kasir
-      .populate('items.menuItem'); // Jika ingin detail item
-
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
-    res.status(200).json({
-      message: 'Order confirmed and assigned to cashier',
-      order
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error confirming order',
-      error: error.message
-    });
-  }
-};
 
 // Mengambil order yang pending
 export const getPendingOrders = async (req, res) => {
