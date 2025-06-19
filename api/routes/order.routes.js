@@ -37,7 +37,7 @@ router.post('/orderApp', createAppOrder);
 router.post("/charge", charge);
 router.post("/chargeCash", chargeCash);
 
-// router.post('/midtrans/webhook', midtransWebhook);
+router.post('/midtrans/webhook', midtransWebhook);
 
 // TODO: End route untuk melakukan charge from aplication
 
@@ -45,11 +45,12 @@ router.post("/payment-notification", paymentNotification);
 
 router.get("/pending-orders", getPendingOrders);
 
-router.post("/confirm-order", confirmOrder);
+router.post("/confirm-order/:orderId", confirmOrder);
 
 router.get('/orders', getAllOrders);
 
 router.get('/orders/queued', getQueuedOrders);
+
 router.post('/orders/:jobId/confirm', confirmOrderByCashier);
 
 // Route untuk membatalkan order

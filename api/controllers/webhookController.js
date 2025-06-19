@@ -2,6 +2,7 @@ import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
 import { orderQueue } from '../queues/order.queue.js';
+import { broadcastNewOrder } from '../index.js';
 
 export const midtransWebhook = async (req, res) => {
   try {
@@ -50,10 +51,10 @@ export const midtransWebhook = async (req, res) => {
       order.status = 'Waiting';
       await order.save();
 
-      // ✅ Masukkan ke antrian BullMQ dengan job type yang benar: create_order
-      await orderQueue.add('create_order', order.toObject(), {
-        jobId: order._id.toString(), // Hindari duplikasi
-      });
+      // // ✅ Masukkan ke antrian BullMQ dengan job type yang benar: create_order
+      // await orderQueue.add('create_order', order.toObject(), {
+      //   jobId: order._id.toString(), // Hindari duplikasi
+      // });
 
       io.to(order._id.toString()).emit('payment_status_update', {
         order_id,

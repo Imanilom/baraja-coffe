@@ -55,41 +55,8 @@ const io = new Server(server, {
   transports: ['websocket', 'polling']
 });
 socketHandler(io);
-
-export { io };
-
-// Socket connection handling
-// io.on('connection', (socket) => {
-//   console.log('Client connected:', socket.id);
-
-//   // Debug ping (keep for debugging)
-//   setInterval(() => {
-//     io.emit('ping', { message: 'Ping from server', timestamp: new Date().toISOString() });
-//     console.log('Sent ping to all clients');
-//   }, 10000);
-
-//   // Handle room joining with acknowledgement
-//   socket.on('join_order_room', (orderId, callback) => {
-//     console.log(`Client ${socket.id} joining room for order: ${orderId}`);
-//     socket.join(orderId);
-
-//     // Send acknowledgement back to client
-//     if (typeof callback === 'function') {
-//       callback({ status: 'joined', room: orderId });
-//     }
-
-//     // Emit a message to verify room joining
-//     socket.to(orderId).emit('room_joined', { message: `You joined room ${orderId}` });
-
-//     // Log rooms after joining
-//     console.log('Rooms after joining:', io.sockets.adapter.rooms);
-//   });
-
-//   // Handle explicit disconnection
-//   socket.on('disconnect', () => {
-//     console.log('Client disconnected:', socket.id);
-//   });
-// });
+const { broadcastNewOrder } = socketHandler(io);
+export { io, broadcastNewOrder };
 
 // Middleware and routes setup...
 app.use(express.json());

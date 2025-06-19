@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from "react-router-dom";
 import axios from 'axios';
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo } from 'react-icons/fa';
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaSearch, FaPencilAlt, FaTrash } from 'react-icons/fa';
 
 const CategoryIndex = () => {
+  const [openDropdown, setOpenDropdown] = useState(null);
   const ensureArray = (data) => Array.isArray(data) ? data : [];
   const [tempSearch, setTempSearch] = useState("");
   const [categories, setCategories] = useState([]);
@@ -196,7 +197,7 @@ const CategoryIndex = () => {
           </Link>
         </div>
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-4 py-4">
+      <div className="grid grid-cols-3 sm:grid-cols-2 md:grid-cols-3 py-4">
         <button
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
         >
@@ -212,11 +213,11 @@ const CategoryIndex = () => {
           </Link>
         </button>
 
-        {/* <div
+        <div
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
         >
           <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-            to="/admin/add-ons">
+            to="/admin/modifier">
             <div className="flex space-x-4">
               <FaLayerGroup size={24} className="text-gray-400" />
               <h2 className="text-gray-400 ml-2 text-sm">Opsi Tambahan</h2>
@@ -230,7 +231,7 @@ const CategoryIndex = () => {
               (18)
             </div>
           </Link>
-        </div> */}
+        </div>
 
         <div
           className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
@@ -246,39 +247,29 @@ const CategoryIndex = () => {
             </div>
           </Link>
         </div>
-
-        <div
-          className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
-        >
-          <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
-            <div className="flex space-x-4">
-              <FaSquare size={24} className="text-gray-400" />
-              <h2 className="text-gray-400 ml-2 text-sm">GrabFood</h2>
-            </div>
-            <div className="text-sm text-gray-400">
-              (18)
-            </div>
-          </div>
-        </div>
       </div >
 
       <div className="overflow-x-auto px-[15px] pb-[15px]">
 
-        <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-gray-50 shadow-md">
-          <div className="flex flex-col col-span-10">
+        <div className="my-[13px] py-[10px] px-[15px] rounded bg-gray-50 shadow-md">
+          <div className="flex flex-col">
             <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-            <input
+            {/* <input
               type="text"
               placeholder="Kategori"
               value={tempSearch}
               onChange={(e) => setTempSearch(e.target.value)}
               className="text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded"
-            />
-          </div>
-
-          <div className="flex justify-end space-x-2 items-end col-span-2">
-            <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-            <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+            /> */}
+            <div className="relative">
+              <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Kategori"
+                value=""
+                className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
+              />
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto rounded shadow-md shadow-slate-200">
@@ -301,34 +292,50 @@ const CategoryIndex = () => {
                 {paginatedData.map((category) => {
                   const key = category.name.toLowerCase().trim();
                   const count = categoryCounts[key] || 0;
-                  try {
-                    return (
-                      <React.Fragment key={category._id}>
-                        <tr className="text-sm">
-                          <td className="px-6 py-4 whitespace-nowrap">{category.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">{count}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <button
-                              onClick={() => handleDeleteCategory(category._id)}
-                              className="text-red-500 hover:text-red-700 mr-2"
-                            >
-                              Delete
-                            </button>
-                            <a
-                              href={`/category/${category._id}/menu`}
-                              className="text-blue-500 hover:text-blue-700"
-                            >
-                              View Menu
-                            </a>
-                          </td>
-                        </tr>
-                      </React.Fragment>
-                    )
+                  return (
 
-                  } catch (error) {
-
-                  }
-
+                    <tr className="text-sm" key={category._id}>
+                      <td className="px-6 py-4 whitespace-nowrap">{category.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{count}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        {/* Dropdown Menu */}
+                        <div className="relative text-right">
+                          <button
+                            className="px-2 bg-white border border-gray-200 hover:border-[#005429] hover:bg-[#005429] rounded-sm"
+                            onClick={() => setOpenDropdown(openDropdown === category._id ? null : category._id)}
+                          >
+                            <span className="text-xl text-gray-200 hover:text-white">
+                              •••
+                            </span>
+                          </button>
+                          {openDropdown === category._id && (
+                            <div className="absolute text-left right-0 top-full mt-2 bg-white border rounded-md shadow-md w-52 z-10">
+                              <ul className="">
+                                <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
+                                  <Link
+                                    to={`/admin/category-update/${category._id}`}
+                                    className="bg-transparent flex items-center space-x-4 text-[14px]"
+                                  >
+                                    <FaPencilAlt size={18} />
+                                    <span>Ubah</span>
+                                  </Link>
+                                </li>
+                                <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
+                                  <button
+                                    onClick={() => handleDeleteCategory(category._id)}
+                                    className="text-red-600 flex items-center space-x-4 text-[14px]"
+                                  >
+                                    <FaTrash size={18} />
+                                    <span>Hapus</span>
+                                  </button>
+                                </li>
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
                 })}
               </tbody>
             ) : (

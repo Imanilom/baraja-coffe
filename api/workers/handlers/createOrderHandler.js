@@ -51,15 +51,15 @@ export async function createOrderHandler({ orderId, orderData, source }) {
 
     await session.commitTransaction();
 
-    await orderQueue.add('update_inventory', {
-      orderId: newOrder._id.toString(),
-      items: processed.orderItems,
-    }, { jobId: `update_inventory-${newOrder._id.toString()}`,
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 5000
-    }});
+    // await orderQueue.add('update_inventory', {
+    //   orderId: newOrder._id.toString(),
+    //   items: processed.orderItems,
+    // }, { jobId: `update_inventory-${newOrder._id.toString()}`,
+    // attempts: 3,
+    // backoff: {
+    //   type: 'exponential',
+    //   delay: 5000
+    // }});
 
     return { success: true, orderId: newOrder._id };
   } catch (err) {
