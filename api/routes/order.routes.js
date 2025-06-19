@@ -16,6 +16,7 @@ import {
   getQueuedOrders,
   confirmOrderByCashier,
   testSocket,
+  chargeCash,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
@@ -34,8 +35,9 @@ router.post("/unified-order", createUnifiedOrder);
 router.post('/orderApp', createAppOrder);
 
 router.post("/charge", charge);
+router.post("/chargeCash", chargeCash);
 
-// router.post('/midtrans/webhook', midtransWebhook);
+router.post('/midtrans/webhook', midtransWebhook);
 
 // TODO: End route untuk melakukan charge from aplication
 
@@ -43,11 +45,12 @@ router.post("/payment-notification", paymentNotification);
 
 router.get("/pending-orders", getPendingOrders);
 
-router.post("/confirm-order", confirmOrder);
+router.post("/confirm-order/:orderId", confirmOrder);
 
 router.get('/orders', getAllOrders);
 
 router.get('/orders/queued', getQueuedOrders);
+
 router.post('/orders/:jobId/confirm', confirmOrderByCashier);
 
 // Route untuk membatalkan order

@@ -62,6 +62,11 @@ const requestSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
+  },
+  fulfillmentStatus: {
+    type: String,
+    enum: ['pending', 'dibeli', 'lebih', 'kurang', 'tidak tersedia', 'partial'],
+    default: 'pending'
   }
 });
 
