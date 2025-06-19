@@ -1,7 +1,9 @@
 // controllers/marketlistController.js
 import MarketList from '../models/modul_market/MarketList.model.js';
 import Request from '../models/modul_market/Request.model.js';
+import Product from '../models/modul_market/Product.model.js';
 import CashFlow from '../models/modul_market/CashFlow.model.js';
+import Debt from '../models/modul_market/Debt.model.js';
 import User from '../models/user.model.js';
 import { getDayName } from '../services/getDay.js';
 import mongoose from 'mongoose';
@@ -62,6 +64,43 @@ export const getAllRequests = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+
+export const getAllRequestWithSuppliers = async (req, res) => {
+  try {
+    // Ambil semua request dan populate produk
+    const requests = await Request.find()
+      .populate('items.productId')
+      .lean();
+
+    // Buat mapping produkId -> daftar supplier dari koleksi Product
+    const productIds = requests.flatMap(r => r.items.map(i => i.productId._id));
+    const uniqueProductIds = [...new Set(productIds.map(id => id.toString()))];
+
+    const products = await Product.find({ _id: { $in: uniqueProductIds } }).lean();
+
+    // Buat mapping productId -> suppliers
+    const productSupplierMap = {};
+    products.forEach(product => {
+      productSupplierMap[product._id.toString()] = product.suppliers || [];
+    });
+
+    // Tambahkan daftar supplier ke setiap item
+    const enrichedRequests = requests.map(req => ({
+      ...req,
+      items: req.items.map(item => ({
+        ...item,
+        suppliers: productSupplierMap[item.productId?._id?.toString()] || []
+      }))
+    }));
+
+    res.status(200).json({ success: true, data: enrichedRequests });
+  } catch (error) {
+    console.error('Failed to get request list:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 
 // Setujui beberapa item dalam request
 export const approveRequestItems = async (req, res) => {
@@ -173,52 +212,60 @@ export const getRequests = async (req, res) => {
   }
 };
 
-
-
-
-
   // Input belanja harian berdasarkan request
 export const createMarketList = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).session(session);
     if (!user || user.role !== 'inventory') {
+      await session.abortTransaction();
       return res.status(403).json({ message: 'Hanya petugas belanja yang bisa mencatat belanja' });
     }
 
-    const { date, items = [], payment, additionalExpenses = [] } = req.body;
+    const { date, items = [], additionalExpenses = [], payment } = req.body;
 
-    const hasItems = items.length > 0;
-    const hasAdditionalExpenses = additionalExpenses.length > 0;
+    // Validasi dasar
+    if (!date) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: 'Tanggal belanja harus diisi' });
+    }
 
-    if (!hasItems && !hasAdditionalExpenses) {
+    if (items.length === 0 && additionalExpenses.length === 0) {
+      await session.abortTransaction();
       return res.status(400).json({ message: 'Harus ada setidaknya satu item atau pengeluaran tambahan' });
     }
 
-    const day = new Date(date || Date.now()).toLocaleDateString('id-ID', { weekday: 'long' });
+    // Validasi payment jika digunakan
+    if (!payment || !payment.method) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: 'Metode pembayaran harus diisi' });
+    }
 
-    // Validasi & proses item belanja
-    let totalItemBelanja = 0;
+    const day = new Date(date).toLocaleDateString('id-ID', { weekday: 'long' });
+
     const processedItems = [];
+    const debtsToCreate = [];
+    const relatedRequestIds = new Set();
+    let totalCharged = 0;
+    let totalPaid = 0;
 
     for (const item of items) {
-      const {
-        productId, productName, productSku, category,
-        unit, quantityPurchased, pricePerUnit,
-        supplierId, supplierName,
-        amountPaid = 0,
-        paymentMethod = 'cash',
-        proofOfPayment = ''
-      } = item;
-
-      if (
-        !productId || !productName || !productSku || !category || !unit ||
-        quantityPurchased <= 0 || pricePerUnit <= 0 || !supplierName
-      ) {
-        throw new Error(`Data tidak valid pada item ${productName || '(tidak diketahui)'}`);
+      if (!item.productId || !item.productName || !item.productSku || !item.category || !item.unit ||
+        item.quantityPurchased <= 0 || item.pricePerUnit <= 0 || !item.supplierName) {
+        await session.abortTransaction();
+        return res.status(400).json({ message: `Data tidak valid pada item ${item.productName}` });
       }
 
-      const amountCharged = quantityPurchased * pricePerUnit;
+      if (item.requestId) {
+        relatedRequestIds.add(item.requestId);
+      }
+
+      const amountCharged = item.quantityPurchased * item.pricePerUnit;
+      const amountPaid = item.amountPaid || 0;
       const remainingBalance = Math.max(0, amountCharged - amountPaid);
+
       let paymentStatus = 'unpaid';
       if (amountPaid >= amountCharged) {
         paymentStatus = 'paid';
@@ -226,98 +273,197 @@ export const createMarketList = async (req, res) => {
         paymentStatus = 'partial';
       }
 
-      totalItemBelanja += amountCharged;
-
       processedItems.push({
-        productId,
-        productName,
-        productSku,
-        category,
-        unit,
-        quantityRequested: 0, // jika berasal dari request, boleh diisi
-        quantityPurchased,
-        pricePerUnit,
-        supplierId,
-        supplierName,
+        productId: item.productId,
+        productName: item.productName,
+        productSku: item.productSku,
+        category: item.category,
+        unit: item.unit,
+        quantityRequested: item.quantityRequested || 0,
+        quantityPurchased: item.quantityPurchased,
+        pricePerUnit: item.pricePerUnit,
+        supplierId: item.supplierId,
+        supplierName: item.supplierName,
         amountCharged,
         amountPaid,
         remainingBalance,
-        paymentMethod,
+        paymentMethod: item.paymentMethod || 'cash',
         paymentStatus,
-        proofOfPayment
+        proofOfPayment: item.proofOfPayment || '',
+        department: item.department || '',
+        requestId: item.requestId || null,
+        requestItemId: item.requestItemId || null
+      });
+
+      totalCharged += amountCharged;
+      totalPaid += amountPaid;
+
+      if (remainingBalance > 0) {
+        debtsToCreate.push({
+          date: new Date(date),
+          supplierId: item.supplierId,
+          supplierName: item.supplierName,
+          productId: item.productId,
+          productName: item.productName,
+          productSku: item.productSku,
+          quantity: item.quantityPurchased,
+          unit: item.unit,
+          pricePerUnit: item.pricePerUnit,
+          amount: remainingBalance,
+          paymentMethod: item.paymentMethod || 'cash',
+          marketListId: null,
+          status: 'unpaid',
+          notes: `Pembelian ${item.productName} (${item.productSku}) pada ${date}`,
+          createdBy: user.username
+        });
+      }
+    }
+
+    for (const requestId of relatedRequestIds) {
+      const request = await Request.findById(requestId).session(session);
+      if (!request) continue;
+
+      let allItemsFulfilled = true;
+      let anyItemUnavailable = false;
+      let anyItemShort = false;
+      let anyItemExcess = false;
+
+      for (const requestItem of request.items) {
+        const purchasedItems = items.filter(
+          item => item.requestItemId && item.requestItemId === requestItem._id.toString()
+        );
+
+        if (purchasedItems.length > 0) {
+          const totalPurchased = purchasedItems.reduce((sum, item) => sum + item.quantityPurchased, 0);
+          requestItem.fulfilledQuantity = totalPurchased;
+
+          if (totalPurchased === 0) {
+            requestItem.status = 'tidak tersedia';
+            anyItemUnavailable = true;
+          } else if (totalPurchased >= requestItem.quantity) {
+            requestItem.status = totalPurchased > requestItem.quantity ? 'lebih' : 'dibeli';
+            if (totalPurchased > requestItem.quantity) anyItemExcess = true;
+          } else {
+            requestItem.status = 'kurang';
+            anyItemShort = true;
+          }
+        }
+
+        if (requestItem.status !== 'dibeli' && requestItem.status !== 'lebih') {
+          allItemsFulfilled = false;
+        }
+      }
+
+      if (request.status !== 'approved') request.status = 'approved';
+
+      if (anyItemUnavailable) {
+        request.fulfillmentStatus = 'tidak tersedia';
+      } else if (anyItemShort) {
+        request.fulfillmentStatus = 'kurang';
+      } else if (allItemsFulfilled) {
+        request.fulfillmentStatus = anyItemExcess ? 'lebih' : 'dibeli';
+      } else {
+        request.fulfillmentStatus = 'partial';
+      }
+
+      if (!request.reviewed) {
+        request.reviewed = true;
+        request.reviewedBy = user.username;
+        request.reviewedAt = new Date();
+      }
+
+      await request.save({ session });
+    }
+
+    const processedExpenses = [];
+    for (const expense of additionalExpenses) {
+      if (!expense.name || !expense.amount || expense.amount <= 0) {
+        await session.abortTransaction();
+        return res.status(400).json({ message: 'Data pengeluaran tambahan tidak valid' });
+      }
+
+      processedExpenses.push({
+        name: expense.name,
+        amount: expense.amount,
+        notes: expense.notes || '',
+        payment: {
+          method: payment.method,
+          status: payment.status,
+          notes: payment.notes || '',
+          ...(payment.method !== 'cash' && {
+            bankFrom: payment.bankFrom,
+            bankTo: payment.bankTo,
+            recipientName: payment.recipientName,
+            proofOfPayment: payment.proofOfPayment
+          })
+        }
       });
     }
 
-    // Validasi & hitung pengeluaran tambahan
-    let totalAdditional = 0;
-    for (const exp of additionalExpenses) {
-      if (!exp.name || Number(exp.amount) <= 0) {
-        throw new Error(`Pengeluaran tambahan tidak valid: ${exp.name || 'Tanpa nama'}`);
-      }
-      totalAdditional += Number(exp.amount);
-    }
-
-    // Update status pada Request (jika ada relasi)
-    const updatedRequestIds = new Set();
-    const allRequests = await Request.find({});
-    for (const req of allRequests) {
-      let changed = false;
-      for (const item of req.items) {
-        const matched = processedItems.find(p => p.productName.toLowerCase() === item.item.toLowerCase());
-        if (matched && item.status === 'pending') {
-          item.fulfilledQuantity = matched.quantityPurchased;
-          if (matched.quantityPurchased === 0) {
-            item.status = 'tidak tersedia';
-          } else if (matched.quantityPurchased >= item.quantity) {
-            item.status = 'dibeli';
-          } else {
-            item.status = 'kurang';
-          }
-          updatedRequestIds.add(req._id.toString());
-          changed = true;
-        }
-      }
-      if (changed) await req.save();
-    }
-
-    // Simpan MarketList
     const marketList = new MarketList({
-      date: date || new Date(),
+      date,
       day,
       items: processedItems,
-      payment,
-      additionalExpenses,
-      relatedRequests: Array.from(updatedRequestIds),
+      additionalExpenses: processedExpenses,
+      payment: {
+        type: ['card', 'transfer'].includes(payment.method) ? 'online' : 'offline',
+        method: payment.method,
+        status: payment.status,
+        notes: payment.notes || '',
+        ...(payment.method !== 'cash' && {
+          bankFrom: payment.bankFrom,
+          bankTo: payment.bankTo,
+          recipientName: payment.recipientName,
+          proofOfPayment: payment.proofOfPayment
+        })
+      },
+      relatedRequests: Array.from(relatedRequestIds),
       createdBy: user.username
     });
 
-    await marketList.save();
+    const savedMarketList = await marketList.save({ session });
 
-    // Hitung total pengeluaran
-    const totalOut = totalItemBelanja + totalAdditional;
-    const lastBalance = await getLastBalance(); // Implementasikan sesuai struktur saldo kamu
-    const newBalance = lastBalance - totalOut;
+    for (const debt of debtsToCreate) {
+      debt.marketListId = savedMarketList._id;
+      const newDebt = new Debt(debt);
+      await newDebt.save({ session });
+    }
 
-    // Simpan ke CashFlow
     const cashFlow = new CashFlow({
+      date,
       day,
       description: `Belanja harian oleh ${user.username}`,
-      cashOut: payment.method === 'cash' ? totalOut : 0,
+      cashOut: totalCharged + processedExpenses.reduce((sum, e) => sum + e.amount, 0),
       cashIn: 0,
-      balance: newBalance,
-      relatedMarketList: marketList._id,
+      balance: 0,
+      relatedMarketList: savedMarketList._id,
       createdBy: user.username
     });
 
-    await cashFlow.save();
+    await cashFlow.save({ session });
 
-    res.status(201).json({ marketList, cashFlow });
+    await session.commitTransaction();
+
+    res.status(201).json({
+      success: true,
+      data: {
+        marketList: savedMarketList,
+        cashFlow,
+        debtsCreated: debtsToCreate.length
+      }
+    });
+
   } catch (error) {
-    console.error('Error saat membuat MarketList:', error);
-    res.status(500).json({ message: error.message || 'Terjadi kesalahan internal server' });
+    await session.abortTransaction();
+    console.error('Error creating market list:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Gagal menyimpan data belanja'
+    });
+  } finally {
+    session.endSession();
   }
 };
-
 
 
 export const getUnpaidMarketLists = async (req, res) => {
@@ -459,80 +605,125 @@ export const getWeeklyReport = async (req, res) => {
     const { start, end } = req.query;
 
     if (!start || !end) {
-      return res.status(400).json({ message: 'Tanggal mulai dan akhir harus disertakan.' });
+      return res.status(400).json({ message: 'Start and end dates are required' });
     }
 
-    // Konversi ke Date object
     const startDate = new Date(start);
     const endDate = new Date(end);
 
-    // 1. Ambil semua transaksi dalam rentang waktu dan populate relatedMarketList
-    const flows = await CashFlow.find({
+    // Get cash flows with populated market lists
+    const cashFlows = await CashFlow.find({
       date: { $gte: startDate, $lte: endDate }
-    }).populate('relatedMarketList').sort({ date: 1 });
+    }).populate({
+      path: 'relatedMarketList',
+      populate: {
+        path: 'items additionalExpenses',
+        select: 'productName quantityPurchased pricePerUnit paymentMethod paymentStatus name amount'
+      }
+    }).sort({ date: 1 });
 
-    // 2. Hitung Saldo Awal: semua transaksi sebelum start
-    const initialFlows = await CashFlow.find({
-      date: { $lt: startDate }
-    });
-
+    // Calculate starting balance (sum of all transactions before start date)
+    const initialFlows = await CashFlow.find({ date: { $lt: startDate } });
     const startingBalance = initialFlows.reduce((sum, f) => sum + (f.cashIn - f.cashOut), 0);
 
-    // 3. Hitung total masuk/keluar dalam periode
-    const totalCashIn = flows.reduce((sum, f) => sum + f.cashIn, 0);
-    const totalCashOut = flows.reduce((sum, f) => sum + f.cashOut, 0);
-
-    // 4. Hitung Saldo Akhir
-    let currentBalance = startingBalance;
-
-    // 5. Kirim response
-    res.json({
-      start,
-      end,
+    // Initialize categorized data
+    const result = {
       summary: {
         startingBalance,
-        totalCashIn,
-        totalCashOut,
-        endingBalance: currentBalance + totalCashIn - totalCashOut
+        cash: { in: 0, out: 0, balance: 0 },
+        transfer: { in: 0, out: 0, balance: 0 },
+        credit: { in: 0, out: 0, balance: 0 },
+        totalIn: 0,
+        totalOut: 0,
+        endingBalance: startingBalance
       },
-      data: flows.map(f => {
-        currentBalance += f.cashIn - f.cashOut;
-        const balance = Math.max(currentBalance, 0);
-        
-        // Ambil item dari relatedMarketList
-        const purchasedItems = f.relatedMarketList 
-          ? f.relatedMarketList.items.map(item => ({
-              item: item.item,
-              quantity: item.quantity,
-              total: item.total,
-            }))
-          : [];
+      transactions: {
+        cash: [],
+        transfer: [],
+        credit: [],
+        all: []
+      }
+    };
 
-        // Ambil additional expenses
-        const additionalExpenses = f.relatedMarketList
-          ? f.relatedMarketList.additionalExpenses.map(exp => ({
-              name: exp.name,
-              amount: exp.amount,
-              notes: exp.notes,
-            }))
-          : [];
+    let currentBalance = startingBalance;
 
-        return {
-          day: new Date(f.date).toLocaleDateString('id-ID', { weekday: 'long' }),
-          date: f.date.toISOString().split('T')[0],
-          description: f.description,
-          cashIn: f.cashIn,
-          cashOut: f.cashOut,
-          balance,
-          purchasedItems, // Menambahkan detail barang yang dibeli
-          additionalExpenses // Menambahkan detail tambahan biaya
-        };
-      })
+    // Process each cash flow
+    for (const flow of cashFlows) {
+      currentBalance += flow.cashIn - flow.cashOut;
+      
+      // Determine payment method from related market list
+      let paymentMethod = 'cash'; // default
+      if (flow.relatedMarketList) {
+        // Check items for payment methods
+        const methods = flow.relatedMarketList.items.map(i => i.paymentMethod);
+        if (methods.includes('transfer')) paymentMethod = 'transfer';
+        if (methods.includes('credit')) paymentMethod = 'credit';
+      }
+
+      // Build transaction object
+      const transaction = {
+        date: flow.date,
+        day: flow.day,
+        description: flow.description,
+        cashIn: flow.cashIn,
+        cashOut: flow.cashOut,
+        balance: currentBalance,
+        paymentMethod,
+        purchasedItems: flow.relatedMarketList?.items?.map(item => ({
+          name: item.productName,
+          quantity: item.quantityPurchased,
+          price: item.pricePerUnit,
+          total: item.quantityPurchased * item.pricePerUnit,
+          paymentMethod: item.paymentMethod,
+          paymentStatus: item.paymentStatus
+        })) || [],
+        additionalExpenses: flow.relatedMarketList?.additionalExpenses || []
+      };
+
+      // Categorize by payment method
+      if (paymentMethod === 'cash') {
+        result.summary.cash.in += flow.cashIn;
+        result.summary.cash.out += flow.cashOut;
+        result.transactions.cash.push(transaction);
+      } 
+      else if (paymentMethod === 'transfer') {
+        result.summary.transfer.in += flow.cashIn;
+        result.summary.transfer.out += flow.cashOut;
+        result.transactions.transfer.push(transaction);
+      } 
+      else if (paymentMethod === 'credit') {
+        result.summary.credit.in += flow.cashIn;
+        result.summary.credit.out += flow.cashOut;
+        result.transactions.credit.push(transaction);
+      }
+
+      result.transactions.all.push(transaction);
+      result.summary.totalIn += flow.cashIn;
+      result.summary.totalOut += flow.cashOut;
+    }
+
+    // Calculate final balances
+    result.summary.endingBalance = currentBalance;
+    result.summary.cash.balance = result.summary.cash.in - result.summary.cash.out;
+    result.summary.transfer.balance = result.summary.transfer.in - result.summary.transfer.out;
+    result.summary.credit.balance = result.summary.credit.in - result.summary.credit.out;
+    
+    res.json({
+      success: true,
+      data: {
+        start,
+        end,
+        ...result
+      }
     });
 
   } catch (error) {
-    console.error('Error saat mengambil laporan mingguan:', error);
-    res.status(500).json({ message: error.message || 'Terjadi kesalahan internal server' });
+    console.error('Error generating weekly report:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate report',
+      error: error.message
+    });
   }
 };
 
