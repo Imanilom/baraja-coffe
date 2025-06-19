@@ -17,6 +17,7 @@ class OnlineOrderRepository {
       final limitedResponse =
           response.length > 10 ? response.sublist(0, 10) : response;
 
+      print("Data pending orders yg diambil: ${limitedResponse.length}");
       final onlineOrders =
           limitedResponse.map((json) {
             // Pertama buat model dasar dari JSON
@@ -24,11 +25,12 @@ class OnlineOrderRepository {
 
             // Kemudian hitung dan tambahkan field kalkulasi
             return baseModel.withCalculations(
-              totalTax: json['totalTax'],
-              discounts: json['discounts'],
-              totalServiceFee: json['totalServiceFee'],
+              totalTax: json['totalTax'] ?? 0,
+              discounts: json['discounts'] ?? {},
+              totalServiceFee: json['totalServiceFee'] ?? 0,
             );
           }).toList();
+      print("Data pending orders yg diambil: ${onlineOrders.length}");
       return onlineOrders;
     } catch (e) {
       print("Gagal mengambil data pending orders: ${e.toString()}");

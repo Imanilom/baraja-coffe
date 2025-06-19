@@ -36,6 +36,7 @@ dependencies:
   esc_pos_utils_plus: ^2.0.4
   socket_io_client: ^3.1.2
   overlay_support: ^2.1.0
+  flutter_local_notifications: ^19.2.1
 
 assets:
   - .env
