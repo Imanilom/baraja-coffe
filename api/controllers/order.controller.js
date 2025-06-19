@@ -11,7 +11,7 @@ import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, cre
 import { orderQueue } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
-import { io } from '../index.js';
+import { io, broadcastNewOrder  } from '../index.js';
 
 export const createAppOrder = async (req, res) => {
   try {
@@ -677,23 +677,21 @@ export const createUnifiedOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
+  let transactionCommitted = false;
+
   try {
     const { source } = req.body;
     const validated = validateOrderData(req.body, source);
     const { tableNumber } = validated;
 
     let orderId;
-
     if (tableNumber) {
-      // Gunakan generateOrderId versi sequence per hari per table
       orderId = await generateOrderId(String(tableNumber));
     } else {
-      // fallback untuk selain tableNumber
       orderId = `${source.toUpperCase()}-${Date.now()}`;
     }
 
     const items = [];
-
     for (const item of validated.items) {
       const menuItem = await MenuItem.findById(item.id).session(session);
       if (!menuItem) throw new Error('Menu item not found: ' + item.id);
@@ -705,18 +703,21 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
+    // Komit transaksi sebelum masuk queue
+    await session.commitTransaction();
+    transactionCommitted = true;
 
+    const job = await orderQueue.add('create_order', {
+      type: 'create_order',
+      payload: { orderId, orderData: validated, source }
+    }, { jobId: orderId });
+
+    // Respons berdasarkan sumber
     if (source === 'Cashier') {
-      await session.commitTransaction();
-
-      await orderQueue.add('create_order', {
-        type: 'create_order',
-        payload: { orderId, orderData: validated, source }
-      }, { jobId: orderId });
-
       return res.status(202).json({
         status: 'completed',
         orderId,
+        jobId: job.id,
         message: 'Order kasir diproses dan sudah dibayar',
       });
     }
@@ -728,16 +729,10 @@ export const createUnifiedOrder = async (req, res) => {
         validated.paymentDetails.method
       );
 
-      await session.commitTransaction();
-
-      await orderQueue.add('create_order', {
-        type: 'create_order',
-        payload: { orderId, orderData: validated, source }
-      }, { jobId: orderId });
-
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
+        jobId: job.id,
         midtrans: midtransRes,
       });
     }
@@ -749,16 +744,10 @@ export const createUnifiedOrder = async (req, res) => {
         validated.paymentDetails.method
       );
 
-      await session.commitTransaction();
-
-      await orderQueue.add('create_order', {
-        type: 'create_order',
-        payload: { orderId, orderData: validated, source }
-      }, { jobId: orderId });
-
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
+        jobId: job.id,
         snapToken: midtransRes.token,
         redirectUrl: midtransRes.redirect_url,
       });
@@ -766,20 +755,83 @@ export const createUnifiedOrder = async (req, res) => {
 
     throw new Error('Sumber order tidak valid');
   } catch (err) {
-    await session.abortTransaction();
+    if (!transactionCommitted) {
+      await session.abortTransaction();
+    }
     return res.status(400).json({ success: false, error: err.message });
   } finally {
     session.endSession();
   }
 };
 
+export const confirmOrder = async (req, res) => {
+  const { orderId } = req.params;
+  
+  try {
+    // 1. Find order and update status
+    const order = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: 'OnProcess' } },
+      { new: true }
+    ).populate('items.menuItem').populate('outlet');
 
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // 2. Update payment status
+    const payment = await Payment.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: 'paid', paidAt: new Date() } },
+      { new: true }
+    );
+
+    // 3. Send notification to cashier if order is from Web/App
+    if (order.source === 'Web' || order.source === 'App') {
+      const orderData = {
+        orderId: order.order_id,
+        source: order.source,
+        orderType: order.orderType,
+        tableNumber: order.tableNumber || null,
+        items: order.items.map(item => ({
+          name: item.menuItem?.name || 'Unknown Item',
+          quantity: item.quantity
+        })),
+        createdAt: order.createdAt,
+        paymentMethod: order.paymentMethod, // Use paymentMethod from order
+        totalAmount: order.grandTotal,     // Use grandTotal from order
+        outletId: order.outlet._id
+      };
+
+      // Broadcast to all cashiers in that outlet
+      if (typeof broadcastNewOrder === 'function') {
+        broadcastNewOrder(order.outlet._id.toString(), orderData);
+      } else {
+        console.error('broadcastNewOrder function not available');
+      }
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Order confirmed and being processed',
+      order: order,
+      payment: payment
+    });
+
+  } catch (err) {
+    console.error('Error in confirmOrder:', err);
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};
 
 
 // GET /api/orders/queued
 export const getQueuedOrders = async (req, res) => {
   try {
-    const jobs = await orderQueue.getJobs(['waiting']);
+    const jobs = await orderQueue.getJobs(['waiting', 'active']);
 
     const orders = jobs.map(job => ({
       jobId: job.id,
@@ -814,7 +866,12 @@ export const confirmOrderByCashier = async (req, res) => {
       return res.status(400).json({ success: false, error: 'order_id tidak ditemukan dalam job data' });
     }
 
-    // Update status order di MongoDB ke 'OnProcess'
+    // Cegah jika sudah diklaim
+    if (job.data?.cashierId) {
+      return res.status(400).json({ success: false, error: 'Order sudah diklaim oleh kasir lain' });
+    }
+
+    // Update status order di MongoDB
     const order = await Order.findOneAndUpdate(
       { order_id: orderId },
       { status: 'OnProcess', cashier: cashierId },
@@ -825,18 +882,14 @@ export const confirmOrderByCashier = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Order tidak ditemukan di database' });
     }
 
-    // Tambahkan cashierId ke job data
-    const updatedData = { ...job.data, cashierId };
-    await job.update(updatedData);
+    // Tambahkan cashierId ke job data agar worker tahu siapa yang ambil
+    await job.update({ ...job.data, cashierId });
 
-    // Eksekusi processor job secara manual (jika memang tidak otomatis dikerjakan oleh worker)
-    const result = await job.process();
-
+    // TIDAK perlu job.process(), biarkan worker eksekusi otomatis
     res.status(200).json({
       success: true,
-      message: 'Order dikonfirmasi dan status diubah ke OnProcess',
+      message: 'Order diklaim dan akan segera diproses',
       order,
-      result,
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -1063,42 +1116,6 @@ export const getAllOrders = async (req, res) => {
   }
 };
 
-// Konfirmasi Order oleh kasir
-export const confirmOrder = async (req, res) => {
-  const { cashierId, orderId } = req.body;
-
-  try {
-    // Pastikan cashierId dan orderId valid
-    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(cashierId)) {
-      return res.status(400).json({ message: 'Invalid orderId or cashierId' });
-    }
-
-    // Update status dan set kasir
-    const order = await Order.findByIdAndUpdate(
-      orderId,
-      {
-        status: 'Completed',
-        cashier: cashierId
-      },
-      { new: true }
-    ).populate('cashier', 'name') // Jika ingin menampilkan info kasir
-      .populate('items.menuItem'); // Jika ingin detail item
-
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
-    res.status(200).json({
-      message: 'Order confirmed and assigned to cashier',
-      order
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error confirming order',
-      error: error.message
-    });
-  }
-};
 
 // Mengambil order yang pending
 export const getPendingOrders = async (req, res) => {
