@@ -147,8 +147,15 @@ class PrinterService {
     );
     bytes.addAll(generator.hr());
     bytes.addAll(generator.hr());
+    print('Order Detail: ${orderDetail.items.first.menuItem.categories}');
+    final bar = orderDetail.items.where((element) {
+      // mencari menu item yang merupakan kategory tambahan
+      return element.menuItem.categories!.contains('Additional');
+      // return element.menuItem.categories == ['additional'];
+    });
+    print('Bar bytes additional: $bar');
     //list order Items
-    for (var item in orderDetail.items) {
+    for (var item in bar) {
       bytes.addAll(
         generator.row([
           PosColumn(
@@ -198,6 +205,8 @@ class PrinterService {
         ),
       ]),
     );
+    // Footer
+    bytes.addAll(generator.hr());
     bytes.addAll(
       generator.row([
         PosColumn(
@@ -212,9 +221,6 @@ class PrinterService {
         ),
       ]),
     );
-
-    // Footer
-    bytes.addAll(generator.hr());
     bytes.addAll(generator.hr());
     bytes.addAll(
       generator.text(

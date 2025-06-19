@@ -179,7 +179,7 @@ export const getMenuItems = async (req, res) => {
           populate: { path: 'options' },
         },
       ])
-      .sort({ name: 1 });
+      .sort({ name: 1 }); // Sort by name in ascending order
 
     // Ambil semua rating dari database
     const ratings = await MenuRating.find({ isActive: true });

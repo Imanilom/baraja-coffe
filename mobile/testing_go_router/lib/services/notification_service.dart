@@ -1,55 +1,61 @@
-// // lib/services/notification_service.dart
-// import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-// import 'package:overlay_support/overlay_support.dart';
-// import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:overlay_support/overlay_support.dart';
+import 'package:flutter/material.dart';
 
-// class NotificationService {
-//   final FlutterLocalNotificationsPlugin _notificationsPlugin =
-//       FlutterLocalNotificationsPlugin();
+class NotificationService {
+  static final _notifications = FlutterLocalNotificationsPlugin();
 
-//   Future<void> initialize() async {
-//     const AndroidInitializationSettings androidSettings =
-//         AndroidInitializationSettings('@mipmap/ic_launcher');
+  // Inisialisasi
+  static Future<void> init() async {
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
-//     const InitializationSettings settings = InitializationSettings(
-//       android: androidSettings,
-//       iOS: DarwinInitializationSettings(),
-//     );
+    const DarwinInitializationSettings iOSSettings =
+        DarwinInitializationSettings();
 
-//     await _notificationsPlugin.initialize(settings);
-//   }
+    const InitializationSettings settings = InitializationSettings(
+      android: androidSettings,
+      iOS: iOSSettings,
+    );
 
-//   void showLocalNotification(String title, String body) {
-//     const AndroidNotificationDetails androidDetails =
-//         AndroidNotificationDetails(
-//           'channel_id',
-//           'Channel Name',
-//           importance: Importance.max,
-//           priority: Priority.high,
-//         );
+    await _notifications.initialize(settings);
+  }
 
-//     const NotificationDetails details = NotificationDetails(
-//       android: androidDetails,
-//       iOS: DarwinNotificationDetails(),
-//     );
+  // Notifikasi sistem (muncul di luar aplikasi)
+  static void showSystemNotification(String title, String body) {
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'channel_id',
+          'Channel Name',
+          importance: Importance.max,
+          priority: Priority.high,
+        );
 
-//     _notificationsPlugin.show(0, title, body, details);
-//   }
+    _notifications.show(
+      0,
+      title,
+      body,
+      const NotificationDetails(android: androidDetails),
+    );
+  }
 
-//   void showInAppNotification(String title, String message) {
-//     showOverlayNotification((context) {
-//       return Card(
-//         margin: const EdgeInsets.symmetric(horizontal: 16),
-//         child: ListTile(
-//           leading: const Icon(Icons.notifications),
-//           title: Text(title),
-//           subtitle: Text(message),
-//           trailing: IconButton(
-//             icon: const Icon(Icons.close),
-//             onPressed: () => OverlaySupportEntry.of(context)?.dismiss(),
-//           ),
-//         ),
-//       );
-//     }, duration: const Duration(seconds: 5));
-//   }
-// }
+  // Notifikasi in-app (toast)
+  static void showInAppNotification(String title, String message) {
+    // showSimpleNotification(
+    //   Text(title),
+    //   leading: const Icon(Icons.notifications),
+    //   subtitle: Text(message),
+    // );
+    showOverlayNotification(
+      (context) => MaterialBanner(
+        content: Text(message),
+        actions: [
+          TextButton(
+            child: const Text('OK'),
+            onPressed: () => OverlaySupportEntry.of(context)!.dismiss(),
+          ),
+        ],
+      ),
+    );
+  }
+}

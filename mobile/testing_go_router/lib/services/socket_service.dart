@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
+import 'package:kasirbaraja/services/notification_service.dart';
 import 'package:kasirbaraja/services/order_history_service.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 // import 'package:dio/dio.dart';
@@ -40,6 +41,10 @@ class SocketService {
     socket.on('order_created', (data) {
       try {
         print('Received order_created: $data');
+        NotificationService.showSystemNotification(
+          'Pesanan Baru',
+          'Pelanggan: Hello World!',
+        );
         // void _ = ref.refresh(activityProvider.future);
         ref.invalidate(activityProvider);
       } catch (e) {
@@ -59,10 +64,10 @@ class SocketService {
         // );
 
         // // Notifikasi in-app
-        // notificationService.showInAppNotification(
-        //   'Pesanan Baru',
-        //   'Pelanggan: ${data['customerName']}\nTotal: Rp ${data['totalPrice']}',
-        // );
+        NotificationService.showInAppNotification(
+          'Pesanan Baru',
+          'Pelanggan: ${data['customerName']}\nTotal: Rp ${data['totalPrice']}',
+        );
         // Refresh data jika perlu
         ref.invalidate(onlineOrderProvider);
         // void _ = ref.refresh(onlineOrderProvider.future);

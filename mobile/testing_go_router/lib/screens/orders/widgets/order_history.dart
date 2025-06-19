@@ -14,7 +14,6 @@ class OrderHistory extends ConsumerWidget {
     // ref.read(orderHistoryProvider.notifier).getOrderHistory(cashierId);
     print('build order history');
     final history = ref.watch(orderHistoryProvider);
-    print('get build order history: $history');
 
     return history.when(
       data:
@@ -22,7 +21,6 @@ class OrderHistory extends ConsumerWidget {
             itemCount: list.length,
             itemBuilder: (context, index) {
               final order = list[index];
-              print('order history: $order');
               return ListTile(
                 title: Text(order.customerName ?? 'Tanpa ID'),
                 subtitle: Text(formatRupiah(order.totalPrice!.toInt())),

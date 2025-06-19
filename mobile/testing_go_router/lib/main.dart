@@ -7,6 +7,8 @@ import 'package:kasirbaraja/providers/router_provider.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:kasirbaraja/services/notification_service.dart';
+import 'package:overlay_support/overlay_support.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +16,9 @@ void main() async {
   await HiveService.init();
 
   final printerBox = Hive.box<BluetoothPrinterModel>('printers');
+
+  // Inisialisasi notifikasi
+  await NotificationService.init();
 
   // SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   SystemChrome.setPreferredOrientations([
@@ -26,7 +31,7 @@ void main() async {
           // Override dengan Hive box yang sudah diinisialisasi
           printerBoxProvider.overrideWithValue(printerBox),
         ],
-        child: MyApp(),
+        child: OverlaySupport.global(child: MyApp()),
       ),
     );
     // runApp(const MyWidget());
