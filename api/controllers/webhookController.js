@@ -2,6 +2,7 @@ import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
 import { orderQueue } from '../queues/order.queue.js';
+import { broadcastNewOrder } from '../index.js';
 
 export const midtransWebhook = async (req, res) => {
   try {
@@ -19,9 +20,11 @@ export const midtransWebhook = async (req, res) => {
 
     console.log('📥 Received Midtrans notification:', notificationJson);
 
-    // Simpan atau update data pembayaran
+
+    const order = await Order.findOne({ order_id: order_id });
+
     const paymentData = {
-      order_id,
+      order_id: order._id, // ✔️ pastikan ini cocok dengan schema Payment
       method: payment_type || 'unknown',
       status: transaction_status,
       amount: Number(gross_amount),
@@ -31,13 +34,11 @@ export const midtransWebhook = async (req, res) => {
     };
 
     await Payment.findOneAndUpdate(
-      { order_id },
+      { order_id: order._id }, // ✔️ perbaikan di sini
       paymentData,
       { upsert: true, new: true }
     );
 
-
-    const order = await Order.findOne({ _id: order_id });
 
 
     if (!order) {
@@ -47,10 +48,10 @@ export const midtransWebhook = async (req, res) => {
 
     // Handle status pembayaran
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      order.status = 'Waiting';
+      order.status = 'Pending';
       await order.save();
 
-      // ✅ Masukkan ke antrian BullMQ dengan job type yang benar: create_order
+      // // ✅ Masukkan ke antrian BullMQ dengan job type yang benar: create_order
       await orderQueue.add('create_order', order.toObject(), {
         jobId: order._id.toString(), // Hindari duplikasi
       });

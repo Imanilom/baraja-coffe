@@ -1,4 +1,4 @@
-import Reservation from '../models/Reservation.model.js';
+import Reservation from '../models/Reservation_backup.model.js';
 import { TableLayout } from '../models/TableLayout.model.js';
 import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
 import { orderQueue } from '../queues/order.queue.js';
@@ -7,7 +7,7 @@ import { Order } from '../models/order.model.js';
 import mongoose from 'mongoose';
 
 const MAX_HOURS = 2;
-const OVERTIME_RATE = 20000; 
+const OVERTIME_RATE = 20000;
 
 function generateOrderId() {
   const now = new Date();
