@@ -21,10 +21,12 @@ import reportRoutes from './routes/report.routes.js';
 import historyRoutes from './routes/history.routes.js';
 import paymentMethodsRouter from './routes/paymentMethode.js';
 import tableLayoutRoutes from './routes/tableLayout.routes.js';
+// import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
 import ratingRoutes from './routes/rating.routes.js';
 import taxAndServiceRoutes from './routes/taxAndService.routes.js';
+import areaRoutes from './routes/areas.routes.js';
 import ReceiptSetting from './routes/receiptSetting.routes.js';
 import socketHandler from './socket/index.js';
 import { midtransWebhook } from './controllers/webhookController.js';
@@ -55,41 +57,8 @@ const io = new Server(server, {
   transports: ['websocket', 'polling']
 });
 socketHandler(io);
-
-export { io };
-
-// Socket connection handling
-// io.on('connection', (socket) => {
-//   console.log('Client connected:', socket.id);
-
-//   // Debug ping (keep for debugging)
-//   setInterval(() => {
-//     io.emit('ping', { message: 'Ping from server', timestamp: new Date().toISOString() });
-//     console.log('Sent ping to all clients');
-//   }, 10000);
-
-//   // Handle room joining with acknowledgement
-//   socket.on('join_order_room', (orderId, callback) => {
-//     console.log(`Client ${socket.id} joining room for order: ${orderId}`);
-//     socket.join(orderId);
-
-//     // Send acknowledgement back to client
-//     if (typeof callback === 'function') {
-//       callback({ status: 'joined', room: orderId });
-//     }
-
-//     // Emit a message to verify room joining
-//     socket.to(orderId).emit('room_joined', { message: `You joined room ${orderId}` });
-
-//     // Log rooms after joining
-//     console.log('Rooms after joining:', io.sockets.adapter.rooms);
-//   });
-
-//   // Handle explicit disconnection
-//   socket.on('disconnect', () => {
-//     console.log('Client disconnected:', socket.id);
-//   });
-// });
+const { broadcastNewOrder } = socketHandler(io);
+export { io, broadcastNewOrder };
 
 // Middleware and routes setup...
 app.use(express.json());
@@ -105,6 +74,7 @@ app.use(cors({
 app.use('/api/user', userRoutes);
 app.use('/api/staff', posRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/areas', areaRoutes);
 app.use('/api', orderRoutes);
 app.use('/api/paymentlist', paymentMethodsRouter);
 app.use('/api/menu', menuRoutes);
@@ -117,7 +87,7 @@ app.use('/api/workstation', posRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/table-layout', tableLayoutRoutes);
-app.use('/api/reservation', reservationRoutes);
+app.use('/api/reservations', reservationRoutes);
 app.use('/api/marketlist', marketListRoutes);
 app.use('/api/tax-service', taxAndServiceRoutes);
 app.use('/api/receipt-setting', ReceiptSetting);
