@@ -65,7 +65,7 @@ class OrderService {
         throw Exception("orderId atau cashierId tidak boleh null");
       }
       Response response = await _dio.post(
-        '/api/orders/${orderDetail.orderId}/confirm',
+        '/api/confirm-order/${orderDetail.orderId}',
         data: {
           //cashierId dari authCashierProvider
           'cashierId': cashierId,
@@ -79,7 +79,7 @@ class OrderService {
         ),
       );
 
-      // print('response confirm order: ${response.data}');
+      print('response confirm order: ${response.data}');
 
       return response.data;
     } on DioException catch (e) {

@@ -24,10 +24,10 @@ class OnlineOrder extends ConsumerWidget {
               final order = data[index];
               return ListTile(
                 title: Text(
-                  '${order.customerName} - ${order.orderType.toString()}',
+                  '${order.customerName} - ${order.orderType.toString()} - ${order.status.toString()}',
                 ),
                 subtitle: Text(
-                  '${formatRupiah(order.totalPrice!.toInt())} - ${order.orderId}',
+                  '${formatRupiah(order.totalPrice!.toInt())} - ${order.orderId} - ${order.items.first.menuItem.categories}',
                 ),
                 onTap: () {
                   // Clear previous history detail

@@ -64,7 +64,7 @@ class SocketService {
         // );
 
         // // Notifikasi in-app
-        NotificationService.showInAppNotification(
+        NotificationService.showSystemNotification(
           'Pesanan Baru',
           'Pelanggan: ${data['customerName']}\nTotal: Rp ${data['totalPrice']}',
         );

@@ -11,7 +11,7 @@ import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, cre
 import { orderQueue } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
-import { io, broadcastNewOrder  } from '../index.js';
+import { io, broadcastNewOrder } from '../index.js';
 
 export const createAppOrder = async (req, res) => {
   try {
@@ -761,7 +761,7 @@ export const createUnifiedOrder = async (req, res) => {
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
-  
+
   try {
     // 1. Find order and update status
     const order = await Order.findOneAndUpdate(
@@ -806,8 +806,8 @@ export const confirmOrder = async (req, res) => {
       }
     }
 
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       message: 'Order confirmed and being processed',
       order: order,
       payment: payment
@@ -815,9 +815,9 @@ export const confirmOrder = async (req, res) => {
 
   } catch (err) {
     console.error('Error in confirmOrder:', err);
-    return res.status(500).json({ 
-      success: false, 
-      error: err.message 
+    return res.status(500).json({
+      success: false,
+      error: err.message
     });
   }
 };
@@ -1162,7 +1162,8 @@ export const getPendingOrders = async (req, res) => {
               menuItem: menuItem ? {
                 _id: menuItem._id,
                 name: menuItem.name,
-                price: menuItem.price
+                price: menuItem.price,
+                category: menuItem.category
               } : null,
               selectedToppings: item.toppings || [],
               selectedAddons: enrichedAddons || [], // Use enriched addons here

@@ -11,6 +11,7 @@ import 'package:kasirbaraja/providers/order_detail_providers/saved_order_detail_
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/orders/saved_order_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/repositories/online_order_repository.dart';
 import 'package:kasirbaraja/widgets/buttons/vertical_icon_text_button.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
@@ -27,6 +28,7 @@ class OrderDetail extends ConsumerWidget {
     int subTotalPrices = 0;
     OrderDetailModel? orderDetail;
     final OnlineOrderRepository repository = OnlineOrderRepository();
+    final savedPrinter = ref.read(savedPrintersProvider.notifier);
 
     switch (currentWidgetIndex) {
       case 0:
@@ -69,7 +71,11 @@ class OrderDetail extends ConsumerWidget {
             const SnackBar(content: Text("Order berhasil dikonfirmasi")),
           );
         }
+        // hapus data order detail yang lama
+        ref.read(onlineOrderDetailProvider.notifier).clearOnlineOrderDetail();
         ref.invalidate(onlineOrderProvider);
+        //melakukan print struk order
+        savedPrinter.printToPrinter(orderDetail, 'all');
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -423,12 +429,6 @@ class OrderDetail extends ConsumerWidget {
                                       orderDetail.items.isNotEmpty) {
                                     //confirm order
                                     confirmOrder(ref, orderDetail);
-                                    // hapus data order detail yang lama
-                                    ref
-                                        .read(
-                                          onlineOrderDetailProvider.notifier,
-                                        )
-                                        .clearOnlineOrderDetail();
                                   }
                                 },
                                 child: Text('confirm'),

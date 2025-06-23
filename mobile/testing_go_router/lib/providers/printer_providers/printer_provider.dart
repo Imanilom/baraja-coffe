@@ -42,17 +42,17 @@ class SavedPrintersNotifier extends Notifier<List<BluetoothPrinterModel>> {
   //print to printer
   Future<void> printToPrinter(
     OrderDetailModel orderDetail,
-    String location,
+    String printType,
   ) async {
-    if (location.isEmpty) return;
-    if (location == 'bar') {
+    if (printType.isEmpty) return;
+    if (printType == 'bar') {
       //cari printer yang isPrinter barnya true
       state = state.where((printer) => printer.isBarPrinter == true).toList();
       //print to printer
       for (var printer in state) {
         await PrinterService.printToPrinter(orderDetail, printer, false);
       }
-    } else if (location == 'kitchen') {
+    } else if (printType == 'kitchen') {
       //cari printer yang isPrinter kitchen true
       state =
           state.where((printer) => printer.isKitchenPrinter == true).toList();
@@ -60,7 +60,14 @@ class SavedPrintersNotifier extends Notifier<List<BluetoothPrinterModel>> {
       for (var printer in state) {
         await PrinterService.printToPrinter(orderDetail, printer, true);
       }
-    } else if (location == 'all') {
+    } else if (printType == 'customer') {
+      //cari printer yang isPrinter customer true
+      state = state.where((printer) => printer.isBarPrinter == true).toList();
+      //print to printer
+      for (var printer in state) {
+        await PrinterService.printToPrinter(orderDetail, printer, false);
+      }
+    } else if (printType == 'all') {
       //print to printer
       for (var printer in state) {
         if (printer.isKitchenPrinter) {
