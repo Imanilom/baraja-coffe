@@ -1,7 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/utils/convert_image_to_bytes.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'package:image/image.dart' as img;
 
 class PrinterService {
   static Future<void> connectPrinter(BluetoothPrinterModel printer) async {
@@ -30,6 +35,10 @@ class PrinterService {
     for (var i = 0; i < copies; i++) {
       await PrintBluetoothThermal.writeBytes(bytes);
     }
+
+    final customerBytes = await generateBarBytes(orderDetail, printer);
+
+    await PrintBluetoothThermal.writeBytes(customerBytes);
   }
 
   static Future<void> disconnectPrinter() async {
@@ -63,15 +72,74 @@ class PrinterService {
       final List<int> bytes = [];
 
       // Header
+      await generateLogoBytes(
+        generator,
+        'assets/logo/logo_baraja.png',
+        paperSize,
+      ).then((logoBytes) {
+        bytes.addAll(logoBytes);
+      });
+
+      //alamat toko
       bytes.addAll(
         generator.text(
-          'Baraja\nAmphitheater',
-          styles: const PosStyles(
-            align: PosAlign.center,
-            bold: true,
-            height: PosTextSize.size2,
-            width: PosTextSize.size2,
+          'Baraja Amphitheater\nJl. Jend. Sudirman No. 1, Jakarta Selatan, 12750\nTelp: 0812-3456-7890\n',
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
+
+      // data tanggal kasir dan pelanggan
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Tanggal',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.left),
           ),
+          PosColumn(
+            text:
+                "${DateTime.now().year}:${DateTime.now().month.toString().padLeft(2, '0')}:${DateTime.now().day.toString().padLeft(2, '0')} ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}:${DateTime.now().second.toString().padLeft(2, '0')}",
+            width: 8,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Kasir',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: "Static Kasir",
+            width: 8,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Pelanggan',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: "Static Pelanggan",
+            width: 8,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+
+      bytes.addAll(generator.feed(1));
+
+      //tipe order
+      bytes.addAll(
+        generator.text(
+          'Dine In',
+          styles: const PosStyles(align: PosAlign.center, bold: true),
         ),
       );
 
@@ -81,12 +149,12 @@ class PrinterService {
         generator.row([
           PosColumn(
             text: 'Mac Address',
-            width: 4,
+            width: 5,
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
             text: macAddress,
-            width: 8,
+            width: 7,
             styles: const PosStyles(align: PosAlign.right),
           ),
         ]),
@@ -100,7 +168,6 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.center),
         ),
       );
-      bytes.addAll(generator.feed(2));
       bytes.addAll(generator.cut());
 
       // 3. Kirim ke printer
@@ -112,6 +179,31 @@ class PrinterService {
       print('Print error: $e');
       return false;
     }
+  }
+
+  static Future<List<int>> generateLogoBytes(
+    Generator generator,
+    String imagePath,
+    PaperSize paperSize,
+  ) async {
+    // 1. Siapkan konten
+    final List<int> bytes = [];
+
+    // Header
+    final ByteData byteData = await rootBundle.load(imagePath);
+    final Uint8List imageBytes = byteData.buffer.asUint8List();
+    final image = img.decodeImage(imageBytes)!;
+
+    // Resize gambar sesuai lebar kertas
+    final resizedImage = img.copyResize(image, width: paperSize.width - 84);
+
+    // Konversi ke grayscale
+    final grayscaleImage = img.grayscale(resizedImage);
+
+    bytes.addAll(generator.image(grayscaleImage));
+    bytes.addAll(generator.feed(1));
+
+    return bytes;
   }
 
   static Future<List<int>> generateBarBytes(
@@ -134,28 +226,81 @@ class PrinterService {
     final List<int> bytes = [];
 
     // Header
+    // Header
+    await generateLogoBytes(
+      generator,
+      'assets/logo/logo_baraja.png',
+      paperSize,
+    ).then((logoBytes) {
+      bytes.addAll(logoBytes);
+    });
+
+    //alamat toko
     bytes.addAll(
       generator.text(
-        'Baraja\nAmphitheater',
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size2,
-          width: PosTextSize.size2,
-        ),
+        'Baraja Amphitheater\nJl. Jend. Sudirman No. 1, Jakarta Selatan, 12750\nTelp: 0812-3456-7890\n',
+        styles: const PosStyles(align: PosAlign.center),
       ),
     );
-    bytes.addAll(generator.hr());
+
+    // data tanggal kasir dan pelanggan
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Tanggal',
+          width: 4,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text:
+              "${DateTime.now().year}:${DateTime.now().month.toString().padLeft(2, '0')}:${DateTime.now().day.toString().padLeft(2, '0')} ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}:${DateTime.now().second.toString().padLeft(2, '0')}",
+          width: 8,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Kasir',
+          width: 4,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: "Static Kasir",
+          width: 8,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Pelanggan',
+          width: 4,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: "Static Pelanggan",
+          width: 8,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+
+    bytes.addAll(generator.feed(1));
     bytes.addAll(generator.hr());
     print('Order Detail: ${orderDetail.items.first.menuItem.categories}');
-    final bar = orderDetail.items.where((element) {
-      // mencari menu item yang merupakan kategory tambahan
-      return element.menuItem.categories!.contains('Additional');
-      // return element.menuItem.categories == ['additional'];
-    });
-    print('Bar bytes additional: $bar');
+    // final bar = orderDetail.items.where((element) {
+    //   // mencari menu item yang merupakan kategory tambahan
+    //   return element.menuItem.categories!.contains('Additional');
+    //   // return element.menuItem.categories == ['additional'];
+    // });
+    // print('Bar bytes additional: $bar');
+
+    final orderdetail = orderDetail.items;
     //list order Items
-    for (var item in bar) {
+    for (var item in orderdetail) {
       bytes.addAll(
         generator.row([
           PosColumn(

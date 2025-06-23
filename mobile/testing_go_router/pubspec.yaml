@@ -37,9 +37,11 @@ dependencies:
   socket_io_client: ^3.1.2
   overlay_support: ^2.1.0
   flutter_local_notifications: ^19.2.1
+  image: ^4.5.4
 
 assets:
   - .env
+  - assets/logo/logo_baraja.png
 
 dev_dependencies:
   flutter_test:
@@ -78,3 +80,4 @@ flutter:
 
   assets:
     - .env
+    - assets/logo/logo_baraja.png
