@@ -55,65 +55,65 @@ const Menu = () => {
 
   const dropdownRef = useRef(null);
 
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const menuResponse = await axios.get('/api/menu/menu-items');
+
+      const menuData = Array.isArray(menuResponse.data)
+        ? menuResponse.data
+        : (menuResponse.data && Array.isArray(menuResponse.data.data))
+          ? menuResponse.data.data
+          : [];
+
+      setMenuItems(menuData);
+      setFilteredData(menuData);
+
+      const outletsResponse = await axios.get('/api/outlet');
+      const outletsData = Array.isArray(outletsResponse.data)
+        ? outletsResponse.data
+        : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
+          ? outletsResponse.data.data
+          : [];
+
+      setOutlets(outletsData);
+
+      const categoryResponse = await axios.get('/api/storage/category');
+      const categoryData = Array.isArray(categoryResponse.data)
+        ? categoryResponse.data
+        : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
+          ? categoryResponse.data.data
+          : [];
+
+      setCategory(categoryData);
+
+      setStatus([
+        { _id: "ya", name: "Ya" },
+        { _id: "tidak", name: "Tidak" }
+      ]);
+
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError("Failed to load data. Please try again later.");
+      setMenuItems([]);
+      setFilteredData([]);
+      setOutlets([]);
+      setCategory([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Fetch products data
-        const menuResponse = await axios.get('/api/menu/menu-items');
-
-        // Ensure menuResponse.data is an array
-        const menuData = Array.isArray(menuResponse.data) ?
-          menuResponse.data :
-          (menuResponse.data && Array.isArray(menuResponse.data.data)) ?
-            menuResponse.data.data : [];
-
-        setMenuItems(menuData);
-        setFilteredData(menuData); // Initialize filtered data with all products
-
-        // Fetch outlets data
-        const outletsResponse = await axios.get('/api/outlet');
-
-        // Ensure outletsResponse.data is an array
-        const outletsData = Array.isArray(outletsResponse.data) ?
-          outletsResponse.data :
-          (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-            outletsResponse.data.data : [];
-
-        setOutlets(outletsData);
-
-        const categoryResponse = await axios.get('/api/storage/category');
-
-        const categoryData = Array.isArray(categoryResponse.data) ?
-          categoryResponse.data :
-          (categoryResponse.data && Array.isArray(categoryResponse.data.data)) ?
-            categoryResponse.data.data : [];
-
-        setCategory(categoryData);
-
-        const statusResponse = [
-          { _id: "ya", name: "Ya" },
-          { _id: "tidak", name: "Tidak" }
-        ]
-
-        setStatus(statusResponse);
-
-        setError(null);
-      } catch (err) {
-        console.error("Error fetching data:", err);
-        setError("Failed to load data. Please try again later.");
-        // Set empty arrays as fallback
-        setMenuItems([]);
-        setFilteredData([]);
-        setOutlets([]);
-        setCategory([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
+    applyFilter(); // hanya untuk load awal
   }, []);
+
+  useEffect(() => {
+
+  }, [tempSearch, tempSelectedOutlet, tempSelectedCategory, tempSelectedStatus])
+
 
   // Get unique outlet names for the dropdown
   const uniqueOutlets = useMemo(() => {
@@ -348,20 +348,28 @@ const Menu = () => {
         <div
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
         >
-          <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-            to="/admin/modifier">
-            <div className="flex space-x-4">
+          <Link
+            className="flex justify-between items-center border-l border-l-gray-200 p-4"
+            to="/admin/modifier"
+          >
+            <div className="flex space-x-4 items-center">
               <FaLayerGroup size={24} className="text-gray-400" />
               <h2 className="text-gray-400 ml-2 text-sm">Opsi Tambahan</h2>
-              <span className="p-1">
+
+              {/* Hanya ikon info yang punya group hover */}
+              <span className="relative group">
                 <p className="border p-1 rounded-full">
-                  <FaInfo size={8} className="text-gray-400" />
+                  <FaInfo size={8} className="text-gray-400 cursor-help" />
                 </p>
+
+                {/* Tooltip hanya muncul saat hover di ikon info */}
+                <div className="absolute z-10 left-1/2 -translate-x-1/2 mt-2 w-[280px] text-justify bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none">
+                  Opsi Tambahan merupakan produk pelengkap yang dijual bersamaan dengan produk utama. (Contoh: Nasi Goreng memiliki opsi tambahan ekstra telur dan ekstra bakso)
+                </div>
               </span>
             </div>
-            <div className="text-sm text-gray-400">
-              (18)
-            </div>
+
+            <div className="text-sm text-gray-400">(18)</div>
           </Link>
         </div>
 
@@ -610,31 +618,31 @@ const Menu = () => {
                           {openDropdown === item._id && (
                             <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
                               <ul className="w-full">
-                                <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
-                                  <FaThLarge size={18} />
+                                <li>
                                   <Link
                                     to={`/admin/manage-stock/${item._id}`}
-                                    className="block bg-transparent"
+                                    className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
                                   >
-                                    Kelola Stok
+                                    <FaThLarge size={18} />
+                                    <span>Kelola Stok</span>
                                   </Link>
                                 </li>
-                                <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100 border-b">
-                                  <FaDollarSign size={18} />
+                                <li>
                                   <Link
                                     to={`/admin/manage-price-and-selling-status/${item._id}`}
-                                    className="block bg-transparent"
+                                    className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100 border-b"
                                   >
-                                    Kelola Harga & Status Jual
+                                    <FaDollarSign size={18} />
+                                    <span>Kelola Harga & Status Jual</span>
                                   </Link>
                                 </li>
-                                <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
-                                  <FaPencilAlt size={18} />
+                                <li>
                                   <Link
                                     to={`/admin/menu-update/${item._id}`}
-                                    className="block bg-transparent"
+                                    className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
                                   >
-                                    Edit
+                                    <FaPencilAlt size={18} />
+                                    <span>Edit</span>
                                   </Link>
                                 </li>
                                 <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">

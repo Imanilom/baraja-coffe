@@ -667,7 +667,7 @@ import {
 } from 'firebase/storage';
 import { app } from '../../firebase';
 import { Link } from "react-router-dom";
-import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera } from "react-icons/fa";
+import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaGift, FaPizzaSlice, FaChevronDown, FaInfoCircle } from "react-icons/fa";
 import { useNavigate, useParams } from "react-router-dom";
 
 const UpdateMenu = () => {
@@ -683,6 +683,8 @@ const UpdateMenu = () => {
     rawMaterials: [],
     availableAt: "",
   });
+  const [isOptional, setIsOptional] = useState([false]);
+  const [loading, setLoading] = useState(true);
 
   const [categories, setCategories] = useState([]);
   const [rawMaterials, setRawMaterials] = useState([]);
@@ -692,6 +694,7 @@ const UpdateMenu = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    setLoading(true);
     const fetchCategories = async () => {
       try {
         const response = await axios.get("/api/menu/categories");
@@ -706,6 +709,8 @@ const UpdateMenu = () => {
         setCategoryMap(map);
       } catch (error) {
         console.error("Error fetching categories:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -715,6 +720,8 @@ const UpdateMenu = () => {
         setOutlets(response.data || []);
       } catch (error) {
         console.error("Error fetching outlets:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -724,6 +731,8 @@ const UpdateMenu = () => {
         setRawMaterials(response.data.data || []);
       } catch (error) {
         console.error("Error fetching raw materials:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -745,6 +754,8 @@ const UpdateMenu = () => {
         setImagePreview(menuItem.imageURL);
       } catch (error) {
         console.error("Error fetching menu item:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -903,30 +914,33 @@ const UpdateMenu = () => {
       description: formData.description,
       category: selectedCategories.map(id => categoryMap[id]), // Get names instead of IDs
       imageURL: formData.imageURL || "https://placehold.co/1920x1080/png",
-      toppings: formData.toppings.map((topping) => ({
-        name: topping.name,
-        price: Number(topping.price),
-        rawMaterials: topping.rawMaterials.map((materialId) => ({
-          materialId,
-          quantityRequired: 0.1
-        }))
-      })),
-      addons: formData.addons.map((addon) => ({
-        name: addon.name,
-        options: addon.options.map((option) => ({
-          label: option.label,
-          price: Number(option.price),
-          isdefault: option.default  // Changed from 'default' to 'isdefault' to match target format
-        })),
-        rawMaterials: addon.rawMaterials.map((materialId) => ({
-          materialId,
-          quantityRequired: 0.2
-        }))
-      })),
-      rawMaterials: selectedRawMaterials.map((materialId) => ({
-        materialId,
-        quantityRequired: 0.2
-      })),
+      toppings: [],
+      addons: [],
+      rawMaterials: []
+      // toppings: formData.toppings.map((topping) => ({
+      //   name: topping.name,
+      //   price: Number(topping.price),
+      //   rawMaterials: topping.rawMaterials.map((materialId) => ({
+      //     materialId,
+      //     quantityRequired: 0.1
+      //   }))
+      // })),
+      // addons: formData.addons.map((addon) => ({
+      //   name: addon.name,
+      //   options: addon.options.map((option) => ({
+      //     label: option.label,
+      //     price: Number(option.price),
+      //     isdefault: option.default  // Changed from 'default' to 'isdefault' to match target format
+      //   })),
+      //   rawMaterials: addon.rawMaterials.map((materialId) => ({
+      //     materialId,
+      //     quantityRequired: 0.2
+      //   }))
+      // })),
+      // rawMaterials: selectedRawMaterials.map((materialId) => ({
+      //   materialId,
+      //   quantityRequired: 0.2
+      // })),
     };
 
     try {
@@ -937,6 +951,15 @@ const UpdateMenu = () => {
       console.error("Error updating menu item:", error);
     }
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="">
@@ -1188,6 +1211,155 @@ const UpdateMenu = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="p-6 bg-slate-50 shadow-lg">
+          {/* Header */}
+          <button
+            onClick={() => setIsOptional(!isOptional)}
+            className="w-full flex text-left px-[20px] py-[15px] bg-slate-100 hover:bg-slate-200 transition font-medium items-center space-x-2"
+          >
+            <span>{isOptional ? <FaChevronDown /> : <FaChevronRight />}</span>
+            <span className="text-[14px]">Pengaturan Lanjutan (Opsional)</span>
+          </button>
+
+          {/* Body */}
+          {isOptional && (
+            <div className="bg-white px-6 py-4 shadow-lg">
+              <div className="row">
+                <div className="grid grid-cols-3 gap-4 py-[25px] px-[15px] text-[12px]">
+                  <div className="row my-[15px]">
+                    <div className="flex items-center space-x-2">
+                      <h5 className="uppercase my-[10px] font-medium">Jual Di POS</h5>
+                      <FaInfoCircle />
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="pos" value="yes" />
+                        <span>Ya</span>
+                      </label>
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="pos" value="no" />
+                        <span>Tidak</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="row my-[15px]">
+                    <div className="flex items-center space-x-2">
+                      <h5 className="uppercase my-[10px] font-medium">Jual Di Pawoon Order</h5>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="po" value="yes" />
+                        <span>Ya</span>
+                      </label>
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="po" value="no" />
+                        <span>Tidak</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="row my-[15px]">
+                    <div className="flex items-center space-x-2">
+                      <h2 className="uppercase my-[10px] font-medium">Jual Di Digital Pawoon</h2>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="digital" value="yes" />
+                        <span>Ya</span>
+                      </label>
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="digital" value="no" />
+                        <span>Tidak</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="row my-[15px]">
+                    <div className="flex items-center space-x-2">
+                      <h5 className="uppercase my-[10px] font-medium">Kelola Stok</h5>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="stock" value="yes" />
+                        <span>Ya</span>
+                      </label>
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="stock" value="no" />
+                        <span>Tidak</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="row my-[15px]">
+                    <div className="flex items-center space-x-2">
+                      <h5 className="uppercase my-[10px] font-medium">Penjualan berdasarkan stok</h5>
+                      <FaInfoCircle />
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="pos" value="yes" />
+                        <span>Ya</span>
+                      </label>
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="pos" value="no" />
+                        <span>Tidak</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="row w-full my-[15px]">
+                    <div className="flex items-center space-x-2 my-[10px]">
+                      <h5 className="uppercase font-medium text-[12px]">deskripsi produk</h5>
+                      <FaInfoCircle size={12} />
+                    </div>
+                    <textarea name="" id="" className="w-full h-[120px] block border rounded"></textarea>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="row w-full my-[15px]">
+                    <div className="flex items-center space-x-2 my-[10px]">
+                      <h5 className="uppercase font-medium text-[12px]">Pajak</h5>
+                      <FaInfoCircle size={12} />
+                    </div>
+                    <select name="" id="" className="block border w-full p-2 rounded">
+                      <option value="">Mengikuti pajak outlet</option>
+                      <option value="">Tidak ada pajak</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="block w-full my-[15px] border">
+                <div className=" px-[10px] py-[5px] bg-gray-100">
+                  <h5 className="uppercase my-[10px] text-[12px] font-medium">detail produk</h5>
+                </div>
+                <div className="p-[20px]">
+                  <div className="mb-[15px]">
+                    <h3 className="uppercase text-[12px] font-medium my-[10px]">jenis produk</h3>
+                  </div>
+                  <div className="flex space-x-10">
+                    <div className="w-1/2 h-[200px] flex items-center justify-center py-[45px] px-[15px] cursor-pointer rounded border hover:bg-[#005429] hover:text-white active:bg-[#005429] active:text-white group">
+                      <div className="text-center">
+                        <FaGift className="mx-auto mb-2 text-xl text-[#005429] group-hover:text-white group-active:text-white" />
+                        <h4 className="font-semibold text-[14px]">Tunggal</h4>
+                        <p className="text-[13px]">Produk tidak memiliki bahan baku.</p>
+                        <p className="text-[13px]">Contoh: Buah Jeruk</p>
+                      </div>
+                    </div>
+
+                    <div className="w-1/2 h-[200px] flex items-center justify-center py-[45px] px-[15px] cursor-pointer active:bg-[#005429] active:text-white hover:bg-[#005429] hover:text-white bg-[#005429] rounded border text-white">
+                      <div className="text-center">
+                        <FaPizzaSlice className="mx-auto mb-2 text-xl text-white group-hover:text-white group-active:text-white" />
+                        <h4 className="font-semibold text-[14px]">Komposit</h4>
+                        <p className="text-[13px]">Produk memiliki bahan baku.</p>
+                        <p className="text-[13px]">Contoh: Donat, bahan baku: Tepung 100 gr dan Telur 2 butir</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </form>
 

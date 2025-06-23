@@ -1,21 +1,27 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import Modal from './modal';
 
 
 const StockOpnameManagement = () => {
+    const [showModal, setShowModal] = useState(false);
     const [attendances, setAttendances] = useState([]);
     const [outlets, setOutlets] = useState([]);
+    const [status, setStatus] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     const [showInput, setShowInput] = useState(false);
+    const [showInputStatus, setShowInputStatus] = useState(false);
     const [search, setSearch] = useState("");
+    const [searchStatus, setSearchStatus] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
+    const [tempSelectedStatus, setTempSelectedStatus] = useState("");
     const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
@@ -58,6 +64,15 @@ const StockOpnameManagement = () => {
 
                 setOutlets(outletsData);
 
+                const statusResponse = [
+                    { _id: "a", name: "Aktif" },
+                    { _id: "t", name: "Tidak Aktif" }
+                ]
+
+                const statusData = statusResponse || [];
+
+                setStatus(statusData);
+
                 setError(null);
             } catch (err) {
                 console.error("Error fetching data:", err);
@@ -66,6 +81,7 @@ const StockOpnameManagement = () => {
                 setAttendances([]);
                 setFilteredData([]);
                 setOutlets([]);
+                setStatus([]);
             } finally {
                 setLoading(false);
             }
@@ -79,11 +95,16 @@ const StockOpnameManagement = () => {
         return outlets.map(item => item.name);
     }, [outlets]);
 
+    const uniqueStatus = useMemo(() => {
+        return status.map(item => item.name);
+    }, [status]);
+
     // Handle click outside dropdown to close
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setShowInput(false);
+                setShowInputStatus(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -141,6 +162,12 @@ const StockOpnameManagement = () => {
             outlet.toLowerCase().includes(search.toLowerCase())
         );
     }, [search, uniqueOutlets]);
+
+    const filteredStatus = useMemo(() => {
+        return uniqueStatus.filter(status =>
+            status.toLowerCase().includes(searchStatus.toLowerCase())
+        );
+    }, [searchStatus, uniqueStatus]);
 
     // Apply filter function
     const applyFilter = () => {
@@ -234,10 +261,18 @@ const StockOpnameManagement = () => {
     const resetFilter = () => {
         setTempSearch("");
         setTempSelectedOutlet("");
+        setTempSelectedStatus("");
         setValue(null);
         setSearch("");
+        setSearchStatus("");
         setFilteredData(ensureArray(attendances));
         setCurrentPage(1);
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        alert('File berhasil diimpor!');
+        setShowModal(false);
     };
 
     // Export current data to Excel
@@ -313,20 +348,22 @@ const StockOpnameManagement = () => {
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
                     <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
+                    <p className="text-[15px] text-gray-500">Inventori</p>
                     <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/operational-menu" className="text-[15px] text-gray-500">Laporan Operasional</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Absensi</span>
+                    <span className="text-[15px] text-[#005429]">Stok Opname</span>
+                    <FaInfoCircle size={17} className="text-gray-400 inline-block" />
                 </div>
-                <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                <div className="flex items-center space-x-2">
+                    <button onClick={() => setShowModal(true)} className="text-[#005429] bg-white border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Impor Stok Stok Opname</button>
+                    <Link to="/admin/inventory/create-stockopname" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Stok Opname</Link>
+                </div>
             </div>
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-10 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
                         <div className="relative">
                             {!showInput ? (
                                 <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
@@ -344,6 +381,15 @@ const StockOpnameManagement = () => {
                             )}
                             {showInput && (
                                 <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                    <li
+                                        onClick={() => {
+                                            setTempSelectedOutlet(""); // Kosong berarti semua
+                                            setShowInput(false);
+                                        }}
+                                        className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                    >
+                                        Semua Outlet
+                                    </li>
                                     {filteredOutlets.length > 0 ? (
                                         filteredOutlets.map((outlet, idx) => (
                                             <li
@@ -365,7 +411,7 @@ const StockOpnameManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
+                    <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
                         <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
                             <Datepicker
@@ -383,13 +429,64 @@ const StockOpnameManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Status</label>
+                        <div className="relative">
+                            <div className="relative">
+                                {!showInputStatus ? (
+                                    <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputStatus(true)}>
+                                        {tempSelectedStatus || "Semua Status"}
+                                    </button>
+                                ) : (
+                                    <input
+                                        type="text"
+                                        className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                                        value={searchStatus}
+                                        onChange={(e) => setSearchStatus(e.target.value)}
+                                        autoFocus
+                                        placeholder=""
+                                    />
+                                )}
+                                {showInputStatus && (
+                                    <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                        <li
+                                            onClick={() => {
+                                                setTempSelectedStatus(""); // Kosong berarti semua
+                                                setShowInputStatus(false);
+                                            }}
+                                            className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                        >
+                                            Semua Status
+                                        </li>
+                                        {filteredStatus.length > 0 ? (
+                                            filteredStatus.map((status, idx) => (
+                                                <li
+                                                    key={idx}
+                                                    onClick={() => {
+                                                        setTempSelectedStatus(status);
+                                                        setShowInputStatus(false);
+                                                    }}
+                                                    className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                                >
+                                                    {status}
+                                                </li>
+                                            ))
+                                        ) : (
+                                            <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                                        )}
+                                    </ul>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">ID Opname</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Karyawan"
+                                placeholder="Cari ID Opname"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
@@ -408,11 +505,11 @@ const StockOpnameManagement = () => {
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Karyawan</th>
-                                <th className="px-4 py-3 font-normal">Tanggal</th>
-                                <th className="px-4 py-3 font-normal">Masuk</th>
-                                <th className="px-4 py-3 font-normal">Keluar</th>
-                                <th className="px-4 py-3 font-normal text-right">Total</th>
+                                <th className="px-4 py-3 font-normal">Waktu Submit</th>
+                                <th className="px-4 py-3 font-normal">ID Stok Opname</th>
+                                <th className="px-4 py-3 font-normal">Outlet</th>
+                                <th className="px-4 py-3 font-normal">Waktu</th>
+                                <th className="px-4 py-3 font-normal">Status</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
@@ -436,13 +533,16 @@ const StockOpnameManagement = () => {
                                                 <td className="px-4 py-3 text-right">
                                                     {data.total || []}
                                                 </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {data.total || []}
+                                                </td>
                                             </tr>
                                         );
                                     } catch (err) {
                                         console.error(`Error rendering product ${index}:`, err, product);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="5" className="px-4 py-3 text-red-500">
+                                                <td colSpan="6" className="px-4 py-3 text-red-500">
                                                     Error rendering product
                                                 </td>
                                             </tr>
@@ -453,7 +553,16 @@ const StockOpnameManagement = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={5}>Tidak ada data ditemukan</td>
+                                    <td colSpan={10}>
+                                        <div className="flex justify-center items-center">
+                                            <div className="text-gray-400">
+                                                <div className="flex justify-center">
+                                                    <FaSearch size={100} />
+                                                </div>
+                                                <p className="uppercase">Data Tidak ditemukan</p>
+                                            </div>
+                                        </div>
+                                    </td>
                                 </tr>
                             </tbody>
                         )}
@@ -466,22 +575,24 @@ const StockOpnameManagement = () => {
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
+                        {totalPages > 1 && (
+                            <div className="flex space-x-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Sebelumnya
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Berikutnya
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -490,6 +601,8 @@ const StockOpnameManagement = () => {
                 <div className="w-full h-[2px] bg-[#005429]">
                 </div>
             </div>
+
+            <Modal show={showModal} onClose={() => setShowModal(false)} onSubmit={handleSubmit} />
         </div>
     );
 };
