@@ -1,24 +1,38 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBuilding } from "react-icons/fa";
-import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import { FaChevronRight, FaBell, FaUser, FaSearch, FaBuilding, FaReceipt, FaPencilAlt, FaTrash } from "react-icons/fa";
 
+const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div className="bg-white p-6 rounded shadow-md text-center w-96">
+                <FaTrash className="text-red-500 mx-auto mb-4" size={72} />
+                <h2 className="text-lg font-bold">Konfirmasi Penghapusan</h2>
+                <p>Apakah Anda yakin ingin menghapus item ini?</p>
+                <div className="flex justify-center mt-4">
+                    <button onClick={onClose} className="mr-2 px-4 py-2 bg-gray-300 rounded">Batal</button>
+                    <button onClick={onConfirm} className="px-4 py-2 bg-red-500 text-white rounded">Hapus</button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const SupplierManagement = () => {
-    const [attendances, setAttendances] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [selectedTrx, setSelectedTrx] = useState(null);
+    const [supplier, setSupplier] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
-    const [tempSearch, setTempSearch] = useState("");
+    const [tempName, setTempName] = useState("");
+    const [tempPhone, setTempPhone] = useState("");
+    const [tempEmail, setTempEmail] = useState("");
+    const [tempAddress, setTempAddress] = useState("");
     const [filteredData, setFilteredData] = useState([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [openDropdown, setOpenDropdown] = useState(null);
+    const [itemToDelete, setItemToDelete] = useState(null);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -27,68 +41,45 @@ const SupplierManagement = () => {
 
     const dropdownRef = useRef(null);
 
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
+    // Fetch supplier and outlets data
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            // Fetch supplier data
+            const supplierResponse = await axios.get("/api/marketlist/supplier");
+            const supplier = (supplierResponse.data.data || []);
+            setSupplier(supplier);
+            setFilteredData(supplier); // Initialize filtered data with all supplier
 
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            setError("Failed to load data. Please try again later.");
+            // Set empty arrays as fallback
+            setSupplier([]);
+            setFilteredData([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
-
-    // Fetch attendances and outlets data
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch attendances data
-                const attendancesResponse = [];
+        applyFilter();
+    }, [tempName, tempAddress, tempPhone, tempEmail]);
 
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setAttendances([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
+    useEffect(() => {
         fetchData();
     }, []);
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    const handleDelete = async (itemId) => {
+        try {
+            await axios.delete(`/api/menu/supplier/${itemId}`);
+            setMenuItems(menuItems.filter(item => item._id !== itemId));
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error("Error deleting item:", error);
+        }
+    };
 
     // Paginate the filtered data
     const paginatedData = useMemo(() => {
@@ -105,111 +96,61 @@ const SupplierManagement = () => {
         return result;
     }, [currentPage, filteredData]);
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
-
-    const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
-    const formatDate = (dat) => {
-        const date = new Date(dat);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
-    };
-
-    const formatTime = (time) => {
-        const date = new Date(time);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    const groupedArray = useMemo(() => {
-        const grouped = {};
-
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
-
-            const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem.category
-                : [item.menuItem?.category || 'Uncategorized'];
-            const quantity = Number(item?.quantity) || 0;
-            const subtotal = Number(item?.subtotal) || 0;
-
-            categories.forEach(category => {
-                const key = `${category}`;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        category,
-                        quantity: 0,
-                        subtotal: 0
-                    };
-                }
-
-                grouped[key].quantity += quantity;
-                grouped[key].subtotal += subtotal;
-            });
-        });
-
-        return Object.values(grouped);
-    }, [filteredData]);
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    // Calculate grand totals for filtered data
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.quantity += curr.quantity;
-                acc.subtotal += curr.subtotal;
-                return acc;
-            },
-            {
-                quantity: 0,
-                subtotal: 0,
-            }
-        );
-    }, [groupedArray]);
 
     // Apply filter function
     const applyFilter = () => {
 
-        // Make sure attendances is an array before attempting to filter
-        let filtered = ensureArray([...attendances]);
+        // Make sure supplier is an array before attempting to filter
+        let filtered = ensureArray([...supplier]);
 
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
+        if (tempName) {
+            filtered = filtered.filter(supplier => {
                 try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
+                    const name = (supplier.name || '').toLowerCase();
 
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
+                    const searchTerm = tempName.toLowerCase();
+                    return name.includes(searchTerm);
+                } catch (err) {
+                    console.error("Error filtering by search:", err);
+                    return false;
+                }
+            });
+        }
+        if (tempAddress) {
+            filtered = filtered.filter(supplier => {
+                try {
+                    const address = (supplier.address || '').toLowerCase();
 
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
+                    const searchTerm = tempAddress.toLowerCase();
+                    return address.includes(searchTerm);
+                } catch (err) {
+                    console.error("Error filtering by search:", err);
+                    return false;
+                }
+            });
+        }
+        if (tempPhone) {
+            filtered = filtered.filter(supplier => {
+                try {
+                    const phone = (supplier.phone || '').toLowerCase();
+
+                    const searchTerm = tempPhone.toLowerCase();
+                    return phone.includes(searchTerm);
+                } catch (err) {
+                    console.error("Error filtering by search:", err);
+                    return false;
+                }
+            });
+        }
+        if (tempEmail) {
+            filtered = filtered.filter(supplier => {
+                try {
+                    const email = (supplier.email || '').toLowerCase();
+
+                    const searchTerm = tempEmail.toLowerCase();
+                    return email.includes(searchTerm);
                 } catch (err) {
                     console.error("Error filtering by search:", err);
                     return false;
@@ -217,102 +158,8 @@ const SupplierManagement = () => {
             });
         }
 
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
         setFilteredData(filtered);
         setCurrentPage(1); // Reset to first page after filter
-    };
-
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedOutlet("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(attendances));
-        setCurrentPage(1);
-    };
-
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
     };
 
 
@@ -357,12 +204,12 @@ const SupplierManagement = () => {
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
+                    <FaReceipt size={21} className="text-gray-500 inline-block" />
+                    <p className="text-[15px] text-gray-500">Pembelian</p>
                     <FaChevronRight className="text-[15px] text-gray-500" />
                     <span className="text-[15px] text-[#005429]">Supplier</span>
                 </div>
-                <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Supplier</button>
+                <Link to="/admin/create-supplier" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Supplier</Link>
             </div>
 
             {/* Filters */}
@@ -376,8 +223,8 @@ const SupplierManagement = () => {
                             <input
                                 type="text"
                                 placeholder="Search"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
+                                value={tempName}
+                                onChange={(e) => setTempName(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
@@ -389,8 +236,8 @@ const SupplierManagement = () => {
                             <input
                                 type="text"
                                 placeholder="Search"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
+                                value={tempAddress}
+                                onChange={(e) => setTempAddress(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
@@ -402,8 +249,8 @@ const SupplierManagement = () => {
                             <input
                                 type="text"
                                 placeholder="Search"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
+                                value={tempPhone}
+                                onChange={(e) => setTempPhone(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
@@ -415,8 +262,8 @@ const SupplierManagement = () => {
                             <input
                                 type="text"
                                 placeholder="Search"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
+                                value={tempEmail}
+                                onChange={(e) => setTempEmail(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
@@ -433,6 +280,7 @@ const SupplierManagement = () => {
                                 <th className="px-4 py-3 font-normal">Alamat</th>
                                 <th className="px-4 py-3 font-normal">Telepon</th>
                                 <th className="px-4 py-3 font-normal">Email</th>
+                                <th></th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
@@ -442,28 +290,62 @@ const SupplierManagement = () => {
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
                                                 <td className="px-4 py-3">
-                                                    {formatDate(data.tanggal) || []}
+                                                    {data._id || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.jenis || []}
+                                                    {data.name || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.jumlah || []}
+                                                    {data.address || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.supplier || []}
+                                                    {data.phone || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.keterangan || []}
+                                                    {data.email || []}
+                                                </td>
+                                                <td className="p-[15px]">
+                                                    {/* Dropdown Menu */}
+                                                    <div className="relative text-right">
+                                                        <button
+                                                            className="px-2 bg-white border border-gray-200 hover:border-none hover:bg-green-800 rounded-sm"
+                                                            onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
+                                                        >
+                                                            <span className="text-xl text-gray-200 hover:text-white">
+                                                                •••
+                                                            </span>
+                                                        </button>
+                                                        {openDropdown === data._id && (
+                                                            <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
+                                                                <ul className="w-full">
+                                                                    <Link
+                                                                        to={`/admin/menu-update/${data._id}`}
+                                                                        className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
+                                                                    >
+                                                                        <FaPencilAlt size={18} />
+                                                                        <span>Ubah</span>
+                                                                    </Link>
+                                                                    <button className="w-full flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
+                                                                        onClick={() => {
+                                                                            setItemToDelete(data._id);
+                                                                            setIsModalOpen(true);
+                                                                        }}>
+                                                                        <FaTrash size={18} />
+                                                                        <p>Hapus</p>
+                                                                    </button>
+                                                                </ul>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
                                     } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
+                                        console.error(`Error rendering Supplier ${index}:`, err, supplier);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
                                                 <td colSpan="5" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
+                                                    Error rendering Supplier
                                                 </td>
                                             </tr>
                                         );
@@ -498,22 +380,24 @@ const SupplierManagement = () => {
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
+                        {totalPages > 1 && (
+                            <div className="flex space-x-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Sebelumnya
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Berikutnya
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -522,6 +406,12 @@ const SupplierManagement = () => {
                 <div className="w-full h-[2px] bg-[#005429]">
                 </div>
             </div>
+
+            <ConfirmationModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onConfirm={() => handleDelete(itemToDelete)}
+            />
         </div>
     );
 };

@@ -50,12 +50,12 @@ const Sidebar = () => {
         {
           name: "Inventori", icon: <FaBoxes />,
           subMenu: [
-            { name: "Kartu Stok", path: "/admin/stockcard" },
-            { name: "Stok Masuk", path: "/admin/in" },
-            { name: "Stok Keluar", path: "/admin/out" },
-            { name: "Transfer Stok", path: "/admin/transfer" },
-            { name: "Stok Opname", path: "/admin/stockopname" },
-            { name: "Produksi Stok", path: "/admin/production" },
+            { name: "Kartu Stok", path: "/admin/inventory/stockcard" },
+            { name: "Stok Masuk", path: "/admin/inventory/in" },
+            { name: "Stok Keluar", path: "/admin/inventory/out" },
+            { name: "Transfer Stok", path: "/admin/inventory/transfer" },
+            { name: "Stok Opname", path: "/admin/inventory/stockopname" },
+            { name: "Produksi Stok", path: "/admin/inventory/production" },
           ]
         },
         {

@@ -621,7 +621,7 @@ const Dashboard = () => {
                     Tambah Voucher
                 </Link> */}
             </div>
-            <div className="px-[15px] pb-[15px] mb-[50px]">
+            <div className="px-[15px] pb-[15px] mb-[60px]">
                 {/* Filters */}
                 <div className="">
                     <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-2 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">

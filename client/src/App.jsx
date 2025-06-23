@@ -99,6 +99,15 @@ import Table from "./pages/table/tablemanagement";
 import UpdateCategory from "./pages/menu/category/update";
 import EmployeeManagement from "./pages/employee";
 import CustomerManagement from "./pages/customer";
+import CreateModifier from "./pages/menu/modifier/create";
+import CreateTax from "./pages/tax/create_tax";
+import CreateSupplier from "./pages/purchase/supplier/create";
+import OutletCardManagement from "./pages/inventory/outletcard";
+import CreateStock from "./pages/inventory/in_stock/create";
+import CreateOutStock from "./pages/inventory/out_stock/create";
+import CreateTransferStock from "./pages/inventory/transfer_stock/create";
+import CreateStokOpname from "./pages/inventory/stock_opname/create";
+import CreateProduction from "./pages/inventory/production_stock/create";
 
 
 
@@ -124,6 +133,7 @@ export default function App() {
                 <Route path="example" element={<Example />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
+                <Route path="modifier-create" element={<CreateModifier />} />
                 <Route path="menu/:id" element={<ViewMenu />} />
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
                 <Route path="add-ons" element={<AddOns />} />
@@ -133,10 +143,17 @@ export default function App() {
                 <Route path="category-update/:id" element={<UpdateCategory />} />
                 <Route path="manage-stock/:id" element={<ManageStock />} />
                 <Route path="manage-price-and-selling-status/:id" element={<PriceSellingStatusManagement />} />
-                <Route path="supplier" element={<SupplierManagement />} />
-                <Route path="purchase-order" element={<PurchaseOrderManagement />} />
                 <Route path="shopping-list" element={<ShoppingList />} />
                 <Route path="table-management" element={<Table />} />
+
+                {/* Purchase */}
+
+                {/* supplier */}
+                <Route path="supplier" element={<SupplierManagement />} />
+                <Route path="create-supplier" element={<CreateSupplier />} />
+
+                {/* Purchase Order */}
+                <Route path="purchase-order" element={<PurchaseOrderManagement />} />
 
                 {/* Report */}
                 <Route path="sales-menu" element={<SalesMenu />} />
@@ -170,12 +187,22 @@ export default function App() {
                 <Route path="profit-by-product" element={<ProfitByProductManagement />} />
 
                 {/* Inventory */}
-                {/* <Route path="stockcard" element={<StockCardManagement />} />
-                <Route path="in" element={<InStockManagement />} />
-                <Route path="out" element={<OutStockManagement />} />
-                <Route path="production" element={<ProductionStockManagement />} />
-                <Route path="stockopname" element={<StockOpnameManagement />} />
-                <Route path="transfer" element={<TransferStockManagement />} /> */}
+                <Route path="inventory/stockcard" element={<StockCardManagement />} />
+                <Route path="inventory/cardoutlet" element={<OutletCardManagement />} />
+                <Route path="inventory/in" element={<InStockManagement />} />
+                <Route path="inventory/create-instock" element={<CreateStock />} />
+                <Route path="inventory/out" element={<OutStockManagement />} />
+                <Route path="inventory/create-outstock" element={<CreateOutStock />} />
+                <Route path="inventory/stockopname" element={<StockOpnameManagement />} />
+                <Route path="inventory/create-stockopname" element={<CreateStokOpname />} />
+                <Route path="inventory/transfer" element={<TransferStockManagement />} />
+                <Route path="inventory/create-transfer-stock" element={<CreateTransferStock />} />
+                <Route path="inventory/production" element={<ProductionStockManagement />} />
+                <Route path="inventory/create-production" element={<CreateProduction />} />
+
+                {/* Tax And Service */}
+                <Route path="tax-create" element={<CreateTax />} />
+
 
                 {/* Employee */}
                 <Route path="employee" element={<EmployeeManagement />} />

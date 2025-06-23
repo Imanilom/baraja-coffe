@@ -6,6 +6,7 @@ import { FaClipboardList, FaBell, FaUser, FaTag, FaStoreAlt, FaBullseye, FaRecei
 
 const OutletManagementPage = () => {
   const [openDropdown, setOpenDropdown] = useState(null);
+  const [tempSearch, setTempSearch] = useState('');
   const [outlets, setOutlets] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -22,11 +23,19 @@ const OutletManagementPage = () => {
     setLoading(true);
   }, []);
 
+  // Search filtering
+  useEffect(() => {
+    const filtered = outlets.filter((outlet) =>
+      (outlet.name || '').toLowerCase().includes(tempSearch.toLowerCase())
+    );
+    setFilteredData(filtered);
+    setCurrentPage(1); // reset page saat pencarian
+  }, [tempSearch, outlets]);
+
   const fetchOutlets = async () => {
     try {
       const response = await axios.get("/api/outlet");
       setOutlets(response.data || []);
-      setFilteredData(response.data || []);
     } catch (error) {
       console.error("Error fetching outlets:", error);
     } finally {
@@ -157,7 +166,8 @@ const OutletManagementPage = () => {
               <input
                 type="text"
                 placeholder="Outlet / Kota"
-                value=""
+                value={tempSearch}
+                onChange={(e) => setTempSearch(e.target.value)}
                 className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
               />
             </div>

@@ -4,32 +4,13 @@ import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Datepicker from "react-tailwindcss-datepicker";
 
-const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="bg-white p-6 rounded shadow-md text-center w-96">
-                <FaTrash className="text-red-500 mx-auto mb-4" size={72} />
-                <h2 className="text-lg font-bold">Konfirmasi Penghapusan</h2>
-                <p>Apakah Anda yakin ingin menghapus item ini?</p>
-                <div className="flex justify-center mt-4">
-                    <button onClick={onClose} className="mr-2 px-4 py-2 bg-gray-300 rounded">Batal</button>
-                    <button onClick={onConfirm} className="px-4 py-2 bg-red-500 text-white rounded">Hapus</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const StockCardManagement = () => {
+const OutletCardManagement = () => {
     const location = useLocation();
     const [showInput, setShowInput] = useState(false);
-    const [showInputStatus, setShowInputStatus] = useState(false);
     const [showInputCategory, setShowInputCategory] = useState(false);
     const navigate = useNavigate(); // Use the new hook
-    const [menuItems, setMenuItems] = useState([]);
-    const [category, setCategory] = useState([]);
+    const [outletCard, setOutletCard] = useState([]);
+    const [menu, setMenu] = useState([]);
     const [status, setStatus] = useState([]);
     const [tempSelectedCategory, setTempSelectedCategory] = useState("");
     const [tempSelectedStatus, setTempSelectedStatus] = useState("");
@@ -38,11 +19,10 @@ const StockCardManagement = () => {
     const [checkedItems, setCheckedItems] = useState([]);
     const [checkAll, setCheckAll] = useState(false);
 
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
+    const [tempSelectedMenu, setTempSelectedMenu] = useState("");
     const [outlets, setOutlets] = useState([]);
     const [search, setSearch] = useState("");
     const [searchCategory, setSearchCategory] = useState("");
-    const [openDropdown, setOpenDropdown] = useState(null); // Menyimpan status dropdown
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
@@ -59,16 +39,17 @@ const StockCardManagement = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const menuResponse = await axios.get('/api/menu/menu-items');
+            const outletCardResponse = [];
 
-            const menuData = Array.isArray(menuResponse.data)
-                ? menuResponse.data
-                : (menuResponse.data && Array.isArray(menuResponse.data.data))
-                    ? menuResponse.data.data
-                    : [];
+            // const menuData = Array.isArray(menuResponse.data)
+            //     ? menuResponse.data
+            //     : (menuResponse.data && Array.isArray(menuResponse.data.data))
+            //         ? menuResponse.data.data
+            //         : [];
+            const outlateCardData = (outletCardResponse.data || [])
 
-            setMenuItems(menuData);
-            setFilteredData(menuData);
+            setOutletCard(outlateCardData);
+            setFilteredData(outlateCardData);
 
             const outletsResponse = await axios.get('/api/outlet');
             const outletsData = Array.isArray(outletsResponse.data)
@@ -79,14 +60,14 @@ const StockCardManagement = () => {
 
             setOutlets(outletsData);
 
-            const categoryResponse = await axios.get('/api/storage/category');
-            const categoryData = Array.isArray(categoryResponse.data)
-                ? categoryResponse.data
-                : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
-                    ? categoryResponse.data.data
+            const menuResponse = await axios.get('/api/menu/menu-items');
+            const menuData = Array.isArray(menuResponse.data)
+                ? menuResponse.data
+                : (menuResponse.data && Array.isArray(menuResponse.data.data))
+                    ? menuResponse.data.data
                     : [];
 
-            setCategory(categoryData);
+            setMenu(menuData);
 
             setStatus([
                 { _id: "ya", name: "Ya" },
@@ -97,39 +78,24 @@ const StockCardManagement = () => {
         } catch (err) {
             console.error("Error fetching data:", err);
             setError("Failed to load data. Please try again later.");
-            setMenuItems([]);
+            setOutletCard([]);
             setFilteredData([]);
             setOutlets([]);
-            setCategory([]);
+            setMenu([]);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchData();
-        applyFilter(); // hanya untuk load awal
+        fetchData(); // hanya untuk load awal
     }, []);
 
-    useEffect(() => {
-
-    }, [tempSearch, tempSelectedOutlet, tempSelectedCategory, tempSelectedStatus])
-
 
     // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
-    // Get unique outlet names for the dropdown
-    const uniqueCategory = useMemo(() => {
-        return category.map(item => item.name);
-    }, [category]);
-
-    // Get unique Status names for the dropdown
-    const uniqueStatus = useMemo(() => {
-        return status.map(item => item.name);
-    }, [status]);
+    const uniqueMenu = useMemo(() => {
+        return menu.map(item => item.name);
+    }, [menu]);
 
     const paginatedData = useMemo(() => {
 
@@ -158,32 +124,18 @@ const StockCardManagement = () => {
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
     // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
+    const filteredMenu = useMemo(() => {
+        return uniqueMenu.filter(outlet =>
             outlet.toLowerCase().includes(search.toLowerCase())
         );
-    }, [search, uniqueOutlets]);
-
-    // Filter outlets based on search input
-    const filteredCategory = useMemo(() => {
-        return uniqueCategory.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueCategory]);
-
-    // Filter status based on search input
-    const filteredStatus = useMemo(() => {
-        return uniqueStatus.filter(status =>
-            status.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueStatus]);
+    }, [search, uniqueMenu]);
 
 
     // Apply filter function
     const applyFilter = () => {
 
         // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...menuItems]);
+        let filtered = ensureArray([...outletCard]);
 
         // Filter by search term (product name, category, or SKU)
         if (tempSearch) {
@@ -209,7 +161,7 @@ const StockCardManagement = () => {
         }
 
         // Filter by outlet
-        if (tempSelectedOutlet) {
+        if (tempSelectedMenu) {
             filtered = filtered.filter(menu => {
                 try {
                     if (!menu?.availableAt?.length > 0) {
@@ -217,7 +169,7 @@ const StockCardManagement = () => {
                     }
 
                     const outletName = menu?.availableAt;
-                    const matches = outletName === tempSelectedOutlet;
+                    const matches = outletName === tempSelectedMenu;
 
                     if (!matches) {
                     }
@@ -254,16 +206,6 @@ const StockCardManagement = () => {
 
         setFilteredData(filtered);
         setCurrentPage(1); // Reset to first page after filter
-    };
-
-    const handleDelete = async (itemId) => {
-        try {
-            await axios.delete(`/api/menu/menu-items/${itemId}`);
-            setMenuItems(menuItems.filter(item => item._id !== itemId));
-            setIsModalOpen(false);
-        } catch (error) {
-            console.error("Error deleting item:", error);
-        }
     };
 
     // Show loading state
@@ -322,22 +264,22 @@ const StockCardManagement = () => {
 
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 py-4 px-3">
                 <button
-                    className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
+                    className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
                 >
-                    <Link className="flex justify-between items-center p-4">
+                    <Link className="flex justify-between items-center p-4"
+                        to={"/admin/inventory/stockcard"}>
                         <div className="flex space-x-4">
-                            <strong className="text-gray-400 ml-2 text-sm">Kartu Produk</strong>
+                            <h2 className="text-gray-400 ml-2 text-sm">Kartu Produk</h2>
                         </div>
                     </Link>
                 </button>
 
                 <div
-                    className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+                    className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
                 >
-                    <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-                        to={"/admin/inventory/cardoutlet"}>
+                    <Link className="flex justify-between items-center border-l border-l-gray-200 p-4">
                         <div className="flex space-x-4">
-                            <h2 className="text-gray-400 ml-2 text-sm">Kartu Outlet</h2>
+                            <strong className="text-gray-400 ml-2 text-sm">Kartu Outlet</strong>
                         </div>
                     </Link>
                 </div>
@@ -345,13 +287,13 @@ const StockCardManagement = () => {
 
             <div className="w-full pb-6 mb-[60px]">
                 <div className="px-[15px] pb-[15px]">
-                    <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-10 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                    <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
                         <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
+                            <label className="text-[13px] mb-1 text-gray-500">Produk</label>
                             <div className="relative">
                                 {!showInput ? (
                                     <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                        {tempSelectedOutlet || "Semua Outlet"}
+                                        {tempSelectedMenu || "Semua Produk"}
                                     </button>
                                 ) : (
                                     <input
@@ -367,24 +309,24 @@ const StockCardManagement = () => {
                                     <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
                                         <li
                                             onClick={() => {
-                                                setTempSelectedOutlet(""); // Kosong berarti semua
+                                                setTempSelectedMenu(""); // Kosong berarti semua
                                                 setShowInput(false);
                                             }}
                                             className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
                                         >
-                                            Semua Outlet
+                                            Semua Produk
                                         </li>
-                                        {filteredOutlets.length > 0 ? (
-                                            filteredOutlets.map((outlet, idx) => (
+                                        {filteredMenu.length > 0 ? (
+                                            filteredMenu.map((product, idx) => (
                                                 <li
                                                     key={idx}
                                                     onClick={() => {
-                                                        setTempSelectedOutlet(outlet);
+                                                        setTempSelectedMenu(product);
                                                         setShowInput(false);
                                                     }}
                                                     className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
                                                 >
-                                                    {outlet}
+                                                    {product}
                                                 </li>
                                             ))
                                         ) : (
@@ -414,61 +356,12 @@ const StockCardManagement = () => {
                         </div>
 
                         <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Kategori</label>
-                            <div className="relative">
-                                {!showInputCategory ? (
-                                    <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputCategory(true)}>
-                                        {tempSelectedCategory || "Semua Kategori"}
-                                    </button>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                        value={search}
-                                        onChange={(e) => setSearchCategory(e.target.value)}
-                                        autoFocus
-                                        placeholder=""
-                                    />
-                                )}
-                                {showInputCategory && (
-                                    <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                        <li
-                                            onClick={() => {
-                                                setTempSelectedCategory(""); // Kosong berarti semua
-                                                setShowInput(false);
-                                            }}
-                                            className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                        >
-                                            Semua Kategori
-                                        </li>
-                                        {filteredCategory.length > 0 ? (
-                                            filteredCategory.map((category, idx) => (
-                                                <li
-                                                    key={idx}
-                                                    onClick={() => {
-                                                        setTempSelectedCategory(category);
-                                                        setShowInputCategory(false);
-                                                    }}
-                                                    className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                                >
-                                                    {category}
-                                                </li>
-                                            ))
-                                        ) : (
-                                            <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                        )}
-                                    </ul>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col col-span-2">
                             <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                             <div className="relative">
                                 <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                 <input
                                     type="text"
-                                    placeholder="Cari Produk"
+                                    placeholder="Cari Outlet"
                                     value={tempSearch}
                                     onChange={(e) => setTempSearch(e.target.value)}
                                     className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
@@ -506,13 +399,11 @@ const StockCardManagement = () => {
                             </div>
                         </div>
                     </div>
-                    {/* Menu Table */}
                     <div className="w-full mt-4 shadow-md">
-                        <table className="w-full table-auto text-gray-500">
+                        <table className="w-full min-w-[800px] table-auto text-gray-500">
                             <thead>
                                 <tr className="text-[14px]">
-                                    <th className="p-[15px] font-normal text-left">Produk</th>
-                                    <th className="p-[15px] font-normal text-left">Kategori</th>
+                                    <th className="p-[15px] font-normal text-left">Outlet</th>
                                     <th className="p-[15px] font-normal text-right">Stok Awal</th>
                                     <th className="p-[15px] font-normal text-right">Stok Masuk</th>
                                     <th className="p-[15px] font-normal text-right">Stok Keluar</th>
@@ -521,27 +412,15 @@ const StockCardManagement = () => {
                                     <th className="p-[15px] font-normal text-right">Penyesuaian</th>
                                     <th className="p-[15px] font-normal text-right">Stok Akhir</th>
                                     <th className="p-[15px] font-normal text-right">Satuan</th>
+                                    <th className="p-[15px] font-normal text-right">Nilai Produk</th>
                                 </tr>
                             </thead>
                             {paginatedData.length > 0 ? (
                                 <tbody>
                                     {paginatedData.map((item) => (
                                         <tr key={item._id} className="hover:bg-gray-100 text-[14px]">
-                                            <td className="p-[15px]">
-                                                <div className="flex items-center">
-                                                    <img
-                                                        src={item.imageURL || "https://via.placeholder.com/100"}
-                                                        alt={item.name}
-                                                        className="w-[35px] h-[35px] object-cover rounded-lg"
-                                                    />
-                                                    <div className="ml-4">
-                                                        <h3>{item.name}</h3>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="p-[15px]">
-                                                {item.category.join(", ")}
-                                            </td>
+                                            <td className="p-[15px]">-</td>
+                                            <td className="p-[15px] text-right">-</td>
                                             <td className="p-[15px] text-right">-</td>
                                             <td className="p-[15px] text-right">-</td>
                                             <td className="p-[15px] text-right">-</td>
@@ -556,7 +435,16 @@ const StockCardManagement = () => {
                             ) : (
                                 <tbody>
                                     <tr className="py-6 text-center w-full h-96">
-                                        <td colSpan={7}>Tidak ada data ditemukan</td>
+                                        <td colSpan={10}>
+                                            <div className="flex justify-center items-center">
+                                                <div className="text-gray-400">
+                                                    <div className="flex justify-center">
+                                                        <FaSearch size={100} />
+                                                    </div>
+                                                    <p className="uppercase">Data Tidak ditemukan</p>
+                                                </div>
+                                            </div>
+                                        </td>
                                     </tr>
                                 </tbody>
                             )}
@@ -594,13 +482,8 @@ const StockCardManagement = () => {
                 <div className="w-full h-[2px] bg-[#005429]">
                 </div>
             </div>
-            <ConfirmationModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onConfirm={() => handleDelete(itemToDelete)}
-            />
         </div>
     );
 };
 
-export default StockCardManagement;  
+export default OutletCardManagement;  

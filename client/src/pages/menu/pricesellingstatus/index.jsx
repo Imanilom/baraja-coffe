@@ -1,33 +1,29 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaChevronRight, FaInfoCircle } from 'react-icons/fa';
 import axios from "axios";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 const PriceSellingStatusManagement = () => {
     const location = useLocation();
-    const [showInput, setShowInput] = useState(false);
-    const [showInputStatus, setShowInputStatus] = useState(false);
-    const [showInputCategory, setShowInputCategory] = useState(false);
+    const { id } = useParams(); // Get the menu item ID from the URL
     const navigate = useNavigate(); // Use the new hook
-    const [menuItems, setMenuItems] = useState([]);
+    const [menuItems, setMenuItems] = useState({
+        name: "",
+        price: "",
+        description: "",
+        category: [], // This should be an array
+        imageURL: "",
+        toppings: [],
+        addons: [],
+        rawMaterials: [],
+        availableAt: "",
+    });
     const [category, setCategory] = useState([]);
     const [status, setStatus] = useState([]);
-    const [tempSelectedCategory, setTempSelectedCategory] = useState("");
-    const [tempSelectedStatus, setTempSelectedStatus] = useState("");
-    const [tempSearch, setTempSearch] = useState("");
     const [error, setError] = useState(null);
-    const [checkedItems, setCheckedItems] = useState([]);
-    const [checkAll, setCheckAll] = useState(false);
 
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [outlets, setOutlets] = useState([]);
-    const [search, setSearch] = useState("");
-    const [searchCategory, setSearchCategory] = useState("");
-    const [openDropdown, setOpenDropdown] = useState(null); // Menyimpan status dropdown
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState(null);
 
-    const [filteredData, setFilteredData] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const queryParams = new URLSearchParams(location.search);
@@ -42,16 +38,12 @@ const PriceSellingStatusManagement = () => {
             setLoading(true);
             try {
                 // Fetch products data
-                const menuResponse = await axios.get('/api/menu/menu-items');
+                const menuResponse = await axios.get(`/api/menu/menu-items/${id}`);
 
                 // Ensure menuResponse.data is an array
-                const menuData = Array.isArray(menuResponse.data) ?
-                    menuResponse.data :
-                    (menuResponse.data && Array.isArray(menuResponse.data.data)) ?
-                        menuResponse.data.data : [];
+                const menuData = menuResponse.data.data;
 
                 setMenuItems(menuData);
-                setFilteredData(menuData); // Initialize filtered data with all products
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -86,7 +78,6 @@ const PriceSellingStatusManagement = () => {
                 setError("Failed to load data. Please try again later.");
                 // Set empty arrays as fallback
                 setMenuItems([]);
-                setFilteredData([]);
                 setOutlets([]);
                 setCategory([]);
             } finally {
@@ -138,17 +129,16 @@ const PriceSellingStatusManagement = () => {
                     <FaShoppingBag size={21} />
                     <Link to="/admin/menu">Produk</Link>
                     <FaChevronRight />
-                    <p>Produk</p>
+                    <p>{menuItems.name}</p>
                     <FaChevronRight />
                     <span>Kelola Harga & Status Jual</span>
                 </div>
                 <div className="flex space-x-2">
-                    <button
-                        onClick={() => console.log('back')}
+                    <Link to="/admin/menu"
                         className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
                     >
                         Batal
-                    </button>
+                    </Link>
                     <button
                         onClick={() => console.log('Simpan')}
                         className="bg-[#005429] text-white px-4 py-2 rounded border text-[13px]"
@@ -178,7 +168,7 @@ const PriceSellingStatusManagement = () => {
 
                             <tbody>
                                 <tr>
-                                    <td className="p-[15px] w-1/4">Produk</td>
+                                    <td className="p-[15px] w-1/4">{menuItems.name}</td>
                                     <td className="p-[15px]">-</td>
                                     <td className="flex p-[15px] justify-end">
                                         <div>

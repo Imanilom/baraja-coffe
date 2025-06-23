@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import Modal from './modal';
 
 
 const TransferStockManagement = () => {
@@ -14,8 +14,11 @@ const TransferStockManagement = () => {
     const [error, setError] = useState(null);
 
     const [showInput, setShowInput] = useState(false);
+    const [showInput2, setShowInput2] = useState(false);
+    const [showModal, setShowModal] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
+    const [tempSelectedOutlet2, setTempSelectedOutlet2] = useState("");
     const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
@@ -84,6 +87,7 @@ const TransferStockManagement = () => {
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setShowInput(false);
+                setShowInput2(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -142,6 +146,13 @@ const TransferStockManagement = () => {
         );
     }, [search, uniqueOutlets]);
 
+    // Filter outlets based on search input
+    const filteredOutlets2 = useMemo(() => {
+        return uniqueOutlets.filter(outlet =>
+            outlet.toLowerCase().includes(search.toLowerCase())
+        );
+    }, [search, uniqueOutlets]);
+
     // Apply filter function
     const applyFilter = () => {
 
@@ -194,6 +205,28 @@ const TransferStockManagement = () => {
             });
         }
 
+        // Filter by outlet
+        if (tempSelectedOutlet2) {
+            filtered = filtered.filter(product => {
+                try {
+                    if (!product?.cashier?.outlet?.length > 0) {
+                        return false;
+                    }
+
+                    const outletName = product.cashier.outlet[0]?.outletId?.name;
+                    const matches = outletName === tempSelectedOutlet2;
+
+                    if (!matches) {
+                    }
+
+                    return matches;
+                } catch (err) {
+                    console.error("Error filtering by outlet:", err);
+                    return false;
+                }
+            });
+        }
+
         // Filter by date range
         if (value && value.startDate && value.endDate) {
             filtered = filtered.filter(product => {
@@ -234,40 +267,18 @@ const TransferStockManagement = () => {
     const resetFilter = () => {
         setTempSearch("");
         setTempSelectedOutlet("");
+        setTempSelectedOutlet2("");
         setValue(null);
         setSearch("");
         setFilteredData(ensureArray(attendances));
         setCurrentPage(1);
     };
 
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
 
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        alert('File berhasil diimpor!');
+        setShowModal(false);
     };
 
 
@@ -313,20 +324,22 @@ const TransferStockManagement = () => {
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
                     <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
+                    <p className="text-[15px] text-gray-500">Inventori</p>
                     <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/operational-menu" className="text-[15px] text-gray-500">Laporan Operasional</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Absensi</span>
+                    <span className="text-[15px] text-[#005429]">Stok Transfer</span>
+                    <FaInfoCircle size={17} className="text-gray-400 inline-block" />
                 </div>
-                <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                <div className="flex items-center space-x-2">
+                    <button onClick={() => setShowModal(true)} className="text-[#005429] bg-white border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Impor Transfer Stok</button>
+                    <Link to="/admin/inventory/create-transfer-stock" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Transfer Stok</Link>
+                </div>
             </div>
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-10 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Outlet Asal:</label>
                         <div className="relative">
                             {!showInput ? (
                                 <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
@@ -344,6 +357,15 @@ const TransferStockManagement = () => {
                             )}
                             {showInput && (
                                 <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                    <li
+                                        onClick={() => {
+                                            setTempSelectedOutlet(""); // Kosong berarti semua
+                                            setShowInput(false);
+                                        }}
+                                        className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                    >
+                                        Semua Outlet
+                                    </li>
                                     {filteredOutlets.length > 0 ? (
                                         filteredOutlets.map((outlet, idx) => (
                                             <li
@@ -365,7 +387,56 @@ const TransferStockManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Outlet Tujuan</label>
+                        <div className="relative">
+                            {!showInput2 ? (
+                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput2(true)}>
+                                    {tempSelectedOutlet2 || "Semua Outlet"}
+                                </button>
+                            ) : (
+                                <input
+                                    type="text"
+                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    autoFocus
+                                    placeholder=""
+                                />
+                            )}
+                            {showInput2 && (
+                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                    <li
+                                        onClick={() => {
+                                            setTempSelectedOutlet2(""); // Kosong berarti semua
+                                            setShowInput2(false);
+                                        }}
+                                        className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                    >
+                                        Semua Outlet
+                                    </li>
+                                    {filteredOutlets2.length > 0 ? (
+                                        filteredOutlets2.map((outlet, idx) => (
+                                            <li
+                                                key={idx}
+                                                onClick={() => {
+                                                    setTempSelectedOutlet2(outlet);
+                                                    setShowInput2(false);
+                                                }}
+                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                            >
+                                                {outlet}
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                                    )}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
                         <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
                             <Datepicker
@@ -383,13 +454,13 @@ const TransferStockManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">No Transfer Stok</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Karyawan"
+                                placeholder="Cari ID Transfer"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
@@ -408,11 +479,11 @@ const TransferStockManagement = () => {
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Karyawan</th>
+                                <th className="px-4 py-3 font-normal">Waktu Submit</th>
+                                <th className="px-4 py-3 font-normal">ID Transfer</th>
+                                <th className="px-4 py-3 font-normal">Outlet Asal</th>
+                                <th className="px-4 py-3 font-normal">Outlet Tujuan</th>
                                 <th className="px-4 py-3 font-normal">Tanggal</th>
-                                <th className="px-4 py-3 font-normal">Masuk</th>
-                                <th className="px-4 py-3 font-normal">Keluar</th>
-                                <th className="px-4 py-3 font-normal text-right">Total</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
@@ -453,7 +524,16 @@ const TransferStockManagement = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={5}>Tidak ada data ditemukan</td>
+                                    <td colSpan={10}>
+                                        <div className="flex justify-center items-center">
+                                            <div className="text-gray-400">
+                                                <div className="flex justify-center">
+                                                    <FaSearch size={100} />
+                                                </div>
+                                                <p className="uppercase">Data Tidak ditemukan</p>
+                                            </div>
+                                        </div>
+                                    </td>
                                 </tr>
                             </tbody>
                         )}
@@ -466,22 +546,24 @@ const TransferStockManagement = () => {
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
+                        {totalPages > 1 && (
+                            <div className="flex space-x-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Sebelumnya
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Berikutnya
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -490,6 +572,8 @@ const TransferStockManagement = () => {
                 <div className="w-full h-[2px] bg-[#005429]">
                 </div>
             </div>
+
+            <Modal show={showModal} onClose={() => setShowModal(false)} onSubmit={handleSubmit} />
         </div>
     );
 };

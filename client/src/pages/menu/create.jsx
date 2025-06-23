@@ -8,7 +8,7 @@ import {
 } from 'firebase/storage';
 import { app } from '../../firebase';
 import { Link } from "react-router-dom";
-import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle } from "react-icons/fa";
+import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 const CreateMenu = () => {
@@ -16,10 +16,12 @@ const CreateMenu = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isOptional, setIsOptional] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [image, setImage] = useState(undefined);
   const [imagePercent, setImagePercent] = useState(0);
   const [imageError, setImageError] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     price: "",
@@ -43,6 +45,19 @@ const CreateMenu = () => {
   const [outlets, setOutlets] = useState([]);
 
   useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.category-dropdown')) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+
+  useEffect(() => {
+    setLoading(true);
     const fetchCategories = async () => {
       try {
         const response = await axios.get("/api/menu/categories");
@@ -57,6 +72,8 @@ const CreateMenu = () => {
         setCategoryMap(map);
       } catch (error) {
         console.error("Error fetching categories:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -66,6 +83,8 @@ const CreateMenu = () => {
         setOutlets(response.data || []);
       } catch (error) {
         console.error("Error fetching outlets:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -75,6 +94,8 @@ const CreateMenu = () => {
         setRawMaterials(response.data.data || []);
       } catch (error) {
         console.error("Error fetching raw materials:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -110,21 +131,35 @@ const CreateMenu = () => {
   );
 
   // Tambahkan kategori (pakai nama)
+  // const handleAddCategory = (categoryId) => {
+  //   const categoryName = categoryMap[categoryId];
+  //   if (!formData.category.includes(categoryName)) {
+  //     const newSelected = [...selectedCategories, categoryId];
+  //     const newCategoryNames = [...formData.category, categoryName];
+
+  //     setSelectedCategories(newSelected);
+  //     setFormData((prev) => ({
+  //       ...prev,
+  //       category: newCategoryNames,
+  //     }));
+
+  //     setSearchTermCategories("");
+  //   }
+  // };
+
   const handleAddCategory = (categoryId) => {
     const categoryName = categoryMap[categoryId];
-    if (!formData.category.includes(categoryName)) {
-      const newSelected = [...selectedCategories, categoryId];
-      const newCategoryNames = [...formData.category, categoryName];
 
-      setSelectedCategories(newSelected);
-      setFormData((prev) => ({
-        ...prev,
-        category: newCategoryNames,
-      }));
-
-      setSearchTermCategories("");
-    }
+    setSelectedCategories([categoryId]);
+    setFormData((prev) => ({
+      ...prev,
+      category: [categoryName],
+    }));
+    setSearchTermCategories(categoryName); // tampilkan namanya di input
+    setShowDropdown(false);
   };
+
+
 
   // Hapus kategori
   const handleRemoveCategory = (categoryId) => {
@@ -145,6 +180,7 @@ const CreateMenu = () => {
       handleFileUpload(image);
     }
   }, [image]);
+
   const handleFileUpload = async (image) => {
     const storage = getStorage(app);
     const fileName = new Date().getTime() + image.name;
@@ -168,6 +204,10 @@ const CreateMenu = () => {
     );
   };
 
+  const visibleCategories = searchTermCategories
+    ? searchResultsCategories
+    : categories.filter(cat => !selectedCategories.includes(cat._id));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -180,30 +220,33 @@ const CreateMenu = () => {
       description: formData.description,
       category: selectedCategories.map(id => categoryMap[id]), // Get names instead of IDs
       imageURL: formData.imageURL || "https://placehold.co/1920x1080/png",
-      toppings: formData.toppings.map((topping) => ({
-        name: topping.name,
-        price: Number(topping.price),
-        rawMaterials: topping.rawMaterials.map((materialId) => ({
-          materialId,
-          quantityRequired: 0.1
-        }))
-      })),
-      addons: formData.addons.map((addon) => ({
-        name: addon.name,
-        options: addon.options.map((option) => ({
-          label: option.label,
-          price: Number(option.price),
-          isdefault: option.default  // Changed from 'default' to 'isdefault' to match target format
-        })),
-        rawMaterials: addon.rawMaterials.map((materialId) => ({
-          materialId,
-          quantityRequired: 0.2
-        }))
-      })),
-      rawMaterials: selectedRawMaterials.map((materialId) => ({
-        materialId,
-        quantityRequired: 0.2
-      })),
+      toppings: [],
+      addons: [],
+      rawMaterials: []
+      // toppings: formData.toppings.map((topping) => ({
+      //   name: topping.name,
+      //   price: Number(topping.price),
+      //   rawMaterials: topping.rawMaterials.map((materialId) => ({
+      //     materialId,
+      //     quantityRequired: 0.1
+      //   }))
+      // })) || '',
+      // addons: formData.addons.map((addon) => ({
+      //   name: addon.name,
+      //   options: addon.options.map((option) => ({
+      //     label: option.label,
+      //     price: Number(option.price),
+      //     isdefault: option.default  // Changed from 'default' to 'isdefault' to match target format
+      //   })),
+      //   rawMaterials: addon.rawMaterials.map((materialId) => ({
+      //     materialId,
+      //     quantityRequired: 0.2
+      //   }))
+      // })) || '',
+      // rawMaterials: selectedRawMaterials.map((materialId) => ({
+      //   materialId,
+      //   quantityRequired: 0.2
+      // })) || '',
     };
 
     try {
@@ -213,6 +256,16 @@ const CreateMenu = () => {
       console.error("Error creating menu item:", error);
     }
   };
+
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="">
@@ -247,13 +300,13 @@ const CreateMenu = () => {
           <div className="flex space-x-2">
             <span
               onClick={() => setShowModal(true)}
-              className="block border border-green-600 text-green-600 text-sm px-3 py-1.5 rounded cursor-pointer"
+              className="block border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
             >
               Batal
             </span>
             <button
               type="submit"
-              className="block bg-green-600 text-white text-sm px-3 py-1.5 rounded"
+              className="block bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
             >
               Simpan
             </button>
@@ -299,9 +352,8 @@ const CreateMenu = () => {
               </div>
 
               {/* Category (Checkboxes) */}
-              <div className="">
+              {/* <div className="">
                 <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
-                {/* Container untuk bubble kategori yang dipilih */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   {selectedCategories.map(categoryId => (
                     <div
@@ -320,7 +372,6 @@ const CreateMenu = () => {
                   ))}
                 </div>
 
-                {/* Input pencarian */}
                 <div className="relative">
                   <input
                     type="text"
@@ -330,7 +381,6 @@ const CreateMenu = () => {
                     className="w-full py-2 px-3 border rounded-lg"
                   />
 
-                  {/* Dropdown hasil pencarian */}
                   {searchTermCategories && searchResultsCategories.length > 0 && (
                     <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
                       {searchResultsCategories.map(category => (
@@ -346,12 +396,69 @@ const CreateMenu = () => {
                   )}
                 </div>
 
-                {/* Pesan jika tidak ada hasil */}
                 {searchTermCategories && searchResultsCategories.length === 0 && (
                   <div className="text-gray-500 text-sm mt-2">
                     Tidak ada kategori yang cocok
                   </div>
                 )}
+              </div> */}
+              <div className="">
+                <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
+                {/* <div className="flex flex-wrap gap-2 mb-4">
+                  {selectedCategories.map(categoryId => (
+                    <div
+                      key={categoryId}
+                      className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
+                    >
+                      {categoryMap[categoryId] || categoryId}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCategory(categoryId)}
+                        className="ml-2 text-green-500 hover:text-green-700"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div> */}
+
+                <div className="relative category-dropdown">
+                  <input
+                    type="text"
+                    // value={searchTermCategories}
+                    value={searchTermCategories}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSearchTermCategories(value);
+
+                      // Jika input dikosongkan, reset kategori
+                      if (value === '') {
+                        setSelectedCategories([]);
+                        setFormData((prev) => ({
+                          ...prev,
+                          category: [],
+                        }));
+                      }
+                    }}
+                    onFocus={() => setShowDropdown(true)} // tampilkan saat diklik
+                    placeholder="Cari kategori..."
+                    className="w-full py-2 px-3 border rounded-lg"
+                  />
+
+                  {showDropdown && visibleCategories.length > 0 && (
+                    <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
+                      {visibleCategories.map(category => (
+                        <div
+                          key={category._id}
+                          onClick={() => handleAddCategory(category._id)}
+                          className="p-2 hover:bg-gray-100 cursor-pointer"
+                        >
+                          {category.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Price */}
@@ -461,124 +568,154 @@ const CreateMenu = () => {
             </div>
           </div>
         </div>
-        <div className="p-6">
+        <div className="p-6 bg-slate-50">
           {/* Header */}
           <button
             onClick={() => setIsOptional(!isOptional)}
-            className="w-full text-left px-6 py-4 bg-slate-100 hover:bg-slate-200 transition font-medium flex justify-between items-center"
+            className="w-full flex text-left px-[20px] py-[15px] bg-slate-100 hover:bg-slate-200 transition font-medium items-center space-x-2 shadow-lg"
           >
-            <span>Pengaturan Lanjutan (Opsional)</span>
-            <span>{isOptional ? "−" : "+"}</span>
+            <span>{isOptional ? <FaChevronDown /> : <FaChevronRight />}</span>
+            <span className="text-[14px]">Pengaturan Lanjutan (Opsional)</span>
           </button>
 
           {/* Body */}
           {isOptional && (
-            <div className="bg-slate-50 px-6 py-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="row">
-                  <div className="flex items-center space-x-2">
-                    <span>Jual Di POS</span>
-                    <FaInfoCircle />
+            <div className="bg-white px-6 py-4 shadow-lg">
+              <div className="row">
+                <div className="grid grid-cols-3 gap-4 py-[25px] px-[15px] text-[12px]">
+                  <div className="row my-[15px]">
+                    <div className="flex items-center space-x-2">
+                      <h5 className="uppercase my-[10px] font-medium">Jual Di POS</h5>
+                      <FaInfoCircle />
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="pos" value="yes" />
+                        <span>Ya</span>
+                      </label>
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="pos" value="no" />
+                        <span>Tidak</span>
+                      </label>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center space-x-1">
-                      <input type="radio" name="pos" value="yes" />
-                      <span>Ya</span>
-                    </label>
-                    <label className="flex items-center space-x-1">
-                      <input type="radio" name="pos" value="no" />
-                      <span>Tidak</span>
-                    </label>
+                  <div className="row my-[15px]">
+                    <div className="flex items-center space-x-2">
+                      <h5 className="uppercase my-[10px] font-medium">Jual Di Pawoon Order</h5>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="po" value="yes" />
+                        <span>Ya</span>
+                      </label>
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="po" value="no" />
+                        <span>Tidak</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="row my-[15px]">
+                    <div className="flex items-center space-x-2">
+                      <h2 className="uppercase my-[10px] font-medium">Jual Di Digital Pawoon</h2>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="digital" value="yes" />
+                        <span>Ya</span>
+                      </label>
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="digital" value="no" />
+                        <span>Tidak</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="row my-[15px]">
+                    <div className="flex items-center space-x-2">
+                      <h5 className="uppercase my-[10px] font-medium">Kelola Stok</h5>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="stock" value="yes" />
+                        <span>Ya</span>
+                      </label>
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="stock" value="no" />
+                        <span>Tidak</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="row my-[15px]">
+                    <div className="flex items-center space-x-2">
+                      <h5 className="uppercase my-[10px] font-medium">Penjualan berdasarkan stok</h5>
+                      <FaInfoCircle />
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="pos" value="yes" />
+                        <span>Ya</span>
+                      </label>
+                      <label className="flex items-center space-x-1">
+                        <input type="radio" name="pos" value="no" />
+                        <span>Tidak</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
-                <div className="row">
-                  <div className="flex items-center space-x-2">
-                    <span className="uppercase">Jual Di Pawoon Order</span>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center space-x-1">
-                      <input type="radio" name="po" value="yes" />
-                      <span>Ya</span>
-                    </label>
-                    <label className="flex items-center space-x-1">
-                      <input type="radio" name="po" value="no" />
-                      <span>Tidak</span>
-                    </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="row w-full my-[15px]">
+                    <div className="flex items-center space-x-2 my-[10px]">
+                      <h5 className="uppercase font-medium text-[12px]">deskripsi produk</h5>
+                      <FaInfoCircle size={12} />
+                    </div>
+                    <textarea name="" id="" className="w-full h-[120px] block border rounded"></textarea>
                   </div>
                 </div>
-                <div className="row">
-                  <div className="flex items-center space-x-2">
-                    <span className="uppercase">Jual Di Digital Pawoon</span>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center space-x-1">
-                      <input type="radio" name="digital" value="yes" />
-                      <span>Ya</span>
-                    </label>
-                    <label className="flex items-center space-x-1">
-                      <input type="radio" name="digital" value="no" />
-                      <span>Tidak</span>
-                    </label>
-                  </div>
-                </div>
-                <div className="row">
-                  <div className="flex items-center space-x-2">
-                    <span className="uppercase">Kelola Stok</span>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center space-x-1">
-                      <input type="radio" name="stock" value="yes" />
-                      <span>Ya</span>
-                    </label>
-                    <label className="flex items-center space-x-1">
-                      <input type="radio" name="stock" value="no" />
-                      <span>Tidak</span>
-                    </label>
-                  </div>
-                </div>
-                <div className="row">
-                  <div className="flex items-center space-x-2">
-                    <span className="uppercase">Penjualan berdasarkan stok</span>
-                    <FaInfoCircle />
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center space-x-1">
-                      <input type="radio" name="pos" value="yes" />
-                      <span>Ya</span>
-                    </label>
-                    <label className="flex items-center space-x-1">
-                      <input type="radio" name="pos" value="no" />
-                      <span>Tidak</span>
-                    </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="row w-full my-[15px]">
+                    <div className="flex items-center space-x-2 my-[10px]">
+                      <h5 className="uppercase font-medium text-[12px]">Pajak</h5>
+                      <FaInfoCircle size={12} />
+                    </div>
+                    <select name="" id="" className="block border w-full p-2 rounded">
+                      <option value="">Mengikuti pajak outlet</option>
+                      <option value="">Tidak ada pajak</option>
+                    </select>
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="row w-full">
-                  <div className="flex items-center space-x-2">
-                    <label htmlFor="" className="uppercase">deskripsi produk</label>
-                    <FaInfoCircle />
-                  </div>
-                  <textarea name="" id="" className="w-full h-[120px] block border rounded"></textarea>
+
+              <div className="block w-full my-[15px] border">
+                <div className=" px-[10px] py-[5px] bg-gray-100">
+                  <h5 className="uppercase my-[10px] text-[12px] font-medium">detail produk</h5>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="row">
-                  <div className="flex items-center space-x-2">
-                    <label htmlFor="" className="uppercase">Pajak</label>
-                    <FaInfoCircle />
+                <div className="p-[20px]">
+                  <div className="mb-[15px]">
+                    <h3 className="uppercase text-[12px] font-medium my-[10px]">jenis produk</h3>
                   </div>
-                  <select name="" id="" className="block border w-full p-2 rounded">
-                    <option value="">Mengikuti pajak outlet</option>
-                    <option value="">Tidak ada pajak</option>
-                  </select>
+                  <div className="flex space-x-10">
+                    <div className="w-1/2 h-[200px] flex items-center justify-center py-[45px] px-[15px] cursor-pointer rounded border hover:bg-[#005429] hover:text-white active:bg-[#005429] active:text-white group">
+                      <div className="text-center">
+                        <FaGift className="mx-auto mb-2 text-xl text-[#005429] group-hover:text-white group-active:text-white" />
+                        <h4 className="font-semibold text-[14px]">Tunggal</h4>
+                        <p className="text-[13px]">Produk tidak memiliki bahan baku.</p>
+                        <p className="text-[13px]">Contoh: Buah Jeruk</p>
+                      </div>
+                    </div>
+
+                    <div className="w-1/2 h-[200px] flex items-center justify-center py-[45px] px-[15px] cursor-pointer active:bg-[#005429] active:text-white hover:bg-[#005429] hover:text-white bg-[#005429] rounded border text-white">
+                      <div className="text-center">
+                        <FaPizzaSlice className="mx-auto mb-2 text-xl text-white group-hover:text-white group-active:text-white" />
+                        <h4 className="font-semibold text-[14px]">Komposit</h4>
+                        <p className="text-[13px]">Produk memiliki bahan baku.</p>
+                        <p className="text-[13px]">Contoh: Donat, bahan baku: Tepung 100 gr dan Telur 2 butir</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="w-full">
-                <span className="p-3 uppercase bg-gray-500">detail produk</span>
               </div>
             </div>
           )}
+
         </div>
       </form>
 

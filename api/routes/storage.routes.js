@@ -5,13 +5,13 @@ import {
   updateRawMaterial,
   deleteRawMaterial,
   createStockOpname,
-  getStockOpnames,  
+  getStockOpnames,
   getStockOpnameById,
   updateStockOpname,
   deleteStockOpname
 } from '../controllers/storage.controller.js';
 
-import { assignMenuItemsToCategory, createCategory, deleteCategory, filterMenuByCategory, getCategories, getCategoriesByType, updateCategory } from '../controllers/category.controller.js';
+import { assignMenuItemsToCategory, createCategory, deleteCategory, filterMenuByCategory, getCategories, getCategoriesById, getCategoriesByType, updateCategory } from '../controllers/category.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
@@ -37,6 +37,7 @@ router.delete('/stock-opname/:id', adminAccess, deleteStockOpname); // Delete a 
 // Category Routes
 router.get('/category', getCategories); // Get all categories
 router.get('/category/:type', getCategoriesByType); // Get categories by type
+router.get('/categories/:id', getCategoriesById); // Get categories by type
 router.post('/category', adminAccess, createCategory); // Create a new category
 router.put('/category/:id', adminAccess, updateCategory); // Update a specific category
 router.delete('/category/:id', adminAccess, deleteCategory); // Delete a specific category
