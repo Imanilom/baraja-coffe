@@ -1,10 +1,7 @@
-import 'dart:typed_data';
-
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/utils/convert_image_to_bytes.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 
@@ -13,12 +10,6 @@ class PrinterService {
     await PrintBluetoothThermal.disconnect;
     await PrintBluetoothThermal.connect(macPrinterAddress: printer.address);
   }
-
-  //print to multiple printer
-  static Future<void> printToMultiplePrinter(
-    OrderDetailModel orderDetail,
-    BluetoothPrinterModel printer,
-  ) async {}
 
   static Future<void> printToPrinter(
     OrderDetailModel orderDetail,
@@ -39,6 +30,136 @@ class PrinterService {
     final customerBytes = await generateBarBytes(orderDetail, printer);
 
     await PrintBluetoothThermal.writeBytes(customerBytes);
+  }
+
+  //new logic for printing
+  static Future<void> printDocuments({
+    required OrderDetailModel orderDetail,
+    required String printType,
+    required List<BluetoothPrinterModel> printers,
+  }) async {
+    final jobs = _createPrintJobs(printType);
+
+    for (final job in jobs) {
+      await _printJobToSupportedPrinters(
+        orderDetail: orderDetail,
+        jobType: job,
+        printers: printers,
+      );
+    }
+  }
+
+  static List<String> _createPrintJobs(String printType) {
+    switch (printType) {
+      case 'customer':
+        return ['customer'];
+      case 'kitchen':
+        return ['kitchen'];
+      case 'bar':
+        return ['bar'];
+      case 'waiter':
+        return ['waiter'];
+      case 'all':
+        return ['kitchen', 'bar', 'customer', 'waiter'];
+      default:
+        return [];
+    }
+  }
+
+  static Future<void> _printJobToSupportedPrinters({
+    required OrderDetailModel orderDetail,
+    required String jobType,
+    required List<BluetoothPrinterModel> printers,
+  }) async {
+    final supportedPrinters =
+        printers.where((printer) {
+          switch (jobType) {
+            case 'customer':
+              return printer.canPrintCustomer;
+            case 'kitchen':
+              return printer.canPrintKitchen;
+            case 'bar':
+              return printer.canPrintBar;
+            case 'waiter':
+              return printer.canPrintWaiter;
+            default:
+              return false;
+          }
+        }).toList();
+
+    if (supportedPrinters.isEmpty) {
+      print('⚠️ Tidak ada printer yang mendukung $jobType');
+      return;
+    }
+
+    for (final printer in supportedPrinters) {
+      await _printSingleJob(
+        orderDetail: orderDetail,
+        printer: printer,
+        jobType: jobType,
+      );
+    }
+  }
+
+  static Future<void> _printSingleJob({
+    required OrderDetailModel orderDetail,
+    required BluetoothPrinterModel printer,
+    required String jobType,
+  }) async {
+    try {
+      print('📤 Mencetak $jobType di ${printer.name} (${printer.address})');
+      await connectPrinter(printer);
+
+      final bytes = await _generateBytesForJob(
+        orderDetail: orderDetail,
+        printer: printer,
+        jobType: jobType,
+      );
+
+      final copies = _getCopiesForJob(printer, jobType);
+
+      for (int i = 0; i < copies; i++) {
+        await PrintBluetoothThermal.writeBytes(bytes);
+      }
+
+      await disconnectPrinter();
+    } catch (e) {
+      print('❌ Gagal mencetak $jobType di ${printer.name}: $e');
+    }
+  }
+
+  static int _getCopiesForJob(BluetoothPrinterModel printer, String jobType) {
+    switch (jobType) {
+      case 'customer':
+        return printer.customerCopies;
+      case 'kitchen':
+        return printer.kitchenCopies;
+      case 'bar':
+        return printer.barCopies;
+      case 'waiter':
+        return printer.waiterCopies;
+      default:
+        return 1;
+    }
+  }
+
+  static Future<List<int>> _generateBytesForJob({
+    required OrderDetailModel orderDetail,
+    required BluetoothPrinterModel printer,
+    required String jobType,
+  }) async {
+    switch (jobType) {
+      case 'customer':
+        return generateCustomerBytes(orderDetail, printer);
+      case 'kitchen':
+        return generateKitchenBytes(orderDetail, printer);
+      case 'bar':
+        return generateBarBytes(orderDetail, printer);
+      case 'waiter':
+        return generateWaiterBytes(orderDetail, printer);
+      default:
+        throw 'Jenis struk tidak valid: $jobType';
+    }
   }
 
   static Future<void> disconnectPrinter() async {
@@ -72,74 +193,14 @@ class PrinterService {
       final List<int> bytes = [];
 
       // Header
-      await generateLogoBytes(
-        generator,
-        'assets/logo/logo_baraja.png',
-        paperSize,
-      ).then((logoBytes) {
-        bytes.addAll(logoBytes);
-      });
-
-      //alamat toko
       bytes.addAll(
-        generator.text(
-          'Baraja Amphitheater\nJl. Jend. Sudirman No. 1, Jakarta Selatan, 12750\nTelp: 0812-3456-7890\n',
-          styles: const PosStyles(align: PosAlign.center),
-        ),
-      );
-
-      // data tanggal kasir dan pelanggan
-      bytes.addAll(
-        generator.row([
-          PosColumn(
-            text: 'Tanggal',
-            width: 4,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            text:
-                "${DateTime.now().year}:${DateTime.now().month.toString().padLeft(2, '0')}:${DateTime.now().day.toString().padLeft(2, '0')} ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}:${DateTime.now().second.toString().padLeft(2, '0')}",
-            width: 8,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]),
-      );
-      bytes.addAll(
-        generator.row([
-          PosColumn(
-            text: 'Kasir',
-            width: 4,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            text: "Static Kasir",
-            width: 8,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]),
-      );
-      bytes.addAll(
-        generator.row([
-          PosColumn(
-            text: 'Pelanggan',
-            width: 4,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            text: "Static Pelanggan",
-            width: 8,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]),
-      );
-
-      bytes.addAll(generator.feed(1));
-
-      //tipe order
-      bytes.addAll(
-        generator.text(
-          'Dine In',
-          styles: const PosStyles(align: PosAlign.center, bold: true),
+        await generateHeadersBytes(
+          generator,
+          paperSize,
+          null,
+          null,
+          null,
+          null,
         ),
       );
 
@@ -206,7 +267,109 @@ class PrinterService {
     return bytes;
   }
 
-  static Future<List<int>> generateBarBytes(
+  static Future<List<int>> generateHeadersBytes(
+    Generator generator,
+    PaperSize paperSize,
+    String? orderId,
+    String? cashierName,
+    String? customerName,
+    String? orderType,
+  ) async {
+    final List<int> bytes = [];
+
+    // Logo
+    bytes.addAll(
+      await generateLogoBytes(
+        generator,
+        'assets/logo/logo_baraja.png',
+        paperSize,
+      ),
+    );
+
+    // Alamat Toko
+    bytes.addAll(
+      generator.text(
+        'Baraja Amphitheater\nJl. Tuparev No. 60, Kedungjaya,\nKec. Kedawung, Kab. Cirebon\nJawa Barat 45153, Indonesia\nKABUPATEN CIREBON\n0851-1708-9827',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+
+    bytes.addAll(generator.feed(1));
+
+    // Data kode struk Tanggal Kasir dan Pelanggan
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Kode Struk',
+          width: 4,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: orderId ?? "XXX-XXX-XXXX",
+          width: 8,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Tanggal',
+          width: 4,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text:
+              "${DateTime.now().year}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().day.toString().padLeft(2, '0')} ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}:${DateTime.now().second.toString().padLeft(2, '0')}",
+          width: 8,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Kasir',
+          width: 4,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: cashierName ?? "XXXXXXX",
+          width: 8,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Pelanggan',
+          width: 4,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: customerName ?? "XXXXXX",
+          width: 8,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+
+    // Tambahkan jeda
+    bytes.addAll(generator.feed(1));
+
+    //tipe order
+    bytes.addAll(
+      generator.text(
+        orderType ?? 'Dine In / Take Away / Delivery',
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      ),
+    );
+
+    return bytes;
+  }
+
+  static Future<List<int>> generateCustomerBytes(
     OrderDetailModel orderDetail,
     BluetoothPrinterModel printer,
   ) async {
@@ -226,78 +389,20 @@ class PrinterService {
     final List<int> bytes = [];
 
     // Header
-    // Header
-    await generateLogoBytes(
-      generator,
-      'assets/logo/logo_baraja.png',
-      paperSize,
-    ).then((logoBytes) {
-      bytes.addAll(logoBytes);
-    });
-
-    //alamat toko
     bytes.addAll(
-      generator.text(
-        'Baraja Amphitheater\nJl. Jend. Sudirman No. 1, Jakarta Selatan, 12750\nTelp: 0812-3456-7890\n',
-        styles: const PosStyles(align: PosAlign.center),
+      await generateHeadersBytes(
+        generator,
+        paperSize,
+        orderDetail.orderId,
+        orderDetail.cashierId,
+        orderDetail.customerName,
+        orderDetail.orderType,
       ),
     );
 
-    // data tanggal kasir dan pelanggan
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Tanggal',
-          width: 4,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text:
-              "${DateTime.now().year}:${DateTime.now().month.toString().padLeft(2, '0')}:${DateTime.now().day.toString().padLeft(2, '0')} ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}:${DateTime.now().second.toString().padLeft(2, '0')}",
-          width: 8,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Kasir',
-          width: 4,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: "Static Kasir",
-          width: 8,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Pelanggan',
-          width: 4,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: "Static Pelanggan",
-          width: 8,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-
-    bytes.addAll(generator.feed(1));
     bytes.addAll(generator.hr());
-    print('Order Detail: ${orderDetail.items.first.menuItem.categories}');
-    // final bar = orderDetail.items.where((element) {
-    //   // mencari menu item yang merupakan kategory tambahan
-    //   return element.menuItem.categories!.contains('Additional');
-    //   // return element.menuItem.categories == ['additional'];
-    // });
-    // print('Bar bytes additional: $bar');
 
+    // List Order Items
     final orderdetail = orderDetail.items;
     //list order Items
     for (var item in orderdetail) {
@@ -350,7 +455,7 @@ class PrinterService {
         ),
       ]),
     );
-    // Footer
+
     bytes.addAll(generator.hr());
     bytes.addAll(
       generator.row([
@@ -367,9 +472,71 @@ class PrinterService {
       ]),
     );
     bytes.addAll(generator.hr());
+
+    //footer
     bytes.addAll(
       generator.text(
-        'Selesai mencetak',
+        'Terima kasih telah berbelanja di Baraja Amphitheater',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+
+    //feed and cut
+    bytes.addAll(generator.feed(2));
+    // bytes.addAll(generator.cut());
+
+    return bytes;
+  }
+
+  static Future<List<int>> generateBarBytes(
+    OrderDetailModel orderDetail,
+    BluetoothPrinterModel printer,
+  ) async {
+    // 1. Buat generator
+    final profile = await CapabilityProfile.load();
+    PaperSize paperSize = PaperSize.mm58;
+    if (printer.paperSize == 'mm58') {
+      paperSize = PaperSize.mm58;
+    } else if (printer.paperSize == 'mm80') {
+      paperSize = PaperSize.mm80;
+    } else {
+      paperSize = PaperSize.mm72;
+    }
+    final generator = Generator(paperSize, profile);
+
+    // 2. Siapkan konten
+    final List<int> bytes = [];
+
+    // Header
+    bytes.addAll(
+      generator.text(
+        'Bar',
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      ),
+    );
+
+    final orderdetail = orderDetail.items;
+    //list order Items
+    for (var item in orderdetail) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: item.menuItem.name!,
+            width: 5,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: 'x${item.quantity.toString()}',
+            width: 2,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+    bytes.addAll(generator.hr());
+    bytes.addAll(
+      generator.text(
+        'Selesai',
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
@@ -399,7 +566,7 @@ class PrinterService {
 
     bytes.addAll(
       generator.text(
-        'Kitchen',
+        'Dapur',
         styles: const PosStyles(
           align: PosAlign.center,
           bold: true,
@@ -434,6 +601,63 @@ class PrinterService {
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
+    return bytes;
+  }
+
+  static Future<List<int>> generateWaiterBytes(
+    OrderDetailModel orderDetail,
+    BluetoothPrinterModel printer,
+  ) async {
+    // 1. Buat generator
+    final profile = await CapabilityProfile.load();
+    PaperSize paperSize = PaperSize.mm58;
+    if (printer.paperSize == 'mm58') {
+      paperSize = PaperSize.mm58;
+    } else if (printer.paperSize == 'mm80') {
+      paperSize = PaperSize.mm80;
+    } else {
+      paperSize = PaperSize.mm72;
+    }
+    final generator = Generator(paperSize, profile);
+
+    // 2. Siapkan konten
+    final List<int> bytes = [];
+
+    // Header
+    bytes.addAll(
+      generator.text(
+        'Label',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
+      ),
+    );
+
+    bytes.addAll(generator.hr());
+
+    final orderdetail = orderDetail.items;
+    //list order Items
+    for (var item in orderdetail) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: item.menuItem.name!,
+            width: 9,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: 'x${item.quantity.toString()}',
+            width: 3,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+    bytes.addAll(generator.hr());
+
     return bytes;
   }
 }

@@ -15,7 +15,7 @@ class OrderService {
       print('start create order...');
       print('request body: ${createOrderRequest(orderDetail)}');
       Response response = await _dio.post(
-        '/api/order',
+        '/api/unified-order',
         data: createOrderRequest(orderDetail),
         options: Options(
           headers: {
@@ -129,5 +129,6 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'tableNumber': order.tableNumber ?? 1,
     'paymentMethod': order.paymentMethod ?? 'Cash',
     'totalPrice': order.totalPrice ?? 12000,
+    'source': "Cashier",
   };
 }
