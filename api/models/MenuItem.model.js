@@ -1,76 +1,102 @@
+// models/MenuItem.js
 import mongoose from 'mongoose';
 
 const MenuItemSchema = new mongoose.Schema({
-  name: { type: String, required: true, trim: true },
-  price: { type: Number, required: true, min: 0 },
-  description: { type: String, trim: true },
-  category: {
-    type: [String],
-    default: []
+  name: { 
+    type: String, 
+    required: true, 
+    trim: true 
   },
-  imageURL: { type: String, trim: true, default: 'https://placehold.co/1920x1080/png' },
+  price: { 
+    type: Number, 
+    required: true, 
+    min: 0 
+  },
+  description: { 
+    type: String, 
+    trim: true 
+  },
+  category: {
+    type: String,
+    enum: ['makanan', 'minuman', 'instan', 'snack'],
+    required: true
+  },
+  subCategory: String,
+  imageURL: { 
+    type: String, 
+    default: 'https://placehold.co/1920x1080/png' 
+  },
+  costPrice: { // Harga pokok produksi (auto-calculated)
+    type: Number,
+    default: 0
+  },
+  availableStock: { // Porsi tersedia (auto-calculated)
+    type: Number,
+    default: 0
+  },
   toppings: [
     {
-      name: { type: String, required: true },
-      price: { type: Number, required: true },
-      rawMaterials: [
-        {
-          _id: false, 
-          materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
-          quantityRequired: { type: Number, required: true },
-          unit: { type: String, required: true } // Menyimpan satuan bahan baku
-        }
-      ]
+      name: { 
+        type: String, 
+        required: true 
+      },
+      price: { 
+        type: Number, 
+        required: true 
+      }
     }
   ],
   addons: [
     {
-      name: { type: String, required: true }, // Nama addon (contoh: Size)
-      options: [ // Array untuk menyimpan opsi-opsi dengan harga
+      name: { 
+        type: String, 
+        required: true 
+      },
+      options: [
         {
-          label: { type: String, required: true }, // Label opsi (contoh: reg, med, large)
-          price: { type: Number, required: true, min: 0 }, // Harga tambahan untuk opsi tersebut
-          isdefault: { type: Boolean, default: false } // Opsi default atau tidak
-        }
-      ],
-      rawMaterials: [
-        {
-          _id: false, 
-          materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
-          quantityRequired: { type: Number, required: true },
-          unit: { type: String, required: true } // Menyimpan satuan bahan baku
+          label: { 
+            type: String, 
+            required: true 
+          },
+          price: { 
+            type: Number, 
+            required: true 
+          },
+          isDefault: { 
+            type: Boolean, 
+            default: false 
+          }
         }
       ]
     }
-  ], // Menyimpan daftar addons dengan harga berbeda-beda per menu
-  rawMaterials: [
-    {
-     _id: false,   // Tambahkan ini agar tidak ada `_id` otomatis di dalam subdokumen
-      materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
-      quantityRequired: { type: Number, required: true, min: 0 },
-      unit: { type: String, required: true } // Menyimpan satuan bahan baku
-    }
   ],
   availableAt: [
-    { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', required: true }
-  ], // Menyimpan daftar outlet tempat menu tersedia
-  isActive: { type: Boolean, default: true }, // Status aktif menu
+    { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Outlet' 
+    }
+  ],
+  isActive: { 
+    type: Boolean, 
+    default: true 
+  }
 }, { timestamps: true });
 
-
-// Middleware: Validasi apakah bahan baku cukup sebelum menyimpan menu baru
-MenuItemSchema.pre('save', async function (next) {
-  try {
-    for (const item of this.rawMaterials) {
-      const material = await mongoose.model('RawMaterial').findById(item.materialId);
-      if (!material || material.quantity < item.quantityRequired) {
-        throw new Error(`Insufficient stock for raw material: ${material?.name || 'Unknown'}`);
+// Auto-update costPrice
+MenuItemSchema.pre('save', async function(next) {
+  if (this.isModified('toppings') || this.isModified('addons')) {
+    const recipe = await mongoose.model('Recipe').findOne({ menuItemId: this._id });
+    if (recipe) {
+      let totalCost = 0;
+      // Hitung harga dasar
+      for (const ing of recipe.baseIngredients) {
+        const product = await mongoose.model('Product').findById(ing.productId);
+        if (product) totalCost += (product.suppliers[0]?.price || 0) * ing.quantity;
       }
+      this.costPrice = totalCost;
     }
-    next();
-  } catch (error) {
-    next(error);
   }
+  next();
 });
 
 export const MenuItem = mongoose.model('MenuItem', MenuItemSchema);
