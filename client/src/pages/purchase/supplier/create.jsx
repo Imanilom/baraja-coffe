@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown } from "react-icons/fa";
+import { FaChevronRight, FaReceipt } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 const CreateSupplier = () => {
@@ -40,19 +40,24 @@ const CreateSupplier = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="px-3 py-3 flex justify-between items-center border-b">
                     <div className="flex items-center space-x-2">
-                        <FaShoppingBag className="text-gray-400 inline-block" />
-                        <Link
-                            to="/admin/supplier"
+                        <FaReceipt className="text-gray-400 inline-block" />
+                        <span
+                            className="text-gray-400 inline-block"
+                        >
+                            Pembelian
+                        </span>
+                        <FaChevronRight className="text-gray-400 inline-block" />
+                        <span
                             className="text-gray-400 inline-block"
                         >
                             Supplier
-                        </Link>
+                        </span>
                         <FaChevronRight className="text-gray-400 inline-block" />
-                        <sapn
+                        <span
                             className="text-gray-400 inline-block"
                         >
                             Tambah Supplier
-                        </sapn>
+                        </span>
                     </div>
                 </div>
                 <div className="grid px-3 grid-cols-1 w-full md:w-1/2 gap-4">
@@ -108,7 +113,7 @@ const CreateSupplier = () => {
                     </div>
                     <div className="flex space-x-2">
                         <Link
-                            to="/admin/supplier"
+                            to="/admin/purchase/supplier"
                             className="border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
                         >
                             Batal

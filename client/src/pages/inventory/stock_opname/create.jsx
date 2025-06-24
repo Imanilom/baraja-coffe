@@ -89,6 +89,12 @@ const CreateStokOpname = () => {
                         <span
                             className="text-gray-400 inline-block"
                         >
+                            Stok Opname
+                        </span>
+                        <FaChevronRight size={22} className="text-gray-400 inline-block" />
+                        <span
+                            className="text-gray-400 inline-block"
+                        >
                             Tambah Stok Opname
                         </span>
                     </div>

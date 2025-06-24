@@ -296,18 +296,19 @@ const StockCardManagement = () => {
     return (
         <div className="container">
             <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell className="text-2xl text-gray-400" />
+                <FaBell size={23} className="text-gray-400" />
+                <span className="text-[14px]">Hi Baraja</span>
                 <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser />
+                    <FaUser size={30} />
                 </Link>
             </div>
 
             <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
                 <div className="flex items-center space-x-2">
-                    <FaBoxes size={22} className="text-gray-400 inline-block" />
-                    <p className="text-gray-400 inline-block">Inventori</p>
-                    <FaChevronRight size={22} className="text-gray-400 inline-block" />
-                    <p className="text-gray-400 inline-block">Kartu Stok</p>
+                    <FaBoxes size={21} className="text-gray-500 inline-block" />
+                    <p className="text-[15px] text-gray-500">Inventori</p>
+                    <FaChevronRight size={22} className="text-[15px] text-gray-500 inline-block" />
+                    <p className="text-[15px] text-[#005429]">Kartu Stok</p>
                     <FaInfoCircle size={17} className="text-gray-400 inline-block" />
                 </div>
                 <div className="flex space-x-2">

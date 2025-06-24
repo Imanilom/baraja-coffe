@@ -1,16 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaShoppingCart } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
-import Modal from './modal';
 
 
-const InStockManagement = () => {
-    const [attendances, setAttendances] = useState([]);
+const ExpenditureListManagement = () => {
     const [outlets, setOutlets] = useState([]);
-    const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -20,7 +17,6 @@ const InStockManagement = () => {
     const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
-    const [showModal, setShowModal] = useState(false);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -29,25 +25,11 @@ const InStockManagement = () => {
 
     const dropdownRef = useRef(null);
 
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
-
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
-
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
-
     // Fetch attendances and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch attendances data
-                const attendancesResponse = [];
-
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -64,8 +46,6 @@ const InStockManagement = () => {
             } catch (err) {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setAttendances([]);
                 setFilteredData([]);
                 setOutlets([]);
             } finally {
@@ -137,147 +117,42 @@ const InStockManagement = () => {
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
+    const groupedArray = useMemo(() => {
+        const grouped = {};
+
+        filteredData.forEach(product => {
+            const item = product?.items?.[0];
+            if (!item) return;
+
+            const categories = Array.isArray(item.menuItem?.category)
+                ? item.menuItem.category
+                : [item.menuItem?.category || 'Uncategorized'];
+            const quantity = Number(item?.quantity) || 0;
+            const subtotal = Number(item?.subtotal) || 0;
+
+            categories.forEach(category => {
+                const key = `${category}`;
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        category,
+                        quantity: 0,
+                        subtotal: 0
+                    };
+                }
+
+                grouped[key].quantity += quantity;
+                grouped[key].subtotal += subtotal;
+            });
+        });
+
+        return Object.values(grouped);
+    }, [filteredData]);
     // Filter outlets based on search input
     const filteredOutlets = useMemo(() => {
         return uniqueOutlets.filter(outlet =>
             outlet.toLowerCase().includes(search.toLowerCase())
         );
     }, [search, uniqueOutlets]);
-
-    // Apply filter function
-    const applyFilter = () => {
-
-        // Make sure attendances is an array before attempting to filter
-        let filtered = ensureArray([...attendances]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
-                try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
-
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
-
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    };
-
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedOutlet("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(attendances));
-        setCurrentPage(1);
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        alert('File berhasil diimpor!');
-        setShowModal(false);
-    };
-
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
-    };
-
 
     // Show loading state
     if (loading) {
@@ -320,23 +195,22 @@ const InStockManagement = () => {
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
-                    <FaBoxes size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Inventori</p>
+                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
+                    <p className="text-[15px] text-gray-500">Pembelian</p>
                     <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Stok Masuk</span>
-                    <FaInfoCircle size={17} className="text-gray-400 inline-block" />
+                    <span className="text-[15px] text-[#005429]">Daftar Pengeluaran</span>
+                    <FaInfoCircle className="text-[15px] text-gray-500" />
                 </div>
-                <div className="flex items-center space-x-2">
-                    <button onClick={() => setShowModal(true)} className="text-[#005429] bg-white border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Impor Stok Masuk</button>
-                    <Link to="/admin/inventory/create-instock" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Stok Masuk</Link>
+                <div className="flex space-x-2">
+                    <Link to="/admin/purchase/create-expenditure-list" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Kelola Daftar Pengeluaran</Link>
                 </div>
             </div>
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
                     <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
+                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
                         <div className="relative">
                             {!showInput ? (
                                 <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
@@ -354,15 +228,6 @@ const InStockManagement = () => {
                             )}
                             {showInput && (
                                 <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    <li
-                                        onClick={() => {
-                                            setTempSelectedOutlet(""); // Kosong berarti semua
-                                            setShowInput(false);
-                                        }}
-                                        className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                    >
-                                        Semua Outlet
-                                    </li>
                                     {filteredOutlets.length > 0 ? (
                                         filteredOutlets.map((outlet, idx) => (
                                             <li
@@ -403,22 +268,57 @@ const InStockManagement = () => {
                     </div>
 
                     <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">ID Stok Masuk</label>
+                        <label className="text-[13px] mb-1 text-gray-500">Jenis Pengeluaran</label>
+                        <div className="relative">
+                            {!showInput ? (
+                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
+                                    {tempSelectedOutlet || "Semua Jenis"}
+                                </button>
+                            ) : (
+                                <input
+                                    type="text"
+                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    autoFocus
+                                    placeholder=""
+                                />
+                            )}
+                            {showInput && (
+                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                    {filteredOutlets.length > 0 ? (
+                                        filteredOutlets.map((outlet, idx) => (
+                                            <li
+                                                key={idx}
+                                                onClick={() => {
+                                                    setTempSelectedOutlet(outlet);
+                                                    setShowInput(false);
+                                                }}
+                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                            >
+                                                {outlet}
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                                    )}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col col-span-3">
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Cari ID Stok"
+                                placeholder="Cari Nama Pengeluaran / Supplier"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
-                    </div>
-
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
                     </div>
                 </div>
 
@@ -427,10 +327,11 @@ const InStockManagement = () => {
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Waktu Submit</th>
-                                <th className="px-4 py-3 font-normal">ID Stok Masuk</th>
-                                <th className="px-4 py-3 font-normal">Outlet</th>
+                                <th className="px-4 py-3 font-normal">ID PO</th>
+                                <th className="px-4 py-3 font-normal">Supplier</th>
+                                <th className="px-4 py-3 font-normal">No. PO</th>
                                 <th className="px-4 py-3 font-normal">Tanggal</th>
+                                <th className="px-4 py-3 font-normal">Status</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
@@ -440,19 +341,19 @@ const InStockManagement = () => {
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
                                                 <td className="px-4 py-3">
-                                                    {data.karyawan || []}
-                                                </td>
-                                                <td className="px-4 py-3">
                                                     {formatDate(data.tanggal) || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {formatTime(data.waktu_masuk) || []}
+                                                    {data.jenis || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {formatTime(data.waktu_keluar) || []}
+                                                    {data.jumlah || []}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    {data.total || []}
+                                                    {data.supplier || []}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {data.keterangan || []}
                                                 </td>
                                             </tr>
                                         );
@@ -471,13 +372,19 @@ const InStockManagement = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={10}>
-                                        <div className="flex justify-center items-center">
-                                            <div className="text-gray-400">
-                                                <div className="flex justify-center">
-                                                    <FaSearch size={100} />
+                                    <td colSpan={5}>
+                                        <div className="flex justify-center items-center min-h-[300px] text-gray-500">
+                                            <div className="grid grid-cols-3 gap-6 text-center">
+                                                <div className="col-span-3 flex flex-col items-center justify-center space-y-4 max-w-[700px]">
+                                                    <FaShoppingCart size={60} className="text-gray-500" />
+                                                    <p className="text-lg font-semibold">Daftar Pengeluaran</p>
+                                                    <span className="text-sm text-justify">
+                                                        Dengan mengisi daftar pengeluaran yang biasanya menjadi keperluan bisnis Anda.
+                                                    </span>
+                                                    <Link to="/admin/purchase/create-expenditure-list" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded transition">
+                                                        Kelola Daftar Belanja
+                                                    </Link>
                                                 </div>
-                                                <p className="uppercase">Data Tidak ditemukan</p>
                                             </div>
                                         </div>
                                     </td>
@@ -493,24 +400,22 @@ const InStockManagement = () => {
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        {totalPages > 1 && (
-                            <div className="flex space-x-2">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Sebelumnya
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Berikutnya
-                                </button>
-                            </div>
-                        )}
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Sebelumnya
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Berikutnya
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>
@@ -520,9 +425,8 @@ const InStockManagement = () => {
                 </div>
             </div>
 
-            <Modal show={showModal} onClose={() => setShowModal(false)} onSubmit={handleSubmit} />
         </div>
     );
 };
 
-export default InStockManagement;
+export default ExpenditureListManagement;
