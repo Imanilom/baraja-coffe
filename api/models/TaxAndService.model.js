@@ -1,10 +1,15 @@
 import mongoose from 'mongoose';
 
 const TaxAndServiceSchema = new mongoose.Schema({
-  name: {
+  type: {
     type: String,
     required: true,
     enum: ['tax', 'service'],
+  },
+  name: {
+    type: String,
+    required: true,
+    trim: true,
   },
   description: {
     type: String,

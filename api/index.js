@@ -28,8 +28,13 @@ import ratingRoutes from './routes/rating.routes.js';
 import taxAndServiceRoutes from './routes/taxAndService.routes.js';
 import areaRoutes from './routes/areas.routes.js';
 import ReceiptSetting from './routes/receiptSetting.routes.js';
+import productStockRoutes from './routes/productStock.routes.js';
+
+
+
 import socketHandler from './socket/index.js';
 import { midtransWebhook } from './controllers/webhookController.js';
+
 
 dotenv.config();
 
@@ -91,6 +96,7 @@ app.use('/api/reservations', reservationRoutes);
 app.use('/api/marketlist', marketListRoutes);
 app.use('/api/tax-service', taxAndServiceRoutes);
 app.use('/api/receipt-setting', ReceiptSetting);
+app.use('/api/product', productStockRoutes);
 // app.post('/api/midtrans/webhook', (req, res) => {
 //   // const body = req.body;
 //   // console.log('Notifikasi Midtrans diterima:', body);
