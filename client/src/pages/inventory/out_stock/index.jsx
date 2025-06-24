@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Modal from './modal';
@@ -311,7 +311,7 @@ const OutStockManagement = () => {
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
+                    <FaBoxes size={21} className="text-gray-500 inline-block" />
                     <p className="text-[15px] text-gray-500">Inventori</p>
                     <FaChevronRight className="text-[15px] text-gray-500" />
                     <span className="text-[15px] text-[#005429]">Stok Keluar</span>

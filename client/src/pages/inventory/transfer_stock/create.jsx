@@ -114,6 +114,12 @@ const CreateTransferStock = () => {
                         <span
                             className="text-gray-400 inline-block"
                         >
+                            Transfer Stok
+                        </span>
+                        <FaChevronRight size={22} className="text-gray-400 inline-block" />
+                        <span
+                            className="text-gray-400 inline-block"
+                        >
                             Tambah Transfer Stok
                         </span>
                     </div>
@@ -320,7 +326,7 @@ const CreateTransferStock = () => {
                         </table>
 
                         {/* Tombol */}
-                        <div className="flex gap-2 px-3 mb-[150px]">
+                        <div className="flex gap-2 px-3 mb-[150px] text-[14px]">
                             <button
                                 type="button"
                                 onClick={handleAddRow}

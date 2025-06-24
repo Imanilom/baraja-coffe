@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import { app } from "../../firebase";  // Import your Firebase app initialization
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
 

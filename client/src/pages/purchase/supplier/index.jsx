@@ -209,7 +209,7 @@ const SupplierManagement = () => {
                     <FaChevronRight className="text-[15px] text-gray-500" />
                     <span className="text-[15px] text-[#005429]">Supplier</span>
                 </div>
-                <Link to="/admin/create-supplier" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Supplier</Link>
+                <Link to="/admin/purchase/create-supplier" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Supplier</Link>
             </div>
 
             {/* Filters */}

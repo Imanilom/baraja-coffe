@@ -61,10 +61,10 @@ const Sidebar = () => {
         {
           name: "Pembelian", icon: <FaReceipt />,
           subMenu: [
-            { name: "Supplier", path: "/admin/supplier" },
-            { name: "Purchase Order", path: "/admin/purchase-order" },
-            { name: "Daftar Belanja", path: "/admin/shopping-list" },
-            { name: "Daftar Pengeluaran", path: "/admin/expenditure-list" },
+            { name: "Supplier", path: "/admin/purchase/supplier" },
+            { name: "Purchase Order", path: "/admin/purchase/purchase-order" },
+            { name: "Daftar Belanja", path: "/admin/purchase/shopping-list" },
+            { name: "Daftar Pengeluaran", path: "/admin/purchase/expenditure-list" },
           ]
         },
       ],

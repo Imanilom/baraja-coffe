@@ -116,6 +116,12 @@ const CreateProduction = () => {
                         >
                             Produksi Stok
                         </span>
+                        <FaChevronRight size={22} className="text-gray-400 inline-block" />
+                        <span
+                            className="text-gray-400 inline-block"
+                        >
+                            Produksi Produk
+                        </span>
                     </div>
                 </div>
                 {/* === FORM INPUT ATAS === */}
@@ -258,7 +264,7 @@ const CreateProduction = () => {
                         </table>
 
                         {/* Tombol */}
-                        <div className="flex gap-2 px-3 mb-[150px]">
+                        <div className="flex gap-2 px-3 mb-[150px] text-[14px]">
                             <button
                                 type="button"
                                 onClick={handleAddRow}

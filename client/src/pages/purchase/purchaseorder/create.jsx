@@ -1,54 +1,66 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown, FaBoxes, FaTrash } from "react-icons/fa";
+import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown, FaBoxes, FaTrash, FaReceipt } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
-const CreateOutStock = () => {
+const CreatePurchaseOrder = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [form, setForm] = useState({
-        outlet: '',
+        supplier: '',
         tanggal: '',
         catatan: '',
     });
 
-    const [outletList, setOutletList] = useState([]);
+    const [supplierList, setSupplierList] = useState([]);
+    const [outlet, setOutlet] = useState([]);
     const [showInput, setShowInput] = useState(false);
+    const [showInputOutlet, setShowInputOutlet] = useState(false);
     const [search, setSearch] = useState('');
+    const [searchOutlet, setSearchOutlet] = useState('');
+    const [tempSelectedSupplier, setTempSelectedSupplier] = useState('');
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState('');
     const dropdownRef = useRef();
 
-    // ✅ Fetch outlet dari API
-    const fetchOutlets = async () => {
+    // ✅ Fetch supplier dari API
+    const fetchData = async () => {
         setLoading(true);
         try {
-            const response = await axios.get('/api/outlet');
+            const response = await axios.get('/api/marketlist/supplier');
             // Pastikan response sesuai format
-            setOutletList(response.data || []);
+            setSupplierList(response.data.data || []);
+
+            const responseOutlet = await axios.get('/api/outlet');
+            setOutlet(responseOutlet.data || []);
         } catch (error) {
-            console.error('Gagal fetch outlet:', error);
+            console.error('Gagal fetch supplier:', error);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchOutlets();
+        fetchData();
     }, []);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setShowInput(false);
+                setShowInputOutlet(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const filteredOutlets = outletList.filter((outlet) =>
-        outlet.name.toLowerCase().includes(search.toLowerCase())
+    const filteredSupplier = supplierList.filter((supplier) =>
+        supplier.name.toLowerCase().includes(search.toLowerCase())
+    );
+
+    const filteredOutlet = outlet.filter((outlet) =>
+        outlet.name.toLowerCase().includes(searchOutlet.toLowerCase())
     );
 
     const handleFormChange = (e) => {
@@ -81,6 +93,7 @@ const CreateOutStock = () => {
         const payload = {
             ...form,
             outlet: tempSelectedOutlet,
+            supplier: tempSelectedSupplier,
             detailProduk: rows,
         };
         console.log('Data terkirim:', payload);
@@ -102,23 +115,23 @@ const CreateOutStock = () => {
             <form onSubmit={handleSubmit} className="space-y-6 mb-[60px]">
                 <div className="px-3 py-3 flex justify-between items-center border-b">
                     <div className="flex items-center space-x-2">
-                        <FaBoxes size={22} className="text-gray-400 inline-block" />
+                        <FaReceipt size={22} className="text-gray-400 inline-block" />
                         <span
                             className="text-gray-400 inline-block"
                         >
-                            Inventori
+                            Pembelian
                         </span>
                         <FaChevronRight size={22} className="text-gray-400 inline-block" />
                         <span
                             className="text-gray-400 inline-block"
                         >
-                            Stok Keluar
+                            Purchase Order
                         </span>
                         <FaChevronRight size={22} className="text-gray-400 inline-block" />
                         <span
                             className="text-gray-400 inline-block"
                         >
-                            Tambah Stok Keluar
+                            Tambah Purchase Order
                         </span>
                     </div>
                 </div>
@@ -130,13 +143,97 @@ const CreateOutStock = () => {
                             Outlet
                         </h3>
                         <div className="relative flex-1">
+                            {!showInputOutlet ? (
+                                <button
+                                    type="button"
+                                    className="w-full text-[13px] text-gray-500 border py-2 px-3 rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
+                                    onClick={() => setShowInputOutlet(true)}
+                                >
+                                    {tempSelectedOutlet || 'Pilih Outlet'}
+                                </button>
+                            ) : (
+                                <input
+                                    type="text"
+                                    className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
+                                    value={searchOutlet}
+                                    onChange={(e) => setSearchOutlet(e.target.value)}
+                                    autoFocus
+                                    placeholder="Cari Outlet..."
+                                />
+                            )}
+                            {showInputOutlet && (
+                                <ul
+                                    className="absolute z-10 bg-white border mt-1 w-full rounded shadow-md max-h-48 overflow-auto"
+                                    ref={dropdownRef}
+                                >
+                                    {filteredOutlet.length > 0 ? (
+                                        filteredOutlet.map((outlet, idx) => (
+                                            <li
+                                                key={idx}
+                                                onClick={() => {
+                                                    setTempSelectedOutlet(outlet.name);
+                                                    setShowInputOutlet(false);
+                                                    setSearchOutlet('');
+                                                }}
+                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                            >
+                                                {outlet.name}
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                                    )}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* === NO PO === */}
+                    <div className="flex items-center">
+                        <h3 className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
+                            No. PO
+                        </h3>
+                        <div className="relative flex-1">
+                            <input
+                                type="text"
+                                name="po"
+                                value={form.po}
+                                onChange={handleFormChange}
+                                className="w-full text-[13px] border py-2 px-3 rounded text-left"
+                            />
+
+                            <div className="flex pt-2">
+                                <div className="w-full flex justify-between text-[14px] text-[#999999]">
+                                    <h3>Gunakan No. PO System</h3>
+                                    <div className="flex space-x-2">
+                                        <h3>Tidak</h3>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" className="sr-only peer" />
+                                            <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-4 peer-focus:ring-blue-300 
+                    peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full 
+                    peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 
+                    after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
+                    after:h-5 after:w-5 after:transition-all peer-checked:bg-[#005429]"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* === SUPPLIER CUSTOM === */}
+                    <div className="flex items-center">
+                        <h3 className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
+                            Supplier
+                        </h3>
+                        <div className="relative flex-1">
                             {!showInput ? (
                                 <button
                                     type="button"
                                     className="w-full text-[13px] text-gray-500 border py-2 px-3 rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
                                     onClick={() => setShowInput(true)}
                                 >
-                                    {tempSelectedOutlet || 'Pilih Outlet'}
+                                    {tempSelectedSupplier || 'Pilih Supplier'}
                                 </button>
                             ) : (
                                 <input
@@ -145,7 +242,7 @@ const CreateOutStock = () => {
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     autoFocus
-                                    placeholder="Cari outlet..."
+                                    placeholder="Cari Supplier..."
                                 />
                             )}
                             {showInput && (
@@ -153,18 +250,18 @@ const CreateOutStock = () => {
                                     className="absolute z-10 bg-white border mt-1 w-full rounded shadow-md max-h-48 overflow-auto"
                                     ref={dropdownRef}
                                 >
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
+                                    {filteredSupplier.length > 0 ? (
+                                        filteredSupplier.map((supplier, idx) => (
                                             <li
                                                 key={idx}
                                                 onClick={() => {
-                                                    setTempSelectedOutlet(outlet.name);
+                                                    setTempSelectedSupplier(supplier.name);
                                                     setShowInput(false);
                                                     setSearch('');
                                                 }}
                                                 className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
                                             >
-                                                {outlet.name}
+                                                {supplier.name}
                                             </li>
                                         ))
                                     ) : (
@@ -195,6 +292,7 @@ const CreateOutStock = () => {
                             value={form.catatan}
                             onChange={handleFormChange}
                             className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
+                            placeholder="Ketik Catatan..."
                             rows="2"
                         />
                     </div>
@@ -206,12 +304,12 @@ const CreateOutStock = () => {
                         <table className="table-auto w-full border-gray-300" cellPadding={10}>
                             <thead className="border-b">
                                 <tr className="">
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-left w-3/12 after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Nama Produk</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-right w-2/12 after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Jumlah</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-left w-1/12">Satuan</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-right w-2/12">Harga Beli / Unit</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-right w-3/12">Total Harga Beli</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-1/12">Aksi</th>
+                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-left w-3/12 uppercase">Pembelian Produk</th>
+                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-right w-2/12 uppercase">Jumlah</th>
+                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-left w-1/12 uppercase">Satuan</th>
+                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-right w-2/12 uppercase">Harga Beli Satuan</th>
+                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-right w-3/12 uppercase">Harga Beli Total</th>
+                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-1/12"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -233,14 +331,7 @@ const CreateOutStock = () => {
                                                 className="w-full border px-2 py-1 rounded-lg text-right"
                                             />
                                         </td>
-                                        <td className="pt-3">
-                                            <input
-                                                type="text"
-                                                value={row.satuan}
-                                                onChange={(e) => handleRowChange(index, 'satuan', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg"
-                                            />
-                                        </td>
+                                        <td className="pt-3"></td>
                                         <td className="pt-3">
                                             <input
                                                 type="number"
@@ -289,7 +380,7 @@ const CreateOutStock = () => {
                     </div>
                     <div className="flex space-x-2 py-2">
                         <Link
-                            to="/admin/inventory/out"
+                            to="/admin/purchase/purchase-order"
                             className="border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
                         >
                             Batal
@@ -307,4 +398,4 @@ const CreateOutStock = () => {
     );
 };
 
-export default CreateOutStock;
+export default CreatePurchaseOrder;
