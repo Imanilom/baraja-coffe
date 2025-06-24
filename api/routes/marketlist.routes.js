@@ -14,7 +14,13 @@ import {
   addCashIn,
   getFilteredCashFlow,
   getWeeklyReport,
-  getMarketListReportByDate
+  getMarketListReportByDate,
+  getAllDebts,
+  getDebtById,
+  getDebtSummaryBySupplier,
+  payDebt,
+  updateDebt,
+  deleteDebt
 } from '../controllers/marketlist.controller.js';
 
 import {
@@ -76,26 +82,38 @@ router.get('/cashflow/weekly-report', getWeeklyReport);
 
 router.post('/product', createProduct);
 
-// router.get('/product', getAllProducts);
+router.get('/products', getAllProducts);
 
 router.get('/product', searchProducts);
 
 router.get('/product/:id', getProductById);
 
-router.patch('/product/:id', updateProduct);
+router.patch('/product/:id', inventoryAccess, updateProduct);
 
-router.delete('/product/:id', deleteProduct);
+router.delete('/product/:id', inventoryAccess, deleteProduct);
 
-router.post('/supplier', createSupplier);
+router.post('/supplier', inventoryAccess, createSupplier);
 
 router.get('/supplier', getAllSuppliers);
 
 router.get('/supplier/:id', getSupplierById);
 
-router.patch('/supplier/:id', updateSupplier);
+router.patch('/supplier/:id', inventoryAccess, updateSupplier);
 
-router.delete('/supplier/:id', deleteSupplier);
+router.delete('/supplier/:id',inventoryAccess, deleteSupplier);
 
-router.post('/supplier/bulk', createBulkSuppliers);
+router.post('/supplier/bulk', inventoryAccess, createBulkSuppliers);
+
+router.get('/debts', getAllDebts);
+
+router.get('/debts/:id', getDebtById);
+
+router.get('/debts/supplier', getDebtSummaryBySupplier);
+
+router.post('/debts/pay/:id', payDebt); 
+
+router.patch('/debts/:id', updateDebt);
+
+router.delete('/debts/:id', deleteDebt);
 
 export default router;

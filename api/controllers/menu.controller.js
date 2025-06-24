@@ -172,7 +172,6 @@ export const getMenuItems = async (req, res) => {
     const menuItems = await MenuItem.find()
       .populate([
         { path: 'toppings' },
-        { path: 'rawMaterials.materialId' },
         { path: 'availableAt' },
         {
           path: 'addons',

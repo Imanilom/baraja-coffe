@@ -2,27 +2,27 @@ import mongoose from 'mongoose';
 
 // Skema untuk detail pembayaran (bukti pembayaran)
 const paymentSchema = new mongoose.Schema({
-  type: { 
+  method: {
     type: String,
-    enum: ['offline', 'online'], 
-    required: true 
+    enum: ['cash', 'card', 'transfer'],
+    required: true
   },
-  method: { 
-    type: String, 
-    enum: ['cash', 'card', 'transfer'], 
-    required: true 
-  },
-  status: { 
-    type: String, 
-    enum: ['paid', 'unpaid'], 
-    default: 'unpaid' 
+  status: {
+    type: String,
+    enum: ['paid', 'unpaid', 'partial'],
+    default: 'unpaid'
   },
   bankFrom: String,
   bankTo: String,
   recipientName: String,
-  proofOfPayment: String, // URL gambar bukti
-  notes: String
-});
+  proofOfPayment: String,
+  notes: String,
+  amount: Number,
+  date: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: false });
 
 // Skema item belanja
 const marketListItemSchema = new mongoose.Schema({
@@ -93,16 +93,7 @@ const marketListItemSchema = new mongoose.Schema({
     default: 0,
     min: 0
   }, // sisa utang
-  paymentMethod: {
-    type: String,
-    enum: ['cash', 'card', 'transfer'],
-    required: true
-  },
-  paymentStatus: {
-    type: String,
-    enum: ['unpaid', 'partial', 'paid'],
-    default: 'unpaid'
-  },
+
   payment: paymentSchema // Bukti pembayaran per item
 });
 
