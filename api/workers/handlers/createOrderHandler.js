@@ -5,67 +5,59 @@ import { orderQueue } from '../../queues/order.queue.js';
 
 export async function createOrderHandler({ orderId, orderData, source }) {
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
-    // Proses order items lengkap di sini
+    session.startTransaction();
+
     const processed = await processOrderItems(orderData, session);
+    if (!processed) {
+      throw new Error('Gagal memproses item order');
+    }
 
-    const {
-      orderItems,
-      totalBeforeDiscount,
-      totalAfterDiscount,
-      discounts,
-      appliedPromos,
-      appliedManualPromo,
-      appliedVoucher,
-      taxAndServiceDetails,
-      totalTax,
-      totalServiceFee,
-      grandTotal
-    } = processed;
-
-
-    // Gabungkan hasil dengan order data asli
     const fullOrderData = {
       ...orderData,
       order_id: orderId,
-      items: orderItems,
-      totalBeforeDiscount,
-      totalAfterDiscount,
-      discounts,
+      items: processed.orderItems,
+      totalBeforeDiscount: processed.totalBeforeDiscount,
+      totalAfterDiscount: processed.totalAfterDiscount,
       status: source === 'Cashier' ? 'Completed' : 'Pending',
       source,
-      appliedPromos,
-      appliedManualPromo,
-      appliedVoucher,
-      taxAndServiceDetails,
-      totalTax,
-      totalServiceFee,
-      grandTotal,
+      appliedPromos: processed.appliedPromos,
+      taxAndServiceDetails: processed.taxAndServiceDetails,
+      grandTotal: processed.grandTotal,
     };
-
 
     const newOrder = new Order(fullOrderData);
     await newOrder.save({ session });
 
+    // Commit transaksi sebelum melakukan operasi async lain
     await session.commitTransaction();
 
-    // await orderQueue.add('update_inventory', {
-    //   orderId: newOrder._id.toString(),
-    //   items: processed.orderItems,
-    // }, { jobId: `update_inventory-${newOrder._id.toString()}`,
-    // attempts: 3,
-    // backoff: {
-    //   type: 'exponential',
-    //   delay: 5000
-    // }});
+    // Tambahkan job update inventory setelah transaksi sukses
+    const orderObjectId = newOrder._id.toString();
+    await orderQueue.add(
+      'update_inventory',
+      {
+        orderId: orderObjectId,
+        items: processed.orderItems,
+      },
+      {
+        jobId: `update_inventory-${orderObjectId}`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+      }
+    );
 
-    return { success: true, orderId: newOrder._id };
+    return { success: true, orderId: orderObjectId };
   } catch (err) {
-    await session.abortTransaction();
+    // Rollback transaksi jika masih aktif
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    console.error('createOrderHandler error:', err);
     throw err;
   } finally {
-    session.endSession();
+    // Tutup sesi database
+    await session.endSession();
   }
 }
