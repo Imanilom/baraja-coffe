@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import Modal from './modal';
 
 
 const InStockManagement = () => {
@@ -19,6 +20,7 @@ const InStockManagement = () => {
     const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
+    const [showModal, setShowModal] = useState(false);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -240,6 +242,12 @@ const InStockManagement = () => {
         setCurrentPage(1);
     };
 
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        alert('File berhasil diimpor!');
+        setShowModal(false);
+    };
+
     // Export current data to Excel
     const exportToExcel = () => {
         // Prepare data for export
@@ -312,21 +320,23 @@ const InStockManagement = () => {
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
+                    <FaBoxes size={21} className="text-gray-500 inline-block" />
+                    <p className="text-[15px] text-gray-500">Inventori</p>
                     <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/operational-menu" className="text-[15px] text-gray-500">Laporan Operasional</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Absensi</span>
+                    <span className="text-[15px] text-[#005429]">Stok Masuk</span>
+                    <FaInfoCircle size={17} className="text-gray-400 inline-block" />
                 </div>
-                <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                <div className="flex items-center space-x-2">
+                    <button onClick={() => setShowModal(true)} className="text-[#005429] bg-white border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Impor Stok Masuk</button>
+                    <Link to="/admin/inventory/create-instock" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Stok Masuk</Link>
+                </div>
             </div>
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
                 <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
                     <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
+                        <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
                         <div className="relative">
                             {!showInput ? (
                                 <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
@@ -344,6 +354,15 @@ const InStockManagement = () => {
                             )}
                             {showInput && (
                                 <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                    <li
+                                        onClick={() => {
+                                            setTempSelectedOutlet(""); // Kosong berarti semua
+                                            setShowInput(false);
+                                        }}
+                                        className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                    >
+                                        Semua Outlet
+                                    </li>
                                     {filteredOutlets.length > 0 ? (
                                         filteredOutlets.map((outlet, idx) => (
                                             <li
@@ -384,12 +403,12 @@ const InStockManagement = () => {
                     </div>
 
                     <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                        <label className="text-[13px] mb-1 text-gray-500">ID Stok Masuk</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Karyawan"
+                                placeholder="Cari ID Stok"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
@@ -408,11 +427,10 @@ const InStockManagement = () => {
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Karyawan</th>
+                                <th className="px-4 py-3 font-normal">Waktu Submit</th>
+                                <th className="px-4 py-3 font-normal">ID Stok Masuk</th>
+                                <th className="px-4 py-3 font-normal">Outlet</th>
                                 <th className="px-4 py-3 font-normal">Tanggal</th>
-                                <th className="px-4 py-3 font-normal">Masuk</th>
-                                <th className="px-4 py-3 font-normal">Keluar</th>
-                                <th className="px-4 py-3 font-normal text-right">Total</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
@@ -453,7 +471,16 @@ const InStockManagement = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={5}>Tidak ada data ditemukan</td>
+                                    <td colSpan={10}>
+                                        <div className="flex justify-center items-center">
+                                            <div className="text-gray-400">
+                                                <div className="flex justify-center">
+                                                    <FaSearch size={100} />
+                                                </div>
+                                                <p className="uppercase">Data Tidak ditemukan</p>
+                                            </div>
+                                        </div>
+                                    </td>
                                 </tr>
                             </tbody>
                         )}
@@ -466,22 +493,24 @@ const InStockManagement = () => {
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
+                        {totalPages > 1 && (
+                            <div className="flex space-x-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Sebelumnya
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Berikutnya
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -490,6 +519,8 @@ const InStockManagement = () => {
                 <div className="w-full h-[2px] bg-[#005429]">
                 </div>
             </div>
+
+            <Modal show={showModal} onClose={() => setShowModal(false)} onSubmit={handleSubmit} />
         </div>
     );
 };

@@ -28,11 +28,9 @@ const TaxManagementPage = () => {
             const response = await axios.get("/api/outlet");
             setOutlets(response.data || []);
 
-            const data = [
-                { _id: "1632871638", name: "PB1", type: "Pajak", total: 10 }
-            ]
-            setData(data || []);
-            setFilteredData(data || []);
+            const data = await axios.get("/api/tax-service/")
+            setData(data.data || []);
+            setFilteredData(data.data || []);
         } catch (error) {
             console.error("Error fetching outlets:", error);
             setOutlets([]);
@@ -85,8 +83,8 @@ const TaxManagementPage = () => {
                     <p className="text-[15px] text-gray-500">Pajak & Service Charge</p>
                 </div>
                 <div className="flex space-x-2">
-                    <button onClick={() => navigate("/admin/create-outlet")} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Service Charge</button>
-                    <button onClick={() => navigate("/admin/create-outlet")} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Pajak</button>
+                    <button onClick={() => navigate("/admin/create-service")} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Service Charge</button>
+                    <button onClick={() => navigate("/admin/tax-create")} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Pajak</button>
                 </div>
             </div>
 

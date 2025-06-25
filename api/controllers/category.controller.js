@@ -193,3 +193,20 @@ export const getCategoriesByType = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch categories by type', error: error.message });
   }
 }
+
+export const getCategoriesById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Id is required' });
+    }
+
+    const categories = await Category.findById(id);
+
+    res.status(200).json({ success: true, data: categories });
+  } catch (error) {
+    console.error('Error fetching categories by type:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch categories by type', error: error.message });
+  }
+}

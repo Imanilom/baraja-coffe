@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBoxes, FaInfoCircle } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 
@@ -312,21 +312,20 @@ const ProductionStockManagement = () => {
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
+                    <FaBoxes size={21} className="text-gray-500 inline-block" />
+                    <p className="text-[15px] text-gray-500">Inventori</p>
                     <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/operational-menu" className="text-[15px] text-gray-500">Laporan Operasional</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Absensi</span>
+                    <span className="text-[15px] text-[#005429]">Produksi Stok</span>
+                    <FaInfoCircle size={17} className="text-gray-400 inline-block" />
                 </div>
-                <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                <Link to="/admin/inventory/create-production" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Produksi Produk</Link>
             </div>
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
                 <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
                     <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
+                        <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
                         <div className="relative">
                             {!showInput ? (
                                 <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
@@ -384,12 +383,12 @@ const ProductionStockManagement = () => {
                     </div>
 
                     <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                        <label className="text-[13px] mb-1 text-gray-500">ID Stok</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Karyawan"
+                                placeholder="Cari ID Stok"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
@@ -408,11 +407,11 @@ const ProductionStockManagement = () => {
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Karyawan</th>
+                                <th className="px-4 py-3 font-normal">Waktu Submit</th>
+                                <th className="px-4 py-3 font-normal">Tipe Stok</th>
+                                <th className="px-4 py-3 font-normal">ID Stok</th>
+                                <th className="px-4 py-3 font-normal">Outlet</th>
                                 <th className="px-4 py-3 font-normal">Tanggal</th>
-                                <th className="px-4 py-3 font-normal">Masuk</th>
-                                <th className="px-4 py-3 font-normal">Keluar</th>
-                                <th className="px-4 py-3 font-normal text-right">Total</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
@@ -453,7 +452,16 @@ const ProductionStockManagement = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={5}>Tidak ada data ditemukan</td>
+                                    <td colSpan={10}>
+                                        <div className="flex justify-center items-center">
+                                            <div className="text-gray-400">
+                                                <div className="flex justify-center">
+                                                    <FaSearch size={100} />
+                                                </div>
+                                                <p className="uppercase">Data Tidak ditemukan</p>
+                                            </div>
+                                        </div>
+                                    </td>
                                 </tr>
                             </tbody>
                         )}

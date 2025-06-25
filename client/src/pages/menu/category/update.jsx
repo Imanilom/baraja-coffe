@@ -1,14 +1,39 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
 const UpdateCategory = () => {
+    const { id } = useParams(); // Get the menu item ID from the URL
+    const [categories, setCategories] = useState([]);
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [type, setType] = useState('food'); // Default type adalah "food"
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [successMessage, setSuccessMessage] = useState('');
+
+    useEffect(() => {
+        setLoading(true);
+        const fetchCategories = async () => {
+            try {
+                const response = await axios.get(`/api/storage/categories/${id}`);
+                const fetchedCategories = response.data.data || [];
+                setCategories(fetchedCategories);
+            } catch (error) {
+                console.error("Error fetching categories:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchCategories(); // Fetch the menu item to update
+    }, [id]);
+
+    useEffect(() => {
+        if (categories && categories.name) {
+            setName(categories.name);
+        }
+    }, [categories]);
 
     // Fungsi untuk menangani pengiriman formulir
     const handleSubmit = async (e) => {
@@ -22,8 +47,8 @@ const UpdateCategory = () => {
                 description,
                 type,
             };
-
-            const response = await axios.post('/api/storage/category', [newCategory]); // Kirim sebagai array
+            console.log(newCategory);
+            const response = await axios.put(`/api/storage/category/${id}`, newCategory); // Kirim sebagai array
             if (response.data.success) {
                 setSuccessMessage('Category added successfully!');
                 setName('');

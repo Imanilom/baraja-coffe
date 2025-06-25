@@ -1,49 +1,28 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaChevronRight, FaInfoCircle } from 'react-icons/fa';
 import axios from "axios";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-
-const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="bg-white p-6 rounded shadow-md text-center w-96">
-                <FaTrash className="text-red-500 mx-auto mb-4" size={72} />
-                <h2 className="text-lg font-bold">Konfirmasi Penghapusan</h2>
-                <p>Apakah Anda yakin ingin menghapus item ini?</p>
-                <div className="flex justify-center mt-4">
-                    <button onClick={onClose} className="mr-2 px-4 py-2 bg-gray-300 rounded">Batal</button>
-                    <button onClick={onConfirm} className="px-4 py-2 bg-red-500 text-white rounded">Hapus</button>
-                </div>
-            </div>
-        </div>
-    );
-};
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 const ManageStock = () => {
+    const { id } = useParams();
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const location = useLocation();
-    const [showInput, setShowInput] = useState(false);
-    const [showInputStatus, setShowInputStatus] = useState(false);
-    const [showInputCategory, setShowInputCategory] = useState(false);
     const navigate = useNavigate(); // Use the new hook
-    const [menuItems, setMenuItems] = useState([]);
+    const [menuItems, setMenuItems] = useState({
+        name: "",
+        price: "",
+        description: "",
+        category: [], // This should be an array
+        imageURL: "",
+        toppings: [],
+        addons: [],
+        rawMaterials: [],
+        availableAt: "",
+    });
     const [category, setCategory] = useState([]);
     const [status, setStatus] = useState([]);
-    const [tempSelectedCategory, setTempSelectedCategory] = useState("");
-    const [tempSelectedStatus, setTempSelectedStatus] = useState("");
-    const [tempSearch, setTempSearch] = useState("");
     const [error, setError] = useState(null);
-    const [checkedItems, setCheckedItems] = useState([]);
-    const [checkAll, setCheckAll] = useState(false);
-
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [outlets, setOutlets] = useState([]);
-    const [search, setSearch] = useState("");
-    const [searchCategory, setSearchCategory] = useState("");
-    const [openDropdown, setOpenDropdown] = useState(null); // Menyimpan status dropdown
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState(null);
 
     const [filteredData, setFilteredData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -60,13 +39,9 @@ const ManageStock = () => {
             setLoading(true);
             try {
                 // Fetch products data
-                const menuResponse = await axios.get('/api/menu/menu-items');
+                const menuResponse = await axios.get(`/api/menu/menu-items/${id}`);
 
-                // Ensure menuResponse.data is an array
-                const menuData = Array.isArray(menuResponse.data) ?
-                    menuResponse.data :
-                    (menuResponse.data && Array.isArray(menuResponse.data.data)) ?
-                        menuResponse.data.data : [];
+                const menuData = menuResponse.data.data;
 
                 setMenuItems(menuData);
                 setFilteredData(menuData); // Initialize filtered data with all products
@@ -115,6 +90,11 @@ const ManageStock = () => {
         fetchData();
     }, []);
 
+    const handleConfirm = () => {
+        console.log('Item dihapus');
+        setIsModalOpen(false);
+    };
+
     // Show loading state
     if (loading) {
         return (
@@ -156,18 +136,18 @@ const ManageStock = () => {
                     <FaShoppingBag size={21} />
                     <Link to="/admin/menu">Produk</Link>
                     <FaChevronRight />
-                    <p>Produk</p>
+                    <p>{menuItems.name}</p>
                     <FaChevronRight />
                     <span>Kelola Stok</span>
                     <FaInfoCircle className="" />
                 </div>
                 <div className="flex space-x-2">
-                    <button
-                        onClick={() => console.log('back')}
+                    <Link
+                        to="/admin/menu"
                         className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
                     >
                         Batal
-                    </button>
+                    </Link>
                     <button
                         onClick={() => console.log('Simpan')}
                         className="bg-[#005429] text-white px-4 py-2 rounded border text-[13px]"
@@ -219,7 +199,7 @@ const ManageStock = () => {
 
                             <tbody>
                                 <tr>
-                                    <td className="p-[15px]">Produk</td>
+                                    <td className="p-[15px]">{menuItems.name}</td>
                                     <td className="p-[15px]">-</td>
                                     <td className="p-[15px]">
                                         <div className="flex space-x-4 justify-end">

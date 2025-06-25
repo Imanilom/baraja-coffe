@@ -10,7 +10,7 @@ const debtSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Supplier'
   },
-  supplierName: {
+  supplierName: { 
     type: String,
     required: true
   },

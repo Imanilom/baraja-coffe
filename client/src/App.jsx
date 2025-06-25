@@ -99,6 +99,20 @@ import Table from "./pages/table/tablemanagement";
 import UpdateCategory from "./pages/menu/category/update";
 import EmployeeManagement from "./pages/employee";
 import CustomerManagement from "./pages/customer";
+import CreateModifier from "./pages/menu/modifier/create";
+import CreateTax from "./pages/tax/create_tax";
+import CreateSupplier from "./pages/purchase/supplier/create";
+import OutletCardManagement from "./pages/inventory/outletcard";
+import CreateStock from "./pages/inventory/in_stock/create";
+import CreateOutStock from "./pages/inventory/out_stock/create";
+import CreateTransferStock from "./pages/inventory/transfer_stock/create";
+import CreateStokOpname from "./pages/inventory/stock_opname/create";
+import CreateProduction from "./pages/inventory/production_stock/create";
+import CreatePurchaseOrder from "./pages/purchase/purchaseorder/create";
+import ExpenditureListManagement from "./pages/purchase/expenditurelist";
+import CreateShoppingList from "./pages/purchase/shoppinglist/create";
+import CreateExpenditureList from "./pages/purchase/expenditurelist/create";
+import CreateEmployee from "./pages/employee/create";
 
 
 
@@ -124,6 +138,7 @@ export default function App() {
                 <Route path="example" element={<Example />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
+                <Route path="modifier-create" element={<CreateModifier />} />
                 <Route path="menu/:id" element={<ViewMenu />} />
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
                 <Route path="add-ons" element={<AddOns />} />
@@ -133,15 +148,31 @@ export default function App() {
                 <Route path="category-update/:id" element={<UpdateCategory />} />
                 <Route path="manage-stock/:id" element={<ManageStock />} />
                 <Route path="manage-price-and-selling-status/:id" element={<PriceSellingStatusManagement />} />
-                <Route path="supplier" element={<SupplierManagement />} />
-                <Route path="purchase-order" element={<PurchaseOrderManagement />} />
-                <Route path="shopping-list" element={<ShoppingList />} />
                 <Route path="table-management" element={<Table />} />
+
+                {/* Purchase */}
+
+                {/* supplier */}
+                <Route path="purchase/supplier" element={<SupplierManagement />} />
+                <Route path="purchase/create-supplier" element={<CreateSupplier />} />
+
+                {/* Purchase Order */}
+                <Route path="purchase/purchase-order" element={<PurchaseOrderManagement />} />
+                <Route path="purchase/create-purchase-order" element={<CreatePurchaseOrder />} />
+
+                {/* Shopping List */}
+                <Route path="purchase/shopping-list" element={<ShoppingList />} />
+                <Route path="purchase/create-shopping-list" element={<CreateShoppingList />} />
+
+                {/* Expenditure List */}
+                <Route path="purchase/expenditure-list" element={<ExpenditureListManagement />} />
+                <Route path="purchase/create-expenditure-list" element={<CreateExpenditureList />} />
 
                 {/* Report */}
                 <Route path="sales-menu" element={<SalesMenu />} />
                 <Route path="operational-menu" element={<OperationalMenu />} />
                 <Route path="profit-menu" element={<ProfitMenu />} />
+
                 {/* Sales */}
                 <Route path="digital-payment" element={<DigitalPayment />} />
                 <Route path="transaction-sales" element={<SalesTransaction />} />
@@ -155,6 +186,7 @@ export default function App() {
                 <Route path="category-sales" element={<CategorySales />} />
                 <Route path="summary" element={<Summary />} />
                 <Route path="outlet-sales" element={<OutletSales />} />
+
                 {/* Operational */}
                 <Route path="reconciliation" element={<Reconciliation />} />
                 <Route path="stock" element={<StockManagement />} />
@@ -163,6 +195,7 @@ export default function App() {
                 <Route path="expenditure" element={<ExpenditureManagement />} />
                 <Route path="commission" element={<CommissionManagement />} />
                 <Route path="table" element={<TableManagement />} />
+
                 {/* Profit */}
                 <Route path="tax-revenue" element={<TaxRevenueManagement />} />
                 <Route path="discount" element={<DiscountManagement />} />
@@ -170,15 +203,25 @@ export default function App() {
                 <Route path="profit-by-product" element={<ProfitByProductManagement />} />
 
                 {/* Inventory */}
-                {/* <Route path="stockcard" element={<StockCardManagement />} />
-                <Route path="in" element={<InStockManagement />} />
-                <Route path="out" element={<OutStockManagement />} />
-                <Route path="production" element={<ProductionStockManagement />} />
-                <Route path="stockopname" element={<StockOpnameManagement />} />
-                <Route path="transfer" element={<TransferStockManagement />} /> */}
+                <Route path="inventory/stockcard" element={<StockCardManagement />} />
+                <Route path="inventory/cardoutlet" element={<OutletCardManagement />} />
+                <Route path="inventory/in" element={<InStockManagement />} />
+                <Route path="inventory/create-instock" element={<CreateStock />} />
+                <Route path="inventory/out" element={<OutStockManagement />} />
+                <Route path="inventory/create-outstock" element={<CreateOutStock />} />
+                <Route path="inventory/stockopname" element={<StockOpnameManagement />} />
+                <Route path="inventory/create-stockopname" element={<CreateStokOpname />} />
+                <Route path="inventory/transfer" element={<TransferStockManagement />} />
+                <Route path="inventory/create-transfer-stock" element={<CreateTransferStock />} />
+                <Route path="inventory/production" element={<ProductionStockManagement />} />
+                <Route path="inventory/create-production" element={<CreateProduction />} />
+
+                {/* Tax And Service */}
+                <Route path="tax-create" element={<CreateTax />} />
 
                 {/* Employee */}
                 <Route path="employee" element={<EmployeeManagement />} />
+                <Route path="create-employee" element={<CreateEmployee />} />
 
                 {/* Customer */}
                 <Route path="customer" element={<CustomerManagement />} />
@@ -189,21 +232,26 @@ export default function App() {
                 <Route path="tax-and-service" element={<TaxManagementPage />} />
                 <Route path="target-sales" element={<TargetSalesManagementPage />} />
                 <Route path="receipt-design" element={<ReceiptDesign />} />
+
                 {/* Voucher */}
                 <Route path="voucher" element={<Vouchermanagement />} />
                 <Route path="voucher-create" element={<CreateVoucher />} />
+
                 {/* promosi */}
                 <Route path="promotion" element={<Promotionmanagement />} />
                 <Route path="promo-khusus-create" element={<CreatePromoPage />} />
                 <Route path="promo-khusus" element={<IndexPromoPage />} />
                 <Route path="promo-otomatis-create" element={<CreateAutoPromoPage />} />
                 <Route path="promo-otomatis" element={<RunningAutoPromos />} />
+
                 {/* point */}
                 <Route path="loyalty-levels" element={<LevelManagement />} />
+
                 {/* Loyalty Programs */}
                 <Route path="loyalty" element={<LoyaltyIndex />} />
                 <Route path="loyalty/create" element={<CreateLoyaltyProgram />} />
                 <Route path="loyalty/edit/:id" element={<EditLoyaltyProgram />} />
+
                 {/* Storage */}
                 <Route path="storage" element={<Storagemanagement />} />
                 <Route path="storage-create" element={<CreateStrorage />} />
