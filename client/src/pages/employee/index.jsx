@@ -220,7 +220,7 @@ const EmployeeManagement = () => {
                     <FaIdBadge size={21} className="text-gray-500 inline-block" />
                     <p className="text-[15px] text-gray-500">Karyawan</p>
                 </div>
-                <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</button>
+                <Link to="/admin/create-employee" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
             </div>
 
             {/* Filters */}

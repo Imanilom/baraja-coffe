@@ -107,7 +107,7 @@
 
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const AddCategory = () => {
   const [name, setName] = useState('');
@@ -115,7 +115,8 @@ const AddCategory = () => {
   const [type, setType] = useState('food'); // Default type adalah "food"
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState('');
+  // const [successMessage, setSuccessMessage] = useState('');
+  const navigate = useNavigate(); // ← inisialisasi
 
   // Fungsi untuk menangani pengiriman formulir
   const handleSubmit = async (e) => {
@@ -126,13 +127,14 @@ const AddCategory = () => {
     try {
       const newCategory = {
         name,
-        description,
-        type,
+        // description,
+        // type,
       };
 
       const response = await axios.post('/api/storage/category', [newCategory]); // Kirim sebagai array
       if (response.data.success) {
-        setSuccessMessage('Category added successfully!');
+        // setSuccessMessage('Category added successfully!');
+        navigate('/admin/categories', { state: { successMessage: 'Kategori berhasil ditambahkan!' } });
         setName('');
         setDescription('');
         setType('food'); // Reset form
@@ -149,9 +151,9 @@ const AddCategory = () => {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Tambah Kategori</h1>
 
-      {successMessage && (
+      {/* {successMessage && (
         <p className="text-green-500 mb-4">{successMessage}</p>
-      )}
+      )} */}
 
       {error && <p className="text-red-500 mb-4">{error}</p>}
 

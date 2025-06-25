@@ -315,24 +315,11 @@ const ModifierManagement = () => {
           <p className="text-gray-400 inline-block">Produk</p>
         </div>
         <div className="flex space-x-2">
-          <button
-            onClick={() => console.log('Impor Menu')}
-            className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
-          >
-            Impor Produk
-          </button>
-          <button
-            onClick={() => console.log('Ekspor Produk')}
-            className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
-          >
-            Ekspor Produk
-          </button>
-
           <Link
-            to="/admin/menu-create"
-            className="bg-[#005429] text-white px-4 py-2 rounded inline-block text-[13px]"
+            to="/admin/modifier-create"
+            className="text-[#005429] bg-white px-4 border border-[#005429] hover:text-white hover:bg-[#005429] py-2 rounded inline-block text-[13px]"
           >
-            Tambah Produk
+            Tambah
           </Link>
         </div>
       </div>
@@ -342,7 +329,8 @@ const ModifierManagement = () => {
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
           onClick={() => handleTabChange("menu")}
         >
-          <Link className="flex justify-between items-center border-l border-l-gray-200 p-4">
+          <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
+            to="/admin/menu">
             <div className="flex space-x-4">
               <FaBox size={24} className="text-gray-400" />
               <h2 className="text-gray-400 ml-2 text-sm">Produk</h2>
@@ -356,21 +344,30 @@ const ModifierManagement = () => {
         <div
           className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
         >
-          <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-            to="/admin/modifier">
-            <div className="flex space-x-4">
+          <Link
+            className="flex justify-between items-center border-l border-l-gray-200 p-4"
+            to="/admin/modifier"
+          >
+            <div className="flex space-x-4 items-center">
               <FaLayerGroup size={24} className="text-gray-400" />
               <h2 className="text-gray-400 ml-2 text-sm">Opsi Tambahan</h2>
-              <span className="p-1">
+
+              {/* Hanya ikon info yang punya group hover */}
+              <span className="relative group">
                 <p className="border p-1 rounded-full">
-                  <FaInfo size={8} className="text-gray-400" />
+                  <FaInfo size={8} className="text-gray-400 cursor-help" />
                 </p>
+
+                {/* Tooltip hanya muncul saat hover di ikon info */}
+                <div className="absolute z-10 left-1/2 -translate-x-1/2 mt-2 w-[280px] text-justify bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none">
+                  Opsi Tambahan merupakan produk pelengkap yang dijual bersamaan dengan produk utama. (Contoh: Nasi Goreng memiliki opsi tambahan ekstra telur dan ekstra bakso)
+                </div>
               </span>
             </div>
-            <div className="text-sm text-gray-400">
-              (18)
-            </div>
+
+            <div className="text-sm text-gray-400">(18)</div>
           </Link>
+
         </div>
 
         <div
@@ -398,7 +395,7 @@ const ModifierManagement = () => {
               <input
                 type="text"
                 placeholder="Opsi Tambahan / Pilihan"
-                value=""
+                // value=""
                 className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
               />
             </div>
@@ -425,7 +422,19 @@ const ModifierManagement = () => {
               ) : (
                 <tbody>
                   <tr className="py-6 text-center w-full h-96">
-                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                    <td colSpan={2}>
+                      <div className="flex justify-center items-center min-h-[300px] text-gray-500">
+                        <div className="grid grid-cols-3 gap-6 text-center">
+                          <div className="col-span-3 flex flex-col items-center justify-center space-y-4 max-w-[700px]">
+                            <FaLayerGroup size={60} className="text-gray-500" />
+                            <p className="text-lg font-semibold">Belum Ada Opsi Tambahan</p>
+                            <span className="text-sm text-justify">
+                              Opsi Tambahan adalah produk pelengkap yang dapat Anda jual bersamaan dengan produk utama.
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
                   </tr>
                 </tbody>
               )}

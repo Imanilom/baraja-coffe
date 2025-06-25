@@ -4,12 +4,12 @@ import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaShoppingCart } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import Modal from "./modal";
 
 
 const PurchaseOrderManagement = () => {
-    const [attendances, setAttendances] = useState([]);
     const [outlets, setOutlets] = useState([]);
-    const [selectedTrx, setSelectedTrx] = useState(null);
+    const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -27,25 +27,11 @@ const PurchaseOrderManagement = () => {
 
     const dropdownRef = useRef(null);
 
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
-
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
-
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
-
     // Fetch attendances and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch attendances data
-                const attendancesResponse = [];
-
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -62,8 +48,6 @@ const PurchaseOrderManagement = () => {
             } catch (err) {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setAttendances([]);
                 setFilteredData([]);
                 setOutlets([]);
             } finally {
@@ -172,149 +156,11 @@ const PurchaseOrderManagement = () => {
         );
     }, [search, uniqueOutlets]);
 
-    // Calculate grand totals for filtered data
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.quantity += curr.quantity;
-                acc.subtotal += curr.subtotal;
-                return acc;
-            },
-            {
-                quantity: 0,
-                subtotal: 0,
-            }
-        );
-    }, [groupedArray]);
-
-    // Apply filter function
-    const applyFilter = () => {
-
-        // Make sure attendances is an array before attempting to filter
-        let filtered = ensureArray([...attendances]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
-                try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
-
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
-
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        alert('File berhasil diimpor!');
+        setShowModal(false);
     };
-
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedOutlet("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(attendances));
-        setCurrentPage(1);
-    };
-
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
-    };
-
 
     // Show loading state
     if (loading) {
@@ -364,8 +210,8 @@ const PurchaseOrderManagement = () => {
                     <FaInfoCircle className="text-[15px] text-gray-500" />
                 </div>
                 <div className="flex space-x-2">
-                    <button className="bg-white border-[#005429] border text-[#005429] text-[13px] px-[15px] py-[7px] rounded hover:bg-[#005429] hover:text-white">Import Purchase Order</button>
-                    <button className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</button>
+                    <button onClick={() => setShowModal(true)} className="bg-white border-[#005429] border text-[#005429] text-[13px] px-[15px] py-[7px] rounded hover:bg-[#005429] hover:text-white">Import Purchase Order</button>
+                    <Link to="/admin/purchase/create-purchase-order" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
                 </div>
             </div>
 
@@ -624,6 +470,8 @@ const PurchaseOrderManagement = () => {
                 <div className="w-full h-[2px] bg-[#005429]">
                 </div>
             </div>
+
+            <Modal show={showModal} onClose={() => setShowModal(false)} onSubmit={handleSubmit} />
         </div>
     );
 };

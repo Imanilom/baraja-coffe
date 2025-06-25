@@ -9,10 +9,13 @@ import mongoose from 'mongoose';
 import axios from 'axios';
 import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
 import { orderQueue } from '../queues/order.queue.js';
+import { QueueEvents } from 'bullmq';
 import { db } from '../utils/mongo.js';
 //io
 import { io, broadcastNewOrder } from '../index.js';
 import Reservation from '../models/Reservation.model.js';
+
+const queueEvents = new QueueEvents('orderQueue');
 
 export const createAppOrder = async (req, res) => {
   try {
@@ -702,8 +705,6 @@ export const checkout = async (req, res) => {
   }
 };
 
-
-
 // Fungsi untuk generate order ID dengan sequence harian per tableNumber
 export async function generateOrderId(tableNumber) {
   // Dapatkan tanggal sekarang dalam format YYYYMMDD
@@ -733,11 +734,6 @@ export async function generateOrderId(tableNumber) {
 }
 
 export const createUnifiedOrder = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  let transactionCommitted = false;
-
   try {
     const { source } = req.body;
     const validated = validateOrderData(req.body, source);
@@ -750,28 +746,26 @@ export const createUnifiedOrder = async (req, res) => {
       orderId = `${source.toUpperCase()}-${Date.now()}`;
     }
 
-    const items = [];
-    for (const item of validated.items) {
-      const menuItem = await MenuItem.findById(item.id).session(session);
-      if (!menuItem) throw new Error('Menu item not found: ' + item.id);
+    // Jangan mulai session dan transaksi di sini
 
-      items.push({
-        menuItem: menuItem._id,
-        quantity: item.quantity,
-        subtotal: menuItem.price * item.quantity,
-      });
-    }
-
-    // Komit transaksi sebelum masuk queue
-    await session.commitTransaction();
-    transactionCommitted = true;
-
+    // Kirim ke job queue
     const job = await orderQueue.add('create_order', {
       type: 'create_order',
       payload: { orderId, orderData: validated, source }
     }, { jobId: orderId });
 
-    // Respons berdasarkan sumber
+    // Tunggu job selesai
+    let result;
+    try {
+      result = await job.waitUntilFinished(queueEvents);
+    } catch (queueErr) {
+      return res.status(500).json({
+        success: false,
+        message: `Order gagal diproses: ${queueErr.message}`
+      });
+    }
+
+    // Hanya buat transaksi Midtrans kalau order berhasil diproses
     if (source === 'Cashier') {
       return res.status(202).json({
         status: 'completed',
@@ -787,7 +781,6 @@ export const createUnifiedOrder = async (req, res) => {
         validated.paymentDetails.amount,
         validated.paymentDetails.method
       );
-
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
@@ -802,7 +795,6 @@ export const createUnifiedOrder = async (req, res) => {
         validated.paymentDetails.amount,
         validated.paymentDetails.method
       );
-
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
@@ -814,14 +806,11 @@ export const createUnifiedOrder = async (req, res) => {
 
     throw new Error('Sumber order tidak valid');
   } catch (err) {
-    if (!transactionCommitted) {
-      await session.abortTransaction();
-    }
     return res.status(400).json({ success: false, error: err.message });
-  } finally {
-    session.endSession();
   }
 };
+
+
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
