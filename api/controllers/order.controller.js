@@ -11,7 +11,8 @@ import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, cre
 import { orderQueue } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
-import { io, broadcastNewOrder  } from '../index.js';
+import { io, broadcastNewOrder } from '../index.js';
+import Reservation from '../models/Reservation.model.js';
 
 export const createAppOrder = async (req, res) => {
   try {
@@ -24,14 +25,10 @@ export const createAppOrder = async (req, res) => {
       paymentDetails,
       voucherCode,
       userId,
-      outlet
-      // userName,
-      // pricing,
-      // orderDate,
-      // status,
-
+      outlet,
+      reservationData
     } = req.body;
-    // console.log(items);
+
     // Validate required fields
     if (!items || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
@@ -76,6 +73,24 @@ export const createAppOrder = async (req, res) => {
           return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
         }
         break;
+      case 'reservation':
+        formattedOrderType = 'Reservation';
+        if (!reservationData) {
+          return res.status(400).json({ success: false, message: 'Reservation data is required for reservation orders' });
+        }
+        if (!reservationData.reservationTime) {
+          return res.status(400).json({ success: false, message: 'Reservation time is required for reservation orders' });
+        }
+        if (!reservationData.guestCount) {
+          return res.status(400).json({ success: false, message: 'Guest count is required for reservation orders' });
+        }
+        if (!reservationData.areaIds) {
+          return res.status(400).json({ success: false, message: 'Area ID is required for reservation orders' });
+        }
+        if (!reservationData.tableIds) {
+          return res.status(400).json({ success: false, message: 'Area code is required for reservation orders' });
+        }
+        break;
       default:
         return res.status(400).json({ success: false, message: 'Invalid order type' });
     }
@@ -91,7 +106,6 @@ export const createAppOrder = async (req, res) => {
 
     // Process items
     const orderItems = [];
-    // console.log('Order items:', items);
     for (const item of items) {
       const menuItem = await MenuItem.findById(item.productId);
       if (!menuItem) {
@@ -135,7 +149,7 @@ export const createAppOrder = async (req, res) => {
       user: userExists.username || 'Guest',
       cashier: null,
       items: orderItems,
-      status: 'Pending',
+      status: orderType === 'reservation' ? 'Reserved' : 'Pending',
       paymentMethod: paymentDetails.method,
       orderType: formattedOrderType,
       deliveryAddress: deliveryAddress || '',
@@ -145,16 +159,66 @@ export const createAppOrder = async (req, res) => {
       outlet: outlet,
       promotions: [],
       source: 'App',
+      reservation: null, // Will be set after reservation is created
     });
 
     await newOrder.save();
 
-    res.status(201).json({ success: true, message: 'Order created successfully', order: newOrder });
+    // Handle reservation creation if orderType is reservation
+    let reservationRecord = null;
+    if (orderType === 'reservation') {
+      try {
+        // Create reservation record
+        reservationRecord = new Reservation({
+          reservation_date: reservationData.reservationDate || new Date().toISOString().split('T')[0],
+          reservation_time: reservationData.reservationTime,
+          area_id: reservationData.areaIds,
+          table_id: reservationData.tableIds,
+          guest_count: reservationData.guestCount,
+          order_id: newOrder._id,
+          status: 'pending',
+          notes: reservationData.notes || ''
+        });
+
+        await reservationRecord.save();
+
+        // Update order with reservation reference
+        newOrder.reservation = reservationRecord._id;
+        await newOrder.save();
+
+        console.log('Reservation created:', reservationRecord);
+      } catch (reservationError) {
+        console.error('Error creating reservation:', reservationError);
+        // If reservation creation fails, we might want to rollback the order
+        // or handle this error gracefully
+        await Order.findByIdAndDelete(newOrder._id);
+        return res.status(500).json({
+          success: false,
+          message: 'Error creating reservation',
+          error: reservationError.message
+        });
+      }
+    }
+
+    // Prepare response data
+    const responseData = {
+      success: true,
+      message: `${orderType === 'reservation' ? 'Reservation' : 'Order'} created successfully`,
+      order: newOrder
+    };
+
+    // Add reservation data to response if it's a reservation order
+    if (reservationRecord) {
+      responseData.reservation = reservationRecord;
+    }
+
+    res.status(201).json(responseData);
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Error creating order', error: error.message });
   }
 };
+
 
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
@@ -761,7 +825,7 @@ export const createUnifiedOrder = async (req, res) => {
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
-  
+
   try {
     // 1. Find order and update status
     const order = await Order.findOneAndUpdate(
@@ -806,8 +870,8 @@ export const confirmOrder = async (req, res) => {
       }
     }
 
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       message: 'Order confirmed and being processed',
       order: order,
       payment: payment
@@ -815,9 +879,9 @@ export const confirmOrder = async (req, res) => {
 
   } catch (err) {
     console.error('Error in confirmOrder:', err);
-    return res.status(500).json({ 
-      success: false, 
-      error: err.message 
+    return res.status(500).json({
+      success: false,
+      error: err.message
     });
   }
 };
@@ -895,145 +959,108 @@ export const confirmOrderByCashier = async (req, res) => {
 // Helper untuk pembayaran di aplikasi
 export const charge = async (req, res) => {
   try {
-    const { payment_type, transaction_details, bank_transfer } = req.body;
-    const { order_id, gross_amount } = transaction_details;
-    if (payment_type == 'cash') {
-      const transaction_id = uuidv4();
-      const transaction_time = new Date();
-      const expiry_time = new Date(transaction_time.getTime() + 15 * 60000);
-      // const qr_string = ORDER:${order_id}|AMOUNT:${gross_amount}|TXN_ID:${transaction_id};
-      const qr_code_url = await QRCode.toDataURL(order_id)
-      // Generate QR code string
-      const customResponse = {
-        status_code: "201",
-        status_message: "Cash transaction is created",
-        transaction_id,
-        order_id,
-        merchant_id: "G711879663", // ubah sesuai kebutuhan
-        gross_amount: gross_amount.toFixed(2),
-        currency: "IDR",
-        payment_type: "cash",
-        transaction_time: transaction_time.toISOString().replace('T', ' ').slice(0, 19),
-        transaction_status: "pending",
-        fraud_status: "accept",
-        actions: [
-          {
-            name: "generate-qr-code",
-            method: "GET",
-            url: qr_code_url
-          }
-        ],
-        acquirer: "manual",
-        // qr_string,
-        expiry_time: expiry_time.toISOString().replace('T', ' ').slice(0, 19)
+    const { payment_type } = req.body;
+
+    // Deteksi apakah ini cash payment atau payment lainnya
+    if (payment_type === 'cash') {
+      // Handle cash payment
+      const { order_id, gross_amount } = req.body;
+      console.log('Payment type:', payment_type, 'Order ID:', order_id, 'Gross Amount:', gross_amount);
+
+      const id_order = await Order.findOne({ order_id: order_id });
+      console.log('Order found:', id_order._id.toString());
+
+      const payment = new Payment({
+        order_id: id_order._id.toString(),
+        amount: gross_amount,
+        method: payment_type,
+        status: 'pending',
+      });
+
+      await payment.save();
+
+      // Kirim response yang proper untuk cash payment
+      return res.status(200).json({
+        success: true,
+        message: 'Cash payment processed successfully',
+        data: {
+          payment_id: payment._id,
+          order_id: order_id,
+          amount: gross_amount,
+          method: payment_type,
+          status: 'pending',
+          transaction_id: payment._id.toString()
+        }
+      });
+    } else {
+      // Handle payment lainnya (bank_transfer, gopay, qris, dll)
+      const { transaction_details, bank_transfer } = req.body;
+      const { order_id, gross_amount } = transaction_details;
+
+      // Menyiapkan chargeParams dasar
+      let chargeParams = {
+        "payment_type": payment_type,
+        "transaction_details": {
+          "gross_amount": gross_amount,
+          "order_id": order_id,
+        },
       };
 
-      return res.status(200).json(customResponse);
+      const bankValue = payment_type === 'bank_transfer'
+        ? bank_transfer?.bank || null
+        : payment_type;
+
+      // Kondisikan chargeParams berdasarkan payment_type
+      if (payment_type === 'bank_transfer') {
+        const { bank } = bank_transfer;
+        chargeParams['bank_transfer'] = {
+          "bank": bank
+        };
+      } else if (payment_type === 'gopay') {
+        // Untuk Gopay, tidak perlu menambahkan 'bank_transfer'
+        // Anda bisa menambahkan parameter lain jika diperlukan
+        chargeParams['gopay'] = {
+          // misalnya, menambahkan enable_callback untuk Gopay
+          // "enable_callback": true,
+          // "callback_url": "https://yourdomain.com/callback"
+        };
+      } else if (payment_type === 'qris') {
+        // Untuk QRIS, juga bisa diatur di sini
+        chargeParams['qris'] = {
+          // misalnya parameter tambahan untuk QRIS
+          // "enable_callback": true,
+          // "callback_url": "https://yourdomain.com/callback"
+        };
+      }
+
+      const id_order = await Order.findOne({ order_id: order_id });
+
+      // Lakukan permintaan API untuk memproses pembayaran
+      const response = await coreApi.charge(chargeParams);
+      const payment = new Payment({
+        transaction_id: response.transaction_id,
+        order_id: id_order._id.toString(),
+        amount: gross_amount,
+        method: payment_type,
+        status: 'pending',
+        fraud_status: response.fraud_status,
+        transaction_time: response.transaction_time,
+        expiry_time: response.expiry_time,
+        bank: bankValue
+      });
+
+      await payment.save();
+      return res.json(response);
     }
-
-    // Menyiapkan chargeParams dasar
-    let chargeParams = {
-      "payment_type": payment_type,
-      "transaction_details": {
-        "gross_amount": gross_amount,
-        "order_id": order_id,
-      },
-    };
-
-
-    const bankValue = payment_type === 'bank_transfer'
-      ? bank_transfer?.bank || null
-      : payment_type;
-
-
-    // Kondisikan chargeParams berdasarkan payment_type
-    if (payment_type === 'bank_transfer') {
-      const { bank } = bank_transfer;
-      chargeParams['bank_transfer'] = {
-        "bank": bank
-      };
-    } else if (payment_type === 'gopay') {
-      // Untuk Gopay, tidak perlu menambahkan 'bank_transfer'
-      // Anda bisa menambahkan parameter lain jika diperlukan
-      chargeParams['gopay'] = {
-        // misalnya, menambahkan enable_callback untuk Gopay
-        // "enable_callback": true,
-        // "callback_url": "https://yourdomain.com/callback"
-      };
-    } else if (payment_type === 'qris') {
-      // Untuk QRIS, juga bisa diatur di sini
-      chargeParams['qris'] = {
-        // misalnya parameter tambahan untuk QRIS
-        // "enable_callback": true,
-        // "callback_url": "https://yourdomain.com/callback"
-      };
-    }
-
-    const id_order = await Order.findOne({ order_id: order_id });
-
-    // Lakukan permintaan API untuk memproses pembayaran
-    const response = await coreApi.charge(chargeParams);
-    const payment = new Payment({
-      transaction_id: response.transaction_id,
-      order_id: id_order._id.toString(),
-      amount: gross_amount,
-      method: payment_type,
-      status: 'pending',
-      fraud_status: response.fraud_status,
-      transaction_time: response.transaction_time,
-      expiry_time: response.expiry_time,
-      bank: bankValue
-    });
-
-    await payment.save();
-    return res.json(response);
   } catch (error) {
+    console.error('Payment error:', error);
     return res.status(500).json({
-      message: 'Payment failed',
+      success: false,
+      message: payment_type === 'cash' ? 'Cash payment failed' : 'Payment failed',
       error: error.message || error
     });
   }
 };
-
-export const chargeCash = async (req, res) => {
-  try {
-    const { payment_type, order_id, gross_amount } = req.body;
-    console.log('Payment type:', payment_type, 'Order ID:', order_id, 'Gross Amount:', gross_amount);
-
-    const id_order = await Order.findOne({ order_id: order_id });
-    console.log('Order found:', id_order._id.toString());
-
-    const payment = new Payment({
-      order_id: id_order._id.toString(),
-      amount: gross_amount,
-      method: payment_type,
-      status: 'pending',
-    });
-
-    await payment.save();
-
-    // ✅ PERBAIKAN: Kirim response yang proper
-    return res.status(200).json({
-      success: true,
-      message: 'Cash payment processed successfully',
-      data: {
-        payment_id: payment._id,
-        order_id: order_id,
-        amount: gross_amount,
-        method: payment_type,
-        status: 'pending',
-        transaction_id: payment._id.toString() // Tambahan untuk UI
-      }
-    });
-  } catch (error) {
-    console.error('Cash payment error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Cash payment failed',
-      error: error.message || error
-    });
-  }
-}
 
 
 // Handling Midtrans Notification 

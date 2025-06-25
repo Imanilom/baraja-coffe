@@ -3,20 +3,8 @@ import mongoose from 'mongoose';
 const reservationSchema = new mongoose.Schema({
     reservation_code: {
         type: String,
-        required: true,
         unique: true
-    },
-    customer_name: {
-        type: String,
-        required: true
-    },
-    customer_phone: {
-        type: String,
-        required: true
-    },
-    customer_email: {
-        type: String,
-        default: ''
+        // Hapus required: true dari sini karena akan di-generate otomatis
     },
     reservation_date: {
         type: String,
@@ -31,8 +19,9 @@ const reservationSchema = new mongoose.Schema({
         ref: 'Area',
         required: true
     },
-    area_code: {
-        type: String,
+    table_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Table',
         required: true
     },
     guest_count: {
@@ -58,16 +47,20 @@ const reservationSchema = new mongoose.Schema({
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
 
-// Generate reservation code
-reservationSchema.pre('save', async function (next) {
+// Generate reservation code before validation
+reservationSchema.pre('validate', async function (next) {
     if (!this.reservation_code) {
-        const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const count = await mongoose.model('Reservation').countDocuments({
-            created_at: {
-                $gte: new Date(new Date().toDateString())
-            }
-        });
-        this.reservation_code = `RSV-${date}-${String(count + 1).padStart(3, '0')}`;
+        try {
+            const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const count = await mongoose.model('Reservation').countDocuments({
+                created_at: {
+                    $gte: new Date(new Date().toDateString())
+                }
+            });
+            this.reservation_code = `RSV-${date}-${String(count + 1).padStart(3, '0')}`;
+        } catch (error) {
+            return next(error);
+        }
     }
     next();
 });
