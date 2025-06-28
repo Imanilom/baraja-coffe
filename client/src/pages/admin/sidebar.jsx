@@ -82,7 +82,7 @@ const Sidebar = () => {
             { name: "Denah Meja", path: "/admin/table-plan" }
           ]
         },
-        { name: "Perangkat", path: "/admin/perangkat", icon: <FaTabletAlt /> },
+        { name: "Perangkat", path: "/admin/billing/device", icon: <FaTabletAlt /> },
         { name: "Promo", path: "/admin/promotion", icon: <FaCut /> },
         { name: "Komisi", path: "/commission", icon: <FaHandshake /> },
       ],

@@ -113,6 +113,14 @@ import ExpenditureListManagement from "./pages/purchase/expenditurelist";
 import CreateShoppingList from "./pages/purchase/shoppinglist/create";
 import CreateExpenditureList from "./pages/purchase/expenditurelist/create";
 import CreateEmployee from "./pages/employee/create";
+import CreateCustomer from "./pages/customer/create";
+import DeviceManagement from "./pages/device/maindevice";
+import ExtraDeviceManagement from "./pages/device/extradevice";
+import UpdateDevice from "./pages/device/maindevice/update";
+import UpdateExtraDevice from "./pages/device/extradevice/update";
+import CreateManageOutlet from "./pages/tax/manageoutlet";
+import CreateService from "./pages/tax/create_service";
+import UpdateOutlet from "./pages/outlet/update";
 
 
 
@@ -217,7 +225,12 @@ export default function App() {
                 <Route path="inventory/create-production" element={<CreateProduction />} />
 
                 {/* Tax And Service */}
+                {/* Tax */}
                 <Route path="tax-create" element={<CreateTax />} />
+                <Route path="tax-and-service/:id/manage-to-outlet" element={<CreateManageOutlet />} />
+
+                {/* Service */}
+                <Route path="service-create" element={<CreateService />} />
 
                 {/* Employee */}
                 <Route path="employee" element={<EmployeeManagement />} />
@@ -225,10 +238,18 @@ export default function App() {
 
                 {/* Customer */}
                 <Route path="customer" element={<CustomerManagement />} />
+                <Route path="create-customer" element={<CreateCustomer />} />
+
+                {/* Device */}
+                <Route path="billing/device" element={<DeviceManagement />} />
+                <Route path="billing/extra-device" element={<ExtraDeviceManagement />} />
+                <Route path="billing/extra-device/:id" element={<UpdateExtraDevice />} />
+                <Route path="billing/device/:id" element={<UpdateDevice />} />
 
                 {/* Outlet */}
                 <Route path="outlet" element={<OutletManagementPage />} />
                 <Route path="create-outlet" element={<CreateOutlet />} />
+                <Route path="update-outlet/:id" element={<UpdateOutlet />} />
                 <Route path="tax-and-service" element={<TaxManagementPage />} />
                 <Route path="target-sales" element={<TargetSalesManagementPage />} />
                 <Route path="receipt-design" element={<ReceiptDesign />} />

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { FaChevronRight, FaStoreAlt, FaInfoCircle } from "react-icons/fa";
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
@@ -4155,17 +4155,10 @@ function LocationMarker({ position, setPosition }) {
     return position ? <Marker position={position} /> : null;
 }
 
-const CreateOutlet = () => {
+const UpdateOutlet = () => {
+    const { id } = useParams();
     const [outlets, setOutlets] = useState([]);
     const [tax, setTax] = useState([]);
-    // const [formData, setFormData] = useState({
-    //     name: "",
-    //     location: "",
-    //     contactNumber: "",
-    //     latitude: "",
-    //     longitude: "",
-    //     outletPictures: [],  // Store multiple pictures in an array
-    // });
     const [form, setForm] = useState({
         name: "",
         city: "",
@@ -4207,29 +4200,55 @@ const CreateOutlet = () => {
 
 
     const navigate = useNavigate();
-    const [showImportDropdown, setShowImportDropdown] = useState(false);
-    const [searchImport, setSearchImport] = useState('');
-    const [tempSelectedImport, setTempSelectedImport] = useState('');
-    const importDropdownRef = useRef(null);
-
-    // filter opsi berdasarkan pencarian
-    const filteredImportOptions = outlets.filter((item) =>
-        item.name.toLowerCase().includes(searchImport.toLowerCase())
-    );
 
     useEffect(() => {
         fetchOutlets();
         fetchTax();
     }, []);
 
+
     const fetchOutlets = async () => {
         try {
-            const response = await axios.get("/api/outlet");
-            setOutlets(response.data || []);
+            const response = await axios.get(`/api/outlet/${id}`);
+            const data = response.data || [];
+            setOutlets(data || []);
+            setForm({
+                name: data.name || "",
+                city: data.city || "",
+                address: data.address || "-",
+                location: data.location || "-",
+                latitude: data.latitude || "",
+                longitude: data.longitude || "",
+                contactNumber: data.contactNumber || "",
+                tax: data.tax || "",
+                importProduct: data.importProduct || "",
+                salesType: data.salesType || "",
+                tableModule: data.tableModule || false,
+                pawoonOrder: data.pawoonOrder || false,
+                pawoonOpen: data.pawoonOpen || "08:00",
+                pawoonClose: data.pawoonClose || "16:00"
+            });
+            // ⬇️ Tambahkan ini agar map sesuai data sebelumnya
+            if (data.latitude && data.longitude) {
+                setMapPosition({
+                    lat: parseFloat(data.latitude),
+                    lng: parseFloat(data.longitude),
+                });
+            } else if (data.city) {
+                // fallback ke cityCoordinates jika tidak ada koordinat langsung
+                const selected = cityCoordinates.find((city) => city.city === data.city);
+                if (selected) {
+                    setMapPosition({
+                        lat: selected.latitude,
+                        lng: selected.longitude
+                    });
+                }
+            }
         } catch (error) {
             console.error("Error fetching outlets:", error);
         }
     };
+
 
     const fetchTax = async () => {
         try {
@@ -4240,30 +4259,20 @@ const CreateOutlet = () => {
         }
     }
 
-    const handleCreateOutlet = async () => {
-        try {
-            const response = await axios.post("/api/outlet", formData);
-            alert(response.data.message);
-            fetchOutlets();
-        } catch (error) {
-            alert("Error creating outlet.");
-        }
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
 
         try {
-            const newSupplier = { ...form };
-            console.log(newSupplier);
-
-            await axios.post('/api/outlet', newSupplier); // Kirim sebagai array
-            alert("Data Berhasil", newSupplier);
+            const updatedData = { ...form };
+            await axios.put(`/api/outlet/${id}`, updatedData);
+            alert("Data outlet berhasil diperbarui");
             navigate("/admin/outlet");
         } catch (err) {
-            console.error('Error adding category:', err);
+            console.error("Gagal memperbarui outlet:", err);
+            alert("Gagal memperbarui data outlet");
         }
     };
+
 
     return (
         <div className="">
@@ -4280,7 +4289,7 @@ const CreateOutlet = () => {
                         <span
                             className="text-gray-400 inline-block"
                         >
-                            Tambah Outlet
+                            Ubah Outlet
                         </span>
                     </div>
                 </div>
@@ -4354,66 +4363,6 @@ const CreateOutlet = () => {
                             ))}
                         </select>
                     </div>
-
-                    <div className="flex items-center">
-                        <label className="flex items-center w-[140px] text-[14px] text-[#999999] space-x-2">
-                            <p className="">Impor Produk</p>
-                            <div className="relative group">
-                                <FaInfoCircle className="cursor-help" />
-                                <span className="absolute w-[340px] left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:inline-block bg-white border text-[#999999] text-xs rounded px-2 py-1 z-10 shadow-lg">
-                                    Anda dapat mengimpor seluruh produk dari outlet yang sudah ada.
-                                </span>
-                            </div>
-                        </label>
-
-                        <div className="relative flex-1">
-                            {!showImportDropdown ? (
-                                <button
-                                    type="button"
-                                    className="w-full text-[13px] text-gray-500 border py-2 px-3 rounded text-left relative"
-                                    onClick={() => setShowImportDropdown(true)}
-                                >
-                                    {tempSelectedImport || 'Pilih Import Produk'}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-2 px-3 rounded"
-                                    value={searchImport}
-                                    onChange={(e) => setSearchImport(e.target.value)}
-                                    autoFocus
-                                    placeholder="Cari opsi..."
-                                />
-                            )}
-
-                            {showImportDropdown && (
-                                <ul
-                                    className="absolute z-10 bg-white border mt-1 w-full rounded shadow-md max-h-48 overflow-auto"
-                                    ref={importDropdownRef}
-                                >
-                                    {filteredImportOptions.length > 0 ? (
-                                        filteredImportOptions.map((item, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedImport(item.name);
-                                                    setForm({ ...form, importProduct: item.value });
-                                                    setShowImportDropdown(false);
-                                                    setSearchImport('');
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {item.name}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
 
                     <div className="flex items-center justify-between space-x-2">
                         <label htmlFor="tableModule" className="text-sm flex items-center space-x-2">
@@ -4525,4 +4474,4 @@ const CreateOutlet = () => {
     );
 };
 
-export default CreateOutlet;
+export default UpdateOutlet;

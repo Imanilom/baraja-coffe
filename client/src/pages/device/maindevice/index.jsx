@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaUserFriends, FaFilter } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaTablet, FaTabletAlt } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 
 
-const CustomerManagement = () => {
-    const [customer, setCustomer] = useState([]);
+const DeviceManagement = () => {
+    const [attendances, setAttendances] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -37,18 +37,18 @@ const CustomerManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch customer and outlets data
+    // Fetch attendances and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch customer data
-                const customerResponse = [
-                    { _id: "1", name: "Rilo", type: "Silver", telepon: "0812344" }
+                // Fetch attendances data
+                const attendancesResponse = [
+                    { _id: "1", name: "Rilo", type: "Programmer", outlet: "Baraja Amphitheater" }
                 ];
 
-                setCustomer(customerResponse);
-                setFilteredData(customerResponse); // Initialize filtered data with all customer
+                setAttendances(attendancesResponse);
+                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -66,7 +66,7 @@ const CustomerManagement = () => {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
                 // Set empty arrays as fallback
-                setCustomer([]);
+                setAttendances([]);
                 setFilteredData([]);
                 setOutlets([]);
             } finally {
@@ -216,56 +216,139 @@ const CustomerManagement = () => {
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaUserFriends size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Pelanggan</p>
-                </div>
-                <div className="flex space-x-2">
-                    <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Impor</button>
-                    <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
-                    <Link to="/admin/create-customer" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
+                <div className="flex items-center space-x-2 py-[7px]">
+                    <FaTabletAlt size={21} className="text-gray-500 inline-block" />
+                    <p className="text-[15px] text-gray-500">Perangkat</p>
                 </div>
             </div>
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-6 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-9 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                    <div className="flex flex-col col-span-3">
+                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
+                        <div className="relative">
+                            {!showInput ? (
+                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
+                                    {tempSelectedOutlet || "Semua Outlet"}
+                                </button>
+                            ) : (
+                                <input
+                                    type="text"
+                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    autoFocus
+                                    placeholder=""
+                                />
+                            )}
+                            {showInput && (
+                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                    {filteredOutlets.length > 0 ? (
+                                        filteredOutlets.map((outlet, idx) => (
+                                            <li
+                                                key={idx}
+                                                onClick={() => {
+                                                    setTempSelectedOutlet(outlet);
+                                                    setShowInput(false);
+                                                }}
+                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                            >
+                                                {outlet}
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                                    )}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
 
-                    <div className="flex flex-col col-span-5">
+                    <div className="flex flex-col col-span-3">
+                        <label className="text-[13px] mb-1 text-gray-500">Status</label>
+                        <div className="relative">
+                            {!showInput ? (
+                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
+                                    {tempSelectedOutlet || "Semua Status"}
+                                </button>
+                            ) : (
+                                <input
+                                    type="text"
+                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    autoFocus
+                                    placeholder=""
+                                />
+                            )}
+                            {showInput && (
+                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                    {filteredOutlets.length > 0 ? (
+                                        filteredOutlets.map((outlet, idx) => (
+                                            <li
+                                                key={idx}
+                                                onClick={() => {
+                                                    setTempSelectedOutlet(outlet);
+                                                    setShowInput(false);
+                                                }}
+                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
+                                            >
+                                                {outlet}
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
+                                    )}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col col-span-3">
                         <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Nama / Email"
+                                placeholder="Nama Perangkat"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
                     </div>
-                    <button className="flex col-span-1 text-[13px] border py-[6px] pl-[5px] rounded w-full text-gray-500">
-                        <FaFilter />
-                        <button>
-                            Filter
-                        </button>
-                    </button>
                 </div>
 
-                <div className="w-full border rounded mb-[15px] bg-gradient-to-r from-[#0F4F2A] via-[#1A6B3B] to-[#267C48] py-2">
-                    <div className="flex justify-between p-4 text-[14px]">
-                        <div className="">
-                            <label htmlFor="" className="uppercase text-[#999999]">Total Pelanggan</label>
-                            <h3 className="text-white font-semibold ">3822 Pelanggan</h3>
-                        </div>
-                        <div className="">
-                            <label htmlFor="" className="uppercase text-[#999999]">Pelanggan Paling Loyal</label>
-                            <h3 className="text-white font-semibold underline decoration-dashed underline-offset-[5px]">Mas Bambang SCN</h3>
-                        </div>
-                        <div className="">
-                            <label htmlFor="" className="uppercase text-[#999999]">Pelanggan Baru Bulan Ini</label>
-                            <h3 className="text-white font-semibold underline decoration-dashed underline-offset-[5px]">Belum ada Pelanggan</h3>
-                        </div>
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 py-4">
+                    <button
+                        className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
+                        onClick={() => handleTabChange("menu")}
+                    >
+                        <Link className="flex justify-between items-center p-4">
+                            <div className="flex space-x-4">
+                                <FaTabletAlt size={24} className="text-gray-400" />
+                                <h2 className="text-gray-400 ml-2 text-sm">Perangkat Utama</h2>
+                            </div>
+                            <div className="text-sm text-gray-400">
+                                (18)
+                            </div>
+                        </Link>
+                    </button>
+
+                    <div
+                        className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+                    >
+                        <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
+                            to={"/admin/billing/extra-device"}>
+                            <div className="flex space-x-4">
+                                <FaTabletAlt size={24} className="text-gray-400" />
+                                <h2 className="text-gray-400 ml-2 text-sm">Perangkat Tambahan</h2>
+                            </div>
+                            <div className="text-sm text-gray-400">
+                                (18)
+                            </div>
+                        </Link>
                     </div>
                 </div>
 
@@ -274,11 +357,11 @@ const CustomerManagement = () => {
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Nama</th>
-                                <th className="px-4 py-3 font-normal">Telepon</th>
-                                <th className="px-4 py-3 font-normal">Email</th>
-                                <th className="px-4 py-3 font-normal">Tipe Pelanggan</th>
-                                <th className="px-4 py-3 font-normal">Catatan</th>
+                                <th className="px-4 py-3 font-normal">Nama Perangkat</th>
+                                <th className="px-4 py-3 font-normal">Outlet</th>
+                                <th className="px-4 py-3 font-normal">Masa Aktif</th>
+                                <th className="px-4 py-3 font-normal">Status</th>
+                                <th className="px-4 py-3 font-normal">Aktif Order Online</th>
                                 <th className="px-4 py-3 font-normal"></th>
                             </tr>
                         </thead>
@@ -289,26 +372,26 @@ const CustomerManagement = () => {
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
                                                 <td className="px-4 py-3">
-                                                    {data.name || []}
+                                                    {data.name || "-"}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.telepon || []}
+                                                    {data.outlet || "-"}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.email || []}
+                                                    {data.active || "-"}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.type || []}
+                                                    {data.status || "-"}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.catatan || []}
+                                                    {data.online || "-"}
                                                 </td>
                                                 <td className="px-4 py-3">
 
                                                     {/* Dropdown Menu */}
                                                     <div className="relative text-right">
                                                         <button
-                                                            className="px-2 bg-white border border-gray-200 hover:border-none hover:bg-green-800 rounded-sm"
+                                                            className="px-2 bg-white border border-gray-200 hover:bg-green-800 rounded-sm"
                                                             onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
                                                         >
                                                             <span className="text-xl text-gray-200 hover:text-white">
@@ -318,15 +401,11 @@ const CustomerManagement = () => {
                                                         {openDropdown === data._id && (
                                                             <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
                                                                 <ul className="w-full">
-                                                                    <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
+                                                                    <Link className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
+                                                                        to={`/admin/billing/device/${data._id}`}>
                                                                         <FaPencilAlt size={18} />
-                                                                        <Link
-                                                                            to={`/admin/menu-update/${data._id}`}
-                                                                            className="block bg-transparent"
-                                                                        >
-                                                                            Edit
-                                                                        </Link>
-                                                                    </li>
+                                                                        <p>Edit</p>
+                                                                    </Link>
                                                                     <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
                                                                         <FaTrash size={18} />
                                                                         <button onClick={() => {
@@ -344,11 +423,11 @@ const CustomerManagement = () => {
                                             </tr>
                                         );
                                     } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, customer);
+                                        console.error(`Error rendering product ${index}:`, err, attendances);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
                                                 <td colSpan="4" className="px-4 py-3 text-red-500">
-                                                    Error rendering customer
+                                                    Error rendering attendances
                                                 </td>
                                             </tr>
                                         );
@@ -401,4 +480,4 @@ const CustomerManagement = () => {
     );
 };
 
-export default CustomerManagement;
+export default DeviceManagement;

@@ -2,11 +2,12 @@ import { Outlet } from '../models/Outlet.model.js';
 
 export const createOutlet = async (req, res) => {
   try {
-    const { name, address, city, latitude, longitude, contactNumber, manager, outletPictures } = req.body;
+    const { name, address, location, city, latitude, longitude, contactNumber, manager, outletPictures } = req.body;
 
     const newOutlet = new Outlet({
       name,
       address,
+      location,
       city,
       latitude,
       longitude,
@@ -15,7 +16,9 @@ export const createOutlet = async (req, res) => {
       outletPictures,
     });
 
-    res.status(201).json({ message: 'Outlets created successfully', data: newOutlets });
+    await newOutlet.save();
+
+    res.status(201).json({ message: 'Outlets created successfully', data: newOutlet });
   } catch (error) {
     res.status(500).json({ message: 'Failed to create outlets', error: error.message });
   }
@@ -35,7 +38,8 @@ export const getOutlets = async (req, res) => {
 export const getOutletById = async (req, res) => {
   try {
     const { id } = req.params;
-    const outlet = await Outlet.findById(id).populate('manager', 'name email');
+    // const outlet = await Outlet.findById(id).populate('manager', 'name email');
+    const outlet = await Outlet.findById(id).populate('admin', 'name email');
 
     if (!outlet) return res.status(404).json({ message: 'Outlet not found' });
 
@@ -49,13 +53,13 @@ export const getOutletById = async (req, res) => {
 export const updateOutlet = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, address, city, latitude, longitude, contactNumber, manager, outletPictures } = req.body;
+    const { name, address, city, latitude, longitude, contactNumber, admin, outletPictures } = req.body;
 
     const updatedOutlet = await Outlet.findByIdAndUpdate(
       id,
-      { name, address, city, latitude, longitude, contactNumber, manager, outletPictures },
+      { name, address, city, latitude, longitude, contactNumber, admin, outletPictures },
       { new: true }
-    ).populate('manager', 'name email');
+    ).populate('admin', 'name email');
 
     if (!updatedOutlet) return res.status(404).json({ message: 'Outlet not found' });
 

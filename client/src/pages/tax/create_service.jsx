@@ -3,9 +3,9 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaBell, FaUser } from "react-icons/fa";
 
-const CreateTax = () => {
+const CreateService = () => {
     const [formData, setFormData] = useState({
-        type: "tax",
+        type: "service",
         name: "",
         description: "",
         percentage: "",
@@ -22,10 +22,9 @@ const CreateTax = () => {
         });
     };
 
-    const handleCreateTax = async () => {
+    const handleCreateService = async () => {
         try {
             const response = await axios.post("/api/tax-service", formData);
-            alert(response.data.message);
         } catch (error) {
             console.error("Error creating Tax:", error);
         }
@@ -38,7 +37,7 @@ const CreateTax = () => {
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
                     <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Tambah Pajak</p>
+                    <p className="text-[15px] text-gray-500">Tambah Servis</p>
                 </div>
             </div>
 
@@ -46,12 +45,12 @@ const CreateTax = () => {
                 <form
                     onSubmit={(e) => {
                         e.preventDefault();
-                        handleCreateTax();
+                        handleCreateService();
                     }}
                     className="mt-4 w-1/2"
                 >
                     <div className="w-full flex items-center space-x-2 mb-2.5">
-                        <h3 className="w-[140px] text-[14px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">Nama Pajak</h3>
+                        <h3 className="w-[140px] text-[14px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">Nama Servis</h3>
                         <input
                             type="text"
                             name="name"
@@ -100,4 +99,4 @@ const CreateTax = () => {
     );
 };
 
-export default CreateTax;
+export default CreateService;
