@@ -11,6 +11,7 @@ const PaymentSchema = new mongoose.Schema({
     default: 'Full'
   },
   amount: { type: Number, required: true },
+  remainingAmount: { type: Number, default: 0 }, // for down payments
   phone: { type: String }, // phone number for E-Wallet payments
   discount: { type: Number, default: 0 },
   midtransRedirectUrl: { type: String }, // if using Midtrans
