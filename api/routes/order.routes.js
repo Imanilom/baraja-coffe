@@ -16,7 +16,7 @@ import {
   getQueuedOrders,
   confirmOrderByCashier,
   testSocket,
-  chargeCash,
+  // chargeCash,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
@@ -35,7 +35,7 @@ router.post("/unified-order", createUnifiedOrder);
 router.post('/orderApp', createAppOrder);
 
 router.post("/charge", charge);
-router.post("/chargeCash", chargeCash);
+// router.post("/chargeCash", chargeCash);
 
 router.post('/midtrans/webhook', midtransWebhook);
 
@@ -43,7 +43,7 @@ router.post('/midtrans/webhook', midtransWebhook);
 
 router.post("/payment-notification", paymentNotification);
 
-router.get("/pending-orders", getPendingOrders);
+router.get("/pending-orders/:outletId", getPendingOrders);
 
 router.post("/confirm-order/:orderId", confirmOrder);
 

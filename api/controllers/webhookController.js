@@ -27,7 +27,7 @@ export const midtransWebhook = async (req, res) => {
       order_id: order._id, // ✔️ pastikan ini cocok dengan schema Payment
       method: payment_type || 'unknown',
       status: transaction_status,
-      amount: Number(gross_amount),
+      // amount: Number(gross_amount),
       bank: bank || (va_numbers?.[0]?.bank) || '',
       phone: ewallet?.phone || '',
       paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : null
