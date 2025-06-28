@@ -29,7 +29,8 @@ export const createAppOrder = async (req, res) => {
       voucherCode,
       userId,
       outlet,
-      reservationData
+      reservationData,
+      reservationType,
     } = req.body;
 
     // Validate required fields
@@ -180,6 +181,7 @@ export const createAppOrder = async (req, res) => {
           guest_count: reservationData.guestCount,
           order_id: newOrder._id,
           status: 'pending',
+          reservation_type: reservationType || 'non-blocking', // Default to non-blocking
           notes: reservationData.notes || ''
         });
 
@@ -948,7 +950,7 @@ export const confirmOrderByCashier = async (req, res) => {
 // Helper untuk pembayaran di aplikasi
 export const charge = async (req, res) => {
   try {
-    const { payment_type } = req.body;
+    const { payment_type, is_down_payment, down_payment_amount, remaining_payment } = req.body;
 
     // Deteksi apakah ini cash payment atau payment lainnya
     if (payment_type === 'cash') {
@@ -956,14 +958,41 @@ export const charge = async (req, res) => {
       const { order_id, gross_amount } = req.body;
       console.log('Payment type:', payment_type, 'Order ID:', order_id, 'Gross Amount:', gross_amount);
 
+      // Log reservation payment details if present
+      if (is_down_payment !== undefined) {
+        console.log('Is Down Payment:', is_down_payment);
+        console.log('Down Payment Amount:', down_payment_amount);
+        console.log('Remaining Payment:', remaining_payment);
+      }
+
       const id_order = await Order.findOne({ order_id: order_id });
+      if (!id_order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found',
+        });
+      }
+
       console.log('Order found:', id_order._id.toString());
+
+      // Determine payment type and amounts based on reservation payment
+      let paymentType = 'Full';
+      let amount = gross_amount;
+      let remainingAmount = 0;
+
+      if (is_down_payment === true) {
+        paymentType = 'Down Payment';
+        amount = down_payment_amount || gross_amount;
+        remainingAmount = remaining_payment || 0;
+      }
 
       const payment = new Payment({
         order_id: id_order._id.toString(),
-        amount: gross_amount,
+        amount: amount,
         method: payment_type,
         status: 'pending',
+        paymentType: paymentType,
+        remainingAmount: remainingAmount,
       });
 
       await payment.save();
@@ -971,14 +1000,17 @@ export const charge = async (req, res) => {
       // Kirim response yang proper untuk cash payment
       return res.status(200).json({
         success: true,
-        message: 'Cash payment processed successfully',
+        message: `Cash payment ${paymentType.toLowerCase()} processed successfully`,
         data: {
           payment_id: payment._id,
           order_id: order_id,
           amount: gross_amount,
           method: payment_type,
           status: 'pending',
-          transaction_id: payment._id.toString()
+          transaction_id: payment._id.toString(),
+          paymentType: paymentType,
+          remainingAmount: remainingAmount,
+          is_down_payment: is_down_payment || false,
         }
       });
     } else {
@@ -986,11 +1018,18 @@ export const charge = async (req, res) => {
       const { transaction_details, bank_transfer } = req.body;
       const { order_id, gross_amount } = transaction_details;
 
+      // Log reservation payment details if present
+      if (is_down_payment !== undefined) {
+        console.log('Is Down Payment:', is_down_payment);
+        console.log('Down Payment Amount:', down_payment_amount);
+        console.log('Remaining Payment:', remaining_payment);
+      }
+
       // Menyiapkan chargeParams dasar
       let chargeParams = {
         "payment_type": payment_type,
         "transaction_details": {
-          "gross_amount": gross_amount,
+          "gross_amount": is_down_payment === true ? down_payment_amount : gross_amount,
           "order_id": order_id,
         },
       };
@@ -1006,43 +1045,78 @@ export const charge = async (req, res) => {
           "bank": bank
         };
       } else if (payment_type === 'gopay') {
-        // Untuk Gopay, tidak perlu menambahkan 'bank_transfer'
-        // Anda bisa menambahkan parameter lain jika diperlukan
         chargeParams['gopay'] = {
-          // misalnya, menambahkan enable_callback untuk Gopay
-          // "enable_callback": true,
-          // "callback_url": "https://yourdomain.com/callback"
+          // enable_callback: true,
+          // callback_url: "https://yourdomain.com/callback"
         };
       } else if (payment_type === 'qris') {
-        // Untuk QRIS, juga bisa diatur di sini
         chargeParams['qris'] = {
-          // misalnya parameter tambahan untuk QRIS
-          // "enable_callback": true,
-          // "callback_url": "https://yourdomain.com/callback"
+          // enable_callback: true,
+          // callback_url: "https://yourdomain.com/callback"
         };
       }
 
       const id_order = await Order.findOne({ order_id: order_id });
+      if (!id_order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found',
+        });
+      }
 
       // Lakukan permintaan API untuk memproses pembayaran
       const response = await coreApi.charge(chargeParams);
+
+      // Determine payment type and amounts based on reservation payment
+      let paymentType = 'Full';
+      let amount = gross_amount;
+      let remainingAmount = 0;
+
+      if (is_down_payment === true) {
+        paymentType = 'Down Payment';
+        amount = down_payment_amount || gross_amount;
+        remainingAmount = remaining_payment || 0;
+      }
+
       const payment = new Payment({
         transaction_id: response.transaction_id,
         order_id: id_order._id.toString(),
-        amount: gross_amount,
+        amount: amount,
         method: payment_type,
         status: 'pending',
         fraud_status: response.fraud_status,
         transaction_time: response.transaction_time,
         expiry_time: response.expiry_time,
-        bank: bankValue
+        bank: bankValue,
+        paymentType: paymentType,
+        remainingAmount: remainingAmount,
       });
 
       await payment.save();
-      return res.json(response);
+
+      // Enhance response with reservation payment info
+      const enhancedResponse = {
+        ...response,
+        paymentType: paymentType,
+        remainingAmount: remainingAmount,
+        is_down_payment: is_down_payment || false,
+        down_payment_amount: is_down_payment === true ? down_payment_amount : null,
+      };
+
+      return res.json(enhancedResponse);
     }
   } catch (error) {
     console.error('Payment error:', error);
+
+    // Enhanced error logging for reservation payments
+    if (req.body.is_down_payment !== undefined) {
+      console.error('Reservation payment error details:', {
+        is_down_payment: req.body.is_down_payment,
+        down_payment_amount: req.body.down_payment_amount,
+        remaining_payment: req.body.remaining_payment,
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: payment_type === 'cash' ? 'Cash payment failed' : 'Payment failed',
@@ -1050,7 +1124,6 @@ export const charge = async (req, res) => {
     });
   }
 };
-
 
 // Handling Midtrans Notification 
 export const paymentNotification = async (req, res) => {
