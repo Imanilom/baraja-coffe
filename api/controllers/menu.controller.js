@@ -224,13 +224,14 @@ export const getMenuItems = async (req, res) => {
         : null;
 
       const reviewCount = itemRatings.length;
+      // console.log('imageUrl', item.imageURL)
 
       return {
         id: itemId,
         name: item.name,
         category: item.category || [],
         mainCategory: item.mainCategory || 'Uncategorized',
-        imageUrl: item.imageUrl || '',
+        imageUrl: item.imageURL || '',
         originalPrice: item.price,
         discountPrice: item.discountedPrice || item.price,
         description: item.description || '',
