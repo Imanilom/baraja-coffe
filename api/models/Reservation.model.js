@@ -34,6 +34,11 @@ const reservationSchema = new mongoose.Schema({
         ref: 'Order',
         default: null
     },
+    reservation_type: {
+        type: String,
+        enum: ['blocking', 'non-blocking'],
+        default: 'non-blocking'
+    },
     status: {
         type: String,
         enum: ['pending', 'confirmed', 'cancelled', 'completed'],
