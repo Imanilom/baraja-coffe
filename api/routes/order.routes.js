@@ -43,7 +43,7 @@ router.post('/midtrans/webhook', midtransWebhook);
 
 router.post("/payment-notification", paymentNotification);
 
-router.get("/pending-orders", getPendingOrders);
+router.get("/pending-orders/:outletId", getPendingOrders);
 
 router.post("/confirm-order/:orderId", confirmOrder);
 
