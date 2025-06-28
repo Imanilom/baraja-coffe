@@ -1104,84 +1104,93 @@ export const getAllOrders = async (req, res) => {
 // Mengambil order yang pending
 export const getPendingOrders = async (req, res) => {
   try {
-    // Ambil semua order dengan status "Pending"
-    const pendingOrders = await Order.find({ status: 'Pending' });
-
-    const pendingOrdersWithUnpaidStatus = [];
-
-    for (const order of pendingOrders) {
-      const payment = await Payment.findOne({ order_id: order._id });
-
-      if (!payment || (payment.status !== 'Success' && payment.status !== 'paid')) {
-        const orderObj = order.toObject();
-
-        // Ubah struktur items
-        const updatedItems = await Promise.all(
-          orderObj.items.map(async (item) => {
-            const menuItem = await MenuItem.findById(item.menuItem); // Asumsikan ada model MenuItem
-
-            // Function to enrich addon with label
-            const enrichAddonWithOptions = async (addon) => {
-              if (!menuItem) {
-                return addon; // Return original addon if menuItem is not found
-              }
-
-              const menuItemAddon = menuItem.addons.find((ma) => ma.name === addon.name);
-
-              if (menuItemAddon) {
-                const option = menuItemAddon.options.find((opt) => opt.price === addon.price);
-                if (option) {
-                  return {
-                    name: addon.name,
-                    options: [{
-                      price: addon.price,
-                      label: option.label,
-                    }],
-                  };
-                }
-              }
-              return addon; // Return original addon if label is not found
-            };
-
-            // Enrich addons with labels
-            const enrichedAddons = await Promise.all(item.addons.map(enrichAddonWithOptions));
-
-            return {
-              menuItem: menuItem ? {
-                _id: menuItem._id,
-                name: menuItem.name,
-                price: menuItem.price
-              } : null,
-              selectedToppings: item.toppings || [],
-              selectedAddons: enrichedAddons || [], // Use enriched addons here
-              subtotal: item.subtotal,
-              quantity: item.quantity,
-              isPrinted: item.isPrinted
-            };
-          })
-        );
-
-        orderObj.items = updatedItems;
-
-        // Rename user_id ke userId dan ubah user jadi customerName
-        orderObj.userId = orderObj.user_id;
-        orderObj.cashierId = orderObj.cashier;
-        orderObj.customerName = orderObj.user;
-        delete orderObj.user;
-        delete orderObj.user_id;
-        delete orderObj.cashier;
-
-        pendingOrdersWithUnpaidStatus.push(orderObj);
-      }
+    const { outletId } = req.query;
+    if (!outletId) {
+      return res.status(400).json({ message: 'outletId is required' });
     }
 
-    res.status(200).json(pendingOrdersWithUnpaidStatus);
-    // res.status(200).json(pendingOrders);
+    // Ambil order pending dari outlet tertentu
+    const pendingOrders = await Order.find({
+      status: 'Pending',
+      outletId: outletId
+    }).lean();
+
+    if (!pendingOrders.length) return res.status(200).json([]);
+
+    const orderIds = pendingOrders.map(order => order._id);
+
+    const payments = await Payment.find({
+      order_id: { $in: orderIds }
+    }).lean();
+
+    const successfulPaymentOrderIds = new Set(
+      payments.filter(p => p.status === 'Success' || p.status === 'paid')
+              .map(p => p.order_id.toString())
+    );
+
+    const unpaidOrders = pendingOrders.filter(
+      order => !successfulPaymentOrderIds.has(order._id.toString())
+    );
+
+    const menuItemIds = [
+      ...new Set(
+        unpaidOrders.flatMap(order =>
+          order.items.map(item => item.menuItem?.toString())
+        ).filter(Boolean)
+      )
+    ];
+
+    const menuItems = await MenuItem.find({ _id: { $in: menuItemIds } }).lean();
+    const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
+
+    const enrichedOrders = unpaidOrders.map(order => {
+      const updatedItems = order.items.map(item => {
+        const menuItem = menuItemMap.get(item.menuItem?.toString());
+
+        const enrichedAddons = (item.addons || []).map(addon => {
+          const matchedAddon = menuItem?.addons?.find(ma => ma.name === addon.name);
+          const matchedOption = matchedAddon?.options?.find(opt => opt.price === addon.price);
+          return {
+            name: addon.name,
+            options: matchedOption
+              ? [{ price: addon.price, label: matchedOption.label }]
+              : addon.options || []
+          };
+        });
+
+        return {
+          menuItem: menuItem ? {
+            _id: menuItem._id,
+            name: menuItem.name,
+            price: menuItem.price
+          } : null,
+          selectedToppings: item.toppings || [],
+          selectedAddons: enrichedAddons,
+          subtotal: item.subtotal,
+          quantity: item.quantity,
+          isPrinted: item.isPrinted
+        };
+      });
+
+      return {
+        ...order,
+        items: updatedItems,
+        userId: order.user_id,
+        cashierId: order.cashier,
+        customerName: order.user,
+        user: undefined,
+        user_id: undefined,
+        cashier: undefined
+      };
+    });
+
+    res.status(200).json(enrichedOrders);
   } catch (error) {
     console.error('Error fetching pending unpaid orders:', error);
     res.status(500).json({ message: 'Error fetching pending orders', error });
   }
 };
+
 
 async function updateStock(order, session) {
   if (!Array.isArray(order.items)) {
