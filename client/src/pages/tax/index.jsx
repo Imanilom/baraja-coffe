@@ -83,8 +83,8 @@ const TaxManagementPage = () => {
                     <p className="text-[15px] text-gray-500">Pajak & Service Charge</p>
                 </div>
                 <div className="flex space-x-2">
-                    <button onClick={() => navigate("/admin/create-service")} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Service Charge</button>
-                    <button onClick={() => navigate("/admin/tax-create")} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Pajak</button>
+                    <Link to="/admin/service-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Service Charge</Link>
+                    <Link to="/admin/tax-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Pajak</Link>
                 </div>
             </div>
 
@@ -189,7 +189,7 @@ const TaxManagementPage = () => {
                         <tr>
                             <th className="px-[15px] py-[21px] font-normal">Nama</th>
                             <th className="px-[15px] py-[21px] font-normal">Tipe</th>
-                            <th className="px-[15px] py-[21px] font-normal">Jumlah</th>
+                            <th className="px-[15px] py-[21px] font-normal text-right">Jumlah</th>
                             <th className="px-[15px] py-[21px] font-normal"></th>
                         </tr>
                     </thead>
@@ -199,7 +199,11 @@ const TaxManagementPage = () => {
                                 <tr key={data._id} className="bg-white text-[14px]">
                                     <td className="p-[15px]">{data.name}</td>
                                     <td className="p-[15px]">{data.type}</td>
-                                    <td className="p-[15px]">{data.total}</td>
+                                    <td className="p-[15px] text-right">
+                                        {data.percentage != null
+                                            ? `${data.percentage}%`
+                                            : `Rp ${data.fixedFee}`}
+                                    </td>
                                     <td className="p-[15px]">
 
                                         {/* Dropdown Menu */}
@@ -215,24 +219,18 @@ const TaxManagementPage = () => {
                                             {openDropdown === data._id && (
                                                 <div className="absolute text-left right-0 top-full mt-2 bg-white border rounded-md shadow-md w-52 z-10">
                                                     <ul className="">
-                                                        <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
-                                                            <Link
-                                                                to={`/admin/manage-to-outlet/${data._id}`}
-                                                                className="bg-transparent flex items-center space-x-4 text-[14px]"
-                                                            >
-                                                                <FaPlusCircle size={18} />
-                                                                <span>Tambahkan Ke Outlet</span>
-                                                            </Link>
-                                                        </li>
-                                                        <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
-                                                            <Link
-                                                                to={`/admin/tax-update/${data._id}`}
-                                                                className="bg-transparent flex items-center space-x-4 text-[14px]"
-                                                            >
-                                                                <FaPencilAlt size={18} />
-                                                                <span>Ubah</span>
-                                                            </Link>
-                                                        </li>
+                                                        <Link className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100 bg-transparent flex items-center space-x-4 text-[14px]"
+                                                            to={`/admin/tax-and-service/${data._id}/manage-to-outlet`}
+                                                        >
+                                                            <FaPlusCircle size={18} />
+                                                            <span>Tambahkan Ke Outlet</span>
+                                                        </Link>
+                                                        <Link className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100 bg-transparent flex items-center space-x-4 text-[14px]"
+                                                            to={`/admin/tax-update/${data._id}`}
+                                                        >
+                                                            <FaPencilAlt size={18} />
+                                                            <span>Ubah</span>
+                                                        </Link>
                                                         <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
                                                             <button
                                                                 onClick={() => handleDeleteOutlet(data._id)}

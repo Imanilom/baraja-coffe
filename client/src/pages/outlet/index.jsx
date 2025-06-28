@@ -193,7 +193,7 @@ const OutletManagementPage = () => {
               {paginatedData.map((outlet) => (
                 <tr key={outlet._id} className="bg-white text-[14px]">
                   <td className="p-[15px]">{outlet.name}</td>
-                  <td className="p-[15px]">{outlet.address}</td>
+                  <td className="p-[15px] uppercase">{outlet.city}</td>
                   <td className="p-[15px]">{outlet.contactNumber}</td>
                   <td className="p-[15px]">Tanpa Pajak</td>
                   <td className="p-[15px]">Tanpa tipe penjualan</td>
@@ -215,7 +215,7 @@ const OutletManagementPage = () => {
                           <ul className="">
                             <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
                               <Link
-                                to={`/admin/outlet-update/${outlet._id}`}
+                                to={`/admin/update-outlet/${outlet._id}`}
                                 className="bg-transparent flex items-center space-x-4 text-[14px]"
                               >
                                 <FaPencilAlt size={18} />

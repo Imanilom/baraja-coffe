@@ -395,8 +395,6 @@ const Dashboard = () => {
         value: item.value, // ganti '120000' dengan nilai aktual, misalnya 'item.total'
     }));
 
-    console.log(dataCategory);
-
     const renderActiveShape = (props) => {
         const {
             cx, cy, innerRadius, outerRadius,
@@ -672,7 +670,9 @@ const Dashboard = () => {
                             <AreaChart data={groupedByHour} margin={{ top: 10, right: 20, left: 20, bottom: 50 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="time" />
-                                <YAxis tickFormatter={(value) => formatRupiah(value)} />
+                                <YAxis tickFormatter={(value) => formatRupiah(value)}
+                                    tick={{ fontSize: 12 }}
+                                />
                                 <Tooltip formatter={(value) => `Rp${value.toLocaleString('id-ID')}`} />
                                 <Area type="monotone" dataKey="subtotal" stroke="#005429" fill="#005400" strokeWidth={2} />
                             </AreaChart>

@@ -601,7 +601,7 @@ const Menu = () => {
                         </div>
                       </td>
                       <td className="p-[15px]">
-                        {item.category.join(", ")}
+                        {Array.isArray(item.category) ? item.category.join(", ") : "-"}
                       </td>
                       <td className="p-[15px] text-right">{formatCurrency(item.price)}</td>
                       <td className="p-[15px]">
