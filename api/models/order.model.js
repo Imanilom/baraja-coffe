@@ -37,28 +37,28 @@ const OrderSchema = new mongoose.Schema({
   outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
 
   // Diskon & Promo
-  // discounts: {
-  //   autoPromoDiscount: { type: Number, default: 0 },
-  //   manualDiscount: { type: Number, default: 0 },
-  //   voucherDiscount: { type: Number, default: 0 }
-  // },
-  // appliedPromos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Promo' }],
-  // appliedManualPromo: { type: mongoose.Schema.Types.ObjectId, ref: 'Promo' },
-  // appliedVoucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
+  discounts: {
+    autoPromoDiscount: { type: Number, default: 0 },
+    manualDiscount: { type: Number, default: 0 },
+    voucherDiscount: { type: Number, default: 0 }
+  },
+  appliedPromos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Promo' }],
+  appliedManualPromo: { type: mongoose.Schema.Types.ObjectId, ref: 'Promo' },
+  appliedVoucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
 
   // // Pajak dan Service Fee
-  // taxAndServiceDetails: [{
-  //   type: { type: String, enum: ['Tax', 'Service'], required: true },
-  //   name: String,
-  //   amount: Number
-  // }],
-  // totalTax: { type: Number, default: 0 },
-  // totalServiceFee: { type: Number, default: 0 },
+  taxAndServiceDetails: [{
+    type: { type: String, enum: ['Tax', 'Service'], required: true },
+    name: String,
+    amount: Number
+  }],
+  totalTax: { type: Number, default: 0 },
+  totalServiceFee: { type: Number, default: 0 },
 
   // // Total akhir
-  // totalBeforeDiscount: { type: Number, required: true },
-  // totalAfterDiscount: { type: Number, required: true },
-  // grandTotal: { type: Number, required: true },
+  totalBeforeDiscount: { type: Number, required: true },
+  totalAfterDiscount: { type: Number, required: true },
+  grandTotal: { type: Number, required: true },
 
   // Sumber order
   source: { type: String, enum: ['Web', 'App', 'Cashier'], required: true }
