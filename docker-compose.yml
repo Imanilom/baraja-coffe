@@ -1,42 +1,44 @@
-version: "3.8"
-services:
-  redis:
-    image: redis:7-alpine
-    container_name: baraja_redis
-    network_mode: "host"
-    restart: always
-    healthcheck:
-      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-    command: redis-server --port 6379 --bind 127.0.0.1
+version: '3.8'
 
+services:
   app:
-    image: rilspers/baraja-server:latest
-    container_name: baraja_server
-    network_mode: "host"
-    restart: always
+    container_name: barajacoffee-app
+    image: barajacoffee/barajacoffee:latest
+    ports:
+      - "3000:3000" # Ganti sesuai port aplikasi Anda
     depends_on:
-      redis:
-        condition: service_healthy
+      - redis
     environment:
-      - REDIS_URL=redis://127.0.0.1:6379
-      - REDIS_HOST=127.0.0.1
-      - REDIS_PORT=6379
-      - HOST=0.0.0.0
-      - PORT=3000
-      - NODE_ENV=production
-    init: true
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    restart: unless-stopped
+    networks:
+      - baraja-net
+
+  redis:
+    container_name: redis
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - baraja-net
 
   watchtower:
-    image: containrrr/watchtower:latest
     container_name: watchtower
-    restart: always
+    image: containrrr/watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=300
-      - WATCHTOWER_LABEL_ENABLE=true
+    command: --interval 300 --cleanup barajacoffee-app
+    restart: unless-stopped
+    networks:
+      - baraja-net
+
+volumes:
+  redis-data:
+
+networks:
+  baraja-net:
+    driver: bridge
