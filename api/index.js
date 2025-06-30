@@ -112,6 +112,7 @@ app.post('/api/midtrans/webhook', midtransWebhook);
 // Start server
 server.listen(3000, () => {
   console.log('Socket.IO + Express server listening on port 3000');
+  console.log(">>> REDIS_URL:", process.env.REDIS_URL);
 });
 
 
