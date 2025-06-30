@@ -3,8 +3,11 @@ import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { jobRouter } from '../workers/jobRouter.js';
 
+// const connection = new IORedis(process.env.REDIS_URL || 'redis://redis:6379', {
+//   maxRetriesPerRequest: null,
+// });
 const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
-  maxRetriesPerRequest: null, 
+  maxRetriesPerRequest: null,
 });
 
 // ✅ Tambahkan queue instance
