@@ -1,0 +1,64 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
+import 'package:kasirbaraja/providers/router_provider.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:hive_ce/hive.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
+  await HiveService.init();
+
+  final printerBox = Hive.box<BluetoothPrinterModel>('printers');
+
+  // SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeRight,
+    DeviceOrientation.landscapeLeft,
+  ]).then((_) {
+    runApp(
+      ProviderScope(
+        overrides: [
+          // Override dengan Hive box yang sudah diinisialisasi
+          printerBoxProvider.overrideWithValue(printerBox),
+        ],
+        child: MyApp(),
+      ),
+    );
+    // runApp(const MyWidget());
+  });
+}
+
+class MyApp extends ConsumerWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+    return MaterialApp.router(
+      title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        fontFamily: 'Poppins',
+        scaffoldBackgroundColor: const Color.fromARGB(255, 236, 236, 236),
+        textTheme: const TextTheme(
+          bodySmall: TextStyle(fontSize: 10),
+          bodyMedium: TextStyle(fontSize: 12),
+          bodyLarge: TextStyle(fontSize: 14),
+        ),
+        colorScheme: ColorScheme.fromSeed(
+          brightness: Brightness.light,
+          primary: const Color.fromARGB(255, 24, 138, 39),
+          seedColor: const Color.fromARGB(255, 24, 138, 39),
+          inversePrimary: const Color(0xFFB39DDB),
+        ),
+        useMaterial3: true,
+      ),
+      routerConfig: router,
+    );
+  }
+}

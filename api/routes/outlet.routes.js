@@ -7,6 +7,8 @@ import {
   deleteOutlet,
   findNearestOutlet
 } from '../controllers/outlet.controller.js';
+
+
 import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
@@ -14,9 +16,7 @@ const router = express.Router();
 const adminAccess = verifyToken(['admin', 'superadmin']);
 
 // Create new outlet
-// router.post('/', adminAccess, createOutlet);
-router.post('/createOutlet', createOutlet);
-
+router.post('/', adminAccess, createOutlet);
 
 // Get all outlets
 router.get('/', getOutlets);

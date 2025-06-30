@@ -1,23 +1,102 @@
+// models/MenuItem.js
 import mongoose from 'mongoose';
 
 const MenuItemSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  price: { type: Number, required: true },
-  description: { type: String },
-  category: { type: String, required: true },
-  imageURL: { type: String },
+  name: { 
+    type: String, 
+    required: true, 
+    trim: true 
+  },
+  price: { 
+    type: Number, 
+    required: true, 
+    min: 0 
+  },
+  description: { 
+    type: String, 
+    trim: true 
+  },
+  category: {
+    type: String,
+    enum: ['makanan', 'minuman', 'instan', 'snack'],
+    required: true
+  },
+  subCategory: String,
+  imageURL: { 
+    type: String, 
+    default: 'https://placehold.co/1920x1080/png' 
+  },
+  costPrice: { // Harga pokok produksi (auto-calculated)
+    type: Number,
+    default: 0
+  },
+  availableStock: { // Porsi tersedia (auto-calculated)
+    type: Number,
+    default: 0
+  },
   toppings: [
-    { type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }
-  ],
-  addOns: [
-    { type: mongoose.Schema.Types.ObjectId, ref: 'AddOn' }
-  ],
-  rawMaterials: [
     {
-      materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'RawMaterial' },
-      quantityRequired: { type: Number, required: true } // Jumlah bahan baku per unit menu
+      name: { 
+        type: String, 
+        required: true 
+      },
+      price: { 
+        type: Number, 
+        required: true 
+      }
     }
-  ]
+  ],
+  addons: [
+    {
+      name: { 
+        type: String, 
+        required: true 
+      },
+      options: [
+        {
+          label: { 
+            type: String, 
+            required: true 
+          },
+          price: { 
+            type: Number, 
+            required: true 
+          },
+          isDefault: { 
+            type: Boolean, 
+            default: false 
+          }
+        }
+      ]
+    }
+  ],
+  availableAt: [
+    { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Outlet' 
+    }
+  ],
+  isActive: { 
+    type: Boolean, 
+    default: true 
+  }
 }, { timestamps: true });
+
+// Auto-update costPrice
+MenuItemSchema.pre('save', async function(next) {
+  if (this.isModified('toppings') || this.isModified('addons')) {
+    const recipe = await mongoose.model('Recipe').findOne({ menuItemId: this._id });
+    if (recipe) {
+      let totalCost = 0;
+      // Hitung harga dasar
+      for (const ing of recipe.baseIngredients) {
+        const product = await mongoose.model('Product').findById(ing.productId);
+        if (product) totalCost += (product.suppliers[0]?.price || 0) * ing.quantity;
+      }
+      this.costPrice = totalCost;
+    }
+  }
+  next();
+});
 
 export const MenuItem = mongoose.model('MenuItem', MenuItemSchema);
