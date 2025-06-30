@@ -5,4 +5,7 @@ node_modules
 *.log
 
 # Ignore environment file jika tidak perlu di-build ke container
-.env
+client
+docs
+mobile
+
