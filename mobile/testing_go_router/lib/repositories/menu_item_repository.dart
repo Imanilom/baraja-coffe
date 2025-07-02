@@ -20,9 +20,9 @@ class MenuItemRepository {
               .map((json) => MenuItemModel.fromJson(json))
               .toList();
 
-      print(
-        "Data menu yg tidak diambil: ${menuItemsList.where((item) => item.categories == null).length}",
-      );
+      // print(
+      //   "Data menu yg tidak diambil: ${menuItemsList.where((item) => item.categories == null).length}",
+      // );
 
       // 🔹 Simpan data ke Hive
       await productBox.putAll({for (var item in menuItemsList) item.id: item});

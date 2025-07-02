@@ -131,7 +131,7 @@ export const signin = async (req, res, next) => {
 
       tokenExpiry = "7d";
 
-     
+
       // Komentar ini bisa diaktifkan kembali jika validasi diperlukan
       /*
       const { deviceId, deviceName, location } = req.body;
@@ -186,13 +186,13 @@ export const signin = async (req, res, next) => {
 
     const { password: hashedPassword, ...rest } = user._doc;
     let response = { ...rest, token };
-
+    // console.log('proses login berhasil');
     // Tambahkan daftar kasir jika user adalah admin
     if (user.role === "admin") {
-      const cashiers = await User.find({
+      const cashier = await User.find({
         role: ["cashier junior", "cashier senior"],
       }).populate("outlet.outletId", "admin");
-      response.cashier = cashiers;
+      response.cashiers = cashier;
     }
 
     res.cookie("access_token", token, {

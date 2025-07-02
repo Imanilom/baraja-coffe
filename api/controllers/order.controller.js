@@ -900,7 +900,8 @@ export const getQueuedOrders = async (req, res) => {
 export const confirmOrderByCashier = async (req, res) => {
   const { jobId } = req.params;
   const { cashierId } = req.body;
-
+  console.log('jobId:', jobId);
+  console.log('cashierId:', cashierId);
   if (!cashierId) {
     return res.status(400).json({ success: false, error: 'cashierId wajib diisi' });
   }
@@ -1225,7 +1226,7 @@ export const getPendingOrders = async (req, res) => {
 
     const successfulPaymentOrderIds = new Set(
       payments.filter(p => p.status === 'Success' || p.status === 'paid')
-              .map(p => p.order_id.toString())
+        .map(p => p.order_id.toString())
     );
 
     const unpaidOrders = pendingOrders.filter(
@@ -1526,7 +1527,8 @@ export const getCashierOrderHistory = async (req, res) => {
     const orders = await Order.find({ cashier: cashierId })
       // const orders = await Order.find();
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
-    // .populate('voucher'); // Mengisi detail voucher (opsional)
+      // .populate('voucher')
+      .sort({ createdAt: -1 }); // Mengisi detail voucher (opsional)
     console.log(orders.length);
     if (!orders || orders.length === 0) {
       return res.status(404).json({ message: 'No order history found for this cashier.' });
@@ -1587,8 +1589,8 @@ export const getCashierOrderHistory = async (req, res) => {
 // test socket
 export const testSocket = async (req, res) => {
   console.log('Emitting order created to cashier room...');
-  io.to('cashier_room').emit('order_created', { message: 'Order created' });
+  const cashierRoom = io.to('cashier_room').emit('order_created', { message: 'Order created' });
   console.log('Emitting order created to cashier room success.');
 
-  res.status(200).json({ success: true });
+  res.status(200).json({ success: cashierRoom });
 }
