@@ -96,16 +96,30 @@ export const createMenuItem = async (req, res) => {
   }
 };
 
-// Get all menu items with rating info
+// GET /api/menu?limit=10&offset=0
 export const getMenuItems = async (req, res) => {
   try {
+    const { limit = 10, offset = 0 } = req.query;
+
+    // Validasi input
+    const parsedLimit = parseInt(limit);
+    const parsedOffset = parseInt(offset);
+
+    if (isNaN(parsedLimit) || isNaN(parsedOffset)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Limit and offset must be valid numbers.'
+      });
+    }
+
+    // Ambil semua menu items dengan pagination
     const menuItems = await MenuItem.find()
       .populate([
         { path: 'toppings' },
         { path: 'availableAt' },
         {
           path: 'addons',
-          populate: { path: 'options' },
+          populate: { path: 'options' }
         },
         {
           path: 'category',
@@ -115,8 +129,14 @@ export const getMenuItems = async (req, res) => {
           path: 'subCategory',
           select: 'name'
         }
-      ]);
+      ])
+      .skip(parsedOffset)
+      .limit(parsedLimit);
 
+    // Hitung total dokumen untuk metadata
+    const totalItems = await MenuItem.countDocuments();
+
+    // Ambil semua rating untuk menghitung rata-rata
     const ratings = await MenuRating.find({ isActive: true });
 
     const ratingMap = {};
@@ -166,16 +186,27 @@ export const getMenuItems = async (req, res) => {
       };
     });
 
+    // Metadata pagination
+    const meta = {
+      totalItems,
+      itemCount: formattedMenuItems.length,
+      itemsPerPage: parsedLimit,
+      totalPages: Math.ceil(totalItems / parsedLimit),
+      currentPage: Math.floor(parsedOffset / parsedLimit) + 1
+    };
+
     res.status(200).json({
       success: true,
-      data: formattedMenuItems
+      data: formattedMenuItems,
+      meta
     });
+
   } catch (error) {
     console.error('Error fetching menu items:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch menu items',
-      error: error.message,
+      message: 'Failed to fetch menu items.',
+      error: error.message
     });
   }
 };
@@ -406,6 +437,243 @@ export const deleteMenuItem = async (req, res) => {
       success: false,
       message: 'Failed to delete menu item',
       error: error.message
+    });
+  }
+};
+
+// 🔹 GET /menu/by-outlet/:outletId
+// Menampilkan menu yang tersedia di outlet tertentu
+export const getMenuByOutlet = async (req, res) => {
+  try {
+    const { outletId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(outletId)) {
+      return res.status(400).json({ success: false, message: 'Invalid outlet ID' });
+    }
+
+    const menuItems = await MenuItem.find({
+      availableAt: outletId
+    })
+      .populate([
+        { path: 'toppings' },
+        { path: 'availableAt' },
+        { path: 'addons', populate: { path: 'options' } }
+      ]);
+
+    // Ambil semua rating untuk menghitung rata-rata
+    const ratings = await MenuRating.find({ isActive: true });
+
+    const ratingMap = {};
+    ratings.forEach(rating => {
+      const menuId = rating.menuItemId.toString();
+      if (!ratingMap[menuId]) ratingMap[menuId] = [];
+      ratingMap[menuId].push(rating.rating);
+    });
+
+    const formattedMenuItems = menuItems.map(item => {
+      const itemId = item._id.toString();
+      const itemRatings = ratingMap[itemId] || [];
+
+      const averageRating = itemRatings.length > 0
+        ? Math.round((itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) * 10) / 10
+        : null;
+
+      const reviewCount = itemRatings.length;
+
+      return {
+        id: item._id,
+        name: item.name,
+        category: item.category,
+        subCategory: item.subCategory,
+        imageUrl: item.imageURL,
+        originalPrice: item.price,
+        discountedPrice: item.discountedPrice || item.price,
+        description: item.description,
+        discountPercentage: item.discount ? `${item.discount}%` : null,
+        averageRating,
+        reviewCount,
+        toppings: item.toppings.map(topping => ({
+          id: topping._id,
+          name: topping.name,
+          price: topping.price
+        })),
+        addons: item.addons.map(addon => ({
+          id: addon._id,
+          name: addon.name,
+          options: addon.options.map(opt => ({
+            id: opt._id,
+            label: opt.label,
+            price: opt.price,
+            isDefault: opt.isDefault
+          }))
+        }))
+      };
+    });
+
+    res.status(200).json({ success: true, data: formattedMenuItems });
+  } catch (error) {
+    console.error('Error fetching menu by outlet:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch menu by outlet',
+      error: error.message,
+    });
+  }
+};
+
+// 🔹 GET /menu/by-rating?minRating=4
+// Menampilkan menu dengan rata-rata rating ≥ minRating
+export const getMenuByRating = async (req, res) => {
+  try {
+    const { minRating } = req.query;
+    const minimumRating = parseFloat(minRating);
+
+    if (isNaN(minimumRating) || minimumRating < 0 || minimumRating > 5) {
+      return res.status(400).json({ success: false, message: 'Invalid minRating value.' });
+    }
+
+    const menuItems = await MenuItem.find()
+      .populate([
+        { path: 'toppings' },
+        { path: 'availableAt' },
+        { path: 'addons', populate: { path: 'options' } }
+      ]);
+
+    const ratings = await MenuRating.find({ isActive: true });
+
+    const ratingMap = {};
+    ratings.forEach(rating => {
+      const menuId = rating.menuItemId.toString();
+      if (!ratingMap[menuId]) ratingMap[menuId] = [];
+      ratingMap[menuId].push(rating.rating);
+    });
+
+    const filteredMenuItems = menuItems.filter(item => {
+      const itemId = item._id.toString();
+      const itemRatings = ratingMap[itemId] || [];
+      const avgRating = itemRatings.length > 0
+        ? itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length
+        : 0;
+
+      return avgRating >= minimumRating;
+    });
+
+    res.status(200).json({ success: true, data: filteredMenuItems });
+  } catch (error) {
+    console.error('Error fetching menu by rating:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch menu by rating',
+      error: error.message,
+    });
+  }
+};
+
+// 🔹 GET /menu/available
+// Menampilkan hanya menu yang tersedia (berdasarkan stok raw materials)
+export const getAvailableMenuItems = async (req, res) => {
+  try {
+    const menuItems = await MenuItem.find()
+      .populate([
+        { path: 'toppings' },
+        { path: 'availableAt' },
+        { path: 'addons', populate: { path: 'options' } }
+      ]);
+
+    const availableMenus = [];
+
+    for (const item of menuItems) {
+      let isAvailable = true;
+
+      if (item.rawMaterials && item.rawMaterials.length > 0) {
+        for (const material of item.rawMaterials) {
+          const rawMaterial = await RawMaterial.findById(material.materialId);
+          if (!rawMaterial || rawMaterial.stock < material.quantityRequired) {
+            isAvailable = false;
+            break;
+          }
+        }
+      }
+
+      if (isAvailable) {
+        availableMenus.push(item);
+      }
+    }
+
+    res.status(200).json({ success: true, data: availableMenus });
+  } catch (error) {
+    console.error('Error fetching available menu items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch available menu items',
+      error: error.message,
+    });
+  }
+};
+
+// 🔹 GET /menu/filter?category=686498b65eb0a4b4b90e6a8e&minRating=4&available=true
+// Filter kombinasi: kategori, rating minimum, dan ketersediaan
+export const filterMenuItems = async (req, res) => {
+  try {
+    const { category, minRating, available } = req.query;
+
+    let query = {};
+
+    // Filter berdasarkan kategori utama atau sub-kategori
+    if (category) {
+      query.$or = [
+        { category },
+        { subCategory: category }
+      ];
+    }
+
+    const menuItems = await MenuItem.find(query)
+      .populate([
+        { path: 'toppings' },
+        { path: 'availableAt' },
+        { path: 'addons', populate: { path: 'options' } }
+      ]);
+
+    const ratings = await MenuRating.find({ isActive: true });
+
+    const ratingMap = {};
+    ratings.forEach(rating => {
+      const menuId = rating.menuItemId.toString();
+      if (!ratingMap[menuId]) ratingMap[menuId] = [];
+      ratingMap[menuId].push(rating.rating);
+    });
+
+    let filtered = menuItems;
+
+    // Filter berdasarkan rating
+    if (minRating) {
+      const minRate = parseFloat(minRating);
+      filtered = filtered.filter(item => {
+        const avgRating = ratingMap[item._id.toString()]?.reduce((a, b) => a + b, 0) /
+          (ratingMap[item._id.toString()]?.length || 1);
+        return avgRating >= minRate;
+      });
+    }
+
+    // Filter berdasarkan ketersediaan
+    if (available === 'true') {
+      filtered = filtered.filter(async item => {
+        if (!item.rawMaterials || item.rawMaterials.length === 0) return true;
+        for (const mat of item.rawMaterials) {
+          const rm = await RawMaterial.findById(mat.materialId);
+          if (!rm || rm.stock < mat.quantityRequired) return false;
+        }
+        return true;
+      });
+    }
+
+    res.status(200).json({ success: true, data: filtered });
+  } catch (error) {
+    console.error('Error filtering menu items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to filter menu items',
+      error: error.message,
     });
   }
 };
