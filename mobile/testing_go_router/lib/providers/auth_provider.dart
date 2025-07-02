@@ -184,6 +184,7 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
 
   Future<void> login(String username, String password) async {
     try {
+      print('kita berada di try auth provider login manager');
       await _authRepository.login(username, password);
       print('kita berada di try auth provider login manager');
 

@@ -10,6 +10,7 @@ import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/tax_and_service.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 
@@ -22,6 +23,7 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(MenuItemModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
+    registerAdapter(TaxAndServiceModelAdapter());
     registerAdapter(ToppingModelAdapter());
     registerAdapter(UserModelAdapter());
   }
@@ -36,6 +38,7 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(MenuItemModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
+    registerAdapter(TaxAndServiceModelAdapter());
     registerAdapter(ToppingModelAdapter());
     registerAdapter(UserModelAdapter());
   }
