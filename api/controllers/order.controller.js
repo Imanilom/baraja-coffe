@@ -1205,13 +1205,12 @@ export const getAllOrders = async (req, res) => {
 // Mengambil order yang pending
 export const getPendingOrders = async (req, res) => {
   try {
-    const outletId = req.query;
-    console.log('Outlet ID:', outletId);
+    const { outletId } = req.params;
     if (!outletId) {
       return res.status(400).json({ message: 'outletId is required' });
     }
 
-    // Ambil order pending dari outlet tertentu
+    // Ambil order pending d  ari outlet tertentu
     const pendingOrders = await Order.find({
       status: 'Pending',
       outletId: outletId
