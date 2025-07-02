@@ -20,18 +20,22 @@ class BluetoothPrinterModelAdapter extends TypeAdapter<BluetoothPrinterModel> {
       name: fields[0] as String,
       address: fields[1] as String,
       connectionType: fields[2] as String?,
-      isKitchenPrinter: fields[3] == null ? false : fields[3] as bool,
-      isBarPrinter: fields[4] == null ? true : fields[4] as bool,
-      paperSize: fields[5] == null ? 'mm58' : fields[5] as String,
-      kitchenCopies: fields[6] == null ? 1 : (fields[6] as num).toInt(),
-      barCopies: fields[7] == null ? 1 : (fields[7] as num).toInt(),
+      paperSize: fields[3] == null ? 'mm58' : fields[3] as String,
+      canPrintCustomer: fields[4] == null ? true : fields[4] as bool,
+      canPrintKitchen: fields[5] == null ? false : fields[5] as bool,
+      canPrintBar: fields[6] == null ? false : fields[6] as bool,
+      canPrintWaiter: fields[7] == null ? false : fields[7] as bool,
+      customerCopies: fields[8] == null ? 1 : (fields[8] as num).toInt(),
+      kitchenCopies: fields[9] == null ? 1 : (fields[9] as num).toInt(),
+      barCopies: fields[10] == null ? 1 : (fields[10] as num).toInt(),
+      waiterCopies: fields[11] == null ? 1 : (fields[11] as num).toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, BluetoothPrinterModel obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.name)
       ..writeByte(1)
@@ -39,15 +43,23 @@ class BluetoothPrinterModelAdapter extends TypeAdapter<BluetoothPrinterModel> {
       ..writeByte(2)
       ..write(obj.connectionType)
       ..writeByte(3)
-      ..write(obj.isKitchenPrinter)
-      ..writeByte(4)
-      ..write(obj.isBarPrinter)
-      ..writeByte(5)
       ..write(obj.paperSize)
+      ..writeByte(4)
+      ..write(obj.canPrintCustomer)
+      ..writeByte(5)
+      ..write(obj.canPrintKitchen)
       ..writeByte(6)
-      ..write(obj.kitchenCopies)
+      ..write(obj.canPrintBar)
       ..writeByte(7)
-      ..write(obj.barCopies);
+      ..write(obj.canPrintWaiter)
+      ..writeByte(8)
+      ..write(obj.customerCopies)
+      ..writeByte(9)
+      ..write(obj.kitchenCopies)
+      ..writeByte(10)
+      ..write(obj.barCopies)
+      ..writeByte(11)
+      ..write(obj.waiterCopies);
   }
 
   @override
@@ -71,11 +83,15 @@ _BluetoothPrinterModel _$BluetoothPrinterModelFromJson(
   name: json['name'] as String,
   address: json['address'] as String,
   connectionType: json['connectionType'] as String?,
-  isKitchenPrinter: json['isKitchenPrinter'] as bool? ?? false,
-  isBarPrinter: json['isBarPrinter'] as bool? ?? true,
   paperSize: json['paperSize'] as String? ?? 'mm58',
+  canPrintCustomer: json['canPrintCustomer'] as bool? ?? true,
+  canPrintKitchen: json['canPrintKitchen'] as bool? ?? false,
+  canPrintBar: json['canPrintBar'] as bool? ?? false,
+  canPrintWaiter: json['canPrintWaiter'] as bool? ?? false,
+  customerCopies: (json['customerCopies'] as num?)?.toInt() ?? 1,
   kitchenCopies: (json['kitchenCopies'] as num?)?.toInt() ?? 1,
   barCopies: (json['barCopies'] as num?)?.toInt() ?? 1,
+  waiterCopies: (json['waiterCopies'] as num?)?.toInt() ?? 1,
 );
 
 Map<String, dynamic> _$BluetoothPrinterModelToJson(
@@ -84,9 +100,13 @@ Map<String, dynamic> _$BluetoothPrinterModelToJson(
   'name': instance.name,
   'address': instance.address,
   'connectionType': instance.connectionType,
-  'isKitchenPrinter': instance.isKitchenPrinter,
-  'isBarPrinter': instance.isBarPrinter,
   'paperSize': instance.paperSize,
+  'canPrintCustomer': instance.canPrintCustomer,
+  'canPrintKitchen': instance.canPrintKitchen,
+  'canPrintBar': instance.canPrintBar,
+  'canPrintWaiter': instance.canPrintWaiter,
+  'customerCopies': instance.customerCopies,
   'kitchenCopies': instance.kitchenCopies,
   'barCopies': instance.barCopies,
+  'waiterCopies': instance.waiterCopies,
 };

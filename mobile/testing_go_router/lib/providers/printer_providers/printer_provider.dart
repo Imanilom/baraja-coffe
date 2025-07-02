@@ -42,35 +42,65 @@ class SavedPrintersNotifier extends Notifier<List<BluetoothPrinterModel>> {
   //print to printer
   Future<void> printToPrinter(
     OrderDetailModel orderDetail,
-    String location,
+    String printType,
   ) async {
-    if (location.isEmpty) return;
-    if (location == 'bar') {
-      //cari printer yang isPrinter barnya true
-      state = state.where((printer) => printer.isBarPrinter == true).toList();
-      //print to printer
-      for (var printer in state) {
-        await PrinterService.printToPrinter(orderDetail, printer, false);
-      }
-    } else if (location == 'kitchen') {
-      //cari printer yang isPrinter kitchen true
-      state =
-          state.where((printer) => printer.isKitchenPrinter == true).toList();
-      //print to printer
-      for (var printer in state) {
-        await PrinterService.printToPrinter(orderDetail, printer, true);
-      }
-    } else if (location == 'all') {
-      //print to printer
-      for (var printer in state) {
-        if (printer.isKitchenPrinter) {
-          await PrinterService.printToPrinter(orderDetail, printer, true);
-        }
-        if (printer.isBarPrinter) {
-          await PrinterService.printToPrinter(orderDetail, printer, false);
-        }
-      }
+    if (state.isEmpty || printType.isEmpty) {
+      print('No printers available to print.');
+      return;
     }
+
+    await PrinterService.printDocuments(
+      orderDetail: orderDetail,
+      printType: printType,
+      printers: state,
+    );
+
+    // if (printType == 'all') {
+    //   // Print to all printers
+    //   for (var printer in state) {
+    //     if (printer.canPrintKitchen) {
+    //       await PrinterService.printToPrinter(orderDetail, printer, true);
+    //     }
+    //     if (printer.canPrintBar) {
+    //       await PrinterService.printToPrinter(orderDetail, printer, false);
+    //     }
+    //   }
+    //   return;
+    // }
+
+    // if (printType == 'bar') {
+    //   //cari printer yang isPrinter barnya true
+    //   state = state.where((printer) => printer.isBarPrinter == true).toList();
+    //   //print to printer
+    //   for (var printer in state) {
+    //     await PrinterService.printToPrinter(orderDetail, printer, false);
+    //   }
+    // } else if (printType == 'kitchen') {
+    //   //cari printer yang isPrinter kitchen true
+    //   state =
+    //       state.where((printer) => printer.isKitchenPrinter == true).toList();
+    //   //print to printer
+    //   for (var printer in state) {
+    //     await PrinterService.printToPrinter(orderDetail, printer, true);
+    //   }
+    // } else if (printType == 'customer') {
+    //   //cari printer yang isPrinter customer true
+    //   state = state.where((printer) => printer.isBarPrinter == true).toList();
+    //   //print to printer
+    //   for (var printer in state) {
+    //     await PrinterService.printToPrinter(orderDetail, printer, false);
+    //   }
+    // } else if (printType == 'all') {
+    //   //print to printer
+    //   for (var printer in state) {
+    //     if (printer.isKitchenPrinter) {
+    //       await PrinterService.printToPrinter(orderDetail, printer, true);
+    //     }
+    //     if (printer.isBarPrinter) {
+    //       await PrinterService.printToPrinter(orderDetail, printer, false);
+    //     }
+    //   }
+    // }
   }
 
   Future<void> addPrinter(BluetoothPrinterModel printer) async {

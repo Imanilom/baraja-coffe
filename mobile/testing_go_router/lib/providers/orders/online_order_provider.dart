@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/repositories/online_order_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,9 +9,16 @@ final onlineOrderRepository = Provider<OnlineOrderRepository>(
   (ref) => OnlineOrderRepository(),
 );
 
-final onlineOrderProvider = FutureProvider<List<OrderDetailModel>>((ref) async {
-  final onlineOrderRepo = ref.read(onlineOrderRepository);
-  return onlineOrderRepo.fetchPendingOrders();
+final onlineOrderProvider = FutureProvider.autoDispose<List<OrderDetailModel>>((
+  ref,
+) async {
+  try {
+    final onlineOrderRepo = ref.read(onlineOrderRepository);
+    return onlineOrderRepo.fetchPendingOrders();
+  } on DioException catch (e) {
+    print('DioException: ${e.message}');
+    throw e.error ?? Exception('Failed to fetch activity: ${e.message}');
+  }
 });
 
 // final onlineOrderProvider =

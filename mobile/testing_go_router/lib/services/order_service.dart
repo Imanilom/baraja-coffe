@@ -1,3 +1,4 @@
+import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/services/api_response_handler.dart';
@@ -14,7 +15,7 @@ class OrderService {
       print('start create order...');
       print('request body: ${createOrderRequest(orderDetail)}');
       Response response = await _dio.post(
-        '/api/order',
+        '/api/unified-order',
         data: createOrderRequest(orderDetail),
         options: Options(
           headers: {
@@ -23,7 +24,7 @@ class OrderService {
           },
         ),
       );
-      print('response status code: ${response.statusCode}');
+      print('response status code create order: ${response.statusCode}');
       return response.data;
     } on DioException catch (e) {
       print('error create order: ${e.response?.data}');
@@ -54,18 +55,21 @@ class OrderService {
     WidgetRef ref,
     OrderDetailModel orderDetail,
   ) async {
-    final cashier = ref.read(authCashierProvider);
+    final box = Hive.box('userBox');
+    final cashierId = box.get('cashier').id;
+
+    print('cashierId: $cashierId , orderId: ${orderDetail.orderId}');
 
     try {
       if (orderDetail.orderId == null) {
         throw Exception("orderId atau cashierId tidak boleh null");
       }
       Response response = await _dio.post(
-        '/api/confirm-order',
+        '/api/confirm-order/${orderDetail.orderId}',
         data: {
           //cashierId dari authCashierProvider
-          'cashierId': cashier.value?.id,
-          'orderId': orderDetail.orderId,
+          'cashierId': cashierId,
+          'jobId': orderDetail.orderId,
         },
         options: Options(
           headers: {
@@ -125,5 +129,6 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'tableNumber': order.tableNumber ?? 1,
     'paymentMethod': order.paymentMethod ?? 'Cash',
     'totalPrice': order.totalPrice ?? 12000,
+    'source': "Cashier",
   };
 }
