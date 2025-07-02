@@ -14,7 +14,7 @@ const router = express.Router();
 
 router.get('/', getAllCharges);
 router.get('/:id', getChargeById);
-router.post('/',  createCharge);
+router.post('/', marketingAccess, createCharge);
 router.put('/:id', marketingAccess, updateCharge);
 router.delete('/:id', marketingAccess, deleteCharge);
 

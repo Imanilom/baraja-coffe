@@ -106,107 +106,121 @@ export const filterMenuByCategory = async (req, res) => {
 };
 
 
-// Controller untuk membuat kategori baru
+// ✅ POST: Tambah kategori (main atau sub)
 export const createCategory = async (req, res) => {
   try {
-    const categories = req.body;
+    const { name, description, type, parentCategory } = req.body;
 
-    if (!Array.isArray(categories) || categories.length === 0) {
-      return res.status(400).json({ success: false, message: 'Invalid input, must be an array of categories' });
+    // Validasi wajib
+    if (!name || !type) {
+      return res.status(400).json({ error: 'Nama dan tipe kategori harus diisi.' });
     }
 
-    const newCategories = await Category.insertMany(categories);
+    // Optional: Validasi parentCategory jika disertakan
+    if (parentCategory) {
+      const parentExists = await Category.findById(parentCategory);
+      if (!parentExists) {
+        return res.status(400).json({ error: 'Parent kategori tidak ditemukan.' });
+      }
+    }
 
-    res.status(201).json({ success: true, data: newCategories });
-  } catch (error) {
-    console.error('Error creating categories:', error);
-    res.status(500).json({ success: false, message: 'Failed to create categories', error: error.message });
+    const newCategory = new Category({
+      name,
+      description,
+      type,
+      parentCategory,
+      lastUpdatedBy: req.user?._id // asumsi user ada di req
+    });
+
+    await newCategory.save();
+    res.status(201).json(newCategory);
+  } catch (err) {
+    res.status(400).json({ error: 'Gagal membuat kategori.', details: err.message });
   }
 };
 
-
-// controller untuk menghapus kategori
-export const deleteCategory = async (req, res) => {
+// ✅ GET: Semua kategori (dengan populate parent & child)
+export const getAllCategories = async (req, res) => {
   try {
-    const { id } = req.params;
+    const categories = await Category.find()
+      .populate('parentCategory', 'name')
+      .sort({ name: 1 });
 
-    if (!id) {
-      return res.status(400).json({ success: false, message: 'Category ID is required' });
-    }
+    // Kelompokkan menjadi main + sub category
+    const mainCategories = categories.filter(cat => !cat.parentCategory);
+    const subCategories = categories.filter(cat => cat.parentCategory);
 
-    const deletedCategory = await Category.findByIdAndDelete(id);
-
-    if (!deletedCategory) {
-      return res.status(404).json({ success: false, message: 'Category not found' });
-    }
-
-    res.status(200).json({ success: true, message: 'Category deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting category:', error);
-    res.status(500).json({ success: false, message: 'Failed to delete category', error: error.message });
+    res.status(200).json({
+      mainCategories,
+      subCategories
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal mengambil data kategori.', details: err.message });
   }
-}
+};
 
-// Controller untuk mengupdate kategori
-export const updateCategory = async (req, res) => {
+// ✅ GET: Kategori by ID
+export const getCategoryById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, description, type } = req.body;
-
-    if (!id) {
-      return res.status(400).json({ success: false, message: 'Category ID is required' });
-    }
-
-    const category = await Category.findById(id);
+    const category = await Category.findById(req.params.id)
+      .populate('parentCategory', 'name');
 
     if (!category) {
-      return res.status(404).json({ success: false, message: 'Category not found' });
+      return res.status(404).json({ error: 'Kategori tidak ditemukan.' });
     }
 
-    if (name) category.name = name;
-    if (description) category.description = description;
-    if (type) category.type = type;
-
-    await category.save();
-
-    res.status(200).json({ success: true, data: category });
-  } catch (error) {
-    console.error('Error updating category:', error);
-    res.status(500).json({ success: false, message: 'Failed to update category', error: error.message });
+    res.status(200).json(category);
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal mengambil kategori.', details: err.message });
   }
 };
 
-// Controller untuk mengambil daftar kategori sesuai tipe
-export const getCategoriesByType = async (req, res) => {
+// ✅ PUT: Update kategori
+export const updateCategory = async (req, res) => {
   try {
-    const { type } = req.params;
+    const { name, description, type, parentCategory } = req.body;
 
-    if (!type) {
-      return res.status(400).json({ success: false, message: 'Type is required' });
+    if (parentCategory && parentCategory !== req.body.parentCategory) {
+      const parentExists = await Category.findById(parentCategory);
+      if (!parentExists) {
+        return res.status(400).json({ error: 'Parent kategori tidak ditemukan.' });
+      }
     }
 
-    const categories = await Category.find({ type });
+    const updated = await Category.findByIdAndUpdate(
+      req.params.id,
+      {
+        name,
+        description,
+        type,
+        parentCategory,
+        lastUpdated: Date.now(),
+        lastUpdatedBy: req.user?._id
+      },
+      { new: true, runValidators: true }
+    );
 
-    res.status(200).json({ success: true, data: categories });
-  } catch (error) {
-    console.error('Error fetching categories by type:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch categories by type', error: error.message });
-  }
-}
-
-export const getCategoriesById = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({ success: false, message: 'Id is required' });
+    if (!updated) {
+      return res.status(404).json({ error: 'Kategori tidak ditemukan.' });
     }
 
-    const categories = await Category.findById(id);
-
-    res.status(200).json({ success: true, data: categories });
-  } catch (error) {
-    console.error('Error fetching categories by type:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch categories by type', error: error.message });
+    res.status(200).json(updated);
+  } catch (err) {
+    res.status(400).json({ error: 'Gagal mengupdate kategori.', details: err.message });
   }
-}
+};
+
+// ✅ DELETE: Hapus kategori
+export const deleteCategory = async (req, res) => {
+  try {
+    const deleted = await Category.findByIdAndDelete(req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Kategori tidak ditemukan.' });
+    }
+
+    res.status(200).json({ message: 'Kategori berhasil dihapus.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal menghapus kategori.', details: err.message });
+  }
+};

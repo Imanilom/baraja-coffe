@@ -1,12 +1,12 @@
 import express from 'express';
 import { verifyToken } from '../utils/verifyUser.js';
 import {
-  createMenuItem,
-  getMenuItems,
-  getSimpleMenuItems,
-  getMenuItemById,
-  updateMenuItem,
-  deleteMenuItem,
+createMenuItem,
+getMenuItems,
+deleteMenuItem,
+getMenuItemById,
+getMenuItemsByCategory,
+updateMenuItem
 } from '../controllers/menu.controller.js';
 
 import { assignMenuItemsToCategory, filterMenuByCategory, getCategories } from '../controllers/category.controller.js';
@@ -17,9 +17,9 @@ const router = express.Router();
 const adminAccess = verifyToken(['admin', 'superadmin', 'marketing', 'operational']);
 
 // MenuItem Routes
-router.post('/menu-items', adminAccess, createMenuItem); // Create a new MenuItem
+router.post('/menu-items', createMenuItem); // Create a new MenuItem
 router.get('/menu-items', getMenuItems); // Get all MenuItems
-router.get('/simple-menus', getSimpleMenuItems); // Get all MenuItems
+router.get('/simple-menus', getMenuItemsByCategory); // Get all MenuItems
 router.get('/menu-items/:id', getMenuItemById); // Get a specific MenuItem by ID
 router.put('/menu-items/:id', adminAccess, updateMenuItem); // Update a specific MenuItem
 router.delete('/menu-items/:id', adminAccess, deleteMenuItem); // Delete a specific MenuItem
