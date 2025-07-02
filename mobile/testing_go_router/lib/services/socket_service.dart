@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
@@ -21,6 +23,8 @@ class SocketService {
       'reconnection': true,
       'reconnectionAttempts': 5,
     });
+    Timer? debounceTimer;
+
     socket
       ..onConnect((_) => print('CONNECTED: ${socket.id}'))
       ..onDisconnect((_) => print('DISCONNECTED'))
@@ -45,8 +49,12 @@ class SocketService {
           'Pesanan Baru',
           'Pelanggan: Hello World!',
         );
-        // void _ = ref.refresh(activityProvider.future);
-        ref.invalidate(activityProvider);
+        // Refresh data jika perlu
+        debounceTimer?.cancel();
+        debounceTimer = Timer(const Duration(milliseconds: 500), () {
+          ref.invalidate(onlineOrderProvider);
+          print('success received new_order: $data');
+        });
       } catch (e) {
         print('Error refreshing activityProvider: $e');
       }
@@ -69,9 +77,12 @@ class SocketService {
           'Pelanggan: ${data['customerName']}\nTotal: Rp ${data['totalPrice']}',
         );
         // Refresh data jika perlu
-        ref.invalidate(onlineOrderProvider);
+        debounceTimer?.cancel();
+        debounceTimer = Timer(const Duration(milliseconds: 5000), () {
+          ref.invalidate(onlineOrderProvider);
+          print('success received new_order: $data');
+        });
         // void _ = ref.refresh(onlineOrderProvider.future);
-        print('success received new_order: $data');
       } catch (e) {
         print('Error refreshing activityProvider: $e');
       }
