@@ -15,7 +15,7 @@ class OrderHistoryRepository {
       );
 
       final orders = response['orders'] as List;
-      print('konversi json ke model');
+      print('konversi json ke model ${orders.first.length}');
       final orderHistory =
           orders.map((json) => OrderDetailModel.fromJson(json)).toList();
 
