@@ -29,6 +29,9 @@ class UserModel {
   @HiveField(7)
   final List<CashierModel>? cashiers;
 
+  @HiveField(8)
+  final String? outletId;
+
   UserModel({
     required this.id,
     required this.username,
@@ -38,6 +41,7 @@ class UserModel {
     required this.role,
     required this.token,
     this.cashiers,
+    this.outletId,
   });
 
   // ... (fromJson dan toJson tetap sama)
@@ -49,6 +53,12 @@ class UserModel {
             .toList() ??
         [];
 
+    final String outletId = json['outlet'][0]['outletId']['_id'].toString();
+    // (json['outlet'] as List?) != null && (json['outlet'] as List).isNotEmpty
+    //     ? ((json['outlet'] as List).first['outletId']['_id'] as String? ??
+    //         '')
+    //     : '';
+
     return UserModel(
       id: json['_id'] ?? '',
       username: json['username'] ?? '',
@@ -58,6 +68,7 @@ class UserModel {
       role: json['role'] ?? '',
       token: json['token'] ?? '',
       cashiers: cashiers,
+      outletId: outletId,
     );
   }
 
@@ -70,6 +81,7 @@ class UserModel {
     'role': role,
     'token': token,
     'cashiers': cashiers?.map((x) => x.toJson()).toList(),
+    'outletId': outletId,
   };
 }
 
