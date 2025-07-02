@@ -4,8 +4,8 @@ import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hive_ce/hive.dart';
 
-part 'adapter/order_item.model.freezed.dart';
-part 'adapter/order_item.model.g.dart';
+part 'order_item.model.freezed.dart';
+part 'order_item.model.g.dart';
 
 @freezed
 @HiveType(typeId: 4)
@@ -15,6 +15,7 @@ abstract class OrderItemModel with _$OrderItemModel {
     @HiveField(1) @Default([]) List<ToppingModel> selectedToppings,
     @HiveField(2) @Default([]) List<AddonModel> selectedAddons,
     @HiveField(3) @Default(1) int quantity,
+    @HiveField(4) @Default('') String? note,
   }) = _OrderItemModel;
 
   OrderItemModel._();

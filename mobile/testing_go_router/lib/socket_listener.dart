@@ -17,7 +17,7 @@ class SocketListener {
     // Listen event order baru
     socket.on('order_created', (data) {
       print('🛎️ Order Baru: ${data['id']}');
-      // Tambahkan logic untuk update UI di sini
+
       // muncul snack bar
       ScaffoldMessenger.of(data).showSnackBar(
         SnackBar(

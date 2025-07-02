@@ -4,8 +4,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 
-part 'adapter/order_detail.model.freezed.dart';
-part 'adapter/order_detail.model.g.dart';
+part 'order_detail.model.freezed.dart';
+part 'order_detail.model.g.dart';
 
 @freezed
 @HiveType(typeId: 5)
@@ -21,10 +21,12 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(7) String? tableNumber,
     @HiveField(8) String? paymentMethod,
     @HiveField(9) String? status,
-    @HiveField(10) double? subTotalPrice,
-    @HiveField(11) @JsonKey(name: '_id') String? orderId, //
-    @HiveField(12) double? tax,
-    @HiveField(13) double? totalPrice,
+    @HiveField(10) int? subTotalPrice,
+    @HiveField(11) @JsonKey(name: 'order_id') String? orderId, //
+    @HiveField(12) int? tax,
+    @HiveField(13) int? totalPrice,
+    @HiveField(14) int? serviceFee, //, Tambahkan field baru untuk service fee
+    @HiveField(15) Map<String, int>? discounts, // Tambahkan field untuk diskon
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>
