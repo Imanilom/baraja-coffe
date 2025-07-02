@@ -1,4 +1,5 @@
 // models/MenuItem.js
+
 import mongoose from 'mongoose';
 
 const MenuItemSchema = new mongoose.Schema({
@@ -17,14 +18,17 @@ const MenuItemSchema = new mongoose.Schema({
     trim: true 
   },
   category: {
-    type: String,
-    enum: ['makanan', 'minuman', 'instan', 'snack'],
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',
     required: true
   },
-  subCategory: String,
+  subCategory: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category'
+  },
   imageURL: { 
     type: String, 
-    default: 'https://placehold.co/1920x1080/png' 
+    default: 'https://placehold.co/1920x1080/png ' 
   },
   costPrice: { // Harga pokok produksi (auto-calculated)
     type: Number,

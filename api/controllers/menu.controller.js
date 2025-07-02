@@ -1,46 +1,46 @@
 import { MenuItem } from '../models/MenuItem.model.js';
-import { RawMaterial } from '../models/RawMaterial.model.js';
+import Category from '../models/Category.model.js';
 import { Outlet } from '../models/Outlet.model.js';
 import mongoose from 'mongoose';
-import { response } from 'express';
 import { MenuRating } from '../models/MenuRating.model.js';
 
 // Create a new menu item
 export const createMenuItem = async (req, res) => {
   try {
-    const { name, price, description, category, imageURL, toppings, addons, rawMaterials, availableAt } = req.body;
-    console.log(req.body)
+    const {
+      name,
+      price,
+      description,
+      category,
+      subCategory,
+      imageURL,
+      toppings,
+      addons,
+      availableAt
+    } = req.body;
+
     if (!name || !price || !category || !imageURL) {
       return res.status(400).json({
         success: false,
-        message: 'Name, price, category, imageURL are required fields.',
+        message: 'Name, price, category, and imageURL are required fields.',
       });
     }
 
-    if (!Array.isArray(category) || category.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Category must be a non-empty array of strings.',
-      });
+    // Validate main category exists
+    const mainCat = await Category.findById(category);
+    if (!mainCat) {
+      return res.status(400).json({ error: 'Kategori utama tidak ditemukan.' });
     }
 
-    // Validate rawMaterials
-    if (rawMaterials && !Array.isArray(rawMaterials)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Raw materials must be an array of objects with materialId and quantityRequired.',
-      });
-    }
+    // Validate subCategory jika disertakan
+    if (subCategory) {
+      const subCat = await Category.findById(subCategory);
+      if (!subCat) {
+        return res.status(400).json({ error: 'Sub-kategori tidak ditemukan.' });
+      }
 
-    if (rawMaterials) {
-      for (let i = 0; i < rawMaterials.length; i++) {
-        const { materialId, quantityRequired } = rawMaterials[i];
-        if (!materialId || quantityRequired === undefined) {
-          return res.status(400).json({
-            success: false,
-            message: `Raw material at index ${i} is missing 'materialId' or 'quantityRequired'.`,
-          });
-        }
+      if (subCat.parentCategory?.toString() !== category.toString()) {
+        return res.status(400).json({ error: 'Sub-kategori tidak sesuai dengan kategori utama.' });
       }
     }
 
@@ -54,44 +54,12 @@ export const createMenuItem = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Addons must be an array.' });
     }
 
-    // Validate availableAt (outlets)
-    // if (!Array.isArray(availableAt) || availableAt.length === 0) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'availableAt must be a non-empty array of outlet IDs.',
-    //   });
-    // }
-
-    // const outletPromises = availableAt.map(async (outletId) => {
-    //   const outlet = await Outlet.findById(outletId);
-    //   if (!outlet) {
-    //     throw new Error(`Outlet with ID ${outletId} not found.`);
-    //   }
-    //   return outlet;
-    // });
-
-    // try {
-    //   await Promise.all(outletPromises);
-    // } catch (error) {
-    //   return res.status(404).json({ success: false, message: error.message });
-    // }
-
-    // Validate raw materials availability
-    const rawMaterialPromises = rawMaterials.map(async ({ materialId, quantityRequired }) => {
-      const rawMaterial = await RawMaterial.findById(materialId);
-      if (!rawMaterial) {
-        throw new Error(`Raw material with ID ${materialId} not found.`);
+    // Validate outlets
+    if (availableAt && Array.isArray(availableAt)) {
+      const outletsExist = await Outlet.find({ _id: { $in: availableAt } });
+      if (outletsExist.length !== availableAt.length) {
+        return res.status(400).json({ success: false, message: 'Some outlet IDs are invalid.' });
       }
-      if (rawMaterial.stock < quantityRequired) {
-        throw new Error(`Insufficient stock for raw material: ${rawMaterial.name}`);
-      }
-      return rawMaterial;
-    });
-
-    try {
-      await Promise.all(rawMaterialPromises);
-    } catch (error) {
-      return res.status(404).json({ success: false, message: error.message });
     }
 
     const menuItem = new MenuItem({
@@ -99,19 +67,24 @@ export const createMenuItem = async (req, res) => {
       price,
       description: description || '',
       category,
+      subCategory,
       imageURL,
       toppings: toppings || [],
       addons: addons || [],
-      rawMaterials: rawMaterials || [],
       availableAt: availableAt || []
     });
 
     const savedMenuItem = await menuItem.save();
 
+    // Populate for better response
+    const populatedItem = await MenuItem.findById(savedMenuItem._id)
+      .populate('category', 'name')
+      .populate('subCategory', 'name');
+
     res.status(201).json({
       success: true,
       message: 'Menu item created successfully.',
-      data: savedMenuItem,
+      data: populatedItem
     });
   } catch (error) {
     console.error('Error in creating menu item:', error);
@@ -123,433 +96,584 @@ export const createMenuItem = async (req, res) => {
   }
 };
 
-
-export const getSimpleMenuItems = async (req, res) => {
-  try {
-    const menuItems = await MenuItem.find().select('name price category imageURL rawMaterials discount');
-
-    // Cek stok bahan baku untuk setiap menu
-    const updatedMenuItems = await Promise.all(menuItems.map(async (menu) => {
-      let isAvailable = true;
-
-      for (const item of menu.rawMaterials) {
-        const material = await RawMaterial.findOne({ _id: item.materialId });
-        if (!material || material.quantity < item.quantityRequired) {
-          isAvailable = false;
-          break;
-        }
-      }
-
-      // Hitung harga setelah diskon jika ada
-      let originalPrice = menu.price;
-      let discountPercentage = menu.discount || 0;
-      let discountedPrice = originalPrice;
-
-      if (discountPercentage > 0) {
-        discountedPrice = originalPrice - (originalPrice * (discountPercentage / 100));
-      }
-
-      return {
-        id: menu._id,
-        name: menu.name,
-        price: originalPrice,
-        category: menu.category,
-        imageURL: menu.imageURL,
-        isAvailable,
-        originalPrice,
-        discountedPrice,
-        discountPercentage
-      };
-    }));
-
-    res.status(200).json({ success: true, data: updatedMenuItems });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch menu items', error: error.message });
-  }
-};
+// GET /api/menu?limit=10&offset=0
 export const getMenuItems = async (req, res) => {
   try {
+    const { limit = 10, offset = 0 } = req.query;
+
+    // Validasi input
+    const parsedLimit = parseInt(limit);
+    const parsedOffset = parseInt(offset);
+
+    if (isNaN(parsedLimit) || isNaN(parsedOffset)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Limit and offset must be valid numbers.'
+      });
+    }
+
+    // Ambil semua menu items dengan pagination
     const menuItems = await MenuItem.find()
       .populate([
         { path: 'toppings' },
         { path: 'availableAt' },
         {
           path: 'addons',
-          populate: { path: 'options' },
+          populate: { path: 'options' }
         },
+        {
+          path: 'category',
+          select: 'name'
+        },
+        {
+          path: 'subCategory',
+          select: 'name'
+        }
       ])
-      .sort({ name: 1 }); // Sort by name in ascending order
+      .skip(parsedOffset)
+      .limit(parsedLimit);
 
-    // Ambil semua rating dari database
+    // Hitung total dokumen untuk metadata
+    const totalItems = await MenuItem.countDocuments();
+
+    // Ambil semua rating untuk menghitung rata-rata
     const ratings = await MenuRating.find({ isActive: true });
 
-    // Debug: Log semua data rating
-    // console.log('=== DEBUG RATINGS ===');
-    // console.log('Total ratings found:', ratings.length);
-    // ratings.forEach((r, idx) => {
-    //   console.log(`Rating ${idx + 1}:`, {
-    //     menuItemId: r.menuItemId,
-    //     menuItemIdType: typeof r.menuItemId,
-    //     rating: r.rating
-    //   });
-    // });
-
-    // Buat peta menuItemId ke array rating
     const ratingMap = {};
-    ratings.forEach(r => {
-      const menuId = r.menuItemId;
+    ratings.forEach(rating => {
+      const menuId = rating.menuItemId.toString();
       if (!ratingMap[menuId]) ratingMap[menuId] = [];
-      ratingMap[menuId].push(r.rating);
+      ratingMap[menuId].push(rating.rating);
     });
-
-    // Debug: Log rating map
-    // console.log('=== DEBUG RATING MAP ===');
-    // Object.keys(ratingMap).forEach(key => {
-    //   console.log(`Menu ID: ${key}, Ratings: [${ratingMap[key].join(', ')}], Average: ${ratingMap[key].reduce((sum, r) => sum + r, 0) / ratingMap[key].length}`);
-    // });
 
     const formattedMenuItems = menuItems.map(item => {
       const itemId = item._id.toString();
       const itemRatings = ratingMap[itemId] || [];
-
-      // Debug: Log untuk menu spesifik
-      // if (itemId === "682a8bc8fb7080440f1f5bf1") {
-      //   console.log('=== DEBUG SPECIFIC MENU ===');
-      //   console.log('Menu ID:', itemId);
-      //   console.log('Found ratings:', itemRatings);
-      //   console.log('Rating map has this key?', ratingMap.hasOwnProperty(itemId));
-      // }
 
       const averageRating = itemRatings.length > 0
         ? Math.round((itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) * 10) / 10
         : null;
 
       const reviewCount = itemRatings.length;
-      // console.log('imageUrl', item.imageURL)
 
       return {
-        id: itemId,
+        id: item._id,
         name: item.name,
-        category: item.category || [],
-        mainCategory: item.mainCategory || 'Uncategorized',
-        imageUrl: item.imageURL || '',
+        category: item.category ? { id: item.category._id, name: item.category.name } : null,
+        subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
+        imageUrl: item.imageURL,
         originalPrice: item.price,
-        discountPrice: item.discountedPrice || item.price,
-        description: item.description || '',
+        discountedPrice: item.discountedPrice || item.price,
+        description: item.description,
         discountPercentage: item.discount ? `${item.discount}%` : null,
         averageRating,
         reviewCount,
-        toppings: item.toppings?.map(topping => ({
-          id: topping._id.toString(),
+        toppings: item.toppings.map(topping => ({
+          id: topping._id,
           name: topping.name,
           price: topping.price
-        })) || [],
-        addons: item.addons?.map(addon => ({
-          id: addon._id.toString(),
+        })),
+        addons: item.addons.map(addon => ({
+          id: addon._id,
           name: addon.name,
-          options: addon.options?.map(opt => ({
-            id: opt._id.toString(),
+          options: addon.options.map(opt => ({
+            id: opt._id,
             label: opt.label,
             price: opt.price,
-            isDefault: opt.isdefault
-          })) || []
-        })) || []
+            isDefault: opt.isDefault
+          }))
+        }))
       };
     });
 
+    // Metadata pagination
+    const meta = {
+      totalItems,
+      itemCount: formattedMenuItems.length,
+      itemsPerPage: parsedLimit,
+      totalPages: Math.ceil(totalItems / parsedLimit),
+      currentPage: Math.floor(parsedOffset / parsedLimit) + 1
+    };
+
     res.status(200).json({
       success: true,
-      data: menuItems,
-      formattedData: formattedMenuItems
+      data: formattedMenuItems,
+      meta
     });
+
   } catch (error) {
     console.error('Error fetching menu items:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch menu items',
-      error: error.message,
+      message: 'Failed to fetch menu items.',
+      error: error.message
     });
   }
 };
 
-// export const getMenuItems = async (req, res) => {
-//   try {
-//     const menuItems = await MenuItem.find()
-//       .populate([
-//         { path: 'toppings' },
-//         { path: 'rawMaterials.materialId' },
-//         { path: 'availableAt' },
-//         {
-//           path: 'addons',
-//           populate: {
-//             path: 'options',
-//           },
-//         }
-//       ]);
-
-//     const formattedMenuItems = menuItems.map(item => {
-//       return {
-//         id: item._id.toString(),
-//         name: item.name,
-//         category: item.category || [],
-//         mainCategory: item.mainCategory || 'Uncategorized',
-//         imageUrl: item.imageUrl || '',
-//         originalPrice: item.price,
-//         discountPrice: item.discountedPrice || item.price,
-//         description: item.description || '',
-//         discountPercentage: item.discount ? `${item.discount}%` : null,
-//         toppings: item.toppings?.map(topping => ({
-//           id: topping._id.toString(),
-//           name: topping.name,
-//           price: topping.price
-//         })) || [],
-//         addons: item.addons?.map(addon => ({
-//           id: addon._id.toString(),
-//           name: addon.name,
-//           options: addon.options?.map(opt => ({
-//             id: opt._id.toString(),
-//             label: opt.label,
-//             price: opt.price,
-//             isDefault: opt.isdefault
-//           })) || []
-//         })) || []
-//       };
-//     });
-
-//     // Kirim response
-//     res.status(200).json({
-//       success: true,
-//       data: menuItems,             // data asli dari MongoDB
-//       formattedData: formattedMenuItems // data terformat untuk frontend
-//     });
-
-//   } catch (error) {
-//     console.error('Error fetching menu items:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch menu items',
-//       error: error.message,
-//     });
-//   }
-// };
-
-
+// Get menu item by ID
 export const getMenuItemById = async (req, res) => {
   try {
-    // Validasi parameter ID
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid menu item ID' });
     }
 
-    // Fetch the menu item and populate related fields
-    const menuItem = await MenuItem.findById(req.params.id)
-      .populate('rawMaterials.materialId')
-      .populate('availableAt');
+    const menuItem = await MenuItem.findById(id)
+      .populate([
+        { path: 'category', select: 'name' },
+        { path: 'subCategory', select: 'name' },
+        { path: 'availableAt' },
+        { path: 'toppings' },
+        {
+          path: 'addons',
+          populate: { path: 'options' }
+        }
+      ]);
 
     if (!menuItem) {
       return res.status(404).json({ success: false, message: 'Menu item not found' });
     }
 
-    // Function to check stock availability
-    const checkStockAvailability = async (rawMaterials) => {
-      if (!rawMaterials || rawMaterials.length === 0) return true;
+    // Fetch active ratings
+    const ratings = await MenuRating.find({ menuItemId: id, isActive: true });
+    const ratingsList = ratings.map(r => r.rating);
 
-      // Filter hanya ObjectId yang valid
-      const materialIds = rawMaterials
-        .filter(item => mongoose.Types.ObjectId.isValid(item.materialId))
-        .map(item => new mongoose.Types.ObjectId(item.materialId));
+    const averageRating = ratingsList.length > 0
+      ? Math.round((ratingsList.reduce((sum, r) => sum + r, 0) / ratingsList.length) * 10) / 10
+      : null;
 
-      if (materialIds.length === 0) return true;
+    const reviewCount = ratingsList.length;
 
-      // Fetch semua material sekaligus
-      const materials = await RawMaterial.find({ _id: { $in: materialIds } });
-
-      // Cek apakah stok cukup
-      return rawMaterials.every(item => {
-        const material = materials.find(m => m._id.equals(item.materialId));
-        return material && material.quantity >= item.quantityRequired;
-      });
-    };
-
-    // Cek ketersediaan bahan baku utama
-    const isMainAvailable = await checkStockAvailability(menuItem.rawMaterials);
-
-    // Struktur data response dengan isAvailable
     const response = {
       id: menuItem._id,
       name: menuItem.name,
       price: menuItem.price,
-      description: menuItem.description, //description
-      mainCategory: menuItem.mainCategory,
-      category: menuItem.category,
+      description: menuItem.description,
+      category: menuItem.category ? { id: menuItem.category._id, name: menuItem.category.name } : null,
+      subCategory: menuItem.subCategory ? { id: menuItem.subCategory._id, name: menuItem.subCategory.name } : null,
       imageURL: menuItem.imageURL,
-      isAvailable: isMainAvailable, // Menentukan apakah menu utama tersedia
+      averageRating,
+      reviewCount,
       toppings: menuItem.toppings,
       addons: menuItem.addons,
-      rawMaterials: menuItem.rawMaterials, // raw materials
-      availableAt: menuItem.availableAt.map(outlet => outlet.toObject()),
+      availableAt: menuItem.availableAt.map(outlet => outlet.toObject())
     };
 
     res.status(200).json({ success: true, data: response });
   } catch (error) {
     console.error('Error fetching menu item:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch menu item', error: error.message });
-  }
-};
-
-
-export const getMenuItemsByCategory = async (req, res) => {
-  try {
-    // Ambil parameter category dari request
-    const category = req.params.category;
-
-    if (!category) {
-      return res.status(400).json({ success: false, message: 'Category is required' });
-    }
-
-    // Fetch semua menu items dengan category yang sesuai
-    const menuItems = await MenuItem.find({ category })
-      .populate('rawMaterials.materialId')
-      .populate('availableAt');
-
-    if (!menuItems || menuItems.length === 0) {
-      return res.status(404).json({ success: false, message: 'No menu items found for this category' });
-    }
-
-    // Function to check stock availability
-    const checkStockAvailability = async (rawMaterials) => {
-      if (!rawMaterials || rawMaterials.length === 0) return true;
-
-      // Filter hanya ObjectId yang valid
-      const materialIds = rawMaterials
-        .filter(item => mongoose.Types.ObjectId.isValid(item.materialId))
-        .map(item => new mongoose.Types.ObjectId(item.materialId));
-
-      if (materialIds.length === 0) return true;
-
-      // Fetch semua material sekaligus
-      const materials = await RawMaterial.find({ _id: { $in: materialIds } });
-
-      // Cek apakah stok cukup
-      return rawMaterials.every(item => {
-        const material = materials.find(m => m._id.equals(item.materialId));
-        return material && material.quantity >= item.quantityRequired;
-      });
-    };
-
-    // Proses setiap menu item untuk menambahkan informasi isAvailable
-    const response = await Promise.all(
-      menuItems.map(async (menuItem) => {
-        const isMainAvailable = await checkStockAvailability(menuItem.rawMaterials);
-
-        return {
-          id: menuItem._id,
-          name: menuItem.name,
-          price: menuItem.price,
-          category: menuItem.category,
-          imageURL: menuItem.imageURL,
-          isAvailable: isMainAvailable, // Menentukan apakah menu utama tersedia
-          toppings: menuItem.toppings,
-          addons: menuItem.addons,
-          availableAt: menuItem.availableAt.map(outlet => outlet.toObject()),
-        };
-      })
-    );
-
-    res.status(200).json({ success: true, data: response });
-  } catch (error) {
-    console.error('Error fetching menu by category:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch menu by category', error: error.message });
-  }
-};
-
-
-
-// Update a menu item
-export const updateMenuItem = async (req, res) => {
-  try {
-    const { name, price, description, category, stock, imageURL, toppings, addOns, rawMaterials } = req.body;
-    const { id } = req.params;
-
-    // Validate rawMaterials
-    if (rawMaterials && !Array.isArray(rawMaterials)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Raw materials must be an array of objects with material ID and quantity.',
-      });
-    }
-
-    if (rawMaterials) {
-      // Ensure each raw material has `materialId` and `quantityRequired`
-      for (let i = 0; i < rawMaterials.length; i++) {
-        const { materialId, quantityRequired } = rawMaterials[i];
-        if (!materialId || quantityRequired === undefined) {
-          return res.status(400).json({
-            success: false,
-            message: `Raw material at index ${i} is missing 'materialId' or 'quantityRequired'.`,
-          });
-        }
-      }
-    }
-
-    // Check raw material stock availability
-    const rawMaterialPromises = rawMaterials.map(async ({ materialId, quantityRequired }) => {
-      const rawMaterial = await RawMaterial.findById(materialId);
-      if (!rawMaterial) {
-        throw new Error(`Raw material with ID ${materialId} not found.`);
-      }
-      if (rawMaterial.stock < quantityRequired) {
-        throw new Error(`Insufficient stock for raw material: ${rawMaterial.name}`);
-      }
-      return rawMaterial;
-    });
-
-    try {
-      await Promise.all(rawMaterialPromises);
-    } catch (error) {
-      return res.status(404).json({ success: false, message: error.message });
-    }
-
-
-    const updatedMenuItem = await MenuItem.findByIdAndUpdate(
-      id,
-      {
-        name,
-        price,
-        description: description || '',
-        category,
-        stock: stock || 0,
-        imageURL: imageURL || '',
-        toppings: toppings || [],
-        addOns: addOns || [],
-        rawMaterials: rawMaterials || [],
-      },
-      { new: true }
-    );
-
-    if (!updatedMenuItem) {
-      return res.status(404).json({ success: false, message: 'Menu item not found.' });
-    }
-
-    res.status(200).json({ success: true, data: updatedMenuItem });
-  } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Failed to update menu item.',
+      message: 'Failed to fetch menu item',
       error: error.message,
     });
   }
 };
 
+// Get menu items by category
+export const getMenuItemsByCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+      return res.status(400).json({ success: false, message: 'Invalid category ID' });
+    }
 
-// Delete a menu item
+    const menuItems = await MenuItem.find({
+      $or: [
+        { category: categoryId },
+        { subCategory: categoryId }
+      ]
+    })
+      .populate([
+        { path: 'category', select: 'name' },
+        { path: 'subCategory', select: 'name' },
+        { path: 'availableAt' },
+        { path: 'toppings' },
+        {
+          path: 'addons',
+          populate: { path: 'options' }
+        }
+      ]);
+
+    if (!menuItems || menuItems.length === 0) {
+      return res.status(404).json({ success: false, message: 'No menu items found for this category' });
+    }
+
+    const menuItemIds = menuItems.map(mi => mi._id.toString());
+    const ratings = await MenuRating.find({
+      menuItemId: { $in: menuItemIds },
+      isActive: true
+    });
+
+    const ratingMap = {};
+    ratings.forEach(r => {
+      const id = r.menuItemId.toString();
+      if (!ratingMap[id]) ratingMap[id] = [];
+      ratingMap[id].push(r.rating);
+    });
+
+    const formattedData = menuItems.map(item => {
+      const itemId = item._id.toString();
+      const itemRatings = ratingMap[itemId] || [];
+
+      const averageRating = itemRatings.length > 0
+        ? Math.round((itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) * 10) / 10
+        : null;
+
+      const reviewCount = itemRatings.length;
+
+      return {
+        id: item._id,
+        name: item.name,
+        price: item.price,
+        description: item.description,
+        category: item.category ? { id: item.category._id, name: item.category.name } : null,
+        subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
+        imageURL: item.imageURL,
+        averageRating,
+        reviewCount,
+        toppings: item.toppings,
+        addons: item.addons,
+        availableAt: item.availableAt.map(outlet => outlet.toObject())
+      };
+    });
+
+    res.status(200).json({ success: true, data: formattedData });
+  } catch (error) {
+    console.error('Error fetching menu by category:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch menu by category',
+      error: error.message,
+    });
+  }
+};
+
+// Update menu item
+export const updateMenuItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      price,
+      description,
+      category,
+      subCategory,
+      imageURL,
+      toppings,
+      addons,
+      availableAt
+    } = req.body;
+
+    if (!category) {
+      return res.status(400).json({ success: false, message: 'Main category is required.' });
+    }
+
+    const mainCat = await Category.findById(category);
+    if (!mainCat) {
+      return res.status(400).json({ error: 'Kategori utama tidak ditemukan.' });
+    }
+
+    if (subCategory) {
+      const subCat = await Category.findById(subCategory);
+      if (!subCat || subCat.parentCategory?.toString() !== category.toString()) {
+        return res.status(400).json({ error: 'Sub-kategori tidak sesuai dengan kategori utama.' });
+      }
+    }
+
+    const updatedItem = await MenuItem.findByIdAndUpdate(
+      id,
+      {
+        name,
+        price,
+        description,
+        category,
+        subCategory,
+        imageURL,
+        toppings,
+        addons,
+        availableAt
+      },
+      { new: true }
+    )
+      .populate('category', 'name')
+      .populate('subCategory', 'name');
+
+    if (!updatedItem) {
+      return res.status(404).json({ success: false, message: 'Menu item not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Menu item updated successfully',
+      data: updatedItem
+    });
+
+  } catch (error) {
+    console.error('Error updating menu item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update menu item',
+      error: error.message
+    });
+  }
+};
+
+// Delete menu item
 export const deleteMenuItem = async (req, res) => {
   try {
-    const deletedMenuItem = await MenuItem.findByIdAndDelete(req.params.id);
-    if (!deletedMenuItem) return res.status(404).json({ success: false, message: 'Menu item not found' });
+    const deletedItem = await MenuItem.findByIdAndDelete(req.params.id);
+
+    if (!deletedItem) {
+      return res.status(404).json({ success: false, message: 'Menu item not found' });
+    }
 
     res.status(200).json({ success: true, message: 'Menu item deleted successfully' });
+
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to delete menu item', error: error.message });
+    console.error('Error deleting menu item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete menu item',
+      error: error.message
+    });
+  }
+};
+
+// 🔹 GET /menu/by-outlet/:outletId
+// Menampilkan menu yang tersedia di outlet tertentu
+export const getMenuByOutlet = async (req, res) => {
+  try {
+    const { outletId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(outletId)) {
+      return res.status(400).json({ success: false, message: 'Invalid outlet ID' });
+    }
+
+    const menuItems = await MenuItem.find({
+      availableAt: outletId
+    })
+      .populate([
+        { path: 'toppings' },
+        { path: 'availableAt' },
+        { path: 'addons', populate: { path: 'options' } }
+      ]);
+
+    // Ambil semua rating untuk menghitung rata-rata
+    const ratings = await MenuRating.find({ isActive: true });
+
+    const ratingMap = {};
+    ratings.forEach(rating => {
+      const menuId = rating.menuItemId.toString();
+      if (!ratingMap[menuId]) ratingMap[menuId] = [];
+      ratingMap[menuId].push(rating.rating);
+    });
+
+    const formattedMenuItems = menuItems.map(item => {
+      const itemId = item._id.toString();
+      const itemRatings = ratingMap[itemId] || [];
+
+      const averageRating = itemRatings.length > 0
+        ? Math.round((itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) * 10) / 10
+        : null;
+
+      const reviewCount = itemRatings.length;
+
+      return {
+        id: item._id,
+        name: item.name,
+        category: item.category,
+        subCategory: item.subCategory,
+        imageUrl: item.imageURL,
+        originalPrice: item.price,
+        discountedPrice: item.discountedPrice || item.price,
+        description: item.description,
+        discountPercentage: item.discount ? `${item.discount}%` : null,
+        averageRating,
+        reviewCount,
+        toppings: item.toppings.map(topping => ({
+          id: topping._id,
+          name: topping.name,
+          price: topping.price
+        })),
+        addons: item.addons.map(addon => ({
+          id: addon._id,
+          name: addon.name,
+          options: addon.options.map(opt => ({
+            id: opt._id,
+            label: opt.label,
+            price: opt.price,
+            isDefault: opt.isDefault
+          }))
+        }))
+      };
+    });
+
+    res.status(200).json({ success: true, data: formattedMenuItems });
+  } catch (error) {
+    console.error('Error fetching menu by outlet:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch menu by outlet',
+      error: error.message,
+    });
+  }
+};
+
+// 🔹 GET /menu/by-rating?minRating=4
+// Menampilkan menu dengan rata-rata rating ≥ minRating
+export const getMenuByRating = async (req, res) => {
+  try {
+    const { minRating } = req.query;
+    const minimumRating = parseFloat(minRating);
+
+    if (isNaN(minimumRating) || minimumRating < 0 || minimumRating > 5) {
+      return res.status(400).json({ success: false, message: 'Invalid minRating value.' });
+    }
+
+    const menuItems = await MenuItem.find()
+      .populate([
+        { path: 'toppings' },
+        { path: 'availableAt' },
+        { path: 'addons', populate: { path: 'options' } }
+      ]);
+
+    const ratings = await MenuRating.find({ isActive: true });
+
+    const ratingMap = {};
+    ratings.forEach(rating => {
+      const menuId = rating.menuItemId.toString();
+      if (!ratingMap[menuId]) ratingMap[menuId] = [];
+      ratingMap[menuId].push(rating.rating);
+    });
+
+    const filteredMenuItems = menuItems.filter(item => {
+      const itemId = item._id.toString();
+      const itemRatings = ratingMap[itemId] || [];
+      const avgRating = itemRatings.length > 0
+        ? itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length
+        : 0;
+
+      return avgRating >= minimumRating;
+    });
+
+    res.status(200).json({ success: true, data: filteredMenuItems });
+  } catch (error) {
+    console.error('Error fetching menu by rating:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch menu by rating',
+      error: error.message,
+    });
+  }
+};
+
+// 🔹 GET /menu/available
+// Menampilkan hanya menu yang tersedia (berdasarkan stok raw materials)
+export const getAvailableMenuItems = async (req, res) => {
+  try {
+    const menuItems = await MenuItem.find()
+      .populate([
+        { path: 'toppings' },
+        { path: 'availableAt' },
+        { path: 'addons', populate: { path: 'options' } }
+      ]);
+
+    const availableMenus = [];
+
+    for (const item of menuItems) {
+      let isAvailable = true;
+
+      if (item.rawMaterials && item.rawMaterials.length > 0) {
+        for (const material of item.rawMaterials) {
+          const rawMaterial = await RawMaterial.findById(material.materialId);
+          if (!rawMaterial || rawMaterial.stock < material.quantityRequired) {
+            isAvailable = false;
+            break;
+          }
+        }
+      }
+
+      if (isAvailable) {
+        availableMenus.push(item);
+      }
+    }
+
+    res.status(200).json({ success: true, data: availableMenus });
+  } catch (error) {
+    console.error('Error fetching available menu items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch available menu items',
+      error: error.message,
+    });
+  }
+};
+
+// 🔹 GET /menu/filter?category=686498b65eb0a4b4b90e6a8e&minRating=4&available=true
+// Filter kombinasi: kategori, rating minimum, dan ketersediaan
+export const filterMenuItems = async (req, res) => {
+  try {
+    const { category, minRating, available } = req.query;
+
+    let query = {};
+
+    // Filter berdasarkan kategori utama atau sub-kategori
+    if (category) {
+      query.$or = [
+        { category },
+        { subCategory: category }
+      ];
+    }
+
+    const menuItems = await MenuItem.find(query)
+      .populate([
+        { path: 'toppings' },
+        { path: 'availableAt' },
+        { path: 'addons', populate: { path: 'options' } }
+      ]);
+
+    const ratings = await MenuRating.find({ isActive: true });
+
+    const ratingMap = {};
+    ratings.forEach(rating => {
+      const menuId = rating.menuItemId.toString();
+      if (!ratingMap[menuId]) ratingMap[menuId] = [];
+      ratingMap[menuId].push(rating.rating);
+    });
+
+    let filtered = menuItems;
+
+    // Filter berdasarkan rating
+    if (minRating) {
+      const minRate = parseFloat(minRating);
+      filtered = filtered.filter(item => {
+        const avgRating = ratingMap[item._id.toString()]?.reduce((a, b) => a + b, 0) /
+          (ratingMap[item._id.toString()]?.length || 1);
+        return avgRating >= minRate;
+      });
+    }
+
+    // Filter berdasarkan ketersediaan
+    if (available === 'true') {
+      filtered = filtered.filter(async item => {
+        if (!item.rawMaterials || item.rawMaterials.length === 0) return true;
+        for (const mat of item.rawMaterials) {
+          const rm = await RawMaterial.findById(mat.materialId);
+          if (!rm || rm.stock < mat.quantityRequired) return false;
+        }
+        return true;
+      });
+    }
+
+    res.status(200).json({ success: true, data: filtered });
+  } catch (error) {
+    console.error('Error filtering menu items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to filter menu items',
+      error: error.message,
+    });
   }
 };
