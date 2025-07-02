@@ -221,15 +221,12 @@ class PrinterService {
         ]),
       );
 
-      // Footer
       bytes.addAll(generator.hr());
-      bytes.addAll(
-        generator.text(
-          'Selesai mencetak',
-          styles: const PosStyles(align: PosAlign.center),
-        ),
-      );
-      bytes.addAll(generator.cut());
+
+      //footer
+      await generateFooterBytes(generator, paperSize).then((footerBytes) {
+        bytes.addAll(footerBytes);
+      });
 
       // 3. Kirim ke printer
       print('print bytes: $bytes');
@@ -474,12 +471,9 @@ class PrinterService {
     bytes.addAll(generator.hr());
 
     //footer
-    bytes.addAll(
-      generator.text(
-        'Terima kasih telah berbelanja di Baraja Amphitheater',
-        styles: const PosStyles(align: PosAlign.center),
-      ),
-    );
+    await generateFooterBytes(generator, paperSize).then((footerBytes) {
+      bytes.addAll(footerBytes);
+    });
 
     //feed and cut
     bytes.addAll(generator.feed(2));
@@ -657,6 +651,46 @@ class PrinterService {
       );
     }
     bytes.addAll(generator.hr());
+
+    return bytes;
+  }
+
+  static Future<List<int>> generateFooterBytes(
+    Generator generator,
+    PaperSize paperSize,
+  ) async {
+    final List<int> bytes = [];
+    // Footer
+    bytes.addAll(
+      generator.text(
+        '** LUNAS **',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+    bytes.addAll(generator.feed(1));
+    bytes.addAll(
+      generator.text(
+        'Password WiFi: ramadhandibaraja',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+    bytes.addAll(generator.feed(1));
+    bytes.addAll(
+      generator.text(
+        'Terima kasih telah berbelanja di Baraja Amphitheater',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+
+    bytes.addAll(generator.feed(1));
+
+    bytes.addAll(
+      generator.text(
+        'IG: @barajacoffee',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+    bytes.addAll(generator.feed(2));
 
     return bytes;
   }
