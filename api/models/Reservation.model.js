@@ -19,11 +19,11 @@ const reservationSchema = new mongoose.Schema({
         ref: 'Area',
         required: true
     },
-    table_id: {
+    table_id: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Table',
         required: true
-    },
+    }],
     guest_count: {
         type: Number,
         required: true,
@@ -36,7 +36,7 @@ const reservationSchema = new mongoose.Schema({
     },
     reservation_type: {
         type: String,
-        enum: ['blocking', 'non-blocking'],
+        enum: ['blocking', 'nonBlocking'],
         default: 'non-blocking'
     },
     status: {
