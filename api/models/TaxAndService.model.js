@@ -30,12 +30,12 @@ const TaxAndServiceSchema = new mongoose.Schema({
       ref: 'Outlet',
     }
   ],
-  appliesToCustomerTypes: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'LoyaltyLevel',
-    }
-  ],
+  // appliesToCustomerTypes: [
+  //   {
+  //     type: mongoose.Schema.Types.ObjectId,
+  //     ref: 'LoyaltyLevel',
+  //   }
+  // ],
   isActive: {
     type: Boolean,
     default: true,
