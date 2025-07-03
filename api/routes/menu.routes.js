@@ -1,12 +1,16 @@
 import express from 'express';
 import { verifyToken } from '../utils/verifyUser.js';
 import {
-  createMenuItem,
-  getMenuItems,
-  getSimpleMenuItems,
-  getMenuItemById,
-  updateMenuItem,
-  deleteMenuItem,
+createMenuItem,
+getMenuItems,
+deleteMenuItem,
+getMenuItemById,
+getMenuItemsByCategory,
+updateMenuItem,
+filterMenuItems,
+getAvailableMenuItems,
+getMenuByOutlet,
+getMenuByRating
 } from '../controllers/menu.controller.js';
 
 import { assignMenuItemsToCategory, filterMenuByCategory, getCategories } from '../controllers/category.controller.js';
@@ -19,10 +23,14 @@ const adminAccess = verifyToken(['admin', 'superadmin', 'marketing', 'operationa
 // MenuItem Routes
 router.post('/menu-items', adminAccess, createMenuItem); // Create a new MenuItem
 router.get('/menu-items', getMenuItems); // Get all MenuItems
-router.get('/simple-menus', getSimpleMenuItems); // Get all MenuItems
+router.get('/menu-items/category/:categoryId', getMenuItemsByCategory); // Get MenuItems by Category ID
 router.get('/menu-items/:id', getMenuItemById); // Get a specific MenuItem by ID
 router.put('/menu-items/:id', adminAccess, updateMenuItem); // Update a specific MenuItem
 router.delete('/menu-items/:id', adminAccess, deleteMenuItem); // Delete a specific MenuItem
+router.get('/menu-items/filter', filterMenuItems); // Filter MenuItems by name, category, or type
+router.get('/menu-items/available', getAvailableMenuItems); // Get available MenuItems
+router.get('/menu-items/outlet/:outletId', getMenuByOutlet); // Get MenuItems by Outlet ID
+router.get('/menu-items/rating', getMenuByRating); // Get MenuItems by rating
 
 // Category Routes
 router.post('/categories', adminAccess, assignMenuItemsToCategory); // Assign menu items to a category

@@ -149,14 +149,16 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
       final user = box.get('user') as UserModel?;
       final cashier = box.get('cashier') as CashierModel?;
 
-      print('cek login status disini dulu ngga?: ${user.toString()}');
-
       if (user != null) {
         if (cashier != null) {
+          print('cek login cashier disini dulu?: ${cashier.toString()}');
           state = const AsyncValue.data(AuthStatus.authenticated);
           print('cashier !null ${state.value}');
           return;
         }
+        print(
+          'cek login status disini dulu ngga?: ${user.outletId.toString()}',
+        );
         state = const AsyncValue.data(AuthStatus.needPin);
         print('user !null ${state.value}');
       } else if (cashier != null) {
@@ -184,6 +186,7 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
 
   Future<void> login(String username, String password) async {
     try {
+      print('kita berada di try auth provider login manager');
       await _authRepository.login(username, password);
       print('kita berada di try auth provider login manager');
 

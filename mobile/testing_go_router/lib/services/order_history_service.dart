@@ -31,7 +31,7 @@ class OrderHistoryService {
         throw Exception('No data found for order history');
       }
 
-      print('Order history data: ${response.data}');
+      // print('Order history data: ${response.data}');
 
       return response.data;
     } on DioException catch (e) {
@@ -50,7 +50,7 @@ final Dio _dios = Dio(
 final activityProvider = FutureProvider.autoDispose<Activity>((ref) async {
   try {
     final response = await _dios.get('/quotes/random');
-    print('activity: ${response.data}');
+    // print('activity: ${response.data}');
     return Activity.fromJson(response.data);
   } on DioException catch (e) {
     print('DioException: ${e.message}');

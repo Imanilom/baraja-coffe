@@ -900,7 +900,8 @@ export const getQueuedOrders = async (req, res) => {
 export const confirmOrderByCashier = async (req, res) => {
   const { jobId } = req.params;
   const { cashierId } = req.body;
-
+  console.log('jobId:', jobId);
+  console.log('cashierId:', cashierId);
   if (!cashierId) {
     return res.status(400).json({ success: false, error: 'cashierId wajib diisi' });
   }
@@ -1204,15 +1205,18 @@ export const getAllOrders = async (req, res) => {
 // Mengambil order yang pending
 export const getPendingOrders = async (req, res) => {
   try {
-    const { outletId } = req.query;
-    if (!outletId) {
+    const { rawOutletId  } = req.params;
+    if (!rawOutletId) {
       return res.status(400).json({ message: 'outletId is required' });
     }
 
-    // Ambil order pending dari outlet tertentu
+    const outletId = rawOutletId.trim(); // 🔧 TRIM SPASI / NEWLINE
+    const outletObjectId = new mongoose.Types.ObjectId(outletId);
+
+    // Ambil order pending d  ari outlet tertentu
     const pendingOrders = await Order.find({
       status: 'Pending',
-      outletId: outletId
+      outlet: outletObjectId
     }).lean();
 
     if (!pendingOrders.length) return res.status(200).json([]);
@@ -1664,7 +1668,8 @@ export const getCashierOrderHistory = async (req, res) => {
     const orders = await Order.find({ cashier: cashierId })
       // const orders = await Order.find();
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
-    // .populate('voucher'); // Mengisi detail voucher (opsional)
+      // .populate('voucher')
+      .sort({ createdAt: -1 }); // Mengisi detail voucher (opsional)
     console.log(orders.length);
     if (!orders || orders.length === 0) {
       return res.status(404).json({ message: 'No order history found for this cashier.' });
@@ -1725,8 +1730,8 @@ export const getCashierOrderHistory = async (req, res) => {
 // test socket
 export const testSocket = async (req, res) => {
   console.log('Emitting order created to cashier room...');
-  io.to('cashier_room').emit('order_created', { message: 'Order created' });
+  const cashierRoom = io.to('cashier_room').emit('order_created', { message: 'Order created' });
   console.log('Emitting order created to cashier room success.');
 
-  res.status(200).json({ success: true });
+  res.status(200).json({ success: cashierRoom });
 }
