@@ -1205,15 +1205,18 @@ export const getAllOrders = async (req, res) => {
 // Mengambil order yang pending
 export const getPendingOrders = async (req, res) => {
   try {
-    const { outletId } = req.params;
-    if (!outletId) {
+    const { rawOutletId  } = req.params;
+    if (!rawOutletId) {
       return res.status(400).json({ message: 'outletId is required' });
     }
+
+    const outletId = rawOutletId.trim(); // 🔧 TRIM SPASI / NEWLINE
+    const outletObjectId = new mongoose.Types.ObjectId(outletId);
 
     // Ambil order pending d  ari outlet tertentu
     const pendingOrders = await Order.find({
       status: 'Pending',
-      outletId: outletId
+      outlet: outletObjectId
     }).lean();
 
     if (!pendingOrders.length) return res.status(200).json([]);
