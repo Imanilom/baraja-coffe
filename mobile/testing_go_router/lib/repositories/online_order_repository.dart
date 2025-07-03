@@ -7,11 +7,16 @@ import 'package:kasirbaraja/utils/extention.dart';
 class OnlineOrderRepository {
   final OrderService _orderService = OrderService();
 
-  Future<List<OrderDetailModel>> fetchPendingOrders() async {
+  Future<List<OrderDetailModel>> fetchPendingOrders(String outletId) async {
     try {
-      final response = await _orderService.fetchPendingOrders();
+      final response = await _orderService.fetchPendingOrders(outletId);
       // print("response pending orders: $response");
       print("Data pending orders yg diambil: ${response.length}");
+
+      if (response.isEmpty) {
+        print("Tidak ada data pending orders yang ditemukan. $response");
+        return [];
+      }
 
       // Batasi hanya 10 data
       final limitedResponse =

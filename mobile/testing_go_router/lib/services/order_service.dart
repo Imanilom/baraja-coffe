@@ -32,10 +32,10 @@ class OrderService {
     }
   }
 
-  Future<List<dynamic>> fetchPendingOrders() async {
+  Future<List<dynamic>> fetchPendingOrders(String outletId) async {
     try {
       Response response = await _dio.get(
-        '/api/pending-orders',
+        '/api/pending-orders/$outletId',
         options: Options(
           headers: {
             'Content-Type': 'application/json',

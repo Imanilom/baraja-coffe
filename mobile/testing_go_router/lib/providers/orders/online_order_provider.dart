@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/repositories/online_order_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 // import 'package:barajapos/models/try/try_order_detail.model.dart';
 
 // Provider untuk SavedOrderDetailProvider
@@ -14,7 +15,9 @@ final onlineOrderProvider = FutureProvider.autoDispose<List<OrderDetailModel>>((
 ) async {
   try {
     final onlineOrderRepo = ref.read(onlineOrderRepository);
-    return onlineOrderRepo.fetchPendingOrders();
+    final user = await HiveService.getUser();
+    print('User outletId: ${user?.outletId}');
+    return onlineOrderRepo.fetchPendingOrders(user!.outletId!);
   } on DioException catch (e) {
     print('DioException: ${e.message}');
     throw e.error ?? Exception('Failed to fetch activity: ${e.message}');
