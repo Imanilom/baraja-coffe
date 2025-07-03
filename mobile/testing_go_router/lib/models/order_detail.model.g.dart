@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of '../order_detail.model.dart';
+part of 'order_detail.model.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
@@ -28,17 +28,19 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       tableNumber: fields[7] as String?,
       paymentMethod: fields[8] as String?,
       status: fields[9] as String?,
-      subTotalPrice: (fields[10] as num?)?.toDouble(),
+      subTotalPrice: (fields[10] as num?)?.toInt(),
       orderId: fields[11] as String?,
-      tax: (fields[12] as num?)?.toDouble(),
-      totalPrice: (fields[13] as num?)?.toDouble(),
+      tax: (fields[12] as num?)?.toInt(),
+      totalPrice: (fields[13] as num?)?.toInt(),
+      serviceFee: (fields[14] as num?)?.toInt(),
+      discounts: (fields[15] as Map?)?.cast<String, int>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderDetailModel obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.customerId)
       ..writeByte(1)
@@ -66,7 +68,11 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..writeByte(12)
       ..write(obj.tax)
       ..writeByte(13)
-      ..write(obj.totalPrice);
+      ..write(obj.totalPrice)
+      ..writeByte(14)
+      ..write(obj.serviceFee)
+      ..writeByte(15)
+      ..write(obj.discounts);
   }
 
   @override
@@ -100,10 +106,14 @@ _OrderDetailModel _$OrderDetailModelFromJson(Map<String, dynamic> json) =>
       tableNumber: json['tableNumber'] as String?,
       paymentMethod: json['paymentMethod'] as String?,
       status: json['status'] as String?,
-      subTotalPrice: (json['subTotalPrice'] as num?)?.toDouble(),
-      orderId: json['_id'] as String?,
-      tax: (json['tax'] as num?)?.toDouble(),
-      totalPrice: (json['totalPrice'] as num?)?.toDouble(),
+      subTotalPrice: (json['subTotalPrice'] as num?)?.toInt(),
+      orderId: json['order_id'] as String?,
+      tax: (json['tax'] as num?)?.toInt(),
+      totalPrice: (json['totalPrice'] as num?)?.toInt(),
+      serviceFee: (json['serviceFee'] as num?)?.toInt(),
+      discounts: (json['discounts'] as Map<String, dynamic>?)?.map(
+        (k, e) => MapEntry(k, (e as num).toInt()),
+      ),
     );
 
 Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
@@ -119,7 +129,9 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'paymentMethod': instance.paymentMethod,
       'status': instance.status,
       'subTotalPrice': instance.subTotalPrice,
-      '_id': instance.orderId,
+      'order_id': instance.orderId,
       'tax': instance.tax,
       'totalPrice': instance.totalPrice,
+      'serviceFee': instance.serviceFee,
+      'discounts': instance.discounts,
     };

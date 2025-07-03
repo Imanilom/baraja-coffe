@@ -21,7 +21,7 @@ export const getHistoryAll = async (req, res) => {
                 path: 'items.toppings', // Memastikan addons dipopulate
                 select: '_id name'
 
-            });
+            }).sort({ createdAt: -1 });
         res.status(200).json(
             {
                 success: true, data: orders

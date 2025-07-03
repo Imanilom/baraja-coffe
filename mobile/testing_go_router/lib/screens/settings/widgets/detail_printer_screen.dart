@@ -99,19 +99,72 @@ class _DetailPrinterScreenState extends ConsumerState<DetailPrinterScreen> {
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         children: [
-                          // Kitchen Printer Toggle
+                          // Customer Printer Toggle,
                           SwitchListTile(
-                            title: const Text('Kitchen Printer'),
-                            value: _printer.isKitchenPrinter,
+                            title: const Text('Customer Printer'),
+                            value: _printer.canPrintCustomer,
                             onChanged:
                                 (value) => setState(() {
                                   _printer = _printer.copyWith(
-                                    isKitchenPrinter: value,
+                                    canPrintCustomer: value,
                                   );
                                 }),
                           ),
 
-                          if (_printer.isKitchenPrinter) ...[
+                          if (_printer.canPrintCustomer) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Customer Copies'),
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.remove),
+                                      onPressed:
+                                          () => setState(() {
+                                            _printer = _printer.copyWith(
+                                              customerCopies:
+                                                  _printer.customerCopies > 1
+                                                      ? _printer
+                                                              .customerCopies -
+                                                          1
+                                                      : 1,
+                                            );
+                                          }),
+                                    ),
+                                    Text('${_printer.customerCopies}'),
+                                    IconButton(
+                                      icon: const Icon(Icons.add),
+                                      onPressed:
+                                          () => setState(() {
+                                            _printer = _printer.copyWith(
+                                              customerCopies:
+                                                  _printer.customerCopies + 1,
+                                            );
+                                          }),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+
+                          const Divider(),
+
+                          // Kitchen Printer Toggle
+                          SwitchListTile(
+                            title: const Text('Kitchen Printer'),
+                            value: _printer.canPrintKitchen,
+                            onChanged:
+                                (value) => setState(() {
+                                  _printer = _printer.copyWith(
+                                    canPrintKitchen: value,
+                                  );
+                                }),
+                          ),
+
+                          if (_printer.canPrintKitchen) ...[
                             const SizedBox(height: 8),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -154,16 +207,16 @@ class _DetailPrinterScreenState extends ConsumerState<DetailPrinterScreen> {
                           // Bar Printer Toggle
                           SwitchListTile(
                             title: const Text('Bar Printer'),
-                            value: _printer.isBarPrinter,
+                            value: _printer.canPrintBar,
                             onChanged:
                                 (value) => setState(() {
                                   _printer = _printer.copyWith(
-                                    isBarPrinter: value,
+                                    canPrintBar: value,
                                   );
                                 }),
                           ),
 
-                          if (_printer.isBarPrinter) ...[
+                          if (_printer.canPrintBar) ...[
                             const SizedBox(height: 8),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -190,6 +243,58 @@ class _DetailPrinterScreenState extends ConsumerState<DetailPrinterScreen> {
                                           () => setState(() {
                                             _printer = _printer.copyWith(
                                               barCopies: _printer.barCopies + 1,
+                                            );
+                                          }),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+
+                          const Divider(),
+
+                          // Waiter Printer Toggle,
+                          SwitchListTile(
+                            title: const Text('Waiter Printer'),
+                            value: _printer.canPrintWaiter,
+                            onChanged:
+                                (value) => setState(() {
+                                  _printer = _printer.copyWith(
+                                    canPrintWaiter: value,
+                                  );
+                                }),
+                          ),
+
+                          if (_printer.canPrintWaiter) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Waiter Copies'),
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.remove),
+                                      onPressed:
+                                          () => setState(() {
+                                            _printer = _printer.copyWith(
+                                              waiterCopies:
+                                                  _printer.waiterCopies > 1
+                                                      ? _printer.waiterCopies -
+                                                          1
+                                                      : 1,
+                                            );
+                                          }),
+                                    ),
+                                    Text('${_printer.waiterCopies}'),
+                                    IconButton(
+                                      icon: const Icon(Icons.add),
+                                      onPressed:
+                                          () => setState(() {
+                                            _printer = _printer.copyWith(
+                                              waiterCopies:
+                                                  _printer.waiterCopies + 1,
                                             );
                                           }),
                                     ),

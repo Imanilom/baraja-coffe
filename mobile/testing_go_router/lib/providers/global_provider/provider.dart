@@ -32,6 +32,8 @@ class CurrentIndexPaymentMethodProvider extends StateNotifier<int> {
   }
 }
 
+final orderOnlineIndicatorProvider = StateProvider<bool>((ref) => false);
+
 final currentPageIndexProvider =
     StateNotifierProvider<CurrentPageIndexProvider, int>((ref) {
       return CurrentPageIndexProvider();
