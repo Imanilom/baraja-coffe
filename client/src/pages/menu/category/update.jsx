@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 const UpdateCategory = () => {
     const { id } = useParams(); // Get the menu item ID from the URL
+    const navigate = useNavigate();
     const [categories, setCategories] = useState([]);
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
@@ -47,14 +48,8 @@ const UpdateCategory = () => {
                 description,
                 type,
             };
-            console.log(newCategory);
             const response = await axios.put(`/api/storage/category/${id}`, newCategory); // Kirim sebagai array
-            if (response.data.success) {
-                setSuccessMessage('Category added successfully!');
-                setName('');
-                setDescription('');
-                setType('food'); // Reset form
-            }
+            navigate('/admin/categories');
         } catch (err) {
             setError('Failed to add category');
             console.error('Error adding category:', err);

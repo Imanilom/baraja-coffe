@@ -29,6 +29,7 @@ import {
     ResponsiveContainer,
     CartesianGrid,
 } from "recharts";
+import DashboardModal from "./modal";
 
 const formatRupiah = (amount) => {
     return new Intl.NumberFormat('id-ID', {
@@ -49,10 +50,15 @@ const getTodayRange = () => {
 
 const Dashboard = () => {
     const [activeIndex, setActiveIndex] = useState(0);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [active2Index, set2ActiveIndex] = useState(0);
     const [productSales, setProductSales] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
+    const handleSave = (selectedWidgets) => {
+        console.log("Widgets terpilih:", selectedWidgets);
+        setIsModalOpen(false);
+    };
 
     const [currentPage, setCurrentPage] = useState(1);
     const [isCreating, setIsCreating] = useState(false);
@@ -305,7 +311,7 @@ const Dashboard = () => {
             isPositive: labaKotorComp.isPositive,
             average: formatRupiah((todayData.labaKotor + yesterdayData.labaKotor) / 2),
             value: formatRupiah(todayData.labaKotor),
-            route: "",
+            route: "/admin/daily-profit",
         },
     ];
 
@@ -612,13 +618,18 @@ const Dashboard = () => {
                     <FaPoll size={21} className="text-gray-500 inline-block" />
                     <p className="text-[15px] text-gray-500">Dashboard</p>
                 </div>
-                {/* <Link
-                    to="/admin/voucher-create"
+                <button
+                    onClick={() => setIsModalOpen(true)}
                     className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
                 >
-                    Tambah Voucher
-                </Link> */}
+                    Atur Dashboard
+                </button>
             </div>
+            <DashboardModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSubmit={handleSave}
+            />
             <div className="px-[15px] pb-[15px] mb-[60px]">
                 {/* Filters */}
                 <div className="">

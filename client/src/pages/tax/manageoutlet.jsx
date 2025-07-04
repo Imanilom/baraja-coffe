@@ -76,8 +76,9 @@ const CreateManageOutlet = () => {
             const payload = {
                 appliesToOutlets: selectedOutlets, // ← ini akan menggantikan semua outlet sebelumnya
             };
+            console.log(payload);
             await axios.put(`/api/tax-service/${id}`, payload);
-            alert("Outlet berhasil diperbarui.");
+            // alert("Outlet berhasil diperbarui.");
             navigate("/admin/tax-and-service");
         } catch (err) {
             console.error("Gagal update outlet:", err);
