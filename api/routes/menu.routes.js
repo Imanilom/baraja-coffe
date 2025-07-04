@@ -7,6 +7,7 @@ import {
   getMenuItemById,
   updateMenuItem,
   deleteMenuItem,
+  deleteMenuItems,
 } from '../controllers/menu.controller.js';
 
 import { assignMenuItemsToCategory, filterMenuByCategory, getCategories } from '../controllers/category.controller.js';
@@ -23,6 +24,7 @@ router.get('/simple-menus', getSimpleMenuItems); // Get all MenuItems
 router.get('/menu-items/:id', getMenuItemById); // Get a specific MenuItem by ID
 router.put('/menu-items/:id', adminAccess, updateMenuItem); // Update a specific MenuItem
 router.delete('/menu-items/:id', adminAccess, deleteMenuItem); // Delete a specific MenuItem
+router.delete('/menu-items', adminAccess, deleteMenuItems); // Delete a specific MenuItem
 
 // Category Routes
 router.post('/categories', adminAccess, assignMenuItemsToCategory); // Assign menu items to a category

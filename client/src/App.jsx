@@ -39,7 +39,7 @@ import UpdateContent from "./pages/content/update";
 import Promotionmanagement from "./pages/promotion/index";
 // promo khusus
 import CreatePromoPage from "./pages/promotion/promo/create";
-import IndexPromoPage from "./pages/promotion/promo/index";
+import PromoList from "./pages/promotion/promo/index";
 // auto promo
 import CreateAutoPromoPage from "./pages/promotion/autopromo/create";
 import RunningAutoPromos from "./pages/promotion/autopromo/index";
@@ -121,6 +121,14 @@ import UpdateExtraDevice from "./pages/device/extradevice/update";
 import CreateManageOutlet from "./pages/tax/manageoutlet";
 import CreateService from "./pages/tax/create_service";
 import UpdateOutlet from "./pages/outlet/update";
+import Commission from "./pages/commission";
+import CreateCommission from "./pages/commission/create";
+import CreateTable from "./pages/table/tablemanagement/create";
+import UpdateTable from "./pages/table/tablemanagement/update";
+import TablePlanManagement from "./pages/table/tableplan";
+import UpdateSupplier from "./pages/purchase/supplier/update";
+import UpdatePromoPage from "./pages/promotion/promo/update";
+import PointManagement from "./pages/promotion/points";
 
 
 
@@ -151,30 +159,36 @@ export default function App() {
                 <Route path="menu-update/:id" element={<MenuUpdate />} />
                 <Route path="add-ons" element={<AddOns />} />
                 <Route path="modifier" element={<ModifierManagement />} />
-                <Route path="create-addons" element={<CreateAddOns />} />
+                <Route path="addons-create" element={<CreateAddOns />} />
                 <Route path="category-create" element={<AddCategory />} />
                 <Route path="category-update/:id" element={<UpdateCategory />} />
                 <Route path="manage-stock/:id" element={<ManageStock />} />
                 <Route path="manage-price-and-selling-status/:id" element={<PriceSellingStatusManagement />} />
+
+                {/* Table */}
                 <Route path="table-management" element={<Table />} />
+                <Route path="table-management/table-create" element={<CreateTable />} />
+                <Route path="table-management/table-update" element={<UpdateTable />} />
+                <Route path="table-plan" element={<TablePlanManagement />} />
 
                 {/* Purchase */}
 
                 {/* supplier */}
                 <Route path="purchase/supplier" element={<SupplierManagement />} />
-                <Route path="purchase/create-supplier" element={<CreateSupplier />} />
+                <Route path="purchase/supplier-create" element={<CreateSupplier />} />
+                <Route path="purchase/supplier-update/:id" element={<UpdateSupplier />} />
 
                 {/* Purchase Order */}
                 <Route path="purchase/purchase-order" element={<PurchaseOrderManagement />} />
-                <Route path="purchase/create-purchase-order" element={<CreatePurchaseOrder />} />
+                <Route path="purchase/purchase-order-create" element={<CreatePurchaseOrder />} />
 
                 {/* Shopping List */}
                 <Route path="purchase/shopping-list" element={<ShoppingList />} />
-                <Route path="purchase/create-shopping-list" element={<CreateShoppingList />} />
+                <Route path="purchase/shopping-list-create" element={<CreateShoppingList />} />
 
                 {/* Expenditure List */}
                 <Route path="purchase/expenditure-list" element={<ExpenditureListManagement />} />
-                <Route path="purchase/create-expenditure-list" element={<CreateExpenditureList />} />
+                <Route path="purchase/expenditure-list-create" element={<CreateExpenditureList />} />
 
                 {/* Report */}
                 <Route path="sales-menu" element={<SalesMenu />} />
@@ -196,13 +210,13 @@ export default function App() {
                 <Route path="outlet-sales" element={<OutletSales />} />
 
                 {/* Operational */}
-                <Route path="reconciliation" element={<Reconciliation />} />
-                <Route path="stock" element={<StockManagement />} />
-                <Route path="user-attendances" element={<UserAttendancesManagement />} />
-                <Route path="installment" element={<InstallmentManagement />} />
-                <Route path="expenditure" element={<ExpenditureManagement />} />
-                <Route path="commission" element={<CommissionManagement />} />
-                <Route path="table" element={<TableManagement />} />
+                <Route path="operational/reconciliation" element={<Reconciliation />} />
+                <Route path="operational/stock" element={<StockManagement />} />
+                <Route path="operational/user-attendances" element={<UserAttendancesManagement />} />
+                <Route path="operational/installment" element={<InstallmentManagement />} />
+                <Route path="operational/expenditure" element={<ExpenditureManagement />} />
+                <Route path="operational/commission" element={<CommissionManagement />} />
+                <Route path="operational/table" element={<TableManagement />} />
 
                 {/* Profit */}
                 <Route path="tax-revenue" element={<TaxRevenueManagement />} />
@@ -214,15 +228,15 @@ export default function App() {
                 <Route path="inventory/stockcard" element={<StockCardManagement />} />
                 <Route path="inventory/cardoutlet" element={<OutletCardManagement />} />
                 <Route path="inventory/in" element={<InStockManagement />} />
-                <Route path="inventory/create-instock" element={<CreateStock />} />
+                <Route path="inventory/instock-create" element={<CreateStock />} />
                 <Route path="inventory/out" element={<OutStockManagement />} />
-                <Route path="inventory/create-outstock" element={<CreateOutStock />} />
+                <Route path="inventory/outstock-create" element={<CreateOutStock />} />
                 <Route path="inventory/stockopname" element={<StockOpnameManagement />} />
-                <Route path="inventory/create-stockopname" element={<CreateStokOpname />} />
+                <Route path="inventory/stockopname-create" element={<CreateStokOpname />} />
                 <Route path="inventory/transfer" element={<TransferStockManagement />} />
-                <Route path="inventory/create-transfer-stock" element={<CreateTransferStock />} />
+                <Route path="inventory/transfer-stock-create" element={<CreateTransferStock />} />
                 <Route path="inventory/production" element={<ProductionStockManagement />} />
-                <Route path="inventory/create-production" element={<CreateProduction />} />
+                <Route path="inventory/production-create" element={<CreateProduction />} />
 
                 {/* Tax And Service */}
                 {/* Tax */}
@@ -234,11 +248,11 @@ export default function App() {
 
                 {/* Employee */}
                 <Route path="employee" element={<EmployeeManagement />} />
-                <Route path="create-employee" element={<CreateEmployee />} />
+                <Route path="employee-create" element={<CreateEmployee />} />
 
                 {/* Customer */}
                 <Route path="customer" element={<CustomerManagement />} />
-                <Route path="create-customer" element={<CreateCustomer />} />
+                <Route path="customer-create" element={<CreateCustomer />} />
 
                 {/* Device */}
                 <Route path="billing/device" element={<DeviceManagement />} />
@@ -248,7 +262,7 @@ export default function App() {
 
                 {/* Outlet */}
                 <Route path="outlet" element={<OutletManagementPage />} />
-                <Route path="create-outlet" element={<CreateOutlet />} />
+                <Route path="outlet-create" element={<CreateOutlet />} />
                 <Route path="update-outlet/:id" element={<UpdateOutlet />} />
                 <Route path="tax-and-service" element={<TaxManagementPage />} />
                 <Route path="target-sales" element={<TargetSalesManagementPage />} />
@@ -260,10 +274,12 @@ export default function App() {
 
                 {/* promosi */}
                 <Route path="promotion" element={<Promotionmanagement />} />
+                <Route path="promo-khusus" element={<PromoList />} />
                 <Route path="promo-khusus-create" element={<CreatePromoPage />} />
-                <Route path="promo-khusus" element={<IndexPromoPage />} />
+                <Route path="promo-khusus-update/:id" element={<UpdatePromoPage />} />
                 <Route path="promo-otomatis-create" element={<CreateAutoPromoPage />} />
                 <Route path="promo-otomatis" element={<RunningAutoPromos />} />
+                <Route path="poin" element={<PointManagement />} />
 
                 {/* point */}
                 <Route path="loyalty-levels" element={<LevelManagement />} />
@@ -283,6 +299,10 @@ export default function App() {
                 <Route path="content" element={<ContentManagement />} />
                 <Route path="content-create" element={<CreateContent />} />
                 <Route path="content-update/:id" element={<UpdateContent />} />
+
+                {/* Commission */}
+                <Route path="commission" element={<Commission />} />
+                <Route path="commission-create" element={<CreateCommission />} />
 
               </Route>
             </Route>

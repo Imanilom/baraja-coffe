@@ -331,7 +331,7 @@ const TransferStockManagement = () => {
                 </div>
                 <div className="flex items-center space-x-2">
                     <button onClick={() => setShowModal(true)} className="text-[#005429] bg-white border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Impor Transfer Stok</button>
-                    <Link to="/admin/inventory/create-transfer-stock" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Transfer Stok</Link>
+                    <Link to="/admin/inventory/transfer-stock-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Transfer Stok</Link>
                 </div>
             </div>
 

@@ -342,7 +342,7 @@ export const getMenuItemById = async (req, res) => {
 
     // Fetch the menu item and populate related fields
     const menuItem = await MenuItem.findById(req.params.id)
-      .populate('rawMaterials.materialId')
+      // .populate('rawMaterials.materialId')
       .populate('availableAt');
 
     if (!menuItem) {
@@ -550,5 +550,24 @@ export const deleteMenuItem = async (req, res) => {
     res.status(200).json({ success: true, message: 'Menu item deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete menu item', error: error.message });
+  }
+};
+
+export const deleteMenuItems = async (req, res) => {
+  const { id } = req.body;
+
+  if (!id || !Array.isArray(id) || id.length === 0) {
+    return res.status(400).json({ message: "IDs tidak valid atau kosong" });
+  }
+
+  try {
+    const result = await MenuItem.deleteMany({ _id: { $in: id } });
+    return res.status(200).json({
+      message: "Item berhasil dihapus",
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("Gagal menghapus item:", error);
+    return res.status(500).json({ message: "Terjadi kesalahan saat menghapus" });
   }
 };

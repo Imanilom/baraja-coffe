@@ -364,7 +364,7 @@ const ShoppingList = () => {
                     <FaInfoCircle className="text-[15px] text-gray-500" />
                 </div>
                 <div className="flex space-x-2">
-                    <Link to="/admin/purchase/create-shopping-list" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Kelola Daftar Belanja</Link>
+                    <Link to="/admin/purchase/shopping-list-create" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Kelola Daftar Belanja</Link>
                 </div>
             </div>
 
@@ -477,7 +477,7 @@ const ShoppingList = () => {
                                                     <span className="text-sm text-justify">
                                                         Dengan mengisi daftar belanja yang biasanya menjadi keperluan bisnis Anda, kami dapat membantu Anda dengan memberikan penawaran harga dan produk menarik dari Foodia.
                                                     </span>
-                                                    <Link to="/admin/purchase/create-shopping-list" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded transition">
+                                                    <Link to="/admin/purchase/shopping-list-create" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded transition">
                                                         Kelola Daftar Belanja
                                                     </Link>
                                                 </div>
