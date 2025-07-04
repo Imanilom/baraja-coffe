@@ -20,7 +20,7 @@ const adminAccess = verifyToken(['admin', 'superadmin']);
 
 const router = express.Router();
 
-router.get('/', test);
+// router.get('/', test);
 
 // Get user by ID (tidak memerlukan middleware spesifik, tapi sebaiknya tetap dijaga dengan auth)
 router.get('/getUSerById/:id', authMiddleware, getUSerById);

@@ -4,10 +4,12 @@ import { Link } from "react-router-dom";
 import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown, FaBoxes, FaTrash } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
-const CreateStock = () => {
+const UpdateTable = () => {
     const navigate = useNavigate();
+    const [value, setValue] = useState(0); // default value
     const [loading, setLoading] = useState(true);
     const [form, setForm] = useState({
+        status: '0',
         outlet: '',
         tanggal: '',
         catatan: '',
@@ -47,6 +49,28 @@ const CreateStock = () => {
         fetchOutlets();
         fetchMenuItems();
     }, []);
+
+    const handleDecrease = () => {
+        setValue((prev) => Math.max(0, prev - 1));
+    };
+
+    const handleIncrease = () => {
+        setValue((prev) => Math.min(99, prev + 1));
+    };
+
+    const handleChange = (e) => {
+        let inputVal = e.target.value.replace(/\D/g, ""); // remove non-digits
+        if (inputVal.length > 2) inputVal = inputVal.slice(0, 2); // max 2 digits
+        setValue(inputVal === "" ? 0 : parseInt(inputVal));
+    };
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setForm((prevData) => ({
+            ...prevData,
+            [name]: value,
+        }));
+    };
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -117,19 +141,13 @@ const CreateStock = () => {
                         <span
                             className="text-gray-400 inline-block"
                         >
-                            Inventori
+                            Pengaturan Meja
                         </span>
                         <FaChevronRight size={22} className="text-gray-400 inline-block" />
                         <span
                             className="text-gray-400 inline-block"
                         >
-                            Stok Masuk
-                        </span>
-                        <FaChevronRight size={22} className="text-gray-400 inline-block" />
-                        <span
-                            className="text-gray-400 inline-block"
-                        >
-                            Tambah Stok Masuk
+                            Tambah Meja
                         </span>
                     </div>
                 </div>
@@ -186,88 +204,163 @@ const CreateStock = () => {
                         </div>
                     </div>
 
-                    {/* === TANGGAL === */}
+                    {/* === NAMA AREA === */}
                     <div className="flex items-center">
-                        <h3 className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5 text-[14px]">Tanggal</h3>
+                        <h3 className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5 text-[14px]">Nama Area</h3>
                         <input
-                            type="date"
-                            name="tanggal"
-                            value={form.tanggal}
+                            type="text"
+                            name="name_area"
+                            value={form.namearea}
                             onChange={handleFormChange}
                             className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
                         />
                     </div>
 
-                    {/* === CATATAN === */}
-                    <div className="flex items-center">
-                        <h3 className="w-[140px] block text-[#999999] text-[14px] mb-2.5">Catatan</h3>
-                        <textarea
-                            name="catatan"
-                            value={form.catatan}
-                            onChange={handleFormChange}
-                            className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
-                            rows="2"
-                        />
+                    <div className="flex items-center text-[#999999]">
+                        <label className="w-[140px] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
+                            Status Area
+                        </label>
+                        <div className="flex-1 space-x-4">
+                            <label className="text-[14px]">
+                                <input
+                                    type="radio"
+                                    name="status"
+                                    value="1"
+                                    checked={form.status === '1'}
+                                    onChange={handleInputChange}
+                                    className="form-radio"
+                                /> Aktif
+                            </label>
+                            <label className="text-[14px]">
+                                <input
+                                    type="radio"
+                                    name="status"
+                                    value="0"
+                                    checked={form.status === '0'}
+                                    onChange={handleInputChange}
+                                    className="form-radio"
+                                /> Non Aktif
+                            </label>
+                        </div>
                     </div>
                 </div>
-
                 {/* === TABEL PRODUK === */}
                 <div className="relative">
+                    {/* Tombol */}
+                    <div className="w-3/4 mb-[10px] flex gap-2 px-3 text-[14px] justify-end">
+                        <button
+                            type="button"
+                            onClick={handleAddRow}
+                            className="bg-[#005429] text-white rounded px-3 py-2"
+                        >
+                            + Tambah Meja
+                        </button>
+                    </div>
                     <div className="px-3 relative mb-10">
-                        <table className="table-auto w-full border-gray-300" cellPadding={10}>
-                            <thead className="border-b">
+                        <table className="table-auto w-3/4 border-gray-300">
+                            <thead className="border">
                                 <tr className="">
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-3/12 text-left after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Nama Produk</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-right w-2/12 after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Jumlah</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-1/12 text-left">Satuan</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-2/12 text-right">Harga Beli / Unit</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-3/12 text-right">Total Harga Beli</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-1/12">Aksi</th>
+                                    <th className="w-1/4 border text-[14px] text-[#999999] font-semibold text-left after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Nama Meja</th>
+                                    <th className="w-1/4 border text-[14px] text-[#999999] font-semibold text-left">Kapasitas</th>
+                                    <th className="w-1/4 border text-[14px] text-[#999999] font-semibold">
+                                        <div className=" flex justify-between items-center">
+                                            <div className="">
+                                                <p>Batas Waktu</p>
+                                            </div>
+                                            <div className="flex items-center">
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input type="checkbox" className="sr-only peer" />
+                                                    <div className="w-8 h-[17px] bg-gray-200 rounded-full peer-focus:ring-2 peer-focus:ring-blue-300 
+        peer-checked:after:translate-x-4 rtl:peer-checked:after:-translate-x-4
+        peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] 
+        after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
+        after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#005429]">
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </th>
+                                    <th className="w-1/4 border text-[14px] text-[#999999] font-semibold">
+                                        <div className="flex justify-between items-center">
+                                            <div className="">
+                                                <p>Waktu Pengingat</p>
+                                            </div>
+                                            <div className="flex items-center">
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input type="checkbox" className="sr-only peer" />
+                                                    <div className="w-8 h-[17px] bg-gray-200 rounded-full peer-focus:ring-2 peer-focus:ring-blue-300 
+        peer-checked:after:translate-x-4 rtl:peer-checked:after:-translate-x-4
+        peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] 
+        after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
+        after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#005429]">
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {rows.map((row, index) => (
                                     <tr key={index}>
-                                        <td className="pt-3">
+                                        <td className="border">
                                             <input
                                                 type="text"
                                                 value={row.namaProduk}
                                                 onChange={(e) => handleRowChange(index, 'namaProduk', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg"
+                                                className="w-full px-2 py-1 rounded-lg focus:outline-none focus:ring-0 focus:border-none"
                                             />
                                         </td>
-                                        <td className="pt-3">
+                                        <td className="border">
+                                            <div className="flex items-center space-x-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDecrease}
+                                                    className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+                                                >
+                                                    -
+                                                </button>
+
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    pattern="[0-9]*"
+                                                    value={value}
+                                                    onChange={handleChange}
+                                                    className="w-16 text-center border border-gray-300 rounded py-1 px-2 focus:outline-none focus:ring-1 focus:ring-green-600"
+                                                />
+
+                                                <button
+                                                    type="button"
+                                                    onClick={handleIncrease}
+                                                    className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+                                                >
+                                                    +
+                                                </button>
+                                                <span className="text-sm text-gray-600">orang</span>
+                                            </div>
+                                        </td>
+                                        <td className="border">
                                             <input
                                                 type="number"
-                                                value={row.jumlah}
-                                                onChange={(e) => handleRowChange(index, 'jumlah', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg text-right"
-                                            />
-                                        </td>
-                                        <td className="pt-3">
-                                            <input
-                                                type="text"
                                                 value={row.satuan}
                                                 onChange={(e) => handleRowChange(index, 'satuan', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg"
+                                                className="w-1/2 px-2 py-1 rounded-lg focus:outline-none focus:ring-0 focus:border-none"
                                             />
+                                            <span className="text-sm text-gray-600">menit</span>
                                         </td>
-                                        <td className="pt-3">
+                                        <td className="border flex items-center">
                                             <input
                                                 type="number"
-                                                value={row.hargaBeli}
-                                                onChange={(e) => handleRowChange(index, 'hargaBeli', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg text-right"
+                                                value={row.waktu}
+                                                onChange={(e) => handleRowChange(index, 'waktu', e.target.value)}
+                                                className="w-1/2 px-2 py-1 rounded-lg focus:outline-none focus:ring-0 focus:border-none"
                                             />
-                                        </td>
-                                        <td className=" text-right">
-                                            Rp {row.total.toLocaleString('id-ID')}
-                                        </td>
-                                        <td className=" text-center">
+                                            <span className="text-sm text-gray-600">menit</span>
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveRow(index)}
-                                                className="text-red-500 hover:underline"
+                                                className="w-full flex justify-center text-red-500 hover:underline"
                                             >
                                                 <FaTrash />
                                             </button>
@@ -276,30 +369,13 @@ const CreateStock = () => {
                                 ))}
                             </tbody>
                         </table>
-
-                        {/* Tombol */}
-                        <div className="flex gap-2 px-3 mb-[150px] text-[14px]">
-                            <button
-                                type="button"
-                                onClick={handleAddRow}
-                                className="text-[#005249]"
-                            >
-                                + Tambah Produk
-                            </button>
-                        </div>
                     </div>
                 </div>
 
-                <div className="fixed bottom-0 left-64 right-0 flex justify-between items-center border-t px-3 py-3 bg-white z-50">
-                    <div className="">
-                        <h3 className="block text-[#999999] text-[14px]">Kolom bertanda <b className="text-red-600">*</b> wajib diisi</h3>
-                        <span className="text-[18px] text-[#999999]">
-                            Grand Total: Rp {grandTotal.toLocaleString('id-ID')}
-                        </span>
-                    </div>
+                <div className="fixed bottom-0 left-64 right-0 flex justify-end items-center border-t px-3 py-3 bg-white z-50">
                     <div className="flex space-x-2">
                         <Link
-                            to="/admin/inventory/in"
+                            to="/admin/table-management"
                             className="border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
                         >
                             Batal
@@ -317,4 +393,4 @@ const CreateStock = () => {
     );
 };
 
-export default CreateStock;
+export default UpdateTable;

@@ -16,7 +16,17 @@ const ReceiptDesign = () => {
     const navigate = useNavigate();
 
     const [loading, setLoading] = useState(true);
-
+    const [formData, setFormData] = useState({
+        catatan: "Password_Wifi : ramadhandibaraja Yuk,jadi saksi pelestarian budaya di Amphitheater!Cek jadwalnya di IG & TikTok kami!",
+        facebook: "barajacoffee",
+        twitter: "",
+        instagram: "barajacoffee",
+        tiktok: "barajacoffee.id",
+        addFacebook: false,
+        addTwitter: false,
+        addInstagram: true,
+        addTiktok: false,
+    });
 
     useEffect(() => {
         fetchData();
@@ -51,6 +61,14 @@ const ReceiptDesign = () => {
         } catch (error) {
             alert("Error deleting outlet.");
         }
+    };
+
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setFormData((prev) => ({
+            ...prev,
+            [name]: type === "checkbox" ? checked : value,
+        }));
     };
 
     const paginatedData = useMemo(() => {
@@ -151,15 +169,15 @@ const ReceiptDesign = () => {
             </div>
             <form action="">
                 <div className="px-[15px] grid grid-cols-12">
-                    <div className="px-[15px] text-[14px] col-span-7 shadow-lg">
-                        <div className="mb-[15px]">
-                            <h4 className="text-[14px] mt-[30px] mb-[10px]">PENGATURAN DESAIN STRUK</h4>
+                    <div className="px-[15px] text-[14px] col-span-7 shadow-lg text-[#999999]">
+                        <div className="">
+                            <h4 className="text-[14px] mt-[30px] mb-[10px] font-semibold">PENGATURAN DESAIN STRUK</h4>
                             <label className="mr-[8px] mb-[5px] text-[14px]">Anda dapat mengatur logo dan akun social media setiap outlet untuk ditampilkan pada cetakan struk</label>
-                            <div className="relative pb-[10px] mb-[15px]">
+                            <div className="relative pb-[10px]">
                                 <select
                                     name="outlet"
                                     value=""
-                                    className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
+                                    className="w-full text-[13px] text-gray-500 border mt-[10px] mb-[10px] py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
                                 >
                                     {outlets.map((outlet) => (
                                         <option key={outlet._id} value={outlet._id}>
@@ -168,124 +186,144 @@ const ReceiptDesign = () => {
                                     ))}
                                 </select>
 
-                                <input type="checkbox" /><span>Berlaku untuk semua Outlet</span>
+                                <input type="checkbox" /><span> Berlaku untuk semua Outlet</span>
                             </div>
                         </div>
-                        <div className="mb-[15px]">
-                            <div className="grid grid-cols-12 ">
-                                <h4 className="mt-[30px] mb-[10px] text-[14px] col-span-12 uppercase">Logo Struk</h4>
+                        <div className="my-[30px]">
+                            <div className="grid grid-cols-12">
+                                <h4 className=" mb-[10px] text-[14px] col-span-12 uppercase font-semibold">Logo Struk</h4>
                                 <div className="col-span-4">
                                     <img src="https://www.mldspot.com/storage/generated/June2021/Serba-serbi%20Coffee%20Art%20Latte%20untuk%20Para%20Pecinta%20Kopi.jpg" alt="" />
                                 </div>
                                 <div className="col-span-8 mt-[15px] px-[15px]">
-                                    <div className="text-[13px]">
+                                    <div className="text-[13px] mb-[10px]">
                                         <span>Maksimal 1 Mb</span>
                                     </div>
                                     <span className="py-[7px] px-[15px] border">Hapus Logo</span>
                                 </div>
                             </div>
                         </div>
-                        <div className="mb-[15px]">
-                            <h4 className="text-[14px] mt-[30px] mb-[10px] uppercase">Item Pembelian</h4>
+                        <div className="">
+                            <h4 className="text-[14px] mb-[10px] uppercase font-semibold">Item Pembelian</h4>
                             <input type="checkbox" checked /><span>Berlaku untuk semua Outlet</span>
                         </div>
-                        <div className="mb-[15px] grid grid-rows-1 gap-4">
-                            <h4 className="text-[14px] mt-[30px] mb-[10px] uppercase">Sosial media</h4>
+                        <div className="grid grid-rows-1 gap-4">
+                            <h4 className="text-[14px] mt-[30px] mb-[10px] uppercase font-semibold">Sosial media</h4>
                             <div className="flex space-x-4 items-center">
-                                <img src="" alt="" className="w-[40px] h-[40px]" />
+                                <img
+                                    src="https://dashboard.pawoon.com/assets/images/ic-facebook.png"
+                                    alt="Facebook"
+
+                                />
                                 <div className="relative w-full">
                                     <input
                                         type="text"
-                                        value=""
-                                        className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
+                                        name="facebook"
+                                        value={formData.facebook}
+                                        onChange={handleChange}
+                                        className="text-[13px] border py-[6px] pl-[12px] pr-[12px] rounded w-full"
                                     />
 
-                                    {/* Checkbox dan label ditempatkan dalam satu baris */}
                                     <div className="absolute right-3 top-2 flex items-center space-x-1">
                                         <input
                                             type="checkbox"
+                                            name="addFacebook"
+                                            checked={formData.addFacebook}
+                                            onChange={handleChange}
                                             className="w-4 h-4 text-gray-400"
                                         />
-                                        <span className="text-sm text-gray-700">Tambahkan</span>
+                                        <span className="text-sm">Tambahkan</span>
                                     </div>
                                 </div>
                             </div>
                             <div className="flex space-x-4 items-center">
-                                <img src="" alt="" className="w-[40px] h-[40px]" />
+                                <img src="https://dashboard.pawoon.com/assets/images/ic-twitter.png" alt="" />
                                 <div className="relative w-full">
                                     <input
                                         type="text"
-                                        value=""
-                                        className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
+                                        name="twitter"
+                                        value={formData.twitter}
+                                        onChange={handleChange}
+                                        className="text-[13px] border py-[6px] pl-[12px] pr-[12px] rounded w-full"
                                     />
 
-                                    {/* Checkbox dan label ditempatkan dalam satu baris */}
                                     <div className="absolute right-3 top-2 flex items-center space-x-1">
                                         <input
                                             type="checkbox"
+                                            name="addTwitter"
+                                            checked={formData.addTwitter}
+                                            onChange={handleChange}
                                             className="w-4 h-4 text-gray-400"
                                         />
-                                        <span className="text-sm text-gray-700">Tambahkan</span>
+                                        <span className="text-sm">Tambahkan</span>
                                     </div>
                                 </div>
                             </div>
                             <div className="flex space-x-4 items-center">
-                                <img src="" alt="" className="w-[40px] h-[40px]" />
+                                <img src="https://dashboard.pawoon.com/assets/images/ic-instagram.png" alt="" />
                                 <div className="relative w-full">
                                     <input
                                         type="text"
-                                        value=""
-                                        className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
+                                        name="instagram"
+                                        value={formData.instagram}
+                                        onChange={handleChange}
+                                        className="text-[13px] border py-[6px] pl-[12px] pr-[12px] rounded w-full"
                                     />
 
-                                    {/* Checkbox dan label ditempatkan dalam satu baris */}
                                     <div className="absolute right-3 top-2 flex items-center space-x-1">
                                         <input
                                             type="checkbox"
+                                            name="addInstagram"
+                                            checked={formData.addInstagram}
+                                            onChange={handleChange}
                                             className="w-4 h-4 text-gray-400"
                                         />
-                                        <span className="text-sm text-gray-700">Tambahkan</span>
+                                        <span className="text-sm">Tambahkan</span>
                                     </div>
                                 </div>
                             </div>
                             <div className="flex space-x-4 items-center">
-                                <img src="" alt="" className="w-[40px] h-[40px]" />
+                                <img src="https://dashboard.pawoon.com/assets/images/ic-tiktok.png" alt="" />
                                 <div className="relative w-full">
                                     <input
                                         type="text"
-                                        value=""
-                                        className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
+                                        name="tiktok"
+                                        value={formData.tiktok}
+                                        onChange={handleChange}
+                                        className="text-[13px] border py-[6px] pl-[12px] pr-[12px] rounded w-full"
                                     />
 
-                                    {/* Checkbox dan label ditempatkan dalam satu baris */}
                                     <div className="absolute right-3 top-2 flex items-center space-x-1">
                                         <input
                                             type="checkbox"
+                                            name="addTiktok"
+                                            checked={formData.addTiktok}
+                                            onChange={handleChange}
                                             className="w-4 h-4 text-gray-400"
                                         />
-                                        <span className="text-sm text-gray-700">Tambahkan</span>
+                                        <span className="text-sm">Tambahkan</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div className="mb-[15px]">
-                            <h4 className="text-[14px] mt-[30px] mb-[10px] uppercase">catatan</h4>
-                            <textarea name="" id="" className="w-full h-[100px] border rounded-lg px-[10px] py-[7px] text-[14px]"></textarea>
+                            <h4 className="text-[14px] mt-[30px] mb-[10px] uppercase font-semibold">catatan</h4>
+                            <textarea name="catatan" id="" className="w-full h-[100px] border rounded-lg px-[10px] py-[7px] text-[14px]" value={formData.catatan} onChange={handleChange}></textarea>
                         </div>
                         <div className="mb-[15px]">
                             <div className="grid grid-cols-12 ">
-                                <h4 className="mt-[30px] mb-[10px] text-[14px] col-span-12 uppercase">gambar catatan</h4>
+                                <h4 className="mt-[30px] mb-[10px] text-[14px] col-span-12 uppercase font-semibold">gambar catatan</h4>
                                 <div className="col-span-4">
                                     <img src="https://www.mldspot.com/storage/generated/June2021/Serba-serbi%20Coffee%20Art%20Latte%20untuk%20Para%20Pecinta%20Kopi.jpg" alt="" />
                                 </div>
                                 <div className="col-span-8 mt-[15px] px-[15px]">
-                                    <div className="text-[13px]">
+                                    <div className="text-[13px] mb-[10px]">
                                         <span>Maksimal 1 Mb</span>
                                     </div>
                                     <span className="py-[7px] px-[15px] border">Unggah Gambar</span>
                                 </div>
                             </div>
-                            <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-4 my-[10px]">
                                 <input type="checkbox" checked disabled />
                                 <span className="text-[14px]">Tampilkan Kode Voucher di Struk</span>
                             </div>
@@ -295,8 +333,118 @@ const ReceiptDesign = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="mt-[15px] col-span-5 bg-[#005429]">
+                    <div className="mt-[15px] col-span-5">
+                        <div className="w-full bg-gray-100 p-4 rounded shadow-md text-[#999999]">
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-1">Tampilan</label>
+                                <select className="w-full border rounded px-3 py-2 text-sm">
+                                    <option value="1">Printer Epson / Star</option>
+                                    <option value="2">Bluetooth / mPOP</option>
+                                </select>
+                            </div>
 
+                            <div className="bg-white p-4 rounded shadow">
+                                <div className="text-center mb-4">
+                                    <img
+                                        src="https://s3.ap-southeast-1.amazonaws.com/new.newpawoon/receipt_images/IMG_479013_1750394198_200.png"
+                                        alt="Logo"
+                                        className="mx-auto max-w-xs"
+                                    />
+                                </div>
+
+                                <div className="text-center text-sm mb-4">
+                                    <p className="font-bold">Warung Pawoon Demo</p>
+                                    <p>AXA Tower Lt.7, Jl. Prof. DR. Satrio Kav. 18 Kuningan, Jakarta Selatan 12940</p>
+                                    <p>1500-360</p>
+                                </div>
+
+                                <div className="text-sm space-y-1 mb-4">
+                                    <p>Kode Struk: <span className="font-medium">9873982342341</span></p>
+                                    <p>No. Meja: <span className="font-medium">3</span></p>
+                                    <p>Tanggal: <span className="font-medium">2017-07-23 08:45:34</span></p>
+                                    <p>Kasir: <span className="font-medium">Ibrahim Abdullah</span></p>
+                                    <p>Pelanggan: <span className="font-medium">Bilal Fahreda</span></p>
+                                </div>
+
+                                <hr className="border-dashed border-t border-gray-300 my-3" />
+
+                                <div className="text-sm space-y-2 mb-4">
+                                    <div className="flex justify-between">
+                                        <span className="w-2/4">Es Teh Manis</span>
+                                        <span className="w-1/4 text-right">x2</span>
+                                        <span className="w-1/4 text-right">8,000</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="w-2/4">Martabak Original</span>
+                                        <span className="w-1/4 text-right">x1</span>
+                                        <span className="w-1/4 text-right">20,000</span>
+                                    </div>
+                                    <div className="ml-4 text-xs text-gray-500">+ Harga (15,000)</div>
+                                    <div className="ml-4 text-xs text-gray-500">+ Extra Coklat x1 (2,000)</div>
+                                    <div className="ml-4 text-xs text-gray-500">+ Extra Keju x1 (3,000)</div>
+                                    <div className="flex justify-between">
+                                        <span className="w-2/4">Martabak Telur Spesial</span>
+                                        <span className="w-1/4 text-right">x1</span>
+                                        <span className="w-1/4 text-right">33,000</span>
+                                    </div>
+                                </div>
+
+                                <hr className="border-dashed border-t border-gray-300 my-3" />
+
+                                <div className="text-sm space-y-1 mb-4">
+                                    <div className="flex justify-between">
+                                        <span>Subtotal</span>
+                                        <span>61,000</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>PPN (10%)</span>
+                                        <span>6,100</span>
+                                    </div>
+                                    <div className="flex justify-between font-bold">
+                                        <span>Total</span>
+                                        <span>67,100</span>
+                                    </div>
+                                </div>
+
+                                <hr className="border-dashed border-t border-gray-300 my-3" />
+
+                                <div className="text-sm space-y-1 mb-4">
+                                    <div className="flex justify-between">
+                                        <span>Tunai</span>
+                                        <span>100,000</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Kembali</span>
+                                        <span>32,900</span>
+                                    </div>
+                                </div>
+
+                                <div className="text-center text-sm mb-4">
+                                    Password_Wifi: <strong>ramadhandibaraja</strong><br />
+                                    Yuk, jadi saksi pelestarian budaya di Amphitheater!<br />
+                                    Cek jadwalnya di IG & TikTok kami!
+                                </div>
+
+                                <hr className="border-dashed border-t border-gray-300 my-3" />
+
+                                <div className="text-center text-sm p-2 rounded mb-4">
+                                    <p>VOUCHER: JDIWFHPAWOONM</p>
+                                    <p>EXTRA PAWOON</p>
+                                    <p>
+                                        Ayo tukarkan voucher ini ke kasir kamu ya.
+                                        <br />
+                                        caranya gampang,anda tinggal belanja minimal Rp 100.000 lalu tunjukan struk ini ke kasir ya!!!!
+                                    </p>
+                                </div>
+
+                                <div className="text-center flex flex-col items-center text-sm space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                        <img src="https://dashboard.pawoon.com/assets/images/ic-black-instagram.png" alt="Instagram" className="w-4 h-4" />
+                                        <span>@barajacoffee</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </form>

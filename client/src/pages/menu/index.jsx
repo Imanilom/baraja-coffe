@@ -258,12 +258,29 @@ const Menu = () => {
   const handleDelete = async (itemId) => {
     try {
       await axios.delete(`/api/menu/menu-items/${itemId}`);
-      setMenuItems(menuItems.filter(item => item._id !== itemId));
+      fetchData();
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error deleting item:", error);
     }
   };
+
+  const handleDeleteSelected = async () => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus data terpilih?")) return;
+
+    try {
+      await axios.delete("/api/menu/menu-items", {
+        data: { id: checkedItems }
+      });
+      // Refresh data setelah hapus
+      setCheckedItems([]);
+      setCheckAll(false);
+      fetchData(); // Pastikan ini memuat ulang data
+    } catch (error) {
+      console.error("Gagal menghapus:", error);
+    }
+  };
+
 
   // Show loading state
   if (loading) {
@@ -563,7 +580,15 @@ const Menu = () => {
                   <th className="p-[15px] font-normal text-left">Produk</th>
                   <th className="p-[15px] font-normal text-left">Kategori</th>
                   <th className="p-[15px] font-normal text-right">Harga</th>
-                  <th className="p-[15px] font-normal"></th>
+                  <th className="p-[15px] font-normal">
+                    {checkedItems.length > 0 && (
+                      <button
+                        onClick={handleDeleteSelected}
+                        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                      >
+                        Hapus Terpilih ({checkedItems.length})
+                      </button>
+                    )}</th>
                 </tr>
               </thead>
               {paginatedData.length > 0 ? (
@@ -601,7 +626,9 @@ const Menu = () => {
                         </div>
                       </td>
                       <td className="p-[15px]">
-                        {Array.isArray(item.category) ? item.category.join(", ") : "-"}
+                        {Array.isArray(item.category)
+                          ? item.category.map((category) => category.name).join(", ")
+                          : item.category?.name || "-"}
                       </td>
                       <td className="p-[15px] text-right">{formatCurrency(item.price)}</td>
                       <td className="p-[15px]">
@@ -636,24 +663,23 @@ const Menu = () => {
                                     <span>Kelola Harga & Status Jual</span>
                                   </Link>
                                 </li>
-                                <li>
-                                  <Link
-                                    to={`/admin/menu-update/${item._id}`}
-                                    className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                                  >
-                                    <FaPencilAlt size={18} />
-                                    <span>Edit</span>
-                                  </Link>
-                                </li>
-                                <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
-                                  <FaTrash size={18} />
-                                  <button onClick={() => {
+                                <Link
+                                  to={`/admin/menu-update/${item._id}`}
+                                  className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
+                                >
+                                  <FaPencilAlt size={18} />
+                                  <span>Edit</span>
+                                </Link>
+                                <button
+                                  className="w-full flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
+                                  onClick={() => {
                                     setItemToDelete(item._id);
                                     setIsModalOpen(true);
+
                                   }}>
-                                    Delete
-                                  </button>
-                                </li>
+                                  <FaTrash size={18} />
+                                  <span>Delete</span>
+                                </button>
                               </ul>
                             </div>
                           )}

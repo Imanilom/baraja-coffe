@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from 'axios';
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaSearch, FaPencilAlt, FaTrash } from 'react-icons/fa';
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaSearch, FaPencilAlt, FaTrash, FaChevronRight } from 'react-icons/fa';
 
 const CategoryIndex = () => {
   const location = useLocation();
@@ -225,9 +225,11 @@ const CategoryIndex = () => {
         </div>
       )} */}
       <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
-        <div className="flex items-center space-x-2">
-          <FaShoppingBag size={22} className="text-gray-400 inline-block" />
-          <p className="text-gray-400 inline-block">Kategori</p>
+        <div className="flex items-center space-x-2 text-gray-400">
+          <FaShoppingBag size={22} />
+          <p>Produk</p>
+          <FaChevronRight size={22} />
+          <p>Kategori</p>
         </div>
         <div className="flex space-x-2">
           <Link
