@@ -131,7 +131,9 @@ export const getMenuItems = async (req, res) => {
         }
       ])
       .skip(parsedOffset)
-      .limit(parsedLimit);
+      .limit(parsedLimit)
+      // ururt berdasarkan nama
+      .sort({ name: 1 });
 
     // Hitung total dokumen untuk metadata
     const totalItems = await MenuItem.countDocuments();

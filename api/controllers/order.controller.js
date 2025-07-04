@@ -1205,7 +1205,7 @@ export const getAllOrders = async (req, res) => {
 // Mengambil order yang pending
 export const getPendingOrders = async (req, res) => {
   try {
-    const { rawOutletId  } = req.params;
+    const { rawOutletId } = req.params;
     if (!rawOutletId) {
       return res.status(400).json({ message: 'outletId is required' });
     }
