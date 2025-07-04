@@ -17,7 +17,7 @@ class AuthRepository {
 
       await _storage.saveDetailUser(userData);
       await _storage.saveUserData(userData.token, userData.id);
-      print('login berhasil $userData');
+      print('login berhasil $userData[outletId]');
       //masukan data cashier ke hive?
       await HiveService.saveUser(userData);
 
