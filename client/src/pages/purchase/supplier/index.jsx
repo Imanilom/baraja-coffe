@@ -73,9 +73,9 @@ const SupplierManagement = () => {
 
     const handleDelete = async (itemId) => {
         try {
-            await axios.delete(`/api/menu/supplier/${itemId}`);
-            setMenuItems(menuItems.filter(item => item._id !== itemId));
+            await axios.delete(`/api/marketlist/supplier/${itemId}`);
             setIsModalOpen(false);
+            fetchData();
         } catch (error) {
             console.error("Error deleting item:", error);
         }
@@ -209,7 +209,7 @@ const SupplierManagement = () => {
                     <FaChevronRight className="text-[15px] text-gray-500" />
                     <span className="text-[15px] text-[#005429]">Supplier</span>
                 </div>
-                <Link to="/admin/purchase/create-supplier" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Supplier</Link>
+                <Link to="/admin/purchase/supplier-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Supplier</Link>
             </div>
 
             {/* Filters */}
@@ -308,7 +308,7 @@ const SupplierManagement = () => {
                                                     {/* Dropdown Menu */}
                                                     <div className="relative text-right">
                                                         <button
-                                                            className="px-2 bg-white border border-gray-200 hover:border-none hover:bg-green-800 rounded-sm"
+                                                            className="px-2 bg-white border border-gray-200 hover:bg-green-800 rounded-sm"
                                                             onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
                                                         >
                                                             <span className="text-xl text-gray-200 hover:text-white">
@@ -319,7 +319,7 @@ const SupplierManagement = () => {
                                                             <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
                                                                 <ul className="w-full">
                                                                     <Link
-                                                                        to={`/admin/menu-update/${data._id}`}
+                                                                        to={`/admin/purchase/supplier-update/${data._id}`}
                                                                         className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
                                                                     >
                                                                         <FaPencilAlt size={18} />

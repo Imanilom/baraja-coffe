@@ -4141,7 +4141,7 @@ function MapUpdater({ position }) {
 
     useEffect(() => {
         map.setView(position, 13);
-    }, [position, map]);
+    }, [position]);
 
     return null;
 }
@@ -4157,13 +4157,12 @@ function LocationMarker({ position, setPosition }) {
 
 const UpdateOutlet = () => {
     const { id } = useParams();
-    const [outlets, setOutlets] = useState([]);
     const [tax, setTax] = useState([]);
+    const [isEditing, setIsEditing] = useState(false);
     const [form, setForm] = useState({
         name: "",
         city: "",
-        address: "-",
-        location: "-",
+        address: "",
         latitude: "",
         longitude: "",
         contactNumber: "",
@@ -4176,28 +4175,23 @@ const UpdateOutlet = () => {
         pawoonClose: ""
     });
 
+    const [tempAddress, setTempAddress] = useState(form.address);
+
+    const [initialLoaded, setInitialLoaded] = useState(false);
+
     const [mapPosition, setMapPosition] = useState({ lat: -6.2, lng: 106.8 });
 
     useEffect(() => {
-        if (form.city !== "") {
-            const selected = cityCoordinates.find((city) => city.city === form.city);
-            if (selected) {
-                setMapPosition({
-                    lat: selected.latitude,
-                    lng: selected.longitude
-                });
-            }
+        if (!initialLoaded || !form.city) return;
+
+        const selected = cityCoordinates.find(city => city.city === form.city);
+        if (selected) {
+            setMapPosition({
+                lat: selected.latitude,
+                lng: selected.longitude
+            });
         }
     }, [form.city]);
-
-    useEffect(() => {
-        setForm((prevForm) => ({
-            ...prevForm,
-            latitude: mapPosition.lat,
-            longitude: mapPosition.lng,
-        }));
-    }, [mapPosition]);
-
 
     const navigate = useNavigate();
 
@@ -4211,7 +4205,6 @@ const UpdateOutlet = () => {
         try {
             const response = await axios.get(`/api/outlet/${id}`);
             const data = response.data || [];
-            setOutlets(data || []);
             setForm({
                 name: data.name || "",
                 city: data.city || "",
@@ -4228,27 +4221,31 @@ const UpdateOutlet = () => {
                 pawoonOpen: data.pawoonOpen || "08:00",
                 pawoonClose: data.pawoonClose || "16:00"
             });
-            // ⬇️ Tambahkan ini agar map sesuai data sebelumnya
-            if (data.latitude && data.longitude) {
-                setMapPosition({
-                    lat: parseFloat(data.latitude),
-                    lng: parseFloat(data.longitude),
-                });
-            } else if (data.city) {
-                // fallback ke cityCoordinates jika tidak ada koordinat langsung
-                const selected = cityCoordinates.find((city) => city.city === data.city);
-                if (selected) {
-                    setMapPosition({
-                        lat: selected.latitude,
-                        lng: selected.longitude
-                    });
-                }
-            }
+
+            setInitialLoaded(true);
         } catch (error) {
             console.error("Error fetching outlets:", error);
         }
     };
 
+    useEffect(() => {
+        setTempAddress(form.address);
+    }, [form.address]);
+
+    // Set map position after form.latitude & longitude is populated
+    useEffect(() => {
+        if (
+            form.latitude &&
+            form.longitude &&
+            !isNaN(form.latitude) &&
+            !isNaN(form.longitude)
+        ) {
+            setMapPosition({
+                lat: parseFloat(form.latitude),
+                lng: parseFloat(form.longitude)
+            });
+        }
+    }, [form.latitude, form.longitude]);
 
     const fetchTax = async () => {
         try {
@@ -4311,7 +4308,7 @@ const UpdateOutlet = () => {
                             value={form.city}
                             onChange={(e) => setForm({ ...form, city: e.target.value })}
                         >
-                            <option value="">Pilih Kota</option>
+                            <option value="">Pilih</option>
                             {sortedCityCoordinates.map((city) => (
                                 <option key={city.id} value={city.city}>{city.city}</option>
                             ))}
@@ -4322,7 +4319,7 @@ const UpdateOutlet = () => {
                         <>
                             <div className="flex">
                                 <label className="w-[140px] block mb-2 text-sm after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Tandai Lokasi</label>
-                                <div className="flex-1">
+                                <div className="flex-1 space-y-3">
                                     <MapContainer center={mapPosition} zoom={13} className="w-full h-64 rounded" scrollWheelZoom>
                                         <TileLayer
                                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -4330,9 +4327,73 @@ const UpdateOutlet = () => {
                                         <MapUpdater position={mapPosition} />
                                         <LocationMarker position={mapPosition} setPosition={setMapPosition} />
                                     </MapContainer>
-                                    <input type="hidden" name="latitude" value={form.latitude} />
-                                    <input type="hidden" name="longitude" value={form.longitude} />
-                                    <p className="text-sm mt-2 text-gray-500">Lat: {mapPosition.lat.toFixed(6)}, Lng: {mapPosition.lng.toFixed(6)}</p>
+                                    <div className="space-y-6">
+
+                                        {/* Alamat Pinpoint */}
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-semibold">Alamat (Berdasarkan pinpoint)</p>
+
+                                            {!isEditing ? (
+                                                <p id="detail-address" className="text-sm">{form.address}</p>
+                                            ) : (
+                                                <textarea
+                                                    value={tempAddress}
+                                                    onChange={(e) => setTempAddress(e.target.value)}
+                                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-0 focus:ring-[#005429] focus:border-[#005429]"
+                                                    rows={3}
+                                                    placeholder="Tulis alamat..."
+                                                />
+                                            )}
+
+                                            <input type="hidden" name="address" value={form.address} />
+                                            <label className="text-red-500 text-xs hidden"></label>
+
+                                            {/* Tombol Edit / Simpan */}
+                                            <div className="text-sm text-blue-600 space-x-2">
+                                                {!isEditing ? (
+                                                    <span
+                                                        onClick={() => setIsEditing(true)}
+                                                        className="cursor-pointer text-[#005429]"
+                                                    >
+                                                        Edit Alamat
+                                                    </span>
+                                                ) : (
+                                                    <span
+                                                        onClick={() => {
+                                                            setForm((prev) => ({ ...prev, address: tempAddress }));
+                                                            setIsEditing(false);
+                                                        }}
+                                                        className="cursor-pointer text-[#005429]"
+                                                    >
+                                                        Simpan
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Latitude */}
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-semibold">Latitude (Berdasarkan pinpoint)</p>
+                                            <p id="detail-latitude" className="text-sm">{mapPosition.lat.toFixed(6)}</p>
+                                            <input
+                                                type="hidden"
+                                                name="latitude"
+                                                value={form.latitude}
+                                            />
+                                        </div>
+
+                                        {/* Longitude */}
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-semibold">Longitude (Berdasarkan pinpoint)</p>
+                                            <p id="detail-longitude" className="text-sm">{mapPosition.lng.toFixed(6)}</p>
+                                            <input
+                                                type="hidden"
+                                                name="longitude"
+                                                value={form.longitude}
+                                            />
+                                        </div>
+
+                                    </div>
                                 </div>
                             </div>
                         </>

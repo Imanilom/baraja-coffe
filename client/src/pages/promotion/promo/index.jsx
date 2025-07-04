@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FaCut, FaBell, FaUser, FaChevronRight } from "react-icons/fa";
+import { FaCut, FaBell, FaUser, FaChevronRight, FaSearch } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import axios from "axios";
+import PromoTable from "./promotable";
 
 const PromoList = () => {
   const [promos, setPromos] = useState([]);
+  const [tempSearch, setTempSearch] = useState("");
   const [filteredPromos, setFilteredPromos] = useState([]);
   const [filters, setFilters] = useState({
     date: {
@@ -46,7 +48,6 @@ const PromoList = () => {
       date: value, // { startDate, endDate }
     }));
   };
-
 
   useEffect(() => {
     let filtered = promos;
@@ -99,7 +100,7 @@ const PromoList = () => {
   }
 
   return (
-    <div className="max-w-8xl mx-auto">
+    <div className="max-w-8xl mx-auto mb-[60px]">
       {/* Header */}
       <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
         <FaBell size={23} className="text-gray-400" />
@@ -110,22 +111,27 @@ const PromoList = () => {
       </div>
 
       {/* Breadcrumb */}
-      <div className="px-3 py-2 flex justify-between items-center border-b">
+      <div className="px-3 py-3 flex justify-between items-center border-b">
         <div className="flex items-center space-x-2">
           <FaCut size={21} className="text-gray-500 inline-block" />
-          <p className="text-[15px] text-gray-500">Promo</p>
+          <Link to="/admin/promotion" className="text-[15px] text-gray-500">Promo</Link>
           <FaChevronRight className="text-[15px] text-gray-500" />
           <Link to="/admin/promo-khusus" className="text-[15px] text-gray-500">Promo Khusus</Link>
         </div>
-        <Link
-          to="/admin/promo-khusus-create"
-          className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
-        >
-          Tambah Promo
-        </Link>
+      </div>
+      <div className="px-[15px] pt-[15px]">
+        <div className="flex justify-between items-center py-[10px] px-[15px]">
+          <h3 className="text-gray-500 font-semibold">3 Promo</h3>
+          <Link
+            to="/admin/promo-khusus-create"
+            className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+          >
+            Tambah Promo
+          </Link>
+        </div>
       </div>
       <div className="px-[15px] pb-[15px]">
-        <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-3 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+        <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-2 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
           {/* <input
             type="date"
             name="date"
@@ -133,7 +139,7 @@ const PromoList = () => {
             onChange={handleFilterChange}
             className="p-2 border rounded w-full"
           /> */}
-          <div className="relative">
+          {/* <div className="relative">
             <label className="text-[13px] mb-1 text-gray-500">Tanggal :</label>
             <Datepicker
               showFooter
@@ -165,6 +171,19 @@ const PromoList = () => {
                 );
               })}
             </select>
+          </div> */}
+          <div className="relative">
+            <label className="text-[13px] mb-1 text-gray-500">Cari Promo</label>
+            <div className="relative">
+              <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Promo"
+                value={tempSearch}
+                onChange={(e) => setTempSearch(e.target.value)}
+                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+              />
+            </div>
           </div>
           <div className="relative">
             <label className="text-[13px] mb-1 text-gray-500">Status :</label>
@@ -181,62 +200,13 @@ const PromoList = () => {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 py-[10px] px-[15px]">
-        {filteredPromos.map((promo) => (
-          <div
-            key={promo._id}
-            className="flex bg-green-50 border border-green-700 rounded-xl shadow-md overflow-hidden mb-6 max-w-3xl w-full"
-          >
-            {/* Kiri: Informasi Promo */}
-            <div className="w-3/4 p-5 bg-green-50 flex flex-col justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-1">{promo.name}</h3>
-                <p className="text-sm text-gray-600">
-                  Customer Type: <span className="font-medium">{promo.customerType}</span>
-                </p>
-                <p className="text-sm text-gray-600">
-                  Valid:{" "}
-                  {new Date(promo.validFrom).toLocaleDateString("id-ID")} –{" "}
-                  {new Date(promo.validTo).toLocaleDateString("id-ID")}
-                </p>
-              </div>
-              <div className="mt-3 flex items-center justify-between">
-                <span
-                  className={`inline-block text-xs font-semibold px-3 py-1 rounded-full ${promo.isActive
-                    ? "bg-green-100 text-green-800"
-                    : "bg-red-100 text-red-700"
-                    }`}
-                >
-                  {promo.isActive ? "Active" : "Inactive"}
-                </span>
-                <a
-                  href={`#`}
-                  className="text-xs text-green-800 hover:underline font-medium"
-                >
-                  Edit
-                </a>
-              </div>
-            </div>
+      <div className="py-[10px] px-[15px]">
+        <PromoTable filteredPromos={filteredPromos} refreshPromos={fetchPromos} />
+      </div>
 
-            {/* Kanan: Diskon */}
-            <div className="w-1/4 relative bg-green-800 text-white flex items-center justify-center">
-              {/* Efek Sobekan Atas dan Bawah */}
-              <div className="absolute top-0 left-0 w-5 h-5 bg-green-50 rounded-br-full"></div>
-              <div className="absolute bottom-0 left-0 w-5 h-5 bg-green-50 rounded-tr-full"></div>
-
-              <div className="text-center px-3 py-6">
-                <p className="text-sm font-light">Discount</p>
-                <h2 className="text-3xl font-extrabold leading-tight">
-                  {promo.discountAmount}
-                  <span className="text-xl ml-1">
-                    {promo.discountType === "percentage" ? "%" : "USD"}
-                  </span>
-                </h2>
-              </div>
-            </div>
-          </div>
-
-        ))}
+      <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
+        <div className="w-full h-[2px] bg-[#005429]">
+        </div>
       </div>
     </div>
   );

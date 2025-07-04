@@ -127,7 +127,7 @@ const RunningAutoPromos = () => {
       <div className="px-3 py-2 flex justify-between items-center border-b">
         <div className="flex items-center space-x-2">
           <FaCut size={21} className="text-gray-500 inline-block" />
-          <p className="text-[15px] text-gray-500">Promo</p>
+          <Link to="/admin/promotion" className="text-[15px] text-gray-500">Promo</Link>
           <FaChevronRight className="text-[15px] text-gray-500" />
           <Link to="/admin/promo-khusus" className="text-[15px] text-gray-500">Promo Otomatis</Link>
         </div>

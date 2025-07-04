@@ -319,7 +319,7 @@ const OutStockManagement = () => {
                 </div>
                 <div className="flex items-center space-x-2">
                     <button onClick={() => setShowModal(true)} className="text-[#005429] bg-white border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Impor Stok Keluar</button>
-                    <Link to="/admin/inventory/create-outstock" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Stok Keluar</Link>
+                    <Link to="/admin/inventory/outstock-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Stok Keluar</Link>
                 </div>
             </div>
 
