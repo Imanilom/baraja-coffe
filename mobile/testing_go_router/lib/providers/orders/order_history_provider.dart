@@ -20,16 +20,14 @@ class OrderHistoryNotifier extends AsyncNotifier<List<OrderDetailModel>> {
   @override
   Future<List<OrderDetailModel>> build() async {
     // _repository = ref.read(orderHistoryRepositoryProvider);
-    final cashierId = ref.read(authCashierProvider).value?.id ?? '';
-    return await _repository.fetchOrderHistory(cashierId);
+    // final cashierId = ref.read(authCashierProvider).value?.id ?? '';
+    return await _repository.fetchOrderHistory();
   }
 
   Future<void> refreshHistory() async {
     final cashierId = ref.read(authCashierProvider).value?.id ?? '';
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
-      () => _repository.fetchOrderHistory(cashierId),
-    );
+    state = await AsyncValue.guard(() => _repository.fetchOrderHistory());
   }
 }
 

@@ -17,6 +17,12 @@ const redisConnection = new Redis({
   host: '127.0.0.1',
   port: 6379
 });
+// const redisConnection = new Redis({
+//   host: 'redis',
+//   port: 6379
+// });
+
+
 
 // Queue untuk pembayaran reservasi
 export const reservationPaymentQueue = new Bull('reservationPaymentQueue', {

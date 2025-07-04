@@ -6,3 +6,9 @@ node_modules
 
 # Ignore environment file jika tidak perlu di-build ke container
 .env
+
+node_modules
+**/node_modules
+.git
+.DS_Store
+*.log
