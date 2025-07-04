@@ -18,6 +18,7 @@ final onlineOrderProvider = FutureProvider.autoDispose<List<OrderDetailModel>>((
     final user = await HiveService.getUser();
     final cashier = await HiveService.getCashier();
     print('User outletId and cashierId: ${user?.outletId} and ${cashier?.id}');
+
     return onlineOrderRepo.fetchPendingOrders(user!.outletId!);
   } on DioException catch (e) {
     print('DioException: ${e.message}');
