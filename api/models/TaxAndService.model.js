@@ -30,18 +30,12 @@ const TaxAndServiceSchema = new mongoose.Schema({
       ref: 'Outlet',
     }
   ],
-  appliesToMenuItems: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'MenuItem',
-    }
-  ],
-  appliesToCustomerTypes: [
-    {
-      type: String,
-      enum: ['bronze', 'silver', 'gold', 'platinum', 'vip'],
-    }
-  ],
+  // appliesToCustomerTypes: [
+  //   {
+  //     type: mongoose.Schema.Types.ObjectId,
+  //     ref: 'LoyaltyLevel',
+  //   }
+  // ],
   isActive: {
     type: Boolean,
     default: true,

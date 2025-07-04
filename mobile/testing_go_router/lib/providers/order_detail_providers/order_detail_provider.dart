@@ -34,7 +34,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     if (state != null) {
       print('Menghitung total harga...');
       final subTotalPrice = state!.items.fold(
-        0.0,
+        0,
         (sum, item) => sum + item.calculateSubTotalPrice(),
       );
       state = state!.copyWith(subTotalPrice: subTotalPrice);
@@ -46,8 +46,9 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     if (state != null) {
       print('Menghitung pajak...');
       final tax = state!.items.fold(
-        0.0,
-        (sum, item) => sum + item.calculateSubTotalPrice() * 0.1, // 10% tax
+        0,
+        (sum, item) =>
+            sum + (item.calculateSubTotalPrice() * 0.1).toInt(), // 10% tax
       );
       state = state!.copyWith(tax: tax);
       print('Tax: $tax');
