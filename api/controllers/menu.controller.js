@@ -367,7 +367,8 @@ export const updateMenuItem = async (req, res) => {
       imageURL,
       toppings,
       addons,
-      availableAt
+      availableAt,
+      workstation
     } = req.body;
 
     if (!category) {
@@ -397,7 +398,8 @@ export const updateMenuItem = async (req, res) => {
         imageURL,
         toppings,
         addons,
-        availableAt
+        availableAt,
+        workstation: workstation || 'bar' // Default to 'kitchen' if not provided
       },
       { new: true }
     )
