@@ -253,7 +253,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'login-cashier',
         pageBuilder:
             (context, state) => CustomTransitionPage(
-              child: const LoginCashierScreen(),
+              child: const ModernLoginCashierScreen(),
               transitionsBuilder: (
                 context,
                 animation,
