@@ -47,13 +47,17 @@ export default function SignIn() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-beige px-4">
-      <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-xl border border-army/20 transform transition-all hover:scale-[1.01]">
+    <div className="min-h-screen flex justify-end bg-army">
+      <div className="w-full max-w-xs px-6 bg-white shadow-xl border border-army/20 transform transition-all h-screen">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-army mb-2">Baraja Coffee</h1>
-          <p className="text-xl text-army/80">Welcome back</p>
+          <img
+            src="https://s3.ap-southeast-1.amazonaws.com/new.newpawoon/receipt_images/IMG_479013_1750394198_200.png"
+            alt="Logo"
+            className="mx-auto max-w-xs"
+          />
+          <p className="text-xl text-army/80">Selamat Datang Kembali</p>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
             <label htmlFor="identifier" className="block text-sm font-medium text-army/80">Username or Email</label>
@@ -61,26 +65,26 @@ export default function SignIn() {
               type="text"
               id="identifier"
               onChange={handleChange}
-              className="w-full px-4 py-3 rounded-lg bg-beige border border-army/30 focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
+              className="w-full px-4 py-2 rounded-lg bg-beige border border-army/30 focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
               placeholder="Your username or email"
             />
           </div>
-          
+
           <div className="space-y-2">
             <label htmlFor="password" className="block text-sm font-medium text-army/80">Password</label>
             <input
               type="password"
               id="password"
               onChange={handleChange}
-              className="w-full px-4 py-3 rounded-lg bg-beige border border-army/30 focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
+              className="w-full px-4 py-2 rounded-lg bg-beige border border-army/30 focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
               placeholder="••••••••"
             />
           </div>
-          
+
           <button
             disabled={loading}
             type="submit"
-            className="w-full bg-army text-army py-3 rounded-lg uppercase font-semibold tracking-wider hover:bg-army-dark hover:text-beige transition-all disabled:opacity-80 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+            className="w-full bg-army text-army py-2 rounded-lg uppercase font-semibold tracking-wider hover:bg-army-dark hover:text-white transition-all disabled:opacity-80 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
           >
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
@@ -96,9 +100,9 @@ export default function SignIn() {
             </div>
           </div>
           <br />
-            <div className="relative flex justify-center text-xs uppercase">
-              <OAuth />
-            </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <OAuth />
+          </div>
         </div>
 
         <p className="mt-6 text-center text-sm text-army/80">

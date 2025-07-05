@@ -181,7 +181,7 @@ export const createAppOrder = async (req, res) => {
           guest_count: reservationData.guestCount,
           order_id: newOrder._id,
           status: 'pending',
-          reservation_type: reservationType || 'non-blocking', // Default to non-blocking
+          reservation_type: reservationType || 'nonBlocking', // Default to non-blocking
           notes: reservationData.notes || ''
         });
 
@@ -1205,7 +1205,7 @@ export const getAllOrders = async (req, res) => {
 // Mengambil order yang pending
 export const getPendingOrders = async (req, res) => {
   try {
-    const { rawOutletId  } = req.params;
+    const { rawOutletId } = req.params;
     if (!rawOutletId) {
       return res.status(400).json({ message: 'outletId is required' });
     }
@@ -1426,6 +1426,97 @@ export const getUserOrderHistory = async (req, res) => {
   }
 };
 
+// export const getOrderById = async (req, res) => {
+//   try {
+//     const orderId = req.params.orderId;
+//     if (!orderId) {
+//       return res.status(400).json({ message: 'Order ID is required.' });
+//     }
+//     console.log('Fetching order with ID:', orderId);
+
+//     // Mencari pesanan berdasarkan ID
+//     const order = await Order.findById(orderId)
+//       .populate('items.menuItem')
+//     // .populate('voucher');
+//     // console.log('Order:', order);
+
+
+//     const payment = await Payment.findOne({ order_id: orderId });
+//     console.log('Payment:', payment);
+//     console.log('Order:', orderId);
+
+//     // Verify user exists
+//     const userExists = await User.findById(order.user_id);
+//     if (!userExists) {
+//       return res.status(404).json({ success: false, message: 'User not found' });
+//     }
+
+//     console.log('User:', userExists);
+//     if (!order) {
+//       return res.status(404).json({ message: 'Order not found.' });
+//     }
+
+//     // Format tanggal
+//     const formatDate = (date) => {
+//       const options = {
+//         day: 'numeric',
+//         month: 'long',
+//         year: 'numeric',
+//         hour: '2-digit',
+//         minute: '2-digit',
+//         timeZone: 'Asia/Jakarta'
+//       };
+//       return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
+//     };
+
+//     const formattedItems = order.items.map(item => {
+//       const basePrice = item.price || item.menuItem?.price || 0;
+//       const quantity = item.quantity || 1;
+
+//       return {
+//         menuItemId: item.menuItem?._id || item.menuItem || item._id,
+//         name: item.menuItem?.name || item.name || 'Unknown Item',
+//         price: basePrice,
+//         quantity: quantity,
+//         addons: item.addons || [],
+//         toppings: item.toppings || [],
+//         notes: item.notes,
+//       };
+//     });
+
+
+//     // Generate order number dari order_id atau _id
+//     const generateOrderNumber = (orderId) => {
+//       if (typeof orderId === 'string' && orderId.includes('ORD-')) {
+//         // Extract number dari format ORD-2024-001234
+//         const parts = orderId.split('-');
+//         return parts.length > 2 ? `#${parts[parts.length - 1]}` : `#${orderId.slice(-4)}`;
+//       }
+//       // Jika menggunakan MongoDB ObjectId, ambil 4 digit terakhir
+//       return `#${orderId.toString().slice(-4)}`;
+//     };
+//     // console.log(payment);
+
+//     const orderData = {
+//       _id: order._id.toString(),
+//       orderId: order.order_id || order._id.toString(),
+//       orderNumber: generateOrderNumber(order.order_id || order._id),
+//       orderDate: formatDate(order.createdAt),
+//       items: formattedItems,
+//       total: payment.amount,
+//       orderStatus: order.status,
+//       paymentMethod: (payment.bank || payment.method).toUpperCase(),
+//       paymentStatus: payment.status
+//     };
+//     console.log('Order Data:', orderData);
+
+//     res.status(200).json({ orderData });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Internal server error.' });
+//   }
+// };
+
 export const getOrderById = async (req, res) => {
   try {
     const orderId = req.params.orderId;
@@ -1436,14 +1527,18 @@ export const getOrderById = async (req, res) => {
 
     // Mencari pesanan berdasarkan ID
     const order = await Order.findById(orderId)
-      .populate('items.menuItem')
-    // .populate('voucher');
-    // console.log('Order:', order);
-
+      .populate('items.menuItem');
 
     const payment = await Payment.findOne({ order_id: orderId });
+
+    // Mencari reservasi berdasarkan order_id
+    const reservation = await Reservation.findOne({ order_id: orderId })
+      .populate('area_id')
+      .populate('table_id');
+
     console.log('Payment:', payment);
     console.log('Order:', orderId);
+    console.log('Reservation:', reservation);
 
     // Verify user exists
     const userExists = await User.findById(order.user_id);
@@ -1469,6 +1564,17 @@ export const getOrderById = async (req, res) => {
       return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
     };
 
+    // Format tanggal untuk reservasi (tanpa jam)
+    const formatReservationDate = (dateString) => {
+      const options = {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta'
+      };
+      return new Intl.DateTimeFormat('id-ID', options).format(new Date(dateString));
+    };
+
     const formattedItems = order.items.map(item => {
       const basePrice = item.price || item.menuItem?.price || 0;
       const quantity = item.quantity || 1;
@@ -1484,7 +1590,6 @@ export const getOrderById = async (req, res) => {
       };
     });
 
-
     // Generate order number dari order_id atau _id
     const generateOrderNumber = (orderId) => {
       if (typeof orderId === 'string' && orderId.includes('ORD-')) {
@@ -1495,7 +1600,37 @@ export const getOrderById = async (req, res) => {
       // Jika menggunakan MongoDB ObjectId, ambil 4 digit terakhir
       return `#${orderId.toString().slice(-4)}`;
     };
-    // console.log(payment);
+
+    // Prepare reservation data jika ada
+    let reservationData = null;
+    if (reservation) {
+      reservationData = {
+        _id: reservation._id.toString(),
+        reservationCode: reservation.reservation_code,
+        reservationDate: formatReservationDate(reservation.reservation_date),
+        reservationTime: reservation.reservation_time,
+        guestCount: reservation.guest_count,
+        status: reservation.status,
+        reservationType: reservation.reservation_type,
+        notes: reservation.notes,
+        area: {
+          _id: reservation.area_id?._id,
+          name: reservation.area_id?.area_name || 'Unknown Area'
+        },
+        // PERBAIKAN: Pastikan tables di-map dengan benar
+        tables: Array.isArray(reservation.table_id) ? reservation.table_id.map(table => ({
+          _id: table._id.toString(),
+          tableNumber: table.table_number || 'Unknown Table',
+          seats: table.seats,
+          tableType: table.table_type,
+          isAvailable: table.is_available,
+          isActive: table.is_active
+        })) : []
+      };
+
+      // DEBUGGING: Log tables secara detail
+      console.log('Tables detail:', JSON.stringify(reservationData.tables, null, 2));
+    }
 
     const orderData = {
       _id: order._id.toString(),
@@ -1505,10 +1640,13 @@ export const getOrderById = async (req, res) => {
       items: formattedItems,
       total: payment.amount,
       orderStatus: order.status,
-      paymentMethod: payment.bank.toUpperCase(),
-      paymentStatus: payment.status
+      paymentMethod: (payment.bank || payment.method).toUpperCase(),
+      paymentStatus: payment.status,
+      reservation: reservationData
     };
-    console.log('Order Data:', orderData);
+
+    // DEBUGGING: Log order data dengan format yang lebih readable
+    console.log('Order Data:', JSON.stringify(orderData, null, 2));
 
     res.status(200).json({ orderData });
   } catch (error) {

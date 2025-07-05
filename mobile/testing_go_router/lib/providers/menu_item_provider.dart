@@ -30,7 +30,7 @@ final menuItemProvider = FutureProvider<List<MenuItemModel>>((ref) async {
           ? menuItems
           : menuItems
               .where(
-                (menuItem) => (menuItem.categories ?? []).contains(category),
+                (menuItem) => (menuItem.category)!.contains(category),
               ) // amanin null
               .toList();
 

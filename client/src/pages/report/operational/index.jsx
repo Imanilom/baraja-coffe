@@ -31,7 +31,7 @@ const OperationalMenu = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {/* Rekap Kas */}
                     <Link
-                        to="/admin/reconciliation"
+                        to="/admin/operational/reconciliation"
                         className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
                     >
                         <div className="flex items-center space-x-2">
@@ -42,7 +42,7 @@ const OperationalMenu = () => {
 
                     {/* Stok */}
                     <Link
-                        to="/admin/stock"
+                        to="/admin/operational/stock"
                         className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
                     >
                         <div className="flex items-center space-x-2">
@@ -53,7 +53,7 @@ const OperationalMenu = () => {
 
                     {/* Absensi */}
                     <Link
-                        to="/admin/user-attendances"
+                        to="/admin/operational/user-attendances"
                         className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
                     >
                         <div className="flex items-center space-x-2">
@@ -64,7 +64,7 @@ const OperationalMenu = () => {
 
                     {/* Cicilan */}
                     <Link
-                        to="/admin/installment"
+                        to="/admin/operational/installment"
                         className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
                     >
                         <div className="flex items-center space-x-2">
@@ -75,7 +75,7 @@ const OperationalMenu = () => {
 
                     {/* Pengeluaran */}
                     <Link
-                        to="/admin/expenditure"
+                        to="/admin/operational/expenditure"
                         className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
                     >
                         <div className="flex items-center space-x-2">
@@ -86,7 +86,7 @@ const OperationalMenu = () => {
 
                     {/* Komisi */}
                     <Link
-                        to="/admin/commission"
+                        to="/admin/operational/commission"
                         className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
                     >
                         <div className="flex items-center space-x-2">
@@ -97,7 +97,7 @@ const OperationalMenu = () => {
 
                     {/* Laporan Meja */}
                     <Link
-                        to="/admin/table"
+                        to="/admin/operational/table"
                         className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
                     >
                         <div className="flex items-center space-x-2">

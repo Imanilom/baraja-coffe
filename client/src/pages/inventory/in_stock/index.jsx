@@ -328,7 +328,7 @@ const InStockManagement = () => {
                 </div>
                 <div className="flex items-center space-x-2">
                     <button onClick={() => setShowModal(true)} className="text-[#005429] bg-white border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Impor Stok Masuk</button>
-                    <Link to="/admin/inventory/create-instock" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Stok Masuk</Link>
+                    <Link to="/admin/inventory/instock-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Stok Masuk</Link>
                 </div>
             </div>
 

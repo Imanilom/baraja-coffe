@@ -541,7 +541,7 @@ const StockCardManagement = () => {
                                                 </div>
                                             </td>
                                             <td className="p-[15px]">
-                                                {item.category.join(", ")}
+                                                {Array.isArray(item.category) ? item.category.join(", ") : "-"}
                                             </td>
                                             <td className="p-[15px] text-right">-</td>
                                             <td className="p-[15px] text-right">-</td>

@@ -23,7 +23,7 @@ class PaymentMethodScreen extends ConsumerWidget {
     // Daftar metode pembayaran
     final paymentMethods = [
       PaymentMethod(id: 'Cash', name: 'Tunai', type: 'Cash'),
-      // PaymentMethod(id: 'edc', name: 'EDC', type: 'edc'),
+      PaymentMethod(id: 'edc', name: 'EDC', type: 'edc'),
     ];
 
     // Daftar bank untuk EDC
@@ -35,137 +35,209 @@ class PaymentMethodScreen extends ConsumerWidget {
 
     // Daftar nominal uang untuk tunai
     final cashSuggestions = _getCashSuggestions(total!.toInt());
-    print('Cash suggestions: $cashSuggestions');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Pilih Pembayaran')),
-      // body: SingleChildScrollView(
-      //   physics: const BouncingScrollPhysics(),
-      //   child: Column(
-      //     mainAxisSize: MainAxisSize.min,
-      //     children: [
-      //       // Bagian Total Tagihan
-      //       const Text('Total Tagihan'),
-      //       const SizedBox(height: 10),
-      //       Container(
-      //         width: double.infinity,
-      //         padding: const EdgeInsets.all(16),
-      //         decoration: BoxDecoration(
-      //           color: const Color.fromARGB(255, 236, 236, 236),
-      //           borderRadius: BorderRadius.circular(8),
-      //         ),
-      //         child: Center(
-      //           child: Text(
-      //             formatRupiah(total.toInt()),
-      //             style: const TextStyle(
-      //               fontSize: 32,
-      //               fontWeight: FontWeight.bold,
-      //             ),
-      //           ),
-      //         ),
-      //       ),
-      //       const SizedBox(height: 16),
-
-      //       // Pilihan Metode Pembayaran
-      //       _buildMethodSelection(notifier, paymentMethods, state),
-
-      //       // Konten Dinamis (Tunai/EDC)
-      //       if (state.selectedMethod != null)
-      //         Expanded(
-      //           child: SingleChildScrollView(
-      //             physics: const BouncingScrollPhysics(),
-      //             child:
-      //                 state.selectedMethod!.type == 'Cash'
-      //                     ? _buildCashPayment(cashSuggestions, notifier, state)
-      //                     : _buildEDCPayment(banks, notifier, state),
-      //           ),
-      //         ),
-
-      //       // Tombol Lanjut Pembayaran
-      //       if (state.selectedMethod != null &&
-      //           ((state.selectedMethod!.type == 'Cash' &&
-      //                   state.selectedCashAmount != null) ||
-      //               (state.selectedMethod!.type == 'edc' &&
-      //                   state.selectedBankId != null)))
-      //         Padding(
-      //           padding: const EdgeInsets.only(top: 16, bottom: 8),
-      //           child: SizedBox(
-      //             width: double.infinity,
-      //             child: ElevatedButton(
-      //               style: ElevatedButton.styleFrom(
-      //                 padding: const EdgeInsets.symmetric(vertical: 16),
-      //               ),
-      //               onPressed: () => _processPayment(context, ref),
-      //               child: const Text('LANJUT PEMBAYARAN'),
-      //             ),
-      //           ),
-      //         ),
-      //     ],
-      //   ),
-      // ),
-      body: Container(
-        width: double.infinity,
-        color: Colors.white,
+      backgroundColor: const Color(0xFFF8F9FA),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.white,
+        toolbarHeight: 70,
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.arrow_back_ios_new,
+              color: Colors.black87,
+              size: 20,
+            ),
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Metode Pembayaran',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.w600,
+            fontSize: 24,
+          ),
+        ),
+        centerTitle: false,
+      ),
+      body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            // Bagian Total Tagihan
-            const Text('Total Tagihan'),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 236, 236, 236),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  formatRupiah(total.toInt()),
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
+            // Panel Kiri - Total & Metode Pembayaran
+            Expanded(
+              flex: 2,
+              child: Column(
+                children: [
+                  // Header dengan total tagihan
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF667EEA).withOpacity(0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Total Tagihan',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          formatRupiah(total.toInt()),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+
+                  const SizedBox(height: 16),
+
+                  // Pilihan Metode Pembayaran - Scrollable
+                  Expanded(
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: _buildMethodSelection(
+                        notifier,
+                        paymentMethods,
+                        state,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Tombol Lanjut Pembayaran
+                  if (state.selectedMethod != null &&
+                      ((state.selectedMethod!.type == 'Cash' &&
+                              state.selectedCashAmount != null) ||
+                          (state.selectedMethod!.type == 'edc' &&
+                              state.selectedBankId != null)))
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF667EEA),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                          shadowColor: Colors.transparent,
+                        ),
+                        onPressed: () => _processPayment(context, ref),
+                        child: const Text(
+                          'LANJUT PEMBAYARAN',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
 
-            // Pilihan Metode Pembayaran
-            _buildMethodSelection(notifier, paymentMethods, state),
+            const SizedBox(width: 20),
 
-            // Konten Dinamis (Tunai/EDC)
-            if (state.selectedMethod != null)
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child:
-                      state.selectedMethod!.type == 'Cash'
-                          ? _buildCashPayment(cashSuggestions, notifier, state)
-                          : _buildEDCPayment(banks, notifier, state),
-                ),
-              ),
-
-            // Tombol Lanjut Pembayaran
-            if (state.selectedMethod != null &&
-                ((state.selectedMethod!.type == 'Cash' &&
-                        state.selectedCashAmount != null) ||
-                    (state.selectedMethod!.type == 'edc' &&
-                        state.selectedBankId != null)))
-              Padding(
-                padding: const EdgeInsets.only(top: 16, bottom: 8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+            // Panel Kanan - Pilihan Tunai/EDC
+            Expanded(
+              flex: 3,
+              child: Container(
+                height: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
                     ),
-                    onPressed: () => _processPayment(context, ref),
-                    child: const Text('LANJUT PEMBAYARAN'),
-                  ),
+                  ],
                 ),
+                child:
+                    state.selectedMethod != null
+                        ? SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child:
+                              state.selectedMethod!.type == 'Cash'
+                                  ? _buildCashPayment(
+                                    cashSuggestions,
+                                    notifier,
+                                    ref,
+                                    total.toInt(),
+                                  )
+                                  : _buildEDCPayment(banks, notifier, state),
+                        )
+                        : Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.payment,
+                                size: 80,
+                                color: Colors.grey.shade300,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Pilih metode pembayaran\nterlebih dahulu',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey.shade500,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
               ),
+            ),
           ],
         ),
       ),
@@ -183,23 +255,17 @@ class PaymentMethodScreen extends ConsumerWidget {
             _roundUpToNearest(totalAmount, 20000),
             _roundUpToNearest(totalAmount, 50000),
             _roundUpToNearest(totalAmount, 100000),
-            // 20000,
-            // 50000,
-            // 100000,
           }.toList()
           ..sort();
 
-    return suggestions.take(4).toList(); // Limit to 6 suggestions
+    return suggestions.take(8).toList(); // Lebih banyak untuk landscape
   }
 
-  /// Round up to the nearest multiple of [nearest].
-  /// For example, if [number] is 1234 and [nearest] is 1000,
-  /// the result will be 2000.
   int _roundUpToNearest(int number, int nearest) {
     if (nearest <= 0) {
       throw ArgumentError('Nearest must be greater than zero.');
     }
-    return ((number + nearest - 1) ~/ nearest) * nearest; // Round up
+    return ((number + nearest - 1) ~/ nearest) * nearest;
   }
 
   Widget _buildMethodSelection(
@@ -207,104 +273,188 @@ class PaymentMethodScreen extends ConsumerWidget {
     List<PaymentMethod> methods,
     PaymentState state,
   ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Metode Pembayaran', style: TextStyle(fontSize: 16)),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Pilih Metode Pembayaran',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
               children:
                   methods.map((method) {
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(method.name),
-                        ),
-                        selected: state.selectedMethod?.id == method.id,
-                        onSelected: (_) {
+                    final isSelected = state.selectedMethod?.id == method.id;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: GestureDetector(
+                        onTap: () {
                           notifier.clearSelection();
                           notifier.selectMethod(method);
                         },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color:
+                                isSelected
+                                    ? const Color(0xFF667EEA)
+                                    : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color:
+                                  isSelected
+                                      ? const Color(0xFF667EEA)
+                                      : Colors.grey.shade200,
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _getMethodIcon(method.type),
+                                color:
+                                    isSelected
+                                        ? Colors.white
+                                        : Colors.grey.shade600,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  method.name,
+                                  style: TextStyle(
+                                    color:
+                                        isSelected
+                                            ? Colors.white
+                                            : Colors.grey.shade700,
+                                    fontWeight:
+                                        isSelected
+                                            ? FontWeight.w600
+                                            : FontWeight.w500,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              if (isSelected)
+                                const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
                     );
                   }).toList(),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
+  }
+
+  IconData _getMethodIcon(String type) {
+    switch (type) {
+      case 'Cash':
+        return Icons.money;
+      case 'edc':
+        return Icons.credit_card;
+      case 'qris':
+        return Icons.qr_code;
+      case 'ewallet':
+        return Icons.account_balance_wallet;
+      case 'bank_transfer':
+        return Icons.account_balance;
+      default:
+        return Icons.payment;
+    }
   }
 
   Widget _buildCashPayment(
     List<int> suggestions,
     PaymentNotifier notifier,
-    PaymentState state,
+    WidgetRef ref,
+    int totalAmount,
   ) {
+    final state = ref.watch(paymentProvider);
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Pilih Jumlah Tunai', style: TextStyle(fontSize: 16)),
-        const SizedBox(height: 8),
-        GridView.count(
+        Text(
+          'Pilih Nominal Tunai',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 20),
+        GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 5,
-          childAspectRatio: 3.5, //fit
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          padding: const EdgeInsets.symmetric(vertical: 0),
-          children:
-              suggestions.map((amount) {
-                return InkWell(
-                  onTap: () => notifier.selectCashAmount(amount),
-                  child: Card(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3, // 4 kolom untuk landscape
+            childAspectRatio: 2.2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+          ),
+          itemCount: suggestions.length,
+          itemBuilder: (context, index) {
+            final amount = suggestions[index];
+            final isSelected = state.selectedCashAmount == amount;
+
+            return GestureDetector(
+              onTap: () => notifier.selectCashAmount(amount),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color:
+                      isSelected
+                          ? const Color(0xFF667EEA)
+                          : Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
                     color:
-                        state.selectedCashAmount == amount
-                            ? Colors.green
-                            : null,
-                    elevation: state.selectedCashAmount == amount ? 2 : 0,
-                    child: Center(
-                      child: Text(
-                        formatRupiah(amount),
-                        style: TextStyle(
-                          fontWeight:
-                              state.selectedCashAmount == amount
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                        ),
-                      ),
-                    ),
+                        isSelected
+                            ? const Color(0xFF667EEA)
+                            : Colors.grey.shade200,
+                    width: isSelected ? 2 : 1,
                   ),
-                );
-              }).toList(),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        amount == totalAmount
+                            ? 'Uang Pas'
+                            : formatRupiah(amount),
+                        style: TextStyle(
+                          color:
+                              isSelected ? Colors.white : Colors.grey.shade700,
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w500,
+                          fontSize: 16,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
-        // if (state.selectedCashAmount != null)
-        //   Container(
-        //     margin: const EdgeInsets.only(top: 16),
-        //     padding: const EdgeInsets.all(16),
-        //     decoration: BoxDecoration(
-        //       color: Colors.grey[100],
-        //       borderRadius: BorderRadius.circular(8),
-        //     ),
-        //     child: Row(
-        //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        //       children: [
-        //         const Text('Kembalian:', style: TextStyle(fontSize: 16)),
-        //         Text(
-        //           formatRupiah(state.change),
-        //           style: const TextStyle(
-        //             fontSize: 18,
-        //             fontWeight: FontWeight.bold,
-        //           ),
-        //         ),
-        //       ],
-        //     ),
-        //   ),
       ],
     );
   }
@@ -315,56 +465,75 @@ class PaymentMethodScreen extends ConsumerWidget {
     PaymentState state,
   ) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: Text('Pilih Bank', style: TextStyle(fontSize: 16)),
+        const Text(
+          'Pilih Bank',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
         ),
-        GridView.count(
+        const SizedBox(height: 20),
+        GridView.builder(
+          shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 3,
-          childAspectRatio: 3.5, //fit
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          children:
-              banks.map((bank) {
-                return InkWell(
-                  onTap: () => notifier.selectBank(bank.id),
-                  child: Card(
-                    color: state.selectedBankId == bank.id ? Colors.blue : null,
-                    elevation: state.selectedBankId == bank.id ? 2 : 0,
-                    child: Center(
-                      child: Text(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3, // 3 kolom untuk bank
+            childAspectRatio: 2.5,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+          ),
+          itemCount: banks.length,
+          itemBuilder: (context, index) {
+            final bank = banks[index];
+            final isSelected = state.selectedBankId == bank.id;
+
+            return GestureDetector(
+              onTap: () => notifier.selectBank(bank.id),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color:
+                      isSelected
+                          ? const Color(0xFF667EEA)
+                          : Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color:
+                        isSelected
+                            ? const Color(0xFF667EEA)
+                            : Colors.grey.shade200,
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.account_balance,
+                        color: isSelected ? Colors.white : Colors.grey.shade600,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
                         bank.name,
                         style: TextStyle(
+                          color:
+                              isSelected ? Colors.white : Colors.grey.shade700,
                           fontWeight:
-                              state.selectedBankId == bank.id
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
+                              isSelected ? FontWeight.w600 : FontWeight.w500,
+                          fontSize: 16,
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                );
-                // return GestureDetector(
-                //   onTap: () => notifier.selectBank(bank.id),
-                //   child: Card(
-                //     margin: const EdgeInsets.all(8),
-                //     elevation: state.selectedBankId == bank.id ? 2 : 0,
-                //     color: state.selectedBankId == bank.id ? Colors.blue : null,
-                //     child: Column(
-                //       mainAxisAlignment: MainAxisAlignment.center,
-                //       children: [
-                //         // if (bank.logoUrl != null)
-                //         //   Image.network(bank.logoUrl!, height: 40),
-                //         const SizedBox(height: 8),
-                //         Text(bank.name, style: const TextStyle(fontSize: 12)),
-                //       ],
-                //     ),
-                //   ),
-                // );
-              }).toList(),
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -373,26 +542,26 @@ class PaymentMethodScreen extends ConsumerWidget {
   void _processPayment(BuildContext context, WidgetRef ref) async {
     final state = ref.read(paymentProvider);
     final orderDetail = ref.watch(orderDetailProvider.notifier);
-    // final cashierId = ref.watch(authCashierProvider).value?.id ?? '';
 
-    // Proses pembayaran
     if (state.selectedMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Silakan pilih metode pembayaran!')),
+        SnackBar(
+          content: const Text('Silakan pilih metode pembayaran!'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
       );
       return;
     }
 
-    // Simpan metode pembayaran ke orderDetailProvider
     orderDetail.updatePaymentMethod(state.selectedMethod!.type);
-
     final success = await orderDetail.submitOrder();
 
-    // Navigasi ke halaman sukses
     if (success && context.mounted) {
-      // ref.read(orderHistoryProvider.notifier).refreshHistory();
       ref.invalidate(orderHistoryProvider);
-
       context.goNamed(
         'payment-success',
         extra: {
@@ -405,322 +574,16 @@ class PaymentMethodScreen extends ConsumerWidget {
         },
       );
     } else if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Pembayaran gagal!')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Pembayaran gagal!'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
     }
   }
 }
-
-// class PaymentMethodScreens extends ConsumerWidget {
-//   const PaymentMethodScreens({super.key});
-
-//   @override
-//   Widget build(BuildContext context, WidgetRef ref) {
-//     final state = ref.watch(paymentProvider);
-//     final notifier = ref.read(paymentProvider.notifier);
-//     final orderDetail = GoRouterState.of(context).extra as OrderDetailModel;
-//     final total = orderDetail.totalPrice!;
-
-//     final paymentMethods = [
-//       PaymentMethod(id: 'Cash', name: 'Tunai', type: 'Cash'),
-//       // PaymentMethod(id: 'edc', name: 'EDC', type: 'edc'),
-//     ];
-
-//     final banks = [
-//       PaymentMethod(id: 'bca', name: 'BCA', type: 'edc'),
-//       PaymentMethod(id: 'bri', name: 'BRI', type: 'edc'),
-//       PaymentMethod(id: 'mandiri', name: 'Mandiri', type: 'edc'),
-//     ];
-
-//     final cashSuggestions = _getCashSuggestions(total.toInt());
-
-//     return Scaffold(
-//       appBar: AppBar(title: const Text('Pilih Pembayaran')),
-//       body: LayoutBuilder(
-//         builder: (context, constraints) {
-//           return SingleChildScrollView(
-//             child: ConstrainedBox(
-//               constraints: BoxConstraints(minHeight: constraints.maxHeight),
-//               child: Container(
-//                 width: double.infinity,
-//                 color: Colors.white,
-//                 padding: const EdgeInsets.all(16),
-//                 child: Column(
-//                   children: [
-//                     _buildTotalPayment(total.toInt()),
-//                     _buildMethodSelection(notifier, paymentMethods, state),
-//                     if (state.selectedMethod != null)
-//                       state.selectedMethod!.type == 'Cash'
-//                           ? _buildCashPayment(cashSuggestions, notifier, state)
-//                           : _buildEDCPayment(banks, notifier, state),
-//                     if (state.selectedMethod != null)
-//                       _buildPaymentButton(context, ref),
-//                   ],
-//                 ),
-//               ),
-//             ),
-//           );
-//         },
-//       ),
-//     );
-//   }
-
-//   Widget _buildTotalPayment(int total) {
-//     return Column(
-//       children: [
-//         const Text('Total Tagihan'),
-//         const SizedBox(height: 10),
-//         Container(
-//           width: double.infinity,
-//           padding: const EdgeInsets.all(16),
-//           decoration: BoxDecoration(
-//             color: const Color.fromARGB(255, 236, 236, 236),
-//             borderRadius: BorderRadius.circular(8),
-//           ),
-//           child: Center(
-//             child: Text(
-//               formatRupiah(total),
-//               style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-//             ),
-//           ),
-//         ),
-//         const SizedBox(height: 16),
-//       ],
-//     );
-//   }
-
-//   // ... (_getCashSuggestions dan _roundUpToNearest tetap sama)
-//   List<int> _getCashSuggestions(int totalAmount) {
-//     final suggestions =
-//         <int>{
-//             totalAmount,
-//             _roundUpToNearest(totalAmount, 1000),
-//             _roundUpToNearest(totalAmount, 2000),
-//             _roundUpToNearest(totalAmount, 5000),
-//             _roundUpToNearest(totalAmount, 10000),
-//             _roundUpToNearest(totalAmount, 20000),
-//             _roundUpToNearest(totalAmount, 50000),
-//             _roundUpToNearest(totalAmount, 100000),
-//             // 20000,
-//             // 50000,
-//             // 100000,
-//           }.toList()
-//           ..sort();
-
-//     return suggestions.take(4).toList(); // Limit to 6 suggestions
-//   }
-
-//   int _roundUpToNearest(int number, int nearest) {
-//     if (nearest <= 0) {
-//       throw ArgumentError('Nearest must be greater than zero.');
-//     }
-//     return ((number + nearest - 1) ~/ nearest) * nearest; // Round up
-//   }
-
-//   Widget _buildMethodSelection(
-//     PaymentNotifier notifier,
-//     List<PaymentMethod> methods,
-//     PaymentState state,
-//   ) {
-//     return Container(
-//       padding: const EdgeInsets.symmetric(vertical: 8),
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           const Text('Metode Pembayaran', style: TextStyle(fontSize: 16)),
-//           const SizedBox(height: 8),
-//           SizedBox(
-//             height: 50, // Fixed height untuk horizontal scroll
-//             child: ListView.separated(
-//               scrollDirection: Axis.horizontal,
-//               itemCount: methods.length,
-//               separatorBuilder: (_, __) => const SizedBox(width: 8),
-//               itemBuilder: (_, index) {
-//                 final method = methods[index];
-//                 return ChoiceChip(
-//                   label: Text(method.name),
-//                   selected: state.selectedMethod?.id == method.id,
-//                   onSelected: (_) {
-//                     notifier.clearSelection();
-//                     notifier.selectMethod(method);
-//                   },
-//                 );
-//               },
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-
-//   Widget _buildCashPayment(
-//     List<int> suggestions,
-//     PaymentNotifier notifier,
-//     PaymentState state,
-//   ) {
-//     return Column(
-//       children: [
-//         const Text('Pilih Jumlah Tunai', style: TextStyle(fontSize: 16)),
-//         const SizedBox(height: 8),
-//         GridView.count(
-//           shrinkWrap: true,
-//           physics: const NeverScrollableScrollPhysics(),
-//           crossAxisCount: 5,
-//           childAspectRatio: 3.5, //fit
-//           mainAxisSpacing: 8,
-//           crossAxisSpacing: 8,
-//           padding: const EdgeInsets.symmetric(vertical: 0),
-//           children:
-//               suggestions.map((amount) {
-//                 return InkWell(
-//                   onTap: () => notifier.selectCashAmount(amount),
-//                   child: Card(
-//                     color:
-//                         state.selectedCashAmount == amount
-//                             ? Colors.green
-//                             : null,
-//                     elevation: state.selectedCashAmount == amount ? 2 : 0,
-//                     child: Center(
-//                       child: Text(
-//                         formatRupiah(amount),
-//                         style: TextStyle(
-//                           fontWeight:
-//                               state.selectedCashAmount == amount
-//                                   ? FontWeight.bold
-//                                   : FontWeight.normal,
-//                         ),
-//                       ),
-//                     ),
-//                   ),
-//                 );
-//               }).toList(),
-//         ),
-//         if (state.selectedCashAmount != null)
-//           Container(
-//             margin: const EdgeInsets.only(top: 16),
-//             padding: const EdgeInsets.all(16),
-//             decoration: BoxDecoration(
-//               color: Colors.grey[100],
-//               borderRadius: BorderRadius.circular(8),
-//             ),
-//             child: Row(
-//               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//               children: [
-//                 const Text('Kembalian:', style: TextStyle(fontSize: 16)),
-//                 Text(
-//                   formatRupiah(state.change),
-//                   style: const TextStyle(
-//                     fontSize: 18,
-//                     fontWeight: FontWeight.bold,
-//                   ),
-//                 ),
-//               ],
-//             ),
-//           ),
-//       ],
-//     );
-//   }
-
-//   Widget _buildEDCPayment(
-//     List<PaymentMethod> banks,
-//     PaymentNotifier notifier,
-//     PaymentState state,
-//   ) {
-//     return Column(
-//       children: [
-//         const Padding(
-//           padding: EdgeInsets.symmetric(vertical: 8),
-//           child: Text('Pilih Bank', style: TextStyle(fontSize: 16)),
-//         ),
-//         GridView.count(
-//           physics: const NeverScrollableScrollPhysics(),
-//           crossAxisCount: 3,
-//           childAspectRatio: 3.5, //fit
-//           mainAxisSpacing: 8,
-//           crossAxisSpacing: 8,
-//           padding: const EdgeInsets.symmetric(vertical: 8),
-//           children:
-//               banks.map((bank) {
-//                 return InkWell(
-//                   onTap: () => notifier.selectBank(bank.id),
-//                   child: Card(
-//                     color: state.selectedBankId == bank.id ? Colors.blue : null,
-//                     elevation: state.selectedBankId == bank.id ? 2 : 0,
-//                     child: Center(
-//                       child: Text(
-//                         bank.name,
-//                         style: TextStyle(
-//                           fontWeight:
-//                               state.selectedBankId == bank.id
-//                                   ? FontWeight.bold
-//                                   : FontWeight.normal,
-//                         ),
-//                       ),
-//                     ),
-//                   ),
-//                 );
-//                 // return GestureDetector(
-//                 //   onTap: () => notifier.selectBank(bank.id),
-//                 //   child: Card(
-//                 //     margin: const EdgeInsets.all(8),
-//                 //     elevation: state.selectedBankId == bank.id ? 2 : 0,
-//                 //     color: state.selectedBankId == bank.id ? Colors.blue : null,
-//                 //     child: Column(
-//                 //       mainAxisAlignment: MainAxisAlignment.center,
-//                 //       children: [
-//                 //         // if (bank.logoUrl != null)
-//                 //         //   Image.network(bank.logoUrl!, height: 40),
-//                 //         const SizedBox(height: 8),
-//                 //         Text(bank.name, style: const TextStyle(fontSize: 12)),
-//                 //       ],
-//                 //     ),
-//                 //   ),
-//                 // );
-//               }).toList(),
-//         ),
-//       ],
-//     );
-//   }
-
-//   Widget _buildPaymentButton(BuildContext context, WidgetRef ref) {
-//     return Padding(
-//       padding: const EdgeInsets.only(top: 16, bottom: 8),
-//       child: SizedBox(
-//         width: double.infinity,
-//         child: ElevatedButton(
-//           style: ElevatedButton.styleFrom(
-//             padding: const EdgeInsets.symmetric(vertical: 16),
-//             backgroundColor: Colors.green,
-//           ),
-//           onPressed: () => _processPayment(context, ref),
-//           child: const Text(
-//             'LANJUT PEMBAYARAN',
-//             style: TextStyle(color: Colors.white),
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-
-//   // ... (_processPayment tetap sama)
-//   void _processPayment(BuildContext context, WidgetRef ref) {
-//     final state = ref.read(paymentProvider);
-
-//     // Proses pembayaran
-//     // ...
-
-//     // Navigasi ke halaman sukses
-//     context.pushNamed(
-//       'payment-success',
-//       extra: {
-//         'payment_method': state.selectedMethod!.name,
-//         'amount':
-//             state.selectedMethod!.type == 'Cash'
-//                 ? state.selectedCashAmount
-//                 : state.totalAmount,
-//         'change': state.selectedMethod!.type == 'Cash' ? state.change : null,
-//       },
-//     );
-//   }
-// }

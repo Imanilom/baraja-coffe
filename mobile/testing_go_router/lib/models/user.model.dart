@@ -54,10 +54,6 @@ class UserModel {
         [];
 
     final String outletId = json['outlet'][0]['outletId']['_id'].toString();
-    // (json['outlet'] as List?) != null && (json['outlet'] as List).isNotEmpty
-    //     ? ((json['outlet'] as List).first['outletId']['_id'] as String? ??
-    //         '')
-    //     : '';
 
     return UserModel(
       id: json['_id'] ?? '',
