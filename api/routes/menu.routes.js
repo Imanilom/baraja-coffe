@@ -1,16 +1,16 @@
 import express from 'express';
 import { verifyToken } from '../utils/verifyUser.js';
 import {
-createMenuItem,
-getMenuItems,
-deleteMenuItem,
-getMenuItemById,
-getMenuItemsByCategory,
-updateMenuItem,
-filterMenuItems,
-getAvailableMenuItems,
-getMenuByOutlet,
-getMenuByRating
+  createMenuItem,
+  getMenuItems,
+  deleteMenuItem,
+  getMenuItemById,
+  getMenuItemsByCategory,
+  updateMenuItem,
+  filterMenuItems,
+  getAvailableMenuItems,
+  getMenuByOutlet,
+  getMenuByRating
 } from '../controllers/menu.controller.js';
 
 import { assignMenuItemsToCategory, filterMenuByCategory, getCategories } from '../controllers/category.controller.js';

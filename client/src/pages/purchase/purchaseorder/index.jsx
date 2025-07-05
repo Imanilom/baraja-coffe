@@ -211,7 +211,7 @@ const PurchaseOrderManagement = () => {
                 </div>
                 <div className="flex space-x-2">
                     <button onClick={() => setShowModal(true)} className="bg-white border-[#005429] border text-[#005429] text-[13px] px-[15px] py-[7px] rounded hover:bg-[#005429] hover:text-white">Import Purchase Order</button>
-                    <Link to="/admin/purchase/create-purchase-order" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
+                    <Link to="/admin/purchase/purchase-order-create" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
                 </div>
             </div>
 

@@ -4158,6 +4158,7 @@ function LocationMarker({ position, setPosition }) {
 const CreateOutlet = () => {
     const [outlets, setOutlets] = useState([]);
     const [tax, setTax] = useState([]);
+    const [isEditing, setIsEditing] = useState(false);
     // const [formData, setFormData] = useState({
     //     name: "",
     //     location: "",
@@ -4169,8 +4170,7 @@ const CreateOutlet = () => {
     const [form, setForm] = useState({
         name: "",
         city: "",
-        address: "-",
-        location: "-",
+        address: "",
         latitude: "",
         longitude: "",
         contactNumber: "",
@@ -4182,6 +4182,8 @@ const CreateOutlet = () => {
         pawoonOpen: "",
         pawoonClose: ""
     });
+
+    const [tempAddress, setTempAddress] = useState(form.address);
 
     const [mapPosition, setMapPosition] = useState({ lat: -6.2, lng: 106.8 });
 
@@ -4240,25 +4242,17 @@ const CreateOutlet = () => {
         }
     }
 
-    const handleCreateOutlet = async () => {
-        try {
-            const response = await axios.post("/api/outlet", formData);
-            alert(response.data.message);
-            fetchOutlets();
-        } catch (error) {
-            alert("Error creating outlet.");
-        }
-    };
+    useEffect(() => {
+        setTempAddress(form.address);
+    }, [form.address]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
         try {
-            const newSupplier = { ...form };
-            console.log(newSupplier);
+            const newOutlet = { ...form };
 
-            await axios.post('/api/outlet', newSupplier); // Kirim sebagai array
-            alert("Data Berhasil", newSupplier);
+            await axios.post('/api/outlet', newOutlet); // Kirim sebagai array
             navigate("/admin/outlet");
         } catch (err) {
             console.error('Error adding category:', err);
@@ -4313,7 +4307,7 @@ const CreateOutlet = () => {
                         <>
                             <div className="flex">
                                 <label className="w-[140px] block mb-2 text-sm after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Tandai Lokasi</label>
-                                <div className="flex-1">
+                                <div className="flex-1 space-y-3">
                                     <MapContainer center={mapPosition} zoom={13} className="w-full h-64 rounded" scrollWheelZoom>
                                         <TileLayer
                                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -4321,9 +4315,73 @@ const CreateOutlet = () => {
                                         <MapUpdater position={mapPosition} />
                                         <LocationMarker position={mapPosition} setPosition={setMapPosition} />
                                     </MapContainer>
-                                    <input type="hidden" name="latitude" value={form.latitude} />
-                                    <input type="hidden" name="longitude" value={form.longitude} />
-                                    <p className="text-sm mt-2 text-gray-500">Lat: {mapPosition.lat.toFixed(6)}, Lng: {mapPosition.lng.toFixed(6)}</p>
+                                    <div className="space-y-6">
+
+                                        {/* Alamat Pinpoint */}
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-semibold">Alamat (Berdasarkan pinpoint)</p>
+
+                                            {!isEditing ? (
+                                                <p id="detail-address" className="text-sm">{form.address || form.city}</p>
+                                            ) : (
+                                                <textarea
+                                                    value={tempAddress || form.city}
+                                                    onChange={(e) => setTempAddress(e.target.value)}
+                                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-0 focus:ring-[#005429] focus:border-[#005429]"
+                                                    rows={3}
+                                                    placeholder="Tulis alamat..."
+                                                />
+                                            )}
+
+                                            <input type="hidden" name="address" value={form.address} />
+                                            <label className="text-red-500 text-xs hidden"></label>
+
+                                            {/* Tombol Edit / Simpan */}
+                                            <div className="text-sm text-blue-600 space-x-2">
+                                                {!isEditing ? (
+                                                    <span
+                                                        onClick={() => setIsEditing(true)}
+                                                        className="cursor-pointer text-[#005429]"
+                                                    >
+                                                        Edit Alamat
+                                                    </span>
+                                                ) : (
+                                                    <span
+                                                        onClick={() => {
+                                                            setForm((prev) => ({ ...prev, address: tempAddress }));
+                                                            setIsEditing(false);
+                                                        }}
+                                                        className="cursor-pointer text-[#005429]"
+                                                    >
+                                                        Simpan
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Latitude */}
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-semibold">Latitude (Berdasarkan pinpoint)</p>
+                                            <p id="detail-latitude" className="text-sm">{mapPosition.lat.toFixed(6)}</p>
+                                            <input
+                                                type="hidden"
+                                                name="latitude"
+                                                value={form.latitude}
+                                            />
+                                        </div>
+
+                                        {/* Longitude */}
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-semibold">Longitude (Berdasarkan pinpoint)</p>
+                                            <p id="detail-longitude" className="text-sm">{mapPosition.lng.toFixed(6)}</p>
+                                            <input
+                                                type="hidden"
+                                                name="longitude"
+                                                value={form.longitude}
+                                            />
+                                        </div>
+
+                                    </div>
                                 </div>
                             </div>
                         </>

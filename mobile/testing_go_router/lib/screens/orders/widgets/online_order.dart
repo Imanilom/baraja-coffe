@@ -14,6 +14,11 @@ class OnlineOrder extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final onlineOrder = ref.watch(onlineOrderProvider);
 
+    if (onlineOrder is AsyncData && (onlineOrder.value?.isEmpty ?? true)) {
+      // If there are no online orders available, show a message
+      return const Center(child: Text('No online orders available'));
+    }
+
     return onlineOrder.when(
       data: (data) {
         return RefreshIndicator(
@@ -27,7 +32,7 @@ class OnlineOrder extends ConsumerWidget {
                   '${order.customerName} - ${order.orderType.toString()} - ${order.status.toString()}',
                 ),
                 subtitle: Text(
-                  '${formatRupiah(order.totalPrice!.toInt())} - ${order.orderId} - ${order.items.first.menuItem.categories}',
+                  '${formatRupiah(order.totalPrice!.toInt())} - ${order.orderId} - ${order.items.first.menuItem.category!}...',
                 ),
                 onTap: () {
                   // Clear previous history detail

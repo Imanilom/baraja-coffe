@@ -202,7 +202,7 @@ const ExpenditureListManagement = () => {
                     <FaInfoCircle className="text-[15px] text-gray-500" />
                 </div>
                 <div className="flex space-x-2">
-                    <Link to="/admin/purchase/create-expenditure-list" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Kelola Daftar Pengeluaran</Link>
+                    <Link to="/admin/purchase/expenditure-list-create" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Kelola Daftar Pengeluaran</Link>
                 </div>
             </div>
 
@@ -381,7 +381,7 @@ const ExpenditureListManagement = () => {
                                                     <span className="text-sm text-justify">
                                                         Dengan mengisi daftar pengeluaran yang biasanya menjadi keperluan bisnis Anda.
                                                     </span>
-                                                    <Link to="/admin/purchase/create-expenditure-list" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded transition">
+                                                    <Link to="/admin/purchase/expenditure-list-create" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded transition">
                                                         Kelola Daftar Belanja
                                                     </Link>
                                                 </div>

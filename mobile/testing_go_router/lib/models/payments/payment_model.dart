@@ -42,6 +42,6 @@ class PaymentState {
   // Hitung kembalian (untuk tunai)
   int get change =>
       (selectedCashAmount != null && selectedMethod?.type == 'cash')
-          ? selectedCashAmount! - totalAmount
-          : 0;
+          ? 0
+          : selectedCashAmount! - totalAmount;
 }

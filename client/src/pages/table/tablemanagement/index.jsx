@@ -20,6 +20,26 @@ const Table = () => {
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 
+
+    const dummyData = [
+        {
+            outlet: "Baraja Amphitheater",
+            area: [
+                { name: "ABC Selasar Depan & Samping", meja: 33, kapasitas: 114 },
+                { name: "DE Selasar Belakang & Bar Utama", meja: 25, kapasitas: 105 },
+                { name: "FGH Lantai 2", meja: 32, kapasitas: 88 },
+                { name: "I Lantai 3", meja: 18, kapasitas: 46 },
+                { name: "JK Rumput Kanan & Kiri", meja: 30, kapasitas: 52 },
+                { name: "Tribun Kiri (L)", meja: 35, kapasitas: 175 },
+                { name: "Tribun Kanan (M)", meja: 20, kapasitas: 200 },
+            ],
+        },
+        {
+            outlet: "Baraja Coffee TP",
+            area: [{ name: "-", meja: "-", kapasitas: "-" }],
+        },
+    ];
+
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
@@ -408,7 +428,7 @@ const Table = () => {
                     </div>
 
                     <div className="flex justify-end">
-                        <button className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">+ Tambah Daftar Area</button>
+                        <Link to="/admin/table-management/table-create" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">+ Tambah Daftar Area</Link>
                     </div>
                 </div>
 
@@ -424,156 +444,39 @@ const Table = () => {
                                 <th className="px-4 py-3 font-normal border">Status</th>
                             </tr>
                         </thead>
-                        <tbody className="text-gray-400">
-                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50">
-                                <td className="border px-4 py-2" rowSpan={7}>Baraja Amphitheater</td>
-                                <td className="border px-4 py-2">ABC Selasar Depan & Samping</td>
-                                <td className="border px-4 py-2">33</td>
-                                <td className="border px-4 py-2">114</td>
-                                <td className="flex justify-between items-center border px-4 py-2">
-                                    <span className="text-[#005429]">Aktif</span>
-                                    <div className="flex space-x-2">
-                                        <FaPencilAlt />
-                                        <FaTrash className="text-red-500" />
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50">
-                                <td className="border px-4 py-2">DE Selasar Belakang & Bar Utama</td>
-                                <td className="border px-4 py-2">25</td>
-                                <td className="border px-4 py-2">105</td>
-                                <td className="flex justify-between items-center border px-4 py-2">
-                                    <span className="text-[#005429]">Aktif</span>
-                                    <div className="flex space-x-2">
-                                        <FaPencilAlt />
-                                        <FaTrash className="text-red-500" />
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50">
-                                <td className="border px-4 py-2">FGH Lantai 2</td>
-                                <td className="border px-4 py-2">32</td>
-                                <td className="border px-4 py-2">88</td>
-                                <td className="flex justify-between items-center border px-4 py-2">
-                                    <span className="text-[#005429]">Aktif</span>
-                                    <div className="flex space-x-2">
-                                        <FaPencilAlt />
-                                        <FaTrash className="text-red-500" />
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50">
-                                <td className="border px-4 py-2">I Lantai 3</td>
-                                <td className="border px-4 py-2">18</td>
-                                <td className="border px-4 py-2">46</td>
-                                <td className="flex justify-between items-center border px-4 py-2">
-                                    <span className="text-[#005429]">Aktif</span>
-                                    <div className="flex space-x-2">
-                                        <FaPencilAlt />
-                                        <FaTrash className="text-red-500" />
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50">
-                                <td className="border px-4 py-2">JK Rumput Kanan & Kiri</td>
-                                <td className="border px-4 py-2">30</td>
-                                <td className="border px-4 py-2">52</td>
-                                <td className="flex justify-between items-center border px-4 py-2">
-                                    <span className="text-[#005429]">Aktif</span>
-                                    <div className="flex space-x-2">
-                                        <FaPencilAlt />
-                                        <FaTrash className="text-red-500" />
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50">
-                                <td className="border px-4 py-2">Tribun Kiri (L)</td>
-                                <td className="border px-4 py-2">35</td>
-                                <td className="border px-4 py-2">175</td>
-                                <td className="flex justify-between items-center border px-4 py-2">
-                                    <span className="text-[#005429]">Aktif</span>
-                                    <div className="flex space-x-2">
-                                        <FaPencilAlt />
-                                        <FaTrash className="text-red-500" />
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50">
-                                <td className="border px-4 py-2">Tribun Kanan (M)</td>
-                                <td className="border px-4 py-2">20</td>
-                                <td className="border px-4 py-2">200</td>
-                                <td className="flex justify-between items-center border px-4 py-2">
-                                    <span className="text-[#005429]">Aktif</span>
-                                    <div className="flex space-x-2">
-                                        <FaPencilAlt />
-                                        <FaTrash className="text-red-500" />
-                                    </div>
-                                </td>
-                            </tr>
-
-                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50">
-                                <td className="border px-4 py-2">Baraja Coffee TP</td>
-                                <td className="border px-4 py-2">-</td>
-                                <td className="border px-4 py-2">-</td>
-                                <td className="border px-4 py-2">-</td>
-                                <td className="border px-4 py-2">-</td>
-                            </tr>
-                        </tbody>
-                        {/* {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((data, index) => {
-                                    try {
-                                        return (
-                                            
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3 row-span-6">
-                                                    {formatDate(data.tanggal) || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.jenis || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.jumlah || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {data.supplier || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.keterangan || []}
-                                                </td>
-                                            </tr>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="5" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={5}>
-                                        <div className="flex justify-center items-center min-h-[300px] text-gray-500">
-                                            <div className="grid grid-cols-3 gap-6 text-center">
-                                                <div className="col-span-3 flex flex-col items-center justify-center space-y-4 max-w-[700px]">
-                                                    <FaShoppingCart size={60} className="text-gray-500" />
-                                                    <p className="text-lg font-semibold">Purchase Order</p>
-                                                    <span className="text-sm text-justify">
-                                                        Purchase Order (PO) adalah proses pemesanan stok melalui supplier.
-                                                    </span>
+                        <tbody className="text-gray-400 text-sm">
+                            {dummyData.map((outlet, outletIdx) =>
+                                outlet.area.map((area, areaIdx) => (
+                                    <tr
+                                        key={`${outletIdx}-${areaIdx}`}
+                                        className="hover:bg-slate-50 cursor-pointer"
+                                    >
+                                        {areaIdx === 0 && (
+                                            <td
+                                                className="border px-4 py-2"
+                                                rowSpan={outlet.area.length}
+                                            >
+                                                {outlet.outlet}
+                                            </td>
+                                        )}
+                                        <td className="border px-4 py-2">{area.name}</td>
+                                        <td className="border px-4 py-2">{area.meja}</td>
+                                        <td className="border px-4 py-2">{area.kapasitas}</td>
+                                        <td className="border px-4 py-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[#005429]">Aktif</span>
+                                                <div className="flex space-x-2">
+                                                    <Link to="/admin/table-management/table-update">
+                                                        <FaPencilAlt className="text-gray-500" />
+                                                    </Link>
+                                                    <FaTrash className="text-red-500" />
                                                 </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        )} */}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
                     </table>
                 </div>
 
