@@ -16,7 +16,8 @@ export const createMenuItem = async (req, res) => {
       imageURL,
       toppings,
       addons,
-      availableAt
+      availableAt,
+      workstation
     } = req.body;
 
     if (!name || !price || !category || !imageURL) {
@@ -71,7 +72,8 @@ export const createMenuItem = async (req, res) => {
       imageURL,
       toppings: toppings || [],
       addons: addons || [],
-      availableAt: availableAt || []
+      availableAt: availableAt || [],
+      workstation: workstation || 'bar', // Default to 'kitchen' if not provided
     });
 
     const savedMenuItem = await menuItem.save();
