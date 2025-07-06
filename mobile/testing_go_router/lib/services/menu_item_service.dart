@@ -10,6 +10,7 @@ class MenuItemService {
       final response = await _dio.get(
         '/api/menu/menu-items',
         options: Options(headers: {'ngrok-skip-browser-warning': true}),
+        queryParameters: {'limit': '500'},
       );
 
       return response.data;

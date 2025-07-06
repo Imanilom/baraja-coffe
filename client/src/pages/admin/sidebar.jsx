@@ -84,7 +84,7 @@ const Sidebar = () => {
         },
         { name: "Perangkat", path: "/admin/billing/device", icon: <FaTabletAlt /> },
         { name: "Promo", path: "/admin/promotion", icon: <FaCut /> },
-        { name: "Komisi", path: "/commission", icon: <FaHandshake /> },
+        { name: "Komisi", path: "/admin/commission", icon: <FaHandshake /> },
       ],
     },
     {
@@ -134,7 +134,13 @@ const Sidebar = () => {
 
       {/* Sticky Header */}
       <div className="px-4 pt-4 pb-2 shrink-0">
-        <h2 className="text-xl font-bold">Admin Dashboard</h2>
+        <div className="text-center mb-4 bg-white">
+          <img
+            src="https://s3.ap-southeast-1.amazonaws.com/new.newpawoon/receipt_images/IMG_479013_1750394198_200.png"
+            alt="Logo"
+            className="mx-auto max-w-xs"
+          />
+        </div>
       </div>
 
       {/* Scrollable Menu */}

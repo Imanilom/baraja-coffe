@@ -13,7 +13,7 @@ List<Map<String, dynamic>> searchAndFilterProducts(
   // 1️⃣ Filter berdasarkan kategori
   var filteredProducts =
       allProducts
-          .where((product) => product.categories!.contains(category))
+          .where((product) => product.category!.contains(category))
           .toList();
 
   // 2️⃣ Cari produk berdasarkan nama

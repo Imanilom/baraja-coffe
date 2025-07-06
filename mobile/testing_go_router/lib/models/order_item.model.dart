@@ -21,7 +21,7 @@ abstract class OrderItemModel with _$OrderItemModel {
   OrderItemModel._();
 
   int calculateSubTotalPrice() {
-    int total = menuItem.price ?? 0;
+    int total = menuItem.originalPrice ?? 0;
     total += selectedToppings.fold(
       0,
       (sum, topping) => sum + (topping.price ?? 0),

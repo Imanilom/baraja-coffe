@@ -1,9 +1,9 @@
-    import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 
 const initialForm = { name: "", requiredPoints: 0, description: "" };
 
-export default function LoyaltyLevelManager() {
+export default function PointManagement() {
   const [loyaltyLevels, setLoyaltyLevels] = useState([]);
   const [formData, setFormData] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
@@ -15,7 +15,7 @@ export default function LoyaltyLevelManager() {
   const fetchLevels = async () => {
     try {
       const res = await axios.get("/api/promotion/loyalty-levels");
-    setLoyaltyLevels(Array.isArray(res.data.data) ? res.data.data : []);
+      setLoyaltyLevels(Array.isArray(res.data.data) ? res.data.data : []);
 
     } catch (err) {
       console.error(err);
@@ -54,7 +54,7 @@ export default function LoyaltyLevelManager() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Loyalty Level Management</h1>
+      <h1 className="text-2xl font-bold mb-4">Pengaturan Poin</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4 bg-white p-4 shadow rounded mb-6">
         <input
