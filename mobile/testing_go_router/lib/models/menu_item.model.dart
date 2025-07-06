@@ -1,28 +1,73 @@
 // ignore_for_file: invalid_annotation_target
-
 import 'package:hive_ce/hive.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:kasirbaraja/models/menu_category.model.dart';
+import 'package:kasirbaraja/models/menu_subcategory.model.dart';
 
 import 'addon.model.dart';
 import 'topping.model.dart';
 
-part 'adapter/menu_item.model.g.dart';
-part 'adapter/menu_item.model.freezed.dart';
+part 'menu_item.model.g.dart';
+part 'menu_item.model.freezed.dart';
 
 @freezed
 @HiveType(typeId: 3)
 abstract class MenuItemModel with _$MenuItemModel {
   factory MenuItemModel({
-    @HiveField(1) @JsonKey(name: '_id') required String id,
+    @HiveField(1) required String id,
     @HiveField(2) String? name,
-    @HiveField(3) int? price,
-    @HiveField(4) String? description,
-    @HiveField(5) @JsonKey(name: 'category') List<String>? categories,
-    @HiveField(6) String? imageURL,
-    @HiveField(7) List<ToppingModel>? toppings,
-    @HiveField(8) List<AddonModel>? addons,
+    @HiveField(3) int? originalPrice, // Ubah menjadi int
+    @HiveField(4) int? discountedPrice, // Tambahkan field baru
+    @HiveField(5) String? description,
+    @HiveField(6) String? category, // Ubah tipe data
+    @HiveField(7) String? subCategory, // Ubah tipe data
+    // @HiveField(6) MenuCategoryModel? category, // Ubah tipe data
+    // @HiveField(7) MenuSubCategoryModel? subCategory, // Ubah tipe data
+    @HiveField(8)
+    @JsonKey(name: 'imageUrl')
+    String? imageURL, // Sesuaikan key JSON
+    @HiveField(9) List<ToppingModel>? toppings,
+    @HiveField(10) List<AddonModel>? addons,
+    @HiveField(11) int? discountPercentage, // Tambahkan fiel,d baru
+    @HiveField(12) int? averageRating, // Tambahkan field baru
+    @HiveField(13) int? reviewCount, // Tambahkan field baru
+    @HiveField(14) @Default(true) bool? isAvailable, // Tambahkan field baru
   }) = _MenuItemModel;
 
+  MenuItemModel._();
+
+  int displayPrice() {
+    if (discountedPrice != null && discountedPrice! < originalPrice!) {
+      return discountedPrice!;
+    }
+    return originalPrice ?? 0;
+  }
+
   factory MenuItemModel.fromJson(Map<String, dynamic> json) =>
-      _$MenuItemModelFromJson(json);
+  // _$MenuItemModelFromJson(json);
+  MenuItemModel(
+    id: json['id'] ?? json['id'].toString(),
+    name: json['name'] ?? json['name'].toString(),
+    originalPrice: json['originalPrice'],
+    discountedPrice: json['discountedPrice'],
+    description: json['description'] ?? "",
+    // category: json['category'] ?? "tidak ada kategori",
+    // subCategory: json['subCategory'] ?? "tidak ada sub kategori",
+    imageURL: json['imageUrl'] ?? "",
+    toppings:
+        (json['toppings'] as List)
+            .map((e) => ToppingModel.fromJson(e))
+            .toList(),
+    addons:
+        (json['addons'] as List).map((e) => AddonModel.fromJson(e)).toList(),
+    discountPercentage:
+        json['discountPercentage'] == null
+            ? 0
+            : (json['discountPercentage'] as num).toInt(),
+    averageRating:
+        json['averageRating'] == null
+            ? 0
+            : (json['averageRating'] as num?)?.toInt(),
+    reviewCount: json['reviewCount'] as int? ?? 0,
+  );
 }

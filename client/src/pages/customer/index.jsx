@@ -223,7 +223,7 @@ const CustomerManagement = () => {
                 <div className="flex space-x-2">
                     <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Impor</button>
                     <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
-                    <Link to="/admin/create-customer" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
+                    <Link to="/admin/customer-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
                 </div>
             </div>
 

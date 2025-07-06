@@ -22,7 +22,7 @@ const CreateStock = () => {
 
     // ✅ Fetch outlet dari API
     const fetchOutlets = async () => {
-        setLoading(true);
+        // setLoading(true);
         try {
             const response = await axios.get('/api/outlet');
             // Pastikan response sesuai format

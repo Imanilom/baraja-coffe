@@ -146,8 +146,8 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
     state = const AsyncValue.loading();
     try {
       final box = Hive.box('userBox');
-      final user = box.get('user') as UserModel?;
       final cashier = box.get('cashier') as CashierModel?;
+      final user = box.get('user') as UserModel?;
 
       if (user != null) {
         if (cashier != null) {
@@ -159,6 +159,8 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
         print(
           'cek login status disini dulu ngga?: ${user.outletId.toString()}',
         );
+        print('cek login status disini dulu ngga?: ${user.id}');
+        print('cek login status disini dulu ngga?: ${user.role}');
         state = const AsyncValue.data(AuthStatus.needPin);
         print('user !null ${state.value}');
       } else if (cashier != null) {

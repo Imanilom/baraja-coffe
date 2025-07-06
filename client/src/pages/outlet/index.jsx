@@ -94,7 +94,7 @@ const OutletManagementPage = () => {
           <FaStoreAlt size={21} className="text-gray-500 inline-block" />
           <p className="text-[15px] text-gray-500">Outlet</p>
         </div>
-        <button onClick={() => navigate("/admin/create-outlet")} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Outlet</button>
+        <button onClick={() => navigate("/admin/outlet-create")} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Outlet</button>
       </div>
 
       <div className="px-[15px]">

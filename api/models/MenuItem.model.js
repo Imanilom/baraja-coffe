@@ -85,6 +85,11 @@ const MenuItemSchema = new mongoose.Schema({
       ref: 'Outlet'
     }
   ],
+  workstation:
+  {
+    type: String,
+    enum: ['kitchen', 'bar'],
+  },
   isActive: {
     type: Boolean,
     default: true

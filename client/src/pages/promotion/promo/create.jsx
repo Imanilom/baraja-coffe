@@ -76,20 +76,18 @@ const CreatePromoPage = () => {
       return { ...prev, outlet: updatedOutlets };
     });
   };
-
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setError(null);
-      console.log(promo);
       await axios.post("/api/promotion/promo-create", promo);
       fetchData(); // Refresh data after creation
       setPromo({
         name: "",
         discountAmount: 0,
         discountType: "percentage",
-        customerType: loyaltyLevels?.length ? loyaltyLevels[0]._id : "",
+        customerType: loyaltyLevels?.length ? loyaltyLevels[0]._id : "bronze",
         outlet: [],
         validFrom: new Date().toISOString().split("T")[0],
         validTo: new Date().toISOString().split("T")[0],
@@ -165,56 +163,52 @@ const CreatePromoPage = () => {
           </div>
         </div>
 
-        <div className="bg-slate-50 p-6">
+        <div className="bg-slate-50 p-6 text-[#999999]">
           <div className="w-full mx-auto bg-white p-12 shadow-md space-y-6">
 
             {/* Promo Name */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Promo Name</label>
+            <div className="flex items-center w-1/2">
+              <label className="block text-sm font-semibold mb-1 w-[140px]">Nama Promo</label>
               <input
                 name="name"
                 type="text"
                 value={promo.name}
                 onChange={handleInputChange}
-                className="w-full border border-gray-300 focus:border-green-600 focus:ring-green-600 p-2 rounded-md"
-                placeholder="e.g. Weekend Special"
+                className="border border-gray-300 focus:border-green-600 focus:ring-green-600 p-2 rounded-md flex-1"
+                placeholder="Contoh: Diskon Pelajar"
                 required
               />
             </div>
 
             {/* Discount Amount + Type */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Discount Amount</label>
-                <input
-                  name="discountAmount"
-                  type="number"
-                  min="0"
-                  value={promo.discountAmount}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 focus:border-green-600 focus:ring-green-600 p-2 rounded-md"
-                  placeholder="e.g. 10"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Discount Type</label>
+            <div className="flex items-center w-1/2">
+              <label className="block text-sm font-semibold mb-1 w-[140px]">Besar Diskon</label>
+              <div className="flex-1 space-x-11">
                 <select
                   name="discountType"
                   value={promo.discountType}
                   onChange={handleInputChange}
-                  className="w-full border border-gray-300 focus:border-green-600 focus:ring-green-600 p-2 rounded-md"
+                  className="w-[50px] border border-gray-300 focus:border-green-600 focus:ring-green-600 p-2 rounded-md"
                   required
                 >
-                  <option value="percentage">Percentage (%)</option>
-                  <option value="fixed">Fixed (USD)</option>
+                  <option value="percentage">%</option>
+                  <option value="fixed">Rp</option>
                 </select>
+                <input
+                  name="discountAmount"
+                  type="number"
+                  value={promo.discountAmount}
+                  onChange={handleInputChange}
+                  className="w-[200px] border border-gray-300 focus:border-green-600 focus:ring-green-600 p-2 rounded-md"
+                  required
+                />
               </div>
             </div>
 
             {/* Customer Type */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Customer Type</label>
+              <input type="text" className="hidden" name="customerType" onChange={handleInputChange} value="67da26abbfd04a6b29bc55fc" />
+              {/* <label className="block text-sm font-semibold mb-1">Customer Type</label>
               <select
                 name="customerType"
                 value={promo.customerType}
@@ -228,13 +222,13 @@ const CreatePromoPage = () => {
                     {level.name || "N/A"}
                   </option>
                 ))}
-              </select>
+              </select> */}
             </div>
 
             {/* Select Outlets */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Select Outlets</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border border-gray-200 rounded-md p-3 max-h-40 overflow-y-auto">
+              <label className="block text-sm font-semibold mb-2">Select Outlets</label>
+              <div className="grid grid-cols-1 gap-2 rounded-md p-3 max-h-40 overflow-y-auto">
                 {outlets.map((outlet) => (
                   <label key={outlet._id} className="flex items-center space-x-2">
                     <input
@@ -244,16 +238,16 @@ const CreatePromoPage = () => {
                       onChange={handleOutletChange}
                       className="form-checkbox text-green-600"
                     />
-                    <span className="text-sm text-gray-700">{outlet.name || "N/A"}</span>
+                    <span className="text-sm">{outlet.name || "N/A"}</span>
                   </label>
                 ))}
               </div>
             </div>
 
             {/* Validity Dates */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Valid From</label>
+                <label className="block text-sm font-semibold mb-1">Valid From</label>
                 <input
                   name="validFrom"
                   type="date"
@@ -264,7 +258,7 @@ const CreatePromoPage = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Valid To</label>
+                <label className="block text-sm font-semibold mb-1">Valid To</label>
                 <input
                   name="validTo"
                   type="date"
@@ -274,10 +268,10 @@ const CreatePromoPage = () => {
                   required
                 />
               </div>
-            </div>
+            </div> */}
 
             {/* Is Active */}
-            <div className="flex items-center space-x-2">
+            {/* <div className="flex items-center space-x-2">
               <input
                 name="isActive"
                 type="checkbox"
@@ -285,8 +279,8 @@ const CreatePromoPage = () => {
                 onChange={handleInputChange}
                 className="form-checkbox text-green-600"
               />
-              <label className="text-sm font-semibold text-gray-700">Is Active</label>
-            </div>
+              <label className="text-sm font-semibold">Is Active</label>
+            </div> */}
           </div>
         </div>
       </form>

@@ -318,7 +318,7 @@ const ProductionStockManagement = () => {
                     <span className="text-[15px] text-[#005429]">Produksi Stok</span>
                     <FaInfoCircle size={17} className="text-gray-400 inline-block" />
                 </div>
-                <Link to="/admin/inventory/create-production" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Produksi Produk</Link>
+                <Link to="/admin/inventory/production-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Produksi Produk</Link>
             </div>
 
             {/* Filters */}
