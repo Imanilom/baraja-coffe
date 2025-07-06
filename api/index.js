@@ -98,11 +98,6 @@ app.use('/api/tax-service', taxAndServiceRoutes);
 app.use('/api/receipt-setting', ReceiptSetting);
 app.use('/api/product', productStockRoutes);
 // app.post('/api/midtrans/webhook', (req, res) => {
-//   // const body = req.body;
-//   // console.log('Notifikasi Midtrans diterima:', body);
-
-//   // Proses sesuai logika bisnis kamu...
-
 //   res.status(200).send('OK');
 // });
 
@@ -112,7 +107,6 @@ app.post('/api/midtrans/webhook', midtransWebhook);
 // Start server
 server.listen(3000, () => {
   console.log('Socket.IO + Express server listening on port 3000');
-  console.log(">>> REDIS_URL:", process.env.REDIS_URL);
 });
 
 
