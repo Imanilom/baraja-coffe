@@ -3,10 +3,9 @@ import mongoose from 'mongoose';
 const PaymentSchema = new mongoose.Schema({
   // Basic payment info
   order_id: { type: String, ref: 'Order', required: true },
-  transaction_id: { type: String }, // Midtrans transaction ID (null for cash)
-  method: { type: String, required: true }, // cash, bank_transfer, gopay, qris, etc.
-  bank: { type: String, default: "" }, // e.g., 'bca', 'mandiri', 'gopay', 'dana', etc.
-  status: { type: String, default: 'pending' }, // 'pending', 'paid', 'failed'
+  transaction_id: { type: String },
+  method: { type: String, required: true },
+  status: { type: String, default: 'pending' },
   paymentType: {
     type: String,
     enum: ['Full', 'Down Payment'],
@@ -17,10 +16,34 @@ const PaymentSchema = new mongoose.Schema({
   phone: { type: String },
   discount: { type: Number, default: 0 },
   midtransRedirectUrl: { type: String },
+
+  // Midtrans fields
   fraud_status: { type: String },
   transaction_time: { type: String },
   expiry_time: { type: String },
+  settlement_time: { type: String },
   paidAt: { type: Date },
+
+  va_numbers: [{
+    bank: { type: String },
+    va_number: { type: String }
+  }],
+  permata_va_number: { type: String },
+  bill_key: { type: String },
+  biller_code: { type: String },
+  pdf_url: { type: String },
+  currency: { type: String, default: "IDR" },
+  merchant_id: { type: String },
+  signature_key: { type: String },
+
+  // NEW: Store GoPay/QRIS actions
+  actions: [{
+    name: { type: String },
+    method: { type: String },
+    url: { type: String }
+  }],
+
+  raw_response: { type: mongoose.Schema.Types.Mixed },
 }, {
   timestamps: true,
   index: {
@@ -32,34 +55,32 @@ const PaymentSchema = new mongoose.Schema({
   }
 });
 
-// Virtual untuk menghitung apakah pembayaran sudah lunas
+// Virtual untuk lunas
 PaymentSchema.virtual('isFullyPaid').get(function () {
-  return this.status === 'paid' && this.remainingAmount === 0;
+  return (this.status === 'paid' || this.status === 'settlement') && this.remainingAmount === 0;
 });
 
-// Method untuk update status pembayaran
+// Methods
 PaymentSchema.methods.markAsPaid = function () {
-  this.status = 'paid';
+  this.status = 'settlement';
   this.paidAt = new Date();
   return this.save();
 };
 
-// Method untuk update remaining amount
 PaymentSchema.methods.updateRemainingAmount = function (newRemainingAmount) {
   this.remainingAmount = newRemainingAmount;
   return this.save();
 };
 
-// Static method untuk mencari pembayaran berdasarkan order
+// Statics
 PaymentSchema.statics.findByOrderId = function (orderId) {
   return this.find({ order_id: orderId }).sort({ createdAt: -1 });
 };
 
-// Static method untuk mencari down payment yang belum lunas
 PaymentSchema.statics.findPendingDownPayments = function () {
   return this.find({
     paymentType: 'Down Payment',
-    status: 'paid',
+    status: 'settlement',
     remainingAmount: { $gt: 0 }
   });
 };

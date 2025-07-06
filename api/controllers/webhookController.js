@@ -10,35 +10,22 @@ export const midtransWebhook = async (req, res) => {
     const {
       transaction_status,
       order_id,
-      payment_type,
-      fraud_status,
-      gross_amount,
-      bank,
-      va_numbers,
-      ewallet
     } = notificationJson;
 
     console.log('📥 Received Midtrans notification:', notificationJson);
 
-
-    const order = await Order.findOne({ order_id: order_id });
-
     const paymentData = {
-      order_id: order._id, // ✔️ pastikan ini cocok dengan schema Payment
-      method: payment_type || 'unknown',
       status: transaction_status,
-      // amount: Number(gross_amount),
-      bank: bank || (va_numbers?.[0]?.bank) || '',
-      phone: ewallet?.phone || '',
       paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : null
     };
 
     await Payment.findOneAndUpdate(
-      { order_id: order._id }, // ✔️ perbaikan di sini
+      { order_id: order_id }, // ✔️ perbaikan di sini
       paymentData,
       { upsert: true, new: true }
     );
 
+    const order = await Order.findOne({ order_id: order_id });
 
 
     if (!order) {
