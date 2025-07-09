@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$MenuItemModel {
 
-@HiveField(1)@JsonKey(name: '_id') String get id;@HiveField(2) String? get name;@HiveField(3) int? get originalPrice;// Ubah menjadi int
+@HiveField(1) String get id;@HiveField(2) String? get name;@HiveField(3) int? get originalPrice;// Ubah menjadi int
 @HiveField(4) int? get discountedPrice;// Tambahkan field baru
 @HiveField(5) String? get description;@HiveField(6) String? get category;// Ubah tipe data
 @HiveField(7) String? get subCategory;// Ubah tipe data
@@ -59,7 +59,7 @@ abstract mixin class $MenuItemModelCopyWith<$Res>  {
   factory $MenuItemModelCopyWith(MenuItemModel value, $Res Function(MenuItemModel) _then) = _$MenuItemModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(1)@JsonKey(name: '_id') String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? category,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable
+@HiveField(1) String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? category,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable
 });
 
 
@@ -103,10 +103,10 @@ as bool?,
 @JsonSerializable()
 
 class _MenuItemModel extends MenuItemModel {
-   _MenuItemModel({@HiveField(1)@JsonKey(name: '_id') required this.id, @HiveField(2) this.name, @HiveField(3) this.originalPrice, @HiveField(4) this.discountedPrice, @HiveField(5) this.description, @HiveField(6) this.category, @HiveField(7) this.subCategory, @HiveField(8)@JsonKey(name: 'imageUrl') this.imageURL, @HiveField(9) final  List<ToppingModel>? toppings, @HiveField(10) final  List<AddonModel>? addons, @HiveField(11) this.discountPercentage, @HiveField(12) this.averageRating, @HiveField(13) this.reviewCount, @HiveField(14) this.isAvailable = true}): _toppings = toppings,_addons = addons,super._();
+   _MenuItemModel({@HiveField(1) required this.id, @HiveField(2) this.name, @HiveField(3) this.originalPrice, @HiveField(4) this.discountedPrice, @HiveField(5) this.description, @HiveField(6) this.category, @HiveField(7) this.subCategory, @HiveField(8)@JsonKey(name: 'imageUrl') this.imageURL, @HiveField(9) final  List<ToppingModel>? toppings, @HiveField(10) final  List<AddonModel>? addons, @HiveField(11) this.discountPercentage, @HiveField(12) this.averageRating, @HiveField(13) this.reviewCount, @HiveField(14) this.isAvailable = true}): _toppings = toppings,_addons = addons,super._();
   factory _MenuItemModel.fromJson(Map<String, dynamic> json) => _$MenuItemModelFromJson(json);
 
-@override@HiveField(1)@JsonKey(name: '_id') final  String id;
+@override@HiveField(1) final  String id;
 @override@HiveField(2) final  String? name;
 @override@HiveField(3) final  int? originalPrice;
 // Ubah menjadi int
@@ -181,7 +181,7 @@ abstract mixin class _$MenuItemModelCopyWith<$Res> implements $MenuItemModelCopy
   factory _$MenuItemModelCopyWith(_MenuItemModel value, $Res Function(_MenuItemModel) _then) = __$MenuItemModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(1)@JsonKey(name: '_id') String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? category,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable
+@HiveField(1) String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? category,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable
 });
 
 

@@ -85,7 +85,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+            colors: [
+              Color(0xFF2E7D32),
+              Color(0xFF4CAF50),
+            ], // Dark green to medium green
           ),
         ),
         child: SafeArea(
@@ -126,12 +129,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   style: TextStyle(
                                     fontSize: 32,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.white.withOpacity(0.95),
+                                    color: Colors.white.withOpacity(0.9),
                                   ),
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
-                                  'Sistem Kasir Admin',
+                                  'Sistem Kasir',
                                   style: TextStyle(
                                     fontSize: 18,
                                     color: Colors.white.withOpacity(0.8),
@@ -182,8 +185,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         decoration: BoxDecoration(
                                           gradient: const LinearGradient(
                                             colors: [
-                                              Color(0xFF667eea),
-                                              Color(0xFF764ba2),
+                                              Color(0xFF2E7D32), // Dark green
+                                              Color(0xFF66BB6A), // Light green
                                             ],
                                           ),
                                           borderRadius: BorderRadius.circular(
@@ -203,12 +206,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         style: TextStyle(
                                           fontSize: 28,
                                           fontWeight: FontWeight.bold,
-                                          color: Color(0xFF2c3e50),
+                                          color: Color(
+                                            0xFF1B5E20,
+                                          ), // Dark green text
                                         ),
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
-                                        'Masuk ke panel admin kasir',
+                                        'Masuk ke panel kasir',
                                         style: TextStyle(
                                           fontSize: 14,
                                           color: Colors.grey[600],
@@ -247,7 +252,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                               12,
                                             ),
                                             borderSide: const BorderSide(
-                                              color: Color(0xFF667eea),
+                                              color: Color(
+                                                0xFF4CAF50,
+                                              ), // Medium green
                                               width: 2,
                                             ),
                                           ),
@@ -315,7 +322,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                               12,
                                             ),
                                             borderSide: const BorderSide(
-                                              color: Color(0xFF667eea),
+                                              color: Color(
+                                                0xFF4CAF50,
+                                              ), // Medium green
                                               width: 2,
                                             ),
                                           ),
@@ -342,7 +351,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                               _isLoading ? null : _handleLogin,
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: const Color(
-                                              0xFF667eea,
+                                              0xFF4CAF50, // Medium green
                                             ),
                                             foregroundColor: Colors.white,
                                             shape: RoundedRectangleBorder(
@@ -351,7 +360,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                             ),
                                             elevation: 3,
                                             shadowColor: const Color(
-                                              0xFF667eea,
+                                              0xFF4CAF50,
                                             ).withOpacity(0.3),
                                           ),
                                           child:

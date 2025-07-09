@@ -85,7 +85,7 @@ class MenuItemModelAdapter extends TypeAdapter<MenuItemModel> {
 
 _MenuItemModel _$MenuItemModelFromJson(Map<String, dynamic> json) =>
     _MenuItemModel(
-      id: json['_id'] as String,
+      id: json['id'] as String,
       name: json['name'] as String?,
       originalPrice: (json['originalPrice'] as num?)?.toInt(),
       discountedPrice: (json['discountedPrice'] as num?)?.toInt(),
@@ -109,7 +109,7 @@ _MenuItemModel _$MenuItemModelFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$MenuItemModelToJson(_MenuItemModel instance) =>
     <String, dynamic>{
-      '_id': instance.id,
+      'id': instance.id,
       'name': instance.name,
       'originalPrice': instance.originalPrice,
       'discountedPrice': instance.discountedPrice,

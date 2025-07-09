@@ -29,11 +29,12 @@ class OnlineOrderRepository {
             final baseModel = OrderDetailModel.fromJson(json);
 
             // Kemudian hitung dan tambahkan field kalkulasi
-            return baseModel.withCalculations(
-              totalTax: json['totalTax'] ?? 0,
-              discounts: json['discounts'] ?? {},
-              totalServiceFee: json['totalServiceFee'] ?? 0,
-            );
+            return baseModel;
+            // .withCalculations(
+            //   totalTax: json['totalTax'] ?? 0,
+            //   discounts: json['discounts'] ?? {},
+            //   totalServiceFee: json['totalServiceFee'] ?? 0,
+            // );
           }).toList();
       print("Data pending orders yg diambil: ${onlineOrders.length}");
       return onlineOrders;

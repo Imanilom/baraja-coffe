@@ -124,7 +124,7 @@ class ModernLoginCashierScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(24),
             child: Row(
               children: [
-                const Icon(Icons.people, color: Color(0xFF3B82F6)),
+                const Icon(Icons.people, color: Colors.green),
                 const SizedBox(width: 12),
                 const Text(
                   'Pilih Kasir',
@@ -163,7 +163,7 @@ class ModernLoginCashierScreen extends ConsumerWidget {
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFF3B82F6) : Colors.white,
+                    color: isSelected ? Colors.green : Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color:

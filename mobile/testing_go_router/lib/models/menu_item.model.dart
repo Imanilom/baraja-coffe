@@ -15,22 +15,23 @@ part 'menu_item.model.freezed.dart';
 abstract class MenuItemModel with _$MenuItemModel {
   factory MenuItemModel({
     @HiveField(1) required String id,
-    @HiveField(2) String? name,
-    @HiveField(3) int? originalPrice, // Ubah menjadi int
-    @HiveField(4) int? discountedPrice, // Tambahkan field baru
-    @HiveField(5) String? description,
-    @HiveField(6) String? category, // Ubah tipe data
-    @HiveField(7) String? subCategory, // Ubah tipe data
+    @HiveField(2) @Default("") String? name,
+    @HiveField(3) @Default(0) int? originalPrice, // Ubah menjadi int
+    @HiveField(4) @Default(0) int? discountedPrice, // Tambahkan field baru
+    @HiveField(5) @Default("") String? description,
+    @HiveField(6) @Default("") String? category, // Ubah tipe data
+    @HiveField(7) @Default("") String? subCategory, // Ubah tipe data
     // @HiveField(6) MenuCategoryModel? category, // Ubah tipe data
     // @HiveField(7) MenuSubCategoryModel? subCategory, // Ubah tipe data
     @HiveField(8)
+    @Default("")
     @JsonKey(name: 'imageUrl')
     String? imageURL, // Sesuaikan key JSON
-    @HiveField(9) List<ToppingModel>? toppings,
-    @HiveField(10) List<AddonModel>? addons,
-    @HiveField(11) int? discountPercentage, // Tambahkan fiel,d baru
-    @HiveField(12) int? averageRating, // Tambahkan field baru
-    @HiveField(13) int? reviewCount, // Tambahkan field baru
+    @HiveField(9) @Default([]) List<ToppingModel>? toppings,
+    @HiveField(10) @Default([]) List<AddonModel>? addons,
+    @HiveField(11) @Default(0) int? discountPercentage, // Tambahkan fiel,d baru
+    @HiveField(12) @Default(0) int? averageRating, // Tambahkan field baru
+    @HiveField(13) @Default(0) int? reviewCount, // Tambahkan field baru
     @HiveField(14) @Default(true) bool? isAvailable, // Tambahkan field baru
   }) = _MenuItemModel;
 
