@@ -948,16 +948,39 @@ export const confirmOrderByCashier = async (req, res) => {
 };
 
 
+
 export const charge = async (req, res) => {
   try {
     const { payment_type, is_down_payment, down_payment_amount, remaining_payment } = req.body;
 
     console.log('Received payment type:', payment_type);
+
     // Deteksi apakah ini cash payment atau payment lainnya
     if (payment_type === 'cash') {
       // Handle cash payment
       const { order_id, gross_amount } = req.body;
       console.log('Payment type:', payment_type, 'Order ID:', order_id, 'Gross Amount:', gross_amount);
+
+      // Check if payment already exists for this order
+      const existingPayment = await Payment.findOne({ order_id: order_id });
+      if (existingPayment) {
+        console.log('Payment already exists for order:', order_id);
+        return res.status(200).json({
+          success: true,
+          message: 'Payment already processed',
+          data: {
+            payment_id: existingPayment._id,
+            order_id: order_id,
+            amount: existingPayment.amount,
+            method: existingPayment.method,
+            status: existingPayment.status,
+            transaction_id: existingPayment._id.toString(),
+            paymentType: existingPayment.paymentType,
+            remainingAmount: existingPayment.remainingAmount,
+            is_down_payment: existingPayment.is_down_payment || false,
+          }
+        });
+      }
 
       // Log reservation payment details if present
       if (is_down_payment !== undefined) {
@@ -965,6 +988,7 @@ export const charge = async (req, res) => {
         console.log('Down Payment Amount:', down_payment_amount);
         console.log('Remaining Payment:', remaining_payment);
       }
+
       // Determine payment type and amounts based on reservation payment
       let paymentType = 'Full';
       let amount = gross_amount;
@@ -983,6 +1007,7 @@ export const charge = async (req, res) => {
         status: 'pending',
         paymentType: paymentType,
         remainingAmount: remainingAmount,
+        is_down_payment: is_down_payment || false,
       });
 
       await payment.save();
@@ -1007,6 +1032,27 @@ export const charge = async (req, res) => {
       // Handle payment lainnya (bank_transfer, gopay, qris, dll)
       const { transaction_details, bank_transfer } = req.body;
       const { order_id, gross_amount } = transaction_details;
+
+      // Check if payment already exists for this order
+      const existingPayment = await Payment.findOne({ order_id: order_id });
+      if (existingPayment) {
+        console.log('Payment already exists for order:', order_id);
+        return res.status(200).json({
+          success: true,
+          message: 'Payment already processed',
+          data: existingPayment.raw_response || {
+            payment_id: existingPayment._id,
+            order_id: order_id,
+            amount: existingPayment.amount,
+            method: existingPayment.method,
+            status: existingPayment.status,
+            transaction_id: existingPayment.transaction_id,
+            paymentType: existingPayment.paymentType,
+            remainingAmount: existingPayment.remainingAmount,
+            is_down_payment: existingPayment.is_down_payment || false,
+          }
+        });
+      }
 
       // Log reservation payment details if present
       if (is_down_payment !== undefined) {
@@ -1051,10 +1097,6 @@ export const charge = async (req, res) => {
         },
       };
 
-      const bankValue = payment_type === 'bank_transfer'
-        ? bank_transfer?.bank || null
-        : payment_type;
-
       // Kondisikan chargeParams berdasarkan payment_type
       if (payment_type === 'bank_transfer') {
         if (!bank_transfer || !bank_transfer.bank) {
@@ -1090,7 +1132,7 @@ export const charge = async (req, res) => {
 
       const payment = new Payment({
         transaction_id: response.transaction_id,
-        order_id: id_order._id.toString(),
+        order_id: order_id.toString(),
         amount: parseInt(amount),
         method: payment_type,
         status: response.transaction_status || 'pending',
@@ -1109,6 +1151,7 @@ export const charge = async (req, res) => {
         actions: response.actions || [],
         paymentType: paymentType,
         remainingAmount: remainingAmount,
+        is_down_payment: is_down_payment || false,
         raw_response: response
       });
 
@@ -1144,7 +1187,6 @@ export const charge = async (req, res) => {
     });
   }
 };
-
 
 // Handling Midtrans Notification 
 export const paymentNotification = async (req, res) => {
@@ -1554,6 +1596,8 @@ export const getOrderById = async (req, res) => {
       .populate('items.menuItem');
 
     // console.log('Order:', order);
+
+    console.log('Order ID:', orderId);
 
     const payment = await Payment.findOne({ order_id: order.order_id });
 
