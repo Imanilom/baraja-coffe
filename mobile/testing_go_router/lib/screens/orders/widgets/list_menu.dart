@@ -59,7 +59,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
               return AddonModel(
                 id: addon.id,
                 name: addon.name,
-                // properti lain sesuai modelmu
+                type: addon.type,
                 options: defaultOptions,
               );
             })

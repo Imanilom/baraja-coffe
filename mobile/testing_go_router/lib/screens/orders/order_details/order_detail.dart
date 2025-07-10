@@ -99,7 +99,8 @@ class OrderDetail extends ConsumerWidget {
                 VerticalIconTextButton(
                   icon: Icons.table_restaurant_rounded,
                   label:
-                      orderDetail?.tableNumber != ""
+                      orderDetail?.tableNumber != "" &&
+                              orderDetail?.tableNumber != null
                           ? 'Meja ${orderDetail?.tableNumber}'
                           : 'Meja',
                   onPressed: () {
@@ -214,7 +215,8 @@ class OrderDetail extends ConsumerWidget {
                     // );
                   },
                   color:
-                      orderDetail?.tableNumber != ""
+                      orderDetail?.tableNumber != "" &&
+                              orderDetail?.tableNumber != null
                           ? Colors.green
                           : Colors.grey,
                 ),
@@ -287,11 +289,13 @@ class OrderDetail extends ConsumerWidget {
                 VerticalIconTextButton(
                   icon: Icons.person_rounded,
                   label:
-                      (orderDetail?.customerName != "")
-                          ? (orderDetail?.customerName ?? 'Pelanggan')
+                      (orderDetail?.customerName != "" &&
+                              orderDetail?.customerName != null)
+                          ? (orderDetail!.customerName!)
                           : 'Pelanggan',
                   color:
-                      orderDetail?.customerName != ""
+                      orderDetail?.customerName != "" &&
+                              orderDetail?.customerName != null
                           ? Colors.green
                           : Colors.grey,
                   onPressed: () {
@@ -507,7 +511,45 @@ class OrderDetail extends ConsumerWidget {
                           child: const Text('Lanjutkan Pesanan'),
                         )
                         : currentWidgetIndex == 2
-                        ? SizedBox.shrink()
+                        ? Row(
+                          children: [
+                            Expanded(
+                              child: TextButton(
+                                onPressed: () {
+                                  ref
+                                      .read(historyDetailProvider.notifier)
+                                      .clearHistoryDetail();
+                                },
+                                child: const Text('cancel'),
+                              ),
+                            ),
+                            Expanded(
+                              child: TextButton(
+                                onPressed: () {
+                                  if (orderDetail != null &&
+                                      orderDetail.items.isNotEmpty) {
+                                    //refund order
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Fitur refund belum tersedia",
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                style: TextButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text('Refund'),
+                              ),
+                            ),
+                          ],
+                        )
                         : currentWidgetIndex == 1
                         ? Row(
                           spacing: 8,
