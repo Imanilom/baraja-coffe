@@ -74,6 +74,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
 }));
+app.use("/images", express.static("api/public/images")); // supaya bisa diakses dari browser
 
 // Route definitions...
 app.use('/api/user', userRoutes);
