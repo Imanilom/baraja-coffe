@@ -33,8 +33,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       tax: fields[12] == null ? 0 : (fields[12] as num?)?.toInt(),
       totalPrice: fields[13] == null ? 0 : (fields[13] as num?)?.toInt(),
       serviceFee: fields[14] == null ? 0 : (fields[14] as num?)?.toInt(),
-      discounts:
-          fields[15] == null ? [] : (fields[15] as Map?)?.cast<String, int>(),
+      discounts: (fields[15] as Map?)?.cast<String, int>(),
     );
   }
 
@@ -112,11 +111,9 @@ _OrderDetailModel _$OrderDetailModelFromJson(Map<String, dynamic> json) =>
       tax: (json['tax'] as num?)?.toInt() ?? 0,
       totalPrice: (json['totalPrice'] as num?)?.toInt() ?? 0,
       serviceFee: (json['serviceFee'] as num?)?.toInt() ?? 0,
-      discounts:
-          (json['discounts'] as Map<String, dynamic>?)?.map(
-            (k, e) => MapEntry(k, (e as num).toInt()),
-          ) ??
-          const [],
+      discounts: (json['discounts'] as Map<String, dynamic>?)?.map(
+        (k, e) => MapEntry(k, (e as num).toInt()),
+      ),
     );
 
 Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>

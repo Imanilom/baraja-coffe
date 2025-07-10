@@ -123,8 +123,16 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
           return {
             'id': item.menuItem.id, // Ambil id menu aja
             'quantity': item.quantity,
-            'selectedAddons': [],
-            'selectedToppings': [],
+            'selectedAddons':
+                item.selectedAddons.map((addon) {
+                  return {
+                    'id': addon.id,
+                    'options':
+                        addon.options?.map((option) => option.id).toList(),
+                  };
+                }).toList(),
+            'selectedToppings':
+                item.selectedToppings.map((topping) => topping.id).toList(),
           };
         }).toList(),
     'orderType': order.orderType,
