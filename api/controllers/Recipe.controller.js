@@ -383,11 +383,15 @@ export const updateRecipe = async (req, res) => {
 
     await recipe.save({ session });
 
+    // Hitung ulang HPP setelah update bahan
+    const newCostPrice = await calculateCostPrice(recipe.menuItemId);
+    await MenuItem.findByIdAndUpdate(recipe.menuItemId, { costPrice: newCostPrice }, { session });
+
     await session.commitTransaction();
 
     res.status(200).json({
       success: true,
-      message: 'Resep berhasil diupdate',
+      message: 'Resep berhasil diupdate dan HPP diperbarui',
       data: recipe
     });
 
@@ -402,6 +406,7 @@ export const updateRecipe = async (req, res) => {
     session.endSession();
   }
 };
+
 
 // 🔹 Hapus resep
 export const deleteRecipe = async (req, res) => {
