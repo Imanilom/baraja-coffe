@@ -65,7 +65,7 @@ const ModifierManagement = () => {
 
         setOutlets(outletsData);
 
-        const categoryResponse = await axios.get('/api/storage/category');
+        const categoryResponse = await axios.get('/api/storage/categories');
 
         const categoryData = Array.isArray(categoryResponse.data) ?
           categoryResponse.data :

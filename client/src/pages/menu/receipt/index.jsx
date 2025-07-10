@@ -3,7 +3,7 @@ import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, Fa
 import axios from "axios";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
-const PriceSellingStatusManagement = () => {
+const ReceiptMenu = () => {
     const location = useLocation();
     const { id } = useParams(); // Get the menu item ID from the URL
     const navigate = useNavigate(); // Use the new hook
@@ -131,7 +131,7 @@ const PriceSellingStatusManagement = () => {
                     <FaChevronRight />
                     <p>{menuItems.name}</p>
                     <FaChevronRight />
-                    <span>Kelola Harga & Status Jual</span>
+                    <span>Kelola Resep</span>
                 </div>
                 <div className="flex space-x-2">
                     <Link to="/admin/menu"
@@ -222,4 +222,4 @@ const PriceSellingStatusManagement = () => {
     );
 };
 
-export default PriceSellingStatusManagement;  
+export default ReceiptMenu;  

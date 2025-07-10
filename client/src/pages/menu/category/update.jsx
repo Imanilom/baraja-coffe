@@ -48,7 +48,7 @@ const UpdateCategory = () => {
                 description,
                 type,
             };
-            const response = await axios.put(`/api/storage/category/${id}`, newCategory); // Kirim sebagai array
+            const response = await axios.put(`/api/storage/categories/${id}`, newCategory); // Kirim sebagai array
             navigate('/admin/categories');
         } catch (err) {
             setError('Failed to add category');

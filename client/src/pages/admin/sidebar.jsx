@@ -17,6 +17,7 @@ import {
   FaHandshake,
   FaTh,
   FaDollarSign,
+  FaChevronRight,
 } from "react-icons/fa";
 
 const useActiveRoute = () => {
@@ -24,7 +25,7 @@ const useActiveRoute = () => {
   return location.pathname;
 };
 
-const Sidebar = () => {
+const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
   const [openMenus, setOpenMenus] = useState({});
   const activeRoute = useActiveRoute();
   const menuItems = [
@@ -106,9 +107,11 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="w-64 h-screen bg-gray-800 text-white fixed top-0 left-0 flex flex-col">
-      <style>
-        {`
+    <>
+      <div className={`h-screen bg-gray-800 text-white fixed top-0 left-0 flex flex-col transition-all duration-300 z-40
+    ${isSidebarOpen ? "w-64" : "w-0 overflow-hidden"}`}>
+        <style>
+          {`
         .custom-scrollbar {
           scrollbar-gutter: stable;
         }
@@ -130,112 +133,114 @@ const Sidebar = () => {
           display: none;
         }
       `}
-      </style>
+        </style>
 
-      {/* Sticky Header */}
-      <div className="px-4 pt-4 pb-2 shrink-0">
-        <div className="text-center mb-4 bg-white">
-          <img
-            src="https://s3.ap-southeast-1.amazonaws.com/new.newpawoon/receipt_images/IMG_479013_1750394198_200.png"
-            alt="Logo"
-            className="mx-auto max-w-xs"
-          />
+        {/* Sticky Header */}
+        <div className="px-4 pt-4 pb-2 shrink-0">
+          <div className="text-center mb-4">
+            <img
+              src="/images/baraja white.png"
+              alt="Logo"
+              className="mx-auto max-w-xs w-full"
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Scrollable Menu */}
-      <div className="relative flex-1">
-        <div className="absolute inset-0 overflow-y-hidden hover:overflow-y-auto custom-scrollbar">
-          <ul className="transition-all duration-300 ease-in-out">
-            {menuItems.map((section, idx) => (
-              <div key={idx} className="mb-4">
-                <h3 className="px-4 text-sm text-gray-400 uppercase tracking-wider font-semibold mb-2">
-                  {section.section}
-                </h3>
-                <ul>
-                  {section.items.map((item, index) => {
-                    const hasActiveSubRoute = item.subMenu?.some((sub) =>
-                      activeRoute.startsWith(sub.path)
-                    );
-                    const isSubMenuOpen =
-                      openMenus[item.name] !== undefined
-                        ? openMenus[item.name]
-                        : hasActiveSubRoute;
+        <hr className="mx-6" />
 
-                    const isActive = activeRoute.startsWith(item.path);
+        {/* Scrollable Menu */}
+        <div className="relative flex-1">
+          <div className="absolute inset-0 overflow-y-hidden hover:overflow-y-auto custom-scrollbar">
+            <ul className="transition-all duration-300 ease-in-out">
+              {menuItems.map((section, idx) => (
+                <div key={idx} className="mb-4">
+                  <h3 className="px-4 text-sm text-gray-400 uppercase tracking-wider font-semibold mb-2">
+                    {section.section}
+                  </h3>
+                  <ul>
+                    {section.items.map((item, index) => {
+                      const hasActiveSubRoute = item.subMenu?.some((sub) =>
+                        activeRoute.startsWith(sub.path)
+                      );
+                      const isSubMenuOpen =
+                        openMenus[item.name] !== undefined
+                          ? openMenus[item.name]
+                          : hasActiveSubRoute;
 
-                    return (
-                      <li key={index}>
-                        {item.subMenu ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => toggleMenu(item.name)}
-                              className={`group relative w-full flex items-center justify-between py-3 px-4 overflow-hidden font-semibold transition-all ${isSubMenuOpen ? "bg-gray-700 text-white" : "text-gray-300"
+                      const isActive = activeRoute.startsWith(item.path);
+
+                      return (
+                        <li key={index}>
+                          {item.subMenu ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => toggleMenu(item.name)}
+                                className={`group relative w-full flex items-center justify-between py-3 px-4 overflow-hidden font-semibold transition-all ${isSubMenuOpen ? "bg-gray-700 text-white" : "text-gray-300"
+                                  }`}
+                              >
+                                <div className="flex items-center gap-2 relative z-10 group-hover:text-white transition-all">
+                                  {item.icon}
+                                  <span>{item.name}</span>
+                                </div>
+                                <div className="relative z-10">
+                                  {isSubMenuOpen ? (
+                                    <FaChevronDown className="transition-transform" />
+                                  ) : (
+                                    <FaChevronLeft className="transition-transform" />
+                                  )}
+                                </div>
+                                <span className="absolute left-0 top-0 h-full w-0 bg-gray-700 group-hover:w-full transition-all duration-300 ease-out z-0" />
+                              </button>
+
+                              {isSubMenuOpen && (
+                                <ul className="bg-gray-900">
+                                  {Array.isArray(item.subMenu) &&
+                                    item.subMenu.map((subItem, subIndex) => {
+                                      const isSubActive = activeRoute.startsWith(subItem.path);
+                                      return (
+                                        <li key={subIndex}>
+                                          <Link
+                                            to={subItem.path}
+                                            className={`group relative block py-2 px-4 overflow-hidden transition-all ${isSubActive ? "bg-gray-700 text-white" : "text-gray-300"
+                                              }`}
+                                          >
+                                            <div className="flex items-center gap-2 relative z-10 group-hover:text-white">
+                                              <span className="w-[20px] inline-block" />
+                                              <span>{subItem.name}</span>
+                                            </div>
+                                            <span className="absolute left-0 top-0 h-full w-0 bg-gray-700 group-hover:w-full transition-all duration-300 ease-out z-0" />
+                                          </Link>
+                                        </li>
+                                      );
+                                    })}
+                                </ul>
+                              )}
+                            </>
+                          ) : (
+                            <Link
+                              to={item.path}
+                              className={`group relative block py-3 px-4 overflow-hidden transition-all ${isActive ? "bg-gray-700 text-white" : "text-gray-300"
                                 }`}
                             >
-                              <div className="flex items-center gap-2 relative z-10 group-hover:text-white transition-all">
+                              <div className="flex items-center gap-2 relative z-10 group-hover:text-white">
                                 {item.icon}
                                 <span>{item.name}</span>
                               </div>
-                              <div className="relative z-10">
-                                {isSubMenuOpen ? (
-                                  <FaChevronDown className="transition-transform" />
-                                ) : (
-                                  <FaChevronLeft className="transition-transform" />
-                                )}
-                              </div>
                               <span className="absolute left-0 top-0 h-full w-0 bg-gray-700 group-hover:w-full transition-all duration-300 ease-out z-0" />
-                            </button>
-
-                            {isSubMenuOpen && (
-                              <ul className="bg-gray-900">
-                                {Array.isArray(item.subMenu) &&
-                                  item.subMenu.map((subItem, subIndex) => {
-                                    const isSubActive = activeRoute.startsWith(subItem.path);
-                                    return (
-                                      <li key={subIndex}>
-                                        <Link
-                                          to={subItem.path}
-                                          className={`group relative block py-2 px-4 overflow-hidden transition-all ${isSubActive ? "bg-gray-700 text-white" : "text-gray-300"
-                                            }`}
-                                        >
-                                          <div className="flex items-center gap-2 relative z-10 group-hover:text-white">
-                                            <span className="w-[20px] inline-block" />
-                                            <span>{subItem.name}</span>
-                                          </div>
-                                          <span className="absolute left-0 top-0 h-full w-0 bg-gray-700 group-hover:w-full transition-all duration-300 ease-out z-0" />
-                                        </Link>
-                                      </li>
-                                    );
-                                  })}
-                              </ul>
-                            )}
-                          </>
-                        ) : (
-                          <Link
-                            to={item.path}
-                            className={`group relative block py-3 px-4 overflow-hidden transition-all ${isActive ? "bg-gray-700 text-white" : "text-gray-300"
-                              }`}
-                          >
-                            <div className="flex items-center gap-2 relative z-10 group-hover:text-white">
-                              {item.icon}
-                              <span>{item.name}</span>
-                            </div>
-                            <span className="absolute left-0 top-0 h-full w-0 bg-gray-700 group-hover:w-full transition-all duration-300 ease-out z-0" />
-                          </Link>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </ul>
+                            </Link>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </ul>
+          </div>
         </div>
-      </div>
-    </div >
-
+      </div >
+    </>
   );
 };
 
