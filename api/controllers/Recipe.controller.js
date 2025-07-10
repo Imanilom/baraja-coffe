@@ -1,6 +1,7 @@
 import Recipe from '../models/modul_menu/Recipe.model.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
+import Product from '../models/modul_market/Product.model.js';
 import mongoose from 'mongoose';
 
 /**
@@ -27,6 +28,51 @@ const calculateMaxPortions = async (ingredients) => {
   }
 
   return isNaN(maxPortion) || maxPortion < 0 ? 0 : maxPortion;
+};
+
+export const calculateCostPrice = async (menuItemId, recipeOverride = null) => {
+  let recipe;
+
+  if (recipeOverride) {
+    // Gunakan resep yang baru dibuat
+    recipe = recipeOverride;
+  } else {
+    // Cari di DB jika tidak ada override
+    recipe = await Recipe.findOne({ menuItemId });
+  }
+
+  if (!recipe) return 0;
+
+  let total = 0;
+
+  const getPrice = (product) => {
+    if (!product?.suppliers?.length) return 0;
+    
+    // Urutkan supplier berdasarkan lastPurchaseDate terbaru
+    const sorted = [...product.suppliers].sort((a, b) =>
+      new Date(b.lastPurchaseDate) - new Date(a.lastPurchaseDate)
+    );
+    return sorted[0]?.price || 0;
+  };
+
+  const sumIngredients = async (ingredients) => {
+    for (const ing of ingredients) {
+      const product = await Product.findById(ing.productId);
+      if (!product) continue;
+      const price = getPrice(product);
+      total += price * ing.quantity;
+    }
+  };
+
+  // Hitung bahan utama
+  await sumIngredients(recipe.baseIngredients);
+
+  // Hitung addonOptions
+  for (const addon of recipe.addonOptions) {
+    await sumIngredients(addon.ingredients);
+  }
+
+  return total;
 };
 
 /**
@@ -216,7 +262,7 @@ export const createRecipe = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Harus ada bahan utama' });
     }
 
-    // Buat resep
+    // Buat resep sementara untuk dihitung
     const newRecipe = new Recipe({
       menuItemId,
       baseIngredients,
@@ -224,6 +270,7 @@ export const createRecipe = async (req, res) => {
       addonOptions: addonOptions || []
     });
 
+    // Simpan resep ke database
     await newRecipe.save({ session });
 
     // Update status menu menjadi aktif jika belum
@@ -232,6 +279,12 @@ export const createRecipe = async (req, res) => {
       await menuItem.save({ session });
     }
 
+    // Hitung HPP dengan langsung pakai newRecipe
+    const newCostPrice = await calculateCostPrice(menuItemId, newRecipe);
+    menuItem.costPrice = newCostPrice;
+    await menuItem.save({ session });
+
+    // Commit transaksi
     await session.commitTransaction();
 
     res.status(201).json({
@@ -330,11 +383,15 @@ export const updateRecipe = async (req, res) => {
 
     await recipe.save({ session });
 
+    // Hitung ulang HPP setelah update bahan
+    const newCostPrice = await calculateCostPrice(recipe.menuItemId);
+    await MenuItem.findByIdAndUpdate(recipe.menuItemId, { costPrice: newCostPrice }, { session });
+
     await session.commitTransaction();
 
     res.status(200).json({
       success: true,
-      message: 'Resep berhasil diupdate',
+      message: 'Resep berhasil diupdate dan HPP diperbarui',
       data: recipe
     });
 
@@ -349,6 +406,7 @@ export const updateRecipe = async (req, res) => {
     session.endSession();
   }
 };
+
 
 // 🔹 Hapus resep
 export const deleteRecipe = async (req, res) => {

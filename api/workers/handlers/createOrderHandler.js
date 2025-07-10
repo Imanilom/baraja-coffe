@@ -2,62 +2,101 @@ import mongoose from 'mongoose';
 import { Order } from '../../models/order.model.js';
 import { processOrderItems } from '../../services/order.service.js';
 import { orderQueue } from '../../queues/order.queue.js';
+import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
+
+
 
 export async function createOrderHandler({ orderId, orderData, source }) {
-  const session = await mongoose.startSession();
-
   try {
-    session.startTransaction();
+    const orderResult = await runWithTransactionRetry(async (session) => {
+      const processed = await processOrderItems(orderData, session);
+      if (!processed) {
+        throw new Error('Failed to process order items');
+      }
 
-    const processed = await processOrderItems(orderData, session);
-    if (!processed) {
-      throw new Error('Gagal memproses item order');
+      const fullOrderData = {
+        ...orderData,
+        order_id: orderId,
+        items: processed.orderItems,
+        totalBeforeDiscount: processed.totalBeforeDiscount,
+        totalAfterDiscount: processed.totalAfterDiscount,
+        status: source === 'Cashier' ? 'Completed' : 'Pending',
+        source,
+        appliedPromos: processed.appliedPromos,
+        taxAndServiceDetails: processed.taxAndServiceDetails,
+        grandTotal: processed.grandTotal,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      const newOrder = new Order(fullOrderData);
+      await newOrder.save({ session });
+
+      return { 
+        success: true, 
+        orderId: newOrder._id.toString(),
+        processedItems: processed.orderItems,
+        sessionId: session.id // Pass session info for debugging
+      };
+    });
+
+    // Only proceed to queue if transaction succeeded
+    const queueResult = await enqueueInventoryUpdate(orderResult);
+    console.log('Order and inventory queue processed:', queueResult);
+    return queueResult;
+
+  } catch (err) {
+    console.error('Order processing failed:', {
+      error: err.message,
+      stack: err.stack,
+      orderId,
+      source
+    });
+    throw err;
+  }
+}
+
+
+// Separate function to handle queue operations after successful transaction
+export async function enqueueInventoryUpdate(orderResult) {
+  try {
+    if (!orderResult.success) {
+      throw new Error('Cannot enqueue inventory update for failed order');
     }
 
-    const fullOrderData = {
-      ...orderData,
-      order_id: orderId,
-      items: processed.orderItems,
-      totalBeforeDiscount: processed.totalBeforeDiscount,
-      totalAfterDiscount: processed.totalAfterDiscount,
-      status: source === 'Cashier' ? 'Completed' : 'Pending',
-      source,
-      appliedPromos: processed.appliedPromos,
-      taxAndServiceDetails: processed.taxAndServiceDetails,
-      grandTotal: processed.grandTotal,
-    };
-
-    const newOrder = new Order(fullOrderData);
-    await newOrder.save({ session });
-
-    // Commit transaksi sebelum melakukan operasi async lain
-    await session.commitTransaction();
-
-    // Tambahkan job update inventory setelah transaksi sukses
-    const orderObjectId = newOrder._id.toString();
     await orderQueue.add(
-      'update_inventory',
+      'update_inventory', // This is the queue name, not the job type
       {
-        orderId: orderObjectId,
-        items: processed.orderItems,
+        type: 'update_inventory', // Add this required field
+        payload: {
+          orderId: orderResult.orderId,
+          items: orderResult.processedItems,
+          sessionInfo: orderResult.sessionId
+        }
       },
       {
-        jobId: `update_inventory-${orderObjectId}`,
+        jobId: `update_inventory-${orderResult.orderId}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: true,
+        removeOnFail: true
       }
     );
 
-    return { success: true, orderId: orderObjectId };
+    return { success: true, orderId: orderResult.orderId };
   } catch (err) {
-    // Rollback transaksi jika masih aktif
-    if (session.inTransaction()) {
-      await session.abortTransaction();
-    }
-    console.error('createOrderHandler error:', err);
+    console.error('enqueueInventoryUpdate error:', err);
     throw err;
-  } finally {
-    // Tutup sesi database
-    await session.endSession();
   }
 }
+
+// Updated usage example:
+/*
+try {
+  const orderResult = await createOrderHandler({ orderId, orderData, source });
+  const queueResult = await enqueueInventoryUpdate(orderResult);
+  return queueResult;
+} catch (err) {
+  // Handle error
+}
+*/

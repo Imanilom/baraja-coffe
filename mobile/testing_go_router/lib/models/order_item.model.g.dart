@@ -8,7 +8,7 @@ part of 'order_item.model.dart';
 
 class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
   @override
-  final int typeId = 4;
+  final typeId = 4;
 
   @override
   OrderItemModel read(BinaryReader reader) {
@@ -18,16 +18,19 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
     };
     return OrderItemModel(
       menuItem: fields[0] as MenuItemModel,
-      selectedToppings: (fields[1] as List).cast<ToppingModel>(),
-      selectedAddons: (fields[2] as List).cast<AddonModel>(),
-      quantity: (fields[3] as num).toInt(),
+      selectedToppings:
+          fields[1] == null ? [] : (fields[1] as List).cast<ToppingModel>(),
+      selectedAddons:
+          fields[2] == null ? [] : (fields[2] as List).cast<AddonModel>(),
+      quantity: fields[3] == null ? 1 : (fields[3] as num).toInt(),
+      notes: fields[4] == null ? '' : fields[4] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderItemModel obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.menuItem)
       ..writeByte(1)
@@ -35,7 +38,9 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       ..writeByte(2)
       ..write(obj.selectedAddons)
       ..writeByte(3)
-      ..write(obj.quantity);
+      ..write(obj.quantity)
+      ..writeByte(4)
+      ..write(obj.notes);
   }
 
   @override
@@ -69,6 +74,7 @@ _OrderItemModel _$OrderItemModelFromJson(Map<String, dynamic> json) =>
               .toList() ??
           const [],
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      notes: json['notes'] as String? ?? "",
     );
 
 Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
@@ -77,4 +83,5 @@ Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
       'selectedToppings': instance.selectedToppings,
       'selectedAddons': instance.selectedAddons,
       'quantity': instance.quantity,
+      'notes': instance.notes,
     };

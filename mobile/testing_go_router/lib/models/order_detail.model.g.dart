@@ -17,22 +17,22 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return OrderDetailModel(
-      customerId: fields[0] as String?,
-      customerName: fields[1] as String?,
-      cashierId: fields[2] as String?,
-      phoneNumber: fields[3] as String?,
+      customerId: fields[0] == null ? '' : fields[0] as String?,
+      customerName: fields[1] == null ? '' : fields[1] as String?,
+      cashierId: fields[2] == null ? '' : fields[2] as String?,
+      phoneNumber: fields[3] == null ? '' : fields[3] as String?,
       items:
           fields[4] == null ? [] : (fields[4] as List).cast<OrderItemModel>(),
       orderType: fields[5] as String,
-      deliveryAddress: fields[6] as String?,
-      tableNumber: fields[7] as String?,
-      paymentMethod: fields[8] as String?,
-      status: fields[9] as String?,
-      subTotalPrice: (fields[10] as num?)?.toInt(),
-      orderId: fields[11] as String?,
-      tax: (fields[12] as num?)?.toInt(),
-      totalPrice: (fields[13] as num?)?.toInt(),
-      serviceFee: (fields[14] as num?)?.toInt(),
+      deliveryAddress: fields[6] == null ? '' : fields[6] as String?,
+      tableNumber: fields[7] == null ? '' : fields[7] as String?,
+      paymentMethod: fields[8] == null ? '' : fields[8] as String?,
+      status: fields[9] == null ? '' : fields[9] as String?,
+      subTotalPrice: fields[10] == null ? 0 : (fields[10] as num?)?.toInt(),
+      orderId: fields[11] == null ? '' : fields[11] as String?,
+      tax: fields[12] == null ? 0 : (fields[12] as num?)?.toInt(),
+      totalPrice: fields[13] == null ? 0 : (fields[13] as num?)?.toInt(),
+      serviceFee: fields[14] == null ? 0 : (fields[14] as num?)?.toInt(),
       discounts: (fields[15] as Map?)?.cast<String, int>(),
     );
   }
@@ -92,25 +92,25 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
 
 _OrderDetailModel _$OrderDetailModelFromJson(Map<String, dynamic> json) =>
     _OrderDetailModel(
-      customerId: json['userId'] as String?,
-      customerName: json['customerName'] as String?,
-      cashierId: json['cashierId'] as String?,
-      phoneNumber: json['phoneNumber'] as String?,
+      customerId: json['userId'] as String? ?? "",
+      customerName: json['customerName'] as String? ?? "",
+      cashierId: json['cashierId'] as String? ?? "",
+      phoneNumber: json['phoneNumber'] as String? ?? "",
       items:
           (json['items'] as List<dynamic>?)
               ?.map((e) => OrderItemModel.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
       orderType: json['orderType'] as String,
-      deliveryAddress: json['deliveryAddress'] as String?,
-      tableNumber: json['tableNumber'] as String?,
-      paymentMethod: json['paymentMethod'] as String?,
-      status: json['status'] as String?,
-      subTotalPrice: (json['subTotalPrice'] as num?)?.toInt(),
-      orderId: json['order_id'] as String?,
-      tax: (json['tax'] as num?)?.toInt(),
-      totalPrice: (json['totalPrice'] as num?)?.toInt(),
-      serviceFee: (json['serviceFee'] as num?)?.toInt(),
+      deliveryAddress: json['deliveryAddress'] as String? ?? "",
+      tableNumber: json['tableNumber'] as String? ?? "",
+      paymentMethod: json['paymentMethod'] as String? ?? "",
+      status: json['status'] as String? ?? "",
+      subTotalPrice: (json['subTotalPrice'] as num?)?.toInt() ?? 0,
+      orderId: json['order_id'] as String? ?? "",
+      tax: (json['tax'] as num?)?.toInt() ?? 0,
+      totalPrice: (json['totalPrice'] as num?)?.toInt() ?? 0,
+      serviceFee: (json['serviceFee'] as num?)?.toInt() ?? 0,
       discounts: (json['discounts'] as Map<String, dynamic>?)?.map(
         (k, e) => MapEntry(k, (e as num).toInt()),
       ),

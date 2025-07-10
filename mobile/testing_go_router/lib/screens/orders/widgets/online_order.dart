@@ -32,7 +32,7 @@ class OnlineOrder extends ConsumerWidget {
                   '${order.customerName} - ${order.orderType.toString()} - ${order.status.toString()}',
                 ),
                 subtitle: Text(
-                  '${formatRupiah(order.totalPrice!.toInt())} - ${order.orderId} - ${order.items.first.menuItem.categories}',
+                  '${formatRupiah(order.totalPrice!.toInt())} - ${order.orderId} - ${order.items.first.menuItem.category!}...',
                 ),
                 onTap: () {
                   // Clear previous history detail

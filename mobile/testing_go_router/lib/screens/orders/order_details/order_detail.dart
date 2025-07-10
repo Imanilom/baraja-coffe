@@ -1,18 +1,14 @@
 import 'package:assorted_layout_widgets/assorted_layout_widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/models/tax_and_service.model.dart';
-import 'package:kasirbaraja/providers/navigation_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/saved_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/orders/saved_order_provider.dart';
-import 'package:kasirbaraja/providers/payment_provider.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/providers/tax_and_service_provider.dart';
 import 'package:kasirbaraja/repositories/online_order_repository.dart';
@@ -101,9 +97,10 @@ class OrderDetail extends ConsumerWidget {
               children: [
                 // nomor meja,
                 VerticalIconTextButton(
-                  icon: Icons.table_bar,
+                  icon: Icons.table_restaurant_rounded,
                   label:
-                      orderDetail?.tableNumber != null
+                      orderDetail?.tableNumber != "" &&
+                              orderDetail?.tableNumber != null
                           ? 'Meja ${orderDetail?.tableNumber}'
                           : 'Meja',
                   onPressed: () {
@@ -120,7 +117,7 @@ class OrderDetail extends ConsumerWidget {
                         //controller untuk text field
                         final TextEditingController controller =
                             TextEditingController(
-                              text: orderDetail?.customerName,
+                              text: orderDetail?.tableNumber ?? '',
                             );
                         return SingleChildScrollView(
                           physics: const BouncingScrollPhysics(),
@@ -218,13 +215,14 @@ class OrderDetail extends ConsumerWidget {
                     // );
                   },
                   color:
-                      orderDetail?.tableNumber != null
+                      orderDetail?.tableNumber != "" &&
+                              orderDetail?.tableNumber != null
                           ? Colors.green
                           : Colors.grey,
                 ),
                 //order type dine-in, take away, delivery,
                 VerticalIconTextButton(
-                  icon: Icons.restaurant,
+                  icon: Icons.restaurant_menu_rounded,
                   label: orderDetail?.orderType ?? 'Dine-In',
                   onPressed: () {
                     if (orderDetail != null) {
@@ -289,10 +287,15 @@ class OrderDetail extends ConsumerWidget {
                 ),
                 // nama pelanggan,
                 VerticalIconTextButton(
-                  icon: Icons.person,
-                  label: orderDetail?.customerName ?? 'Pelanggan',
+                  icon: Icons.person_rounded,
+                  label:
+                      (orderDetail?.customerName != "" &&
+                              orderDetail?.customerName != null)
+                          ? (orderDetail!.customerName!)
+                          : 'Pelanggan',
                   color:
-                      orderDetail?.customerName != null
+                      orderDetail?.customerName != "" &&
+                              orderDetail?.customerName != null
                           ? Colors.green
                           : Colors.grey,
                   onPressed: () {
@@ -411,10 +414,10 @@ class OrderDetail extends ConsumerWidget {
                                     Text(
                                       'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}',
                                     ),
-                                if (orderItem.note != null &&
-                                    orderItem.note!.isNotEmpty)
+                                if (orderItem.notes != null &&
+                                    orderItem.notes!.isNotEmpty)
                                   Text(
-                                    'Catatan: ${orderItem.note!}',
+                                    'Catatan: ${orderItem.notes!}',
                                     style: const TextStyle(
                                       fontStyle: FontStyle.italic,
                                       color: Colors.grey,
@@ -450,105 +453,7 @@ class OrderDetail extends ConsumerWidget {
                                             .removeItem(orderItem);
                                       },
                                     ),
-                                // builder: (context) {
-                                //   final mediaQuery = MediaQuery.of(context);
-                                //   final isLandscape =
-                                //       mediaQuery.orientation ==
-                                //       Orientation.landscape;
-                                //   return GestureDetector(
-                                //     onTap: () {},
-                                //     // Mencegah dismiss saat di-tap di luar
-                                //     child: Container(
-                                //       height:
-                                //           MediaQuery.of(context).size.height,
-                                //       width:
-                                //           isLandscape
-                                //               ? mediaQuery.size.width *
-                                //                   0.7 // Lebih lebar di landscape
-                                //               : mediaQuery.size.width *
-                                //                   0.85, // Lebih sempit di portrait
-                                //       color: Colors.white,
-                                //       child: TextButton(
-                                //         onPressed: () {
-                                //           Navigator.pop(context);
-                                //         },
-                                //         child: const Text('Tutup'),
-                                //       ),
-                                //     ),
-                                //   );
-                                // },
                               );
-                              // showModalBottomSheet(
-                              //   context: context,
-                              //   isScrollControlled:
-                              //       true, // wajib supaya tinggi bisa fullscreen
-                              //   backgroundColor:
-                              //       Colors
-                              //           .transparent, // supaya sudut tidak terpotong
-                              //   builder: (context) {
-                              //     final isLandscape =
-                              //         MediaQuery.of(context).orientation ==
-                              //         Orientation.landscape;
-                              //     final height =
-                              //         isLandscape
-                              //             ? MediaQuery.of(context)
-                              //                 .size
-                              //                 .height // fullscreen di landscape
-                              //             : MediaQuery.of(context).size.height *
-                              //                 0.9; // misal 90% di portrait
-
-                              //     return Container(
-                              //       width:
-                              //           MediaQuery.of(
-                              //             context,
-                              //           ).size.width, // full width
-                              //       height: height,
-                              //       decoration: const BoxDecoration(
-                              //         color: Colors.white,
-                              //         borderRadius: BorderRadius.vertical(
-                              //           top: Radius.circular(16),
-                              //         ),
-                              //       ),
-                              //       child: DraggableScrollableSheet(
-                              //         initialChildSize: 1.0,
-                              //         minChildSize: 0.5,
-                              //         maxChildSize: 1.0,
-                              //         expand: false,
-                              //         builder:
-                              //             (
-                              //               _,
-                              //               controller,
-                              //             ) => SingleChildScrollView(
-                              //               controller: controller,
-                              //               child: EditOrderItemDialog(
-                              //                 orderItem: orderItem,
-                              //                 onEditOrder: (editedOrderItem) {
-                              //                   ref
-                              //                       .read(
-                              //                         orderDetailProvider
-                              //                             .notifier,
-                              //                       )
-                              //                       .editOrderItem(
-                              //                         orderItem,
-                              //                         editedOrderItem,
-                              //                       );
-                              //                 },
-                              //                 onClose:
-                              //                     () => Navigator.pop(context),
-                              //                 onDeleteOrderItem: () {
-                              //                   ref
-                              //                       .read(
-                              //                         orderDetailProvider
-                              //                             .notifier,
-                              //                       )
-                              //                       .removeItem(orderItem);
-                              //                 },
-                              //               ),
-                              //             ),
-                              //       ),
-                              //     );
-                              //   },
-                              // );
                             },
                           );
                         },
@@ -606,7 +511,45 @@ class OrderDetail extends ConsumerWidget {
                           child: const Text('Lanjutkan Pesanan'),
                         )
                         : currentWidgetIndex == 2
-                        ? SizedBox.shrink()
+                        ? Row(
+                          children: [
+                            Expanded(
+                              child: TextButton(
+                                onPressed: () {
+                                  ref
+                                      .read(historyDetailProvider.notifier)
+                                      .clearHistoryDetail();
+                                },
+                                child: const Text('cancel'),
+                              ),
+                            ),
+                            Expanded(
+                              child: TextButton(
+                                onPressed: () {
+                                  if (orderDetail != null &&
+                                      orderDetail.items.isNotEmpty) {
+                                    //refund order
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Fitur refund belum tersedia",
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                style: TextButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text('Refund'),
+                              ),
+                            ),
+                          ],
+                        )
                         : currentWidgetIndex == 1
                         ? Row(
                           spacing: 8,
@@ -764,7 +707,7 @@ class OrderDetail extends ConsumerWidget {
                                               orderDetail.items.isNotEmpty) {
                                             // print('mau dibayar');
                                             if (orderDetail.customerName ==
-                                                null) {
+                                                "") {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
@@ -774,6 +717,22 @@ class OrderDetail extends ConsumerWidget {
                                                   ),
                                                   content: Text(
                                                     'Nama pelanggan tidak boleh kosong',
+                                                  ),
+                                                ),
+                                              );
+                                              return;
+                                            } else if (orderDetail
+                                                    .tableNumber ==
+                                                "") {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  duration: Duration(
+                                                    seconds: 1,
+                                                  ),
+                                                  content: Text(
+                                                    'Nomor meja tidak boleh kosong',
                                                   ),
                                                 ),
                                               );
