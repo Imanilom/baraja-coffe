@@ -161,6 +161,20 @@ export const createAppOrder = async (req, res) => {
       type: 'Indoor',
       voucher: voucherId,
       outlet: outlet,
+      totalBeforeDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
+      totalAfterDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0), // No discount applied yet
+      totalTax: 0, // Assuming no tax for now
+      totalServiceFee: 0, // Assuming no service fee for now
+      discounts: {
+        autoPromoDiscount: 0,
+        manualDiscount: 0,
+        voucherDiscount: 0
+      },
+      appliedPromos: [], // Will be filled with auto promos if any
+      appliedManualPromo: null, // Will be filled if manual promo is applied
+      appliedVoucher: voucherId, // Will be filled if voucher is applied
+      taxAndServiceDetails: [], // Will be filled if tax or service fee is applied
+      grandTotal: orderItems.reduce((sum, item) => sum + item.subtotal, 0), // Initial grand total
       promotions: [],
       source: 'App',
       reservation: null, // Will be set after reservation is created
@@ -1513,7 +1527,8 @@ export const getOrderById = async (req, res) => {
 
     console.log('Order ID:', orderId);
 
-    const payment = await Payment.findOne({ order_id: orderId });
+
+    const payment = await Payment.findOne({ order_id: order.order_id });
 
     // Mencari reservasi berdasarkan order_id
     const reservation = await Reservation.findOne({ order_id: orderId })
