@@ -1422,6 +1422,7 @@ export const getUserOrders = async (req, res) => {
 // };
 
 // Get History User orders
+
 export const getUserOrderHistory = async (req, res) => {
   try {
     const userId = req.params.userId;
@@ -1495,96 +1496,6 @@ export const getUserOrderHistory = async (req, res) => {
   }
 };
 
-// export const getOrderById = async (req, res) => {
-//   try {
-//     const orderId = req.params.orderId;
-//     if (!orderId) {
-//       return res.status(400).json({ message: 'Order ID is required.' });
-//     }
-//     console.log('Fetching order with ID:', orderId);
-
-//     // Mencari pesanan berdasarkan ID
-//     const order = await Order.findById(orderId)
-//       .populate('items.menuItem')
-//     // .populate('voucher');
-//     // console.log('Order:', order);
-
-
-//     const payment = await Payment.findOne({ order_id: orderId });
-//     console.log('Payment:', payment);
-//     console.log('Order:', orderId);
-
-//     // Verify user exists
-//     const userExists = await User.findById(order.user_id);
-//     if (!userExists) {
-//       return res.status(404).json({ success: false, message: 'User not found' });
-//     }
-
-//     console.log('User:', userExists);
-//     if (!order) {
-//       return res.status(404).json({ message: 'Order not found.' });
-//     }
-
-//     // Format tanggal
-//     const formatDate = (date) => {
-//       const options = {
-//         day: 'numeric',
-//         month: 'long',
-//         year: 'numeric',
-//         hour: '2-digit',
-//         minute: '2-digit',
-//         timeZone: 'Asia/Jakarta'
-//       };
-//       return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
-//     };
-
-//     const formattedItems = order.items.map(item => {
-//       const basePrice = item.price || item.menuItem?.price || 0;
-//       const quantity = item.quantity || 1;
-
-//       return {
-//         menuItemId: item.menuItem?._id || item.menuItem || item._id,
-//         name: item.menuItem?.name || item.name || 'Unknown Item',
-//         price: basePrice,
-//         quantity: quantity,
-//         addons: item.addons || [],
-//         toppings: item.toppings || [],
-//         notes: item.notes,
-//       };
-//     });
-
-
-//     // Generate order number dari order_id atau _id
-//     const generateOrderNumber = (orderId) => {
-//       if (typeof orderId === 'string' && orderId.includes('ORD-')) {
-//         // Extract number dari format ORD-2024-001234
-//         const parts = orderId.split('-');
-//         return parts.length > 2 ? `#${parts[parts.length - 1]}` : `#${orderId.slice(-4)}`;
-//       }
-//       // Jika menggunakan MongoDB ObjectId, ambil 4 digit terakhir
-//       return `#${orderId.toString().slice(-4)}`;
-//     };
-//     // console.log(payment);
-
-//     const orderData = {
-//       _id: order._id.toString(),
-//       orderId: order.order_id || order._id.toString(),
-//       orderNumber: generateOrderNumber(order.order_id || order._id),
-//       orderDate: formatDate(order.createdAt),
-//       items: formattedItems,
-//       total: payment.amount,
-//       orderStatus: order.status,
-//       paymentMethod: (payment.bank || payment.method).toUpperCase(),
-//       paymentStatus: payment.status
-//     };
-//     console.log('Order Data:', orderData);
-
-//     res.status(200).json({ orderData });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Internal server error.' });
-//   }
-// };
 
 export const getOrderById = async (req, res) => {
   try {
