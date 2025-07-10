@@ -128,11 +128,15 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                   return {
                     'id': addon.id,
                     'options':
-                        addon.options?.map((option) => option.id).toList(),
+                        addon.options
+                            ?.map((option) => {'id': option.id})
+                            .toList(),
                   };
                 }).toList(),
             'selectedToppings':
-                item.selectedToppings.map((topping) => topping.id).toList(),
+                item.selectedToppings
+                    .map((topping) => {'id': topping.id})
+                    .toList(),
           };
         }).toList(),
     'orderType': order.orderType,
