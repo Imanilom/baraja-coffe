@@ -407,10 +407,10 @@ class OrderDetail extends ConsumerWidget {
                                     Text(
                                       'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}',
                                     ),
-                                if (orderItem.note != null &&
-                                    orderItem.note!.isNotEmpty)
+                                if (orderItem.notes != null &&
+                                    orderItem.notes!.isNotEmpty)
                                   Text(
-                                    'Catatan: ${orderItem.note!}',
+                                    'Catatan: ${orderItem.notes!}',
                                     style: const TextStyle(
                                       fontStyle: FontStyle.italic,
                                       color: Colors.grey,

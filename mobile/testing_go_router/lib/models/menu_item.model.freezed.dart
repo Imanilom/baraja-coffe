@@ -103,19 +103,19 @@ as bool?,
 @JsonSerializable()
 
 class _MenuItemModel extends MenuItemModel {
-   _MenuItemModel({@HiveField(1) required this.id, @HiveField(2) this.name, @HiveField(3) this.originalPrice, @HiveField(4) this.discountedPrice, @HiveField(5) this.description, @HiveField(6) this.category, @HiveField(7) this.subCategory, @HiveField(8)@JsonKey(name: 'imageUrl') this.imageURL, @HiveField(9) final  List<ToppingModel>? toppings, @HiveField(10) final  List<AddonModel>? addons, @HiveField(11) this.discountPercentage, @HiveField(12) this.averageRating, @HiveField(13) this.reviewCount, @HiveField(14) this.isAvailable = true}): _toppings = toppings,_addons = addons,super._();
+   _MenuItemModel({@HiveField(1) required this.id, @HiveField(2) this.name = "", @HiveField(3) this.originalPrice = 0, @HiveField(4) this.discountedPrice = 0, @HiveField(5) this.description = "", @HiveField(6) this.category = "", @HiveField(7) this.subCategory = "", @HiveField(8)@JsonKey(name: 'imageUrl') this.imageURL = "", @HiveField(9) final  List<ToppingModel>? toppings = const [], @HiveField(10) final  List<AddonModel>? addons = const [], @HiveField(11) this.discountPercentage = 0, @HiveField(12) this.averageRating = 0, @HiveField(13) this.reviewCount = 0, @HiveField(14) this.isAvailable = true}): _toppings = toppings,_addons = addons,super._();
   factory _MenuItemModel.fromJson(Map<String, dynamic> json) => _$MenuItemModelFromJson(json);
 
 @override@HiveField(1) final  String id;
-@override@HiveField(2) final  String? name;
-@override@HiveField(3) final  int? originalPrice;
+@override@JsonKey()@HiveField(2) final  String? name;
+@override@JsonKey()@HiveField(3) final  int? originalPrice;
 // Ubah menjadi int
-@override@HiveField(4) final  int? discountedPrice;
+@override@JsonKey()@HiveField(4) final  int? discountedPrice;
 // Tambahkan field baru
-@override@HiveField(5) final  String? description;
-@override@HiveField(6) final  String? category;
+@override@JsonKey()@HiveField(5) final  String? description;
+@override@JsonKey()@HiveField(6) final  String? category;
 // Ubah tipe data
-@override@HiveField(7) final  String? subCategory;
+@override@JsonKey()@HiveField(7) final  String? subCategory;
 // Ubah tipe data
 // @HiveField(6) MenuCategoryModel? category, // Ubah tipe data
 // @HiveField(7) MenuSubCategoryModel? subCategory, // Ubah tipe data
@@ -123,7 +123,7 @@ class _MenuItemModel extends MenuItemModel {
 // Sesuaikan key JSON
  final  List<ToppingModel>? _toppings;
 // Sesuaikan key JSON
-@override@HiveField(9) List<ToppingModel>? get toppings {
+@override@JsonKey()@HiveField(9) List<ToppingModel>? get toppings {
   final value = _toppings;
   if (value == null) return null;
   if (_toppings is EqualUnmodifiableListView) return _toppings;
@@ -132,7 +132,7 @@ class _MenuItemModel extends MenuItemModel {
 }
 
  final  List<AddonModel>? _addons;
-@override@HiveField(10) List<AddonModel>? get addons {
+@override@JsonKey()@HiveField(10) List<AddonModel>? get addons {
   final value = _addons;
   if (value == null) return null;
   if (_addons is EqualUnmodifiableListView) return _addons;
@@ -140,11 +140,11 @@ class _MenuItemModel extends MenuItemModel {
   return EqualUnmodifiableListView(value);
 }
 
-@override@HiveField(11) final  int? discountPercentage;
+@override@JsonKey()@HiveField(11) final  int? discountPercentage;
 // Tambahkan fiel,d baru
-@override@HiveField(12) final  int? averageRating;
+@override@JsonKey()@HiveField(12) final  int? averageRating;
 // Tambahkan field baru
-@override@HiveField(13) final  int? reviewCount;
+@override@JsonKey()@HiveField(13) final  int? reviewCount;
 // Tambahkan field baru
 @override@JsonKey()@HiveField(14) final  bool? isAvailable;
 

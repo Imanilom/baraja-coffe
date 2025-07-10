@@ -18,18 +18,21 @@ class MenuItemModelAdapter extends TypeAdapter<MenuItemModel> {
     };
     return MenuItemModel(
       id: fields[1] as String,
-      name: fields[2] as String?,
-      originalPrice: (fields[3] as num?)?.toInt(),
-      discountedPrice: (fields[4] as num?)?.toInt(),
-      description: fields[5] as String?,
-      category: fields[6] as String?,
-      subCategory: fields[7] as String?,
-      imageURL: fields[8] as String?,
-      toppings: (fields[9] as List?)?.cast<ToppingModel>(),
-      addons: (fields[10] as List?)?.cast<AddonModel>(),
-      discountPercentage: (fields[11] as num?)?.toInt(),
-      averageRating: (fields[12] as num?)?.toInt(),
-      reviewCount: (fields[13] as num?)?.toInt(),
+      name: fields[2] == null ? '' : fields[2] as String?,
+      originalPrice: fields[3] == null ? 0 : (fields[3] as num?)?.toInt(),
+      discountedPrice: fields[4] == null ? 0 : (fields[4] as num?)?.toInt(),
+      description: fields[5] == null ? '' : fields[5] as String?,
+      category: fields[6] == null ? '' : fields[6] as String?,
+      subCategory: fields[7] == null ? '' : fields[7] as String?,
+      imageURL: fields[8] == null ? '' : fields[8] as String?,
+      toppings:
+          fields[9] == null ? [] : (fields[9] as List?)?.cast<ToppingModel>(),
+      addons:
+          fields[10] == null ? [] : (fields[10] as List?)?.cast<AddonModel>(),
+      discountPercentage:
+          fields[11] == null ? 0 : (fields[11] as num?)?.toInt(),
+      averageRating: fields[12] == null ? 0 : (fields[12] as num?)?.toInt(),
+      reviewCount: fields[13] == null ? 0 : (fields[13] as num?)?.toInt(),
       isAvailable: fields[14] == null ? true : fields[14] as bool?,
     );
   }
@@ -86,24 +89,26 @@ class MenuItemModelAdapter extends TypeAdapter<MenuItemModel> {
 _MenuItemModel _$MenuItemModelFromJson(Map<String, dynamic> json) =>
     _MenuItemModel(
       id: json['id'] as String,
-      name: json['name'] as String?,
-      originalPrice: (json['originalPrice'] as num?)?.toInt(),
-      discountedPrice: (json['discountedPrice'] as num?)?.toInt(),
-      description: json['description'] as String?,
-      category: json['category'] as String?,
-      subCategory: json['subCategory'] as String?,
-      imageURL: json['imageUrl'] as String?,
+      name: json['name'] as String? ?? "",
+      originalPrice: (json['originalPrice'] as num?)?.toInt() ?? 0,
+      discountedPrice: (json['discountedPrice'] as num?)?.toInt() ?? 0,
+      description: json['description'] as String? ?? "",
+      category: json['category'] as String? ?? "",
+      subCategory: json['subCategory'] as String? ?? "",
+      imageURL: json['imageUrl'] as String? ?? "",
       toppings:
           (json['toppings'] as List<dynamic>?)
               ?.map((e) => ToppingModel.fromJson(e as Map<String, dynamic>))
-              .toList(),
+              .toList() ??
+          const [],
       addons:
           (json['addons'] as List<dynamic>?)
               ?.map((e) => AddonModel.fromJson(e as Map<String, dynamic>))
-              .toList(),
-      discountPercentage: (json['discountPercentage'] as num?)?.toInt(),
-      averageRating: (json['averageRating'] as num?)?.toInt(),
-      reviewCount: (json['reviewCount'] as num?)?.toInt(),
+              .toList() ??
+          const [],
+      discountPercentage: (json['discountPercentage'] as num?)?.toInt() ?? 0,
+      averageRating: (json['averageRating'] as num?)?.toInt() ?? 0,
+      reviewCount: (json['reviewCount'] as num?)?.toInt() ?? 0,
       isAvailable: json['isAvailable'] as bool? ?? true,
     );
 

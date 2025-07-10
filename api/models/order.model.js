@@ -15,7 +15,7 @@ const OrderSchema = new mongoose.Schema({
   order_id: { type: String, required: true, unique: true },
   user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   user: { type: String, required: true, default: 'Guest' },
-  cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [OrderItemSchema],
   status: {
     type: String,
@@ -36,29 +36,29 @@ const OrderSchema = new mongoose.Schema({
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
   outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
 
-  // // Diskon & Promo
-  // discounts: {
-  //   autoPromoDiscount: { type: Number, default: 0 },
-  //   manualDiscount: { type: Number, default: 0 },
-  //   voucherDiscount: { type: Number, default: 0 }
-  // },
-  // appliedPromos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Promo' }],
-  // appliedManualPromo: { type: mongoose.Schema.Types.ObjectId, ref: 'Promo' },
-  // appliedVoucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
+  // Diskon & Promo
+  discounts: {
+    autoPromoDiscount: { type: Number, default: 0 },
+    manualDiscount: { type: Number, default: 0 },
+    voucherDiscount: { type: Number, default: 0 }
+  },
+  appliedPromos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Promo' }],
+  appliedManualPromo: { type: mongoose.Schema.Types.ObjectId, ref: 'Promo' },
+  appliedVoucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
 
-  // // // Pajak dan Service Fee
-  // taxAndServiceDetails: [{
-  //   type: { type: String, enum: ['Tax', 'Service'], required: true },
-  //   name: String,
-  //   amount: Number
-  // }],
-  // totalTax: { type: Number, default: 0 },
-  // totalServiceFee: { type: Number, default: 0 },
+  // Pajak dan Service Fee
+  taxAndServiceDetails: [{
+    type: { type: String, enum: ['Tax', 'Service'], required: true },
+    name: String,
+    amount: Number
+  }],
+  totalTax: { type: Number, default: 0 },
+  totalServiceFee: { type: Number, default: 0 },
 
-  // // // Total akhir
-  // totalBeforeDiscount: { type: Number, required: true },
-  // totalAfterDiscount: { type: Number, required: true },
-  // grandTotal: { type: Number, required: true },
+  // Total akhir
+  totalBeforeDiscount: { type: Number, required: true },
+  totalAfterDiscount: { type: Number, required: true },
+  grandTotal: { type: Number, required: true },
 
   // Sumber order
   source: { type: String, enum: ['Web', 'App', 'Cashier'], required: true }
