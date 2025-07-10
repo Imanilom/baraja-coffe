@@ -12,7 +12,7 @@ export function validateOrderData(data, source) {
         items: data.items,
         userId: data.userId,
         paymentDetails: data.paymentDetails,
-        paymentMethod: data.paymentMethod, 
+        paymentMethod: data.paymentMethod,
         orderType: data.orderType,
         tableNumber: data.tableNumber,
         outlet: data.outlet
@@ -24,6 +24,7 @@ export function validateOrderData(data, source) {
       }
       return {
         items: data.items,
+        user: data.user,
         cashierId: data.cashierId,
         paymentMethod: data.paymentMethod,
         orderType: data.orderType,

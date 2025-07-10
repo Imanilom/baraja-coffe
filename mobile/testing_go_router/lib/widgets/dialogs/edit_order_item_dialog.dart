@@ -36,7 +36,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     selectedToppings = List.from(widget.orderItem.selectedToppings);
     selectedAddons = List.from(widget.orderItem.selectedAddons);
     quantity = widget.orderItem.quantity;
-    note = widget.orderItem.note ?? '';
+    note = widget.orderItem.notes ?? '';
   }
 
   @override
@@ -493,7 +493,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                 quantity: quantity,
                 selectedToppings: selectedToppings,
                 selectedAddons: selectedAddons,
-                note: note.isEmpty ? null : note,
+                notes: note.isEmpty ? null : note,
               );
               widget.onEditOrder(editedOrderItem);
               widget.onClose();

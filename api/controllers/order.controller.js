@@ -741,6 +741,9 @@ export const createUnifiedOrder = async (req, res) => {
     const validated = validateOrderData(req.body, source);
     const { tableNumber } = validated;
 
+    console.log('request body:', req.body);
+
+
     let orderId;
     if (tableNumber) {
       orderId = await generateOrderId(String(tableNumber));
@@ -1599,7 +1602,7 @@ export const getOrderById = async (req, res) => {
 
     console.log('Order ID:', orderId);
 
-    const payment = await Payment.findOne({ order_id: order.order_id });
+    const payment = await Payment.findOne({ order_id: orderId });
 
     // Mencari reservasi berdasarkan order_id
     const reservation = await Reservation.findOne({ order_id: orderId })
@@ -1757,14 +1760,14 @@ export const getCashierOrderHistory = async (req, res) => {
     }
 
     // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
-    const orders = await Order.find({ cashier: cashierId })
+    const orders = await Order.find({ cashierId: cashierId })
       // const orders = await Order.find();
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
       // .populate('voucher')
       .sort({ createdAt: -1 }); // Mengisi detail voucher (opsional)
     console.log(orders.length);
     if (!orders || orders.length === 0) {
-      return res.status(404).json({ message: 'No order history found for this cashier.' });
+      return res.status(200).json({ message: 'No order history found for this cashier.', orders });
     }
 
     // Mapping data sesuai kebutuhan frontend
@@ -1802,10 +1805,10 @@ export const getCashierOrderHistory = async (req, res) => {
       deliveryAddress: order.deliveryAddress,
       tableNumber: order.tableNumber,
       type: order.type,
-      paymentMethod: order.paymentMethod || "Cash", // default value
+      paymentMethod: order.paymentMethod, // default value
       totalPrice: order.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
-      voucher: order.voucher || null,
-      outlet: order.outlet || null,
+      voucher: order.voucher,
+      outlet: order.outlet,
       promotions: order.promotions || [],
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
