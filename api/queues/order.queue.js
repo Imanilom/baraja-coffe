@@ -15,8 +15,18 @@ export const orderQueue = new Queue('orderQueue', {
   connection
 });
 
-// Worker untuk memproses job
 const worker = new Worker('orderQueue', async (job) => {
+  console.log(`Processing job ${job.id}`, {
+    name: job.name,
+    data: job.data,
+    timestamp: new Date()
+  });
+
+  // Ensure job data has required fields
+  if (!job.data.type || !job.data.payload) {
+    throw new Error(`Invalid job structure. Missing type or payload: ${JSON.stringify(job.data)}`);
+  }
+
   const { type, payload } = job.data;
   const handler = jobRouter[type];
 
@@ -26,24 +36,45 @@ const worker = new Worker('orderQueue', async (job) => {
 
   try {
     const result = await handler(payload);
-    console.log(`✅ Job ${type} success`, result);
+    console.log(`✅ Job ${type} completed successfully`, {
+      jobId: job.id,
+      orderId: payload.orderId,
+      result,
+      timestamp: new Date()
+    });
     return result;
   } catch (err) {
-    console.error(`❌ Error in job ${type}:`, err);
+    console.error(`❌ Job ${type} failed`, {
+      jobId: job.id,
+      orderId: payload.orderId,
+      error: err.message,
+      stack: err.stack,
+      timestamp: new Date()
+    });
     throw err;
   }
 }, {
   connection,
-  concurrency: 5,
-  removeOnComplete: {
-    age: 60 * 60,
-    count: 1000,
-  },
-  removeOnFail: {
-    age: 24 * 60 * 60,
-  },
+  concurrency: 3,
+  lockDuration: 30000
 });
 
 worker.on('failed', (job, err) => {
-  console.error(`🚨 Job ${job.name} [${job.id}] failed: ${err.message}`);
+  console.error(`🚨 Job failed`, {
+    name: job.name,
+    id: job.id,
+    error: err.message,
+    data: job.data,
+    failedReason: job.failedReason,
+    timestamp: new Date()
+  });
+});
+
+worker.on('completed', (job) => {
+  console.log(`✔️ Job completed`, {
+    name: job.name,
+    id: job.id,
+    data: job.data,
+    timestamp: new Date()
+  });
 });
