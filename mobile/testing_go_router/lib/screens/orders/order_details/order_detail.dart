@@ -99,7 +99,7 @@ class OrderDetail extends ConsumerWidget {
                 VerticalIconTextButton(
                   icon: Icons.table_restaurant_rounded,
                   label:
-                      orderDetail?.tableNumber != null
+                      orderDetail?.tableNumber != ""
                           ? 'Meja ${orderDetail?.tableNumber}'
                           : 'Meja',
                   onPressed: () {
@@ -214,7 +214,7 @@ class OrderDetail extends ConsumerWidget {
                     // );
                   },
                   color:
-                      orderDetail?.tableNumber != null
+                      orderDetail?.tableNumber != ""
                           ? Colors.green
                           : Colors.grey,
                 ),
@@ -286,9 +286,12 @@ class OrderDetail extends ConsumerWidget {
                 // nama pelanggan,
                 VerticalIconTextButton(
                   icon: Icons.person_rounded,
-                  label: orderDetail?.customerName ?? 'Pelanggan',
+                  label:
+                      (orderDetail?.customerName != "")
+                          ? (orderDetail?.customerName ?? 'Pelanggan')
+                          : 'Pelanggan',
                   color:
-                      orderDetail?.customerName != null
+                      orderDetail?.customerName != ""
                           ? Colors.green
                           : Colors.grey,
                   onPressed: () {
@@ -662,7 +665,7 @@ class OrderDetail extends ConsumerWidget {
                                               orderDetail.items.isNotEmpty) {
                                             // print('mau dibayar');
                                             if (orderDetail.customerName ==
-                                                null) {
+                                                "") {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
@@ -678,7 +681,7 @@ class OrderDetail extends ConsumerWidget {
                                               return;
                                             } else if (orderDetail
                                                     .tableNumber ==
-                                                null) {
+                                                "") {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(

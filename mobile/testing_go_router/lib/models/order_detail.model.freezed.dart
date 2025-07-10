@@ -100,7 +100,7 @@ as Map<String, int>?,
 @JsonSerializable()
 
 class _OrderDetailModel implements OrderDetailModel {
-   _OrderDetailModel({@HiveField(0)@JsonKey(name: 'userId') this.customerId = "", @HiveField(1) this.customerName = "", @HiveField(2) this.cashierId = "", @HiveField(3) this.phoneNumber = "", @HiveField(4) final  List<OrderItemModel> items = const [], @HiveField(5) required this.orderType, @HiveField(6) this.deliveryAddress = "", @HiveField(7) this.tableNumber = "", @HiveField(8) this.paymentMethod = "", @HiveField(9) this.status = "", @HiveField(10) this.subTotalPrice = 0, @HiveField(11)@JsonKey(name: 'order_id') this.orderId = "", @HiveField(12) this.tax = 0, @HiveField(13) this.totalPrice = 0, @HiveField(14) this.serviceFee = 0, @HiveField(15) final  Map<String, int>? discounts = const []}): _items = items,_discounts = discounts;
+   _OrderDetailModel({@HiveField(0)@JsonKey(name: 'userId') this.customerId = "", @HiveField(1) this.customerName = "", @HiveField(2) this.cashierId = "", @HiveField(3) this.phoneNumber = "", @HiveField(4) final  List<OrderItemModel> items = const [], @HiveField(5) required this.orderType, @HiveField(6) this.deliveryAddress = "", @HiveField(7) this.tableNumber = "", @HiveField(8) this.paymentMethod = "", @HiveField(9) this.status = "", @HiveField(10) this.subTotalPrice = 0, @HiveField(11)@JsonKey(name: 'order_id') this.orderId = "", @HiveField(12) this.tax = 0, @HiveField(13) this.totalPrice = 0, @HiveField(14) this.serviceFee = 0, @HiveField(15) final  Map<String, int>? discounts}): _items = items,_discounts = discounts;
   factory _OrderDetailModel.fromJson(Map<String, dynamic> json) => _$OrderDetailModelFromJson(json);
 
 @override@HiveField(0)@JsonKey(name: 'userId') final  String? customerId;
@@ -130,7 +130,7 @@ class _OrderDetailModel implements OrderDetailModel {
 @override@JsonKey()@HiveField(13) final  int? totalPrice;
 @override@JsonKey()@HiveField(14) final  int? serviceFee;
  final  Map<String, int>? _discounts;
-@override@JsonKey()@HiveField(15) Map<String, int>? get discounts {
+@override@HiveField(15) Map<String, int>? get discounts {
   final value = _discounts;
   if (value == null) return null;
   if (_discounts is EqualUnmodifiableMapView) return _discounts;
