@@ -3,19 +3,24 @@
 import mongoose from 'mongoose';
 
 const MenuItemSchema = new mongoose.Schema({
-  name: { 
-    type: String, 
-    required: true, 
-    trim: true 
+  name: {
+    type: String,
+    required: true,
+    trim: true
   },
-  price: { 
-    type: Number, 
-    required: true, 
-    min: 0 
+  price: {
+    type: Number,
+    required: true,
+    min: 0
   },
-  description: { 
-    type: String, 
-    trim: true 
+  description: {
+    type: String,
+    trim: true
+  },
+  mainCategory: {
+    type: String, // Main category type (e.g., "food", "beverage")
+    enum: ['makanan', 'minuman', 'dessert', 'snack'],
+    required: true
   },
   category: {
     type: mongoose.Schema.Types.ObjectId,
@@ -26,9 +31,9 @@ const MenuItemSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category'
   },
-  imageURL: { 
-    type: String, 
-    default: 'https://placehold.co/1920x1080/png ' 
+  imageURL: {
+    type: String,
+    default: 'https://placehold.co/1920x1080/png '
   },
   costPrice: { // Harga pokok produksi (auto-calculated)
     type: Number,
@@ -40,54 +45,59 @@ const MenuItemSchema = new mongoose.Schema({
   },
   toppings: [
     {
-      name: { 
-        type: String, 
-        required: true 
+      name: {
+        type: String,
+        required: true
       },
-      price: { 
-        type: Number, 
-        required: true 
+      price: {
+        type: Number,
+        required: true
       }
     }
   ],
   addons: [
     {
-      name: { 
-        type: String, 
-        required: true 
+      name: {
+        type: String,
+        required: true
       },
       options: [
         {
-          label: { 
-            type: String, 
-            required: true 
+          label: {
+            type: String,
+            required: true
           },
-          price: { 
-            type: Number, 
-            required: true 
+          price: {
+            type: Number,
+            required: true
           },
-          isDefault: { 
-            type: Boolean, 
-            default: false 
+          isDefault: {
+            type: Boolean,
+            default: false
           }
         }
       ]
     }
   ],
   availableAt: [
-    { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'Outlet' 
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Outlet'
     }
   ],
-  isActive: { 
-    type: Boolean, 
-    default: true 
+  workstation:
+  {
+    type: String,
+    enum: ['kitchen', 'bar'],
+  },
+  isActive: {
+    type: Boolean,
+    default: true
   }
 }, { timestamps: true });
 
 // Auto-update costPrice
-MenuItemSchema.pre('save', async function(next) {
+MenuItemSchema.pre('save', async function (next) {
   if (this.isModified('toppings') || this.isModified('addons')) {
     const recipe = await mongoose.model('Recipe').findOne({ menuItemId: this._id });
     if (recipe) {

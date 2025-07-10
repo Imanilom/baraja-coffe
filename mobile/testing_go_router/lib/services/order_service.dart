@@ -111,9 +111,11 @@ class OrderService {
 Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
   print('order.cashierId: ${order.cashierId}');
   print('order item first: ${order.items.first.menuItem.id}');
+  print('username: ${order.customerName}');
+
   return {
-    'userId': order.customerId ?? "",
-    'customerName': order.customerName ?? 'Guest',
+    'user_id': order.customerId ?? "",
+    'user': order.customerName ?? 'Guest',
     'cashierId': order.cashierId ?? '',
     'phoneNumber': order.phoneNumber ?? '',
     'items':
@@ -121,8 +123,20 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
           return {
             'id': item.menuItem.id, // Ambil id menu aja
             'quantity': item.quantity,
-            'selectedAddons': [],
-            'selectedToppings': [],
+            'selectedAddons':
+                item.selectedAddons.map((addon) {
+                  return {
+                    'id': addon.id,
+                    'options':
+                        addon.options
+                            ?.map((option) => {'id': option.id})
+                            .toList(),
+                  };
+                }).toList(),
+            'selectedToppings':
+                item.selectedToppings
+                    .map((topping) => {'id': topping.id})
+                    .toList(),
           };
         }).toList(),
     'orderType': order.orderType,

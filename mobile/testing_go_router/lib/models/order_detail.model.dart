@@ -11,22 +11,22 @@ part 'order_detail.model.g.dart';
 @HiveType(typeId: 5)
 abstract class OrderDetailModel with _$OrderDetailModel {
   factory OrderDetailModel({
-    @HiveField(0) @JsonKey(name: 'userId') String? customerId,
-    @HiveField(1) String? customerName, //
-    @HiveField(2) String? cashierId, //
-    @HiveField(3) String? phoneNumber,
+    @HiveField(0) @Default("") @JsonKey(name: 'userId') String? customerId,
+    @HiveField(1) @Default("") String? customerName, //
+    @HiveField(2) @Default("") String? cashierId, //
+    @HiveField(3) @Default("") String? phoneNumber,
     @HiveField(4) @Default([]) List<OrderItemModel> items, //
     @HiveField(5) required String orderType, //
-    @HiveField(6) String? deliveryAddress,
-    @HiveField(7) String? tableNumber,
-    @HiveField(8) String? paymentMethod,
-    @HiveField(9) String? status,
-    @HiveField(10) int? subTotalPrice,
-    @HiveField(11) @JsonKey(name: 'order_id') String? orderId, //
-    @HiveField(12) int? tax,
-    @HiveField(13) int? totalPrice,
-    @HiveField(14) int? serviceFee, //, Tambahkan field baru untuk service fee
-    @HiveField(15) Map<String, int>? discounts, // Tambahkan field untuk diskon
+    @HiveField(6) @Default("") String? deliveryAddress,
+    @HiveField(7) @Default("") String? tableNumber,
+    @HiveField(8) @Default("") String? paymentMethod,
+    @HiveField(9) @Default("") String? status,
+    @HiveField(10) @Default(0) int? subTotalPrice,
+    @HiveField(11) @Default("") @JsonKey(name: 'order_id') String? orderId, //
+    @HiveField(12) @Default(0) int? tax,
+    @HiveField(13) @Default(0) int? totalPrice,
+    @HiveField(14) @Default(0) int? serviceFee,
+    @HiveField(15) Map<String, int>? discounts,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>

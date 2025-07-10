@@ -15,7 +15,8 @@ export const createMenuItem = async (req, res) => {
       subCategory,
       toppings,
       addons,
-      availableAt
+      availableAt,
+      workstation
     } = req.body;
 
     console.log(req.file);
@@ -101,7 +102,8 @@ export const createMenuItem = async (req, res) => {
       imageURL,
       toppings: topping || [],
       addons: addon || [],
-      availableAt: availableA || []
+      availableAt: availableA || [],
+      workstation: workstation || 'bar', // Default to 'kitchen' if not provided
     });
 
     const savedMenuItem = await menuItem.save();
@@ -161,7 +163,9 @@ export const getMenuItems = async (req, res) => {
         }
       ])
       .skip(parsedOffset)
-      .limit(parsedLimit);
+      .limit(parsedLimit)
+      // ururt berdasarkan nama
+      .sort({ name: 1 });
 
     // Hitung total dokumen untuk metadata
     const totalItems = await MenuItem.countDocuments();
@@ -393,7 +397,8 @@ export const updateMenuItem = async (req, res) => {
       imageURL,
       toppings,
       addons,
-      availableAt
+      availableAt,
+      workstation
     } = req.body;
 
     if (!category) {
@@ -423,7 +428,8 @@ export const updateMenuItem = async (req, res) => {
         imageURL,
         toppings,
         addons,
-        availableAt
+        availableAt,
+        workstation: workstation || 'bar' // Default to 'kitchen' if not provided
       },
       { new: true }
     )
