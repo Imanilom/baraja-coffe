@@ -1265,6 +1265,7 @@ export const paymentNotification = async (req, res) => {
   }
 };
 
+// ! Start Kitchen sections
 export const getKitchenOrder = async (req, res) => {
   try {
     const orders = await Order.find()
@@ -1286,6 +1287,31 @@ export const getKitchenOrder = async (req, res) => {
   }
 }
 
+export const updateKitchenOrderStatus = async (req, res) => {
+  const { orderId } = req.params;
+  const { status } = req.body;
+  if (!orderId || !status) {
+    return res.status(400).json({ success: false, message: 'orderId and status are required' });
+  }
+  try {
+    const order = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: status } },
+      { new: true }
+    ).populate('items.menuItem');
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    res.status(200).json({ success: true, data: order });
+  } catch (error) {
+    console.error('Error updating kitchen order status:', error);
+    res.status(500).json({ success: false, message: 'Failed to update kitchen order status' });
+  }
+}
+
+
+
+// ! End Kitchen sections
 
 // Mengambil semua order
 export const getAllOrders = async (req, res) => {
