@@ -2,7 +2,7 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 
 extension OrderCalculations on OrderDetailModel {
   int calculateSubtotal() {
-    return items.fold(0, (sum, item) => sum + (item.calculateSubTotalPrice()));
+    return items.fold(0, (sum, item) => sum + (item.subTotalPrice!));
   }
 
   OrderDetailModel withCalculations({
