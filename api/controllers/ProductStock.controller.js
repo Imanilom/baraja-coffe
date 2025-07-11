@@ -42,48 +42,70 @@ export const addStockMovement = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { productId, quantity, type, notes = '', referenceId = null } = req.body;
+    const stockUpdates = req.body;
 
-    if (!productId || !quantity || !type) {
-      return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    if (!Array.isArray(stockUpdates) || stockUpdates.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Data harus berupa array dan tidak boleh kosong' 
+      });
     }
 
-    if (!['in', 'out', 'adjustment'].includes(type)) {
-      return res.status(400).json({ success: false, message: 'Tipe pergerakan tidak valid' });
+    for (const item of stockUpdates) {
+      const { productId, movements } = item;
+
+      if (!productId || !Array.isArray(movements) || movements.length === 0) {
+        throw new Error(`Data tidak lengkap untuk productId: ${productId}`);
+      }
+
+      const productObjectId = new mongoose.Types.ObjectId(productId);
+
+      let productStock = await ProductStock.findOne({ productId: productObjectId }).session(session);
+
+      if (!productStock) {
+        productStock = new ProductStock({ productId: productObjectId, movements: [] });
+      }
+
+      for (const move of movements) {
+        const { quantity, type, notes = '', referenceId = null } = move;
+
+        if (quantity == null || !['in', 'out', 'adjustment'].includes(type)) {
+          throw new Error(`Movement tidak valid untuk productId: ${productId}`);
+        }
+
+        productStock.movements.push({
+          date: new Date(),
+          quantity,
+          type,
+          notes,
+          referenceId: referenceId ? new mongoose.Types.ObjectId(referenceId) : undefined
+        });
+      }
+
+      await productStock.save({ session });
     }
-
-    let productStock = await ProductStock.findOne({ productId }).session(session);
-
-    if (!productStock) {
-      productStock = new ProductStock({ productId });
-    }
-
-    productStock.movements.push({
-      date: new Date(),
-      quantity,
-      type,
-      notes,
-      referenceId
-    });
-
-    await productStock.save({ session });
 
     await session.commitTransaction();
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: 'Pergerakan stok berhasil dicatat',
-      data: productStock
+      message: 'Semua pergerakan stok berhasil dicatat'
     });
 
   } catch (error) {
     await session.abortTransaction();
-    console.error('Error adding movement:', error);
-    res.status(500).json({ success: false, message: 'Gagal mencatat pergerakan stok' });
+    console.error('❌ Error bulk stock movement:', error.message);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Gagal mencatat pergerakan stok', 
+      error: error.message 
+    });
   } finally {
     session.endSession();
   }
 };
+
+
 
 // GET /stock/:productId/movements
 export const getStockMovements = async (req, res) => {

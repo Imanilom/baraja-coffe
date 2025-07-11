@@ -1,8 +1,6 @@
 import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
-import { orderQueue } from '../queues/order.queue.js';
-import { broadcastNewOrder } from '../index.js';
 
 export const midtransWebhook = async (req, res) => {
   try {
@@ -10,131 +8,166 @@ export const midtransWebhook = async (req, res) => {
     const {
       transaction_status,
       order_id,
+      fraud_status,
+      payment_type
     } = notificationJson;
 
-    console.log('📥 Received Midtrans notification:', notificationJson);
+    console.log('📥 Received Midtrans notification:', {
+      order_id,
+      transaction_status,
+      fraud_status,
+      payment_type,
+      timestamp: new Date().toISOString()
+    });
 
+    // Validate critical fields
+    if (!order_id || !transaction_status) {
+      console.warn('⚠️ Invalid notification: Missing required fields');
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // Update or create payment record
     const paymentData = {
       status: transaction_status,
-      paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : null
+      fraudStatus: fraud_status,
+      paymentType: payment_type,
+      paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : null,
+      updatedAt: new Date()
     };
 
-    await Payment.findOneAndUpdate(
-      { order_id: order_id }, // ✔️ perbaikan di sini
+    const updatedPayment = await Payment.findOneAndUpdate(
+      { order_id: order_id },
       paymentData,
-      { upsert: true, new: true }
+      { upsert: true, new: true, runValidators: true }
     );
 
-    const order = await Order.findOne({ order_id: order_id });
+    console.log(`💰 Payment record updated for order ${order_id}`);
 
+    // Find related order
+    const order = await Order.findOne({ order_id: order_id })
+      .populate('user_id', 'name email phone')
+      .populate('cashierId', 'name');
 
     if (!order) {
-      console.warn(`⚠️ Order dengan order_id ${order_id} tidak ditemukan di database`);
+      console.warn(`⚠️ Order with ID ${order_id} not found`);
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // Handle status pembayaran
-    if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      order.status = 'Pending';
-      await order.save();
+    console.log(`🧾 Order ${order_id} found. Source: ${order.source}`);
 
-      // // ✅ Masukkan ke antrian BullMQ dengan job type yang benar: create_order
-      await orderQueue.add('create_order', order.toObject(), {
-        jobId: order._id.toString(), // Hindari duplikasi
-      });
+    // Handle transaction status
+    switch (transaction_status) {
+      case 'capture':
+      case 'settlement':
+        if (fraud_status === 'accept') {
+          order.status = 'Pending'; // Ready to process
+          order.paymentStatus = 'Paid';
+          await order.save();
 
-      io.to(order._id.toString()).emit('payment_status_update', {
-        order_id,
-        transaction_status,
-        status: order.status
-      });
+          console.log(`✅ Order ${order_id} marked as paid`);
 
-      // Mapping data sesuai kebutuhan frontend
-      const mappedOrders = {
-        _id: order._id,
-        userId: order.user_id, // renamed
-        customerName: order.user, // renamed
-        cashierId: order.cashier, // renamed
-        items: order.items.map(item => ({
-          _id: item._id,
-          quantity: item.quantity,
-          subtotal: item.subtotal,
-          isPrinted: item.isPrinted,
-          menuItem: {
-            ...item.menuItem,
-            categories: item.menuItem.category, // renamed
-          },
-          selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
-            name: addon.name,
-            _id: addon._id,
-            options: [{
-              id: addon._id, // assuming _id as id for options
-              label: addon.label || addon.name, // fallback
-              price: addon.price
-            }]
-          })) : [],
-          selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
-            id: topping._id || topping.id, // fallback if structure changes
-            name: topping.name,
-            price: topping.price
-          })) : []
-        })),
-        status: order.status,
-        orderType: order.orderType,
-        deliveryAddress: order.deliveryAddress,
-        tableNumber: order.tableNumber,
-        type: order.type,
-        paymentMethod: order.paymentMethod || "Cash", // default value
-        totalPrice: order.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
-        voucher: order.voucher || null,
-        outlet: order.outlet || null,
-        promotions: order.promotions || [],
-        createdAt: order.createdAt,
-        updatedAt: order.updatedAt,
-        __v: order.__v
-      };
+          // Notify client
+          io.to(order._id.toString()).emit('payment_status_update', {
+            order_id,
+            status: order.status,
+            paymentStatus: order.paymentStatus,
+            transaction_status,
+            timestamp: new Date()
+          });
 
-      // Emit ke aplikasi kasir untuk menampilkan order baru
-      io.to('cashier_room').emit('new_order', { mappedOrders });
-      console.log('mappedOrders:', mappedOrders);
+          // Broadcast to cashier
+          const mappedOrder = mapOrderForFrontend(order);
+          io.to('cashier_room').emit('new_order', mappedOrder);
+        } else if (fraud_status === 'challenge') {
+          order.status = 'Pending';
+          order.paymentStatus = 'Challenge';
+          await order.save();
 
+          console.log(`⚠️ Order ${order_id} payment challenged`);
+        }
+        break;
 
-      console.log(`✅ Order ${order._id} updated to 'OnProcess' and queued`);
+      case 'deny':
+      case 'cancel':
+      case 'expire':
+        order.status = 'Canceled';
+        order.paymentStatus = 'Failed';
+        await order.save();
 
-    } else if (['deny', 'cancel', 'expire'].includes(transaction_status)) {
-      order.status = 'Canceled';
-      await order.save();
+        console.log(`❌ Order ${order_id} payment failed: ${transaction_status}`);
+        break;
 
-      io.to(order._id.toString()).emit('payment_status_update', {
-        order_id,
-        transaction_status,
-        status: order.status
-      });
+      case 'pending':
+        order.status = 'Pending';
+        order.paymentStatus = 'Pending';
+        await order.save();
 
-      console.log(`❌ Order ${order._id} marked as Canceled`);
+        console.log(`ℹ️ Order ${order_id} is still pending`);
+        break;
 
-    } else {
-      // Status lain seperti pending
-      io.to(order._id.toString()).emit('payment_status_update', {
-        order_id,
-        transaction_status,
-        status: order.status
-      });
-
-      console.log(`ℹ️ Order ${order._id} status updated: ${transaction_status}`);
+      default:
+        console.warn(`⚠️ Unhandled transaction status: ${transaction_status}`);
     }
 
-    // Opsional: Emit global untuk admin panel, dashboard, dll
-    io.emit('payment_status_update', {
-      order_id,
-      transaction_status,
-      status: order.status
+    // Emit global status update
+    io.emit('order_status_update', {
+      order_id: order._id,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      timestamp: new Date()
     });
 
     res.status(200).json({ status: 'ok' });
 
   } catch (error) {
-    console.error('❌ Webhook error:', error);
-    res.status(500).json({ message: 'Failed to handle webhook', error: error.message });
+    console.error('❌ Webhook processing error:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(500).json({ 
+      message: 'Failed to process webhook',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 };
+
+// 🔧 Helper: map order to frontend-safe format
+function mapOrderForFrontend(order) {
+  return {
+    _id: order._id,
+    orderId: order.order_id,
+    userId: order.user_id?._id || order.user_id,
+    customerName: order.user_id?.name || order.user,
+    customerPhone: order.user_id?.phone || order.phoneNumber,
+    cashierId: order.cashierId?._id || order.cashierId,
+    cashierName: order.cashierId?.name,
+    items: order.items.map(item => ({
+      _id: item._id,
+      menuItemId: item.menuItem,
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      subtotal: item.subtotal,
+      isPrinted: item.isPrinted || false,
+      selectedAddons: item.selectedAddons || [],
+      selectedToppings: item.selectedToppings || []
+    })),
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    orderType: order.orderType,
+    deliveryAddress: order.deliveryAddress,
+    tableNumber: order.tableNumber,
+    paymentMethod: order.paymentMethod,
+    totalBeforeDiscount: order.totalBeforeDiscount,
+    totalAfterDiscount: order.totalAfterDiscount,
+    taxAndService: order.taxAndService,
+    grandTotal: order.grandTotal,
+    appliedPromos: order.appliedPromos || [],
+    source: order.source,
+    notes: order.notes,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt
+  };
+}

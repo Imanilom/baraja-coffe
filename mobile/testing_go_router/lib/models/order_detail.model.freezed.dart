@@ -21,7 +21,7 @@ mixin _$OrderDetailModel {
 @HiveField(3) String? get phoneNumber;@HiveField(4) List<OrderItemModel> get items;//
 @HiveField(5) String get orderType;//
 @HiveField(6) String? get deliveryAddress;@HiveField(7) String? get tableNumber;@HiveField(8) String? get paymentMethod;@HiveField(9) String? get status;@HiveField(10) int? get subTotalPrice;@HiveField(11)@JsonKey(name: 'order_id') String? get orderId;//
-@HiveField(12) int? get tax;@HiveField(13) int? get totalPrice;@HiveField(14) int? get serviceFee;@HiveField(15) Map<String, int>? get discounts;
+@HiveField(12) int? get tax;@HiveField(13) int? get totalPrice;@HiveField(14) int? get serviceFee;@HiveField(15) Map<String, dynamic>? get discounts;
 /// Create a copy of OrderDetailModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -54,7 +54,7 @@ abstract mixin class $OrderDetailModelCopyWith<$Res>  {
   factory $OrderDetailModelCopyWith(OrderDetailModel value, $Res Function(OrderDetailModel) _then) = _$OrderDetailModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: 'userId') String? customerId,@HiveField(1) String? customerName,@HiveField(2) String? cashierId,@HiveField(3) String? phoneNumber,@HiveField(4) List<OrderItemModel> items,@HiveField(5) String orderType,@HiveField(6) String? deliveryAddress,@HiveField(7) String? tableNumber,@HiveField(8) String? paymentMethod,@HiveField(9) String? status,@HiveField(10) int? subTotalPrice,@HiveField(11)@JsonKey(name: 'order_id') String? orderId,@HiveField(12) int? tax,@HiveField(13) int? totalPrice,@HiveField(14) int? serviceFee,@HiveField(15) Map<String, int>? discounts
+@HiveField(0)@JsonKey(name: 'userId') String? customerId,@HiveField(1) String? customerName,@HiveField(2) String? cashierId,@HiveField(3) String? phoneNumber,@HiveField(4) List<OrderItemModel> items,@HiveField(5) String orderType,@HiveField(6) String? deliveryAddress,@HiveField(7) String? tableNumber,@HiveField(8) String? paymentMethod,@HiveField(9) String? status,@HiveField(10) int? subTotalPrice,@HiveField(11)@JsonKey(name: 'order_id') String? orderId,@HiveField(12) int? tax,@HiveField(13) int? totalPrice,@HiveField(14) int? serviceFee,@HiveField(15) Map<String, dynamic>? discounts
 });
 
 
@@ -89,7 +89,7 @@ as String?,tax: freezed == tax ? _self.tax : tax // ignore: cast_nullable_to_non
 as int?,totalPrice: freezed == totalPrice ? _self.totalPrice : totalPrice // ignore: cast_nullable_to_non_nullable
 as int?,serviceFee: freezed == serviceFee ? _self.serviceFee : serviceFee // ignore: cast_nullable_to_non_nullable
 as int?,discounts: freezed == discounts ? _self.discounts : discounts // ignore: cast_nullable_to_non_nullable
-as Map<String, int>?,
+as Map<String, dynamic>?,
   ));
 }
 
@@ -100,7 +100,7 @@ as Map<String, int>?,
 @JsonSerializable()
 
 class _OrderDetailModel implements OrderDetailModel {
-   _OrderDetailModel({@HiveField(0)@JsonKey(name: 'userId') this.customerId = "", @HiveField(1) this.customerName = "", @HiveField(2) this.cashierId = "", @HiveField(3) this.phoneNumber = "", @HiveField(4) final  List<OrderItemModel> items = const [], @HiveField(5) required this.orderType, @HiveField(6) this.deliveryAddress = "", @HiveField(7) this.tableNumber = "", @HiveField(8) this.paymentMethod = "", @HiveField(9) this.status = "", @HiveField(10) this.subTotalPrice = 0, @HiveField(11)@JsonKey(name: 'order_id') this.orderId = "", @HiveField(12) this.tax = 0, @HiveField(13) this.totalPrice = 0, @HiveField(14) this.serviceFee = 0, @HiveField(15) final  Map<String, int>? discounts}): _items = items,_discounts = discounts;
+   _OrderDetailModel({@HiveField(0)@JsonKey(name: 'userId') this.customerId = "", @HiveField(1) this.customerName = "", @HiveField(2) this.cashierId = "", @HiveField(3) this.phoneNumber = "", @HiveField(4) final  List<OrderItemModel> items = const [], @HiveField(5) required this.orderType, @HiveField(6) this.deliveryAddress = "", @HiveField(7) this.tableNumber = "", @HiveField(8) this.paymentMethod = "", @HiveField(9) this.status = "", @HiveField(10) this.subTotalPrice = 0, @HiveField(11)@JsonKey(name: 'order_id') this.orderId = "", @HiveField(12) this.tax = 0, @HiveField(13) this.totalPrice = 0, @HiveField(14) this.serviceFee = 0, @HiveField(15) final  Map<String, dynamic>? discounts}): _items = items,_discounts = discounts;
   factory _OrderDetailModel.fromJson(Map<String, dynamic> json) => _$OrderDetailModelFromJson(json);
 
 @override@HiveField(0)@JsonKey(name: 'userId') final  String? customerId;
@@ -129,8 +129,8 @@ class _OrderDetailModel implements OrderDetailModel {
 @override@JsonKey()@HiveField(12) final  int? tax;
 @override@JsonKey()@HiveField(13) final  int? totalPrice;
 @override@JsonKey()@HiveField(14) final  int? serviceFee;
- final  Map<String, int>? _discounts;
-@override@HiveField(15) Map<String, int>? get discounts {
+ final  Map<String, dynamic>? _discounts;
+@override@HiveField(15) Map<String, dynamic>? get discounts {
   final value = _discounts;
   if (value == null) return null;
   if (_discounts is EqualUnmodifiableMapView) return _discounts;
@@ -172,7 +172,7 @@ abstract mixin class _$OrderDetailModelCopyWith<$Res> implements $OrderDetailMod
   factory _$OrderDetailModelCopyWith(_OrderDetailModel value, $Res Function(_OrderDetailModel) _then) = __$OrderDetailModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: 'userId') String? customerId,@HiveField(1) String? customerName,@HiveField(2) String? cashierId,@HiveField(3) String? phoneNumber,@HiveField(4) List<OrderItemModel> items,@HiveField(5) String orderType,@HiveField(6) String? deliveryAddress,@HiveField(7) String? tableNumber,@HiveField(8) String? paymentMethod,@HiveField(9) String? status,@HiveField(10) int? subTotalPrice,@HiveField(11)@JsonKey(name: 'order_id') String? orderId,@HiveField(12) int? tax,@HiveField(13) int? totalPrice,@HiveField(14) int? serviceFee,@HiveField(15) Map<String, int>? discounts
+@HiveField(0)@JsonKey(name: 'userId') String? customerId,@HiveField(1) String? customerName,@HiveField(2) String? cashierId,@HiveField(3) String? phoneNumber,@HiveField(4) List<OrderItemModel> items,@HiveField(5) String orderType,@HiveField(6) String? deliveryAddress,@HiveField(7) String? tableNumber,@HiveField(8) String? paymentMethod,@HiveField(9) String? status,@HiveField(10) int? subTotalPrice,@HiveField(11)@JsonKey(name: 'order_id') String? orderId,@HiveField(12) int? tax,@HiveField(13) int? totalPrice,@HiveField(14) int? serviceFee,@HiveField(15) Map<String, dynamic>? discounts
 });
 
 
@@ -207,7 +207,7 @@ as String?,tax: freezed == tax ? _self.tax : tax // ignore: cast_nullable_to_non
 as int?,totalPrice: freezed == totalPrice ? _self.totalPrice : totalPrice // ignore: cast_nullable_to_non_nullable
 as int?,serviceFee: freezed == serviceFee ? _self.serviceFee : serviceFee // ignore: cast_nullable_to_non_nullable
 as int?,discounts: freezed == discounts ? _self._discounts : discounts // ignore: cast_nullable_to_non_nullable
-as Map<String, int>?,
+as Map<String, dynamic>?,
   ));
 }
 

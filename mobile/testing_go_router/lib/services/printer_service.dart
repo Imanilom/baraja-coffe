@@ -416,7 +416,7 @@ class PrinterService {
             styles: const PosStyles(align: PosAlign.right),
           ),
           PosColumn(
-            text: item.calculateSubTotalPrice().toString(),
+            text: item.subTotalPrice!.toString(),
             width: 5,
             styles: const PosStyles(align: PosAlign.right),
           ),
