@@ -3,9 +3,15 @@ import { Link } from "react-router-dom";
 import { FaCut, FaBell, FaUser, FaChevronRight } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import axios from "axios";
+import PromoTable from "./promotable";
 
 const RunningAutoPromos = () => {
   const [promos, setPromos] = useState([]);
+  const [activeTab, setActiveTab] = useState("aktif");
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+  };
   const [filteredPromos, setFilteredPromos] = useState([]);
   const [filters, setFilters] = useState({
     date: {
@@ -85,6 +91,12 @@ const RunningAutoPromos = () => {
     setFilteredPromos(filtered);
   }, [filters, promos]);
 
+  // Filter berdasarkan isActive
+  const promosAktif = promos.filter(promo => promo.isActive === true);
+  const promosTidakAktif = promos.filter(promo => promo.isActive === false);
+  const totalAktif = promos.filter(promo => promo.isActive === true).length;
+  const totalTidakAktif = promos.filter(promo => promo.isActive === false).length;
+
   // Show loading state
   if (loading) {
     return (
@@ -131,15 +143,65 @@ const RunningAutoPromos = () => {
           <FaChevronRight className="text-[15px] text-gray-500" />
           <Link to="/admin/promo-khusus" className="text-[15px] text-gray-500">Promo Otomatis</Link>
         </div>
-        <Link
-          to="/admin/promo-otomatis-create"
-          className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
-        >
-          Tambah Promo
-        </Link>
       </div>
 
-      {/* Filters */}
+      <div className="px-[15px] pt-[15px]">
+        <div className="flex justify-between items-center py-[10px] px-[15px]">
+          <h3 className="text-gray-500 font-semibold">3 Promo</h3>
+          <Link
+            to="/admin/promo-otomatis-create"
+            className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+          >
+            Tambah Promo
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-3 py-4">
+        <button
+          className={`bg-white border-b-2 py-2 hover:border-b-[#005429] ${activeTab === "aktif" ? "border-b-[#005429]" : "border-b-white"
+            }`}
+          onClick={() => handleTabChange("aktif")}
+        >
+          <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
+            <div className="flex space-x-4">
+              <h2 className="text-gray-400 ml-2 text-sm">Aktif</h2>
+            </div>
+            <div className="text-sm text-gray-400">({totalAktif})</div>
+          </div>
+        </button>
+
+        <button
+          className={`bg-white border-b-2 py-2 hover:border-b-[#005429] ${activeTab === "akan-datang" ? "border-b-[#005429]" : "border-b-white"
+            }`}
+          onClick={() => handleTabChange("akan-datang")}
+        >
+          <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
+            <div className="flex space-x-4 items-center">
+              <h2 className="text-gray-400 ml-2 text-sm">Akan Datang</h2>
+              <span className="relative group">
+                <div className="absolute z-10 left-1/2 -translate-x-1/2 mt-2 w-[280px] text-justify bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none">
+                  Opsi Tambahan merupakan produk pelengkap yang dijual bersamaan dengan produk utama. (Contoh: Nasi Goreng memiliki opsi tambahan ekstra telur dan ekstra bakso)
+                </div>
+              </span>
+            </div>
+            <div className="text-sm text-gray-400">(0)</div>
+          </div>
+        </button>
+
+        <button
+          className={`bg-white border-b-2 py-2 hover:border-b-[#005429] ${activeTab === "tidak-berlaku" ? "border-b-[#005429]" : "border-b-white"
+            }`}
+          onClick={() => handleTabChange("tidak-berlaku")}
+        >
+          <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
+            <div className="flex space-x-4">
+              <h2 className="text-gray-400 ml-2 text-sm">Tidak Berlaku</h2>
+            </div>
+            <div className="text-sm text-gray-400">({totalTidakAktif})</div>
+          </div>
+        </button>
+      </div>
       <div className="px-[15px] pb-[15px]">
         <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-3 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
           {/* <input
@@ -198,6 +260,25 @@ const RunningAutoPromos = () => {
         </div>
       </div>
 
+      {/* Konten Berdasarkan Tab yang Aktif */}
+      <div className="mt-6">
+        {activeTab === "aktif" && (
+          <div className="py-[10px] px-[15px]">
+            <PromoTable filteredPromos={promosAktif} refreshPromos={fetchPromos} />
+          </div>
+        )}
+        {activeTab === "akan-datang" && (
+          <div>
+          </div>
+        )}
+        {activeTab === "tidak-berlaku" && (
+          <div className="py-[10px] px-[15px]">
+            <PromoTable filteredPromos={promosTidakAktif} refreshPromos={fetchPromos} />
+          </div>
+        )}
+      </div>
+      {/* Filters */}
+
       {/* Promo List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 py-[10px] px-[15px]">
         {/* {filteredPromos.length > 0 ? (
@@ -231,71 +312,6 @@ const RunningAutoPromos = () => {
         ) : (
           <p>No promos found matching the filters.</p>
         )} */}
-        {filteredPromos.map((promo) => (
-          <div
-            key={promo._id}
-            className="flex border border-green-700 rounded-xl shadow-md overflow-hidden mb-6 w-full max-w-3xl bg-white"
-          >
-            {/* Kiri: Informasi Promo */}
-            <div className="flex-1 p-5 bg-green-50 flex flex-col justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-green-800 mb-2">{promo.name}</h3>
-                <p className="text-sm text-gray-700 mb-1">
-                  Outlet: <span className="font-medium">{promo.outlet?.name || "Unknown"}</span>
-                </p>
-                <p className="text-sm text-gray-700">
-                  Berlaku:{" "}
-                  {new Intl.DateTimeFormat("id-ID").format(new Date(promo.validFrom))} -{" "}
-                  {new Intl.DateTimeFormat("id-ID").format(new Date(promo.validTo))}
-                </p>
-              </div>
-              <div className="mt-3 flex items-center justify-between">
-                <span
-                  className={`text-xs font-semibold px-3 py-1 rounded-full ${promo.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-500"
-                    }`}
-                >
-                  {promo.isActive ? "Aktif" : "Tidak Aktif"}
-                </span>
-                <a href="#" className="text-xs font-medium text-green-800 hover:underline">
-                  Edit
-                </a>
-              </div>
-            </div>
-
-            {/* Efek Sobekan Kupon */}
-            <div className="relative w-[10px] bg-green-50">
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-5 h-5 bg-green-50 rounded-br-full"></div>
-              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-5 h-5 bg-green-50 rounded-tr-full"></div>
-            </div>
-
-            {/* Kanan: Diskon Besar */}
-            <div className="w-40 bg-green-800 text-white flex flex-col items-center justify-center text-center px-3">
-              {promo.promoType === "buy_x_get_y" ? (
-                <>
-                  <span className="text-xs opacity-80 mb-1">Promo</span>
-                  <p className="text-sm font-medium leading-tight">
-                    Buy <br />
-                    {promo.conditions?.buyProduct?.name || "?"}
-                  </p>
-                  <p className="text-sm font-medium leading-tight mt-1">
-                    Get <br />
-                    {promo.conditions?.getProduct?.name || "?"}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <span className="text-xs opacity-80 mb-1">Diskon</span>
-                  <h2 className="text-3xl font-extrabold">
-                    {promo.discount}
-                    <span className="text-sm ml-1">
-                      {promo.promoType === "discount_on_total" ? "IDR" : "%"}
-                    </span>
-                  </h2>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );

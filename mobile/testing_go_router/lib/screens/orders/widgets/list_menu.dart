@@ -1,6 +1,7 @@
 import 'package:assorted_layout_widgets/assorted_layout_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
@@ -37,11 +38,43 @@ class _ListMenuState extends ConsumerState<ListMenu> {
       notifier.initializeOrder(orderType: 'Dine-In');
     }
 
+    // final selectedAddons =
+    //     menuItem.addons
+    //         ?.where(
+    //           (addon) =>
+    //               addon.options?.any((option) => option.isDefault == true) ??
+    //               false,
+    //         )
+    //         .toList() ??
+    //     [];
+
+    final List<AddonModel> selectedAddons =
+        menuItem.addons!
+            .map((addon) {
+              final defaultOptions =
+                  addon.options
+                      ?.where((option) => option.isDefault == true)
+                      .toList();
+
+              return AddonModel(
+                id: addon.id,
+                name: addon.name,
+                type: addon.type,
+                options: defaultOptions,
+              );
+            })
+            .where(
+              (addon) => addon.options != null && addon.options!.isNotEmpty,
+            )
+            .toList();
+
+    print('selectedAddons: $selectedAddons');
+
     notifier.addItemToOrder(
       OrderItemModel(
         menuItem: menuItem,
         selectedToppings: [],
-        selectedAddons: [],
+        selectedAddons: selectedAddons,
       ),
     );
   }

@@ -79,7 +79,7 @@ const StockCardManagement = () => {
 
             setOutlets(outletsData);
 
-            const categoryResponse = await axios.get('/api/storage/category');
+            const categoryResponse = await axios.get('/api/storage/categories');
             const categoryData = Array.isArray(categoryResponse.data)
                 ? categoryResponse.data
                 : (categoryResponse.data && Array.isArray(categoryResponse.data.data))

@@ -29,7 +29,7 @@ import taxAndServiceRoutes from './routes/taxAndService.routes.js';
 import areaRoutes from './routes/areas.routes.js';
 import ReceiptSetting from './routes/receiptSetting.routes.js';
 import productStockRoutes from './routes/productStock.routes.js';
-
+import DevRoutes from './routes/devRoutes.js';
 
 
 import socketHandler from './socket/index.js';
@@ -74,6 +74,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
 }));
+app.use("/images", express.static("api/public/images")); // supaya bisa diakses dari browser
 
 // Route definitions...
 app.use('/api/user', userRoutes);
@@ -97,6 +98,7 @@ app.use('/api/marketlist', marketListRoutes);
 app.use('/api/tax-service', taxAndServiceRoutes);
 app.use('/api/receipt-setting', ReceiptSetting);
 app.use('/api/product', productStockRoutes);
+app.use('/api/dev', DevRoutes);
 // app.post('/api/midtrans/webhook', (req, res) => {
 //   res.status(200).send('OK');
 // });

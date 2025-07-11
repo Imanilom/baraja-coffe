@@ -161,6 +161,20 @@ export const createAppOrder = async (req, res) => {
       type: 'Indoor',
       voucher: voucherId,
       outlet: outlet,
+      totalBeforeDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
+      totalAfterDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0), // No discount applied yet
+      totalTax: 0, // Assuming no tax for now
+      totalServiceFee: 0, // Assuming no service fee for now
+      discounts: {
+        autoPromoDiscount: 0,
+        manualDiscount: 0,
+        voucherDiscount: 0
+      },
+      appliedPromos: [], // Will be filled with auto promos if any
+      appliedManualPromo: null, // Will be filled if manual promo is applied
+      appliedVoucher: voucherId, // Will be filled if voucher is applied
+      taxAndServiceDetails: [], // Will be filled if tax or service fee is applied
+      grandTotal: orderItems.reduce((sum, item) => sum + item.subtotal, 0), // Initial grand total
       promotions: [],
       source: 'App',
       reservation: null, // Will be set after reservation is created
@@ -740,6 +754,9 @@ export const createUnifiedOrder = async (req, res) => {
     const { source } = req.body;
     const validated = validateOrderData(req.body, source);
     const { tableNumber } = validated;
+
+    console.log('request body:', req.body);
+
 
     let orderId;
     if (tableNumber) {
@@ -1441,6 +1458,7 @@ export const getUserOrders = async (req, res) => {
 // };
 
 // Get History User orders
+
 export const getUserOrderHistory = async (req, res) => {
   try {
     const userId = req.params.userId;
@@ -1514,96 +1532,6 @@ export const getUserOrderHistory = async (req, res) => {
   }
 };
 
-// export const getOrderById = async (req, res) => {
-//   try {
-//     const orderId = req.params.orderId;
-//     if (!orderId) {
-//       return res.status(400).json({ message: 'Order ID is required.' });
-//     }
-//     console.log('Fetching order with ID:', orderId);
-
-//     // Mencari pesanan berdasarkan ID
-//     const order = await Order.findById(orderId)
-//       .populate('items.menuItem')
-//     // .populate('voucher');
-//     // console.log('Order:', order);
-
-
-//     const payment = await Payment.findOne({ order_id: orderId });
-//     console.log('Payment:', payment);
-//     console.log('Order:', orderId);
-
-//     // Verify user exists
-//     const userExists = await User.findById(order.user_id);
-//     if (!userExists) {
-//       return res.status(404).json({ success: false, message: 'User not found' });
-//     }
-
-//     console.log('User:', userExists);
-//     if (!order) {
-//       return res.status(404).json({ message: 'Order not found.' });
-//     }
-
-//     // Format tanggal
-//     const formatDate = (date) => {
-//       const options = {
-//         day: 'numeric',
-//         month: 'long',
-//         year: 'numeric',
-//         hour: '2-digit',
-//         minute: '2-digit',
-//         timeZone: 'Asia/Jakarta'
-//       };
-//       return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
-//     };
-
-//     const formattedItems = order.items.map(item => {
-//       const basePrice = item.price || item.menuItem?.price || 0;
-//       const quantity = item.quantity || 1;
-
-//       return {
-//         menuItemId: item.menuItem?._id || item.menuItem || item._id,
-//         name: item.menuItem?.name || item.name || 'Unknown Item',
-//         price: basePrice,
-//         quantity: quantity,
-//         addons: item.addons || [],
-//         toppings: item.toppings || [],
-//         notes: item.notes,
-//       };
-//     });
-
-
-//     // Generate order number dari order_id atau _id
-//     const generateOrderNumber = (orderId) => {
-//       if (typeof orderId === 'string' && orderId.includes('ORD-')) {
-//         // Extract number dari format ORD-2024-001234
-//         const parts = orderId.split('-');
-//         return parts.length > 2 ? `#${parts[parts.length - 1]}` : `#${orderId.slice(-4)}`;
-//       }
-//       // Jika menggunakan MongoDB ObjectId, ambil 4 digit terakhir
-//       return `#${orderId.toString().slice(-4)}`;
-//     };
-//     // console.log(payment);
-
-//     const orderData = {
-//       _id: order._id.toString(),
-//       orderId: order.order_id || order._id.toString(),
-//       orderNumber: generateOrderNumber(order.order_id || order._id),
-//       orderDate: formatDate(order.createdAt),
-//       items: formattedItems,
-//       total: payment.amount,
-//       orderStatus: order.status,
-//       paymentMethod: (payment.bank || payment.method).toUpperCase(),
-//       paymentStatus: payment.status
-//     };
-//     console.log('Order Data:', orderData);
-
-//     res.status(200).json({ orderData });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Internal server error.' });
-//   }
-// };
 
 export const getOrderById = async (req, res) => {
   try {
@@ -1620,6 +1548,7 @@ export const getOrderById = async (req, res) => {
     // console.log('Order:', order);
 
     console.log('Order ID:', orderId);
+
 
     const payment = await Payment.findOne({ order_id: order.order_id });
 
@@ -1779,14 +1708,14 @@ export const getCashierOrderHistory = async (req, res) => {
     }
 
     // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
-    const orders = await Order.find({ cashier: cashierId })
+    const orders = await Order.find({ cashierId: cashierId })
       // const orders = await Order.find();
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
       // .populate('voucher')
       .sort({ createdAt: -1 }); // Mengisi detail voucher (opsional)
     console.log(orders.length);
     if (!orders || orders.length === 0) {
-      return res.status(404).json({ message: 'No order history found for this cashier.' });
+      return res.status(200).json({ message: 'No order history found for this cashier.', orders });
     }
 
     // Mapping data sesuai kebutuhan frontend
@@ -1824,10 +1753,10 @@ export const getCashierOrderHistory = async (req, res) => {
       deliveryAddress: order.deliveryAddress,
       tableNumber: order.tableNumber,
       type: order.type,
-      paymentMethod: order.paymentMethod || "Cash", // default value
+      paymentMethod: order.paymentMethod, // default value
       totalPrice: order.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
-      voucher: order.voucher || null,
-      outlet: order.outlet || null,
+      voucher: order.voucher,
+      outlet: order.outlet,
       promotions: order.promotions || [],
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
