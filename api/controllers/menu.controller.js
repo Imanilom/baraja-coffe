@@ -186,7 +186,8 @@ export const getMenuItems = async (req, res) => {
             price: opt.price,
             isDefault: opt.isDefault
           }))
-        }))
+        })),
+        workstation: item.workstation
       };
     });
 

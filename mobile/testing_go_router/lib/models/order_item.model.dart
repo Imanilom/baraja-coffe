@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
@@ -16,11 +17,12 @@ abstract class OrderItemModel with _$OrderItemModel {
     @HiveField(2) @Default([]) List<AddonModel> selectedAddons,
     @HiveField(3) @Default(1) int quantity,
     @HiveField(4) @Default("") String? notes,
+    // @HiveField(5) required int subTotalPrice,
   }) = _OrderItemModel;
 
   OrderItemModel._();
 
-  int calculateSubTotalPrice() {
+  int get subTotalPrice {
     int total = menuItem.originalPrice ?? 0;
     total += selectedToppings.fold(
       0,

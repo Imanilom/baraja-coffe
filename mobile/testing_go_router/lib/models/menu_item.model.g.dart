@@ -34,13 +34,14 @@ class MenuItemModelAdapter extends TypeAdapter<MenuItemModel> {
       averageRating: fields[12] == null ? 0 : (fields[12] as num?)?.toInt(),
       reviewCount: fields[13] == null ? 0 : (fields[13] as num?)?.toInt(),
       isAvailable: fields[14] == null ? true : fields[14] as bool?,
+      workstation: fields[15] == null ? '' : fields[15] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, MenuItemModel obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(15)
       ..writeByte(1)
       ..write(obj.id)
       ..writeByte(2)
@@ -68,7 +69,9 @@ class MenuItemModelAdapter extends TypeAdapter<MenuItemModel> {
       ..writeByte(13)
       ..write(obj.reviewCount)
       ..writeByte(14)
-      ..write(obj.isAvailable);
+      ..write(obj.isAvailable)
+      ..writeByte(15)
+      ..write(obj.workstation);
   }
 
   @override
@@ -110,6 +113,7 @@ _MenuItemModel _$MenuItemModelFromJson(Map<String, dynamic> json) =>
       averageRating: (json['averageRating'] as num?)?.toInt() ?? 0,
       reviewCount: (json['reviewCount'] as num?)?.toInt() ?? 0,
       isAvailable: json['isAvailable'] as bool? ?? true,
+      workstation: json['workstation'] as String? ?? "",
     );
 
 Map<String, dynamic> _$MenuItemModelToJson(_MenuItemModel instance) =>
@@ -128,4 +132,5 @@ Map<String, dynamic> _$MenuItemModelToJson(_MenuItemModel instance) =>
       'averageRating': instance.averageRating,
       'reviewCount': instance.reviewCount,
       'isAvailable': instance.isAvailable,
+      'workstation': instance.workstation,
     };

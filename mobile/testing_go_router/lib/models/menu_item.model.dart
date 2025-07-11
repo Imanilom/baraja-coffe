@@ -33,6 +33,7 @@ abstract class MenuItemModel with _$MenuItemModel {
     @HiveField(12) @Default(0) int? averageRating, // Tambahkan field baru
     @HiveField(13) @Default(0) int? reviewCount, // Tambahkan field baru
     @HiveField(14) @Default(true) bool? isAvailable, // Tambahkan field baru
+    @HiveField(15) @Default("") String? workstation,
   }) = _MenuItemModel;
 
   MenuItemModel._();
@@ -70,5 +71,7 @@ abstract class MenuItemModel with _$MenuItemModel {
             ? 0
             : (json['averageRating'] as num?)?.toInt(),
     reviewCount: json['reviewCount'] as int? ?? 0,
+    isAvailable: json['isAvailable'] ?? true,
+    workstation: json['workstation'] ?? "",
   );
 }

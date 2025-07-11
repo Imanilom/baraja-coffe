@@ -426,7 +426,7 @@ class OrderDetail extends ConsumerWidget {
                               ],
                             ),
                             trailing: Text(
-                              formatRupiah(orderItem.calculateSubTotalPrice()),
+                              formatRupiah(orderItem.subTotalPrice!),
                             ),
                             onTap: () {
                               if (currentWidgetIndex != 0) return;

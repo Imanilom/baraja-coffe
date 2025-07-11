@@ -37,7 +37,7 @@ class HistoryDetailProvider extends StateNotifier<OrderDetailModel?> {
   int get subTotalPrice {
     return state?.items.fold(
           0,
-          (sum, item) => sum! + item.calculateSubTotalPrice(),
+          (sum, item) => sum! + item.subTotalPrice!,
         ) ??
         0;
   }

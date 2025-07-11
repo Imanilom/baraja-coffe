@@ -28,10 +28,7 @@ class OnlineOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
   // Hitung total harga dari daftar pesanan
   int get subTotalPrice {
     if (state != null) {
-      return state!.items.fold(
-        0,
-        (sum, item) => sum + item.calculateSubTotalPrice(),
-      );
+      return state!.items.fold(0, (sum, item) => sum + item.subTotalPrice!);
     } else {
       return 0;
     }
