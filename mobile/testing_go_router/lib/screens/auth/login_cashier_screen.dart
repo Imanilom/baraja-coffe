@@ -151,6 +151,17 @@ class ModernLoginCashierScreen extends ConsumerWidget {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              '${manager.username} - (${manager.role}) - ${manager.outletId}',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF111827),
+              ),
+            ),
+          ),
           Divider(color: Colors.grey[200], thickness: 1),
           Expanded(
             child: ListView.builder(
