@@ -40,6 +40,8 @@ class PrinterService {
   }) async {
     final jobs = _createPrintJobs(printType);
 
+    print('dokumen print ${orderDetail.items.toList()}');
+
     for (final job in jobs) {
       await _printJobToSupportedPrinters(
         orderDetail: orderDetail,
@@ -60,7 +62,7 @@ class PrinterService {
       case 'waiter':
         return ['waiter'];
       case 'all':
-        return ['kitchen', 'bar', 'customer', 'waiter'];
+        return ['customer', 'kitchen', 'bar', 'waiter'];
       default:
         return [];
     }
@@ -92,7 +94,10 @@ class PrinterService {
       return;
     }
 
+    print('📤 Mencetak $jobType di ${supportedPrinters.length} printer');
+
     for (final printer in supportedPrinters) {
+      print('📤 Mencetak $jobType di ${printer.name} (${printer.address})');
       await _printSingleJob(
         orderDetail: orderDetail,
         printer: printer,
@@ -416,7 +421,7 @@ class PrinterService {
             styles: const PosStyles(align: PosAlign.right),
           ),
           PosColumn(
-            text: item.subTotalPrice!.toString(),
+            text: item.subTotalPrice.toString(),
             width: 5,
             styles: const PosStyles(align: PosAlign.right),
           ),
@@ -505,23 +510,31 @@ class PrinterService {
     bytes.addAll(
       generator.text(
         'Bar',
-        styles: const PosStyles(align: PosAlign.center, bold: true),
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
       ),
     );
 
-    final orderdetail = orderDetail.items;
+    final orderdetail =
+        orderDetail.items
+            .where((item) => item.menuItem.workstation == 'bar')
+            .toList();
     //list order Items
     for (var item in orderdetail) {
       bytes.addAll(
         generator.row([
           PosColumn(
             text: item.menuItem.name!,
-            width: 5,
+            width: 6,
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
             text: 'x${item.quantity.toString()}',
-            width: 2,
+            width: 6,
             styles: const PosStyles(align: PosAlign.right),
           ),
         ]),
@@ -571,8 +584,14 @@ class PrinterService {
     );
 
     bytes.addAll(generator.hr(ch: '='));
+    print('print kitchen ${orderDetail.items}');
 
-    for (var item in orderDetail.items) {
+    final orderdetail =
+        orderDetail.items
+            .where((item) => item.menuItem.workstation == 'kitchen')
+            .toList();
+    print('print kitchen $orderdetail');
+    for (var item in orderdetail) {
       bytes.addAll(
         generator.row([
           PosColumn(

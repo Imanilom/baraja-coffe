@@ -231,6 +231,53 @@ export const createAppOrder = async (req, res) => {
       responseData.reservation = reservationRecord;
     }
 
+    // Mapping data sesuai kebutuhan frontend
+    const mappedOrders = {
+      _id: newOrder._id,
+      userId: newOrder.user_id, // renamed
+      customerName: newOrder.user, // renamed
+      cashierId: newOrder.cashier, // renamed
+      items: newOrder.items.map(item => ({
+        _id: item._id,
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        isPrinted: item.isPrinted,
+        menuItem: {
+          ...item.menuItem,
+          categories: item.menuItem.category, // renamed
+        },
+        selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
+          name: addon.name,
+          _id: addon._id,
+          options: [{
+            id: addon._id, // assuming _id as id for options
+            label: addon.label || addon.name, // fallback
+            price: addon.price
+          }]
+        })) : [],
+        selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
+          id: topping._id || topping.id, // fallback if structure changes
+          name: topping.name,
+          price: topping.price
+        })) : []
+      })),
+      status: newOrder.status,
+      orderType: newOrder.orderType,
+      deliveryAddress: newOrder.deliveryAddress,
+      tableNumber: newOrder.tableNumber,
+      type: newOrder.type,
+      paymentMethod: newOrder.paymentMethod || "Cash", // default value
+      totalPrice: newOrder.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
+      voucher: newOrder.voucher || null,
+      outlet: newOrder.outlet || null,
+      promotions: newOrder.promotions || [],
+      createdAt: newOrder.createdAt,
+      updatedAt: newOrder.updatedAt,
+      __v: newOrder.__v
+    };
+
+    // Emit ke aplikasi kasir untuk menampilkan newOrder baru
+    io.to('cashier_room').emit('new_order', { mappedOrders });
     res.status(201).json(responseData);
   } catch (error) {
     console.error(error);
@@ -1419,6 +1466,8 @@ export const getKitchenOrder = async (req, res) => {
 export const updateKitchenOrderStatus = async (req, res) => {
   const { orderId } = req.params;
   const { status } = req.body;
+
+  console.log('Updating kitchen order status for orderId:', orderId, 'to status:', status);
   if (!orderId || !status) {
     return res.status(400).json({ success: false, message: 'orderId and status are required' });
   }
