@@ -1248,6 +1248,28 @@ export const paymentNotification = async (req, res) => {
   }
 };
 
+export const getKitchenOrder = async (req, res) => {
+  try {
+    const orders = await Order.find()
+      .populate('items.menuItem')
+      .lean();
+
+
+    // Filter hanya orders yang memiliki setidaknya 1 item dengan workstation 'kitchen'
+    const kitchenOrders = orders.filter(order =>
+      order.items.some(item =>
+        item.menuItem && item.menuItem.workstation === 'kitchen'
+      )
+    );
+
+    res.status(200).json({ success: true, data: kitchenOrders });
+  } catch (error) {
+    console.error('Error fetching kitchen orders:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch kitchen orders' });
+  }
+}
+
+
 // Mengambil semua order
 export const getAllOrders = async (req, res) => {
   try {
