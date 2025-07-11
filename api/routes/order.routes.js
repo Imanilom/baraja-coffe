@@ -17,6 +17,7 @@ import {
   confirmOrderByCashier,
   testSocket,
   getPendingPaymentOrders,
+  getKitchenOrder,
   // chargeCash,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
@@ -51,6 +52,8 @@ router.get("/pending-orders/:rawOutletId", getPendingOrders);
 router.post("/confirm-order/:orderId", confirmOrder);
 
 router.get('/orders', getAllOrders);
+
+router.get('/orders/kitchen', getKitchenOrder);
 
 router.get('/orders/queued', getQueuedOrders);
 
