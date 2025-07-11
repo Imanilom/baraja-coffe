@@ -1,8 +1,6 @@
 import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
-import { orderQueue } from '../queues/order.queue.js';
-import { broadcastNewOrder } from '../index.js';
 
 export const midtransWebhook = async (req, res) => {
   try {
@@ -28,7 +26,7 @@ export const midtransWebhook = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Update payment record
+    // Update or create payment record
     const paymentData = {
       status: transaction_status,
       fraudStatus: fraud_status,
@@ -45,9 +43,9 @@ export const midtransWebhook = async (req, res) => {
 
     console.log(`💰 Payment record updated for order ${order_id}`);
 
-    // Find and validate order
+    // Find related order
     const order = await Order.findOne({ order_id: order_id })
-      .populate('userId', 'name email phone')
+      .populate('user_id', 'name email phone')
       .populate('cashierId', 'name');
 
     if (!order) {
@@ -55,27 +53,20 @@ export const midtransWebhook = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // Handle different transaction statuses
+    console.log(`🧾 Order ${order_id} found. Source: ${order.source}`);
+
+    // Handle transaction status
     switch (transaction_status) {
       case 'capture':
       case 'settlement':
         if (fraud_status === 'accept') {
-          // Process successful payment
-          order.status = 'Pending';
+          order.status = 'Pending'; // Ready to process
           order.paymentStatus = 'Paid';
           await order.save();
 
-          // Add to processing queue
-          await orderQueue.add('create_order', {
-            order: order.toObject(),
-            paymentDetails: updatedPayment.toObject()
-          }, {
-            jobId: order._id.toString(),
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 5000 }
-          });
+          console.log(`✅ Order ${order_id} marked as paid`);
 
-          // Emit to client
+          // Notify client
           io.to(order._id.toString()).emit('payment_status_update', {
             order_id,
             status: order.status,
@@ -87,33 +78,31 @@ export const midtransWebhook = async (req, res) => {
           // Broadcast to cashier
           const mappedOrder = mapOrderForFrontend(order);
           io.to('cashier_room').emit('new_order', mappedOrder);
-          console.log(`✅ Order ${order._id} queued for processing`);
-
         } else if (fraud_status === 'challenge') {
-          // Handle fraud challenge
           order.status = 'Pending';
           order.paymentStatus = 'Challenge';
           await order.save();
-          console.log(`⚠️ Payment for order ${order._id} requires fraud review`);
+
+          console.log(`⚠️ Order ${order_id} payment challenged`);
         }
         break;
 
       case 'deny':
       case 'cancel':
       case 'expire':
-        // Handle failed payments
         order.status = 'Canceled';
         order.paymentStatus = 'Failed';
         await order.save();
-        console.log(`❌ Order ${order._id} payment failed (${transaction_status})`);
+
+        console.log(`❌ Order ${order_id} payment failed: ${transaction_status}`);
         break;
 
       case 'pending':
-        // Handle pending payments
         order.status = 'Pending';
         order.paymentStatus = 'Pending';
         await order.save();
-        console.log(`ℹ️ Order ${order._id} payment pending`);
+
+        console.log(`ℹ️ Order ${order_id} is still pending`);
         break;
 
       default:
@@ -136,6 +125,7 @@ export const midtransWebhook = async (req, res) => {
       stack: error.stack,
       timestamp: new Date().toISOString()
     });
+
     res.status(500).json({ 
       message: 'Failed to process webhook',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
@@ -143,38 +133,26 @@ export const midtransWebhook = async (req, res) => {
   }
 };
 
-// Helper function to map order data for frontend
+// 🔧 Helper: map order to frontend-safe format
 function mapOrderForFrontend(order) {
   return {
     _id: order._id,
     orderId: order.order_id,
-    userId: order.userId?._id || order.userId,
-    customerName: order.userId?.name || order.user,
-    customerPhone: order.userId?.phone || order.phoneNumber,
+    userId: order.user_id?._id || order.user_id,
+    customerName: order.user_id?.name || order.user,
+    customerPhone: order.user_id?.phone || order.phoneNumber,
     cashierId: order.cashierId?._id || order.cashierId,
     cashierName: order.cashierId?.name,
     items: order.items.map(item => ({
       _id: item._id,
-      menuItemId: item.id,
+      menuItemId: item.menuItem,
       name: item.name,
       quantity: item.quantity,
       price: item.price,
       subtotal: item.subtotal,
       isPrinted: item.isPrinted || false,
-      selectedAddons: item.selectedAddons?.map(addon => ({
-        _id: addon._id || addon.id,
-        name: addon.name,
-        options: addon.options?.map(opt => ({
-          id: opt._id || opt.id,
-          label: opt.label,
-          price: opt.price
-        })) || []
-      })) || [],
-      selectedToppings: item.selectedToppings?.map(topping => ({
-        id: topping._id || topping.id,
-        name: topping.name,
-        price: topping.price
-      })) || []
+      selectedAddons: item.selectedAddons || [],
+      selectedToppings: item.selectedToppings || []
     })),
     status: order.status,
     paymentStatus: order.paymentStatus,
