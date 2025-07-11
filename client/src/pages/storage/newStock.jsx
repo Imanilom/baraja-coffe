@@ -69,7 +69,7 @@ const RawMaterialPage = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get("/api/storage/category");
+      const response = await axios.get("/api/storage/categories");
       setCategories(response.data.data || []);
     } catch (error) {
       console.error(error);
@@ -196,7 +196,7 @@ const RawMaterialPage = () => {
                   value={material.barcode}
                   onChange={(e) => handleMaterialChange(index, "barcode", e.target.value)}
                   className="w-full p-2 border rounded"
-                  
+
                 />
               </div>
               <div className="col-span-2">

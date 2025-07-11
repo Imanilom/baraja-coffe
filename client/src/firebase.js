@@ -9,7 +9,8 @@ const firebaseConfig = {
   apiKey: "AIzaSyDt7kKSL2r3NAuQY6tUJK9tthxr-qB-TKM",
   authDomain: "barajacoffee-38e0c.firebaseapp.com",
   projectId: "barajacoffee-38e0c",
-  storageBucket: "barajacoffee-38e0c.firebasestorage.app",
+  // storageBucket: "barajacoffee-38e0c.firebasestorage.app",
+  storageBucket: "barajacoffee-38e0c.appspot.com",
   messagingSenderId: "388953744470",
   appId: "1:388953744470:web:4a916b03514e0a156447f7",
   measurementId: "G-C1YDMK042Y"

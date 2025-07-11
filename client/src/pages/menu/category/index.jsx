@@ -27,7 +27,7 @@ const CategoryIndex = () => {
     const fetchData = async (type) => {
       setLoading(true);
       try {
-        // let url = '/api/storage/category'; // URL default untuk mendapatkan semua kategori
+        // let url = '/api/storage/categories'; // URL default untuk mendapatkan semua kategori
         // if (type && type !== 'all') {
         //   url += `/${type}`; // Tambahkan parameter type jika ada
         // }
@@ -36,7 +36,7 @@ const CategoryIndex = () => {
         // setCategories(response.data.data || []);
         // setFilteredCategories(response.data.data || []);
 
-        const categoryResponse = await axios.get('/api/storage/category');
+        const categoryResponse = await axios.get('/api/storage/categories');
 
         const categoryData = Array.isArray(categoryResponse.data) ?
           categoryResponse.data :
@@ -112,7 +112,7 @@ const CategoryIndex = () => {
 
   const handleConfirmDelete = async () => {
     try {
-      await axios.delete(`/api/storage/category/${selectedCategoryId}`);
+      await axios.delete(`/api/storage/categories/${selectedCategoryId}`);
       setCategories((prev) => prev.filter((c) => c._id !== selectedCategoryId));
       setFilteredCategories((prev) => prev.filter((c) => c._id !== selectedCategoryId));
     } catch (err) {

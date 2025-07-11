@@ -22,7 +22,7 @@
 //         type,
 //       };
 
-//       const response = await axios.post('/api/storage/category', [newCategory]); // Kirim sebagai array
+//       const response = await axios.post('/api/storage/categories', [newCategory]); // Kirim sebagai array
 //       if (response.data.success) {
 //         setSuccessMessage('Category added successfully!');
 //         setName('');
@@ -131,7 +131,7 @@ const AddCategory = () => {
         // type,
       };
 
-      const response = await axios.post('/api/storage/category', [newCategory]); // Kirim sebagai array
+      const response = await axios.post('/api/storage/categories', [newCategory]); // Kirim sebagai array
       if (response.data.success) {
         // setSuccessMessage('Category added successfully!');
         navigate('/admin/categories', { state: { successMessage: 'Kategori berhasil ditambahkan!' } });

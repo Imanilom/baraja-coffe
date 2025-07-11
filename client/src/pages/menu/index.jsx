@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash } from 'react-icons/fa';
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaReceipt } from 'react-icons/fa';
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
@@ -78,7 +78,7 @@ const Menu = () => {
 
       setOutlets(outletsData);
 
-      const categoryResponse = await axios.get('/api/storage/category');
+      const categoryResponse = await axios.get('/api/storage/categories');
       const categoryData = Array.isArray(categoryResponse.data)
         ? categoryResponse.data
         : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
@@ -88,8 +88,8 @@ const Menu = () => {
       setCategory(categoryData);
 
       setStatus([
-        { _id: "ya", name: "Ya" },
-        { _id: "tidak", name: "Tidak" }
+        { id: "ya", name: "Ya" },
+        { id: "tidak", name: "Tidak" }
       ]);
 
       setError(null);
@@ -177,7 +177,6 @@ const Menu = () => {
     );
   }, [search, uniqueStatus]);
 
-
   // Apply filter function
   const applyFilter = () => {
 
@@ -194,7 +193,7 @@ const Menu = () => {
 
           const name = (menu.name || '').toLowerCase();
           const customer = (menu.user || '').toLowerCase();
-          const receipt = (menu._id || '').toLowerCase();
+          const receipt = (menu.id || '').toLowerCase();
 
           const searchTerm = tempSearch.toLowerCase();
           return name.includes(searchTerm) ||
@@ -573,7 +572,7 @@ const Menu = () => {
                       onChange={(e) => {
                         const isChecked = e.target.checked;
                         setCheckAll(isChecked);
-                        setCheckedItems(isChecked ? paginatedData.map(item => item._id) : []);
+                        setCheckedItems(isChecked ? paginatedData.map(item => item.id) : []);
                       }}
                     />
                   </th>
@@ -594,18 +593,18 @@ const Menu = () => {
               {paginatedData.length > 0 ? (
                 <tbody>
                   {paginatedData.map((item) => (
-                    <tr key={item._id} className="hover:bg-gray-100 text-[14px]">
+                    <tr key={item.id} className="hover:bg-gray-100 text-[14px]">
                       <td className="p-[15px] text-right">
                         <input
                           type="checkbox"
                           className="w-[20px] h-[20px] accent-[#005429]"
-                          checked={checkedItems.includes(item._id)}
+                          checked={checkedItems.includes(item.id)}
                           onChange={(e) => {
                             const isChecked = e.target.checked;
                             setCheckedItems(prev => {
                               const updated = isChecked
-                                ? [...prev, item._id]
-                                : prev.filter(id => id !== item._id);
+                                ? [...prev, item.id]
+                                : prev.filter(id => id !== item.id);
                               setCheckAll(updated.length === paginatedData.length);
                               return updated;
                             });
@@ -616,7 +615,7 @@ const Menu = () => {
                       <td className="p-[15px]">
                         <div className="flex items-center">
                           <img
-                            src={item.imageURL || "https://via.placeholder.com/100"}
+                            src={item.imageUrl || "https://via.placeholder.com/100"}
                             alt={item.name}
                             className="w-[35px] h-[35px] object-cover rounded-lg"
                           />
@@ -630,41 +629,44 @@ const Menu = () => {
                           ? item.category.map((category) => category.name).join(", ")
                           : item.category?.name || "-"}
                       </td>
-                      <td className="p-[15px] text-right">{formatCurrency(item.price)}</td>
+                      <td className="p-[15px] text-right">{formatCurrency(item.originalPrice)}</td>
                       <td className="p-[15px]">
                         {/* Dropdown Menu */}
                         <div className="relative text-right">
                           <button
-                            className="px-2 bg-white border border-gray-200 hover:border-none hover:bg-green-800 rounded-sm"
-                            onClick={() => setOpenDropdown(openDropdown === item._id ? null : item._id)}
+                            className="px-2 bg-white border border-gray-200 hover:bg-green-800 rounded-sm"
+                            onClick={() => setOpenDropdown(openDropdown === item.id ? null : item.id)}
                           >
                             <span className="text-xl text-gray-200 hover:text-white">
                               •••
                             </span>
                           </button>
-                          {openDropdown === item._id && (
+                          {openDropdown === item.id && (
                             <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
                               <ul className="w-full">
-                                <li>
-                                  <Link
-                                    to={`/admin/manage-stock/${item._id}`}
-                                    className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                                  >
-                                    <FaThLarge size={18} />
-                                    <span>Kelola Stok</span>
-                                  </Link>
-                                </li>
-                                <li>
-                                  <Link
-                                    to={`/admin/manage-price-and-selling-status/${item._id}`}
-                                    className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100 border-b"
-                                  >
-                                    <FaDollarSign size={18} />
-                                    <span>Kelola Harga & Status Jual</span>
-                                  </Link>
-                                </li>
                                 <Link
-                                  to={`/admin/menu-update/${item._id}`}
+                                  to={`/admin/manage-stock/${item.id}`}
+                                  className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
+                                >
+                                  <FaThLarge size={18} />
+                                  <span>Kelola Stok</span>
+                                </Link>
+                                <Link
+                                  to={`/admin/manage-price-and-selling-status/${item.id}`}
+                                  className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
+                                >
+                                  <FaDollarSign size={18} />
+                                  <span>Kelola Harga & Status Jual</span>
+                                </Link>
+                                <Link
+                                  to={`/admin/menu-receipt/${item.id}`}
+                                  className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100 border-b"
+                                >
+                                  <FaReceipt size={18} />
+                                  <span>Kelola Resep</span>
+                                </Link>
+                                <Link
+                                  to={`/admin/menu-update/${item.id}`}
                                   className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
                                 >
                                   <FaPencilAlt size={18} />
@@ -673,7 +675,7 @@ const Menu = () => {
                                 <button
                                   className="w-full flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
                                   onClick={() => {
-                                    setItemToDelete(item._id);
+                                    setItemToDelete(item.id);
                                     setIsModalOpen(true);
 
                                   }}>
@@ -704,22 +706,24 @@ const Menu = () => {
               <span className="text-sm text-gray-600">
                 Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
               </span>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Sebelumnya
-                </button>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Berikutnya
-                </button>
-              </div>
+              {totalPages > 1 && (
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Sebelumnya
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Berikutnya
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
