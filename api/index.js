@@ -70,8 +70,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
+  origin: '*', // atau domain frontend Anda
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
 }));
 app.use("/images", express.static("api/public/images")); // supaya bisa diakses dari browser
