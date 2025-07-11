@@ -59,6 +59,7 @@ const Menu = () => {
     setLoading(true);
     try {
       const menuResponse = await axios.get('/api/menu/menu-items');
+      console.log(menuResponse);
 
       const menuData = Array.isArray(menuResponse.data)
         ? menuResponse.data
