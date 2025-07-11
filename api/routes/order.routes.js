@@ -18,6 +18,7 @@ import {
   testSocket,
   getPendingPaymentOrders,
   getKitchenOrder,
+  updateKitchenOrderStatus,
   // chargeCash,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
@@ -53,7 +54,13 @@ router.post("/confirm-order/:orderId", confirmOrder);
 
 router.get('/orders', getAllOrders);
 
+// TODO: Start route untuk mendapatkan order yang belum dicetak di dapur
+
 router.get('/orders/kitchen', getKitchenOrder);
+
+router.put('/orders/:orderId/status', updateKitchenOrderStatus);
+
+// TODO: End route untuk mendapatkan order yang belum dicetak di dapur
 
 router.get('/orders/queued', getQueuedOrders);
 
