@@ -47,7 +47,7 @@ export const calculateCostPrice = async (menuItemId, recipeOverride = null) => {
 
   const getPrice = (product) => {
     if (!product?.suppliers?.length) return 0;
-    
+
     // Urutkan supplier berdasarkan lastPurchaseDate terbaru
     const sorted = [...product.suppliers].sort((a, b) =>
       new Date(b.lastPurchaseDate) - new Date(a.lastPurchaseDate)
@@ -251,18 +251,28 @@ export const createRecipe = async (req, res) => {
   try {
     const { menuItemId, baseIngredients, toppingOptions, addonOptions } = req.body;
 
-    // Validasi bahwa menu ada
+    // Validasi bahwa menu ada DAN memiliki mainCategory
     const menuItem = await MenuItem.findById(menuItemId).session(session);
     if (!menuItem) {
       return res.status(404).json({ success: false, message: 'Menu tidak ditemukan' });
     }
+
 
     // Validasi minimal baseIngredients
     if (!Array.isArray(baseIngredients) || baseIngredients.length === 0) {
       return res.status(400).json({ success: false, message: 'Harus ada bahan utama' });
     }
 
-    // Buat resep sementara untuk dihitung
+    // Cek apakah resep sudah ada untuk menu ini
+    const existingRecipe = await Recipe.findOne({ menuItemId }).session(session);
+    if (existingRecipe) {
+      return res.status(400).json({
+        success: false,
+        message: 'Resep untuk menu ini sudah ada, gunakan update endpoint'
+      });
+    }
+
+    // Buat resep baru
     const newRecipe = new Recipe({
       menuItemId,
       baseIngredients,
@@ -270,21 +280,19 @@ export const createRecipe = async (req, res) => {
       addonOptions: addonOptions || []
     });
 
-    // Simpan resep ke database
     await newRecipe.save({ session });
 
-    // Update status menu menjadi aktif jika belum
+    // Update status menu jika belum aktif
     if (!menuItem.isActive) {
       menuItem.isActive = true;
       await menuItem.save({ session });
     }
 
-    // Hitung HPP dengan langsung pakai newRecipe
+    // Hitung HPP
     const newCostPrice = await calculateCostPrice(menuItemId, newRecipe);
     menuItem.costPrice = newCostPrice;
     await menuItem.save({ session });
 
-    // Commit transaksi
     await session.commitTransaction();
 
     res.status(201).json({

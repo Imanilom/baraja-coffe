@@ -48,14 +48,14 @@ export default function SignIn() {
 
   return (
     <div className="min-h-screen flex justify-end bg-army">
-      <div className="w-full max-w-xs px-6 bg-white shadow-xl border border-army/20 transform transition-all h-screen">
+      <div className="w-full max-w-xs px-6 bg-white shadow-xl border border-army/20 transform transition-all h-screen py-10">
         <div className="text-center mb-8">
           <img
-            src="https://s3.ap-southeast-1.amazonaws.com/new.newpawoon/receipt_images/IMG_479013_1750394198_200.png"
+            src="/images/baraja.png"
             alt="Logo"
-            className="mx-auto max-w-xs"
+            className="w-full my-auto max-w-xs"
           />
-          <p className="text-xl text-army/80">Selamat Datang Kembali</p>
+          {/* <p className="text-xl text-army/80">Selamat Datang Kembali</p> */}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
