@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaReceipt } from 'react-icons/fa';
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaReceipt, FaTrashAlt } from 'react-icons/fa';
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
@@ -59,7 +59,6 @@ const Menu = () => {
     setLoading(true);
     try {
       const menuResponse = await axios.get('/api/menu/menu-items');
-      console.log(menuResponse);
 
       const menuData = Array.isArray(menuResponse.data)
         ? menuResponse.data
@@ -80,13 +79,9 @@ const Menu = () => {
       setOutlets(outletsData);
 
       const categoryResponse = await axios.get('/api/storage/categories');
-      const categoryData = Array.isArray(categoryResponse.data)
-        ? categoryResponse.data
-        : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
-          ? categoryResponse.data.data
-          : [];
+      const responseData = categoryResponse.data;
 
-      setCategory(categoryData);
+      setCategory(responseData.mainCategories);
 
       setStatus([
         { id: "ya", name: "Ya" },
@@ -346,7 +341,7 @@ const Menu = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-3 py-4">
+      <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-2 py-4">
         <button
           className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
           onClick={() => handleTabChange("menu")}
@@ -357,12 +352,12 @@ const Menu = () => {
               <h2 className="text-gray-400 ml-2 text-sm">Produk</h2>
             </div>
             <div className="text-sm text-gray-400">
-              (18)
+              ({paginatedData.length})
             </div>
           </Link>
         </button>
 
-        <div
+        {/* <div
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
         >
           <Link
@@ -373,13 +368,11 @@ const Menu = () => {
               <FaLayerGroup size={24} className="text-gray-400" />
               <h2 className="text-gray-400 ml-2 text-sm">Opsi Tambahan</h2>
 
-              {/* Hanya ikon info yang punya group hover */}
               <span className="relative group">
                 <p className="border p-1 rounded-full">
                   <FaInfo size={8} className="text-gray-400 cursor-help" />
                 </p>
 
-                {/* Tooltip hanya muncul saat hover di ikon info */}
                 <div className="absolute z-10 left-1/2 -translate-x-1/2 mt-2 w-[280px] text-justify bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none">
                   Opsi Tambahan merupakan produk pelengkap yang dijual bersamaan dengan produk utama. (Contoh: Nasi Goreng memiliki opsi tambahan ekstra telur dan ekstra bakso)
                 </div>
@@ -388,7 +381,7 @@ const Menu = () => {
 
             <div className="text-sm text-gray-400">(18)</div>
           </Link>
-        </div>
+        </div> */}
 
         <div
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
@@ -400,7 +393,7 @@ const Menu = () => {
               <h2 className="text-gray-400 ml-2 text-sm">Kategori</h2>
             </div>
             <div className="text-sm text-gray-400">
-              (18)
+              ({category.length})
             </div>
           </Link>
         </div>
@@ -564,8 +557,8 @@ const Menu = () => {
           <div className="w-full mt-4 shadow-md">
             <table className="w-full table-auto text-gray-500">
               <thead>
-                <tr className="text-[14px]">
-                  <th className="p-[15px] font-normal text-right">
+                <tr className="text-[14px] h-20">
+                  <th className="p-[15px] font-normal text-right w-10">
                     <input
                       type="checkbox"
                       className="w-[20px] h-[20px] accent-[#005429]"
@@ -580,13 +573,13 @@ const Menu = () => {
                   <th className="p-[15px] font-normal text-left">Produk</th>
                   <th className="p-[15px] font-normal text-left">Kategori</th>
                   <th className="p-[15px] font-normal text-right">Harga</th>
-                  <th className="p-[15px] font-normal">
+                  <th className="p-[15px] font-normal w-20">
                     {checkedItems.length > 0 && (
                       <button
                         onClick={handleDeleteSelected}
-                        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                        className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 flex justify-center items-center space-x-2"
                       >
-                        Hapus Terpilih ({checkedItems.length})
+                        <p>{checkedItems.length}</p> <FaTrashAlt />
                       </button>
                     )}</th>
                 </tr>
