@@ -17,9 +17,11 @@ final onlineOrderProvider = FutureProvider.autoDispose<List<OrderDetailModel>>((
     final onlineOrderRepo = ref.read(onlineOrderRepository);
     final user = await HiveService.getUser();
     final cashier = await HiveService.getCashier();
-    print('User outletId and cashierId: ${user?.outletId} and ${cashier?.id}');
-
-    return onlineOrderRepo.fetchPendingOrders(user!.outletId!);
+    final onlineOrders = await onlineOrderRepo.fetchPendingOrders(
+      user!.outletId!,
+    );
+    print('User outletId and cashierId: ${user.outletId} and ${cashier?.id}');
+    return onlineOrders;
   } on DioException catch (e) {
     print('DioException: ${e.message}');
     throw e.error ?? Exception('Failed to fetch activity: ${e.message}');

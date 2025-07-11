@@ -885,7 +885,8 @@ export const confirmOrder = async (req, res) => {
     // 1. Find order and update status
     const order = await Order.findOneAndUpdate(
       { order_id: orderId },
-      { $set: { status: 'OnProcess' } },
+      { $set: { status: 'Waiting' } },
+      // { $set: { status: 'OnProcess' } },
       { new: true }
     ).populate('items.menuItem').populate('outlet');
 
@@ -945,72 +946,200 @@ export const confirmOrder = async (req, res) => {
 // GET /api/orders/queued
 export const getQueuedOrders = async (req, res) => {
   try {
-    const jobs = await orderQueue.getJobs(['waiting', 'active']);
-
-    const orders = jobs.map(job => ({
-      jobId: job.id,
-      data: job.data,
-      timestamp: job.timestamp,
-      attemptsMade: job.attemptsMade,
+    // Get all waiting and active jobs with pagination
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+    
+    // Get jobs with additional status details
+    const jobs = await orderQueue.getJobs(['waiting', 'active'], skip, skip + limit - 1);
+    
+    // Format response with more detailed order information
+    const orders = await Promise.all(jobs.map(async job => {
+      const orderDetails = await Order.findOne({ order_id: job.data?.order_id })
+        .select('status source tableNumber createdAt')
+        .lean();
+      
+      return {
+        jobId: job.id,
+        orderId: job.data?.order_id,
+        status: job.data?.status || 'queued',
+        attemptsMade: job.attemptsMade,
+        claimedBy: job.data?.cashierId || null,
+        timestamp: new Date(job.timestamp),
+        orderDetails,
+        data: {
+          ...job.data,
+          // Remove sensitive data if any
+          paymentDetails: undefined 
+        }
+      };
     }));
 
-    res.status(200).json({ success: true, orders });
+    // Get counts for pagination metadata
+    const waitingCount = await orderQueue.getJobCountByTypes('waiting');
+    const activeCount = await orderQueue.getJobCountByTypes('active');
+
+    res.status(200).json({ 
+      success: true, 
+      data: orders,
+      meta: {
+        total: waitingCount + activeCount,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        waitingCount,
+        activeCount
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Failed to get queued orders:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date()
+    });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Gagal mengambil daftar order antrian',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
 // POST /api/orders/:jobId/confirm
 export const confirmOrderByCashier = async (req, res) => {
   const { jobId } = req.params;
-  const { cashierId } = req.body;
-  console.log('jobId:', jobId);
-  console.log('cashierId:', cashierId);
-  if (!cashierId) {
-    return res.status(400).json({ success: false, error: 'cashierId wajib diisi' });
+  const { cashierId, cashierName } = req.body;
+
+  // Enhanced validation
+  if (!cashierId || !cashierName) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'cashierId dan cashierName wajib diisi',
+      code: 'MISSING_REQUIRED_FIELDS'
+    });
   }
 
   try {
+    // Get job with lock to prevent race conditions
     const job = await orderQueue.getJob(jobId);
     if (!job) {
-      return res.status(404).json({ success: false, error: 'Job tidak ditemukan' });
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Job tidak ditemukan',
+        code: 'JOB_NOT_FOUND'
+      });
     }
 
+    // Validate job data
     const orderId = job.data?.order_id;
     if (!orderId) {
-      return res.status(400).json({ success: false, error: 'order_id tidak ditemukan dalam job data' });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Data order tidak valid',
+        code: 'INVALID_JOB_DATA'
+      });
     }
 
-    // Cegah jika sudah diklaim
+    // Check if already claimed
     if (job.data?.cashierId) {
-      return res.status(400).json({ success: false, error: 'Order sudah diklaim oleh kasir lain' });
+      const currentCashier = job.data.cashierId === cashierId ? 
+        'Anda' : `Kasir ${job.data.cashierName || job.data.cashierId}`;
+      return res.status(409).json({ 
+        success: false, 
+        error: `${currentCashier} sudah mengambil order ini`,
+        code: 'ORDER_ALREADY_CLAIMED'
+      });
     }
 
-    // Update status order di MongoDB
-    const order = await Order.findOneAndUpdate(
-      { order_id: orderId },
-      { status: 'OnProcess', cashier: cashierId },
-      { new: true }
-    );
+    // Start transaction for atomic updates
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (!order) {
-      return res.status(404).json({ success: false, error: 'Order tidak ditemukan di database' });
+    try {
+      // Update order status and assign cashier
+      const order = await Order.findOneAndUpdate(
+        { order_id: orderId },
+        { 
+          status: 'OnProcess', 
+          cashier: { 
+            id: cashierId, 
+            name: cashierName 
+          },
+          processingStartedAt: new Date()
+        },
+        { new: true, session }
+      );
+
+      if (!order) {
+        await session.abortTransaction();
+        return res.status(404).json({ 
+          success: false, 
+          error: 'Order tidak ditemukan di database',
+          code: 'ORDER_NOT_FOUND'
+        });
+      }
+
+      // Update job data with cashier info
+      await job.update({
+        ...job.data,
+        cashierId,
+        cashierName,
+        status: 'processing'
+      });
+
+      await session.commitTransaction();
+
+      // Log the claim event
+      console.log('Order claimed by cashier:', {
+        orderId,
+        jobId,
+        cashierId,
+        cashierName,
+        timestamp: new Date()
+      });
+
+      // Emit real-time update
+      req.io.emit('order-status-updated', { 
+        orderId,
+        status: 'OnProcess',
+        cashier: { id: cashierId, name: cashierName }
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Order berhasil diklaim dan akan diproses',
+        data: {
+          orderId,
+          status: order.status,
+          cashier: order.cashier,
+          estimatedTime: '10-15 menit' // Could be dynamic based on order content
+        }
+      });
+
+    } catch (transactionError) {
+      await session.abortTransaction();
+      throw transactionError;
+    } finally {
+      await session.endSession();
     }
 
-    // Tambahkan cashierId ke job data agar worker tahu siapa yang ambil
-    await job.update({ ...job.data, cashierId });
-
-    // TIDAK perlu job.process(), biarkan worker eksekusi otomatis
-    res.status(200).json({
-      success: true,
-      message: 'Order diklaim dan akan segera diproses',
-      order,
-    });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Failed to confirm order:', {
+      jobId,
+      cashierId,
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date()
+    });
+
+    const statusCode = error.code === 'ORDER_ALREADY_CLAIMED' ? 409 : 500;
+    res.status(statusCode).json({ 
+      success: false, 
+      error: 'Gagal mengkonfirmasi order',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      code: error.code || 'INTERNAL_SERVER_ERROR'
+    });
   }
 };
-
 
 
 export const charge = async (req, res) => {
@@ -1393,7 +1522,7 @@ export const getPendingOrders = async (req, res) => {
     const pendingOrders = await Order.find({
       status: 'Pending',
       outlet: outletObjectId
-    }).lean();
+    }).lean().sort({ createdAt: -1 });
 
     if (!pendingOrders.length) return res.status(200).json([]);
 
