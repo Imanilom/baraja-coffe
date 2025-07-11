@@ -22,21 +22,24 @@ class OnlineOrderRepository {
       final limitedResponse =
           response.length > 10 ? response.sublist(0, 10) : response;
 
-      print("Data pending orders yg diambil: ${limitedResponse.length}");
+      print("Data pending orders yg diambil sebelum limit: $limitedResponse");
       final onlineOrders =
           limitedResponse.map((json) {
             // Pertama buat model dasar dari JSON
+            print(
+              "Data pending orders yg diambil, berikut datanya json: $json",
+            );
             final baseModel = OrderDetailModel.fromJson(json);
 
             // Kemudian hitung dan tambahkan field kalkulasi
-            return baseModel;
-            // .withCalculations(
-            //   totalTax: json['totalTax'] ?? 0,
-            //   discounts: json['discounts'] ?? {},
-            //   totalServiceFee: json['totalServiceFee'] ?? 0,
-            // );
+            print('base model: $baseModel');
+            return baseModel.withCalculations(
+              totalTax: json['totalTax'] ?? 0,
+              discounts: json['discounts'] ?? {},
+              totalServiceFee: json['totalServiceFee'] ?? 0,
+            );
           }).toList();
-      print("Data pending orders yg diambil: ${onlineOrders.length}");
+      print("Data pending orders yg diambil, berikut datanya: $onlineOrders");
       return onlineOrders;
     } catch (e) {
       print("Gagal mengambil data pending orders: ${e.toString()}");

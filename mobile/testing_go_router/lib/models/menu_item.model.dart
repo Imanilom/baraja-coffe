@@ -57,11 +57,17 @@ abstract class MenuItemModel with _$MenuItemModel {
     // subCategory: json['subCategory'] ?? "tidak ada sub kategori",
     imageURL: json['imageUrl'] ?? "",
     toppings:
-        (json['toppings'] as List)
-            .map((e) => ToppingModel.fromJson(e))
-            .toList(),
+        json['toppings'] == null
+            ? []
+            : (json['toppings'] as List)
+                .map((e) => ToppingModel.fromJson(e))
+                .toList(),
     addons:
-        (json['addons'] as List).map((e) => AddonModel.fromJson(e)).toList(),
+        json['addons'] == null
+            ? []
+            : (json['addons'] as List)
+                .map((e) => AddonModel.fromJson(e))
+                .toList(),
     discountPercentage:
         json['discountPercentage'] == null
             ? 0

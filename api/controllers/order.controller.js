@@ -838,7 +838,8 @@ export const confirmOrder = async (req, res) => {
     // 1. Find order and update status
     const order = await Order.findOneAndUpdate(
       { order_id: orderId },
-      { $set: { status: 'OnProcess' } },
+      { $set: { status: 'Waiting' } },
+      // { $set: { status: 'OnProcess' } },
       { new: true }
     ).populate('items.menuItem').populate('outlet');
 
@@ -1318,7 +1319,7 @@ export const getPendingOrders = async (req, res) => {
     const pendingOrders = await Order.find({
       status: 'Pending',
       outlet: outletObjectId
-    }).lean();
+    }).lean().sort({ createdAt: -1 });
 
     if (!pendingOrders.length) return res.status(200).json([]);
 
