@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$OrderItemModel {
 
-@HiveField(0) MenuItemModel get menuItem;@HiveField(1) List<ToppingModel> get selectedToppings;@HiveField(2) List<AddonModel> get selectedAddons;@HiveField(3) int get quantity;@HiveField(4) String? get note;
+@HiveField(0) MenuItemModel get menuItem;@HiveField(1) List<ToppingModel> get selectedToppings;@HiveField(2) List<AddonModel> get selectedAddons;@HiveField(3) int get quantity;@HiveField(4) String? get notes;
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -29,16 +29,16 @@ $OrderItemModelCopyWith<OrderItemModel> get copyWith => _$OrderItemModelCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is OrderItemModel&&(identical(other.menuItem, menuItem) || other.menuItem == menuItem)&&const DeepCollectionEquality().equals(other.selectedToppings, selectedToppings)&&const DeepCollectionEquality().equals(other.selectedAddons, selectedAddons)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.note, note) || other.note == note));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is OrderItemModel&&(identical(other.menuItem, menuItem) || other.menuItem == menuItem)&&const DeepCollectionEquality().equals(other.selectedToppings, selectedToppings)&&const DeepCollectionEquality().equals(other.selectedAddons, selectedAddons)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.notes, notes) || other.notes == notes));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,menuItem,const DeepCollectionEquality().hash(selectedToppings),const DeepCollectionEquality().hash(selectedAddons),quantity,note);
+int get hashCode => Object.hash(runtimeType,menuItem,const DeepCollectionEquality().hash(selectedToppings),const DeepCollectionEquality().hash(selectedAddons),quantity,notes);
 
 @override
 String toString() {
-  return 'OrderItemModel(menuItem: $menuItem, selectedToppings: $selectedToppings, selectedAddons: $selectedAddons, quantity: $quantity, note: $note)';
+  return 'OrderItemModel(menuItem: $menuItem, selectedToppings: $selectedToppings, selectedAddons: $selectedAddons, quantity: $quantity, notes: $notes)';
 }
 
 
@@ -49,7 +49,7 @@ abstract mixin class $OrderItemModelCopyWith<$Res>  {
   factory $OrderItemModelCopyWith(OrderItemModel value, $Res Function(OrderItemModel) _then) = _$OrderItemModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? note
+@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes
 });
 
 
@@ -66,13 +66,13 @@ class _$OrderItemModelCopyWithImpl<$Res>
 
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? note = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? notes = freezed,}) {
   return _then(_self.copyWith(
 menuItem: null == menuItem ? _self.menuItem : menuItem // ignore: cast_nullable_to_non_nullable
 as MenuItemModel,selectedToppings: null == selectedToppings ? _self.selectedToppings : selectedToppings // ignore: cast_nullable_to_non_nullable
 as List<ToppingModel>,selectedAddons: null == selectedAddons ? _self.selectedAddons : selectedAddons // ignore: cast_nullable_to_non_nullable
 as List<AddonModel>,quantity: null == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
-as int,note: freezed == note ? _self.note : note // ignore: cast_nullable_to_non_nullable
+as int,notes: freezed == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }
@@ -93,7 +93,7 @@ $MenuItemModelCopyWith<$Res> get menuItem {
 @JsonSerializable()
 
 class _OrderItemModel extends OrderItemModel {
-   _OrderItemModel({@HiveField(0) required this.menuItem, @HiveField(1) final  List<ToppingModel> selectedToppings = const [], @HiveField(2) final  List<AddonModel> selectedAddons = const [], @HiveField(3) this.quantity = 1, @HiveField(4) this.note = ''}): _selectedToppings = selectedToppings,_selectedAddons = selectedAddons,super._();
+   _OrderItemModel({@HiveField(0) required this.menuItem, @HiveField(1) final  List<ToppingModel> selectedToppings = const [], @HiveField(2) final  List<AddonModel> selectedAddons = const [], @HiveField(3) this.quantity = 1, @HiveField(4) this.notes = ""}): _selectedToppings = selectedToppings,_selectedAddons = selectedAddons,super._();
   factory _OrderItemModel.fromJson(Map<String, dynamic> json) => _$OrderItemModelFromJson(json);
 
 @override@HiveField(0) final  MenuItemModel menuItem;
@@ -112,7 +112,7 @@ class _OrderItemModel extends OrderItemModel {
 }
 
 @override@JsonKey()@HiveField(3) final  int quantity;
-@override@JsonKey()@HiveField(4) final  String? note;
+@override@JsonKey()@HiveField(4) final  String? notes;
 
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
@@ -127,16 +127,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _OrderItemModel&&(identical(other.menuItem, menuItem) || other.menuItem == menuItem)&&const DeepCollectionEquality().equals(other._selectedToppings, _selectedToppings)&&const DeepCollectionEquality().equals(other._selectedAddons, _selectedAddons)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.note, note) || other.note == note));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _OrderItemModel&&(identical(other.menuItem, menuItem) || other.menuItem == menuItem)&&const DeepCollectionEquality().equals(other._selectedToppings, _selectedToppings)&&const DeepCollectionEquality().equals(other._selectedAddons, _selectedAddons)&&(identical(other.quantity, quantity) || other.quantity == quantity)&&(identical(other.notes, notes) || other.notes == notes));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,menuItem,const DeepCollectionEquality().hash(_selectedToppings),const DeepCollectionEquality().hash(_selectedAddons),quantity,note);
+int get hashCode => Object.hash(runtimeType,menuItem,const DeepCollectionEquality().hash(_selectedToppings),const DeepCollectionEquality().hash(_selectedAddons),quantity,notes);
 
 @override
 String toString() {
-  return 'OrderItemModel(menuItem: $menuItem, selectedToppings: $selectedToppings, selectedAddons: $selectedAddons, quantity: $quantity, note: $note)';
+  return 'OrderItemModel(menuItem: $menuItem, selectedToppings: $selectedToppings, selectedAddons: $selectedAddons, quantity: $quantity, notes: $notes)';
 }
 
 
@@ -147,7 +147,7 @@ abstract mixin class _$OrderItemModelCopyWith<$Res> implements $OrderItemModelCo
   factory _$OrderItemModelCopyWith(_OrderItemModel value, $Res Function(_OrderItemModel) _then) = __$OrderItemModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? note
+@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes
 });
 
 
@@ -164,13 +164,13 @@ class __$OrderItemModelCopyWithImpl<$Res>
 
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? note = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? notes = freezed,}) {
   return _then(_OrderItemModel(
 menuItem: null == menuItem ? _self.menuItem : menuItem // ignore: cast_nullable_to_non_nullable
 as MenuItemModel,selectedToppings: null == selectedToppings ? _self._selectedToppings : selectedToppings // ignore: cast_nullable_to_non_nullable
 as List<ToppingModel>,selectedAddons: null == selectedAddons ? _self._selectedAddons : selectedAddons // ignore: cast_nullable_to_non_nullable
 as List<AddonModel>,quantity: null == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
-as int,note: freezed == note ? _self.note : note // ignore: cast_nullable_to_non_nullable
+as int,notes: freezed == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }

@@ -13,12 +13,15 @@ export const createMenuItem = async (req, res) => {
       description,
       category,
       subCategory,
-      imageURL,
       toppings,
       addons,
       availableAt,
       workstation
     } = req.body;
+
+    console.log(req.file);
+
+    const imageURL = req.file ? `http://localhost:3000/images/${req.file.filename}` : null;
 
     if (!name || !price || !category || !imageURL) {
       return res.status(400).json({
@@ -46,22 +49,49 @@ export const createMenuItem = async (req, res) => {
     }
 
     // Validate toppings
-    if (toppings && !Array.isArray(toppings)) {
-      return res.status(400).json({ success: false, message: 'Toppings must be an array.' });
+    let topping = req.body.toppings;
+    if (typeof topping === "string") {
+      try {
+        topping = JSON.parse(topping);
+      } catch (e) {
+        return res.status(400).json({ success: false, message: "Toppings JSON is invalid." });
+      }
+    }
+
+    if (topping && !Array.isArray(topping)) {
+      return res.status(400).json({ success: false, message: "Toppings must be an array." });
     }
 
     // Validate addons
-    if (addons && !Array.isArray(addons)) {
+    let addon = req.body.addons;
+    if (typeof addon === "string") {
+      try {
+        addon = JSON.parse(addon);
+      } catch (e) {
+        return res.status(400).json({ success: false, message: "Toppings JSON is invalid." });
+      }
+    }
+    if (addon && !Array.isArray(addon)) {
       return res.status(400).json({ success: false, message: 'Addons must be an array.' });
     }
 
     // Validate outlets
-    if (availableAt && Array.isArray(availableAt)) {
-      const outletsExist = await Outlet.find({ _id: { $in: availableAt } });
-      if (outletsExist.length !== availableAt.length) {
-        return res.status(400).json({ success: false, message: 'Some outlet IDs are invalid.' });
+    let availableA = req.body.availableAt;
+
+    if (typeof availableA === "string") {
+      try {
+        availableA = JSON.parse(availableA); // now it's an array of IDs
+      } catch (err) {
+        return res.status(400).json({ message: "Invalid JSON for availableAt" });
       }
     }
+
+    // if (availableAt && Array.isArray(availableAt)) {
+    //   const outletsExist = await Outlet.find({ _id: { $in: availableAt } });
+    //   if (outletsExist.length !== availableAt.length) {
+    //     return res.status(400).json({ success: false, message: 'Some outlet IDs are invalid.' });
+    //   }
+    // }
 
     const menuItem = new MenuItem({
       name,
@@ -70,9 +100,9 @@ export const createMenuItem = async (req, res) => {
       category,
       subCategory,
       imageURL,
-      toppings: toppings || [],
-      addons: addons || [],
-      availableAt: availableAt || [],
+      toppings: topping || [],
+      addons: addon || [],
+      availableAt: availableA || [],
       workstation: workstation || 'bar', // Default to 'kitchen' if not provided
     });
 

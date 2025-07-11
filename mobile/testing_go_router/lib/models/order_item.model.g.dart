@@ -23,7 +23,7 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       selectedAddons:
           fields[2] == null ? [] : (fields[2] as List).cast<AddonModel>(),
       quantity: fields[3] == null ? 1 : (fields[3] as num).toInt(),
-      note: fields[4] == null ? '' : fields[4] as String?,
+      notes: fields[4] == null ? '' : fields[4] as String?,
     );
   }
 
@@ -40,7 +40,7 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       ..writeByte(3)
       ..write(obj.quantity)
       ..writeByte(4)
-      ..write(obj.note);
+      ..write(obj.notes);
   }
 
   @override
@@ -74,7 +74,7 @@ _OrderItemModel _$OrderItemModelFromJson(Map<String, dynamic> json) =>
               .toList() ??
           const [],
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
-      note: json['note'] as String? ?? '',
+      notes: json['notes'] as String? ?? "",
     );
 
 Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
@@ -83,5 +83,5 @@ Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
       'selectedToppings': instance.selectedToppings,
       'selectedAddons': instance.selectedAddons,
       'quantity': instance.quantity,
-      'note': instance.note,
+      'notes': instance.notes,
     };

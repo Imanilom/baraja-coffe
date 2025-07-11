@@ -672,11 +672,12 @@ import { useNavigate, useParams } from "react-router-dom";
 
 const UpdateMenu = () => {
   const { id } = useParams(); // Get the menu item ID from the URL
+  const [title, setTitle] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
-    price: "",
+    price: 0,
     description: "",
-    category: [], // This should be an array
+    category: { id: "", name: "" },
     imageURL: "",
     toppings: [],
     addons: [],
@@ -740,6 +741,7 @@ const UpdateMenu = () => {
       try {
         const response = await axios.get(`/api/menu/menu-items/${id}`);
         const menuItem = response.data.data;
+        console.log(menuItem)
 
         // Ensure that the addons have options
         if (menuItem.addons) {
@@ -751,6 +753,7 @@ const UpdateMenu = () => {
         }
 
         setFormData(menuItem);
+        setTitle(menuItem?.name);
         setImagePreview(menuItem.imageURL);
       } catch (error) {
         console.error("Error fetching menu item:", error);
@@ -775,47 +778,6 @@ const UpdateMenu = () => {
   // State untuk pemilihan dan pencarian
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [searchTermCategories, setSearchTermCategories] = useState('');
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await axios.get("/api/menu/categories");
-        const fetchedCategories = response.data.data || [];
-        setCategories(fetchedCategories);
-
-        // mapping id -> name
-        const map = {};
-        fetchedCategories.forEach(cat => {
-          map[cat._id] = cat.name;
-        });
-        setCategoryMap(map);
-      } catch (error) {
-        console.error("Error fetching categories:", error);
-      }
-    };
-
-    const fetchOutlets = async () => {
-      try {
-        const response = await axios.get("/api/outlet/");
-        setOutlets(response.data || []);
-      } catch (error) {
-        console.error("Error fetching outlets:", error);
-      }
-    };
-
-    const fetchRawMaterial = async () => {
-      try {
-        const response = await axios.get("/api/storage/raw-material");
-        setRawMaterials(response.data.data || []);
-      } catch (error) {
-        console.error("Error fetching raw materials:", error);
-      }
-    };
-
-    fetchCategories();
-    fetchOutlets();
-    fetchRawMaterial();
-  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -987,7 +949,7 @@ const UpdateMenu = () => {
             <span
               className="text-gray-400 inline-block"
             >
-              {formData.name}
+              {title}
             </span>
           </div>
           <div className="flex space-x-2">
@@ -1048,12 +1010,26 @@ const UpdateMenu = () => {
               {/* Category (Checkboxes) */}
               <div className="">
                 <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
-                <select name="" id="" className="w-full py-2 px-3 border rounded-lg">
+                <select
+                  className="w-full py-2 px-3 border rounded-lg"
+                  value={formData.category.name} // sesuai state
+                  onChange={(e) => {
+                    const selected = categories.find(cat => cat.name === e.target.value);
+                    setFormData(prev => ({
+                      ...prev,
+                      category: selected || { id: "", name: "" }
+                    }));
+                  }}
+                >
+                  <option value="">Pilih kategori</option>
                   {categories.map(category => (
-                    <option value={category.name}>{category.name}</option>
+                    <option key={category.id} value={category.name}>
+                      {category.name}
+                    </option>
                   ))}
                 </select>
               </div>
+
               {/* Category (Checkboxes) */}
               {/* <div className="">
                 <label className="my-2.5 text-xs block font-medium">KATEGORI</label>

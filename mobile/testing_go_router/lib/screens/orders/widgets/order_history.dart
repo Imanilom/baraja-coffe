@@ -75,7 +75,7 @@ class OrderHistory extends ConsumerWidget {
                       itemCount: list.length,
                       itemBuilder: (context, index) {
                         final order = list[index];
-                        return _buildOrderCard(context, order, index);
+                        return _buildOrderCard(context, order, index, ref);
                       },
                     ),
                   ),
@@ -84,7 +84,12 @@ class OrderHistory extends ConsumerWidget {
     );
   }
 
-  Widget _buildOrderCard(BuildContext context, dynamic order, int index) {
+  Widget _buildOrderCard(
+    BuildContext context,
+    dynamic order,
+    int index,
+    WidgetRef ref,
+  ) {
     return Card(
       elevation: 2,
       shadowColor: Colors.transparent,
@@ -94,8 +99,8 @@ class OrderHistory extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: () {
           // Hapus komentar untuk mengaktifkan navigasi
-          // ref.read(historyDetailProvider.notifier).clearHistoryDetail();
-          // ref.read(historyDetailProvider.notifier).addToHistoryDetail(order);
+          ref.read(historyDetailProvider.notifier).clearHistoryDetail();
+          ref.read(historyDetailProvider.notifier).addToHistoryDetail(order);
 
           // Tambahkan feedback haptic
           HapticFeedback.lightImpact();

@@ -129,6 +129,8 @@ import TablePlanManagement from "./pages/table/tableplan";
 import UpdateSupplier from "./pages/purchase/supplier/update";
 import UpdatePromoPage from "./pages/promotion/promo/update";
 import PointManagement from "./pages/promotion/points";
+import UpdateAutoPromo from "./pages/promotion/autopromo/update";
+import ReceiptMenu from "./pages/menu/receipt";
 
 
 
@@ -152,6 +154,7 @@ export default function App() {
                 <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="example" element={<Example />} />
+                <Route path="menu-receipt/:id" element={<ReceiptMenu />} />
                 <Route path="menu" element={<Menumanagement />} />
                 <Route path="menu-create" element={<Menucreate />} />
                 <Route path="modifier-create" element={<CreateModifier />} />
@@ -277,8 +280,9 @@ export default function App() {
                 <Route path="promo-khusus" element={<PromoList />} />
                 <Route path="promo-khusus-create" element={<CreatePromoPage />} />
                 <Route path="promo-khusus-update/:id" element={<UpdatePromoPage />} />
-                <Route path="promo-otomatis-create" element={<CreateAutoPromoPage />} />
                 <Route path="promo-otomatis" element={<RunningAutoPromos />} />
+                <Route path="promo-otomatis-create" element={<CreateAutoPromoPage />} />
+                <Route path="promo-otomatis-update/:id" element={<UpdateAutoPromo />} />
                 <Route path="poin" element={<PointManagement />} />
 
                 {/* point */}

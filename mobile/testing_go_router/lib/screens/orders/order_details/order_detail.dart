@@ -99,7 +99,8 @@ class OrderDetail extends ConsumerWidget {
                 VerticalIconTextButton(
                   icon: Icons.table_restaurant_rounded,
                   label:
-                      orderDetail?.tableNumber != null
+                      orderDetail?.tableNumber != "" &&
+                              orderDetail?.tableNumber != null
                           ? 'Meja ${orderDetail?.tableNumber}'
                           : 'Meja',
                   onPressed: () {
@@ -214,7 +215,8 @@ class OrderDetail extends ConsumerWidget {
                     // );
                   },
                   color:
-                      orderDetail?.tableNumber != null
+                      orderDetail?.tableNumber != "" &&
+                              orderDetail?.tableNumber != null
                           ? Colors.green
                           : Colors.grey,
                 ),
@@ -286,9 +288,14 @@ class OrderDetail extends ConsumerWidget {
                 // nama pelanggan,
                 VerticalIconTextButton(
                   icon: Icons.person_rounded,
-                  label: orderDetail?.customerName ?? 'Pelanggan',
+                  label:
+                      (orderDetail?.customerName != "" &&
+                              orderDetail?.customerName != null)
+                          ? (orderDetail!.customerName!)
+                          : 'Pelanggan',
                   color:
-                      orderDetail?.customerName != null
+                      orderDetail?.customerName != "" &&
+                              orderDetail?.customerName != null
                           ? Colors.green
                           : Colors.grey,
                   onPressed: () {
@@ -407,10 +414,10 @@ class OrderDetail extends ConsumerWidget {
                                     Text(
                                       'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}',
                                     ),
-                                if (orderItem.note != null &&
-                                    orderItem.note!.isNotEmpty)
+                                if (orderItem.notes != null &&
+                                    orderItem.notes!.isNotEmpty)
                                   Text(
-                                    'Catatan: ${orderItem.note!}',
+                                    'Catatan: ${orderItem.notes!}',
                                     style: const TextStyle(
                                       fontStyle: FontStyle.italic,
                                       color: Colors.grey,
@@ -504,7 +511,45 @@ class OrderDetail extends ConsumerWidget {
                           child: const Text('Lanjutkan Pesanan'),
                         )
                         : currentWidgetIndex == 2
-                        ? SizedBox.shrink()
+                        ? Row(
+                          children: [
+                            Expanded(
+                              child: TextButton(
+                                onPressed: () {
+                                  ref
+                                      .read(historyDetailProvider.notifier)
+                                      .clearHistoryDetail();
+                                },
+                                child: const Text('cancel'),
+                              ),
+                            ),
+                            Expanded(
+                              child: TextButton(
+                                onPressed: () {
+                                  if (orderDetail != null &&
+                                      orderDetail.items.isNotEmpty) {
+                                    //refund order
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Fitur refund belum tersedia",
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                style: TextButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text('Refund'),
+                              ),
+                            ),
+                          ],
+                        )
                         : currentWidgetIndex == 1
                         ? Row(
                           spacing: 8,
@@ -662,7 +707,7 @@ class OrderDetail extends ConsumerWidget {
                                               orderDetail.items.isNotEmpty) {
                                             // print('mau dibayar');
                                             if (orderDetail.customerName ==
-                                                null) {
+                                                "") {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
@@ -678,7 +723,7 @@ class OrderDetail extends ConsumerWidget {
                                               return;
                                             } else if (orderDetail
                                                     .tableNumber ==
-                                                null) {
+                                                "") {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(

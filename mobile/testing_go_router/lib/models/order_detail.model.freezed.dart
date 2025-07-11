@@ -21,8 +21,7 @@ mixin _$OrderDetailModel {
 @HiveField(3) String? get phoneNumber;@HiveField(4) List<OrderItemModel> get items;//
 @HiveField(5) String get orderType;//
 @HiveField(6) String? get deliveryAddress;@HiveField(7) String? get tableNumber;@HiveField(8) String? get paymentMethod;@HiveField(9) String? get status;@HiveField(10) int? get subTotalPrice;@HiveField(11)@JsonKey(name: 'order_id') String? get orderId;//
-@HiveField(12) int? get tax;@HiveField(13) int? get totalPrice;@HiveField(14) int? get serviceFee;//, Tambahkan field baru untuk service fee
-@HiveField(15) Map<String, int>? get discounts;
+@HiveField(12) int? get tax;@HiveField(13) int? get totalPrice;@HiveField(14) int? get serviceFee;@HiveField(15) Map<String, int>? get discounts;
 /// Create a copy of OrderDetailModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -101,15 +100,15 @@ as Map<String, int>?,
 @JsonSerializable()
 
 class _OrderDetailModel implements OrderDetailModel {
-   _OrderDetailModel({@HiveField(0)@JsonKey(name: 'userId') this.customerId, @HiveField(1) this.customerName, @HiveField(2) this.cashierId, @HiveField(3) this.phoneNumber, @HiveField(4) final  List<OrderItemModel> items = const [], @HiveField(5) required this.orderType, @HiveField(6) this.deliveryAddress, @HiveField(7) this.tableNumber, @HiveField(8) this.paymentMethod, @HiveField(9) this.status, @HiveField(10) this.subTotalPrice, @HiveField(11)@JsonKey(name: 'order_id') this.orderId, @HiveField(12) this.tax, @HiveField(13) this.totalPrice, @HiveField(14) this.serviceFee, @HiveField(15) final  Map<String, int>? discounts}): _items = items,_discounts = discounts;
+   _OrderDetailModel({@HiveField(0)@JsonKey(name: 'userId') this.customerId = "", @HiveField(1) this.customerName = "", @HiveField(2) this.cashierId = "", @HiveField(3) this.phoneNumber = "", @HiveField(4) final  List<OrderItemModel> items = const [], @HiveField(5) required this.orderType, @HiveField(6) this.deliveryAddress = "", @HiveField(7) this.tableNumber = "", @HiveField(8) this.paymentMethod = "", @HiveField(9) this.status = "", @HiveField(10) this.subTotalPrice = 0, @HiveField(11)@JsonKey(name: 'order_id') this.orderId = "", @HiveField(12) this.tax = 0, @HiveField(13) this.totalPrice = 0, @HiveField(14) this.serviceFee = 0, @HiveField(15) final  Map<String, int>? discounts}): _items = items,_discounts = discounts;
   factory _OrderDetailModel.fromJson(Map<String, dynamic> json) => _$OrderDetailModelFromJson(json);
 
 @override@HiveField(0)@JsonKey(name: 'userId') final  String? customerId;
-@override@HiveField(1) final  String? customerName;
+@override@JsonKey()@HiveField(1) final  String? customerName;
 //
-@override@HiveField(2) final  String? cashierId;
+@override@JsonKey()@HiveField(2) final  String? cashierId;
 //
-@override@HiveField(3) final  String? phoneNumber;
+@override@JsonKey()@HiveField(3) final  String? phoneNumber;
  final  List<OrderItemModel> _items;
 @override@JsonKey()@HiveField(4) List<OrderItemModel> get items {
   if (_items is EqualUnmodifiableListView) return _items;
@@ -120,19 +119,17 @@ class _OrderDetailModel implements OrderDetailModel {
 //
 @override@HiveField(5) final  String orderType;
 //
-@override@HiveField(6) final  String? deliveryAddress;
-@override@HiveField(7) final  String? tableNumber;
-@override@HiveField(8) final  String? paymentMethod;
-@override@HiveField(9) final  String? status;
-@override@HiveField(10) final  int? subTotalPrice;
+@override@JsonKey()@HiveField(6) final  String? deliveryAddress;
+@override@JsonKey()@HiveField(7) final  String? tableNumber;
+@override@JsonKey()@HiveField(8) final  String? paymentMethod;
+@override@JsonKey()@HiveField(9) final  String? status;
+@override@JsonKey()@HiveField(10) final  int? subTotalPrice;
 @override@HiveField(11)@JsonKey(name: 'order_id') final  String? orderId;
 //
-@override@HiveField(12) final  int? tax;
-@override@HiveField(13) final  int? totalPrice;
-@override@HiveField(14) final  int? serviceFee;
-//, Tambahkan field baru untuk service fee
+@override@JsonKey()@HiveField(12) final  int? tax;
+@override@JsonKey()@HiveField(13) final  int? totalPrice;
+@override@JsonKey()@HiveField(14) final  int? serviceFee;
  final  Map<String, int>? _discounts;
-//, Tambahkan field baru untuk service fee
 @override@HiveField(15) Map<String, int>? get discounts {
   final value = _discounts;
   if (value == null) return null;
