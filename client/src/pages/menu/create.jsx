@@ -308,7 +308,7 @@ const CreateMenu = () => {
 
 
       await axios.post("/api/menu/menu-items", payload);
-      alert("Menu berhasil dikirim!");
+      navigate("/admin/menu");
     } catch (err) {
       console.error("Gagal kirim data:", err);
     }
