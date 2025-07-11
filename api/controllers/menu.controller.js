@@ -21,7 +21,9 @@ export const createMenuItem = async (req, res) => {
 
     console.log(req.file);
 
-    const imageURL = req.file ? `http://localhost:3000/images/${req.file.filename}` : null;
+    const imageURL = req.file
+    ? `http://localhost:3000/images/${req.file.filename}`
+    : req.body.imageURL || null;
 
     if (!name || !price || !category || !imageURL) {
       return res.status(400).json({
@@ -94,17 +96,19 @@ export const createMenuItem = async (req, res) => {
     // }
 
     const menuItem = new MenuItem({
-      name,
-      price,
-      description: description || '',
-      category,
-      subCategory,
-      imageURL,
-      toppings: topping || [],
-      addons: addon || [],
-      availableAt: availableA || [],
-      workstation: workstation || 'bar', // Default to 'kitchen' if not provided
-    });
+    name,
+    price,
+    description: description || '',
+    mainCategory: mainCat.type, // Ambil dari category parent
+    category,
+    subCategory,
+    imageURL,
+    toppings: topping || [],
+    addons: addon || [],
+    availableAt: availableA || [],
+    workstation: workstation || 'bar',
+  });
+
 
     const savedMenuItem = await menuItem.save();
 
@@ -216,7 +220,8 @@ export const getMenuItems = async (req, res) => {
             price: opt.price,
             isDefault: opt.isDefault
           }))
-        }))
+        })),
+        workstation: item.workstation
       };
     });
 

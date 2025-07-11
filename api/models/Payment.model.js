@@ -8,8 +8,6 @@ const PaymentSchema = new mongoose.Schema({
   status: { type: String, default: 'pending' },
   paymentType: {
     type: String,
-    enum: ['Full', 'Down Payment'],
-    default: 'Full'
   },
   amount: { type: Number, required: true },
   remainingAmount: { type: Number, default: 0 },

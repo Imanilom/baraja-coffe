@@ -52,6 +52,9 @@ export async function createOrderHandler({ orderId, orderData, source }) {
       orderId,
       source
     });
+    if (err.message.includes('Failed to process order items')) {
+      throw new Error(`Order processing failed: ${err.message}`);
+    }
     throw err;
   }
 }

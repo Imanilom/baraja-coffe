@@ -26,7 +26,7 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(12) @Default(0) int? tax,
     @HiveField(13) @Default(0) int? totalPrice,
     @HiveField(14) @Default(0) int? serviceFee,
-    @HiveField(15) Map<String, int>? discounts,
+    @HiveField(15) Map<String, dynamic>? discounts,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>
