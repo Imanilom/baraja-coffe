@@ -161,6 +161,20 @@ export const createAppOrder = async (req, res) => {
       type: 'Indoor',
       voucher: voucherId,
       outlet: outlet,
+      totalBeforeDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
+      totalAfterDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0), // No discount applied yet
+      totalTax: 0, // Assuming no tax for now
+      totalServiceFee: 0, // Assuming no service fee for now
+      discounts: {
+        autoPromoDiscount: 0,
+        manualDiscount: 0,
+        voucherDiscount: 0
+      },
+      appliedPromos: [], // Will be filled with auto promos if any
+      appliedManualPromo: null, // Will be filled if manual promo is applied
+      appliedVoucher: voucherId, // Will be filled if voucher is applied
+      taxAndServiceDetails: [], // Will be filled if tax or service fee is applied
+      grandTotal: orderItems.reduce((sum, item) => sum + item.subtotal, 0), // Initial grand total
       promotions: [],
       source: 'App',
       reservation: null, // Will be set after reservation is created
@@ -1251,6 +1265,28 @@ export const paymentNotification = async (req, res) => {
   }
 };
 
+export const getKitchenOrder = async (req, res) => {
+  try {
+    const orders = await Order.find()
+      .populate('items.menuItem')
+      .lean();
+
+
+    // Filter hanya orders yang memiliki setidaknya 1 item dengan workstation 'kitchen'
+    const kitchenOrders = orders.filter(order =>
+      order.items.some(item =>
+        item.menuItem && item.menuItem.workstation === 'kitchen'
+      )
+    );
+
+    res.status(200).json({ success: true, data: kitchenOrders });
+  } catch (error) {
+    console.error('Error fetching kitchen orders:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch kitchen orders' });
+  }
+}
+
+
 // Mengambil semua order
 export const getAllOrders = async (req, res) => {
   try {
@@ -1513,7 +1549,8 @@ export const getOrderById = async (req, res) => {
 
     console.log('Order ID:', orderId);
 
-    const payment = await Payment.findOne({ order_id: orderId });
+
+    const payment = await Payment.findOne({ order_id: order.order_id });
 
     // Mencari reservasi berdasarkan order_id
     const reservation = await Reservation.findOne({ order_id: orderId })

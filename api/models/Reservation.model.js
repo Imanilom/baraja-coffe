@@ -49,7 +49,7 @@ const reservationSchema = new mongoose.Schema({
         default: ''
     }
 }, {
-    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+    timestamps: true
 });
 
 // Generate reservation code before validation

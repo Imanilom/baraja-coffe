@@ -27,7 +27,7 @@ const AssignMenuItemToCategory = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get('/api/storage/category');
+      const response = await axios.get('/api/storage/categories');
       setCategories(response.data.data || []);
     } catch (err) {
       setError('Failed to fetch categories');
@@ -62,7 +62,7 @@ const AssignMenuItemToCategory = () => {
 
     try {
       const data = { categoryNames: selectedCategoryNames, menuItems: selectedMenuItems };
-      const response = await axios.post('/api/storage/category/assign', data);
+      const response = await axios.post('/api/storage/categories/assign', data);
       if (response.data.success) {
         setSuccessMessage('Menu items assigned to categories successfully!');
         setSelectedMenuItems([]);
@@ -142,11 +142,10 @@ const AssignMenuItemToCategory = () => {
         <button
           type="submit"
           disabled={loading}
-          className={`w-full py-2 px-4 text-white text-lg font-medium rounded-md transition duration-200 ${
-            loading
+          className={`w-full py-2 px-4 text-white text-lg font-medium rounded-md transition duration-200 ${loading
               ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-indigo-600 hover:bg-indigo-700'
-          }`}
+            }`}
         >
           {loading ? 'Assigning...' : 'Assign'}
         </button>
@@ -156,4 +155,3 @@ const AssignMenuItemToCategory = () => {
 };
 
 export default AssignMenuItemToCategory;
-    
