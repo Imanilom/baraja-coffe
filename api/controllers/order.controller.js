@@ -897,7 +897,7 @@ export const confirmOrder = async (req, res) => {
     // 2. Update payment status
     const payment = await Payment.findOneAndUpdate(
       { order_id: orderId },
-      { $set: { status: 'paid', paidAt: new Date() } },
+      { $set: { status: 'settlement', paidAt: new Date() } },
       { new: true }
     );
 
@@ -949,16 +949,16 @@ export const getQueuedOrders = async (req, res) => {
     // Get all waiting and active jobs with pagination
     const { page = 1, limit = 20 } = req.query;
     const skip = (page - 1) * limit;
-    
+
     // Get jobs with additional status details
     const jobs = await orderQueue.getJobs(['waiting', 'active'], skip, skip + limit - 1);
-    
+
     // Format response with more detailed order information
     const orders = await Promise.all(jobs.map(async job => {
       const orderDetails = await Order.findOne({ order_id: job.data?.order_id })
         .select('status source tableNumber createdAt')
         .lean();
-      
+
       return {
         jobId: job.id,
         orderId: job.data?.order_id,
@@ -970,7 +970,7 @@ export const getQueuedOrders = async (req, res) => {
         data: {
           ...job.data,
           // Remove sensitive data if any
-          paymentDetails: undefined 
+          paymentDetails: undefined
         }
       };
     }));
@@ -979,8 +979,8 @@ export const getQueuedOrders = async (req, res) => {
     const waitingCount = await orderQueue.getJobCountByTypes('waiting');
     const activeCount = await orderQueue.getJobCountByTypes('active');
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       data: orders,
       meta: {
         total: waitingCount + activeCount,
@@ -996,8 +996,8 @@ export const getQueuedOrders = async (req, res) => {
       stack: error.stack,
       timestamp: new Date()
     });
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Gagal mengambil daftar order antrian',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -1011,8 +1011,8 @@ export const confirmOrderByCashier = async (req, res) => {
 
   // Enhanced validation
   if (!cashierId || !cashierName) {
-    return res.status(400).json({ 
-      success: false, 
+    return res.status(400).json({
+      success: false,
       error: 'cashierId dan cashierName wajib diisi',
       code: 'MISSING_REQUIRED_FIELDS'
     });
@@ -1022,8 +1022,8 @@ export const confirmOrderByCashier = async (req, res) => {
     // Get job with lock to prevent race conditions
     const job = await orderQueue.getJob(jobId);
     if (!job) {
-      return res.status(404).json({ 
-        success: false, 
+      return res.status(404).json({
+        success: false,
         error: 'Job tidak ditemukan',
         code: 'JOB_NOT_FOUND'
       });
@@ -1032,8 +1032,8 @@ export const confirmOrderByCashier = async (req, res) => {
     // Validate job data
     const orderId = job.data?.order_id;
     if (!orderId) {
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         error: 'Data order tidak valid',
         code: 'INVALID_JOB_DATA'
       });
@@ -1041,10 +1041,10 @@ export const confirmOrderByCashier = async (req, res) => {
 
     // Check if already claimed
     if (job.data?.cashierId) {
-      const currentCashier = job.data.cashierId === cashierId ? 
+      const currentCashier = job.data.cashierId === cashierId ?
         'Anda' : `Kasir ${job.data.cashierName || job.data.cashierId}`;
-      return res.status(409).json({ 
-        success: false, 
+      return res.status(409).json({
+        success: false,
         error: `${currentCashier} sudah mengambil order ini`,
         code: 'ORDER_ALREADY_CLAIMED'
       });
@@ -1058,11 +1058,11 @@ export const confirmOrderByCashier = async (req, res) => {
       // Update order status and assign cashier
       const order = await Order.findOneAndUpdate(
         { order_id: orderId },
-        { 
-          status: 'OnProcess', 
-          cashier: { 
-            id: cashierId, 
-            name: cashierName 
+        {
+          status: 'OnProcess',
+          cashier: {
+            id: cashierId,
+            name: cashierName
           },
           processingStartedAt: new Date()
         },
@@ -1071,8 +1071,8 @@ export const confirmOrderByCashier = async (req, res) => {
 
       if (!order) {
         await session.abortTransaction();
-        return res.status(404).json({ 
-          success: false, 
+        return res.status(404).json({
+          success: false,
           error: 'Order tidak ditemukan di database',
           code: 'ORDER_NOT_FOUND'
         });
@@ -1098,7 +1098,7 @@ export const confirmOrderByCashier = async (req, res) => {
       });
 
       // Emit real-time update
-      req.io.emit('order-status-updated', { 
+      req.io.emit('order-status-updated', {
         orderId,
         status: 'OnProcess',
         cashier: { id: cashierId, name: cashierName }
@@ -1132,8 +1132,8 @@ export const confirmOrderByCashier = async (req, res) => {
     });
 
     const statusCode = error.code === 'ORDER_ALREADY_CLAIMED' ? 409 : 500;
-    res.status(statusCode).json({ 
-      success: false, 
+    res.status(statusCode).json({
+      success: false,
       error: 'Gagal mengkonfirmasi order',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       code: error.code || 'INTERNAL_SERVER_ERROR'
@@ -1533,7 +1533,7 @@ export const getPendingOrders = async (req, res) => {
     }).lean();
 
     const successfulPaymentOrderIds = new Set(
-      payments.filter(p => p.status === 'Success' || p.status === 'paid')
+      payments.filter(p => p.status === 'Success' || p.status === 'settlement')
         .map(p => p.order_id.toString())
     );
 
