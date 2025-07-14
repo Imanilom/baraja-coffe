@@ -1,7 +1,7 @@
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:hive_ce/hive.dart';
 
-part 'adapter/user.model.g.dart'; // File yang akan digenerate
+part 'user.model.g.dart'; // File yang akan digenerate
 
 @HiveType(typeId: 6)
 class UserModel {

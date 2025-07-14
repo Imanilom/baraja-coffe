@@ -148,27 +148,29 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
       final box = Hive.box('userBox');
       final cashier = box.get('cashier') as CashierModel?;
       final user = box.get('user') as UserModel?;
+      final sd = HiveService.getCashier();
+      print('cek login data cashier sd: $sd');
 
       if (user != null) {
         if (cashier != null) {
-          print('cek login cashier disini dulu?: ${cashier.toString()}');
+          // print('cek login cashier disini dulu?: ${cashier.toString()}');
           state = const AsyncValue.data(AuthStatus.authenticated);
-          print('cashier !null ${state.value}');
+          // print('cashier !null ${state.value}');
           return;
         }
-        print(
-          'cek login status disini dulu ngga?: ${user.outletId.toString()}',
-        );
-        print('cek login status disini dulu ngga?: ${user.id}');
-        print('cek login status disini dulu ngga?: ${user.role}');
+        // print(
+        //   'cek login status disini dulu ngga?: ${user.outletId.toString()}',
+        // );
+        // print('cek login status disini dulu ngga?: ${user.id}');
+        // print('cek login status disini dulu ngga?: ${user.role}');
         state = const AsyncValue.data(AuthStatus.needPin);
-        print('user !null ${state.value}');
+        // print('user !null ${state.value}');
       } else if (cashier != null) {
         state = const AsyncValue.data(AuthStatus.authenticated);
-        print('cashier !null ${state.value}');
+        // print('cashier !null ${state.value}');
       } else {
         state = const AsyncValue.data(AuthStatus.unauthenticated);
-        print('else ${state.value}');
+        // print('else ${state.value}');
       }
     } catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
@@ -188,13 +190,14 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
 
   Future<void> login(String username, String password) async {
     try {
-      print('kita berada di try auth provider login manager');
+      // print('kita berada di try auth provider login manager');
       await _authRepository.login(username, password);
-      print('kita berada di try auth provider login manager');
+      // print('kita berada di try auth provider login manager');
 
       state = const AsyncValue.data(AuthStatus.needPin);
     } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+      // state = const AsyncValue.data(AuthStatus.unauthenticated);
+      print('login gagal: $e');
     }
   }
 
