@@ -286,6 +286,45 @@ export const createAppOrder = async (req, res) => {
 };
 
 
+function mapOrderForFrontend(newOrder) {
+  return {
+    _id: newOrder._id,
+    orderId: newOrder.order_id,
+    userId: newOrder.user_id?._id || newOrder.user_id,
+    customerName: newOrder.user_id?.name || newOrder.user,
+    customerPhone: newOrder.user_id?.phone || newOrder.phoneNumber,
+    cashierId: newOrder.cashierId?._id || newOrder.cashierId,
+    cashierName: newOrder.cashierId?.name,
+    items: newOrder.items.map(item => ({
+      _id: item._id,
+      menuItemId: item.menuItem,
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      subtotal: item.subtotal,
+      isPrinted: item.isPrinted || false,
+      selectedAddons: item.selectedAddons || [],
+      selectedToppings: item.selectedToppings || []
+    })),
+    status: newOrder.status,
+    paymentStatus: newOrder.paymentStatus,
+    orderType: newOrder.orderType,
+    deliveryAddress: newOrder.deliveryAddress,
+    tableNumber: newOrder.tableNumber,
+    paymentMethod: newOrder.paymentMethod,
+    totalBeforeDiscount: newOrder.totalBeforeDiscount,
+    totalAfterDiscount: newOrder.totalAfterDiscount,
+    taxAndService: newOrder.taxAndService,
+    grandTotal: newOrder.grandTotal,
+    appliedPromos: newOrder.appliedPromos || [],
+    source: newOrder.source,
+    notes: newOrder.notes,
+    createdAt: newOrder.createdAt,
+    updatedAt: newOrder.updatedAt
+  };
+}
+
+
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -1571,13 +1610,14 @@ export const getPendingOrders = async (req, res) => {
           menuItem: menuItem ? {
             _id: menuItem._id,
             name: menuItem.name,
-            price: menuItem.price
+            originalPrice: menuItem.price
           } : null,
           selectedToppings: item.toppings || [],
           selectedAddons: enrichedAddons,
           subtotal: item.subtotal,
           quantity: item.quantity,
-          isPrinted: item.isPrinted
+          isPrinted: item.isPrinted,
+          notes: item.notes
         };
       });
 
@@ -1589,7 +1629,7 @@ export const getPendingOrders = async (req, res) => {
         customerName: order.user,
         user: undefined,
         user_id: undefined,
-        cashier: undefined
+        cashier: undefined,
       };
     });
 
@@ -1637,29 +1677,6 @@ export const getUserOrders = async (req, res) => {
   }
 };
 
-// // Get History User orders
-// export const getUserOrderHistory = async (req, res) => {
-//   try {
-//     const userId = req.params.userId; // Mengambil ID user dari parameter URL
-//     if (!userId) {
-//       return res.status(400).json({ message: 'User ID is required.' });
-//     }
-
-//     // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
-//     const orders = await Order.find({ user_id: userId })
-//       .populate('items.menuItem') // Mengisi detail menu item (opsional)
-//       .populate('voucher'); // Mengisi detail voucher (opsional)
-
-//     if (!orders || orders.length === 0) {
-//       return res.status(404).json({ message: 'No order history found for this user.' });
-//     }
-
-//     res.status(200).json({ orders });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Internal server error.' });
-//   }
-// };
 
 // Get History User orders
 
@@ -1683,15 +1700,8 @@ export const getUserOrderHistory = async (req, res) => {
     }
 
     // Mengambil semua order_id untuk mencari payment status
-    const orderIds = orderHistorys.map(order => order._id);
-
-    console.log('Fetching payment data for order IDs:', orderIds);
-
-
-    // Mencari payment data berdasarkan order_id (gunakan field 'status' bukan 'paymentStatus')
-    const payments = await Payment.find({ order_id: orderIds })
-      .select('order_id status')
-      .lean();
+  const orderIds = orderHistorys.map(order => order.order_id); // Use string-based order_id
+  const payments = await Payment.find({ order_id: { $in: orderIds } });
 
     // Membuat mapping payment berdasarkan order_id untuk akses yang lebih cepat
     const paymentMap = {};
@@ -1719,7 +1729,7 @@ export const getUserOrderHistory = async (req, res) => {
         toppings: item.toppings
       })),
       status: order.status,
-      paymentStatus: paymentMap[order._id] || null,
+      paymentStatus: paymentMap[order.order_id] || null,
     }));
 
     res.status(200).json({
@@ -1927,14 +1937,20 @@ export const getCashierOrderHistory = async (req, res) => {
       _id: order._id,
       userId: order.user_id, // renamed
       customerName: order.user, // renamed
-      cashierId: order.cashier, // renamed
+      cashierId: order.cashierId, // renamed
       items: order.items.map(item => ({
         _id: item._id,
         quantity: item.quantity,
         subtotal: item.subtotal,
         isPrinted: item.isPrinted,
         menuItem: {
-          ...item.menuItem.toObject(),
+          // ...item.menuItem.toObject(),
+          _id: item.menuItem._id,
+          name: item.menuItem.name,
+          originalPrice: item.menuItem.price,
+          discountedprice: item.menuItem.discountedPrice,
+          description: item.menuItem.description,
+          workstation: item.menuItem.workstation,
           categories: item.menuItem.category, // renamed
         },
         selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({

@@ -130,57 +130,70 @@ const ReceiptMenu = () => {
             return;
         }
 
+        // Prepare the payload with proper structure
         const payload = {
             menuItemId: id,
-            baseIngredients: baseIngredients.map(item => ({
-                productId: item.productId,
-                productName: item.productName,
-                productSku: item.productSku,
-                quantity: Number(item.quantity) || 0,
-                unit: item.unit
-            })),
-            toppings: toppingOptions.map((t) => ({
-                toppingName: t.toppingName,
-                ingredients: t.ingredients.filter(i => i.productId && i.productName && i.productSku)
-                    .map(ing => ({
-                        productId: ing.productId,
-                        productName: ing.productName,
-                        productSku: ing.productSku,
-                        quantity: Number(ing.quantity) || 0,
-                        unit: ing.unit
-                    }))
-            })),
-            addons: addonOptions.map((a) => ({
-                addonName: a.addonName,
-                optionLabel: a.optionLabel,
-                ingredients: a.ingredients.filter(i => i.productId && i.productName && i.productSku)
-                    .map(ing => ({
-                        productId: ing.productId,
-                        productName: ing.productName,
-                        productSku: ing.productSku,
-                        quantity: Number(ing.quantity) || 0,
-                        unit: ing.unit
-                    }))
-            }))
+            baseIngredients: baseIngredients
+                .filter(item => item.productId && item.quantity && item.unit)
+                .map(item => ({
+                    productId: item.productId,
+                    productName: item.productName,
+                    productSku: item.productSku,
+                    quantity: Number(item.quantity),
+                    unit: item.unit
+                })),
+            toppingOptions: toppingOptions
+                .filter(topping => topping.toppingName && topping.ingredients.length > 0)
+                .map(topping => ({
+                    toppingName: topping.toppingName,
+                    ingredients: topping.ingredients
+                        .filter(ing => ing.productId && ing.quantity && ing.unit)
+                        .map(ing => ({
+                            productId: ing.productId,
+                            productName: ing.productName,
+                            productSku: ing.productSku,
+                            quantity: Number(ing.quantity),
+                            unit: ing.unit
+                        }))
+                })),
+            addonOptions: addonOptions
+                .filter(addon => addon.addonName && addon.ingredients.length > 0)
+                .map(addon => ({
+                    addonName: addon.addonName,
+                    optionLabel: addon.optionLabel,
+                    ingredients: addon.ingredients
+                        .filter(ing => ing.productId && ing.quantity && ing.unit)
+                        .map(ing => ({
+                            productId: ing.productId,
+                            productName: ing.productName,
+                            productSku: ing.productSku,
+                            quantity: Number(ing.quantity),
+                            unit: ing.unit
+                        }))
+                }))
         };
 
-        console.log("Payload:", payload);
+        console.log("Payload to be sent:", JSON.stringify(payload, null, 2));
 
         try {
-            let response;
+            const response = await axios.post(`/api/product/recipes`, payload, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
 
-            if (existingRecipeId) {
-                // Update resep yang sudah ada
-                response = await axios.put(`/api/product/recipes/${existingRecipeId}`, payload);
+            console.log("Full response:", response);
+            console.log("Response data:", response.data);
+
+            if (response.data.success) {
+                alert("Resep berhasil dibuat.");
+                navigate("/admin/menu");
             } else {
-                // Buat resep baru
-                response = await axios.post(`/api/product/recipes`, payload);
+                alert(`Gagal membuat resep: ${response.data.message || 'Unknown error'}`);
             }
-            console.log("Response:", response.data);
-            alert("Resep berhasil dibuat.");
-            navigate("/admin/menu");
         } catch (err) {
-            console.error("Failed to save recipe:", err);
+            console.error("Error details:", err);
+            console.error("Error response:", err.response);
             alert(`Gagal membuat resep: ${err.response?.data?.message || err.message}`);
         }
     };
@@ -352,6 +365,7 @@ const ReceiptMenu = () => {
                                                 setToppingOptions(updated);
                                             }}
                                             className="border p-2 rounded text-sm w-full"
+                                            required
                                         />
                                     </div>
 
@@ -371,6 +385,7 @@ const ReceiptMenu = () => {
                                                     setToppingOptions(updated);
                                                 }}
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             >
                                                 <option value="">Pilih Bahan</option>
                                                 {productList.map(product => (
@@ -388,6 +403,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "productSku", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             />
                                             <input
                                                 type="number"
@@ -399,6 +415,7 @@ const ReceiptMenu = () => {
                                                 className="border rounded p-2 text-sm"
                                                 min="0"
                                                 step="0.01"
+                                                required
                                             />
                                             <input
                                                 type="text"
@@ -408,6 +425,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "unit", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             />
                                             <button
                                                 type="button"
@@ -442,6 +460,21 @@ const ReceiptMenu = () => {
                                     </button>
                                 </div>
                             ))}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setToppingOptions([
+                                        ...toppingOptions,
+                                        {
+                                            toppingName: "",
+                                            ingredients: [{ productId: "", productName: "", productSku: "", quantity: "", unit: "" }]
+                                        }
+                                    ]);
+                                }}
+                                className="text-blue-600 text-sm mt-2"
+                            >
+                                + Tambah Topping
+                            </button>
                         </div>
 
                         {/* Addons */}
@@ -460,6 +493,7 @@ const ReceiptMenu = () => {
                                                 setAddonOptions(updated);
                                             }}
                                             className="border p-2 rounded text-sm"
+                                            required
                                         />
                                         <input
                                             type="text"
@@ -471,6 +505,7 @@ const ReceiptMenu = () => {
                                                 setAddonOptions(updated);
                                             }}
                                             className="border p-2 rounded text-sm"
+                                            required
                                         />
                                     </div>
 
@@ -490,6 +525,7 @@ const ReceiptMenu = () => {
                                                     setAddonOptions(updated);
                                                 }}
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             >
                                                 <option value="">Pilih Bahan</option>
                                                 {productList.map(product => (
@@ -506,6 +542,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "productSku", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             />
                                             <input
                                                 type="number"
@@ -517,6 +554,7 @@ const ReceiptMenu = () => {
                                                 className="border rounded p-2 text-sm"
                                                 min="0"
                                                 step="0.01"
+                                                required
                                             />
                                             <input
                                                 type="text"
@@ -526,6 +564,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "unit", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             />
                                             <button
                                                 type="button"
@@ -560,6 +599,22 @@ const ReceiptMenu = () => {
                                     </button>
                                 </div>
                             ))}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setAddonOptions([
+                                        ...addonOptions,
+                                        {
+                                            addonName: "",
+                                            optionLabel: "",
+                                            ingredients: [{ productId: "", productName: "", productSku: "", quantity: "", unit: "" }]
+                                        }
+                                    ]);
+                                }}
+                                className="text-blue-600 text-sm mt-2"
+                            >
+                                + Tambah Addon
+                            </button>
                         </div>
 
                         {/* Submit Button */}

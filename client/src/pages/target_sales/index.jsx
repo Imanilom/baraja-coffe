@@ -102,7 +102,7 @@ const TargetSalesManagementPage = () => {
                                 <h2 className="text-gray-400 ml-2 text-sm">Outlet</h2>
                             </div>
                             <div className="text-sm text-gray-400">
-                                (18)
+                                ({outlets.length})
                             </div>
                         </Link>
                     </button>
@@ -117,7 +117,7 @@ const TargetSalesManagementPage = () => {
                                 <h2 className="text-gray-400 ml-2 text-sm">Pajak & Service</h2>
                             </div>
                             <div className="text-sm text-gray-400">
-                                (18)
+
                             </div>
                         </Link>
                     </div>
@@ -131,7 +131,7 @@ const TargetSalesManagementPage = () => {
                                 <h2 className="text-gray-400 ml-2 text-sm">Target Penjualan</h2>
                             </div>
                             <div className="text-sm text-gray-400">
-                                (18)
+
                             </div>
                         </Link>
                     </div>
