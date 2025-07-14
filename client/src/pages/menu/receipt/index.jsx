@@ -19,6 +19,7 @@ const ReceiptMenu = () => {
     ]);
     const [toppingOptions, setToppingOptions] = useState([]);
     const [addonOptions, setAddonOptions] = useState([]);
+    const [existingRecipeId, setExistingRecipeId] = useState(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -31,6 +32,21 @@ const ReceiptMenu = () => {
                 initializeRecipeForm(menuData);
                 const productsRes = await axios.get("/api/marketlist/products");
                 setProductList(productsRes.data.data);
+                const recipeRes = await axios.get(`/api/product/recipes`);
+                const allRecipes = recipeRes.data?.data || [];
+
+                // Cari resep yang memiliki menuItemId._id === id
+                const existingRecipe = allRecipes.find(r => r.menuItemId?._id === id);
+                if (existingRecipe) {
+                    setExistingRecipeId(existingRecipe._id);
+                    console.log(existingRecipe);
+
+                    // Jika ingin menampilkan resep yang sudah ada di form:
+                    setBaseIngredients(existingRecipe.baseIngredients || []);
+                    setToppingOptions(existingRecipe.toppingOptions || []);
+                    setAddonOptions(existingRecipe.addonOptions || []);
+                }
+
             } catch (error) {
                 console.error("Failed to fetch data:", error);
                 setError(error.message);
@@ -160,6 +176,7 @@ const ReceiptMenu = () => {
         console.log("Payload to be sent:", JSON.stringify(payload, null, 2));
 
         try {
+<<<<<<< HEAD
             const response = await axios.post(`/api/product/recipes`, payload, {
                 headers: {
                     'Content-Type': 'application/json'
@@ -175,6 +192,20 @@ const ReceiptMenu = () => {
             } else {
                 alert(`Gagal membuat resep: ${response.data.message || 'Unknown error'}`);
             }
+=======
+            let response;
+
+            if (existingRecipeId) {
+                // Update resep yang sudah ada
+                response = await axios.put(`/api/product/recipes/${existingRecipeId}`, payload);
+            } else {
+                // Buat resep baru
+                response = await axios.post(`/api/product/recipes`, payload);
+            }
+            console.log("Response:", response.data);
+            alert("Resep berhasil dibuat.");
+            navigate("/admin/menu");
+>>>>>>> 9b4dd154e2f390092357281f28084c6240014746
         } catch (err) {
             console.error("Error details:", err);
             console.error("Error response:", err.response);
@@ -242,7 +273,7 @@ const ReceiptMenu = () => {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="my-[13px] p-[25px] shadow-lg space-y-10 p-6 bg-gray-50 rounded">
+                    <form onSubmit={handleSubmit} className="my-[13px] shadow-lg space-y-10 p-6 bg-gray-50 rounded">
                         {/* Base Ingredients */}
                         <div>
                             <h2 className="text-lg font-semibold mb-4">Bahan Menu</h2>
@@ -335,6 +366,7 @@ const ReceiptMenu = () => {
                         {/* Toppings */}
                         <div>
                             <h2 className="text-lg font-semibold mb-4">Bahan Topping</h2>
+                            {console.log(toppingOptions)}
                             {toppingOptions.map((topping, tIdx) => (
                                 <div key={tIdx} className="mb-6 border border-gray-200 p-4 rounded">
                                     <div className="flex items-center gap-4 mb-3">

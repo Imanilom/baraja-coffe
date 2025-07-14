@@ -1189,8 +1189,7 @@ const UpdateMenu = () => {
           </div>
         </div>
 
-        <div className="p-6 bg-slate-50 shadow-lg">
-          {/* Header */}
+        {/* <div className="p-6 bg-slate-50 shadow-lg">
           <button
             onClick={() => setIsOptional(!isOptional)}
             className="w-full flex text-left px-[20px] py-[15px] bg-slate-100 hover:bg-slate-200 transition font-medium items-center space-x-2"
@@ -1199,7 +1198,6 @@ const UpdateMenu = () => {
             <span className="text-[14px]">Pengaturan Lanjutan (Opsional)</span>
           </button>
 
-          {/* Body */}
           {isOptional && (
             <div className="bg-white px-6 py-4 shadow-lg">
               <div className="row">
@@ -1336,7 +1334,7 @@ const UpdateMenu = () => {
               </div>
             </div>
           )}
-        </div>
+        </div> */}
       </form>
 
       {/* Modal Slide */}

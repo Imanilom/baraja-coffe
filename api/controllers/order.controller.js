@@ -1536,7 +1536,7 @@ export const getAllOrders = async (req, res) => {
     const orders = await Order.find()
       .populate('items.menuItem')
       .populate('user')
-      .populate('cashier')
+      .populate('cashierId')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: orders });
