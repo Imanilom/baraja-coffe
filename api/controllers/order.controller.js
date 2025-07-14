@@ -897,7 +897,7 @@ export const confirmOrder = async (req, res) => {
     // 2. Update payment status
     const payment = await Payment.findOneAndUpdate(
       { order_id: orderId },
-      { $set: { status: 'paid', paidAt: new Date() } },
+      { $set: { status: 'settlement', paidAt: new Date() } },
       { new: true }
     );
 
@@ -1533,7 +1533,7 @@ export const getPendingOrders = async (req, res) => {
     }).lean();
 
     const successfulPaymentOrderIds = new Set(
-      payments.filter(p => p.status === 'Success' || p.status === 'paid')
+      payments.filter(p => p.status === 'Success' || p.status === 'settlement')
         .map(p => p.order_id.toString())
     );
 
