@@ -230,13 +230,53 @@ export const createAppOrder = async (req, res) => {
     if (reservationRecord) {
       responseData.reservation = reservationRecord;
     }
-
+    const mappedOrder = mapOrderForFrontend(newOrder);
+    io.to('cashier_room').emit('new_order', mappedOrder);
     res.status(201).json(responseData);
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Error creating order', error: error.message });
   }
 };
+
+
+function mapOrderForFrontend(newOrder) {
+  return {
+    _id: newOrder._id,
+    orderId: newOrder.order_id,
+    userId: newOrder.user_id?._id || newOrder.user_id,
+    customerName: newOrder.user_id?.name || newOrder.user,
+    customerPhone: newOrder.user_id?.phone || newOrder.phoneNumber,
+    cashierId: newOrder.cashierId?._id || newOrder.cashierId,
+    cashierName: newOrder.cashierId?.name,
+    items: newOrder.items.map(item => ({
+      _id: item._id,
+      menuItemId: item.menuItem,
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      subtotal: item.subtotal,
+      isPrinted: item.isPrinted || false,
+      selectedAddons: item.selectedAddons || [],
+      selectedToppings: item.selectedToppings || []
+    })),
+    status: newOrder.status,
+    paymentStatus: newOrder.paymentStatus,
+    orderType: newOrder.orderType,
+    deliveryAddress: newOrder.deliveryAddress,
+    tableNumber: newOrder.tableNumber,
+    paymentMethod: newOrder.paymentMethod,
+    totalBeforeDiscount: newOrder.totalBeforeDiscount,
+    totalAfterDiscount: newOrder.totalAfterDiscount,
+    taxAndService: newOrder.taxAndService,
+    grandTotal: newOrder.grandTotal,
+    appliedPromos: newOrder.appliedPromos || [],
+    source: newOrder.source,
+    notes: newOrder.notes,
+    createdAt: newOrder.createdAt,
+    updatedAt: newOrder.updatedAt
+  };
+}
 
 
 export const createOrder = async (req, res) => {
@@ -1588,29 +1628,6 @@ export const getUserOrders = async (req, res) => {
   }
 };
 
-// // Get History User orders
-// export const getUserOrderHistory = async (req, res) => {
-//   try {
-//     const userId = req.params.userId; // Mengambil ID user dari parameter URL
-//     if (!userId) {
-//       return res.status(400).json({ message: 'User ID is required.' });
-//     }
-
-//     // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
-//     const orders = await Order.find({ user_id: userId })
-//       .populate('items.menuItem') // Mengisi detail menu item (opsional)
-//       .populate('voucher'); // Mengisi detail voucher (opsional)
-
-//     if (!orders || orders.length === 0) {
-//       return res.status(404).json({ message: 'No order history found for this user.' });
-//     }
-
-//     res.status(200).json({ orders });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Internal server error.' });
-//   }
-// };
 
 // Get History User orders
 
