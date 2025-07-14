@@ -27,24 +27,13 @@ const CategoryIndex = () => {
     const fetchData = async (type) => {
       setLoading(true);
       try {
-        // let url = '/api/storage/categories'; // URL default untuk mendapatkan semua kategori
-        // if (type && type !== 'all') {
-        //   url += `/${type}`; // Tambahkan parameter type jika ada
-        // }
-
-        // const response = await axios.get(url);
-        // setCategories(response.data.data || []);
-        // setFilteredCategories(response.data.data || []);
 
         const categoryResponse = await axios.get('/api/storage/categories');
 
-        const categoryData = Array.isArray(categoryResponse.data) ?
-          categoryResponse.data :
-          (categoryResponse.data && Array.isArray(categoryResponse.data.data)) ?
-            categoryResponse.data.data : [];
+        const categoryData = categoryResponse.data;
 
-        setCategories(categoryData);
-        setFilteredCategories(categoryData);
+        setCategories(categoryData.mainCategories);
+        setFilteredCategories(categoryData.mainCategories);
 
         const menuResponse = await axios.get('/api/menu/menu-items');
 
@@ -128,7 +117,7 @@ const CategoryIndex = () => {
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    return filteredCategories.slice(startIndex, endIndex);
+    return filteredCategories?.slice(startIndex, endIndex) || [];
   }, [filteredCategories, currentPage]);
 
   // Calculate total pages based on filtered data
@@ -240,7 +229,7 @@ const CategoryIndex = () => {
           </Link>
         </div>
       </div>
-      <div className="grid grid-cols-3 sm:grid-cols-2 md:grid-cols-3 py-4">
+      <div className="grid grid-cols-3 sm:grid-cols-2 md:grid-cols-2 py-4">
         <button
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
         >
@@ -251,12 +240,12 @@ const CategoryIndex = () => {
               <h2 className="text-gray-400 ml-2 text-sm">Produk</h2>
             </div>
             <div className="text-sm text-gray-400">
-              (18)
+              ({menuItems.length})
             </div>
           </Link>
         </button>
 
-        <div
+        {/* <div
           className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
         >
           <Link
@@ -267,13 +256,11 @@ const CategoryIndex = () => {
               <FaLayerGroup size={24} className="text-gray-400" />
               <h2 className="text-gray-400 ml-2 text-sm">Opsi Tambahan</h2>
 
-              {/* Hanya ikon info yang punya group hover */}
               <span className="relative group">
                 <p className="border p-1 rounded-full">
                   <FaInfo size={8} className="text-gray-400 cursor-help" />
                 </p>
 
-                {/* Tooltip hanya muncul saat hover di ikon info */}
                 <div className="absolute z-10 left-1/2 -translate-x-1/2 mt-2 w-[280px] text-justify bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none">
                   Opsi Tambahan merupakan produk pelengkap yang dijual bersamaan dengan produk utama. (Contoh: Nasi Goreng memiliki opsi tambahan ekstra telur dan ekstra bakso)
                 </div>
@@ -282,7 +269,7 @@ const CategoryIndex = () => {
 
             <div className="text-sm text-gray-400">(18)</div>
           </Link>
-        </div>
+        </div> */}
 
         <div
           className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
@@ -294,7 +281,7 @@ const CategoryIndex = () => {
               <h2 className="text-gray-400 ml-2 text-sm">Kategori</h2>
             </div>
             <div className="text-sm text-gray-400">
-              (18)
+              ({categories.length})
             </div>
           </Link>
         </div>
@@ -332,13 +319,13 @@ const CategoryIndex = () => {
                 </th>
               </tr>
             </thead>
-            {paginatedData.length > 0 ? (
-              <tbody className="text-sm text-gray-400">
-                {paginatedData.map((category) => {
+            <tbody className="text-sm text-gray-400">
+              {paginatedData.length > 0 ? (
+                paginatedData.map((category) => {
                   const key = category.name.toLowerCase().trim();
                   const count = categoryCounts[key] || 0;
-                  return (
 
+                  return (
                     <tr className="text-sm" key={category._id}>
                       <td className="px-6 py-4 whitespace-nowrap">{category.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap">{count}</td>
@@ -347,22 +334,24 @@ const CategoryIndex = () => {
                         <div className="relative text-right">
                           <button
                             className="px-2 bg-white border border-gray-200 hover:border-[#005429] hover:bg-[#005429] rounded-sm"
-                            onClick={() => setOpenDropdown(openDropdown === category._id ? null : category._id)}
+                            onClick={() =>
+                              setOpenDropdown(openDropdown === category._id ? null : category._id)
+                            }
                           >
-                            <span className="text-xl text-gray-200 hover:text-white">
-                              •••
-                            </span>
+                            <span className="text-xl text-gray-200 hover:text-white">•••</span>
                           </button>
                           {openDropdown === category._id && (
                             <div className="absolute text-left right-0 top-full mt-2 bg-white border rounded-md shadow-md w-52 z-10">
-                              <ul className="">
-                                <Link className="px-4 py-4 text-sm cursor-pointer bg-transparent flex items-center space-x-4 text-[14px] hover:bg-gray-100"
+                              <ul>
+                                <Link
+                                  className="px-4 py-4 text-sm cursor-pointer bg-transparent flex items-center space-x-4 text-[14px] hover:bg-gray-100"
                                   to={`/admin/category-update/${category._id}`}
                                 >
                                   <FaPencilAlt size={18} />
                                   <span>Ubah</span>
                                 </Link>
-                                <button className="w-full px-4 py-4 text-sm cursor-pointer hover:bg-gray-100 text-red-600 flex items-center space-x-4 text-[14px]"
+                                <button
+                                  className="w-full px-4 py-4 text-sm cursor-pointer hover:bg-gray-100 text-red-600 flex items-center space-x-4 text-[14px]"
                                   onClick={() => openDeleteModal(category._id, category.name)}
                                 >
                                   <FaTrash size={18} />
@@ -374,18 +363,16 @@ const CategoryIndex = () => {
                         </div>
                       </td>
                     </tr>
-                  )
-                })}
-              </tbody>
-            ) : (
-              <tbody>
+                  );
+                })
+              ) : (
                 <tr>
                   <td colSpan="3" className="text-center py-4 text-gray-500">
-                    No categories found.
+                    Tidak ada kategori ditemukan.
                   </td>
                 </tr>
-              </tbody>
-            )}
+              )}
+            </tbody>
           </table>
         </div>
 
