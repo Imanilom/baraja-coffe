@@ -173,6 +173,10 @@ const Menu = () => {
     );
   }, [search, uniqueStatus]);
 
+  useEffect(() => {
+    applyFilter();
+  }, [tempSelectedOutlet, tempSelectedCategory, tempSelectedStatus, tempSearch]);
+
   // Apply filter function
   const applyFilter = () => {
 
@@ -638,7 +642,7 @@ const Menu = () => {
                           {openDropdown === item.id && (
                             <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
                               <ul className="w-full">
-                                <Link
+                                {/* <Link
                                   to={`/admin/manage-stock/${item.id}`}
                                   className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
                                 >
@@ -651,7 +655,7 @@ const Menu = () => {
                                 >
                                   <FaDollarSign size={18} />
                                   <span>Kelola Harga & Status Jual</span>
-                                </Link>
+                                </Link> */}
                                 <Link
                                   to={`/admin/menu-receipt/${item.id}`}
                                   className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100 border-b"
