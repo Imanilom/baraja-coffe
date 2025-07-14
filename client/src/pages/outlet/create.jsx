@@ -4178,9 +4178,9 @@ const CreateOutlet = () => {
         importProduct: "",
         salesType: "",
         tableModule: false,
-        pawoonOrder: false,
-        pawoonOpen: "",
-        pawoonClose: ""
+        // pawoonOrder: false,
+        // pawoonOpen: "",
+        // pawoonClose: ""
     });
 
     const [tempAddress, setTempAddress] = useState(form.address);
@@ -4498,7 +4498,7 @@ const CreateOutlet = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center">
+                    {/* <div className="flex items-center">
                         <label className="w-[140px] block mb-1 text-sm ">Tipe Penjualan</label>
                         <select
                             className="flex-1 w-full border rounded px-3 py-2"
@@ -4510,9 +4510,9 @@ const CreateOutlet = () => {
                             <option value="takeaway">Takeaway</option>
                             <option value="delivery">Delivery</option>
                         </select>
-                    </div>
+                    </div> */}
 
-                    <div className="flex items-center justify-between space-x-2">
+                    {/* <div className="flex items-center justify-between space-x-2">
                         <label htmlFor="pawoonOrder" className="text-sm">Pawoon Order</label>
                         <div className="flex items-center space-x-2">
                             <h3 className="text-sm">Tidak</h3>
@@ -4532,7 +4532,7 @@ const CreateOutlet = () => {
                                 </div>
                             </label>
                         </div>
-                    </div>
+                    </div> */}
 
                     {/* Input tetap tampil, tapi disable jika pawoonOrder belum dicentang */}
                     <div className="grid grid-cols-2 gap-4">
