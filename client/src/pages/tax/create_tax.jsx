@@ -1,98 +1,190 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
-import { FaClipboardList, FaBell, FaUser } from "react-icons/fa";
+import { Link, useNavigate } from "react-router-dom";
+import { FaClipboardList } from "react-icons/fa";
+import { toast } from "react-toastify";
 
 const CreateTax = () => {
     const [formData, setFormData] = useState({
         type: "tax",
         name: "",
-        description: "",
         percentage: "",
-        fixedFee: "",
         appliesToOutlets: [],
-        appliesToMenuItems: [],
-        appliesToCustomerTypes: [],
     });
+    const [outlets, setOutlets] = useState([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoadingOutlets, setIsLoadingOutlets] = useState(false);
+    const navigate = useNavigate(); // Hook for navigation
+
+    // Fetch available outlets
+    useEffect(() => {
+        const fetchOutlets = async () => {
+            setIsLoadingOutlets(true);
+            try {
+                const response = await axios.get("/api/outlet");
+                setOutlets(response.data);
+            } catch (error) {
+                console.error("Error fetching outlets:", error);
+                toast.error("Gagal memuat daftar outlet");
+            } finally {
+                setIsLoadingOutlets(false);
+            }
+        };
+        fetchOutlets();
+    }, []);
 
     const handleInputChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value,
+        const { name, value } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
+    const handleOutletChange = (e) => {
+        const outletId = e.target.value;
+        const isChecked = e.target.checked;
+
+        setFormData(prev => {
+            if (isChecked) {
+                return {
+                    ...prev,
+                    appliesToOutlets: [...prev.appliesToOutlets, outletId]
+                };
+            } else {
+                return {
+                    ...prev,
+                    appliesToOutlets: prev.appliesToOutlets.filter(id => id !== outletId)
+                };
+            }
         });
     };
 
-    const handleCreateTax = async () => {
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        
+        if (formData.appliesToOutlets.length === 0) {
+            toast.error("Harus memilih minimal satu outlet");
+            return;
+        }
+
+        setIsSubmitting(true);
+        
         try {
-            const response = await axios.post("/api/tax-service", formData);
-            alert(response.data.message);
+            const response = await axios.post("/api/tax-service", {
+                ...formData,
+                percentage: parseFloat(formData.percentage)
+            });
+            
+            toast.success("Pajak berhasil dibuat");
+            
+            // Redirect to tax list page after 1.5 seconds
+            setTimeout(() => {
+                navigate("/admin/tax-and-service");
+            }, 1500);
+            
         } catch (error) {
             console.error("Error creating Tax:", error);
+            const errorMessage = error.response?.data?.error || 
+                               error.response?.data?.message || 
+                               "Gagal membuat pajak";
+            toast.error(errorMessage);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     return (
-        <div className="">
-
+        <div className="min-h-screen bg-gray-50">
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
+            <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
                 <div className="flex items-center space-x-2">
                     <FaClipboardList size={21} className="text-gray-500 inline-block" />
                     <p className="text-[15px] text-gray-500">Tambah Pajak</p>
                 </div>
             </div>
 
-            <div className="p-3">
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        handleCreateTax();
-                    }}
-                    className="mt-4 w-1/2"
-                >
-                    <div className="w-full flex items-center space-x-2 mb-2.5">
-                        <h3 className="w-[140px] text-[14px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">Nama Pajak</h3>
+            <div className="p-3 max-w-4xl mx-auto">
+                <form onSubmit={handleSubmit} className="mt-4 bg-white p-6 rounded-lg shadow">
+                    {/* Form fields remain the same */}
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
+                            Nama Pajak <span className="text-red-500">*</span>
+                        </label>
                         <input
                             type="text"
                             name="name"
                             value={formData.name}
                             onChange={handleInputChange}
-                            className="flex-1 px-4 py-2 border rounded-md w-1/2 focus:outline-none focus:border-[#005429] focus:ring-1 focus:ring-[#005429]"
+                            className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-600"
                             required
+                            placeholder="Masukkan nama pajak"
                         />
                     </div>
 
-                    <div className="w-full flex items-center space-x-2">
-                        <h3 className="w-[140px] text-[14px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">Jumlah</h3>
-                        <input
-                            type="number"
-                            name="percentage"
-                            value={formData.percentage}
-                            onChange={handleInputChange}
-                            className="px-4 py-2 border rounded-md w-3/12 focus:outline-none focus:border-[#005429] focus:ring-1 focus:ring-[#005429]"
-                            required
-                        />
-                        <p>%</p>
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
+                            Persentase Pajak <span className="text-red-500">*</span>
+                        </label>
+                        <div className="flex items-center">
+                            <input
+                                type="number"
+                                name="percentage"
+                                value={formData.percentage}
+                                onChange={handleInputChange}
+                                className="w-24 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-600"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                required
+                                placeholder="0.00"
+                            />
+                            <span className="ml-2">%</span>
+                        </div>
                     </div>
 
-                    <div className="fixed bottom-0 left-64 right-0 flex justify-between items-center border-t px-3 z-50 bg-white">
-                        <div className="">
-                            <h3 className="block text-[#999999] text-[14px]">Kolom bertanda <b className="text-red-600">*</b> wajib diisi</h3>
-                        </div>
-                        <div className="flex space-x-2 py-2">
-                            <Link
-                                to="/admin/tax-and-service"
-                                className="border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
-                            >
-                                Batal
-                            </Link>
-                            <button
-                                type="submit"
-                                className="bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
-                            >
-                                Simpan
-                            </button>
-                        </div>
+                    <div className="mb-6">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
+                            Berlaku untuk Outlet <span className="text-red-500">*</span>
+                        </label>
+                        
+                        {isLoadingOutlets ? (
+                            <p>Memuat daftar outlet...</p>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {outlets.map(outlet => (
+                                    <div key={outlet._id} className="flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            id={`outlet-${outlet._id}`}
+                                            value={outlet._id}
+                                            checked={formData.appliesToOutlets.includes(outlet._id)}
+                                            onChange={handleOutletChange}
+                                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                        />
+                                        <label htmlFor={`outlet-${outlet._id}`} className="ml-2 text-sm text-gray-700">
+                                            {outlet.name}
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+                        <Link
+                            to="/admin/tax-and-service"
+                            className="px-4 py-2 border border-green-700 text-green-700 rounded hover:bg-green-50 transition"
+                        >
+                            Batal
+                        </Link>
+                        <button
+                            type="submit"
+                            className="px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 transition disabled:opacity-50"
+                            disabled={isSubmitting || isLoadingOutlets}
+                        >
+                            {isSubmitting ? 'Menyimpan...' : 'Simpan'}
+                        </button>
                     </div>
                 </form>
             </div>
