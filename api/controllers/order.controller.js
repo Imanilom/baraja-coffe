@@ -1867,16 +1867,20 @@ export const getOrderById = async (req, res) => {
       console.log('Tables detail:', JSON.stringify(reservationData.tables, null, 2));
     }
 
+    // Mencari pembayaran berdasarkan order_id
+
     const orderData = {
       _id: order._id.toString(),
       orderId: order.order_id || order._id.toString(),
       orderNumber: generateOrderNumber(order.order_id || order._id),
       orderDate: formatDate(order.createdAt),
       items: formattedItems,
-      total: payment.amount,
+      total: payment?.amount || 0,
       orderStatus: order.status,
-      paymentMethod: (payment.bank || payment.method).toUpperCase(),
-      paymentStatus: payment.status,
+      paymentMethod: payment 
+        ? (payment.bank || payment.method || 'Unknown').toUpperCase()
+        : 'Unknown',
+      paymentStatus: payment?.status || 'Unpaid',
       reservation: reservationData
     };
 
