@@ -19,21 +19,31 @@ const TaxManagementPage = () => {
 
 
     useEffect(() => {
-        fetchData();
+        fetchOutlet();
+        fetchTax();
         setLoading(true);
     }, []);
 
-    const fetchData = async () => {
+    const fetchOutlet = async () => {
         try {
             const response = await axios.get("/api/outlet");
             setOutlets(response.data || []);
+        } catch (error) {
+            console.error("Error fetching outlets:", error);
+            setOutlets([]);
+            setFilteredData([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
+    const fetchTax = async () => {
+        try {
             const data = await axios.get("/api/tax-service/")
             setData(data.data || []);
             setFilteredData(data.data || []);
         } catch (error) {
             console.error("Error fetching outlets:", error);
-            setOutlets([]);
             setData([]);
             setFilteredData([]);
         } finally {
@@ -101,7 +111,7 @@ const TaxManagementPage = () => {
                                 <h2 className="text-gray-400 ml-2 text-sm">Outlet</h2>
                             </div>
                             <div className="text-sm text-gray-400">
-                                (18)
+                                ({outlets.length})
                             </div>
                         </Link>
                     </button>
@@ -115,7 +125,7 @@ const TaxManagementPage = () => {
                                 <h2 className="text-gray-400 ml-2 text-sm">Pajak & Service</h2>
                             </div>
                             <div className="text-sm text-gray-400">
-                                (18)
+
                             </div>
                         </Link>
                     </div>
@@ -130,7 +140,7 @@ const TaxManagementPage = () => {
                                 <h2 className="text-gray-400 ml-2 text-sm">Target Penjualan</h2>
                             </div>
                             <div className="text-sm text-gray-400">
-                                (18)
+
                             </div>
                         </Link>
                     </div>

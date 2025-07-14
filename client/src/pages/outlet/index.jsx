@@ -109,7 +109,7 @@ const OutletManagementPage = () => {
                 <h2 className="text-gray-400 ml-2 text-sm">Outlet</h2>
               </div>
               <div className="text-sm text-gray-400">
-                (18)
+                ({outlets.length})
               </div>
             </Link>
           </button>
@@ -124,7 +124,7 @@ const OutletManagementPage = () => {
                 <h2 className="text-gray-400 ml-2 text-sm">Pajak & Service</h2>
               </div>
               <div className="text-sm text-gray-400">
-                (18)
+
               </div>
             </Link>
           </div>
@@ -139,7 +139,7 @@ const OutletManagementPage = () => {
                 <h2 className="text-gray-400 ml-2 text-sm">Target Penjualan</h2>
               </div>
               <div className="text-sm text-gray-400">
-                (18)
+
               </div>
             </Link>
           </div>
@@ -184,7 +184,7 @@ const OutletManagementPage = () => {
               <th className="px-[15px] py-[21px] font-normal">Telepon</th>
               <th className="px-[15px] py-[21px] font-normal">Pajak</th>
               <th className="px-[15px] py-[21px] font-normal">Tipe Penjualan</th>
-              <th className="px-[15px] py-[21px] font-normal">Pawoon Order</th>
+              {/* <th className="px-[15px] py-[21px] font-normal">Pawoon Order</th> */}
               <th className="px-[15px] py-[21px] font-normal"></th>
             </tr>
           </thead>
@@ -197,7 +197,7 @@ const OutletManagementPage = () => {
                   <td className="p-[15px]">{outlet.contactNumber}</td>
                   <td className="p-[15px]">Tanpa Pajak</td>
                   <td className="p-[15px]">Tanpa tipe penjualan</td>
-                  <td className="p-[15px] text-red-600">Tidak aktif</td>
+                  {/* <td className="p-[15px] text-red-600">Tidak aktif</td> */}
                   <td className="p-[15px]">
 
                     {/* Dropdown Menu */}
