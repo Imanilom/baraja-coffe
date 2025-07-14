@@ -400,6 +400,9 @@ class OrderDetail extends ConsumerWidget {
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Text(
+                                  'workstation: ${orderItem.menuItem.workstation}',
+                                ),
                                 if (orderItem.selectedToppings.isNotEmpty)
                                   Text(
                                     'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}',
@@ -426,7 +429,7 @@ class OrderDetail extends ConsumerWidget {
                               ],
                             ),
                             trailing: Text(
-                              formatRupiah(orderItem.subTotalPrice!),
+                              formatRupiah(orderItem.subTotalPrice),
                             ),
                             onTap: () {
                               if (currentWidgetIndex != 0) return;
