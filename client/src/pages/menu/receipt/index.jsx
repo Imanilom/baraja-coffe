@@ -19,6 +19,7 @@ const ReceiptMenu = () => {
     ]);
     const [toppingOptions, setToppingOptions] = useState([]);
     const [addonOptions, setAddonOptions] = useState([]);
+    const [existingRecipeId, setExistingRecipeId] = useState(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -31,6 +32,21 @@ const ReceiptMenu = () => {
                 initializeRecipeForm(menuData);
                 const productsRes = await axios.get("/api/marketlist/products");
                 setProductList(productsRes.data.data);
+                const recipeRes = await axios.get(`/api/product/recipes`);
+                const allRecipes = recipeRes.data?.data || [];
+
+                // Cari resep yang memiliki menuItemId._id === id
+                const existingRecipe = allRecipes.find(r => r.menuItemId?._id === id);
+                if (existingRecipe) {
+                    setExistingRecipeId(existingRecipe._id);
+                    console.log(existingRecipe);
+
+                    // Jika ingin menampilkan resep yang sudah ada di form:
+                    setBaseIngredients(existingRecipe.baseIngredients || []);
+                    setToppingOptions(existingRecipe.toppingOptions || []);
+                    setAddonOptions(existingRecipe.addonOptions || []);
+                }
+
             } catch (error) {
                 console.error("Failed to fetch data:", error);
                 setError(error.message);
@@ -114,49 +130,85 @@ const ReceiptMenu = () => {
             return;
         }
 
+        // Prepare the payload with proper structure
         const payload = {
             menuItemId: id,
-            baseIngredients: baseIngredients.map(item => ({
-                productId: item.productId,
-                productName: item.productName,
-                productSku: item.productSku,
-                quantity: Number(item.quantity) || 0,
-                unit: item.unit
-            })),
-            toppings: toppingOptions.map((t) => ({
-                toppingName: t.toppingName,
-                ingredients: t.ingredients.filter(i => i.productId && i.productName && i.productSku)
-                    .map(ing => ({
-                        productId: ing.productId,
-                        productName: ing.productName,
-                        productSku: ing.productSku,
-                        quantity: Number(ing.quantity) || 0,
-                        unit: ing.unit
-                    }))
-            })),
-            addons: addonOptions.map((a) => ({
-                addonName: a.addonName,
-                optionLabel: a.optionLabel,
-                ingredients: a.ingredients.filter(i => i.productId && i.productName && i.productSku)
-                    .map(ing => ({
-                        productId: ing.productId,
-                        productName: ing.productName,
-                        productSku: ing.productSku,
-                        quantity: Number(ing.quantity) || 0,
-                        unit: ing.unit
-                    }))
-            }))
+            baseIngredients: baseIngredients
+                .filter(item => item.productId && item.quantity && item.unit)
+                .map(item => ({
+                    productId: item.productId,
+                    productName: item.productName,
+                    productSku: item.productSku,
+                    quantity: Number(item.quantity),
+                    unit: item.unit
+                })),
+            toppingOptions: toppingOptions
+                .filter(topping => topping.toppingName && topping.ingredients.length > 0)
+                .map(topping => ({
+                    toppingName: topping.toppingName,
+                    ingredients: topping.ingredients
+                        .filter(ing => ing.productId && ing.quantity && ing.unit)
+                        .map(ing => ({
+                            productId: ing.productId,
+                            productName: ing.productName,
+                            productSku: ing.productSku,
+                            quantity: Number(ing.quantity),
+                            unit: ing.unit
+                        }))
+                })),
+            addonOptions: addonOptions
+                .filter(addon => addon.addonName && addon.ingredients.length > 0)
+                .map(addon => ({
+                    addonName: addon.addonName,
+                    optionLabel: addon.optionLabel,
+                    ingredients: addon.ingredients
+                        .filter(ing => ing.productId && ing.quantity && ing.unit)
+                        .map(ing => ({
+                            productId: ing.productId,
+                            productName: ing.productName,
+                            productSku: ing.productSku,
+                            quantity: Number(ing.quantity),
+                            unit: ing.unit
+                        }))
+                }))
         };
 
-        console.log("Payload:", payload);
+        console.log("Payload to be sent:", JSON.stringify(payload, null, 2));
 
         try {
-            const response = await axios.post(`/api/product/recipes`, payload);
+<<<<<<< HEAD
+            const response = await axios.post(`/api/product/recipes`, payload, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            console.log("Full response:", response);
+            console.log("Response data:", response.data);
+            
+            if (response.data.success) {
+                alert("Resep berhasil dibuat.");
+                navigate("/admin/menu");
+            } else {
+                alert(`Gagal membuat resep: ${response.data.message || 'Unknown error'}`);
+            }
+=======
+            let response;
+
+            if (existingRecipeId) {
+                // Update resep yang sudah ada
+                response = await axios.put(`/api/product/recipes/${existingRecipeId}`, payload);
+            } else {
+                // Buat resep baru
+                response = await axios.post(`/api/product/recipes`, payload);
+            }
             console.log("Response:", response.data);
             alert("Resep berhasil dibuat.");
             navigate("/admin/menu");
+>>>>>>> 9b4dd154e2f390092357281f28084c6240014746
         } catch (err) {
-            console.error("Failed to save recipe:", err);
+            console.error("Error details:", err);
+            console.error("Error response:", err.response);
             alert(`Gagal membuat resep: ${err.response?.data?.message || err.message}`);
         }
     };
@@ -221,7 +273,7 @@ const ReceiptMenu = () => {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="my-[13px] p-[25px] shadow-lg space-y-10 p-6 bg-gray-50 rounded">
+                    <form onSubmit={handleSubmit} className="my-[13px] shadow-lg space-y-10 p-6 bg-gray-50 rounded">
                         {/* Base Ingredients */}
                         <div>
                             <h2 className="text-lg font-semibold mb-4">Bahan Menu</h2>
@@ -314,6 +366,7 @@ const ReceiptMenu = () => {
                         {/* Toppings */}
                         <div>
                             <h2 className="text-lg font-semibold mb-4">Bahan Topping</h2>
+                            {console.log(toppingOptions)}
                             {toppingOptions.map((topping, tIdx) => (
                                 <div key={tIdx} className="mb-6 border border-gray-200 p-4 rounded">
                                     <div className="flex items-center gap-4 mb-3">
@@ -327,6 +380,7 @@ const ReceiptMenu = () => {
                                                 setToppingOptions(updated);
                                             }}
                                             className="border p-2 rounded text-sm w-full"
+                                            required
                                         />
                                     </div>
 
@@ -346,6 +400,7 @@ const ReceiptMenu = () => {
                                                     setToppingOptions(updated);
                                                 }}
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             >
                                                 <option value="">Pilih Bahan</option>
                                                 {productList.map(product => (
@@ -363,6 +418,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "productSku", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             />
                                             <input
                                                 type="number"
@@ -374,6 +430,7 @@ const ReceiptMenu = () => {
                                                 className="border rounded p-2 text-sm"
                                                 min="0"
                                                 step="0.01"
+                                                required
                                             />
                                             <input
                                                 type="text"
@@ -383,6 +440,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "unit", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             />
                                             <button
                                                 type="button"
@@ -417,6 +475,21 @@ const ReceiptMenu = () => {
                                     </button>
                                 </div>
                             ))}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setToppingOptions([
+                                        ...toppingOptions,
+                                        {
+                                            toppingName: "",
+                                            ingredients: [{ productId: "", productName: "", productSku: "", quantity: "", unit: "" }]
+                                        }
+                                    ]);
+                                }}
+                                className="text-blue-600 text-sm mt-2"
+                            >
+                                + Tambah Topping
+                            </button>
                         </div>
 
                         {/* Addons */}
@@ -435,6 +508,7 @@ const ReceiptMenu = () => {
                                                 setAddonOptions(updated);
                                             }}
                                             className="border p-2 rounded text-sm"
+                                            required
                                         />
                                         <input
                                             type="text"
@@ -446,6 +520,7 @@ const ReceiptMenu = () => {
                                                 setAddonOptions(updated);
                                             }}
                                             className="border p-2 rounded text-sm"
+                                            required
                                         />
                                     </div>
 
@@ -465,6 +540,7 @@ const ReceiptMenu = () => {
                                                     setAddonOptions(updated);
                                                 }}
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             >
                                                 <option value="">Pilih Bahan</option>
                                                 {productList.map(product => (
@@ -481,6 +557,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "productSku", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             />
                                             <input
                                                 type="number"
@@ -492,6 +569,7 @@ const ReceiptMenu = () => {
                                                 className="border rounded p-2 text-sm"
                                                 min="0"
                                                 step="0.01"
+                                                required
                                             />
                                             <input
                                                 type="text"
@@ -501,6 +579,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "unit", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
+                                                required
                                             />
                                             <button
                                                 type="button"
@@ -535,6 +614,22 @@ const ReceiptMenu = () => {
                                     </button>
                                 </div>
                             ))}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setAddonOptions([
+                                        ...addonOptions,
+                                        {
+                                            addonName: "",
+                                            optionLabel: "",
+                                            ingredients: [{ productId: "", productName: "", productSku: "", quantity: "", unit: "" }]
+                                        }
+                                    ]);
+                                }}
+                                className="text-blue-600 text-sm mt-2"
+                            >
+                                + Tambah Addon
+                            </button>
                         </div>
 
                         {/* Submit Button */}

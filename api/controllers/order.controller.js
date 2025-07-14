@@ -286,6 +286,45 @@ export const createAppOrder = async (req, res) => {
 };
 
 
+function mapOrderForFrontend(newOrder) {
+  return {
+    _id: newOrder._id,
+    orderId: newOrder.order_id,
+    userId: newOrder.user_id?._id || newOrder.user_id,
+    customerName: newOrder.user_id?.name || newOrder.user,
+    customerPhone: newOrder.user_id?.phone || newOrder.phoneNumber,
+    cashierId: newOrder.cashierId?._id || newOrder.cashierId,
+    cashierName: newOrder.cashierId?.name,
+    items: newOrder.items.map(item => ({
+      _id: item._id,
+      menuItemId: item.menuItem,
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      subtotal: item.subtotal,
+      isPrinted: item.isPrinted || false,
+      selectedAddons: item.selectedAddons || [],
+      selectedToppings: item.selectedToppings || []
+    })),
+    status: newOrder.status,
+    paymentStatus: newOrder.paymentStatus,
+    orderType: newOrder.orderType,
+    deliveryAddress: newOrder.deliveryAddress,
+    tableNumber: newOrder.tableNumber,
+    paymentMethod: newOrder.paymentMethod,
+    totalBeforeDiscount: newOrder.totalBeforeDiscount,
+    totalAfterDiscount: newOrder.totalAfterDiscount,
+    taxAndService: newOrder.taxAndService,
+    grandTotal: newOrder.grandTotal,
+    appliedPromos: newOrder.appliedPromos || [],
+    source: newOrder.source,
+    notes: newOrder.notes,
+    createdAt: newOrder.createdAt,
+    updatedAt: newOrder.updatedAt
+  };
+}
+
+
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -897,7 +936,7 @@ export const confirmOrder = async (req, res) => {
     // 2. Update payment status
     const payment = await Payment.findOneAndUpdate(
       { order_id: orderId },
-      { $set: { status: 'paid', paidAt: new Date() } },
+      { $set: { status: 'settlement', paidAt: new Date() } },
       { new: true }
     );
 
@@ -1497,7 +1536,7 @@ export const getAllOrders = async (req, res) => {
     const orders = await Order.find()
       .populate('items.menuItem')
       .populate('user')
-      .populate('cashier')
+      .populate('cashierId')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: orders });
@@ -1533,7 +1572,7 @@ export const getPendingOrders = async (req, res) => {
     }).lean();
 
     const successfulPaymentOrderIds = new Set(
-      payments.filter(p => p.status === 'Success' || p.status === 'paid')
+      payments.filter(p => p.status === 'Success' || p.status === 'settlement')
         .map(p => p.order_id.toString())
     );
 
@@ -1638,29 +1677,6 @@ export const getUserOrders = async (req, res) => {
   }
 };
 
-// // Get History User orders
-// export const getUserOrderHistory = async (req, res) => {
-//   try {
-//     const userId = req.params.userId; // Mengambil ID user dari parameter URL
-//     if (!userId) {
-//       return res.status(400).json({ message: 'User ID is required.' });
-//     }
-
-//     // Mencari semua pesanan dengan field "user" yang sesuai dengan ID user
-//     const orders = await Order.find({ user_id: userId })
-//       .populate('items.menuItem') // Mengisi detail menu item (opsional)
-//       .populate('voucher'); // Mengisi detail voucher (opsional)
-
-//     if (!orders || orders.length === 0) {
-//       return res.status(404).json({ message: 'No order history found for this user.' });
-//     }
-
-//     res.status(200).json({ orders });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Internal server error.' });
-//   }
-// };
 
 // Get History User orders
 
