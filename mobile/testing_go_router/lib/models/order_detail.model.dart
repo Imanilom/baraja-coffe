@@ -23,7 +23,7 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(9) @Default("") String? status,
     @HiveField(10) @Default(0) int? subTotalPrice,
     @HiveField(11) @Default("") @JsonKey(name: 'order_id') String? orderId, //
-    @HiveField(12) @Default(0) int? tax,
+    @HiveField(12) @Default(0) @JsonKey(name: 'totalTax') int? tax,
     @HiveField(13) @Default(0) int? totalPrice,
     @HiveField(14) @Default(0) int? serviceFee,
     @HiveField(15) Map<String, dynamic>? discounts,
