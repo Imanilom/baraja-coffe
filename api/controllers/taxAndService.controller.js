@@ -7,8 +7,6 @@ export const getAllCharges = async (req, res) => {
   try {
     const charges = await TaxAndService.find()
       .populate('appliesToOutlets', 'name')
-      .populate('appliesToCustomerTypes', 'name'); 
-
     res.status(200).json(charges);
   } catch (err) {
     res.status(500).json({ 
@@ -23,7 +21,6 @@ export const getChargeById = async (req, res) => {
   try {
     const charge = await TaxAndService.findById(req.params.id)
       .populate('appliesToOutlets', 'name')
-      .populate('appliesToCustomerTypes', 'name'); 
 
     if (!charge) return res.status(404).json({ error: 'Data tidak ditemukan.' });
 
@@ -39,56 +36,35 @@ export const getChargeById = async (req, res) => {
 // ✅ POST: Tambah tax/service baru
 export const createCharge = async (req, res) => {
   try {
-    const { appliesToOutlets, appliesToCustomerTypes } = req.body;
+    const { type, appliesToOutlets } = req.body;
 
-    // Validasi input: appliesToOutlets harus ada dan tidak kosong
+    // Basic validation
+    if (!type || !['tax', 'service'].includes(type)) {
+      return res.status(400).json({ error: 'Jenis pajak/layanan tidak valid' });
+    }
+
     if (!appliesToOutlets || !Array.isArray(appliesToOutlets) || appliesToOutlets.length === 0) {
-      return res.status(400).json({ error: 'Harus memilih minimal satu outlet.' });
+      return res.status(400).json({ error: 'Harus memilih minimal satu outlet' });
     }
 
-    // Optional: Validasi apakah outlet benar-benar ada
-    const outletsExist = await Outlet.find({
-      _id: { $in: appliesToOutlets }
-    });
-
-    if (outletsExist.length !== appliesToOutlets.length) {
-      return res.status(400).json({ error: 'Beberapa outlet tidak ditemukan.' });
-    }
-
-    let allLoyaltyLevelIds = [];
-
-    // Jika appliesToCustomerTypes tidak diisi atau kosong → ambil semua loyalty level
-    if (!appliesToCustomerTypes || !Array.isArray(appliesToCustomerTypes) || appliesToCustomerTypes.length === 0) {
-      const levels = await LoyaltyLevel.find().select('_id');
-      allLoyaltyLevelIds = levels.map(level => level._id);
-    } else {
-      // Validasi apakah ID customer types valid
-      const validLevels = await LoyaltyLevel.find({
-        _id: { $in: appliesToCustomerTypes }
-      });
-
-      if (validLevels.length !== appliesToCustomerTypes.length) {
-        return res.status(400).json({ error: 'Beberapa level loyalitas tidak ditemukan.' });
-      }
-    }
-
-    // Buat objek payload dengan semua data + isi appliesToCustomerTypes jika kosong
-    const chargeData = {
-      ...req.body,
-      appliesToCustomerTypes: allLoyaltyLevelIds.length > 0 ? allLoyaltyLevelIds : appliesToCustomerTypes
-    };
-
-    const newCharge = new TaxAndService(chargeData);
+    // Create the charge
+    const newCharge = new TaxAndService(req.body);
     await newCharge.save();
 
-    res.status(201).json(newCharge);
+    res.status(201).json({
+      success: true,
+      message: type === 'tax' ? 'Pajak berhasil dibuat' : 'Layanan berhasil dibuat',
+      data: newCharge
+    });
   } catch (err) {
+    console.error('Error creating charge:', err);
     res.status(400).json({ 
-      error: 'Gagal menambahkan data.', 
-      details: err.message 
+      success: false,
+      error: err.message || 'Gagal membuat data'
     });
   }
 };
+
 
 // ✅ PUT: Update tax/service
 export const updateCharge = async (req, res) => {
@@ -110,26 +86,12 @@ export const updateCharge = async (req, res) => {
       }
     }
 
-    let allLoyaltyLevelIds = [];
-
-    // Jika appliesToCustomerTypes tidak diisi atau kosong → ambil semua loyalty level
-    if (!appliesToCustomerTypes || !Array.isArray(appliesToCustomerTypes) || appliesToCustomerTypes.length === 0) {
-      const levels = await LoyaltyLevel.find().select('_id');
-      allLoyaltyLevelIds = levels.map(level => level._id);
-    } else {
-      const validLevels = await LoyaltyLevel.find({
-        _id: { $in: appliesToCustomerTypes }
-      });
-
-      if (validLevels.length !== appliesToCustomerTypes.length) {
-        return res.status(400).json({ error: 'Beberapa level loyalitas tidak ditemukan.' });
-      }
-    }
+  
 
     // Siapkan payload update
     const updateData = {
       ...req.body,
-      appliesToCustomerTypes: allLoyaltyLevelIds.length > 0 ? allLoyaltyLevelIds : appliesToCustomerTypes
+      appliesToOutlets: appliesToOutlets || undefined,
     };
 
     const updated = await TaxAndService.findByIdAndUpdate(

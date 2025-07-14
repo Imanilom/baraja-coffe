@@ -176,18 +176,21 @@ const ReceiptMenu = () => {
         console.log("Payload to be sent:", JSON.stringify(payload, null, 2));
 
         try {
-            let response;
+            const response = await axios.post(`/api/product/recipes`, payload, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
 
-            if (existingRecipeId) {
-                // Update resep yang sudah ada
-                response = await axios.put(`/api/product/recipes/${existingRecipeId}`, payload);
+            console.log("Full response:", response);
+            console.log("Response data:", response.data);
+
+            if (response.data.success) {
+                alert("Resep berhasil dibuat.");
+                navigate("/admin/menu");
             } else {
-                // Buat resep baru
-                response = await axios.post(`/api/product/recipes`, payload);
+                alert(`Gagal membuat resep: ${response.data.message || 'Unknown error'}`);
             }
-            console.log("Response:", response.data);
-            alert("Resep berhasil dibuat.");
-            navigate("/admin/menu");
         } catch (err) {
             console.error("Error details:", err);
             console.error("Error response:", err.response);
