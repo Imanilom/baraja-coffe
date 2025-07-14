@@ -669,6 +669,8 @@ import { app } from '../../firebase';
 import { Link } from "react-router-dom";
 import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaGift, FaPizzaSlice, FaChevronDown, FaInfoCircle } from "react-icons/fa";
 import { useNavigate, useParams } from "react-router-dom";
+import ToppingForm from "./varianmodal";
+import AddonForm from "./opsimodal";
 
 const UpdateMenu = () => {
   const { id } = useParams(); // Get the menu item ID from the URL
@@ -684,6 +686,10 @@ const UpdateMenu = () => {
     rawMaterials: [],
     availableAt: "",
   });
+
+  const [toppings, setToppings] = useState([]);
+  const [addons, setAddons] = useState([]);
+
   const [isOptional, setIsOptional] = useState([false]);
   const [loading, setLoading] = useState(true);
 
@@ -955,13 +961,13 @@ const UpdateMenu = () => {
           <div className="flex space-x-2">
             <span
               onClick={() => setShowModal(true)}
-              className="block border border-green-600 text-green-600 text-sm px-3 py-1.5 rounded cursor-pointer"
+              className="block border border-[#005429] hover:bg-[#005429] text-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
             >
               Batal
             </span>
             <button
               type="submit"
-              className="block bg-green-600 text-white text-sm px-3 py-1.5 rounded"
+              className="block bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
             >
               Simpan
             </button>
@@ -992,7 +998,7 @@ const UpdateMenu = () => {
         <div className="bg-slate-50 p-6">
           <div className="grid grid-cols-2 p-12 space-x-4 bg-white shadow-md">
             {/* grid 1 */}
-            <div className="">
+            <div className="text-[#999999]">
 
               {/* Name */}
               <div>
@@ -1151,7 +1157,7 @@ const UpdateMenu = () => {
             </div>
 
             {/* grid 2  */}
-            <div className="">
+            {/* <div className="">
               <div className="mb-20">
                 <div className="flex justify-between">
                   <div className="flex">
@@ -1176,8 +1182,6 @@ const UpdateMenu = () => {
                 </div>
                 <h3>Anda dapat memilih lebih dari satu opsi tambahan</h3>
 
-
-                {/* Background Overlay */}
                 {isOpen && (
                   <div
                     className="fixed inset-0 bg-black bg-opacity-30 z-40"
@@ -1185,6 +1189,104 @@ const UpdateMenu = () => {
                   />
                 )}
               </div>
+            </div> */}
+
+            <div className="text-[14px] text-[#999999]">
+              <ToppingForm toppings={toppings} setToppings={setToppings} />
+              <AddonForm addons={addons} setAddons={setAddons} />
+              <div>
+                <label className="block mb-1 text-sm font-medium">Pilih Outlet</label>
+                <div className="grid gap-2">
+                  {outlets.map((outlet) => (
+                    <label key={outlet._id} className="inline-flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        value={outlet._id}
+                        checked={formData.availableAt.includes(outlet._id)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          const value = outlet._id;
+                          setFormData((prev) => ({
+                            ...prev,
+                            availableAt: checked
+                              ? [...prev.availableAt, value]
+                              : prev.availableAt.filter((id) => id !== value),
+                          }));
+                        }}
+                        className="form-checkbox text-blue-600"
+                      />
+                      <span>{outlet.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* <div className="mb-5 space-y-1">
+                            <div className="flex justify-between">
+                              <div className="flex items-center space-x-4">
+                                <label htmlFor="varian" className="font-semibold">Varian Produk</label>
+                                <div className="relative group">
+                                  <p className="cursor-help w-4 h-4 rounded-full border text-center text-[9px]">i</p>
+                                  <span className="absolute w-[340px] top-6 ml-2 hidden group-hover:inline-block bg-white border text-[#999999] text-xs rounded px-2 py-1 whitespace-wrap z-10 shadow-lg">
+                                    Varian produk adalah variasi pilihan dari sebuah produk seperti, ukuran (Contoh: S, M, L), warna (Contoh: merah, kuning, hijau), corak atau motif.
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <h3>{isChecked ? "Ya" : "Tidak"}</h3>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                  <input type="checkbox" className="sr-only peer"
+                                    checked={isChecked}
+                                    onChange={(e) => setIsChecked(e.target.checked)} />
+                                  <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1 
+                                peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full 
+                                peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 
+                                after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
+                                after:h-5 after:w-5 after:transition-all peer-checked:bg-[#005429]"></div>
+                                </label>
+                              </div>
+                            </div>
+                            <h3>Apakah produk ini memiliki varian seperti warna dan ukuran ?</h3>
+                          </div>
+                          {isChecked && (
+                            <VariantModal
+                              formData={formData}
+                            />
+                          )}
+                          <div className="">
+                            <div className="space-y-1">
+                              <div className="flex justify-between">
+                                <label htmlFor="varian" className="font-semibold">Opsi Tambahan</label>
+                                <div className="flex items-center space-x-2">
+                                  <h3>{isOpsiOpen ? "Ya" : "Tidak"}</h3>
+                                  <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      className="sr-only peer"
+                                      checked={isOpsiOpen}
+                                      onChange={(e) => setIsOpsiOpen(e.target.checked)}
+                                    />
+                                    <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1 
+                    peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full 
+                    peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 
+                    after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
+                    after:h-5 after:w-5 after:transition-all peer-checked:bg-[#005429]"></div>
+                                  </label>
+                                </div>
+                              </div>
+                              <h3>Anda dapat memilih lebih dari satu opsi tambahan</h3>
+                            </div>
+                          </div>
+                          {isOpsiOpen && (
+                            <FormOpsi
+                              formData={formData}
+                              options={options}
+                              handleInputChange={handleInputChange}
+                              handleOptionChange={handleOptionChange}
+                              removeOption={removeOption}
+                              addOption={addOption}
+                            />
+                          )} */}
             </div>
           </div>
         </div>
@@ -1396,14 +1498,14 @@ const UpdateMenu = () => {
         </div>
 
         {/* Fixed Bottom Button */}
-        <div className="fixed bottom-0 right-0 w-full max-w-screen-lg bg-white border-t px-4 py-3 flex justify-end">
+        {/* <div className="fixed bottom-0 right-0 w-full max-w-screen-lg bg-white border-t px-4 py-3 flex justify-end">
           <button
             type="submit"
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
             Simpan
           </button>
-        </div>
+        </div> */}
       </div>
     </div>
   );
