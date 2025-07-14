@@ -138,13 +138,12 @@ class OrderHistory extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        // Text(
-                        //   _formatDate(order.createdAt),
-                        //   style: TextStyle(
-                        //     fontSize: 12,
-                        //     color: Colors.grey[600],
-                        //   ),
-                        // ),
+                        Text(
+                          (order.cashierId == null || order.cashierId == "")
+                              ? 'cashier: -'
+                              : order.cashierId,
+                          style: TextStyle(fontSize: 12, color: Colors.black),
+                        ),
                       ],
                     ),
                   ),
