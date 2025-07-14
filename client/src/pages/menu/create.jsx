@@ -247,10 +247,10 @@ const CreateMenu = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // let imageURL = "";
-      // if (imageFile) {
-      //   imageURL = await uploadToFirebase(imageFile);
-      // }
+      let imageURL = "";
+      if (imageFile) {
+        imageURL = await uploadToFirebase(imageFile);
+      }
 
       // const payload = {
       //   name: formData.name,
@@ -275,6 +275,8 @@ const CreateMenu = () => {
       //     })),
       //   })),
       // };
+
+      // console.log(ap)
 
       const payload = new FormData();
 
@@ -309,6 +311,7 @@ const CreateMenu = () => {
 
       await axios.post("/api/menu/menu-items", payload);
       navigate("/admin/menu");
+      // alert("Berhasil");
     } catch (err) {
       console.error("Gagal kirim data:", err);
     }
@@ -644,8 +647,7 @@ const CreateMenu = () => {
             </div>
           </div>
         </div>
-        <div className="p-6 bg-slate-50">
-          {/* Header */}
+        {/* <div className="p-6 bg-slate-50">
           <button
             onClick={() => setIsOptional(!isOptional)}
             className="w-full flex text-left px-[20px] py-[15px] bg-slate-100 hover:bg-slate-200 transition font-medium items-center space-x-2 shadow-lg"
@@ -654,7 +656,6 @@ const CreateMenu = () => {
             <span className="text-[14px]">Pengaturan Lanjutan (Opsional)</span>
           </button>
 
-          {/* Body */}
           {isOptional && (
             <div className="bg-white px-6 py-4 shadow-lg">
               <div className="row">
@@ -792,7 +793,7 @@ const CreateMenu = () => {
             </div>
           )}
 
-        </div>
+        </div> */}
       </form>
 
       {/* Modal Slide */}
