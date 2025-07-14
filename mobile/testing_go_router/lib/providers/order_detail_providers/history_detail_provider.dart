@@ -35,11 +35,12 @@ class HistoryDetailProvider extends StateNotifier<OrderDetailModel?> {
 
   // Hitung total harga dari daftar pesanan
   int get subTotalPrice {
-    return state?.items.fold(
-          0,
-          (sum, item) => sum! + item.subTotalPrice!,
-        ) ??
-        0;
+    print('menghitung history subtotal');
+    if (state != null) {
+      return state!.items.fold(0, (sum, item) => sum + item.subTotalPrice);
+    } else {
+      return 0;
+    }
   }
 }
 

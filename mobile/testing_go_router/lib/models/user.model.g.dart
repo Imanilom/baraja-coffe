@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of '../user.model.dart';
+part of 'user.model.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
@@ -8,7 +8,7 @@ part of '../user.model.dart';
 
 class UserModelAdapter extends TypeAdapter<UserModel> {
   @override
-  final int typeId = 6;
+  final typeId = 6;
 
   @override
   UserModel read(BinaryReader reader) {
@@ -25,13 +25,14 @@ class UserModelAdapter extends TypeAdapter<UserModel> {
       role: fields[5] as String,
       token: fields[6] as String,
       cashiers: (fields[7] as List?)?.cast<CashierModel>(),
+      outletId: fields[8] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserModel obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +48,9 @@ class UserModelAdapter extends TypeAdapter<UserModel> {
       ..writeByte(6)
       ..write(obj.token)
       ..writeByte(7)
-      ..write(obj.cashiers);
+      ..write(obj.cashiers)
+      ..writeByte(8)
+      ..write(obj.outletId);
   }
 
   @override
