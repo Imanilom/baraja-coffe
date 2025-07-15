@@ -111,7 +111,7 @@ const UpdateCategory = () => {
                         <option value="inventory">Inventory</option>
                     </select>
                 </div> */}
-                <div className="flex items-center justify-between space-x-4 mb-4">
+                {/* <div className="flex items-center justify-between space-x-4 mb-4">
                     <span>Tampilkan pada Pawoon Order</span>
                     <div className="flex items-center space-x-4">
                         <label className="flex items-center space-x-1">
@@ -137,7 +137,7 @@ const UpdateCategory = () => {
                             <span>Tidak</span>
                         </label>
                     </div>
-                </div>
+                </div> */}
 
 
                 <div className="absolute h-[50px] bottom-0 right-6 space-x-2">
