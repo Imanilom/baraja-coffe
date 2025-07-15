@@ -30,6 +30,7 @@ import areaRoutes from './routes/areas.routes.js';
 import ReceiptSetting from './routes/receiptSetting.routes.js';
 import productStockRoutes from './routes/productStock.routes.js';
 import DevRoutes from './routes/devRoutes.js';
+import LocationRoutes from './routes/location.routes.js';
 
 
 import socketHandler from './socket/index.js';
@@ -98,6 +99,7 @@ app.use('/api/marketlist', marketListRoutes);
 app.use('/api/tax-service', taxAndServiceRoutes);
 app.use('/api/receipt-setting', ReceiptSetting);
 app.use('/api/product', productStockRoutes);
+app.use('/api/location', LocationRoutes);
 app.use('/api/dev', DevRoutes);
 // app.post('/api/midtrans/webhook', (req, res) => {
 //   res.status(200).send('OK');
