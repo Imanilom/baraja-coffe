@@ -1,36 +1,30 @@
 import express from 'express';
 import {
   createOutlet,
-  getOutlets,
+  getAllOutlets,
   getOutletById,
   updateOutlet,
+  toggleOutletStatus,
   deleteOutlet,
-  findNearestOutlet
+  getOutletLocations,
+  addOutletLocation,
+  getNearbyOutlets
 } from '../controllers/outlet.controller.js';
-
-
-import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
-const adminAccess = verifyToken(['admin', 'superadmin']);
-
-// Create new outlet
-router.post('/', adminAccess, createOutlet);
-
-// Get all outlets
-router.get('/', getOutlets);
-
-// Get outlet by ID
+router.post('/', createOutlet);
+router.get('/', getAllOutlets);
 router.get('/:id', getOutletById);
+router.put('/:id', updateOutlet);
+router.patch('/:id/toggle-status', toggleOutletStatus);
+router.delete('/:id', deleteOutlet);
 
-// Update outlet
-router.put('/:id', adminAccess, updateOutlet);
+// Location-related routes
+router.get('/:id/locations', getOutletLocations);
+router.post('/:id/locations', addOutletLocation);
 
-// Delete outlet
-router.delete('/:id', adminAccess, deleteOutlet);
-
-// Find nearest outlet
-router.get('/nearest', findNearestOutlet);
+// Geospatial query
+router.get('/nearby/locations', getNearbyOutlets);
 
 export default router;

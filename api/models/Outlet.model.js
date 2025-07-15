@@ -6,8 +6,6 @@ const OutletSchema = new mongoose.Schema({
   address: { type: String, required: true }, // Dipisah dari `city`
   city: { type: String, required: true }, // Tambahan untuk penyortiran data lebih mudah
   location: { type: String, required: true },
-  latitude: { type: Number, required: true },
-  longitude: { type: Number, required: true },
   contactNumber: { type: String, required: true },
   admin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   isActive: { type: Boolean, default: true },
