@@ -1700,8 +1700,8 @@ export const getUserOrderHistory = async (req, res) => {
     }
 
     // Mengambil semua order_id untuk mencari payment status
-  const orderIds = orderHistorys.map(order => order.order_id); // Use string-based order_id
-  const payments = await Payment.find({ order_id: { $in: orderIds } });
+    const orderIds = orderHistorys.map(order => order.order_id); // Use string-based order_id
+    const payments = await Payment.find({ order_id: { $in: orderIds } });
 
     // Membuat mapping payment berdasarkan order_id untuk akses yang lebih cepat
     const paymentMap = {};
@@ -1867,7 +1867,10 @@ export const getOrderById = async (req, res) => {
       console.log('Tables detail:', JSON.stringify(reservationData.tables, null, 2));
     }
 
-    // Mencari pembayaran berdasarkan order_id
+    console.log("Permata VA Number:", payment?.permata_va_number || 'N/A');
+    // const banks = payment?.va_numbers?.map(item => item.bank) || [];
+    // console.log("Banks:", banks);
+
 
     const orderData = {
       _id: order._id.toString(),
@@ -1877,8 +1880,8 @@ export const getOrderById = async (req, res) => {
       items: formattedItems,
       total: payment?.amount || 0,
       orderStatus: order.status,
-      paymentMethod: payment 
-        ? (payment.bank || payment.method || 'Unknown').toUpperCase()
+      paymentMethod: payment
+        ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
         : 'Unknown',
       paymentStatus: payment?.status || 'Unpaid',
       reservation: reservationData
