@@ -144,7 +144,16 @@ const CreateEmployee = () => {
                                 onClick={() => handleEmployeeSelect('cashier')}
                                 className={`cursor-pointer p-4 border rounded w-1/2 ${employeeType === 'cashier' ? 'bg-[#005429] border-[#005249] text-white' : 'bg-white'}`}
                             >
-                                <h4 className="font-bold">KASIR / WAITER</h4>
+                                <h4 className="font-bold">WAITER</h4>
+                                <p className="text-sm mt-2">
+                                    Karyawan ini bertugas sebagai pramusaji, mereka hanya mendapatkan hak akses di aplikasi kasir.
+                                </p>
+                            </div>
+                            <div
+                                onClick={() => handleEmployeeSelect('gro')}
+                                className={`cursor-pointer p-4 border rounded w-1/2 ${employeeType === 'gro' ? 'bg-[#005429] border-[#005249] text-white' : 'bg-white'}`}
+                            >
+                                <h4 className="font-bold">GRO</h4>
                                 <p className="text-sm mt-2">
                                     Karyawan ini bertugas sebagai kasir atau pramusaji, mereka hanya mendapatkan hak akses di aplikasi kasir.
                                 </p>
