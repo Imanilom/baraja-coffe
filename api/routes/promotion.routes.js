@@ -1,9 +1,9 @@
 import express from 'express';
 
-import { createPromo, deletePromo, getPromoById, getPromos, updatePromo} from '../controllers/promo.controller.js';
+import { createPromo, deletePromo, getPromoById, getPromos, updatePromo } from '../controllers/promo.controller.js';
 import { createAutoPromo, deleteAutoPromo, getAutoPromoById, getAutoPromos, updateAutoPromo } from '../controllers/autopromo.controller.js';
 import { createVoucher, deleteVoucher, generateVoucherQR, getAllVouchers, getVoucherById, updateVoucher } from '../controllers/voucher.controller.js';
-import { createLoyaltyProgram, deleteLoyaltyProgram, getAllLoyaltyPrograms, getLoyaltyProgramById, updateLoyaltyProgram, createLoyaltyLevel, updateLoyaltyLevel, getAllLoyaltyLevels} from '../controllers/LoyaltyProgram.controller.js';
+import { createLoyaltyProgram, deleteLoyaltyProgram, getAllLoyaltyPrograms, getLoyaltyProgramById, updateLoyaltyProgram, createLoyaltyLevel, updateLoyaltyLevel, getAllLoyaltyLevels } from '../controllers/loyaltyProgram.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
@@ -15,7 +15,7 @@ const marketingAccess = verifyToken(['marketing', 'admin', 'superadmin']);
 router.post('/promo-create', marketingAccess, createPromo); // Create a new promo
 router.get('/promos', getPromos); // Get all promos
 router.get('/promos/:id', getPromoById); // Get a specific promo by ID
-router.put('/promos/:id',marketingAccess, updatePromo); // Update a specific promo
+router.put('/promos/:id', marketingAccess, updatePromo); // Update a specific promo
 router.delete('/promos/:id', marketingAccess, deletePromo); // Delete a specific promo
 
 router.post('/autopromo-create', marketingAccess, createAutoPromo); // Get all promos

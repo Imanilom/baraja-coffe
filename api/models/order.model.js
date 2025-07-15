@@ -28,7 +28,7 @@ const OrderSchema = new mongoose.Schema({
   },
   orderType: {
     type: String,
-    enum: ['Dine-In', 'Pickup', 'Delivery', 'Reservation'],
+    enum: ['Dine-In', 'Pickup', 'Delivery','Take Away', 'Reservation'],
     required: true
   },
   deliveryAddress: { type: String },
