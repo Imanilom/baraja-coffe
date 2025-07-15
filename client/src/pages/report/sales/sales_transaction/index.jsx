@@ -443,6 +443,7 @@ const SalesTransaction = () => {
                                         const orderId = product?.order_id || {};
                                         const date = product?.createdAt || {};
                                         const cashier = product?.cashier || {};
+                                        // console.log(product);
                                         const orderType = product?.orderType || {};
                                         const menuItem = item?.menuItem || {};
                                         let menuNames = [];
