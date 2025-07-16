@@ -1,10 +1,10 @@
-class PaymentMethod {
+class PaymentMethods {
   final String id;
   final String name;
   final String type; // 'cash' atau 'edc'
   final String? logoUrl; // Untuk logo bank
 
-  PaymentMethod({
+  PaymentMethods({
     required this.id,
     required this.name,
     required this.type,
@@ -13,7 +13,7 @@ class PaymentMethod {
 }
 
 class PaymentState {
-  final PaymentMethod? selectedMethod;
+  final PaymentMethods? selectedMethod;
   final int? selectedCashAmount; // Untuk tunai
   final String? selectedBankId; // Untuk EDC
   final int totalAmount;
@@ -26,7 +26,7 @@ class PaymentState {
   });
 
   PaymentState copyWith({
-    PaymentMethod? selectedMethod,
+    PaymentMethods? selectedMethod,
     int? selectedCashAmount,
     String? selectedBankId,
     int? totalAmount,

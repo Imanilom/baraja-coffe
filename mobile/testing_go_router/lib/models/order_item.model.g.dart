@@ -24,13 +24,14 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
           fields[2] == null ? [] : (fields[2] as List).cast<AddonModel>(),
       quantity: fields[3] == null ? 1 : (fields[3] as num).toInt(),
       notes: fields[4] == null ? '' : fields[4] as String?,
+      subtotal: fields[5] == null ? 0 : (fields[5] as num).toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderItemModel obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.menuItem)
       ..writeByte(1)
@@ -40,7 +41,9 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       ..writeByte(3)
       ..write(obj.quantity)
       ..writeByte(4)
-      ..write(obj.notes);
+      ..write(obj.notes)
+      ..writeByte(5)
+      ..write(obj.subtotal);
   }
 
   @override
@@ -75,6 +78,7 @@ _OrderItemModel _$OrderItemModelFromJson(Map<String, dynamic> json) =>
           const [],
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       notes: json['notes'] as String? ?? "",
+      subtotal: (json['subtotal'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
@@ -84,4 +88,5 @@ Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
       'selectedAddons': instance.selectedAddons,
       'quantity': instance.quantity,
       'notes': instance.notes,
+      'subtotal': instance.subtotal,
     };

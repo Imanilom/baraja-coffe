@@ -2009,12 +2009,12 @@ export const getPendingOrders = async (req, res) => {
       return {
         ...order,
         items: updatedItems,
-        userId: order.user_id,
-        cashierId: order.cashier,
-        customerName: order.user,
-        user: undefined,
-        user_id: undefined,
-        cashier: undefined,
+        // userId: order.user_id,
+        // cashierId: order.cashier,
+        // customerName: order.user,
+        // user: undefined,
+        // user_id: undefined,
+        // cashier: undefined,
       };
     });
 
@@ -2315,6 +2315,7 @@ export const getCashierOrderHistory = async (req, res) => {
 
     // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
     const orders = await Order.find({ cashierId: cashierId })
+      .lean()
       // const orders = await Order.find();
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
       // .populate('voucher')
@@ -2325,57 +2326,101 @@ export const getCashierOrderHistory = async (req, res) => {
     }
 
     // Mapping data sesuai kebutuhan frontend
-    const mappedOrders = orders.map(order => ({
-      _id: order._id,
-      userId: order.user_id, // renamed
-      customerName: order.user, // renamed
-      cashierId: order.cashierId, // renamed
-      items: order.items.map(item => ({
-        _id: item._id,
-        quantity: item.quantity,
-        subtotal: item.subtotal,
-        isPrinted: item.isPrinted,
-        menuItem: {
-          // ...item.menuItem.toObject(),
-          _id: item.menuItem._id,
-          name: item.menuItem.name,
-          originalPrice: item.menuItem.price,
-          discountedprice: item.menuItem.discountedPrice,
-          description: item.menuItem.description,
-          workstation: item.menuItem.workstation,
-          categories: item.menuItem.category, // renamed
-        },
-        selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
-          name: addon.name,
-          _id: addon._id,
-          options: [{
-            id: addon._id, // assuming _id as id for options
-            label: addon.label || addon.name, // fallback
-            price: addon.price
-          }]
-        })) : [],
-        selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
-          id: topping._id || topping.id, // fallback if structure changes
-          name: topping.name,
-          price: topping.price
-        })) : []
-      })),
-      status: order.status,
-      orderType: order.orderType,
-      deliveryAddress: order.deliveryAddress,
-      tableNumber: order.tableNumber,
-      type: order.type,
-      paymentMethod: order.paymentMethod, // default value
-      totalPrice: order.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
-      voucher: order.voucher,
-      outlet: order.outlet,
-      promotions: order.promotions || [],
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
-      __v: order.__v
-    }));
+    const mappedOrders = orders.map(order => {
+      const updatedItems = order.items.map(item => {
+        return {
+          _id: item._id,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+          isPrinted: item.isPrinted,
+          menuItem: {
+            // ...item.menuItem.toObject(),
+            _id: item.menuItem._id,
+            name: item.menuItem.name,
+            originalPrice: item.menuItem.price,
+            discountedprice: item.menuItem.discountedPrice,
+            description: item.menuItem.description,
+            workstation: item.menuItem.workstation,
+            categories: item.menuItem.category, // renamed
+          },
+          selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
+            name: addon.name,
+            _id: addon._id,
+            options: [{
+              id: addon._id, // assuming _id as id for options
+              label: addon.label || addon.name, // fallback
+              price: addon.price
+            }]
+          })) : [],
+          selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
+            id: topping._id || topping.id, // fallback if structure changes
+            name: topping.name,
+            price: topping.price
+          })) : []
+        }
+      });
 
+      return {
+        ...order,
+        items: updatedItems,
+        // userId: order.user_id,
+        // cashierId: order.cashierId,
+        // customerName: order.user,
+        // user: undefined,
+        // user_id: undefined,
+        // cashier: undefined,
+      };
+      // _id: order._id,
+      // userId: order.user_id, // renamed
+      // user: order.user, // renamed
+      // cashierId: order.cashierId, // renamed
+      // items: order.items.map(item => ({
+      //   _id: item._id,
+      //   quantity: item.quantity,
+      //   subtotal: item.subtotal,
+      //   isPrinted: item.isPrinted,
+      //   menuItem: {
+      //     // ...item.menuItem.toObject(),
+      //     _id: item.menuItem._id,
+      //     name: item.menuItem.name,
+      //     originalPrice: item.menuItem.price,
+      //     discountedprice: item.menuItem.discountedPrice,
+      //     description: item.menuItem.description,
+      //     workstation: item.menuItem.workstation,
+      //     categories: item.menuItem.category, // renamed
+      //   },
+      //   selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
+      //     name: addon.name,
+      //     _id: addon._id,
+      //     options: [{
+      //       id: addon._id, // assuming _id as id for options
+      //       label: addon.label || addon.name, // fallback
+      //       price: addon.price
+      //     }]
+      //   })) : [],
+      //   selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
+      //     id: topping._id || topping.id, // fallback if structure changes
+      //     name: topping.name,
+      //     price: topping.price
+      //   })) : []
+      // })),
+      // status: order.status,
+      // orderType: order.orderType,
+      // deliveryAddress: order.deliveryAddress,
+      // tableNumber: order.tableNumber,
+      // type: order.type,
+      // paymentMethod: order.paymentMethod, // default value
+      // totalPrice: order.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
+      // voucher: order.voucher,
+      // outlet: order.outlet,
+      // promotions: order.promotions || [],
+      // createdAt: order.createdAt,
+      // updatedAt: order.updatedAt,
+      // __v: order.__v
+    });
+    // console.log(mappedOrders);
     res.status(200).json({ orders: mappedOrders });
+    // res.status(200).json({ orders: orders });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal server error.' });
