@@ -1,3 +1,6 @@
+import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/enums/payment_method.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -13,7 +16,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   OrderDetailNotifier() : super(null);
 
   /// this method does nothing. Otherwise, it creates a ,new `OrderDetailModel`
-  void initializeOrder({required String orderType}) {
+  void initializeOrder({required OrderType orderType}) {
     print('memeriksa apakah order sudah ada...');
     if (state != null) return;
     print('Initialize order');
@@ -25,19 +28,25 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   void updateTotalPrice() {
     if (state != null) {
       print('Menghitung total harga...');
-      final totalPrice = state!.subTotalPrice! + (state!.tax ?? 0);
-      state = state!.copyWith(totalPrice: totalPrice);
+      final totalPrice =
+          state!.totalAfterDiscount + state!.totalTax + state!.totalServiceFee;
+      state = state!.copyWith(grandTotal: totalPrice);
     }
   }
 
   void updateSubTotalPrice() {
     if (state != null) {
       print('Menghitung total harga...');
-      final subTotalPrice = state!.items.fold(
+      final totalBeforeDiscount = state!.items.fold(
         0,
-        (sum, item) => sum + item.subTotalPrice!,
+        (sum, item) => sum + item.countSubTotalPrice(),
       );
-      state = state!.copyWith(subTotalPrice: subTotalPrice);
+      state = state!.copyWith(totalBeforeDiscount: totalBeforeDiscount);
+
+      final totalAfterDiscount =
+          totalBeforeDiscount -
+          (state!.discounts != null ? state!.discounts!.totalDiscount : 0);
+      state = state!.copyWith(totalAfterDiscount: totalAfterDiscount);
     }
   }
 
@@ -47,9 +56,9 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       print('Menghitung pajak...');
       final tax = state!.items.fold(
         0,
-        (sum, item) => sum + (item.subTotalPrice! * 0.1).toInt(), // 10% tax
+        (sum, item) => sum + (item.subtotal * 0.1).toInt(), // 10% tax
       );
-      state = state!.copyWith(tax: tax);
+      state = state!.copyWith(totalTax: tax);
       print('Tax: $tax');
     }
   }
@@ -60,7 +69,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Set order type (dine-in, take away, delivery)
-  void updateOrderType(String orderType) {
+  void updateOrderType(OrderType orderType) {
     if (state != null) {
       state = state!.copyWith(orderType: orderType);
       print('Order Type: $orderType');
@@ -68,7 +77,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Set payment method
-  void updatePaymentMethod(String paymentMethod) {
+  void updatePaymentMethod(PaymentMethod paymentMethod) {
     print('Payment Method: $paymentMethod');
     if (state != null) {
       state = state!.copyWith(paymentMethod: paymentMethod);
@@ -84,8 +93,8 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }) {
     if (state != null) {
       state = state!.copyWith(
-        customerName: customerName ?? state!.customerName,
-        phoneNumber: phoneNumber ?? state!.phoneNumber,
+        user: customerName ?? state!.user,
+        // phoneNumber: phoneNumber ?? state!.phoneNumber,
         tableNumber: tableNumber ?? state!.tableNumber,
       );
     }
@@ -129,6 +138,15 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       //simpan orderItem ke dalam daftar pesanan
       state = state!.copyWith(items: [...state!.items, orderItem]);
     }
+
+    //menghitung item sub total price
+    state = state!.copyWith(
+      items:
+          state!.items
+              .map((item) => item.copyWith(subtotal: item.countSubTotalPrice()))
+              .toList(),
+    );
+
     updateSubTotalPrice();
     updateTax();
     updateTotalPrice();
@@ -266,7 +284,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   // Hitung total harga dari daftar pesanan
   int get subTotalPrice {
     if (state != null) {
-      return state!.items.fold(0, (sum, item) => sum + item.subTotalPrice!);
+      return state!.items.fold(0, (sum, item) => sum + item.subtotal);
     } else {
       return 0;
     }
@@ -278,7 +296,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     //update cashier id di order detail model
     state = state!.copyWith(cashierId: cashier!.id);
     if (state == null) return false;
-    print('Mengirim data orderDetail ke backend...');
+    print('Mengirim data orderDetail ke backend... ${state!.toJson()}');
     try {
       final order = await OrderService().createOrder(state!);
       print('Order ID : $order');
