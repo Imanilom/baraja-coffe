@@ -8,6 +8,7 @@ import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provid
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
+import 'package:kasirbaraja/enums/payment_method.dart';
 
 class PaymentMethodScreen extends ConsumerWidget {
   const PaymentMethodScreen({super.key});
@@ -18,23 +19,23 @@ class PaymentMethodScreen extends ConsumerWidget {
     final notifier = ref.read(paymentProvider.notifier);
     final OrderDetailModel orderdetail =
         GoRouterState.of(context).extra as OrderDetailModel;
-    final total = orderdetail.totalPrice;
+    final total = orderdetail.grandTotal;
 
     // Daftar metode pembayaran
     final paymentMethods = [
-      PaymentMethod(id: 'Cash', name: 'Tunai', type: 'Cash'),
-      PaymentMethod(id: 'edc', name: 'EDC', type: 'edc'),
+      PaymentMethods(id: 'Cash', name: 'Tunai', type: 'Cash'),
+      PaymentMethods(id: 'edc', name: 'EDC', type: 'edc'),
     ];
 
     // Daftar bank untuk EDC
     final banks = [
-      PaymentMethod(id: 'bca', name: 'BCA', type: 'edc'),
-      PaymentMethod(id: 'bri', name: 'BRI', type: 'edc'),
-      PaymentMethod(id: 'mandiri', name: 'Mandiri', type: 'edc'),
+      PaymentMethods(id: 'bca', name: 'BCA', type: 'edc'),
+      PaymentMethods(id: 'bri', name: 'BRI', type: 'edc'),
+      PaymentMethods(id: 'mandiri', name: 'Mandiri', type: 'edc'),
     ];
 
     // Daftar nominal uang untuk tunai
-    final cashSuggestions = _getCashSuggestions(total!.toInt());
+    final cashSuggestions = _getCashSuggestions(total.toInt());
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -270,7 +271,7 @@ class PaymentMethodScreen extends ConsumerWidget {
 
   Widget _buildMethodSelection(
     PaymentNotifier notifier,
-    List<PaymentMethod> methods,
+    List<PaymentMethods> methods,
     PaymentState state,
   ) {
     return Column(
@@ -460,7 +461,7 @@ class PaymentMethodScreen extends ConsumerWidget {
   }
 
   Widget _buildEDCPayment(
-    List<PaymentMethod> banks,
+    List<PaymentMethods> banks,
     PaymentNotifier notifier,
     PaymentState state,
   ) {
@@ -557,7 +558,9 @@ class PaymentMethodScreen extends ConsumerWidget {
       return;
     }
 
-    orderDetail.updatePaymentMethod(state.selectedMethod!.type);
+    orderDetail.updatePaymentMethod(
+      PaymentMethodExtension.fromString(state.selectedMethod!.type),
+    );
     final success = await orderDetail.submitOrder();
 
     if (success && context.mounted) {
