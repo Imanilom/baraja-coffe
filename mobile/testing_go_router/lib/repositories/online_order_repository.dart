@@ -33,11 +33,7 @@ class OnlineOrderRepository {
 
             // Kemudian hitung dan tambahkan field kalkulasi
             print('base model: $baseModel');
-            return baseModel.withCalculations(
-              totalTax: json['totalTax'] ?? 0,
-              discounts: json['discounts'] ?? {},
-              totalServiceFee: json['totalServiceFee'] ?? 0,
-            );
+            return baseModel;
           }).toList();
       print("Data pending orders yg diambil, berikut datanya: $onlineOrders");
       return onlineOrders;

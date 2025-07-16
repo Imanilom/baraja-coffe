@@ -4,7 +4,7 @@ import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provid
 
 final paymentProvider = StateNotifierProvider<PaymentNotifier, PaymentState>(
   (ref) => PaymentNotifier(
-    totalAmount: (ref.watch(orderDetailProvider)!.totalPrice ?? 0).toInt(),
+    totalAmount: (ref.watch(orderDetailProvider)!.grandTotal).toInt(),
   ),
 );
 
@@ -12,7 +12,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   PaymentNotifier({required int totalAmount})
     : super(PaymentState(totalAmount: totalAmount));
 
-  void selectMethod(PaymentMethod method) {
+  void selectMethod(PaymentMethods method) {
     // hapus selectedMethod terlebih dahulu jika ada yang dipilih
     // jika ada selectedMethod yang dipilih, hapus
     // selectedMethod yang dipilih sebelumnya

@@ -130,7 +130,7 @@ class OrderHistory extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          order.customerName ?? 'Pelanggan #${index + 1}',
+                          order.user ?? 'Pelanggan #${index + 1}',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -178,7 +178,7 @@ class OrderHistory extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      formatRupiah(order.totalPrice?.toInt() ?? 0),
+                      formatRupiah(order.grandTotal.toInt() ?? 0),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
