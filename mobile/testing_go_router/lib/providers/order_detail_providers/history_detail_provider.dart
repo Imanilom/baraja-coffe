@@ -37,7 +37,7 @@ class HistoryDetailProvider extends StateNotifier<OrderDetailModel?> {
   int get subTotalPrice {
     print('menghitung history subtotal');
     if (state != null) {
-      return state!.items.fold(0, (sum, item) => sum + item.subTotalPrice);
+      return state!.items.fold(0, (sum, item) => sum + item.subtotal);
     } else {
       return 0;
     }

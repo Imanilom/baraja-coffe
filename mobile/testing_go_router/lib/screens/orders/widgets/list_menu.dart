@@ -1,6 +1,7 @@
 import 'package:assorted_layout_widgets/assorted_layout_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -35,7 +36,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     final notifier = ref.read(orderDetailProvider.notifier);
 
     if (orderDetail == null) {
-      notifier.initializeOrder(orderType: 'Dine-In');
+      notifier.initializeOrder(orderType: OrderType.dineIn);
     }
 
     // final selectedAddons =
@@ -85,14 +86,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     final menu = ref.watch(menuItemProvider);
     final isSearchBarVisible = ref.watch(searchBarProvider);
 
-    const categories = [
-      'All',
-      'Additional',
-      'Appetizer',
-      'Asian',
-      'Ayam dan Bebek Goreng',
-      'Black Coffee',
-    ];
+    const categories = ['All', 'Makanan', 'Minuman'];
 
     return Row(
       children: [
