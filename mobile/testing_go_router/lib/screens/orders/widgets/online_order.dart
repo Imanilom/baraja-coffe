@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/enums/order_status.dart';
+import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/try/activity_model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
@@ -7,13 +9,57 @@ import 'package:kasirbaraja/services/order_history_service.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
-class OnlineOrder extends ConsumerWidget {
+import '../../../widgets/scanner/qrscanner.dart';
+
+class OnlineOrder extends ConsumerStatefulWidget {
   const OnlineOrder({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OnlineOrder> createState() => _OnlineOrderState();
+}
+
+class _OnlineOrderState extends ConsumerState<OnlineOrder> {
+  bool _showQRScanner = false;
+
+  @override
+  Widget build(BuildContext context) {
     final onlineOrder = ref.watch(onlineOrderProvider);
 
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Main content
+          _buildBody(context, ref, onlineOrder),
+
+          // QR Scanner overlay
+          if (_showQRScanner)
+            Positioned(
+              top: 10, // Position below the top navigation
+              left: 20,
+              right: 20,
+              bottom: 10,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: QRScannerOverlay(
+                  onScanned: (scannedData) {
+                    _handleScannedData(context, ref, scannedData);
+                  },
+                  onClose: () {
+                    setState(() {
+                      _showQRScanner = false;
+                    });
+                  },
+                ),
+              ),
+            ),
+        ],
+      ),
+      floatingActionButton: _buildQRFloatingButton(context, ref),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  Widget _buildBody(BuildContext context, WidgetRef ref, AsyncValue onlineOrder) {
     if (onlineOrder is AsyncData && (onlineOrder.value?.isEmpty ?? true)) {
       return _buildEmptyState();
     }
@@ -22,6 +68,67 @@ class OnlineOrder extends ConsumerWidget {
       data: (data) => _buildOrdersList(context, ref, data),
       error: (error, stackTrace) => _buildErrorState(error),
       loading: () => _buildLoadingState(),
+    );
+  }
+
+  Widget _buildQRFloatingButton(BuildContext context, WidgetRef ref) {
+    return FloatingActionButton(
+      onPressed: () {
+        setState(() {
+          _showQRScanner = !_showQRScanner;
+        });
+      },
+      backgroundColor: _showQRScanner ? Colors.red : Colors.blue,
+      foregroundColor: Colors.white,
+      child: Icon(_showQRScanner ? Icons.close : Icons.qr_code_scanner),
+    );
+  }
+
+  void _handleScannedData(BuildContext context, WidgetRef ref, String scannedData) {
+    try {
+      final orderId = scannedData.trim();
+
+      final currentOrders = ref.read(onlineOrderProvider).value;
+      if (currentOrders != null) {
+        final foundOrder = currentOrders.where((order) => order.orderId == orderId).firstOrNull;
+
+        if (foundOrder != null) {
+          ref.read(onlineOrderDetailProvider.notifier).clearOnlineOrderDetail();
+          ref.read(onlineOrderDetailProvider.notifier).savedOnlineOrderDetail(foundOrder);
+
+          setState(() {
+            _showQRScanner = false;
+          });
+
+          _showSuccessSnackBar(context, 'Order ditemukan: $orderId');
+        } else {
+          _showErrorSnackBar(context, 'Order dengan ID $orderId tidak ditemukan');
+        }
+      } else {
+        _showErrorSnackBar(context, 'Data order tidak tersedia');
+      }
+    } catch (e) {
+      _showErrorSnackBar(context, 'Gagal memproses data QR: $e');
+    }
+  }
+
+  void _showSuccessSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -90,10 +197,10 @@ class OnlineOrder extends ConsumerWidget {
   }
 
   Widget _buildOrdersList(
-    BuildContext context,
-    WidgetRef ref,
-    List<dynamic> data,
-  ) {
+      BuildContext context,
+      WidgetRef ref,
+      List<dynamic> data,
+      ) {
     return RefreshIndicator(
       onRefresh: () async => ref.refresh(onlineOrderProvider.future),
       child: ListView.builder(
@@ -111,6 +218,8 @@ class OnlineOrder extends ConsumerWidget {
   }
 
   Widget _buildOrderCard(BuildContext context, WidgetRef ref, dynamic order) {
+    final orderStatus = OrderStatusExtension.orderStatusToJson(order.status);
+    final orderType = OrderTypeExtension.orderTypeToJson(order.orderType);
     return Card(
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -132,7 +241,7 @@ class OnlineOrder extends ConsumerWidget {
                 width: 4,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: _getStatusColor(order.status.toString()),
+                  color: _getStatusColor(orderStatus),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -142,14 +251,12 @@ class OnlineOrder extends ConsumerWidget {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: _getStatusColor(
-                    order.status.toString(),
-                  ).withOpacity(0.1),
+                  color: _getStatusColor(orderStatus).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  _getOrderIcon(order.orderType.toString()),
-                  color: _getStatusColor(order.status.toString()),
+                  _getOrderIcon(orderType),
+                  color: _getStatusColor(orderStatus),
                   size: 28,
                 ),
               ),
@@ -164,7 +271,7 @@ class OnlineOrder extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            order.customerName ?? 'Customer',
+                            order.user ?? 'Customer',
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 18,
@@ -173,12 +280,12 @@ class OnlineOrder extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        _buildStatusChip(order.status.toString()),
+                        _buildStatusChip(orderStatus),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _getOrderTypeText(order.orderType.toString()),
+                      _getOrderTypeText(orderType),
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -218,7 +325,7 @@ class OnlineOrder extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      formatRupiah(order.totalPrice!.toInt()),
+                      formatRupiah(order.grandTotal!.toInt()),
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 20,

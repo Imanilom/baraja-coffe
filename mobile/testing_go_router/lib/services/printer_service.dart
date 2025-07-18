@@ -4,6 +4,7 @@ import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
+import 'package:kasirbaraja/enums/order_type.dart';
 
 class PrinterService {
   static Future<void> connectPrinter(BluetoothPrinterModel printer) async {
@@ -397,8 +398,8 @@ class PrinterService {
         paperSize,
         orderDetail.orderId,
         orderDetail.cashierId,
-        orderDetail.customerName,
-        orderDetail.orderType,
+        orderDetail.user,
+        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
       ),
     );
 
@@ -421,7 +422,7 @@ class PrinterService {
             styles: const PosStyles(align: PosAlign.right),
           ),
           PosColumn(
-            text: item.subTotalPrice.toString(),
+            text: item.subtotal.toString(),
             width: 5,
             styles: const PosStyles(align: PosAlign.right),
           ),
@@ -437,7 +438,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderDetail.subTotalPrice.toString(),
+          text: orderDetail.totalAfterDiscount.toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -451,7 +452,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderDetail.tax.toString(),
+          text: orderDetail.totalTax.toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -467,7 +468,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderDetail.totalPrice.toString(),
+          text: orderDetail.grandTotal.toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
