@@ -11,6 +11,7 @@ export const createMenuItem = async (req, res) => {
       name,
       price,
       description,
+      mainCat,
       category,
       subCategory,
       toppings,
@@ -19,21 +20,17 @@ export const createMenuItem = async (req, res) => {
       workstation
     } = req.body;
 
-    console.log(req.file);
-
     const imageURL = req.file
       ? `http://localhost:3000/images/${req.file.filename}`
       : req.body.imageURL || null;
 
-    if (!name || !price || !category || !imageURL) {
+    if (!name || !price || !category) {
       return res.status(400).json({
         success: false,
         message: 'Name, price, category, and imageURL are required fields.',
       });
     }
 
-    // Validate main category exists
-    const mainCat = await Category.findById(category);
     if (!mainCat) {
       return res.status(400).json({ error: 'Kategori utama tidak ditemukan.' });
     }
@@ -99,7 +96,7 @@ export const createMenuItem = async (req, res) => {
       name,
       price,
       description: description || '',
-      // mainCategory: mainCat.type, // Ambil dari category parent
+      mainCategory: mainCat,
       category,
       subCategory,
       imageURL,
@@ -108,7 +105,6 @@ export const createMenuItem = async (req, res) => {
       availableAt: availableA || [],
       workstation: workstation || 'bar',
     });
-
 
     const savedMenuItem = await menuItem.save();
 

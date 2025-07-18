@@ -28,7 +28,7 @@ const StockCardManagement = () => {
     const [showInputStatus, setShowInputStatus] = useState(false);
     const [showInputCategory, setShowInputCategory] = useState(false);
     const navigate = useNavigate(); // Use the new hook
-    const [menuItems, setMenuItems] = useState([]);
+    const [marketLists, setMarketLists] = useState([]);
     const [category, setCategory] = useState([]);
     const [status, setStatus] = useState([]);
     const [tempSelectedCategory, setTempSelectedCategory] = useState("");
@@ -59,16 +59,16 @@ const StockCardManagement = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const menuResponse = await axios.get('/api/menu/menu-items');
+            const marketlistResponse = await axios.get('/api/marketlist/products');
 
-            const menuData = Array.isArray(menuResponse.data)
-                ? menuResponse.data
-                : (menuResponse.data && Array.isArray(menuResponse.data.data))
-                    ? menuResponse.data.data
+            const marketlistData = Array.isArray(marketlistResponse.data)
+                ? marketlistResponse.data
+                : (marketlistResponse.data && Array.isArray(marketlistResponse.data.data))
+                    ? marketlistResponse.data.data
                     : [];
 
-            setMenuItems(menuData);
-            setFilteredData(menuData);
+            setMarketLists(marketlistData);
+            setFilteredData(marketlistData);
 
             const outletsResponse = await axios.get('/api/outlet');
             const outletsData = Array.isArray(outletsResponse.data)
@@ -97,7 +97,7 @@ const StockCardManagement = () => {
         } catch (err) {
             console.error("Error fetching data:", err);
             setError("Failed to load data. Please try again later.");
-            setMenuItems([]);
+            setMarketLists([]);
             setFilteredData([]);
             setOutlets([]);
             setCategory([]);
@@ -183,7 +183,7 @@ const StockCardManagement = () => {
     const applyFilter = () => {
 
         // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...menuItems]);
+        let filtered = ensureArray([...marketLists]);
 
         // Filter by search term (product name, category, or SKU)
         if (tempSearch) {
@@ -259,7 +259,7 @@ const StockCardManagement = () => {
     const handleDelete = async (itemId) => {
         try {
             await axios.delete(`/api/menu/menu-items/${itemId}`);
-            setMenuItems(menuItems.filter(item => item._id !== itemId));
+            setMarketLists(marketLists.filter(item => item._id !== itemId));
             setIsModalOpen(false);
         } catch (error) {
             console.error("Error deleting item:", error);
@@ -294,7 +294,7 @@ const StockCardManagement = () => {
     }
 
     return (
-        <div className="container">
+        <div className="w-full">
             <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
                 <FaBell size={23} className="text-gray-400" />
                 <span className="text-[14px]">Hi Baraja</span>
@@ -541,7 +541,7 @@ const StockCardManagement = () => {
                                                 </div>
                                             </td>
                                             <td className="p-[15px]">
-                                                {Array.isArray(item.category) ? item.category.join(", ") : "-"}
+                                                {item.category ? item.category : "-"}
                                             </td>
                                             <td className="p-[15px] text-right">-</td>
                                             <td className="p-[15px] text-right">-</td>
@@ -550,7 +550,7 @@ const StockCardManagement = () => {
                                             <td className="p-[15px] text-right">-</td>
                                             <td className="p-[15px] text-right">-</td>
                                             <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
+                                            <td className="p-[15px] text-right">{item.unit ? item.unit : "-"}</td>
                                         </tr>
                                     ))}
                                 </tbody>

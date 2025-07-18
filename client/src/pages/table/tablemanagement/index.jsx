@@ -9,6 +9,7 @@ import * as XLSX from "xlsx";
 const Table = () => {
     const [attendances, setAttendances] = useState([]);
     const [outlets, setOutlets] = useState([]);
+    const [areas, setAreas] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -21,6 +22,7 @@ const Table = () => {
     const [filteredData, setFilteredData] = useState([]);
 
 
+    // capacity, total_tables
     const dummyData = [
         {
             outlet: "Baraja Amphitheater",
@@ -57,42 +59,49 @@ const Table = () => {
     const finalTotal = totalSubtotal + pb1;
 
     // Fetch attendances and outlets data
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            // Fetch attendances data
+            const attendancesResponse = [];
+
+            setAttendances(attendancesResponse);
+            setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
+
+            // Fetch outlets data
+            const outletsResponse = await axios.get('/api/outlet');
+
+            // Ensure outletsResponse.data is an array
+            const outletsData = Array.isArray(outletsResponse.data) ?
+                outletsResponse.data :
+                (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
+                    outletsResponse.data.data : [];
+
+            setOutlets(outletsData);
+
+            const areaResponse = await axios.get('/api/areas');
+
+            const areaData = areaResponse.data.data || [];
+            setAreas(areaData)
+
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            setError("Failed to load data. Please try again later.");
+            // Set empty arrays as fallback
+            setAttendances([]);
+            setFilteredData([]);
+            setOutlets([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch attendances data
-                const attendancesResponse = [];
-
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setAttendances([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
     }, []);
+
+    console.log(areas);
 
     // Get unique outlet names for the dropdown
     const uniqueOutlets = useMemo(() => {
@@ -445,7 +454,7 @@ const Table = () => {
                             </tr>
                         </thead>
                         <tbody className="text-gray-400 text-sm">
-                            {dummyData.map((outlet, outletIdx) =>
+                            {/* {dummyData.map((outlet, outletIdx) =>
                                 outlet.area.map((area, areaIdx) => (
                                     <tr
                                         key={`${outletIdx}-${areaIdx}`}
@@ -475,7 +484,35 @@ const Table = () => {
                                         </td>
                                     </tr>
                                 ))
-                            )}
+                            )} */}
+
+                            {areas.map((area, areaId) => (
+                                <tr
+                                    key={`${areaId}`}
+                                    className="hover:bg-slate-50 cursor-pointer"
+                                >
+                                    <td
+                                        className="border px-4 py-2"
+                                    >
+                                    </td>
+                                    <td className="border px-4 py-2">{area.area_name}</td>
+                                    <td className="border px-4 py-2">{area.total_tables}</td>
+                                    <td className="border px-4 py-2">{area.capacity}</td>
+                                    <td className="border px-4 py-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[#005429]">
+                                                {area.is_active === true ? "Aktif" : "Tidak Aktif"}
+                                            </span>
+                                            <div className="flex space-x-2">
+                                                <Link to="/admin/table-management/table-update">
+                                                    <FaPencilAlt className="text-gray-500" />
+                                                </Link>
+                                                <FaTrash className="text-red-500" />
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>

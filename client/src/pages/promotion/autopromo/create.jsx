@@ -36,7 +36,7 @@ const CreateAutoPromo = () => {
           axios.get("/api/promotion/loyalty-levels"),
         ]);
 
-        setOutlets(outletsRes.data || []);
+        setOutlets(outletsRes.data.data || []);
         setProducts(productsRes.data.data || []);
         setLoyaltyLevels(loyaltyLevelsRes.data.data || []);
       } catch (err) {

@@ -28,7 +28,7 @@ const UpdateTable = () => {
         try {
             const response = await axios.get('/api/outlet');
             // Pastikan response sesuai format
-            setOutletList(response.data || []);
+            setOutletList(response.data.data || []);
         } catch (error) {
             console.error('Gagal fetch outlet:', error);
         } finally {

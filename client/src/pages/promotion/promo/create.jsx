@@ -31,7 +31,7 @@ const CreatePromoPage = () => {
         axios.get("/api/promotion/loyalty-levels"),
       ]);
 
-      setOutlets(outletsRes.data || []);
+      setOutlets(outletsRes.data.data || []);
       setLoyaltyLevels(levelsRes.data.data || []);
 
       setPromo((prev) => ({

@@ -8,6 +8,7 @@ import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/tax_service_detail.model.dart';
 
 part 'order_detail.model.freezed.dart';

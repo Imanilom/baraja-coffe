@@ -39,7 +39,7 @@ export default function PointManagement() {
   const fetchOutlet = async () => {
     try {
       const res = await axios.get("/api/outlet");
-      setOutlet(res.data);
+      setOutlet(res.data.data);
     } catch (err) {
       console.error(err);
     }
