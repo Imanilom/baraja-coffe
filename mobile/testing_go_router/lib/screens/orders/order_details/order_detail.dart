@@ -2,6 +2,7 @@ import 'package:assorted_layout_widgets/assorted_layout_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
@@ -16,6 +17,7 @@ import 'package:kasirbaraja/widgets/buttons/vertical_icon_text_button.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/widgets/dialogs/edit_order_item_dialog.dart';
+import 'package:kasirbaraja/enums/order_type.dart';
 
 class OrderDetail extends ConsumerWidget {
   const OrderDetail({super.key});
@@ -108,7 +110,7 @@ class OrderDetail extends ConsumerWidget {
                     if (orderDetail == null) {
                       ref
                           .read(orderDetailProvider.notifier)
-                          .initializeOrder(orderType: 'Dine-In');
+                          .initializeOrder(orderType: OrderType.dineIn);
                     }
                     // open dialog untuk submit nomor meja
                     showDialog(
@@ -223,7 +225,9 @@ class OrderDetail extends ConsumerWidget {
                 //order type dine-in, take away, delivery,
                 VerticalIconTextButton(
                   icon: Icons.restaurant_menu_rounded,
-                  label: orderDetail?.orderType ?? 'Dine-In',
+                  label: OrderTypeExtension.orderTypeToJson(
+                    orderDetail?.orderType ?? OrderType.dineIn,
+                  ),
                   onPressed: () {
                     if (orderDetail != null) {
                       // open dialog untuk memilih order type menggunakan material
@@ -238,7 +242,12 @@ class OrderDetail extends ConsumerWidget {
                               children: [
                                 ListTile(
                                   title: const Text('Dine-In'),
-                                  selected: orderDetail?.orderType == 'Dine-In',
+                                  selected:
+                                      OrderTypeExtension.orderTypeToJson(
+                                        orderDetail?.orderType ??
+                                            OrderType.dineIn,
+                                      ) ==
+                                      'Dine-In',
                                   selectedColor: Colors.white,
                                   selectedTileColor: Colors.green,
                                   shape: RoundedRectangleBorder(
@@ -247,7 +256,7 @@ class OrderDetail extends ConsumerWidget {
                                   onTap: () {
                                     ref
                                         .read(orderDetailProvider.notifier)
-                                        .updateOrderType('Dine-In');
+                                        .updateOrderType(OrderType.dineIn);
                                     Navigator.pop(context);
                                   },
                                 ),
@@ -255,7 +264,11 @@ class OrderDetail extends ConsumerWidget {
                                 ListTile(
                                   title: const Text('Take Away'),
                                   selected:
-                                      orderDetail?.orderType == 'Take Away',
+                                      OrderTypeExtension.orderTypeToJson(
+                                        orderDetail?.orderType ??
+                                            OrderType.takeAway,
+                                      ) ==
+                                      'Take Away',
                                   selectedColor: Colors.white,
                                   selectedTileColor: Colors.green,
                                   shape: RoundedRectangleBorder(
@@ -264,7 +277,7 @@ class OrderDetail extends ConsumerWidget {
                                   onTap: () {
                                     ref
                                         .read(orderDetailProvider.notifier)
-                                        .updateOrderType('Take Away');
+                                        .updateOrderType(OrderType.takeAway);
                                     Navigator.pop(context);
                                   },
                                 ),
@@ -289,13 +302,11 @@ class OrderDetail extends ConsumerWidget {
                 VerticalIconTextButton(
                   icon: Icons.person_rounded,
                   label:
-                      (orderDetail?.customerName != "" &&
-                              orderDetail?.customerName != null)
-                          ? (orderDetail!.customerName!)
+                      (orderDetail?.user != "" && orderDetail?.user != null)
+                          ? (orderDetail!.user)
                           : 'Pelanggan',
                   color:
-                      orderDetail?.customerName != "" &&
-                              orderDetail?.customerName != null
+                      orderDetail?.user != "" && orderDetail?.user != null
                           ? Colors.green
                           : Colors.grey,
                   onPressed: () {
@@ -303,7 +314,7 @@ class OrderDetail extends ConsumerWidget {
                     if (orderDetail == null) {
                       ref
                           .read(orderDetailProvider.notifier)
-                          .initializeOrder(orderType: 'Dine-In');
+                          .initializeOrder(orderType: OrderType.dineIn);
                     }
                     // input nama pelanggan
                     showDialog(
@@ -312,7 +323,7 @@ class OrderDetail extends ConsumerWidget {
                         //controller untuk text field
                         final TextEditingController controller =
                             TextEditingController(
-                              text: orderDetail?.customerName,
+                              text: orderDetail?.user ?? '',
                             );
                         return SingleChildScrollView(
                           physics: const BouncingScrollPhysics(),
@@ -428,9 +439,7 @@ class OrderDetail extends ConsumerWidget {
                                   ),
                               ],
                             ),
-                            trailing: Text(
-                              formatRupiah(orderItem.subTotalPrice),
-                            ),
+                            trailing: Text(formatRupiah(orderItem.subtotal)),
                             onTap: () {
                               if (currentWidgetIndex != 0) return;
                               //membuka drawer untuk edit order item
@@ -478,19 +487,21 @@ class OrderDetail extends ConsumerWidget {
                     // Subtotal
                     _OrderSummaryRow(
                       label: 'Subtotal',
-                      value: formatRupiah(orderDetail.subTotalPrice!.toInt()),
+                      value: formatRupiah(
+                        orderDetail.totalAfterDiscount.toInt(),
+                      ),
                     ),
                     // Tax (assuming 10%)
                     _OrderSummaryRow(
                       label: 'Tax 10%',
-                      value: formatRupiah(orderDetail.tax!.toInt().round()),
+                      value: formatRupiah(orderDetail.totalTax.toInt().round()),
                     ),
                     const Divider(),
                     // Total Harga
                     _OrderSummaryRow(
                       label: 'Total Harga',
                       value: formatRupiah(
-                        orderDetail.totalPrice!.toInt().round(),
+                        orderDetail.grandTotal.toInt().round(),
                       ),
                       isBold: true,
                     ),
@@ -635,8 +646,7 @@ class OrderDetail extends ConsumerWidget {
                                               orderDetail.items.isNotEmpty) {
                                             // print('mau disimpan');
 
-                                            if (orderDetail.customerName ==
-                                                null) {
+                                            if (orderDetail.user == '') {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
@@ -709,8 +719,7 @@ class OrderDetail extends ConsumerWidget {
                                           if (orderDetail != null &&
                                               orderDetail.items.isNotEmpty) {
                                             // print('mau dibayar');
-                                            if (orderDetail.customerName ==
-                                                "") {
+                                            if (orderDetail.user == "") {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(

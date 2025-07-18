@@ -14,6 +14,8 @@ import { db } from '../utils/mongo.js';
 //io
 import { io, broadcastNewOrder } from '../index.js';
 import Reservation from '../models/Reservation.model.js';
+import QRCode from 'qrcode';
+
 
 const queueEvents = new QueueEvents('orderQueue');
 
@@ -1181,36 +1183,94 @@ export const confirmOrderByCashier = async (req, res) => {
 };
 
 
+// * Start Payment Handler
+
 export const charge = async (req, res) => {
   try {
     const { payment_type, is_down_payment, down_payment_amount, remaining_payment } = req.body;
 
     console.log('Received payment type:', payment_type);
 
-    // Deteksi apakah ini cash payment atau payment lainnya
     if (payment_type === 'cash') {
       // Handle cash payment
       const { order_id, gross_amount } = req.body;
       console.log('Payment type:', payment_type, 'Order ID:', order_id, 'Gross Amount:', gross_amount);
 
+      // Find the order to get the order._id
+      const order = await Order.findOne({ order_id: order_id });
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found'
+        });
+      }
+
       // Check if payment already exists for this order
       const existingPayment = await Payment.findOne({ order_id: order_id });
       if (existingPayment) {
         console.log('Payment already exists for order:', order_id);
+
+        // Generate QR code data using order._id only
+        const qrData = {
+          order_id: order._id.toString(),
+        };
+
+        const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
+
         return res.status(200).json({
-          success: true,
-          message: 'Payment already processed',
-          data: {
-            payment_id: existingPayment._id,
-            order_id: order_id,
-            amount: existingPayment.amount,
-            method: existingPayment.method,
-            status: existingPayment.status,
-            transaction_id: existingPayment._id.toString(),
-            paymentType: existingPayment.paymentType,
-            remainingAmount: existingPayment.remainingAmount,
-            is_down_payment: existingPayment.is_down_payment || false,
-          }
+          order_id: existingPayment.order_id,
+          transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
+          method: existingPayment.method,
+          status: existingPayment.status,
+          paymentType: existingPayment.paymentType,
+          amount: existingPayment.amount,
+          remainingAmount: existingPayment.remainingAmount,
+          discount: 0,
+          fraud_status: "accept",
+          transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
+          expiry_time: existingPayment.expiry_time || null,
+          settlement_time: existingPayment.settlement_time || null,
+          va_numbers: existingPayment.va_numbers || [],
+          permata_va_number: existingPayment.permata_va_number || null,
+          bill_key: existingPayment.bill_key || null,
+          biller_code: existingPayment.biller_code || null,
+          pdf_url: existingPayment.pdf_url || null,
+          currency: existingPayment.currency || "IDR",
+          merchant_id: existingPayment.merchant_id || "G711879663",
+          signature_key: existingPayment.signature_key || null,
+          actions: [
+            {
+              name: "generate-qr-code",
+              method: "GET",
+              url: qrCodeBase64,
+            }
+          ],
+          raw_response: existingPayment.raw_response || {
+            status_code: "201",
+            status_message: "Cash transaction is created",
+            transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
+            order_id: existingPayment.order_id,
+            merchant_id: "G711879663",
+            gross_amount: existingPayment.amount.toString() + ".00",
+            currency: "IDR",
+            payment_type: "cash",
+            transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
+            transaction_status: existingPayment.status,
+            fraud_status: "accept",
+            actions: [
+              {
+                name: "generate-qr-code",
+                method: "GET",
+                url: qrCodeBase64,
+              }
+            ],
+            acquirer: "cash",
+            qr_string: JSON.stringify(qrData),
+            expiry_time: existingPayment.expiry_time || null
+          },
+          createdAt: existingPayment.createdAt,
+          updatedAt: existingPayment.updatedAt,
+          __v: 0
         });
       }
 
@@ -1232,33 +1292,111 @@ export const charge = async (req, res) => {
         remainingAmount = remaining_payment || 0;
       }
 
+      // Generate transaction_id with UUID-like format
+      const generateTransactionId = () => {
+        const chars = '0123456789abcdef';
+        const sections = [8, 4, 4, 4, 12];
+        return sections.map(len =>
+          Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+        ).join('-');
+      };
+
+      const transactionId = generateTransactionId();
+      const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
+      // Generate QR code data using order._id only
+      const qrData = {
+        order_id: order._id.toString(),
+      };
+
+      const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
+
+      // Create actions array with QR code
+      const actions = [
+        {
+          name: "generate-qr-code",
+          method: "GET",
+          url: qrCodeBase64,
+        }
+      ];
+
+      // Create raw_response object
+      const rawResponse = {
+        status_code: "201",
+        status_message: "Cash transaction is created",
+        transaction_id: transactionId,
+        order_id: order_id,
+        merchant_id: "G711879663",
+        gross_amount: amount.toString() + ".00",
+        currency: "IDR",
+        payment_type: "cash",
+        transaction_time: currentTime,
+        transaction_status: "pending",
+        fraud_status: "accept",
+        actions: actions,
+        acquirer: "cash",
+        qr_string: JSON.stringify(qrData),
+        expiry_time: expiryTime
+      };
+
+      // Create payment with actions and raw_response
       const payment = new Payment({
+        transaction_id: transactionId,
         order_id: order_id,
         amount: amount,
         method: payment_type,
         status: 'pending',
+        fraud_status: 'accept',
+        transaction_time: currentTime,
+        expiry_time: expiryTime,
+        settlement_time: null,
+        va_numbers: [],
+        permata_va_number: null,
+        bill_key: null,
+        biller_code: null,
+        pdf_url: null,
+        currency: 'IDR',
+        merchant_id: 'G711879663',
+        signature_key: null,
         paymentType: paymentType,
         remainingAmount: remainingAmount,
         is_down_payment: is_down_payment || false,
+        actions: actions,
+        raw_response: rawResponse
       });
 
-      await payment.save();
+      // Save payment
+      const savedPayment = await payment.save();
+      console.log('Payment saved with ID:', savedPayment._id);
 
-      // Kirim response yang proper untuk cash payment
+      // Send response
       return res.status(200).json({
-        success: true,
-        message: `Cash payment ${paymentType.toLowerCase()} processed successfully`,
-        data: {
-          payment_id: payment._id,
-          order_id: order_id,
-          amount: gross_amount,
-          method: payment_type,
-          status: 'pending',
-          transaction_id: payment._id.toString(),
-          paymentType: paymentType,
-          remainingAmount: remainingAmount,
-          is_down_payment: is_down_payment || false,
-        }
+        order_id: order_id,
+        transaction_id: transactionId,
+        method: payment_type,
+        status: 'pending',
+        paymentType: paymentType,
+        amount: amount,
+        remainingAmount: remainingAmount,
+        discount: 0,
+        fraud_status: 'accept',
+        transaction_time: currentTime,
+        expiry_time: expiryTime,
+        settlement_time: null,
+        va_numbers: [],
+        permata_va_number: null,
+        bill_key: null,
+        biller_code: null,
+        pdf_url: null,
+        currency: 'IDR',
+        merchant_id: 'G711879663',
+        signature_key: null,
+        actions: actions,
+        raw_response: rawResponse,
+        createdAt: savedPayment.createdAt,
+        updatedAt: savedPayment.updatedAt,
+        __v: 0
       });
     } else {
       // Handle payment lainnya (bank_transfer, gopay, qris, dll)
@@ -1419,6 +1557,8 @@ export const charge = async (req, res) => {
     });
   }
 };
+
+// * End Payment Handler
 
 // Handling Midtrans Notification 
 export const paymentNotification = async (req, res) => {
@@ -1624,12 +1764,12 @@ export const getPendingOrders = async (req, res) => {
       return {
         ...order,
         items: updatedItems,
-        userId: order.user_id,
-        cashierId: order.cashier,
-        customerName: order.user,
-        user: undefined,
-        user_id: undefined,
-        cashier: undefined,
+        // userId: order.user_id,
+        // cashierId: order.cashier,
+        // customerName: order.user,
+        // user: undefined,
+        // user_id: undefined,
+        // cashier: undefined,
       };
     });
 
@@ -1700,8 +1840,8 @@ export const getUserOrderHistory = async (req, res) => {
     }
 
     // Mengambil semua order_id untuk mencari payment status
-  const orderIds = orderHistorys.map(order => order.order_id); // Use string-based order_id
-  const payments = await Payment.find({ order_id: { $in: orderIds } });
+    const orderIds = orderHistorys.map(order => order.order_id); // Use string-based order_id
+    const payments = await Payment.find({ order_id: { $in: orderIds } });
 
     // Membuat mapping payment berdasarkan order_id untuk akses yang lebih cepat
     const paymentMap = {};
@@ -1761,7 +1901,7 @@ export const getOrderById = async (req, res) => {
 
     // console.log('Order:', order);
 
-    console.log('Order ID:', orderId);
+    console.log('Order ID:', order);
 
 
     const payment = await Payment.findOne({ order_id: order.order_id });
@@ -1776,12 +1916,12 @@ export const getOrderById = async (req, res) => {
     console.log('Reservation:', reservation);
 
     // Verify user exists
-    const userExists = await User.findById(order.user_id);
-    if (!userExists) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
+    // const userExists = await User.findById(order.user_id);
+    // if (!userExists) {
+    //   return res.status(404).json({ success: false, message: 'User not found' });
+    // }
 
-    console.log('User:', userExists);
+    // console.log('User:', userExists);
     if (!order) {
       return res.status(404).json({ message: 'Order not found.' });
     }
@@ -1867,7 +2007,10 @@ export const getOrderById = async (req, res) => {
       console.log('Tables detail:', JSON.stringify(reservationData.tables, null, 2));
     }
 
-    // Mencari pembayaran berdasarkan order_id
+    console.log("Permata VA Number:", payment?.permata_va_number || 'N/A');
+    // const banks = payment?.va_numbers?.map(item => item.bank) || [];
+    // console.log("Banks:", banks);
+
 
     const orderData = {
       _id: order._id.toString(),
@@ -1877,8 +2020,8 @@ export const getOrderById = async (req, res) => {
       items: formattedItems,
       total: payment?.amount || 0,
       orderStatus: order.status,
-      paymentMethod: payment 
-        ? (payment.bank || payment.method || 'Unknown').toUpperCase()
+      paymentMethod: payment
+        ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
         : 'Unknown',
       paymentStatus: payment?.status || 'Unpaid',
       reservation: reservationData
@@ -1927,6 +2070,7 @@ export const getCashierOrderHistory = async (req, res) => {
 
     // Mencari semua pesanan dengan field "cashier" yang sesuai dengan ID kasir
     const orders = await Order.find({ cashierId: cashierId })
+      .lean()
       // const orders = await Order.find();
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
       // .populate('voucher')
@@ -1937,57 +2081,101 @@ export const getCashierOrderHistory = async (req, res) => {
     }
 
     // Mapping data sesuai kebutuhan frontend
-    const mappedOrders = orders.map(order => ({
-      _id: order._id,
-      userId: order.user_id, // renamed
-      customerName: order.user, // renamed
-      cashierId: order.cashierId, // renamed
-      items: order.items.map(item => ({
-        _id: item._id,
-        quantity: item.quantity,
-        subtotal: item.subtotal,
-        isPrinted: item.isPrinted,
-        menuItem: {
-          // ...item.menuItem.toObject(),
-          _id: item.menuItem._id,
-          name: item.menuItem.name,
-          originalPrice: item.menuItem.price,
-          discountedprice: item.menuItem.discountedPrice,
-          description: item.menuItem.description,
-          workstation: item.menuItem.workstation,
-          categories: item.menuItem.category, // renamed
-        },
-        selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
-          name: addon.name,
-          _id: addon._id,
-          options: [{
-            id: addon._id, // assuming _id as id for options
-            label: addon.label || addon.name, // fallback
-            price: addon.price
-          }]
-        })) : [],
-        selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
-          id: topping._id || topping.id, // fallback if structure changes
-          name: topping.name,
-          price: topping.price
-        })) : []
-      })),
-      status: order.status,
-      orderType: order.orderType,
-      deliveryAddress: order.deliveryAddress,
-      tableNumber: order.tableNumber,
-      type: order.type,
-      paymentMethod: order.paymentMethod, // default value
-      totalPrice: order.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
-      voucher: order.voucher,
-      outlet: order.outlet,
-      promotions: order.promotions || [],
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
-      __v: order.__v
-    }));
+    const mappedOrders = orders.map(order => {
+      const updatedItems = order.items.map(item => {
+        return {
+          _id: item._id,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+          isPrinted: item.isPrinted,
+          menuItem: {
+            // ...item.menuItem.toObject(),
+            _id: item.menuItem._id,
+            name: item.menuItem.name,
+            originalPrice: item.menuItem.price,
+            discountedprice: item.menuItem.discountedPrice,
+            description: item.menuItem.description,
+            workstation: item.menuItem.workstation,
+            categories: item.menuItem.category, // renamed
+          },
+          selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
+            name: addon.name,
+            _id: addon._id,
+            options: [{
+              id: addon._id, // assuming _id as id for options
+              label: addon.label || addon.name, // fallback
+              price: addon.price
+            }]
+          })) : [],
+          selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
+            id: topping._id || topping.id, // fallback if structure changes
+            name: topping.name,
+            price: topping.price
+          })) : []
+        }
+      });
 
+      return {
+        ...order,
+        items: updatedItems,
+        // userId: order.user_id,
+        // cashierId: order.cashierId,
+        // customerName: order.user,
+        // user: undefined,
+        // user_id: undefined,
+        // cashier: undefined,
+      };
+      // _id: order._id,
+      // userId: order.user_id, // renamed
+      // user: order.user, // renamed
+      // cashierId: order.cashierId, // renamed
+      // items: order.items.map(item => ({
+      //   _id: item._id,
+      //   quantity: item.quantity,
+      //   subtotal: item.subtotal,
+      //   isPrinted: item.isPrinted,
+      //   menuItem: {
+      //     // ...item.menuItem.toObject(),
+      //     _id: item.menuItem._id,
+      //     name: item.menuItem.name,
+      //     originalPrice: item.menuItem.price,
+      //     discountedprice: item.menuItem.discountedPrice,
+      //     description: item.menuItem.description,
+      //     workstation: item.menuItem.workstation,
+      //     categories: item.menuItem.category, // renamed
+      //   },
+      //   selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
+      //     name: addon.name,
+      //     _id: addon._id,
+      //     options: [{
+      //       id: addon._id, // assuming _id as id for options
+      //       label: addon.label || addon.name, // fallback
+      //       price: addon.price
+      //     }]
+      //   })) : [],
+      //   selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
+      //     id: topping._id || topping.id, // fallback if structure changes
+      //     name: topping.name,
+      //     price: topping.price
+      //   })) : []
+      // })),
+      // status: order.status,
+      // orderType: order.orderType,
+      // deliveryAddress: order.deliveryAddress,
+      // tableNumber: order.tableNumber,
+      // type: order.type,
+      // paymentMethod: order.paymentMethod, // default value
+      // totalPrice: order.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
+      // voucher: order.voucher,
+      // outlet: order.outlet,
+      // promotions: order.promotions || [],
+      // createdAt: order.createdAt,
+      // updatedAt: order.updatedAt,
+      // __v: order.__v
+    });
+    // console.log(mappedOrders);
     res.status(200).json({ orders: mappedOrders });
+    // res.status(200).json({ orders: orders });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal server error.' });

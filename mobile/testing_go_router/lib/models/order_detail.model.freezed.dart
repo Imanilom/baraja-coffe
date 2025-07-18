@@ -16,12 +16,15 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$OrderDetailModel {
 
-@HiveField(0)@JsonKey(name: 'userId') String? get customerId;@HiveField(1) String? get customerName;//
-@HiveField(2) String? get cashierId;//
-@HiveField(3) String? get phoneNumber;@HiveField(4) List<OrderItemModel> get items;//
-@HiveField(5) String get orderType;//
-@HiveField(6) String? get deliveryAddress;@HiveField(7) String? get tableNumber;@HiveField(8) String? get paymentMethod;@HiveField(9) String? get status;@HiveField(10) int? get subTotalPrice;@HiveField(11)@JsonKey(name: 'order_id') String? get orderId;//
-@HiveField(12) int? get tax;@HiveField(13) int? get totalPrice;@HiveField(14) int? get serviceFee;@HiveField(15) Map<String, dynamic>? get discounts;
+// Identitas Order
+@HiveField(0)@JsonKey(name: 'order_id') String? get orderId;@HiveField(1)@JsonKey(name: 'user_id') String? get userId;@HiveField(2) String get user;@HiveField(3) String? get cashierId;// Item dan Status
+@HiveField(4) List<OrderItemModel> get items;@HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) OrderStatus get status;// Pembayaran & Tipe Order
+@HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) PaymentMethod? get paymentMethod;@HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType get orderType;// Lokasi
+@HiveField(8) String get deliveryAddress;@HiveField(9) String? get tableNumber;@HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) LocationType get type;@HiveField(11) String? get outlet;// Diskon & Promo
+@HiveField(12) DiscountModel? get discounts;@HiveField(13) List<String>? get appliedPromos;@HiveField(14) String? get appliedManualPromo;@HiveField(15) String? get appliedVoucher;// Pajak & Layanan
+@HiveField(16) List<TaxServiceDetailModel> get taxAndServiceDetails;@HiveField(17) int get totalTax;@HiveField(18) int get totalServiceFee;// Total Harga,
+@HiveField(19) int get totalBeforeDiscount;@HiveField(20) int get totalAfterDiscount;@HiveField(21) int get grandTotal;// Metadata
+@HiveField(22) String get source;@HiveField(23) DateTime? get createdAt;@HiveField(24) DateTime? get updatedAt;@HiveField(25)@JsonKey(name: 'payment_details') PaymentModel? get payment;
 /// Create a copy of OrderDetailModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -34,16 +37,16 @@ $OrderDetailModelCopyWith<OrderDetailModel> get copyWith => _$OrderDetailModelCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is OrderDetailModel&&(identical(other.customerId, customerId) || other.customerId == customerId)&&(identical(other.customerName, customerName) || other.customerName == customerName)&&(identical(other.cashierId, cashierId) || other.cashierId == cashierId)&&(identical(other.phoneNumber, phoneNumber) || other.phoneNumber == phoneNumber)&&const DeepCollectionEquality().equals(other.items, items)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.deliveryAddress, deliveryAddress) || other.deliveryAddress == deliveryAddress)&&(identical(other.tableNumber, tableNumber) || other.tableNumber == tableNumber)&&(identical(other.paymentMethod, paymentMethod) || other.paymentMethod == paymentMethod)&&(identical(other.status, status) || other.status == status)&&(identical(other.subTotalPrice, subTotalPrice) || other.subTotalPrice == subTotalPrice)&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.tax, tax) || other.tax == tax)&&(identical(other.totalPrice, totalPrice) || other.totalPrice == totalPrice)&&(identical(other.serviceFee, serviceFee) || other.serviceFee == serviceFee)&&const DeepCollectionEquality().equals(other.discounts, discounts));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is OrderDetailModel&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.user, user) || other.user == user)&&(identical(other.cashierId, cashierId) || other.cashierId == cashierId)&&const DeepCollectionEquality().equals(other.items, items)&&(identical(other.status, status) || other.status == status)&&(identical(other.paymentMethod, paymentMethod) || other.paymentMethod == paymentMethod)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.deliveryAddress, deliveryAddress) || other.deliveryAddress == deliveryAddress)&&(identical(other.tableNumber, tableNumber) || other.tableNumber == tableNumber)&&(identical(other.type, type) || other.type == type)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.discounts, discounts) || other.discounts == discounts)&&const DeepCollectionEquality().equals(other.appliedPromos, appliedPromos)&&(identical(other.appliedManualPromo, appliedManualPromo) || other.appliedManualPromo == appliedManualPromo)&&(identical(other.appliedVoucher, appliedVoucher) || other.appliedVoucher == appliedVoucher)&&const DeepCollectionEquality().equals(other.taxAndServiceDetails, taxAndServiceDetails)&&(identical(other.totalTax, totalTax) || other.totalTax == totalTax)&&(identical(other.totalServiceFee, totalServiceFee) || other.totalServiceFee == totalServiceFee)&&(identical(other.totalBeforeDiscount, totalBeforeDiscount) || other.totalBeforeDiscount == totalBeforeDiscount)&&(identical(other.totalAfterDiscount, totalAfterDiscount) || other.totalAfterDiscount == totalAfterDiscount)&&(identical(other.grandTotal, grandTotal) || other.grandTotal == grandTotal)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.payment, payment) || other.payment == payment));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,customerId,customerName,cashierId,phoneNumber,const DeepCollectionEquality().hash(items),orderType,deliveryAddress,tableNumber,paymentMethod,status,subTotalPrice,orderId,tax,totalPrice,serviceFee,const DeepCollectionEquality().hash(discounts));
+int get hashCode => Object.hashAll([runtimeType,orderId,userId,user,cashierId,const DeepCollectionEquality().hash(items),status,paymentMethod,orderType,deliveryAddress,tableNumber,type,outlet,discounts,const DeepCollectionEquality().hash(appliedPromos),appliedManualPromo,appliedVoucher,const DeepCollectionEquality().hash(taxAndServiceDetails),totalTax,totalServiceFee,totalBeforeDiscount,totalAfterDiscount,grandTotal,source,createdAt,updatedAt,payment]);
 
 @override
 String toString() {
-  return 'OrderDetailModel(customerId: $customerId, customerName: $customerName, cashierId: $cashierId, phoneNumber: $phoneNumber, items: $items, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, paymentMethod: $paymentMethod, status: $status, subTotalPrice: $subTotalPrice, orderId: $orderId, tax: $tax, totalPrice: $totalPrice, serviceFee: $serviceFee, discounts: $discounts)';
+  return 'OrderDetailModel(orderId: $orderId, userId: $userId, user: $user, cashierId: $cashierId, items: $items, status: $status, paymentMethod: $paymentMethod, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, type: $type, outlet: $outlet, discounts: $discounts, appliedPromos: $appliedPromos, appliedManualPromo: $appliedManualPromo, appliedVoucher: $appliedVoucher, taxAndServiceDetails: $taxAndServiceDetails, totalTax: $totalTax, totalServiceFee: $totalServiceFee, totalBeforeDiscount: $totalBeforeDiscount, totalAfterDiscount: $totalAfterDiscount, grandTotal: $grandTotal, source: $source, createdAt: $createdAt, updatedAt: $updatedAt, payment: $payment)';
 }
 
 
@@ -54,11 +57,11 @@ abstract mixin class $OrderDetailModelCopyWith<$Res>  {
   factory $OrderDetailModelCopyWith(OrderDetailModel value, $Res Function(OrderDetailModel) _then) = _$OrderDetailModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: 'userId') String? customerId,@HiveField(1) String? customerName,@HiveField(2) String? cashierId,@HiveField(3) String? phoneNumber,@HiveField(4) List<OrderItemModel> items,@HiveField(5) String orderType,@HiveField(6) String? deliveryAddress,@HiveField(7) String? tableNumber,@HiveField(8) String? paymentMethod,@HiveField(9) String? status,@HiveField(10) int? subTotalPrice,@HiveField(11)@JsonKey(name: 'order_id') String? orderId,@HiveField(12) int? tax,@HiveField(13) int? totalPrice,@HiveField(14) int? serviceFee,@HiveField(15) Map<String, dynamic>? discounts
+@HiveField(0)@JsonKey(name: 'order_id') String? orderId,@HiveField(1)@JsonKey(name: 'user_id') String? userId,@HiveField(2) String user,@HiveField(3) String? cashierId,@HiveField(4) List<OrderItemModel> items,@HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) OrderStatus status,@HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) PaymentMethod? paymentMethod,@HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType,@HiveField(8) String deliveryAddress,@HiveField(9) String? tableNumber,@HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) LocationType type,@HiveField(11) String? outlet,@HiveField(12) DiscountModel? discounts,@HiveField(13) List<String>? appliedPromos,@HiveField(14) String? appliedManualPromo,@HiveField(15) String? appliedVoucher,@HiveField(16) List<TaxServiceDetailModel> taxAndServiceDetails,@HiveField(17) int totalTax,@HiveField(18) int totalServiceFee,@HiveField(19) int totalBeforeDiscount,@HiveField(20) int totalAfterDiscount,@HiveField(21) int grandTotal,@HiveField(22) String source,@HiveField(23) DateTime? createdAt,@HiveField(24) DateTime? updatedAt,@HiveField(25)@JsonKey(name: 'payment_details') PaymentModel? payment
 });
 
 
-
+$DiscountModelCopyWith<$Res>? get discounts;$PaymentModelCopyWith<$Res>? get payment;
 
 }
 /// @nodoc
@@ -71,28 +74,62 @@ class _$OrderDetailModelCopyWithImpl<$Res>
 
 /// Create a copy of OrderDetailModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? customerId = freezed,Object? customerName = freezed,Object? cashierId = freezed,Object? phoneNumber = freezed,Object? items = null,Object? orderType = null,Object? deliveryAddress = freezed,Object? tableNumber = freezed,Object? paymentMethod = freezed,Object? status = freezed,Object? subTotalPrice = freezed,Object? orderId = freezed,Object? tax = freezed,Object? totalPrice = freezed,Object? serviceFee = freezed,Object? discounts = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? orderId = freezed,Object? userId = freezed,Object? user = null,Object? cashierId = freezed,Object? items = null,Object? status = null,Object? paymentMethod = freezed,Object? orderType = null,Object? deliveryAddress = null,Object? tableNumber = freezed,Object? type = null,Object? outlet = freezed,Object? discounts = freezed,Object? appliedPromos = freezed,Object? appliedManualPromo = freezed,Object? appliedVoucher = freezed,Object? taxAndServiceDetails = null,Object? totalTax = null,Object? totalServiceFee = null,Object? totalBeforeDiscount = null,Object? totalAfterDiscount = null,Object? grandTotal = null,Object? source = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? payment = freezed,}) {
   return _then(_self.copyWith(
-customerId: freezed == customerId ? _self.customerId : customerId // ignore: cast_nullable_to_non_nullable
-as String?,customerName: freezed == customerName ? _self.customerName : customerName // ignore: cast_nullable_to_non_nullable
-as String?,cashierId: freezed == cashierId ? _self.cashierId : cashierId // ignore: cast_nullable_to_non_nullable
-as String?,phoneNumber: freezed == phoneNumber ? _self.phoneNumber : phoneNumber // ignore: cast_nullable_to_non_nullable
+orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
+as String?,userId: freezed == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as String?,user: null == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
+as String,cashierId: freezed == cashierId ? _self.cashierId : cashierId // ignore: cast_nullable_to_non_nullable
 as String?,items: null == items ? _self.items : items // ignore: cast_nullable_to_non_nullable
-as List<OrderItemModel>,orderType: null == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
-as String,deliveryAddress: freezed == deliveryAddress ? _self.deliveryAddress : deliveryAddress // ignore: cast_nullable_to_non_nullable
-as String?,tableNumber: freezed == tableNumber ? _self.tableNumber : tableNumber // ignore: cast_nullable_to_non_nullable
-as String?,paymentMethod: freezed == paymentMethod ? _self.paymentMethod : paymentMethod // ignore: cast_nullable_to_non_nullable
-as String?,status: freezed == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
-as String?,subTotalPrice: freezed == subTotalPrice ? _self.subTotalPrice : subTotalPrice // ignore: cast_nullable_to_non_nullable
-as int?,orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
-as String?,tax: freezed == tax ? _self.tax : tax // ignore: cast_nullable_to_non_nullable
-as int?,totalPrice: freezed == totalPrice ? _self.totalPrice : totalPrice // ignore: cast_nullable_to_non_nullable
-as int?,serviceFee: freezed == serviceFee ? _self.serviceFee : serviceFee // ignore: cast_nullable_to_non_nullable
-as int?,discounts: freezed == discounts ? _self.discounts : discounts // ignore: cast_nullable_to_non_nullable
-as Map<String, dynamic>?,
+as List<OrderItemModel>,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as OrderStatus,paymentMethod: freezed == paymentMethod ? _self.paymentMethod : paymentMethod // ignore: cast_nullable_to_non_nullable
+as PaymentMethod?,orderType: null == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
+as OrderType,deliveryAddress: null == deliveryAddress ? _self.deliveryAddress : deliveryAddress // ignore: cast_nullable_to_non_nullable
+as String,tableNumber: freezed == tableNumber ? _self.tableNumber : tableNumber // ignore: cast_nullable_to_non_nullable
+as String?,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
+as LocationType,outlet: freezed == outlet ? _self.outlet : outlet // ignore: cast_nullable_to_non_nullable
+as String?,discounts: freezed == discounts ? _self.discounts : discounts // ignore: cast_nullable_to_non_nullable
+as DiscountModel?,appliedPromos: freezed == appliedPromos ? _self.appliedPromos : appliedPromos // ignore: cast_nullable_to_non_nullable
+as List<String>?,appliedManualPromo: freezed == appliedManualPromo ? _self.appliedManualPromo : appliedManualPromo // ignore: cast_nullable_to_non_nullable
+as String?,appliedVoucher: freezed == appliedVoucher ? _self.appliedVoucher : appliedVoucher // ignore: cast_nullable_to_non_nullable
+as String?,taxAndServiceDetails: null == taxAndServiceDetails ? _self.taxAndServiceDetails : taxAndServiceDetails // ignore: cast_nullable_to_non_nullable
+as List<TaxServiceDetailModel>,totalTax: null == totalTax ? _self.totalTax : totalTax // ignore: cast_nullable_to_non_nullable
+as int,totalServiceFee: null == totalServiceFee ? _self.totalServiceFee : totalServiceFee // ignore: cast_nullable_to_non_nullable
+as int,totalBeforeDiscount: null == totalBeforeDiscount ? _self.totalBeforeDiscount : totalBeforeDiscount // ignore: cast_nullable_to_non_nullable
+as int,totalAfterDiscount: null == totalAfterDiscount ? _self.totalAfterDiscount : totalAfterDiscount // ignore: cast_nullable_to_non_nullable
+as int,grandTotal: null == grandTotal ? _self.grandTotal : grandTotal // ignore: cast_nullable_to_non_nullable
+as int,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
+as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,payment: freezed == payment ? _self.payment : payment // ignore: cast_nullable_to_non_nullable
+as PaymentModel?,
   ));
 }
+/// Create a copy of OrderDetailModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$DiscountModelCopyWith<$Res>? get discounts {
+    if (_self.discounts == null) {
+    return null;
+  }
 
+  return $DiscountModelCopyWith<$Res>(_self.discounts!, (value) {
+    return _then(_self.copyWith(discounts: value));
+  });
+}/// Create a copy of OrderDetailModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PaymentModelCopyWith<$Res>? get payment {
+    if (_self.payment == null) {
+    return null;
+  }
+
+  return $PaymentModelCopyWith<$Res>(_self.payment!, (value) {
+    return _then(_self.copyWith(payment: value));
+  });
+}
 }
 
 
@@ -100,44 +137,65 @@ as Map<String, dynamic>?,
 @JsonSerializable()
 
 class _OrderDetailModel implements OrderDetailModel {
-   _OrderDetailModel({@HiveField(0)@JsonKey(name: 'userId') this.customerId = "", @HiveField(1) this.customerName = "", @HiveField(2) this.cashierId = "", @HiveField(3) this.phoneNumber = "", @HiveField(4) final  List<OrderItemModel> items = const [], @HiveField(5) required this.orderType, @HiveField(6) this.deliveryAddress = "", @HiveField(7) this.tableNumber = "", @HiveField(8) this.paymentMethod = "", @HiveField(9) this.status = "", @HiveField(10) this.subTotalPrice = 0, @HiveField(11)@JsonKey(name: 'order_id') this.orderId = "", @HiveField(12) this.tax = 0, @HiveField(13) this.totalPrice = 0, @HiveField(14) this.serviceFee = 0, @HiveField(15) final  Map<String, dynamic>? discounts}): _items = items,_discounts = discounts;
+   _OrderDetailModel({@HiveField(0)@JsonKey(name: 'order_id') this.orderId = "", @HiveField(1)@JsonKey(name: 'user_id') this.userId, @HiveField(2) this.user = '', @HiveField(3) this.cashierId = "", @HiveField(4) final  List<OrderItemModel> items = const [], @HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) this.status = OrderStatus.unknown, @HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) this.paymentMethod, @HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) required this.orderType, @HiveField(8) this.deliveryAddress = '', @HiveField(9) this.tableNumber = '', @HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) this.type = LocationType.indoor, @HiveField(11) this.outlet, @HiveField(12) this.discounts, @HiveField(13) final  List<String>? appliedPromos, @HiveField(14) this.appliedManualPromo, @HiveField(15) this.appliedVoucher, @HiveField(16) final  List<TaxServiceDetailModel> taxAndServiceDetails = const [], @HiveField(17) this.totalTax = 0, @HiveField(18) this.totalServiceFee = 0, @HiveField(19) this.totalBeforeDiscount = 0, @HiveField(20) this.totalAfterDiscount = 0, @HiveField(21) this.grandTotal = 0, @HiveField(22) this.source = 'Cashier', @HiveField(23) this.createdAt, @HiveField(24) this.updatedAt, @HiveField(25)@JsonKey(name: 'payment_details') this.payment = null}): _items = items,_appliedPromos = appliedPromos,_taxAndServiceDetails = taxAndServiceDetails;
   factory _OrderDetailModel.fromJson(Map<String, dynamic> json) => _$OrderDetailModelFromJson(json);
 
-@override@HiveField(0)@JsonKey(name: 'userId') final  String? customerId;
-@override@JsonKey()@HiveField(1) final  String? customerName;
-//
-@override@JsonKey()@HiveField(2) final  String? cashierId;
-//
-@override@JsonKey()@HiveField(3) final  String? phoneNumber;
+// Identitas Order
+@override@HiveField(0)@JsonKey(name: 'order_id') final  String? orderId;
+@override@HiveField(1)@JsonKey(name: 'user_id') final  String? userId;
+@override@JsonKey()@HiveField(2) final  String user;
+@override@JsonKey()@HiveField(3) final  String? cashierId;
+// Item dan Status
  final  List<OrderItemModel> _items;
+// Item dan Status
 @override@JsonKey()@HiveField(4) List<OrderItemModel> get items {
   if (_items is EqualUnmodifiableListView) return _items;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_items);
 }
 
-//
-@override@HiveField(5) final  String orderType;
-//
-@override@JsonKey()@HiveField(6) final  String? deliveryAddress;
-@override@JsonKey()@HiveField(7) final  String? tableNumber;
-@override@JsonKey()@HiveField(8) final  String? paymentMethod;
-@override@JsonKey()@HiveField(9) final  String? status;
-@override@JsonKey()@HiveField(10) final  int? subTotalPrice;
-@override@HiveField(11)@JsonKey(name: 'order_id') final  String? orderId;
-//
-@override@JsonKey()@HiveField(12) final  int? tax;
-@override@JsonKey()@HiveField(13) final  int? totalPrice;
-@override@JsonKey()@HiveField(14) final  int? serviceFee;
- final  Map<String, dynamic>? _discounts;
-@override@HiveField(15) Map<String, dynamic>? get discounts {
-  final value = _discounts;
+@override@HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) final  OrderStatus status;
+// Pembayaran & Tipe Order
+@override@HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) final  PaymentMethod? paymentMethod;
+@override@HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) final  OrderType orderType;
+// Lokasi
+@override@JsonKey()@HiveField(8) final  String deliveryAddress;
+@override@JsonKey()@HiveField(9) final  String? tableNumber;
+@override@HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) final  LocationType type;
+@override@HiveField(11) final  String? outlet;
+// Diskon & Promo
+@override@HiveField(12) final  DiscountModel? discounts;
+ final  List<String>? _appliedPromos;
+@override@HiveField(13) List<String>? get appliedPromos {
+  final value = _appliedPromos;
   if (value == null) return null;
-  if (_discounts is EqualUnmodifiableMapView) return _discounts;
+  if (_appliedPromos is EqualUnmodifiableListView) return _appliedPromos;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableMapView(value);
+  return EqualUnmodifiableListView(value);
 }
 
+@override@HiveField(14) final  String? appliedManualPromo;
+@override@HiveField(15) final  String? appliedVoucher;
+// Pajak & Layanan
+ final  List<TaxServiceDetailModel> _taxAndServiceDetails;
+// Pajak & Layanan
+@override@JsonKey()@HiveField(16) List<TaxServiceDetailModel> get taxAndServiceDetails {
+  if (_taxAndServiceDetails is EqualUnmodifiableListView) return _taxAndServiceDetails;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_taxAndServiceDetails);
+}
+
+@override@JsonKey()@HiveField(17) final  int totalTax;
+@override@JsonKey()@HiveField(18) final  int totalServiceFee;
+// Total Harga,
+@override@JsonKey()@HiveField(19) final  int totalBeforeDiscount;
+@override@JsonKey()@HiveField(20) final  int totalAfterDiscount;
+@override@JsonKey()@HiveField(21) final  int grandTotal;
+// Metadata
+@override@JsonKey()@HiveField(22) final  String source;
+@override@HiveField(23) final  DateTime? createdAt;
+@override@HiveField(24) final  DateTime? updatedAt;
+@override@HiveField(25)@JsonKey(name: 'payment_details') final  PaymentModel? payment;
 
 /// Create a copy of OrderDetailModel
 /// with the given fields replaced by the non-null parameter values.
@@ -152,16 +210,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _OrderDetailModel&&(identical(other.customerId, customerId) || other.customerId == customerId)&&(identical(other.customerName, customerName) || other.customerName == customerName)&&(identical(other.cashierId, cashierId) || other.cashierId == cashierId)&&(identical(other.phoneNumber, phoneNumber) || other.phoneNumber == phoneNumber)&&const DeepCollectionEquality().equals(other._items, _items)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.deliveryAddress, deliveryAddress) || other.deliveryAddress == deliveryAddress)&&(identical(other.tableNumber, tableNumber) || other.tableNumber == tableNumber)&&(identical(other.paymentMethod, paymentMethod) || other.paymentMethod == paymentMethod)&&(identical(other.status, status) || other.status == status)&&(identical(other.subTotalPrice, subTotalPrice) || other.subTotalPrice == subTotalPrice)&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.tax, tax) || other.tax == tax)&&(identical(other.totalPrice, totalPrice) || other.totalPrice == totalPrice)&&(identical(other.serviceFee, serviceFee) || other.serviceFee == serviceFee)&&const DeepCollectionEquality().equals(other._discounts, _discounts));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _OrderDetailModel&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.user, user) || other.user == user)&&(identical(other.cashierId, cashierId) || other.cashierId == cashierId)&&const DeepCollectionEquality().equals(other._items, _items)&&(identical(other.status, status) || other.status == status)&&(identical(other.paymentMethod, paymentMethod) || other.paymentMethod == paymentMethod)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.deliveryAddress, deliveryAddress) || other.deliveryAddress == deliveryAddress)&&(identical(other.tableNumber, tableNumber) || other.tableNumber == tableNumber)&&(identical(other.type, type) || other.type == type)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.discounts, discounts) || other.discounts == discounts)&&const DeepCollectionEquality().equals(other._appliedPromos, _appliedPromos)&&(identical(other.appliedManualPromo, appliedManualPromo) || other.appliedManualPromo == appliedManualPromo)&&(identical(other.appliedVoucher, appliedVoucher) || other.appliedVoucher == appliedVoucher)&&const DeepCollectionEquality().equals(other._taxAndServiceDetails, _taxAndServiceDetails)&&(identical(other.totalTax, totalTax) || other.totalTax == totalTax)&&(identical(other.totalServiceFee, totalServiceFee) || other.totalServiceFee == totalServiceFee)&&(identical(other.totalBeforeDiscount, totalBeforeDiscount) || other.totalBeforeDiscount == totalBeforeDiscount)&&(identical(other.totalAfterDiscount, totalAfterDiscount) || other.totalAfterDiscount == totalAfterDiscount)&&(identical(other.grandTotal, grandTotal) || other.grandTotal == grandTotal)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.payment, payment) || other.payment == payment));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,customerId,customerName,cashierId,phoneNumber,const DeepCollectionEquality().hash(_items),orderType,deliveryAddress,tableNumber,paymentMethod,status,subTotalPrice,orderId,tax,totalPrice,serviceFee,const DeepCollectionEquality().hash(_discounts));
+int get hashCode => Object.hashAll([runtimeType,orderId,userId,user,cashierId,const DeepCollectionEquality().hash(_items),status,paymentMethod,orderType,deliveryAddress,tableNumber,type,outlet,discounts,const DeepCollectionEquality().hash(_appliedPromos),appliedManualPromo,appliedVoucher,const DeepCollectionEquality().hash(_taxAndServiceDetails),totalTax,totalServiceFee,totalBeforeDiscount,totalAfterDiscount,grandTotal,source,createdAt,updatedAt,payment]);
 
 @override
 String toString() {
-  return 'OrderDetailModel(customerId: $customerId, customerName: $customerName, cashierId: $cashierId, phoneNumber: $phoneNumber, items: $items, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, paymentMethod: $paymentMethod, status: $status, subTotalPrice: $subTotalPrice, orderId: $orderId, tax: $tax, totalPrice: $totalPrice, serviceFee: $serviceFee, discounts: $discounts)';
+  return 'OrderDetailModel(orderId: $orderId, userId: $userId, user: $user, cashierId: $cashierId, items: $items, status: $status, paymentMethod: $paymentMethod, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, type: $type, outlet: $outlet, discounts: $discounts, appliedPromos: $appliedPromos, appliedManualPromo: $appliedManualPromo, appliedVoucher: $appliedVoucher, taxAndServiceDetails: $taxAndServiceDetails, totalTax: $totalTax, totalServiceFee: $totalServiceFee, totalBeforeDiscount: $totalBeforeDiscount, totalAfterDiscount: $totalAfterDiscount, grandTotal: $grandTotal, source: $source, createdAt: $createdAt, updatedAt: $updatedAt, payment: $payment)';
 }
 
 
@@ -172,11 +230,11 @@ abstract mixin class _$OrderDetailModelCopyWith<$Res> implements $OrderDetailMod
   factory _$OrderDetailModelCopyWith(_OrderDetailModel value, $Res Function(_OrderDetailModel) _then) = __$OrderDetailModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: 'userId') String? customerId,@HiveField(1) String? customerName,@HiveField(2) String? cashierId,@HiveField(3) String? phoneNumber,@HiveField(4) List<OrderItemModel> items,@HiveField(5) String orderType,@HiveField(6) String? deliveryAddress,@HiveField(7) String? tableNumber,@HiveField(8) String? paymentMethod,@HiveField(9) String? status,@HiveField(10) int? subTotalPrice,@HiveField(11)@JsonKey(name: 'order_id') String? orderId,@HiveField(12) int? tax,@HiveField(13) int? totalPrice,@HiveField(14) int? serviceFee,@HiveField(15) Map<String, dynamic>? discounts
+@HiveField(0)@JsonKey(name: 'order_id') String? orderId,@HiveField(1)@JsonKey(name: 'user_id') String? userId,@HiveField(2) String user,@HiveField(3) String? cashierId,@HiveField(4) List<OrderItemModel> items,@HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) OrderStatus status,@HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) PaymentMethod? paymentMethod,@HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType,@HiveField(8) String deliveryAddress,@HiveField(9) String? tableNumber,@HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) LocationType type,@HiveField(11) String? outlet,@HiveField(12) DiscountModel? discounts,@HiveField(13) List<String>? appliedPromos,@HiveField(14) String? appliedManualPromo,@HiveField(15) String? appliedVoucher,@HiveField(16) List<TaxServiceDetailModel> taxAndServiceDetails,@HiveField(17) int totalTax,@HiveField(18) int totalServiceFee,@HiveField(19) int totalBeforeDiscount,@HiveField(20) int totalAfterDiscount,@HiveField(21) int grandTotal,@HiveField(22) String source,@HiveField(23) DateTime? createdAt,@HiveField(24) DateTime? updatedAt,@HiveField(25)@JsonKey(name: 'payment_details') PaymentModel? payment
 });
 
 
-
+@override $DiscountModelCopyWith<$Res>? get discounts;@override $PaymentModelCopyWith<$Res>? get payment;
 
 }
 /// @nodoc
@@ -189,29 +247,63 @@ class __$OrderDetailModelCopyWithImpl<$Res>
 
 /// Create a copy of OrderDetailModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? customerId = freezed,Object? customerName = freezed,Object? cashierId = freezed,Object? phoneNumber = freezed,Object? items = null,Object? orderType = null,Object? deliveryAddress = freezed,Object? tableNumber = freezed,Object? paymentMethod = freezed,Object? status = freezed,Object? subTotalPrice = freezed,Object? orderId = freezed,Object? tax = freezed,Object? totalPrice = freezed,Object? serviceFee = freezed,Object? discounts = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? orderId = freezed,Object? userId = freezed,Object? user = null,Object? cashierId = freezed,Object? items = null,Object? status = null,Object? paymentMethod = freezed,Object? orderType = null,Object? deliveryAddress = null,Object? tableNumber = freezed,Object? type = null,Object? outlet = freezed,Object? discounts = freezed,Object? appliedPromos = freezed,Object? appliedManualPromo = freezed,Object? appliedVoucher = freezed,Object? taxAndServiceDetails = null,Object? totalTax = null,Object? totalServiceFee = null,Object? totalBeforeDiscount = null,Object? totalAfterDiscount = null,Object? grandTotal = null,Object? source = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? payment = freezed,}) {
   return _then(_OrderDetailModel(
-customerId: freezed == customerId ? _self.customerId : customerId // ignore: cast_nullable_to_non_nullable
-as String?,customerName: freezed == customerName ? _self.customerName : customerName // ignore: cast_nullable_to_non_nullable
-as String?,cashierId: freezed == cashierId ? _self.cashierId : cashierId // ignore: cast_nullable_to_non_nullable
-as String?,phoneNumber: freezed == phoneNumber ? _self.phoneNumber : phoneNumber // ignore: cast_nullable_to_non_nullable
+orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
+as String?,userId: freezed == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as String?,user: null == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
+as String,cashierId: freezed == cashierId ? _self.cashierId : cashierId // ignore: cast_nullable_to_non_nullable
 as String?,items: null == items ? _self._items : items // ignore: cast_nullable_to_non_nullable
-as List<OrderItemModel>,orderType: null == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
-as String,deliveryAddress: freezed == deliveryAddress ? _self.deliveryAddress : deliveryAddress // ignore: cast_nullable_to_non_nullable
-as String?,tableNumber: freezed == tableNumber ? _self.tableNumber : tableNumber // ignore: cast_nullable_to_non_nullable
-as String?,paymentMethod: freezed == paymentMethod ? _self.paymentMethod : paymentMethod // ignore: cast_nullable_to_non_nullable
-as String?,status: freezed == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
-as String?,subTotalPrice: freezed == subTotalPrice ? _self.subTotalPrice : subTotalPrice // ignore: cast_nullable_to_non_nullable
-as int?,orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
-as String?,tax: freezed == tax ? _self.tax : tax // ignore: cast_nullable_to_non_nullable
-as int?,totalPrice: freezed == totalPrice ? _self.totalPrice : totalPrice // ignore: cast_nullable_to_non_nullable
-as int?,serviceFee: freezed == serviceFee ? _self.serviceFee : serviceFee // ignore: cast_nullable_to_non_nullable
-as int?,discounts: freezed == discounts ? _self._discounts : discounts // ignore: cast_nullable_to_non_nullable
-as Map<String, dynamic>?,
+as List<OrderItemModel>,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as OrderStatus,paymentMethod: freezed == paymentMethod ? _self.paymentMethod : paymentMethod // ignore: cast_nullable_to_non_nullable
+as PaymentMethod?,orderType: null == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
+as OrderType,deliveryAddress: null == deliveryAddress ? _self.deliveryAddress : deliveryAddress // ignore: cast_nullable_to_non_nullable
+as String,tableNumber: freezed == tableNumber ? _self.tableNumber : tableNumber // ignore: cast_nullable_to_non_nullable
+as String?,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
+as LocationType,outlet: freezed == outlet ? _self.outlet : outlet // ignore: cast_nullable_to_non_nullable
+as String?,discounts: freezed == discounts ? _self.discounts : discounts // ignore: cast_nullable_to_non_nullable
+as DiscountModel?,appliedPromos: freezed == appliedPromos ? _self._appliedPromos : appliedPromos // ignore: cast_nullable_to_non_nullable
+as List<String>?,appliedManualPromo: freezed == appliedManualPromo ? _self.appliedManualPromo : appliedManualPromo // ignore: cast_nullable_to_non_nullable
+as String?,appliedVoucher: freezed == appliedVoucher ? _self.appliedVoucher : appliedVoucher // ignore: cast_nullable_to_non_nullable
+as String?,taxAndServiceDetails: null == taxAndServiceDetails ? _self._taxAndServiceDetails : taxAndServiceDetails // ignore: cast_nullable_to_non_nullable
+as List<TaxServiceDetailModel>,totalTax: null == totalTax ? _self.totalTax : totalTax // ignore: cast_nullable_to_non_nullable
+as int,totalServiceFee: null == totalServiceFee ? _self.totalServiceFee : totalServiceFee // ignore: cast_nullable_to_non_nullable
+as int,totalBeforeDiscount: null == totalBeforeDiscount ? _self.totalBeforeDiscount : totalBeforeDiscount // ignore: cast_nullable_to_non_nullable
+as int,totalAfterDiscount: null == totalAfterDiscount ? _self.totalAfterDiscount : totalAfterDiscount // ignore: cast_nullable_to_non_nullable
+as int,grandTotal: null == grandTotal ? _self.grandTotal : grandTotal // ignore: cast_nullable_to_non_nullable
+as int,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
+as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,payment: freezed == payment ? _self.payment : payment // ignore: cast_nullable_to_non_nullable
+as PaymentModel?,
   ));
 }
 
+/// Create a copy of OrderDetailModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$DiscountModelCopyWith<$Res>? get discounts {
+    if (_self.discounts == null) {
+    return null;
+  }
 
+  return $DiscountModelCopyWith<$Res>(_self.discounts!, (value) {
+    return _then(_self.copyWith(discounts: value));
+  });
+}/// Create a copy of OrderDetailModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PaymentModelCopyWith<$Res>? get payment {
+    if (_self.payment == null) {
+    return null;
+  }
+
+  return $PaymentModelCopyWith<$Res>(_self.payment!, (value) {
+    return _then(_self.copyWith(payment: value));
+  });
+}
 }
 
 // dart format on

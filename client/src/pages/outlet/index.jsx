@@ -1,75 +1,68 @@
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
-import { FaClipboardList, FaBell, FaUser, FaTag, FaStoreAlt, FaBullseye, FaReceipt, FaSearch, FaPencilAlt, FaTrash } from "react-icons/fa";
+import { useNavigate, Link } from "react-router-dom";
+import {
+  FaClipboardList, FaBell, FaUser, FaStoreAlt,
+  FaBullseye, FaReceipt, FaSearch, FaPencilAlt,
+  FaTrash, FaEllipsisV
+} from "react-icons/fa";
 
 const OutletManagementPage = () => {
   const [openDropdown, setOpenDropdown] = useState(null);
-  const [tempSearch, setTempSearch] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [outlets, setOutlets] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
-  // Calculate total pages based on filtered data
-  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-
-
   useEffect(() => {
+    const fetchOutlets = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get("/api/outlet");
+        setOutlets(Array.isArray(response.data) ? response.data : response.data?.data || []);
+
+      } catch (error) {
+        console.error("Error fetching outlets:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchOutlets();
-    setLoading(true);
   }, []);
 
-  // Search filtering
-  useEffect(() => {
-    console.log(outlets);
-    const filtered = outlets.filter((outlet) =>
-      (outlet.name || '').toLowerCase().includes(tempSearch.toLowerCase())
+  const filteredOutlets = useMemo(() => {
+    return outlets.filter(outlet =>
+      outlet.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      outlet.city?.toLowerCase().includes(searchTerm.toLowerCase())
     );
-    setFilteredData(filtered);
-    setCurrentPage(1); // reset page saat pencarian
-  }, [tempSearch, outlets]);
+  }, [outlets, searchTerm]);
 
-  const fetchOutlets = async () => {
-    try {
-      const response = await axios.get("/api/outlet");
-      setOutlets(response.data.data || []);
-    } catch (error) {
-      console.error("Error fetching outlets:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const paginatedOutlets = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredOutlets.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [currentPage, filteredOutlets]);
+
+  const totalPages = Math.ceil(filteredOutlets.length / ITEMS_PER_PAGE);
 
   const handleDeleteOutlet = async (id) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus outlet ini?")) return;
+
     try {
-      const response = await axios.delete(`/api/outlet/${id}`);
-      alert(response.data.message);
-      fetchOutlets();
+      await axios.delete(`/api/outlet/${id}`);
+      setOutlets(prev => prev.filter(outlet => outlet._id !== id));
     } catch (error) {
-      alert("Error deleting outlet.");
+      alert("Gagal menghapus outlet");
+      console.error("Delete error:", error);
     }
   };
 
-  const paginatedData = useMemo(() => {
+  const handlePageChange = (newPage) => {
+    setCurrentPage(Math.max(1, Math.min(newPage, totalPages)));
+  };
 
-    // Ensure filteredData is an array before calling slice
-    if (!Array.isArray(filteredData)) {
-      console.error('filteredData is not an array:', filteredData);
-      return [];
-    }
-
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
-    const result = filteredData.slice(startIndex, endIndex);
-    return result;
-  }, [currentPage, filteredData]);
-
-
-  // Show loading state
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -79,7 +72,7 @@ const OutletManagementPage = () => {
   }
 
   return (
-    <div className="overflow-y-auto pb-[100px]">
+    <div className="pb-[100px]">
       {/* Header */}
       <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
         <FaBell size={23} className="text-gray-400" />
@@ -92,83 +85,85 @@ const OutletManagementPage = () => {
       {/* Breadcrumb */}
       <div className="px-3 py-2 flex justify-between items-center border-b">
         <div className="flex items-center space-x-2">
-          <FaStoreAlt size={21} className="text-gray-500 inline-block" />
+          <FaStoreAlt size={21} className="text-gray-500" />
           <p className="text-[15px] text-gray-500">Outlet</p>
         </div>
-        <button onClick={() => navigate("/admin/outlet-create")} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Outlet</button>
+        <button
+          onClick={() => navigate("/admin/outlet-create")}
+          className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+        >
+          Tambah Outlet
+        </button>
       </div>
 
+      {/* Navigation Tabs */}
       <div className="px-[15px]">
         <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-4 py-4">
-          <button
-            className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
-            onClick={() => handleTabChange("menu")}
-          >
-            <Link className="flex justify-between items-center p-4">
+          <div className="bg-white border-b-2 border-b-[#005429]">
+            <div className="flex justify-between items-center p-4">
               <div className="flex space-x-4">
                 <FaStoreAlt size={24} className="text-gray-400" />
-                <h2 className="text-gray-400 ml-2 text-sm">Outlet</h2>
+                <h2 className="text-gray-400 text-sm">Outlet</h2>
               </div>
               <div className="text-sm text-gray-400">
                 ({outlets.length})
               </div>
-            </Link>
-          </button>
+            </div>
+          </div>
 
-          <div
-            className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+          <Link
+            to="/admin/tax-and-service"
+            className="bg-white border-b-2 border-b-white hover:border-b-[#005429] border-l border-l-gray-200"
           >
-            <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-              to={"/admin/tax-and-service"}>
+            <div className="flex justify-between items-center p-4">
               <div className="flex space-x-4">
                 <FaClipboardList size={24} className="text-gray-400" />
-                <h2 className="text-gray-400 ml-2 text-sm">Pajak & Service</h2>
+                <h2 className="text-gray-400 text-sm">Pajak & Service</h2>
               </div>
-              <div className="text-sm text-gray-400">
+            </div>
+          </Link>
 
-              </div>
-            </Link>
-          </div>
-
-          <div
-            className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+          <Link
+            to="/admin/target-sales"
+            className="bg-white border-b-2 border-b-white hover:border-b-[#005429] border-l border-l-gray-200"
           >
-            <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-              to="/admin/target-sales">
+            <div className="flex justify-between items-center p-4">
               <div className="flex space-x-4">
                 <FaBullseye size={24} className="text-gray-400" />
-                <h2 className="text-gray-400 ml-2 text-sm">Target Penjualan</h2>
+                <h2 className="text-gray-400 text-sm">Target Penjualan</h2>
               </div>
-              <div className="text-sm text-gray-400">
+            </div>
+          </Link>
 
-              </div>
-            </Link>
-          </div>
-
-          <div
-            className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
+          <Link
+            to="/admin/receipt-design"
+            className="bg-white border-b-2 border-b-white hover:border-b-[#005429] border-l border-l-gray-200"
           >
-            <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-              to="/admin/receipt-design">
+            <div className="flex justify-between items-center p-4">
               <div className="flex space-x-4">
                 <FaReceipt size={24} className="text-gray-400" />
-                <h2 className="text-gray-400 ml-2 text-sm">Desain Struk</h2>
+                <h2 className="text-gray-400 text-sm">Desain Struk</h2>
               </div>
-            </Link>
-          </div>
+            </div>
+          </Link>
         </div>
       </div>
+
+      {/* Search Bar */}
       <div className="px-[15px]">
-        <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-          <div className="flex flex-col col-span-11">
+        <div className="my-[13px] py-[10px] px-[15px] rounded bg-slate-50 shadow-md">
+          <div className="flex flex-col">
             <label className="text-[13px] mb-1 text-gray-500">Cari</label>
             <div className="relative">
-              <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Outlet / Kota"
-                value={tempSearch}
-                onChange={(e) => setTempSearch(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
               />
             </div>
@@ -176,114 +171,103 @@ const OutletManagementPage = () => {
         </div>
       </div>
 
+      {/* Outlet Table */}
       <div className="p-4">
-        <table className="min-w-full text-sm text-left text-gray-500 shadow-lg">
-          <thead className="text-[14px]">
-            <tr>
-              <th className="px-[15px] py-[21px] font-normal">Outlet</th>
-              <th className="px-[15px] py-[21px] font-normal">Kota</th>
-              <th className="px-[15px] py-[21px] font-normal">Telepon</th>
-              <th className="px-[15px] py-[21px] font-normal">Pajak</th>
-              <th className="px-[15px] py-[21px] font-normal">Tipe Penjualan</th>
-              {/* <th className="px-[15px] py-[21px] font-normal">Pawoon Order</th> */}
-              <th className="px-[15px] py-[21px] font-normal"></th>
-            </tr>
-          </thead>
-          {paginatedData.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm text-left text-gray-500 shadow-lg">
+            <thead className="text-[14px]">
+              <tr>
+                <th className="px-[15px] py-[21px] font-normal">Outlet</th>
+                <th className="px-[15px] py-[21px] font-normal">Kota</th>
+                <th className="px-[15px] py-[21px] font-normal">Telepon</th>
+                <th className="px-[15px] py-[21px] font-normal">Pajak</th>
+                <th className="px-[15px] py-[21px] font-normal">Tipe Penjualan</th>
+                <th className="px-[15px] py-[21px] font-normal"></th>
+              </tr>
+            </thead>
             <tbody>
-              {paginatedData.map((outlet) => (
-                <tr key={outlet._id} className="bg-white text-[14px]">
-                  <td className="p-[15px]">{outlet.name}</td>
-                  <td className="p-[15px] uppercase">{outlet.city}</td>
-                  <td className="p-[15px]">{outlet.contactNumber}</td>
-                  <td className="p-[15px]">Tanpa Pajak</td>
-                  <td className="p-[15px]">Tanpa tipe penjualan</td>
-                  {/* <td className="p-[15px] text-red-600">Tidak aktif</td> */}
-                  <td className="p-[15px]">
-
-                    {/* Dropdown Menu */}
-                    <div className="relative text-right">
-                      <button
-                        className="px-2 bg-white border border-gray-200 hover:border-[#005429] hover:bg-[#005429] rounded-sm"
-                        onClick={() => setOpenDropdown(openDropdown === outlet._id ? null : outlet._id)}
-                      >
-                        <span className="text-xl text-gray-200 hover:text-white">
-                          •••
-                        </span>
-                      </button>
-                      {openDropdown === outlet._id && (
-                        <div className="absolute text-left right-0 top-full mt-2 bg-white border rounded-md shadow-md w-52 z-10">
-                          <ul className="">
-                            <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
-                              <Link
-                                to={`/admin/update-outlet/${outlet._id}`}
-                                className="bg-transparent flex items-center space-x-4 text-[14px]"
-                              >
-                                <FaPencilAlt size={18} />
+              {paginatedOutlets.length > 0 ? (
+                paginatedOutlets.map((outlet) => (
+                  <tr key={outlet._id} className="bg-white text-[14px] hover:bg-gray-50">
+                    <td className="p-[15px]">{outlet.name}</td>
+                    <td className="p-[15px] uppercase">{outlet.city}</td>
+                    <td className="p-[15px]">{outlet.contactNumber}</td>
+                    <td className="p-[15px]">Tanpa Pajak</td>
+                    <td className="p-[15px]">Tanpa tipe penjualan</td>
+                    <td className="p-[15px] text-right">
+                      <div className="relative inline-block">
+                        <button
+                          onClick={() => setOpenDropdown(openDropdown === outlet._id ? null : outlet._id)}
+                          className="p-2 hover:bg-gray-100 rounded"
+                        >
+                          <FaEllipsisV className="text-gray-500" />
+                        </button>
+                        {openDropdown === outlet._id && (
+                          <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg z-10">
+                            <Link
+                              to={`/admin/update-outlet/${outlet._id}`}
+                              className="block px-4 py-3 text-sm hover:bg-gray-100"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <FaPencilAlt size={14} />
                                 <span>Ubah</span>
-                              </Link>
-                            </li>
-                            <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
-                              <button
-                                onClick={() => handleDeleteOutlet(outlet._id)}
-                                className="text-red-600 flex items-center space-x-4 text-[14px]"
-                              >
-                                <FaTrash size={18} />
+                              </div>
+                            </Link>
+                            <button
+                              onClick={() => handleDeleteOutlet(outlet._id)}
+                              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-100 text-red-600"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <FaTrash size={14} />
                                 <span>Hapus</span>
-                              </button>
-                            </li>
-                          </ul>
-                        </div>
-                      )}
-                    </div>
+                              </div>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="py-6 text-center h-96 text-gray-500">
+                    {searchTerm ? "Tidak ditemukan outlet yang sesuai" : "Tidak ada outlet"}
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
-          ) : (
-            <tbody>
-              <tr className="py-6 text-center w-full h-96 text-gray-500">
-                <td colSpan={7}>TIDAK ADA OUTLET</td>
-              </tr>
-            </tbody>
-          )}
-        </table>
+          </table>
+        </div>
       </div>
 
-
       {/* Pagination */}
-      {paginatedData.length > 0 && (
+      {filteredOutlets.length > 0 && (
         <div className="flex justify-between items-center mt-4 px-[15px]">
           <span className="text-sm text-gray-500">
-            Menampilkan <b>{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</b> – <b>{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}</b> dari <b>{filteredData.length}</b> data
+            Menampilkan <b>{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</b> – <b>{Math.min(currentPage * ITEMS_PER_PAGE, filteredOutlets.length)}</b> dari <b>{filteredOutlets.length}</b> data
           </span>
-          {currentPage === 1 ? (
-            <div className="flex"></div>
-          ) : (
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sebelumnya
-              </button>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Berikutnya
-              </button>
-            </div>
-          )}
+          <div className="flex space-x-2">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50"
+            >
+              Sebelumnya
+            </button>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50"
+            >
+              Berikutnya
+            </button>
+          </div>
         </div>
       )}
 
-
+      {/* Footer */}
       <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-        <div className="w-full h-[2px] bg-[#005429]">
-        </div>
+        <div className="w-full h-[2px] bg-[#005429]"></div>
       </div>
     </div>
   );

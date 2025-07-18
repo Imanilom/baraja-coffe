@@ -18,7 +18,7 @@ class SavedOrder extends ConsumerWidget {
             final savedOrder = savedOrderDetail[index];
             return ListTile(
               dense: true,
-              title: Text(savedOrder!.customerName.toString()),
+              title: Text(savedOrder!.user.toString()),
               subtitle: Text(
                 savedOrder.items.map((x) => x.menuItem.name).join(', '),
                 style: const TextStyle(color: Colors.black),

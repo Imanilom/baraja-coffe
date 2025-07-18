@@ -28,7 +28,7 @@ const OrderSchema = new mongoose.Schema({
   },
   orderType: {
     type: String,
-    enum: ['Dine-In', 'Pickup', 'Delivery','Take Away', 'Reservation'],
+    enum: ['Dine-In', 'Pickup', 'Delivery', 'Take Away', 'Reservation'],
     required: true
   },
   deliveryAddress: { type: String },
@@ -48,7 +48,7 @@ const OrderSchema = new mongoose.Schema({
 
   // Pajak dan Service Fee
   taxAndServiceDetails: [{
-    type: { type: String, enum: ['Tax', 'Service'], required: true },
+    type: { type: String, enum: ['tax', 'service'], required: true },
     name: String,
     amount: Number
   }],

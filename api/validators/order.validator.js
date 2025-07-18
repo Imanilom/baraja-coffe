@@ -22,6 +22,7 @@ export function validateOrderData(data, source) {
       if (!data.items || !data.cashierId || !data.paymentMethod) {
         throw new Error('Field wajib tidak lengkap untuk order kasir');
       }
+      console.log("cek outlet :", data.outlet);
       return {
         items: data.items,
         user: data.user,

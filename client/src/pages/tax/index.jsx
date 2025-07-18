@@ -27,7 +27,7 @@ const TaxManagementPage = () => {
     const fetchOutlet = async () => {
         try {
             const response = await axios.get("/api/outlet");
-            setOutlets(response.data.data || []);
+            setOutlets(Array.isArray(response.data) ? response.data : response.data?.data || []);
         } catch (error) {
             console.error("Error fetching outlets:", error);
             setOutlets([]);
