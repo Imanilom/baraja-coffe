@@ -354,7 +354,7 @@ const StockOpnameManagement = () => {
                     <FaInfoCircle size={17} className="text-gray-400 inline-block" />
                 </div>
                 <div className="flex items-center space-x-2">
-                    <button onClick={() => setShowModal(true)} className="text-[#005429] bg-white border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Impor Stok Stok Opname</button>
+                    <button onClick={() => setShowModal(true)} className="text-[#005429] hover:text-white bg-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Impor Stok Stok Opname</button>
                     <Link to="/admin/inventory/stockopname-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Stok Opname</Link>
                 </div>
             </div>
@@ -496,7 +496,7 @@ const StockOpnameManagement = () => {
 
                     <div className="flex justify-end space-x-2 items-end col-span-2">
                         <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                        <button onClick={resetFilter} className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Reset</button>
                     </div>
                 </div>
 

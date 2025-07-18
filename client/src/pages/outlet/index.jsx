@@ -25,6 +25,7 @@ const OutletManagementPage = () => {
 
   // Search filtering
   useEffect(() => {
+    console.log(outlets);
     const filtered = outlets.filter((outlet) =>
       (outlet.name || '').toLowerCase().includes(tempSearch.toLowerCase())
     );
@@ -35,7 +36,7 @@ const OutletManagementPage = () => {
   const fetchOutlets = async () => {
     try {
       const response = await axios.get("/api/outlet");
-      setOutlets(response.data || []);
+      setOutlets(response.data.data || []);
     } catch (error) {
       console.error("Error fetching outlets:", error);
     } finally {

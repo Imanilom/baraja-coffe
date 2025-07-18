@@ -3,7 +3,7 @@ import { FaCut, FaBell, FaUser } from "react-icons/fa";
 const PromoPage = () => {
   return (
 
-    <div className="container mx-auto h-screen overflow-y-auto">
+    <div className="w-full h-screen overflow-y-auto">
       {/* Header */}
       <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
         <FaBell size={23} className="text-gray-400" />

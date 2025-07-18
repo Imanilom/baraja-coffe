@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
-import { FaClipboardList } from "react-icons/fa";
+import { FaBell, FaClipboardList, FaUser } from "react-icons/fa";
 import { toast } from "react-toastify";
 
 const CreateTax = () => {
@@ -22,7 +22,7 @@ const CreateTax = () => {
             setIsLoadingOutlets(true);
             try {
                 const response = await axios.get("/api/outlet");
-                setOutlets(response.data);
+                setOutlets(response.data.data);
             } catch (error) {
                 console.error("Error fetching outlets:", error);
                 toast.error("Gagal memuat daftar outlet");
@@ -62,32 +62,32 @@ const CreateTax = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         if (formData.appliesToOutlets.length === 0) {
             toast.error("Harus memilih minimal satu outlet");
             return;
         }
 
         setIsSubmitting(true);
-        
+
         try {
             const response = await axios.post("/api/tax-service", {
                 ...formData,
                 percentage: parseFloat(formData.percentage)
             });
-            
+
             toast.success("Pajak berhasil dibuat");
-            
+
             // Redirect to tax list page after 1.5 seconds
             setTimeout(() => {
                 navigate("/admin/tax-and-service");
             }, 1500);
-            
+
         } catch (error) {
             console.error("Error creating Tax:", error);
-            const errorMessage = error.response?.data?.error || 
-                               error.response?.data?.message || 
-                               "Gagal membuat pajak";
+            const errorMessage = error.response?.data?.error ||
+                error.response?.data?.message ||
+                "Gagal membuat pajak";
             toast.error(errorMessage);
         } finally {
             setIsSubmitting(false);
@@ -96,6 +96,14 @@ const CreateTax = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
+            {/* Header */}
+            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
+                <FaBell size={23} className="text-gray-400" />
+                <span className="text-[14px]">Hi Baraja</span>
+                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
+                    <FaUser size={30} />
+                </Link>
+            </div>
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
                 <div className="flex items-center space-x-2">
@@ -147,7 +155,7 @@ const CreateTax = () => {
                         <label className="block text-gray-700 text-sm font-medium mb-2">
                             Berlaku untuk Outlet <span className="text-red-500">*</span>
                         </label>
-                        
+
                         {isLoadingOutlets ? (
                             <p>Memuat daftar outlet...</p>
                         ) : (
