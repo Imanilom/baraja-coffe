@@ -106,10 +106,7 @@ export const createMenuItem = async (req, res) => {
       workstation: workstation || 'bar',
     });
 
-    console.log(menuItem);
-
-
-    // const savedMenuItem = await menuItem.save();
+    const savedMenuItem = await menuItem.save();
 
     // Populate for better response
     const populatedItem = await MenuItem.findById(savedMenuItem._id)

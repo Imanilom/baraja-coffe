@@ -281,10 +281,8 @@ const CreateMenu = () => {
         workstation: valueToSend
       };
 
-      console.log(payload);
-
       await axios.post("/api/menu/menu-items", payload);
-      // navigate("/admin/menu");
+      navigate("/admin/menu");
       // alert("Berhasil");
     } catch (err) {
       console.error("Gagal kirim data:", err);
