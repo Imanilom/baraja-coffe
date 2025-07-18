@@ -25,14 +25,13 @@ class PaymentMethodScreen extends ConsumerWidget {
     final paymentMethods = [
       PaymentMethods(id: 'Cash', name: 'Tunai', type: 'Cash'),
       PaymentMethods(id: 'edc', name: 'EDC', type: 'edc'),
-      PaymentMethods(id: 'qris', name: 'QRIS', type: 'qris'),
     ];
 
     // Daftar bank untuk EDC
     final banks = [
       PaymentMethods(id: 'bca', name: 'BCA', type: 'edc'),
       PaymentMethods(id: 'bri', name: 'BRI', type: 'edc'),
-      PaymentMethods(id: 'mandiri', name: 'Mandiri', type: 'edc'),
+      // PaymentMethods(id: 'mandiri', name: 'Mandiri', type: 'edc'),
       PaymentMethods(id: 'bni', name: 'BNI', type: 'edc'),
     ];
 
@@ -215,19 +214,7 @@ class PaymentMethodScreen extends ConsumerWidget {
                                     ref,
                                     total.toInt(),
                                   )
-                                  : state.selectedMethod!.type == 'Qris'
-                                  ? _buildEDCPayment(
-                                    banks,
-                                    notifier,
-                                    state,
-                                    total.toInt(),
-                                  )
-                                  : _buildEDCPayment(
-                                    banks,
-                                    notifier,
-                                    state,
-                                    total.toInt(),
-                                  ),
+                                  : _buildEDCPayment(banks, notifier, state),
                         )
                         : Center(
                           child: Column(
@@ -478,7 +465,6 @@ class PaymentMethodScreen extends ConsumerWidget {
     List<PaymentMethods> banks,
     PaymentNotifier notifier,
     PaymentState state,
-    int totalAmount,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -507,10 +493,7 @@ class PaymentMethodScreen extends ConsumerWidget {
             final isSelected = state.selectedBankId == bank.id;
 
             return GestureDetector(
-              onTap: () {
-                notifier.selectCashAmount(totalAmount);
-                notifier.selectBank(bank.id);
-              },
+              onTap: () => notifier.selectBank(bank.id),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 decoration: BoxDecoration(

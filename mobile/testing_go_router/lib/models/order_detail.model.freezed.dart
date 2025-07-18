@@ -61,7 +61,7 @@ $Res call({
 });
 
 
-$DiscountModelCopyWith<$Res>? get discounts;
+$DiscountModelCopyWith<$Res>? get discounts;$PaymentModelCopyWith<$Res>? get payment;
 
 }
 /// @nodoc
@@ -116,6 +116,18 @@ $DiscountModelCopyWith<$Res>? get discounts {
 
   return $DiscountModelCopyWith<$Res>(_self.discounts!, (value) {
     return _then(_self.copyWith(discounts: value));
+  });
+}/// Create a copy of OrderDetailModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PaymentModelCopyWith<$Res>? get payment {
+    if (_self.payment == null) {
+    return null;
+  }
+
+  return $PaymentModelCopyWith<$Res>(_self.payment!, (value) {
+    return _then(_self.copyWith(payment: value));
   });
 }
 }
@@ -222,7 +234,7 @@ $Res call({
 });
 
 
-@override $DiscountModelCopyWith<$Res>? get discounts;
+@override $DiscountModelCopyWith<$Res>? get discounts;@override $PaymentModelCopyWith<$Res>? get payment;
 
 }
 /// @nodoc
@@ -278,6 +290,18 @@ $DiscountModelCopyWith<$Res>? get discounts {
 
   return $DiscountModelCopyWith<$Res>(_self.discounts!, (value) {
     return _then(_self.copyWith(discounts: value));
+  });
+}/// Create a copy of OrderDetailModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PaymentModelCopyWith<$Res>? get payment {
+    if (_self.payment == null) {
+    return null;
+  }
+
+  return $PaymentModelCopyWith<$Res>(_self.payment!, (value) {
+    return _then(_self.copyWith(payment: value));
   });
 }
 }

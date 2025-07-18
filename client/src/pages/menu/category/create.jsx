@@ -105,14 +105,15 @@
 
 // export default AddCategory;
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 
 const AddCategory = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState('food'); // Default type adalah "food"
+  const [type, setType] = useState('food');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   // const [successMessage, setSuccessMessage] = useState('');
@@ -127,18 +128,12 @@ const AddCategory = () => {
     try {
       const newCategory = {
         name,
-        // description,
-        // type,
+        description,
+        type,
       };
 
-      const response = await axios.post('/api/storage/categories', [newCategory]); // Kirim sebagai array
-      if (response.data.success) {
-        // setSuccessMessage('Category added successfully!');
-        navigate('/admin/categories', { state: { successMessage: 'Kategori berhasil ditambahkan!' } });
-        setName('');
-        setDescription('');
-        setType('food'); // Reset form
-      }
+      await axios.post('/api/menu/categories', newCategory); // Kirim sebagai array
+      navigate('/admin/categories');
     } catch (err) {
       setError('Failed to add category');
       console.error('Error adding category:', err);
@@ -150,10 +145,6 @@ const AddCategory = () => {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Tambah Kategori</h1>
-
-      {/* {successMessage && (
-        <p className="text-green-500 mb-4">{successMessage}</p>
-      )} */}
 
       {error && <p className="text-red-500 mb-4">{error}</p>}
 
@@ -172,34 +163,34 @@ const AddCategory = () => {
           />
         </div>
 
-        {/* <div className="mb-4">
-                    <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                        Description:
-                    </label>
-                    <textarea
-                        id="description"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    />
-                </div>
+        <div className="mb-4">
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+            Description:
+          </label>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          />
+        </div>
 
-                <div className="mb-4">
-                    <label htmlFor="type" className="block text-sm font-medium text-gray-700">
-                        Type:
-                    </label>
-                    <select
-                        id="type"
-                        value={type}
-                        onChange={(e) => setType(e.target.value)}
-                        className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    >
-                        <option value="food">Food</option>
-                        <option value="beverage">Beverage</option>
-                        <option value="instan">Instant Food</option>
-                        <option value="inventory">Inventory</option>
-                    </select>
-                </div> */}
+        <div className="mb-4">
+          <label htmlFor="type" className="block text-sm font-medium text-gray-700">
+            Type:
+          </label>
+          <select
+            id="type"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          >
+            <option value="makanan">Makanan</option>
+            <option value="minuman">Minuman</option>
+            <option value="instan">Makanan Instan</option>
+            <option value="inventory">Inventori</option>
+          </select>
+        </div>
         {/* <div className="flex items-center justify-between space-x-4 mb-4">
           <span>Tampilkan pada Pawoon Order</span>
           <div className="flex items-center space-x-4">

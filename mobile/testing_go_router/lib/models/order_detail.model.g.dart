@@ -56,6 +56,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
   void write(BinaryWriter writer, OrderDetailModel obj) {
     writer
       ..writeByte(26)
+      ..writeByte(26)
       ..writeByte(0)
       ..write(obj.orderId)
       ..writeByte(1)
