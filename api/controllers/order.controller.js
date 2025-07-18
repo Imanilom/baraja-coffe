@@ -1711,6 +1711,12 @@ export const getPendingOrders = async (req, res) => {
       order_id: { $in: orderIds }
     }).lean();
 
+    const paymentStatusMap = new Map();
+    payments.forEach(payment => {
+      paymentStatusMap.set(payment.order_id.toString(), payment.status);
+    });
+
+
     const successfulPaymentOrderIds = new Set(
       payments.filter(p => p.status === 'Success' || p.status === 'settlement')
         .map(p => p.order_id.toString())
@@ -1731,6 +1737,48 @@ export const getPendingOrders = async (req, res) => {
     const menuItems = await MenuItem.find({ _id: { $in: menuItemIds } }).lean();
     const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
 
+    // const enrichedOrders = unpaidOrders.map(order => {
+    //   const updatedItems = order.items.map(item => {
+    //     const menuItem = menuItemMap.get(item.menuItem?.toString());
+
+    //     const enrichedAddons = (item.addons || []).map(addon => {
+    //       const matchedAddon = menuItem?.addons?.find(ma => ma.name === addon.name);
+    //       const matchedOption = matchedAddon?.options?.find(opt => opt.price === addon.price);
+    //       return {
+    //         name: addon.name,
+    //         options: matchedOption
+    //           ? [{ price: addon.price, label: matchedOption.label }]
+    //           : addon.options || [],
+
+    //       };
+    //     });
+
+    //     return {
+    //       menuItem: menuItem ? {
+    //         _id: menuItem._id,
+    //         name: menuItem.name,
+    //         originalPrice: menuItem.price
+    //       } : null,
+    //       selectedToppings: item.toppings || [],
+    //       selectedAddons: enrichedAddons,
+    //       subtotal: item.subtotal,
+    //       quantity: item.quantity,
+    //       isPrinted: item.isPrinted,
+    //       notes: item.notes,
+    //     };
+    //   });
+
+    //   return {
+    //     ...order,
+    //     items: updatedItems,
+    //     // userId: order.user_id,
+    //     // cashierId: order.cashier,
+    //     // customerName: order.user,
+    //     // user: undefined,
+    //     // user_id: undefined,
+    //     // cashier: undefined,
+    //   };
+    // });
     const enrichedOrders = unpaidOrders.map(order => {
       const updatedItems = order.items.map(item => {
         const menuItem = menuItemMap.get(item.menuItem?.toString());
@@ -1742,7 +1790,7 @@ export const getPendingOrders = async (req, res) => {
             name: addon.name,
             options: matchedOption
               ? [{ price: addon.price, label: matchedOption.label }]
-              : addon.options || []
+              : addon.options || [],
           };
         });
 
@@ -1757,19 +1805,16 @@ export const getPendingOrders = async (req, res) => {
           subtotal: item.subtotal,
           quantity: item.quantity,
           isPrinted: item.isPrinted,
-          notes: item.notes
+          notes: item.notes,
         };
       });
 
+      const paymentStatus = paymentStatusMap.get(order._id.toString()) || 'Pending';
+
       return {
         ...order,
+        paymentStatus,
         items: updatedItems,
-        // userId: order.user_id,
-        // cashierId: order.cashier,
-        // customerName: order.user,
-        // user: undefined,
-        // user_id: undefined,
-        // cashier: undefined,
       };
     });
 

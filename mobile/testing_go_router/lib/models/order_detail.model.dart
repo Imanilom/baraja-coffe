@@ -84,6 +84,7 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(22) @Default('Cashier') String source,
     @HiveField(23) DateTime? createdAt,
     @HiveField(24) DateTime? updatedAt,
+    @HiveField(26) @Default('') String? paymentStatus,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>
