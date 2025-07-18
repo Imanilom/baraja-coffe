@@ -36,7 +36,7 @@ const ReceiptDesign = () => {
     const fetchData = async () => {
         try {
             const response = await axios.get("/api/outlet");
-            setOutlets(response.data || []);
+            setOutlets(response.data.data || []);
 
             const data = [
 

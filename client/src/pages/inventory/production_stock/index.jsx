@@ -323,8 +323,8 @@ const ProductionStockManagement = () => {
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-3">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                    <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
                         <div className="relative">
                             {!showInput ? (
@@ -364,7 +364,7 @@ const ProductionStockManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
+                    <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
                         <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
                             <Datepicker
@@ -382,7 +382,7 @@ const ProductionStockManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
+                    <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">ID Stok</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />

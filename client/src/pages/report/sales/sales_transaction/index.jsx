@@ -50,8 +50,11 @@ const SalesTransaction = () => {
                     (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
                         productsResponse.data.data : [];
 
-                setProducts(productsData);
-                setFilteredData(productsData); // Initialize filtered data with all products
+                // Ambil hanya data dengan status "Completed"
+                const completedData = productsData.filter(item => item.status === "Completed");
+
+                setProducts(completedData);
+                setFilteredData(completedData); // Initialize filtered data with all products
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -321,7 +324,7 @@ const SalesTransaction = () => {
     }
 
     return (
-        <div className="overflow-y-scroll h-screen">
+        <div className="">
             {/* Header */}
             <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
                 <FaBell size={23} className="text-gray-400" />
@@ -346,8 +349,8 @@ const SalesTransaction = () => {
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-3">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                    <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
                         <div className="relative">
                             {!showInput ? (
@@ -365,7 +368,7 @@ const SalesTransaction = () => {
                                 />
                             )}
                             {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
+                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48" ref={dropdownRef}>
                                     {filteredOutlets.length > 0 ? (
                                         filteredOutlets.map((outlet, idx) => (
                                             <li
@@ -387,9 +390,9 @@ const SalesTransaction = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
+                    <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
+                        <div className="relative z-50 text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
                             <Datepicker
                                 showFooter
                                 showShortcuts
@@ -405,7 +408,7 @@ const SalesTransaction = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
+                    <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <input
                             type="text"
@@ -423,7 +426,7 @@ const SalesTransaction = () => {
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md">
+                <div className="rounded shadow-slate-200 shadow-md overflow-y-auto">
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
@@ -442,8 +445,7 @@ const SalesTransaction = () => {
                                         const item = product?.items?.[0] || {};
                                         const orderId = product?.order_id || {};
                                         const date = product?.createdAt || {};
-                                        const cashier = product?.cashier || {};
-                                        // console.log(product);
+                                        const cashier = product?.cashierId || {};
                                         const orderType = product?.orderType || {};
                                         const menuItem = item?.menuItem || {};
                                         let menuNames = [];
@@ -465,7 +467,7 @@ const SalesTransaction = () => {
                                                     {formatDateTime(date) || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {cashier?.username || 'N/A'}
+                                                    {cashier?.username || '-'}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {orderId || 'N/A'}
@@ -516,14 +518,14 @@ const SalesTransaction = () => {
                             ></div>
 
                             {/* Modal panel */}
-                            <div className={`relative w-full max-w-md bg-white shadow-slate-200 shadow-md transform transition-transform duration-300 ease-in-out translate-x-0 overflow-y-scroll`}>
-                                <div className="p-3 border-b font-semibold text-lg text-gray-700 flex justify-between items-center">
+                            <div className={`relative w-full max-w-md bg-gray-300 shadow-slate-200 shadow-md transform transition-transform duration-300 ease-in-out translate-x-0 overflow-y-auto h-screen`}>
+                                <div className="p-3 border-b font-semibold text-lg bg-white text-gray-700 flex justify-between items-center">
                                     DATA TRANSAKSI PENJUALAN
                                     <button onClick={() => setSelectedTrx(null)} className="text-gray-400 hover:text-red-500 text-2xl leading-none">
                                         &times;
                                     </button>
                                 </div>
-                                <div className="p-4 bg-gray-300 min-h-screen">
+                                <div className="p-4 ">
                                     <div className="w-full overflow-hidden">
                                         <div className="flex">
                                             {Array.from({ length: 50 }).map((_, i) => (
@@ -545,8 +547,8 @@ const SalesTransaction = () => {
                                             Outlet: Baraja Coffe Tentara Pelajar
                                             {/* {selectedTrx.outlet?.[0]?.name || 'No Outlet'} */}
                                         </p>
-
-                                        <p>Kasir: {selectedTrx.cashier?.username}</p>
+                                        {console.log(selectedTrx)}
+                                        <p>Kasir: {selectedTrx.cashierId?.username || "-"}</p>
                                         <p>Pelanggan: {selectedTrx.user}</p>
                                         <p className="text-center text-lg font-medium">{selectedTrx.orderType}</p>
                                         <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />

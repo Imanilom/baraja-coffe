@@ -309,7 +309,7 @@ const Menu = () => {
   }
 
   return (
-    <div className="container">
+    <div className="w-full">
       <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
         <FaBell className="text-2xl text-gray-400" />
         <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
