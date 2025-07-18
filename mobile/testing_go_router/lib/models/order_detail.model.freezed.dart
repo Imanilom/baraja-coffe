@@ -24,7 +24,7 @@ mixin _$OrderDetailModel {
 @HiveField(12) DiscountModel? get discounts;@HiveField(13) List<String>? get appliedPromos;@HiveField(14) String? get appliedManualPromo;@HiveField(15) String? get appliedVoucher;// Pajak & Layanan
 @HiveField(16) List<TaxServiceDetailModel> get taxAndServiceDetails;@HiveField(17) int get totalTax;@HiveField(18) int get totalServiceFee;// Total Harga,
 @HiveField(19) int get totalBeforeDiscount;@HiveField(20) int get totalAfterDiscount;@HiveField(21) int get grandTotal;// Metadata
-@HiveField(22) String get source;@HiveField(23) DateTime? get createdAt;@HiveField(24) DateTime? get updatedAt;
+@HiveField(22) String get source;@HiveField(23) DateTime? get createdAt;@HiveField(24) DateTime? get updatedAt;@HiveField(25)@JsonKey(name: 'payment_details') PaymentModel? get payment;
 /// Create a copy of OrderDetailModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -37,16 +37,16 @@ $OrderDetailModelCopyWith<OrderDetailModel> get copyWith => _$OrderDetailModelCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is OrderDetailModel&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.user, user) || other.user == user)&&(identical(other.cashierId, cashierId) || other.cashierId == cashierId)&&const DeepCollectionEquality().equals(other.items, items)&&(identical(other.status, status) || other.status == status)&&(identical(other.paymentMethod, paymentMethod) || other.paymentMethod == paymentMethod)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.deliveryAddress, deliveryAddress) || other.deliveryAddress == deliveryAddress)&&(identical(other.tableNumber, tableNumber) || other.tableNumber == tableNumber)&&(identical(other.type, type) || other.type == type)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.discounts, discounts) || other.discounts == discounts)&&const DeepCollectionEquality().equals(other.appliedPromos, appliedPromos)&&(identical(other.appliedManualPromo, appliedManualPromo) || other.appliedManualPromo == appliedManualPromo)&&(identical(other.appliedVoucher, appliedVoucher) || other.appliedVoucher == appliedVoucher)&&const DeepCollectionEquality().equals(other.taxAndServiceDetails, taxAndServiceDetails)&&(identical(other.totalTax, totalTax) || other.totalTax == totalTax)&&(identical(other.totalServiceFee, totalServiceFee) || other.totalServiceFee == totalServiceFee)&&(identical(other.totalBeforeDiscount, totalBeforeDiscount) || other.totalBeforeDiscount == totalBeforeDiscount)&&(identical(other.totalAfterDiscount, totalAfterDiscount) || other.totalAfterDiscount == totalAfterDiscount)&&(identical(other.grandTotal, grandTotal) || other.grandTotal == grandTotal)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is OrderDetailModel&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.user, user) || other.user == user)&&(identical(other.cashierId, cashierId) || other.cashierId == cashierId)&&const DeepCollectionEquality().equals(other.items, items)&&(identical(other.status, status) || other.status == status)&&(identical(other.paymentMethod, paymentMethod) || other.paymentMethod == paymentMethod)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.deliveryAddress, deliveryAddress) || other.deliveryAddress == deliveryAddress)&&(identical(other.tableNumber, tableNumber) || other.tableNumber == tableNumber)&&(identical(other.type, type) || other.type == type)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.discounts, discounts) || other.discounts == discounts)&&const DeepCollectionEquality().equals(other.appliedPromos, appliedPromos)&&(identical(other.appliedManualPromo, appliedManualPromo) || other.appliedManualPromo == appliedManualPromo)&&(identical(other.appliedVoucher, appliedVoucher) || other.appliedVoucher == appliedVoucher)&&const DeepCollectionEquality().equals(other.taxAndServiceDetails, taxAndServiceDetails)&&(identical(other.totalTax, totalTax) || other.totalTax == totalTax)&&(identical(other.totalServiceFee, totalServiceFee) || other.totalServiceFee == totalServiceFee)&&(identical(other.totalBeforeDiscount, totalBeforeDiscount) || other.totalBeforeDiscount == totalBeforeDiscount)&&(identical(other.totalAfterDiscount, totalAfterDiscount) || other.totalAfterDiscount == totalAfterDiscount)&&(identical(other.grandTotal, grandTotal) || other.grandTotal == grandTotal)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.payment, payment) || other.payment == payment));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,orderId,userId,user,cashierId,const DeepCollectionEquality().hash(items),status,paymentMethod,orderType,deliveryAddress,tableNumber,type,outlet,discounts,const DeepCollectionEquality().hash(appliedPromos),appliedManualPromo,appliedVoucher,const DeepCollectionEquality().hash(taxAndServiceDetails),totalTax,totalServiceFee,totalBeforeDiscount,totalAfterDiscount,grandTotal,source,createdAt,updatedAt]);
+int get hashCode => Object.hashAll([runtimeType,orderId,userId,user,cashierId,const DeepCollectionEquality().hash(items),status,paymentMethod,orderType,deliveryAddress,tableNumber,type,outlet,discounts,const DeepCollectionEquality().hash(appliedPromos),appliedManualPromo,appliedVoucher,const DeepCollectionEquality().hash(taxAndServiceDetails),totalTax,totalServiceFee,totalBeforeDiscount,totalAfterDiscount,grandTotal,source,createdAt,updatedAt,payment]);
 
 @override
 String toString() {
-  return 'OrderDetailModel(orderId: $orderId, userId: $userId, user: $user, cashierId: $cashierId, items: $items, status: $status, paymentMethod: $paymentMethod, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, type: $type, outlet: $outlet, discounts: $discounts, appliedPromos: $appliedPromos, appliedManualPromo: $appliedManualPromo, appliedVoucher: $appliedVoucher, taxAndServiceDetails: $taxAndServiceDetails, totalTax: $totalTax, totalServiceFee: $totalServiceFee, totalBeforeDiscount: $totalBeforeDiscount, totalAfterDiscount: $totalAfterDiscount, grandTotal: $grandTotal, source: $source, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'OrderDetailModel(orderId: $orderId, userId: $userId, user: $user, cashierId: $cashierId, items: $items, status: $status, paymentMethod: $paymentMethod, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, type: $type, outlet: $outlet, discounts: $discounts, appliedPromos: $appliedPromos, appliedManualPromo: $appliedManualPromo, appliedVoucher: $appliedVoucher, taxAndServiceDetails: $taxAndServiceDetails, totalTax: $totalTax, totalServiceFee: $totalServiceFee, totalBeforeDiscount: $totalBeforeDiscount, totalAfterDiscount: $totalAfterDiscount, grandTotal: $grandTotal, source: $source, createdAt: $createdAt, updatedAt: $updatedAt, payment: $payment)';
 }
 
 
@@ -57,11 +57,11 @@ abstract mixin class $OrderDetailModelCopyWith<$Res>  {
   factory $OrderDetailModelCopyWith(OrderDetailModel value, $Res Function(OrderDetailModel) _then) = _$OrderDetailModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: 'order_id') String? orderId,@HiveField(1)@JsonKey(name: 'user_id') String? userId,@HiveField(2) String user,@HiveField(3) String? cashierId,@HiveField(4) List<OrderItemModel> items,@HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) OrderStatus status,@HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) PaymentMethod? paymentMethod,@HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType,@HiveField(8) String deliveryAddress,@HiveField(9) String? tableNumber,@HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) LocationType type,@HiveField(11) String? outlet,@HiveField(12) DiscountModel? discounts,@HiveField(13) List<String>? appliedPromos,@HiveField(14) String? appliedManualPromo,@HiveField(15) String? appliedVoucher,@HiveField(16) List<TaxServiceDetailModel> taxAndServiceDetails,@HiveField(17) int totalTax,@HiveField(18) int totalServiceFee,@HiveField(19) int totalBeforeDiscount,@HiveField(20) int totalAfterDiscount,@HiveField(21) int grandTotal,@HiveField(22) String source,@HiveField(23) DateTime? createdAt,@HiveField(24) DateTime? updatedAt
+@HiveField(0)@JsonKey(name: 'order_id') String? orderId,@HiveField(1)@JsonKey(name: 'user_id') String? userId,@HiveField(2) String user,@HiveField(3) String? cashierId,@HiveField(4) List<OrderItemModel> items,@HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) OrderStatus status,@HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) PaymentMethod? paymentMethod,@HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType,@HiveField(8) String deliveryAddress,@HiveField(9) String? tableNumber,@HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) LocationType type,@HiveField(11) String? outlet,@HiveField(12) DiscountModel? discounts,@HiveField(13) List<String>? appliedPromos,@HiveField(14) String? appliedManualPromo,@HiveField(15) String? appliedVoucher,@HiveField(16) List<TaxServiceDetailModel> taxAndServiceDetails,@HiveField(17) int totalTax,@HiveField(18) int totalServiceFee,@HiveField(19) int totalBeforeDiscount,@HiveField(20) int totalAfterDiscount,@HiveField(21) int grandTotal,@HiveField(22) String source,@HiveField(23) DateTime? createdAt,@HiveField(24) DateTime? updatedAt,@HiveField(25)@JsonKey(name: 'payment_details') PaymentModel? payment
 });
 
 
-$DiscountModelCopyWith<$Res>? get discounts;
+$DiscountModelCopyWith<$Res>? get discounts;$PaymentModelCopyWith<$Res>? get payment;
 
 }
 /// @nodoc
@@ -74,7 +74,7 @@ class _$OrderDetailModelCopyWithImpl<$Res>
 
 /// Create a copy of OrderDetailModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? orderId = freezed,Object? userId = freezed,Object? user = null,Object? cashierId = freezed,Object? items = null,Object? status = null,Object? paymentMethod = freezed,Object? orderType = null,Object? deliveryAddress = null,Object? tableNumber = freezed,Object? type = null,Object? outlet = freezed,Object? discounts = freezed,Object? appliedPromos = freezed,Object? appliedManualPromo = freezed,Object? appliedVoucher = freezed,Object? taxAndServiceDetails = null,Object? totalTax = null,Object? totalServiceFee = null,Object? totalBeforeDiscount = null,Object? totalAfterDiscount = null,Object? grandTotal = null,Object? source = null,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? orderId = freezed,Object? userId = freezed,Object? user = null,Object? cashierId = freezed,Object? items = null,Object? status = null,Object? paymentMethod = freezed,Object? orderType = null,Object? deliveryAddress = null,Object? tableNumber = freezed,Object? type = null,Object? outlet = freezed,Object? discounts = freezed,Object? appliedPromos = freezed,Object? appliedManualPromo = freezed,Object? appliedVoucher = freezed,Object? taxAndServiceDetails = null,Object? totalTax = null,Object? totalServiceFee = null,Object? totalBeforeDiscount = null,Object? totalAfterDiscount = null,Object? grandTotal = null,Object? source = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? payment = freezed,}) {
   return _then(_self.copyWith(
 orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
 as String?,userId: freezed == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
@@ -101,7 +101,8 @@ as int,grandTotal: null == grandTotal ? _self.grandTotal : grandTotal // ignore:
 as int,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
 as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,payment: freezed == payment ? _self.payment : payment // ignore: cast_nullable_to_non_nullable
+as PaymentModel?,
   ));
 }
 /// Create a copy of OrderDetailModel
@@ -116,6 +117,18 @@ $DiscountModelCopyWith<$Res>? get discounts {
   return $DiscountModelCopyWith<$Res>(_self.discounts!, (value) {
     return _then(_self.copyWith(discounts: value));
   });
+}/// Create a copy of OrderDetailModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PaymentModelCopyWith<$Res>? get payment {
+    if (_self.payment == null) {
+    return null;
+  }
+
+  return $PaymentModelCopyWith<$Res>(_self.payment!, (value) {
+    return _then(_self.copyWith(payment: value));
+  });
 }
 }
 
@@ -124,7 +137,7 @@ $DiscountModelCopyWith<$Res>? get discounts {
 @JsonSerializable()
 
 class _OrderDetailModel implements OrderDetailModel {
-   _OrderDetailModel({@HiveField(0)@JsonKey(name: 'order_id') this.orderId = "", @HiveField(1)@JsonKey(name: 'user_id') this.userId, @HiveField(2) this.user = '', @HiveField(3) this.cashierId = "", @HiveField(4) final  List<OrderItemModel> items = const [], @HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) this.status = OrderStatus.unknown, @HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) this.paymentMethod, @HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) required this.orderType, @HiveField(8) this.deliveryAddress = '', @HiveField(9) this.tableNumber = '', @HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) this.type = LocationType.indoor, @HiveField(11) this.outlet, @HiveField(12) this.discounts, @HiveField(13) final  List<String>? appliedPromos, @HiveField(14) this.appliedManualPromo, @HiveField(15) this.appliedVoucher, @HiveField(16) final  List<TaxServiceDetailModel> taxAndServiceDetails = const [], @HiveField(17) this.totalTax = 0, @HiveField(18) this.totalServiceFee = 0, @HiveField(19) this.totalBeforeDiscount = 0, @HiveField(20) this.totalAfterDiscount = 0, @HiveField(21) this.grandTotal = 0, @HiveField(22) this.source = 'Cashier', @HiveField(23) this.createdAt, @HiveField(24) this.updatedAt}): _items = items,_appliedPromos = appliedPromos,_taxAndServiceDetails = taxAndServiceDetails;
+   _OrderDetailModel({@HiveField(0)@JsonKey(name: 'order_id') this.orderId = "", @HiveField(1)@JsonKey(name: 'user_id') this.userId, @HiveField(2) this.user = '', @HiveField(3) this.cashierId = "", @HiveField(4) final  List<OrderItemModel> items = const [], @HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) this.status = OrderStatus.unknown, @HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) this.paymentMethod, @HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) required this.orderType, @HiveField(8) this.deliveryAddress = '', @HiveField(9) this.tableNumber = '', @HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) this.type = LocationType.indoor, @HiveField(11) this.outlet, @HiveField(12) this.discounts, @HiveField(13) final  List<String>? appliedPromos, @HiveField(14) this.appliedManualPromo, @HiveField(15) this.appliedVoucher, @HiveField(16) final  List<TaxServiceDetailModel> taxAndServiceDetails = const [], @HiveField(17) this.totalTax = 0, @HiveField(18) this.totalServiceFee = 0, @HiveField(19) this.totalBeforeDiscount = 0, @HiveField(20) this.totalAfterDiscount = 0, @HiveField(21) this.grandTotal = 0, @HiveField(22) this.source = 'Cashier', @HiveField(23) this.createdAt, @HiveField(24) this.updatedAt, @HiveField(25)@JsonKey(name: 'payment_details') this.payment = null}): _items = items,_appliedPromos = appliedPromos,_taxAndServiceDetails = taxAndServiceDetails;
   factory _OrderDetailModel.fromJson(Map<String, dynamic> json) => _$OrderDetailModelFromJson(json);
 
 // Identitas Order
@@ -182,6 +195,7 @@ class _OrderDetailModel implements OrderDetailModel {
 @override@JsonKey()@HiveField(22) final  String source;
 @override@HiveField(23) final  DateTime? createdAt;
 @override@HiveField(24) final  DateTime? updatedAt;
+@override@HiveField(25)@JsonKey(name: 'payment_details') final  PaymentModel? payment;
 
 /// Create a copy of OrderDetailModel
 /// with the given fields replaced by the non-null parameter values.
@@ -196,16 +210,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _OrderDetailModel&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.user, user) || other.user == user)&&(identical(other.cashierId, cashierId) || other.cashierId == cashierId)&&const DeepCollectionEquality().equals(other._items, _items)&&(identical(other.status, status) || other.status == status)&&(identical(other.paymentMethod, paymentMethod) || other.paymentMethod == paymentMethod)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.deliveryAddress, deliveryAddress) || other.deliveryAddress == deliveryAddress)&&(identical(other.tableNumber, tableNumber) || other.tableNumber == tableNumber)&&(identical(other.type, type) || other.type == type)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.discounts, discounts) || other.discounts == discounts)&&const DeepCollectionEquality().equals(other._appliedPromos, _appliedPromos)&&(identical(other.appliedManualPromo, appliedManualPromo) || other.appliedManualPromo == appliedManualPromo)&&(identical(other.appliedVoucher, appliedVoucher) || other.appliedVoucher == appliedVoucher)&&const DeepCollectionEquality().equals(other._taxAndServiceDetails, _taxAndServiceDetails)&&(identical(other.totalTax, totalTax) || other.totalTax == totalTax)&&(identical(other.totalServiceFee, totalServiceFee) || other.totalServiceFee == totalServiceFee)&&(identical(other.totalBeforeDiscount, totalBeforeDiscount) || other.totalBeforeDiscount == totalBeforeDiscount)&&(identical(other.totalAfterDiscount, totalAfterDiscount) || other.totalAfterDiscount == totalAfterDiscount)&&(identical(other.grandTotal, grandTotal) || other.grandTotal == grandTotal)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _OrderDetailModel&&(identical(other.orderId, orderId) || other.orderId == orderId)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.user, user) || other.user == user)&&(identical(other.cashierId, cashierId) || other.cashierId == cashierId)&&const DeepCollectionEquality().equals(other._items, _items)&&(identical(other.status, status) || other.status == status)&&(identical(other.paymentMethod, paymentMethod) || other.paymentMethod == paymentMethod)&&(identical(other.orderType, orderType) || other.orderType == orderType)&&(identical(other.deliveryAddress, deliveryAddress) || other.deliveryAddress == deliveryAddress)&&(identical(other.tableNumber, tableNumber) || other.tableNumber == tableNumber)&&(identical(other.type, type) || other.type == type)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.discounts, discounts) || other.discounts == discounts)&&const DeepCollectionEquality().equals(other._appliedPromos, _appliedPromos)&&(identical(other.appliedManualPromo, appliedManualPromo) || other.appliedManualPromo == appliedManualPromo)&&(identical(other.appliedVoucher, appliedVoucher) || other.appliedVoucher == appliedVoucher)&&const DeepCollectionEquality().equals(other._taxAndServiceDetails, _taxAndServiceDetails)&&(identical(other.totalTax, totalTax) || other.totalTax == totalTax)&&(identical(other.totalServiceFee, totalServiceFee) || other.totalServiceFee == totalServiceFee)&&(identical(other.totalBeforeDiscount, totalBeforeDiscount) || other.totalBeforeDiscount == totalBeforeDiscount)&&(identical(other.totalAfterDiscount, totalAfterDiscount) || other.totalAfterDiscount == totalAfterDiscount)&&(identical(other.grandTotal, grandTotal) || other.grandTotal == grandTotal)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.payment, payment) || other.payment == payment));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,orderId,userId,user,cashierId,const DeepCollectionEquality().hash(_items),status,paymentMethod,orderType,deliveryAddress,tableNumber,type,outlet,discounts,const DeepCollectionEquality().hash(_appliedPromos),appliedManualPromo,appliedVoucher,const DeepCollectionEquality().hash(_taxAndServiceDetails),totalTax,totalServiceFee,totalBeforeDiscount,totalAfterDiscount,grandTotal,source,createdAt,updatedAt]);
+int get hashCode => Object.hashAll([runtimeType,orderId,userId,user,cashierId,const DeepCollectionEquality().hash(_items),status,paymentMethod,orderType,deliveryAddress,tableNumber,type,outlet,discounts,const DeepCollectionEquality().hash(_appliedPromos),appliedManualPromo,appliedVoucher,const DeepCollectionEquality().hash(_taxAndServiceDetails),totalTax,totalServiceFee,totalBeforeDiscount,totalAfterDiscount,grandTotal,source,createdAt,updatedAt,payment]);
 
 @override
 String toString() {
-  return 'OrderDetailModel(orderId: $orderId, userId: $userId, user: $user, cashierId: $cashierId, items: $items, status: $status, paymentMethod: $paymentMethod, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, type: $type, outlet: $outlet, discounts: $discounts, appliedPromos: $appliedPromos, appliedManualPromo: $appliedManualPromo, appliedVoucher: $appliedVoucher, taxAndServiceDetails: $taxAndServiceDetails, totalTax: $totalTax, totalServiceFee: $totalServiceFee, totalBeforeDiscount: $totalBeforeDiscount, totalAfterDiscount: $totalAfterDiscount, grandTotal: $grandTotal, source: $source, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'OrderDetailModel(orderId: $orderId, userId: $userId, user: $user, cashierId: $cashierId, items: $items, status: $status, paymentMethod: $paymentMethod, orderType: $orderType, deliveryAddress: $deliveryAddress, tableNumber: $tableNumber, type: $type, outlet: $outlet, discounts: $discounts, appliedPromos: $appliedPromos, appliedManualPromo: $appliedManualPromo, appliedVoucher: $appliedVoucher, taxAndServiceDetails: $taxAndServiceDetails, totalTax: $totalTax, totalServiceFee: $totalServiceFee, totalBeforeDiscount: $totalBeforeDiscount, totalAfterDiscount: $totalAfterDiscount, grandTotal: $grandTotal, source: $source, createdAt: $createdAt, updatedAt: $updatedAt, payment: $payment)';
 }
 
 
@@ -216,11 +230,11 @@ abstract mixin class _$OrderDetailModelCopyWith<$Res> implements $OrderDetailMod
   factory _$OrderDetailModelCopyWith(_OrderDetailModel value, $Res Function(_OrderDetailModel) _then) = __$OrderDetailModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: 'order_id') String? orderId,@HiveField(1)@JsonKey(name: 'user_id') String? userId,@HiveField(2) String user,@HiveField(3) String? cashierId,@HiveField(4) List<OrderItemModel> items,@HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) OrderStatus status,@HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) PaymentMethod? paymentMethod,@HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType,@HiveField(8) String deliveryAddress,@HiveField(9) String? tableNumber,@HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) LocationType type,@HiveField(11) String? outlet,@HiveField(12) DiscountModel? discounts,@HiveField(13) List<String>? appliedPromos,@HiveField(14) String? appliedManualPromo,@HiveField(15) String? appliedVoucher,@HiveField(16) List<TaxServiceDetailModel> taxAndServiceDetails,@HiveField(17) int totalTax,@HiveField(18) int totalServiceFee,@HiveField(19) int totalBeforeDiscount,@HiveField(20) int totalAfterDiscount,@HiveField(21) int grandTotal,@HiveField(22) String source,@HiveField(23) DateTime? createdAt,@HiveField(24) DateTime? updatedAt
+@HiveField(0)@JsonKey(name: 'order_id') String? orderId,@HiveField(1)@JsonKey(name: 'user_id') String? userId,@HiveField(2) String user,@HiveField(3) String? cashierId,@HiveField(4) List<OrderItemModel> items,@HiveField(5)@JsonKey(fromJson: OrderStatusExtension.fromString, toJson: OrderStatusExtension.orderStatusToJson) OrderStatus status,@HiveField(6)@JsonKey(fromJson: PaymentMethodExtension.fromString, toJson: PaymentMethodExtension.paymentMethodToJson) PaymentMethod? paymentMethod,@HiveField(7)@JsonKey(fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType,@HiveField(8) String deliveryAddress,@HiveField(9) String? tableNumber,@HiveField(10)@JsonKey(fromJson: LocationTypeExtension.fromString, toJson: LocationTypeExtension.locationTypeToJson) LocationType type,@HiveField(11) String? outlet,@HiveField(12) DiscountModel? discounts,@HiveField(13) List<String>? appliedPromos,@HiveField(14) String? appliedManualPromo,@HiveField(15) String? appliedVoucher,@HiveField(16) List<TaxServiceDetailModel> taxAndServiceDetails,@HiveField(17) int totalTax,@HiveField(18) int totalServiceFee,@HiveField(19) int totalBeforeDiscount,@HiveField(20) int totalAfterDiscount,@HiveField(21) int grandTotal,@HiveField(22) String source,@HiveField(23) DateTime? createdAt,@HiveField(24) DateTime? updatedAt,@HiveField(25)@JsonKey(name: 'payment_details') PaymentModel? payment
 });
 
 
-@override $DiscountModelCopyWith<$Res>? get discounts;
+@override $DiscountModelCopyWith<$Res>? get discounts;@override $PaymentModelCopyWith<$Res>? get payment;
 
 }
 /// @nodoc
@@ -233,7 +247,7 @@ class __$OrderDetailModelCopyWithImpl<$Res>
 
 /// Create a copy of OrderDetailModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? orderId = freezed,Object? userId = freezed,Object? user = null,Object? cashierId = freezed,Object? items = null,Object? status = null,Object? paymentMethod = freezed,Object? orderType = null,Object? deliveryAddress = null,Object? tableNumber = freezed,Object? type = null,Object? outlet = freezed,Object? discounts = freezed,Object? appliedPromos = freezed,Object? appliedManualPromo = freezed,Object? appliedVoucher = freezed,Object? taxAndServiceDetails = null,Object? totalTax = null,Object? totalServiceFee = null,Object? totalBeforeDiscount = null,Object? totalAfterDiscount = null,Object? grandTotal = null,Object? source = null,Object? createdAt = freezed,Object? updatedAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? orderId = freezed,Object? userId = freezed,Object? user = null,Object? cashierId = freezed,Object? items = null,Object? status = null,Object? paymentMethod = freezed,Object? orderType = null,Object? deliveryAddress = null,Object? tableNumber = freezed,Object? type = null,Object? outlet = freezed,Object? discounts = freezed,Object? appliedPromos = freezed,Object? appliedManualPromo = freezed,Object? appliedVoucher = freezed,Object? taxAndServiceDetails = null,Object? totalTax = null,Object? totalServiceFee = null,Object? totalBeforeDiscount = null,Object? totalAfterDiscount = null,Object? grandTotal = null,Object? source = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? payment = freezed,}) {
   return _then(_OrderDetailModel(
 orderId: freezed == orderId ? _self.orderId : orderId // ignore: cast_nullable_to_non_nullable
 as String?,userId: freezed == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
@@ -260,7 +274,8 @@ as int,grandTotal: null == grandTotal ? _self.grandTotal : grandTotal // ignore:
 as int,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
 as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,payment: freezed == payment ? _self.payment : payment // ignore: cast_nullable_to_non_nullable
+as PaymentModel?,
   ));
 }
 
@@ -275,6 +290,18 @@ $DiscountModelCopyWith<$Res>? get discounts {
 
   return $DiscountModelCopyWith<$Res>(_self.discounts!, (value) {
     return _then(_self.copyWith(discounts: value));
+  });
+}/// Create a copy of OrderDetailModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PaymentModelCopyWith<$Res>? get payment {
+    if (_self.payment == null) {
+    return null;
+  }
+
+  return $PaymentModelCopyWith<$Res>(_self.payment!, (value) {
+    return _then(_self.copyWith(payment: value));
   });
 }
 }
