@@ -1,10 +1,14 @@
 import 'package:hive_ce_flutter/adapters.dart';
+import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/services/api_response_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 
 class OrderService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
@@ -111,13 +115,16 @@ class OrderService {
 Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
   print('order.cashierId: ${order.cashierId}');
   print('order item first: ${order.items.first.menuItem.id}');
-  print('username: ${order.customerName}');
+  print('username: ${order.user}');
+  print('payment method: ${order.paymentMethod}');
+
+  final box = Hive.box('userBox');
+  final user = box.get('user') as UserModel;
 
   return {
-    'user_id': order.customerId ?? "",
-    'user': order.customerName ?? 'Guest',
+    'user_id': order.userId ?? "",
+    'user': order.user,
     'cashierId': order.cashierId ?? '',
-    'phoneNumber': order.phoneNumber ?? '',
     'items':
         order.items.map((item) {
           return {
@@ -139,10 +146,13 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                     .toList(),
           };
         }).toList(),
-    'orderType': order.orderType,
+    'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
     'tableNumber': order.tableNumber ?? 1,
-    'paymentMethod': order.paymentMethod ?? 'Cash',
-    'totalPrice': order.totalPrice ?? 12000,
+    'paymentMethod':
+        PaymentMethodExtension.paymentMethodToJson(order.paymentMethod) ??
+        'Cash',
+    'outlet': user.outletId,
+    'totalPrice': order.grandTotal,
     'source': "Cashier",
   };
 }

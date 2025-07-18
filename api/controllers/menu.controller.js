@@ -196,6 +196,7 @@ export const getMenuItems = async (req, res) => {
       return {
         id: item._id,
         name: item.name,
+        mainCategory: item.mainCategory,
         category: item.category ? { id: item.category._id, name: item.category.name } : null,
         subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
         imageUrl: item.imageURL,

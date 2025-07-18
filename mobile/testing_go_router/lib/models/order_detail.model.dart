@@ -2,7 +2,14 @@
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:kasirbaraja/enums/location_type.dart';
+import 'package:kasirbaraja/enums/order_status.dart';
+import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/enums/payment_method.dart';
+import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/payments/payment.model.dart';
+import 'package:kasirbaraja/models/tax_service_detail.model.dart';
 
 part 'order_detail.model.freezed.dart';
 part 'order_detail.model.g.dart';
@@ -11,24 +18,85 @@ part 'order_detail.model.g.dart';
 @HiveType(typeId: 5)
 abstract class OrderDetailModel with _$OrderDetailModel {
   factory OrderDetailModel({
-    @HiveField(0) @Default("") @JsonKey(name: 'userId') String? customerId,
-    @HiveField(1) @Default("") String? customerName, //
-    @HiveField(2) @Default("") String? cashierId, //
-    @HiveField(3) @Default("") String? phoneNumber,
-    @HiveField(4) @Default([]) List<OrderItemModel> items, //
-    @HiveField(5) required String orderType, //
-    @HiveField(6) @Default("") String? deliveryAddress,
-    @HiveField(7) @Default("") String? tableNumber,
-    @HiveField(8) @Default("") String? paymentMethod,
-    @HiveField(9) @Default("") String? status,
-    @HiveField(10) @Default(0) int? subTotalPrice,
-    @HiveField(11) @Default("") @JsonKey(name: 'order_id') String? orderId, //
-    @HiveField(12) @Default(0) @JsonKey(name: 'totalTax') int? tax,
-    @HiveField(13) @Default(0) int? totalPrice,
-    @HiveField(14) @Default(0) int? serviceFee,
-    @HiveField(15) Map<String, dynamic>? discounts,
+    // Identitas Order
+    @HiveField(0) @Default("") @JsonKey(name: 'order_id') String? orderId,
+    @HiveField(1) @JsonKey(name: 'user_id') String? userId,
+    @HiveField(2) @Default('') String user,
+    @HiveField(3) @Default("") String? cashierId,
+
+    // Item dan Status
+    @HiveField(4) @Default([]) List<OrderItemModel> items,
+    @HiveField(5)
+    @JsonKey(
+      fromJson: OrderStatusExtension.fromString,
+      toJson: OrderStatusExtension.orderStatusToJson,
+    )
+    @Default(OrderStatus.unknown)
+    OrderStatus status,
+
+    // Pembayaran & Tipe Order
+    @HiveField(6)
+    @JsonKey(
+      fromJson: PaymentMethodExtension.fromString,
+      toJson: PaymentMethodExtension.paymentMethodToJson,
+    )
+    PaymentMethod? paymentMethod,
+
+    @HiveField(7)
+    @JsonKey(
+      fromJson: OrderTypeExtension.fromString,
+      toJson: OrderTypeExtension.orderTypeToJson,
+    )
+    required OrderType orderType,
+
+    // Lokasi
+    @HiveField(8) @Default('') String deliveryAddress,
+    @HiveField(9) @Default('') String? tableNumber,
+
+    @HiveField(10)
+    @JsonKey(
+      fromJson: LocationTypeExtension.fromString,
+      toJson: LocationTypeExtension.locationTypeToJson,
+    )
+    @Default(LocationType.indoor)
+    LocationType type,
+
+    @HiveField(11) String? outlet,
+
+    // Diskon & Promo
+    @HiveField(12) DiscountModel? discounts,
+    @HiveField(13) List<String>? appliedPromos,
+    @HiveField(14) String? appliedManualPromo,
+    @HiveField(15) String? appliedVoucher,
+
+    // Pajak & Layanan
+    @HiveField(16)
+    @Default([])
+    List<TaxServiceDetailModel> taxAndServiceDetails,
+    @HiveField(17) @Default(0) int totalTax,
+    @HiveField(18) @Default(0) int totalServiceFee,
+
+    // Total Harga,
+    @HiveField(19) @Default(0) int totalBeforeDiscount,
+    @HiveField(20) @Default(0) int totalAfterDiscount,
+    @HiveField(21) @Default(0) int grandTotal,
+
+    // Metadata
+    @HiveField(22) @Default('Cashier') String source,
+    @HiveField(23) DateTime? createdAt,
+    @HiveField(24) DateTime? updatedAt,
+    @HiveField(25)
+    @JsonKey(name: 'payment_details')
+    @Default(null)
+    PaymentModel? payment,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>
       _$OrderDetailModelFromJson(json);
+
+  // Konverter untuk JSON serialization
+  // static String orderStatusToJson(OrderStatus status) => status.value;
+  // static String? paymentMethodToJson(PaymentMethod? method) => method?.value;
+  // static String orderTypeToJson(OrderType type) => type.value;
+  // static String locationTypeToJson(LocationType type) => type.value;
 }
