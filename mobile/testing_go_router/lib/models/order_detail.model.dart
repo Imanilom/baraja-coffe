@@ -8,6 +8,7 @@ import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/tax_service_detail.model.dart';
 
 part 'order_detail.model.freezed.dart';
@@ -84,6 +85,10 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(22) @Default('Cashier') String source,
     @HiveField(23) DateTime? createdAt,
     @HiveField(24) DateTime? updatedAt,
+    @HiveField(25)
+    @JsonKey(name: 'payment_details')
+    @Default(null)
+    PaymentModel? payment,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>
