@@ -114,6 +114,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
   print('order.cashierId: ${order.cashierId}');
   print('order item first: ${order.items.first.menuItem.id}');
   print('username: ${order.user}');
+  print('payment method: ${order.paymentMethod}');
 
   return {
     'user_id': order.userId ?? "",

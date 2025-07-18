@@ -1,4 +1,4 @@
-enum PaymentMethod { cash, card, eWallet, debit, bankTransfer, unknown }
+enum PaymentMethod { cash, card, qris, debit, bankTransfer, unknown }
 
 extension PaymentMethodExtension on PaymentMethod {
   String get value {
@@ -7,8 +7,8 @@ extension PaymentMethodExtension on PaymentMethod {
         return 'Cash';
       case PaymentMethod.card:
         return 'Card';
-      case PaymentMethod.eWallet:
-        return 'E-Wallet';
+      case PaymentMethod.qris:
+        return 'Qris';
       case PaymentMethod.debit:
         return 'Debit';
       case PaymentMethod.bankTransfer:
@@ -25,8 +25,8 @@ extension PaymentMethodExtension on PaymentMethod {
       case 'card':
         return PaymentMethod.card;
       case 'e-wallet':
-        return PaymentMethod.eWallet;
-      case 'debit':
+        return PaymentMethod.qris;
+      case 'Qris':
         return PaymentMethod.debit;
       case 'bank transfer':
         return PaymentMethod.bankTransfer;
