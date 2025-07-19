@@ -77,7 +77,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Set payment method
-  void updatePaymentMethod(PaymentMethod paymentMethod) {
+  void updatePaymentMethod(String paymentMethod) {
     print('Payment Method: $paymentMethod');
     if (state != null) {
       state = state!.copyWith(paymentMethod: paymentMethod);

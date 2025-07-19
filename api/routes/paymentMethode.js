@@ -2,6 +2,103 @@ import express from 'express';
 
 const router = express.Router();
 
+router.get('/payment-methods-and-types', (req, res) => {
+    const paymentTypes = [
+        //Cash, E-wallet, Debit
+        {
+            id: 'cash',
+            name: 'Tunai',
+            icon: 'cash.png',
+            isActive: true,
+        },
+        {
+            id: 'ewallet',
+            name: 'E-Wallet',
+            icon: 'ewallet.png',
+            isActive: true,
+        },
+        {
+            id: 'debit',
+            name: 'Debit',
+            icon: 'debit.png',
+            isActive: true,
+        },
+        {
+            id: 'banktransfer',
+            name: 'Bank Transfer',
+            icon: 'bank-transfer.png',
+            isActive: false,
+        }
+    ]
+    const paymentMethods = [
+        {
+            id: 'cash',
+            name: 'Tunai',
+            payment_method: 'Cash',
+            typeId: ['cash'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'qris',
+            name: 'QRIS',
+            payment_method: 'QRIS',
+            typeId: ['ewallet'],
+            isDigital: true,
+            isActive: true
+        },
+        {
+            id: 'gopay',
+            name: 'Gopay',
+            payment_method: 'Gopay',
+            typeId: ['ewallet'],
+            isDigital: true,
+            isActive: true
+        },
+        {
+            id: 'bni',
+            name: 'BNI',
+            payment_method: 'BNI',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'bri',
+            name: 'BRI',
+            payment_method: 'BRI',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'bca',
+            name: 'BCA',
+            payment_method: 'BCA',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+    ];
+
+
+    try {
+        const buildPaymentTypes = () => {
+            return paymentTypes.map((paymentType) => {
+                return {
+                    ...paymentType,
+                    paymentMethods: paymentMethods.filter((paymentMethod) => paymentMethod.typeId.includes(paymentType.id))
+                }
+            })
+        }
+
+        res.status(200).json({ success: true, paymentTypes: buildPaymentTypes() });
+    } catch (error) {
+        console.error('Error fetching payment methods and types:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch payment methods and types' });
+    }
+})
+
 router.get('/payment-methods', (req, res) => {
     const paymentMethods = [
         {

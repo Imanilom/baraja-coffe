@@ -148,9 +148,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
         }).toList(),
     'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
     'tableNumber': order.tableNumber ?? 1,
-    'paymentMethod':
-        PaymentMethodExtension.paymentMethodToJson(order.paymentMethod) ??
-        'Cash',
+    'paymentMethod': order.paymentMethod ?? 'Cash',
     'outlet': user.outletId,
     'totalPrice': order.grandTotal,
     'source': "Cashier",

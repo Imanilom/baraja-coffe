@@ -35,12 +35,7 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     OrderStatus status,
 
     // Pembayaran & Tipe Order
-    @HiveField(6)
-    @JsonKey(
-      fromJson: PaymentMethodExtension.fromString,
-      toJson: PaymentMethodExtension.paymentMethodToJson,
-    )
-    PaymentMethod? paymentMethod,
+    @HiveField(6) @Default(null) String? paymentMethod,
 
     @HiveField(7)
     @JsonKey(
@@ -85,6 +80,10 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(22) @Default('Cashier') String source,
     @HiveField(23) DateTime? createdAt,
     @HiveField(24) DateTime? updatedAt,
+    @HiveField(25)
+    @JsonKey(name: 'payment_details')
+    @Default(null)
+    PaymentModel? payment,
     @HiveField(26) @Default('') String? paymentStatus,
   }) = _OrderDetailModel;
 
