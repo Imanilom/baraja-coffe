@@ -288,45 +288,6 @@ export const createAppOrder = async (req, res) => {
 };
 
 
-function mapOrderForFrontend(newOrder) {
-  return {
-    _id: newOrder._id,
-    orderId: newOrder.order_id,
-    userId: newOrder.user_id?._id || newOrder.user_id,
-    customerName: newOrder.user_id?.name || newOrder.user,
-    customerPhone: newOrder.user_id?.phone || newOrder.phoneNumber,
-    cashierId: newOrder.cashierId?._id || newOrder.cashierId,
-    cashierName: newOrder.cashierId?.name,
-    items: newOrder.items.map(item => ({
-      _id: item._id,
-      menuItemId: item.menuItem,
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-      subtotal: item.subtotal,
-      isPrinted: item.isPrinted || false,
-      selectedAddons: item.selectedAddons || [],
-      selectedToppings: item.selectedToppings || []
-    })),
-    status: newOrder.status,
-    paymentStatus: newOrder.paymentStatus,
-    orderType: newOrder.orderType,
-    deliveryAddress: newOrder.deliveryAddress,
-    tableNumber: newOrder.tableNumber,
-    paymentMethod: newOrder.paymentMethod,
-    totalBeforeDiscount: newOrder.totalBeforeDiscount,
-    totalAfterDiscount: newOrder.totalAfterDiscount,
-    taxAndService: newOrder.taxAndService,
-    grandTotal: newOrder.grandTotal,
-    appliedPromos: newOrder.appliedPromos || [],
-    source: newOrder.source,
-    notes: newOrder.notes,
-    createdAt: newOrder.createdAt,
-    updatedAt: newOrder.updatedAt
-  };
-}
-
-
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -841,11 +802,9 @@ export const createUnifiedOrder = async (req, res) => {
   try {
     const { source } = req.body;
     const validated = validateOrderData(req.body, source);
-    const { tableNumber } = validated;
+    const { tableNumber, orderType, reservationData } = validated;
 
-    console.log('request body:', req.body);
-
-
+    // Generate order ID
     let orderId;
     if (tableNumber) {
       orderId = await generateOrderId(String(tableNumber));
@@ -853,32 +812,47 @@ export const createUnifiedOrder = async (req, res) => {
       orderId = `${source.toUpperCase()}-${Date.now()}`;
     }
 
-    // Jangan mulai session dan transaksi di sini
+    // Add reservation-specific processing if needed
+    if (orderType === 'reservation' && reservationData) {
+      // Validate reservation data
+      if (!reservationData.reservationTime || !reservationData.guestCount || 
+          !reservationData.areaIds || !reservationData.tableIds) {
+        return res.status(400).json({
+          success: false,
+          message: 'Incomplete reservation data'
+        });
+      }
+    }
 
-    // Kirim ke job queue
+    // Create job for order processing
     const job = await orderQueue.add('create_order', {
       type: 'create_order',
-      payload: { orderId, orderData: validated, source }
+      payload: { 
+        orderId, 
+        orderData: validated, 
+        source,
+        isReservation: orderType === 'reservation'
+      }
     }, { jobId: orderId });
 
-    // Tunggu job selesai
+    // Wait for job completion
     let result;
     try {
       result = await job.waitUntilFinished(queueEvents);
     } catch (queueErr) {
       return res.status(500).json({
         success: false,
-        message: `Order gagal diproses: ${queueErr.message}`
+        message: `Order processing failed: ${queueErr.message}`
       });
     }
 
-    // Hanya buat transaksi Midtrans kalau order berhasil diproses
+    // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(202).json({
         status: 'completed',
         orderId,
         jobId: job.id,
-        message: 'Order kasir diproses dan sudah dibayar',
+        message: 'Cashier order processed and paid',
       });
     }
 
@@ -911,11 +885,15 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    throw new Error('Sumber order tidak valid');
+    throw new Error('Invalid order source');
   } catch (err) {
-    return res.status(400).json({ success: false, error: err.message });
+    return res.status(400).json({ 
+      success: false, 
+      error: err.message 
+    });
   }
 };
+
 
 
 
@@ -1825,28 +1803,6 @@ export const getPendingOrders = async (req, res) => {
   }
 };
 
-
-async function updateStock(order, session) {
-  if (!Array.isArray(order.items)) {
-    throw new Error("Order items must be an array");
-  }
-
-  for (const item of order.items) {
-    const menuItem = await MenuItem.findById(item.menuItem).session(session);
-    if (!menuItem) {
-      throw new Error(`Menu item ${item.menuItem} not found`);
-    }
-
-    // Update stok bahan baku untuk menu item
-    for (const material of menuItem.rawMaterials) {
-      await mongoose.model("RawMaterial").updateOne(
-        { _id: material.materialId },
-        { $inc: { quantity: -material.quantityRequired * item.quantity } },
-        { session }
-      );
-    }
-  }
-}
 
 // Get User Orders
 export const getUserOrders = async (req, res) => {
