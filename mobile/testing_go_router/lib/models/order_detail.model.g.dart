@@ -25,7 +25,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
           fields[4] == null ? [] : (fields[4] as List).cast<OrderItemModel>(),
       status:
           fields[5] == null ? OrderStatus.unknown : fields[5] as OrderStatus,
-      paymentMethod: fields[6] as PaymentMethod?,
+      paymentMethod: fields[6] == null ? null : fields[6] as String?,
       orderType: fields[7] as OrderType,
       deliveryAddress: fields[8] == null ? '' : fields[8] as String,
       tableNumber: fields[9] == null ? '' : fields[9] as String?,
@@ -48,6 +48,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       source: fields[22] == null ? 'Cashier' : fields[22] as String,
       createdAt: fields[23] as DateTime?,
       updatedAt: fields[24] as DateTime?,
+      payment: fields[25] == null ? null : fields[25] as PaymentModel?,
       paymentStatus: fields[26] == null ? '' : fields[26] as String?,
     );
   }
@@ -55,8 +56,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
   @override
   void write(BinaryWriter writer, OrderDetailModel obj) {
     writer
-      ..writeByte(26)
-      ..writeByte(26)
+      ..writeByte(27)
       ..writeByte(0)
       ..write(obj.orderId)
       ..writeByte(1)
@@ -107,6 +107,8 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..write(obj.createdAt)
       ..writeByte(24)
       ..write(obj.updatedAt)
+      ..writeByte(25)
+      ..write(obj.payment)
       ..writeByte(26)
       ..write(obj.paymentStatus);
   }
@@ -142,9 +144,7 @@ _OrderDetailModel _$OrderDetailModelFromJson(
       json['status'] == null
           ? OrderStatus.unknown
           : OrderStatusExtension.fromString(json['status'] as String),
-  paymentMethod: PaymentMethodExtension.fromString(
-    json['paymentMethod'] as String,
-  ),
+  paymentMethod: json['paymentMethod'] as String? ?? null,
   orderType: OrderTypeExtension.fromString(json['orderType'] as String),
   deliveryAddress: json['deliveryAddress'] as String? ?? '',
   tableNumber: json['tableNumber'] as String? ?? '',
@@ -184,6 +184,12 @@ _OrderDetailModel _$OrderDetailModelFromJson(
       json['updatedAt'] == null
           ? null
           : DateTime.parse(json['updatedAt'] as String),
+  payment:
+      json['payment_details'] == null
+          ? null
+          : PaymentModel.fromJson(
+            json['payment_details'] as Map<String, dynamic>,
+          ),
   paymentStatus: json['paymentStatus'] as String? ?? '',
 );
 
@@ -195,9 +201,7 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'cashierId': instance.cashierId,
       'items': instance.items,
       'status': OrderStatusExtension.orderStatusToJson(instance.status),
-      'paymentMethod': PaymentMethodExtension.paymentMethodToJson(
-        instance.paymentMethod,
-      ),
+      'paymentMethod': instance.paymentMethod,
       'orderType': OrderTypeExtension.orderTypeToJson(instance.orderType),
       'deliveryAddress': instance.deliveryAddress,
       'tableNumber': instance.tableNumber,
@@ -216,5 +220,6 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'source': instance.source,
       'createdAt': instance.createdAt?.toIso8601String(),
       'updatedAt': instance.updatedAt?.toIso8601String(),
+      'payment_details': instance.payment,
       'paymentStatus': instance.paymentStatus,
     };

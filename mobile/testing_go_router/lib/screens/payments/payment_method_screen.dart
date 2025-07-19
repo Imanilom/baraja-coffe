@@ -214,7 +214,12 @@ class PaymentMethodScreen extends ConsumerWidget {
                                     ref,
                                     total.toInt(),
                                   )
-                                  : _buildEDCPayment(banks, notifier, state),
+                                  : _buildEDCPayment(
+                                    banks,
+                                    notifier,
+                                    state,
+                                    total.toInt(),
+                                  ),
                         )
                         : Center(
                           child: Column(
@@ -298,6 +303,7 @@ class PaymentMethodScreen extends ConsumerWidget {
                       margin: const EdgeInsets.only(bottom: 10),
                       child: GestureDetector(
                         onTap: () {
+                          print('Selected method: ${method.type}');
                           notifier.clearSelection();
                           notifier.selectMethod(method);
                         },
@@ -465,6 +471,7 @@ class PaymentMethodScreen extends ConsumerWidget {
     List<PaymentMethods> banks,
     PaymentNotifier notifier,
     PaymentState state,
+    int totalAmount,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,7 +500,10 @@ class PaymentMethodScreen extends ConsumerWidget {
             final isSelected = state.selectedBankId == bank.id;
 
             return GestureDetector(
-              onTap: () => notifier.selectBank(bank.id),
+              onTap: () {
+                notifier.selectCashAmount(totalAmount);
+                notifier.selectBank(bank.id);
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 decoration: BoxDecoration(
@@ -559,9 +569,12 @@ class PaymentMethodScreen extends ConsumerWidget {
       return;
     }
 
-    orderDetail.updatePaymentMethod(
-      PaymentMethodExtension.fromString(state.selectedMethod!.type),
-    );
+    if (state.selectedMethod!.type == 'Cash') {
+      orderDetail.updatePaymentMethod(state.selectedMethod!.type);
+    } else {
+      orderDetail.updatePaymentMethod(state.selectedBankId!);
+    }
+
     final success = await orderDetail.submitOrder();
 
     if (success && context.mounted) {
@@ -574,7 +587,8 @@ class PaymentMethodScreen extends ConsumerWidget {
               state.selectedMethod!.type == 'Cash'
                   ? state.selectedCashAmount
                   : state.totalAmount,
-          'change': state.selectedMethod!.type == 'Cash' ? state.change : null,
+          // 'change': state.selectedMethod!.type == 'Cash' ? state.change : state.change,
+          'change': state.change,
         },
       );
     } else if (context.mounted) {
