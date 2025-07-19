@@ -38,9 +38,19 @@ export function validateOrderData(data, source) {
       };
 
     case 'Cashier':
-      if (!data.cashierId) throw new Error('Cashier ID is required');
-      if (!data.paymentMethod) throw new Error('Payment method is required');
-      return data;
+      if (!data.items || !data.cashierId || !data.paymentMethod) {
+        throw new Error('Field wajib tidak lengkap untuk order kasir');
+      }
+      console.log("cek outlet :", data.outlet);
+      return {
+        items: data.items,
+        user: data.user,
+        cashierId: data.cashierId,
+        paymentMethod: data.paymentMethod,
+        orderType: data.orderType,
+        tableNumber: data.tableNumber,
+        outlet: data.outlet
+      };
 
     case 'Web':
       if (!data.user) throw new Error('User information is required');

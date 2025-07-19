@@ -2,11 +2,13 @@ import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/services/api_response_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 
 class OrderService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
@@ -114,6 +116,10 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
   print('order.cashierId: ${order.cashierId}');
   print('order item first: ${order.items.first.menuItem.id}');
   print('username: ${order.user}');
+  print('payment method: ${order.paymentMethod}');
+
+  final box = Hive.box('userBox');
+  final user = box.get('user') as UserModel;
 
   return {
     'user_id': order.userId ?? "",
@@ -145,6 +151,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'paymentMethod':
         PaymentMethodExtension.paymentMethodToJson(order.paymentMethod) ??
         'Cash',
+    'outlet': user.outletId,
     'totalPrice': order.grandTotal,
     'source': "Cashier",
   };

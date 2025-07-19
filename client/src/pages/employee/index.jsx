@@ -43,12 +43,11 @@ const EmployeeManagement = () => {
             setLoading(true);
             try {
                 // Fetch attendances data
-                const attendancesResponse = [
-                    { _id: "1", name: "Rilo", type: "Programmer", outlet: "Baraja Amphitheater" }
-                ];
+                const employeeResponse = await axios.get("/api/user");
+                const employeeData = employeeResponse.data || [];
 
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
+                setAttendances(employeeData);
+                setFilteredData(employeeData); // Initialize filtered data with all attendances
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -333,26 +332,26 @@ const EmployeeManagement = () => {
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
+                            <tbody className="text-sm text-[#999999]">
                                 {paginatedData.map((data, index) => {
                                     try {
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
                                                 <td className="px-4 py-3">
-                                                    {data.name || []}
+                                                    {data.username || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.type || []}
+                                                    {data.role || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.outlet || []}
+                                                    {data.outlet[0]?.outletId?.name || '-'}
                                                 </td>
                                                 <td className="px-4 py-3">
 
                                                     {/* Dropdown Menu */}
                                                     <div className="relative text-right">
                                                         <button
-                                                            className="px-2 bg-white border border-gray-200 hover:border-none hover:bg-green-800 rounded-sm"
+                                                            className="px-2 bg-white border border-gray-200 hover:bg-green-800 rounded-sm"
                                                             onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
                                                         >
                                                             <span className="text-xl text-gray-200 hover:text-white">
@@ -415,22 +414,24 @@ const EmployeeManagement = () => {
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
+                        {totalPages > 1 && (
+                            <div className="flex space-x-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Sebelumnya
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Berikutnya
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

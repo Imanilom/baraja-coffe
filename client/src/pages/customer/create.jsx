@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaChevronRight, FaIdBadge, FaIdCard, FaReceipt, FaUserFriends } from "react-icons/fa";
+import { FaBell, FaChevronRight, FaIdBadge, FaIdCard, FaReceipt, FaUser, FaUserFriends } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 const CreateCustomer = () => {
@@ -50,6 +50,14 @@ const CreateCustomer = () => {
 
     return (
         <div className="">
+            {/* Header */}
+            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
+                <FaBell size={23} className="text-gray-400" />
+                <span className="text-[14px]">Hi Baraja</span>
+                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
+                    <FaUser size={30} />
+                </Link>
+            </div>
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="px-3 py-3 flex justify-between items-center border-b">
                     <div className="flex items-center space-x-2">

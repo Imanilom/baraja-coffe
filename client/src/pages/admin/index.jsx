@@ -8,6 +8,30 @@ const AdminDashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   return (
     <>
+      <style>
+        {`
+            .custom-scrollbar {
+              scrollbar-gutter: stable;
+            }
+    
+            .custom-scrollbar::-webkit-scrollbar {
+              width: 8px;
+            }
+    
+            .custom-scrollbar::-webkit-scrollbar-track {
+              background: transparent;
+            }
+    
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+              background-color: gray;
+              border-radius: 10px;
+            }
+    
+            .custom-scrollbar::-webkit-scrollbar-button {
+              display: none;
+            }
+          `}
+      </style>
       {/* Tombol Toggle di luar sidebar */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -21,7 +45,7 @@ const AdminDashboard = () => {
         <Sidebar isSidebarOpen={isSidebarOpen} />
 
         <div
-          className={`transition-all duration-300 w-full ${isSidebarOpen ? "ml-64" : "ml-0"
+          className={`transition-all duration-300 w-full custom-scrollbar overflow-auto h-screen ${isSidebarOpen ? "pl-64" : "pl-0"
             }`}
         >
           <Outlet />

@@ -723,8 +723,8 @@ const UpdateMenu = () => {
 
     const fetchOutlets = async () => {
       try {
-        const response = await axios.get("/api/outlet/");
-        setOutlets(response.data || []);
+        const response = await axios.get("/api/outlet");
+        setOutlets(response.data.data || []);
       } catch (error) {
         console.error("Error fetching outlets:", error);
       } finally {
