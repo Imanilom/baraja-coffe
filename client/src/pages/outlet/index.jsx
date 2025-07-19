@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
-import { 
-  FaClipboardList, FaBell, FaUser, FaStoreAlt, 
-  FaBullseye, FaReceipt, FaSearch, FaPencilAlt, 
-  FaTrash, FaEllipsisV 
+import {
+  FaClipboardList, FaBell, FaUser, FaStoreAlt,
+  FaBullseye, FaReceipt, FaSearch, FaPencilAlt,
+  FaTrash, FaEllipsisV
 } from "react-icons/fa";
 
 const OutletManagementPage = () => {
@@ -34,7 +34,7 @@ const OutletManagementPage = () => {
   }, []);
 
   const filteredOutlets = useMemo(() => {
-    return outlets.filter(outlet => 
+    return outlets.filter(outlet =>
       outlet.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       outlet.city?.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -49,7 +49,7 @@ const OutletManagementPage = () => {
 
   const handleDeleteOutlet = async (id) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus outlet ini?")) return;
-    
+
     try {
       await axios.delete(`/api/outlet/${id}`);
       setOutlets(prev => prev.filter(outlet => outlet._id !== id));
@@ -88,8 +88,8 @@ const OutletManagementPage = () => {
           <FaStoreAlt size={21} className="text-gray-500" />
           <p className="text-[15px] text-gray-500">Outlet</p>
         </div>
-        <button 
-          onClick={() => navigate("/admin/outlet-create")} 
+        <button
+          onClick={() => navigate("/admin/outlet-create")}
           className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
         >
           Tambah Outlet
@@ -111,7 +111,7 @@ const OutletManagementPage = () => {
             </div>
           </div>
 
-          <Link 
+          <Link
             to="/admin/tax-and-service"
             className="bg-white border-b-2 border-b-white hover:border-b-[#005429] border-l border-l-gray-200"
           >
@@ -123,7 +123,7 @@ const OutletManagementPage = () => {
             </div>
           </Link>
 
-          <Link 
+          <Link
             to="/admin/target-sales"
             className="bg-white border-b-2 border-b-white hover:border-b-[#005429] border-l border-l-gray-200"
           >
@@ -135,7 +135,7 @@ const OutletManagementPage = () => {
             </div>
           </Link>
 
-          <Link 
+          <Link
             to="/admin/receipt-design"
             className="bg-white border-b-2 border-b-white hover:border-b-[#005429] border-l border-l-gray-200"
           >

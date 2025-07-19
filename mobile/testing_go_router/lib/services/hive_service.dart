@@ -44,7 +44,16 @@ class HiveService {
 
   static Future<UserModel?> getUser() async {
     final box = Hive.box('userBox');
-    return box.get('user');
+    final user = box.get('user') as UserModel;
+
+    return user;
+  }
+
+  static Future<UserModel?> tryGetUser() async {
+    final box = Hive.box('userBox');
+    final user = box.get('user') as UserModel;
+
+    return user;
   }
 
   static Future<CashierModel?> getCashier() async {

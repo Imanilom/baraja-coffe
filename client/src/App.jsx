@@ -131,6 +131,7 @@ import UpdatePromoPage from "./pages/promotion/promo/update";
 import PointManagement from "./pages/promotion/points";
 import UpdateAutoPromo from "./pages/promotion/autopromo/update";
 import ReceiptMenu from "./pages/menu/receipt";
+import AddSubCategory from "./pages/menu/category_sub/create";
 
 
 
@@ -165,6 +166,7 @@ export default function App() {
                 <Route path="addons-create" element={<CreateAddOns />} />
                 <Route path="category-create" element={<AddCategory />} />
                 <Route path="category-update/:id" element={<UpdateCategory />} />
+                <Route path="subcategory-create" element={<AddSubCategory />} />
                 <Route path="manage-stock/:id" element={<ManageStock />} />
                 <Route path="manage-price-and-selling-status/:id" element={<PriceSellingStatusManagement />} />
 

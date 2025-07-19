@@ -13,6 +13,9 @@ import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/menu_subcategory.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/payments/payment.model.dart';
+import 'package:kasirbaraja/models/payments/payment_action.model.dart';
+import 'package:kasirbaraja/models/payments/va_number.model.dart';
 import 'package:kasirbaraja/models/tax_and_service.model.dart';
 import 'package:kasirbaraja/models/tax_service_detail.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
@@ -30,10 +33,13 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(MenuSubCategoryModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
+    registerAdapter(PaymentActionModelAdapter());
+    registerAdapter(PaymentModelAdapter());
     registerAdapter(TaxAndServiceModelAdapter());
     registerAdapter(TaxServiceDetailModelAdapter());
     registerAdapter(ToppingModelAdapter());
     registerAdapter(UserModelAdapter());
+    registerAdapter(VANumberModelAdapter());
   }
 }
 
@@ -49,9 +55,12 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(MenuSubCategoryModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
+    registerAdapter(PaymentActionModelAdapter());
+    registerAdapter(PaymentModelAdapter());
     registerAdapter(TaxAndServiceModelAdapter());
     registerAdapter(TaxServiceDetailModelAdapter());
     registerAdapter(ToppingModelAdapter());
     registerAdapter(UserModelAdapter());
+    registerAdapter(VANumberModelAdapter());
   }
 }

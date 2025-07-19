@@ -1160,6 +1160,9 @@ export const confirmOrderByCashier = async (req, res) => {
   }
 };
 
+
+// * Start Payment Handler
+
 export const charge = async (req, res) => {
   try {
     const { payment_type, is_down_payment, down_payment_amount, remaining_payment } = req.body;
@@ -1171,14 +1174,23 @@ export const charge = async (req, res) => {
       const { order_id, gross_amount } = req.body;
       console.log('Payment type:', payment_type, 'Order ID:', order_id, 'Gross Amount:', gross_amount);
 
+      // Find the order to get the order._id
+      const order = await Order.findOne({ order_id: order_id });
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found'
+        });
+      }
+
       // Check if payment already exists for this order
       const existingPayment = await Payment.findOne({ order_id: order_id });
       if (existingPayment) {
         console.log('Payment already exists for order:', order_id);
 
-        // Generate QR code data for existing payment
+        // Generate QR code data using order._id only
         const qrData = {
-          payment_id: existingPayment._id.toString(),
+          order_id: order._id.toString(),
         };
 
         const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
@@ -1271,39 +1283,9 @@ export const charge = async (req, res) => {
       const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
       const expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
 
-      // ✅ PERBAIKAN 1: Buat payment object dengan actions dan raw_response dari awal
-      const payment = new Payment({
-        transaction_id: transactionId,
-        order_id: order_id,
-        amount: amount,
-        method: payment_type,
-        status: 'pending',
-        fraud_status: 'accept',
-        transaction_time: currentTime,
-        expiry_time: expiryTime,
-        settlement_time: null,
-        va_numbers: [],
-        permata_va_number: null,
-        bill_key: null,
-        biller_code: null,
-        pdf_url: null,
-        currency: 'IDR',
-        merchant_id: 'G711879663',
-        signature_key: null,
-        paymentType: paymentType,
-        remainingAmount: remainingAmount,
-        is_down_payment: is_down_payment || false,
-        actions: [], // Initialize sebagai array kosong
-        raw_response: {} // Initialize sebagai object kosong
-      });
-
-      // ✅ PERBAIKAN 2: Simpan payment dulu untuk mendapatkan _id
-      const savedPayment = await payment.save();
-      console.log('Payment saved with ID:', savedPayment._id);
-
-      // ✅ PERBAIKAN 3: Generate QR code menggunakan savedPayment._id
+      // Generate QR code data using order._id only
       const qrData = {
-        payment_id: savedPayment._id.toString(),
+        order_id: order._id.toString(),
       };
 
       const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
@@ -1336,26 +1318,37 @@ export const charge = async (req, res) => {
         expiry_time: expiryTime
       };
 
-      // ✅ PERBAIKAN 4: Update menggunakan findByIdAndUpdate untuk memastikan tersimpan
-      const updatedPayment = await Payment.findByIdAndUpdate(
-        savedPayment._id,
-        {
-          $set: {
-            actions: actions,
-            raw_response: rawResponse
-          }
-        },
-        { new: true } // Return updated document
-      );
+      // Create payment with actions and raw_response
+      const payment = new Payment({
+        transaction_id: transactionId,
+        order_id: order_id,
+        amount: amount,
+        method: payment_type,
+        status: 'pending',
+        fraud_status: 'accept',
+        transaction_time: currentTime,
+        expiry_time: expiryTime,
+        settlement_time: null,
+        va_numbers: [],
+        permata_va_number: null,
+        bill_key: null,
+        biller_code: null,
+        pdf_url: null,
+        currency: 'IDR',
+        merchant_id: 'G711879663',
+        signature_key: null,
+        paymentType: paymentType,
+        remainingAmount: remainingAmount,
+        is_down_payment: is_down_payment || false,
+        actions: actions,
+        raw_response: rawResponse
+      });
 
-      console.log('Payment updated with actions and raw_response:', updatedPayment._id);
+      // Save payment
+      const savedPayment = await payment.save();
+      console.log('Payment saved with ID:', savedPayment._id);
 
-      // ✅ PERBAIKAN 5: Verify bahwa data benar-benar tersimpan
-      const verifyPayment = await Payment.findById(savedPayment._id);
-      console.log('Verification - Actions saved:', verifyPayment.actions ? 'YES' : 'NO');
-      console.log('Verification - Raw response saved:', verifyPayment.raw_response ? 'YES' : 'NO');
-
-      // Kirim response yang proper untuk cash payment dengan format yang diminta
+      // Send response
       return res.status(200).json({
         order_id: order_id,
         transaction_id: transactionId,
@@ -1379,8 +1372,8 @@ export const charge = async (req, res) => {
         signature_key: null,
         actions: actions,
         raw_response: rawResponse,
-        createdAt: updatedPayment.createdAt,
-        updatedAt: updatedPayment.updatedAt,
+        createdAt: savedPayment.createdAt,
+        updatedAt: savedPayment.updatedAt,
         __v: 0
       });
     } else {
@@ -1543,6 +1536,8 @@ export const charge = async (req, res) => {
   }
 };
 
+// * End Payment Handler
+
 // Handling Midtrans Notification 
 export const paymentNotification = async (req, res) => {
   const notification = req.body;
@@ -1694,6 +1689,12 @@ export const getPendingOrders = async (req, res) => {
       order_id: { $in: orderIds }
     }).lean();
 
+    const paymentStatusMap = new Map();
+    payments.forEach(payment => {
+      paymentStatusMap.set(payment.order_id.toString(), payment.status);
+    });
+
+
     const successfulPaymentOrderIds = new Set(
       payments.filter(p => p.status === 'Success' || p.status === 'settlement')
         .map(p => p.order_id.toString())
@@ -1714,6 +1715,48 @@ export const getPendingOrders = async (req, res) => {
     const menuItems = await MenuItem.find({ _id: { $in: menuItemIds } }).lean();
     const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
 
+    // const enrichedOrders = unpaidOrders.map(order => {
+    //   const updatedItems = order.items.map(item => {
+    //     const menuItem = menuItemMap.get(item.menuItem?.toString());
+
+    //     const enrichedAddons = (item.addons || []).map(addon => {
+    //       const matchedAddon = menuItem?.addons?.find(ma => ma.name === addon.name);
+    //       const matchedOption = matchedAddon?.options?.find(opt => opt.price === addon.price);
+    //       return {
+    //         name: addon.name,
+    //         options: matchedOption
+    //           ? [{ price: addon.price, label: matchedOption.label }]
+    //           : addon.options || [],
+
+    //       };
+    //     });
+
+    //     return {
+    //       menuItem: menuItem ? {
+    //         _id: menuItem._id,
+    //         name: menuItem.name,
+    //         originalPrice: menuItem.price
+    //       } : null,
+    //       selectedToppings: item.toppings || [],
+    //       selectedAddons: enrichedAddons,
+    //       subtotal: item.subtotal,
+    //       quantity: item.quantity,
+    //       isPrinted: item.isPrinted,
+    //       notes: item.notes,
+    //     };
+    //   });
+
+    //   return {
+    //     ...order,
+    //     items: updatedItems,
+    //     // userId: order.user_id,
+    //     // cashierId: order.cashier,
+    //     // customerName: order.user,
+    //     // user: undefined,
+    //     // user_id: undefined,
+    //     // cashier: undefined,
+    //   };
+    // });
     const enrichedOrders = unpaidOrders.map(order => {
       const updatedItems = order.items.map(item => {
         const menuItem = menuItemMap.get(item.menuItem?.toString());
@@ -1725,7 +1768,7 @@ export const getPendingOrders = async (req, res) => {
             name: addon.name,
             options: matchedOption
               ? [{ price: addon.price, label: matchedOption.label }]
-              : addon.options || []
+              : addon.options || [],
           };
         });
 
@@ -1740,19 +1783,16 @@ export const getPendingOrders = async (req, res) => {
           subtotal: item.subtotal,
           quantity: item.quantity,
           isPrinted: item.isPrinted,
-          notes: item.notes
+          notes: item.notes,
         };
       });
 
+      const paymentStatus = paymentStatusMap.get(order._id.toString()) || 'Pending';
+
       return {
         ...order,
+        paymentStatus,
         items: updatedItems,
-        // userId: order.user_id,
-        // cashierId: order.cashier,
-        // customerName: order.user,
-        // user: undefined,
-        // user_id: undefined,
-        // cashier: undefined,
       };
     });
 
@@ -1862,7 +1902,7 @@ export const getOrderById = async (req, res) => {
 
     // console.log('Order:', order);
 
-    console.log('Order ID:', orderId);
+    console.log('Order ID:', order);
 
 
     const payment = await Payment.findOne({ order_id: order.order_id });

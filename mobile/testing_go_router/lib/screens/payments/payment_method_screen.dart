@@ -31,7 +31,8 @@ class PaymentMethodScreen extends ConsumerWidget {
     final banks = [
       PaymentMethods(id: 'bca', name: 'BCA', type: 'edc'),
       PaymentMethods(id: 'bri', name: 'BRI', type: 'edc'),
-      PaymentMethods(id: 'mandiri', name: 'Mandiri', type: 'edc'),
+      // PaymentMethods(id: 'mandiri', name: 'Mandiri', type: 'edc'),
+      PaymentMethods(id: 'bni', name: 'BNI', type: 'edc'),
     ];
 
     // Daftar nominal uang untuk tunai

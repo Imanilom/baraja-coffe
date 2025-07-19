@@ -220,7 +220,7 @@ const ReceiptMenu = () => {
     }
 
     return (
-        <div className="container">
+        <div className="w-full">
             {/* Header */}
             <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
                 <FaBell className="text-2xl text-gray-400" />

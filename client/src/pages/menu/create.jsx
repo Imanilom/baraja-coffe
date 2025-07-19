@@ -16,8 +16,10 @@ import AddonForm from "./opsimodal";
 
 const CreateMenu = () => {
   const [allCategories, setAllCategories] = useState([]);
-  const [mainCategories, setMainCategories] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
+
+  const MainCategories = ['makanan', 'minuman', 'dessert', 'snack'];
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [outlets, setOutlets] = useState([]);
@@ -26,14 +28,14 @@ const CreateMenu = () => {
   const [isOpsiOpen, setIsOpsiOpen] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
 
-  const [selectedMainCategory, setSelectedMainCategory] = useState(null);
-  const [selectedSubCategory, setSelectedSubCategory] = useState(null);
-
   const [selectedOutlet, setSelectedOutlet] = useState('');
+  const [selectedMainCategory, setSelectedMainCategory] = useState("");
+  const [searchTermMainCategories, setSearchTermMainCategories] = useState("");
   const [searchTermCategories, setSearchTermCategories] = useState("");
   const [searchTermSub, setSearchTermSub] = useState("");
 
   const [showMainDropdown, setShowMainDropdown] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [showSubDropdown, setShowSubDropdown] = useState(false);
   const fileRef = useRef(null);
   const navigate = useNavigate();
@@ -50,6 +52,7 @@ const CreateMenu = () => {
     name: "",
     price: "",
     description: "",
+    mainCat: "",
     category: "",
     subCategory: "",
     rawMaterials: [],
@@ -103,20 +106,6 @@ const CreateMenu = () => {
     });
   };
 
-  // const handleImageChange = async (e) => {
-  //   const file = e.target.files[0];
-  //   if (!file) return;
-
-  //   try {
-  //     const compressed = await compressImage(file);
-  //     setImageFile(compressed);
-  //     const previewURL = URL.createObjectURL(compressed);
-  //     setCompressedImageURL(previewURL);
-  //   } catch (err) {
-  //     console.error("Compress error:", err);
-  //   }
-  // };
-
   const uploadToFirebase = (file) => {
     return new Promise((resolve, reject) => {
       const storage = getStorage(app);
@@ -154,7 +143,7 @@ const CreateMenu = () => {
 
       setAllCategories(data);
       const main = data.filter((cat) => !cat.parentCategory);
-      setMainCategories(main);
+      setCategories(main);
     } catch (error) {
       console.error("Gagal fetch categories:", error);
     } finally {
@@ -166,7 +155,7 @@ const CreateMenu = () => {
     setLoading(true);
     try {
       const res = await axios.get("/api/outlet");
-      const data = res.data;
+      const data = res.data.data;
 
       setOutlets(data);
     } catch (error) {
@@ -176,9 +165,25 @@ const CreateMenu = () => {
     }
   };
 
+  const filteredMainCategories = MainCategories.filter((category) =>
+    category.toLowerCase().includes(searchTermMainCategories.toLowerCase())
+  );
+
   const handleMainCategorySearch = (e) => {
-    setSearchTermCategories(e.target.value);
+    setSearchTermMainCategories(e.target.value);
     setShowMainDropdown(true);
+  };
+
+  const handleSelectMainCategory = (category) => {
+    const lowerCased = category.toLowerCase();
+    setSelectedMainCategory(lowerCased);
+    setSearchTermMainCategories(lowerCased);
+    setShowMainDropdown(false);
+  };
+
+  const handleCategorySearch = (e) => {
+    setSearchTermCategories(e.target.value);
+    setShowDropdown(true);
   };
 
   const handleSubCategorySearch = (e) => {
@@ -186,7 +191,7 @@ const CreateMenu = () => {
     setShowSubDropdown(true);
   };
 
-  const visibleCategories = mainCategories.filter((cat) =>
+  const visibleCategories = categories.filter((cat) =>
     cat.name.toLowerCase().includes(searchTermCategories.toLowerCase())
   );
 
@@ -194,12 +199,10 @@ const CreateMenu = () => {
     sub.name.toLowerCase().includes(searchTermSub.toLowerCase())
   );
 
-  const handleSelectMainCategory = (category) => {
-    setSelectedMainCategory(category);
+  const handleSelectCategory = (category) => {
     setSearchTermCategories(category.name);
-    setShowMainDropdown(false);
+    setShowDropdown(false);
     setShowSubDropdown(false);
-    setSelectedSubCategory(null);
     setSearchTermSub("");
 
     setFormData((prev) => ({
@@ -216,7 +219,6 @@ const CreateMenu = () => {
   };
 
   const handleSelectSubCategory = (sub) => {
-    setSelectedSubCategory(sub);
     setSearchTermSub(sub.name);
     setShowSubDropdown(false);
     setFormData((prev) => ({
@@ -245,6 +247,7 @@ const CreateMenu = () => {
   };
 
   const handleSubmit = async (e) => {
+    const valueToSend = isChecked ? "kitchen" : "";
     e.preventDefault();
     try {
       let imageURL = "";
@@ -252,62 +255,31 @@ const CreateMenu = () => {
         imageURL = await uploadToFirebase(imageFile);
       }
 
-      // const payload = {
-      //   name: formData.name,
-      //   description: formData.description,
-      //   originalPrice: Number(formData.price),
-      //   discountedPrice: Number(formData.price), // bisa ubah sesuai diskon
-      //   imageURL: imageURL,
-      //   category: { id: formData.category },
-      //   subCategory: { id: formData.subCategory },
-      //   availableAt: formData.availableAt, // array of outlet ids
-      //   rawMaterials: formData.rawMaterials || [],
-      //   toppings: toppings.map((top) => ({
-      //     name: top.name,
-      //     price: Number(top.price),
-      //   })),
-      //   addons: addons.map((addon) => ({
-      //     name: addon.name,
-      //     options: addon.options.map((opt) => ({
-      //       label: opt.label,
-      //       price: Number(opt.price),
-      //       isDefault: opt.isDefault,
-      //     })),
-      //   })),
-      // };
-
-      // console.log(ap)
-
-      const payload = new FormData();
-
-      // Tambahkan field biasa
-      payload.append("name", formData.name);
-      payload.append("price", formData.price);
-      payload.append("description", formData.description);
-      // payload.append("availableAt", formData.availableAt);
-      payload.append("availableAt", JSON.stringify(formData.availableAt));
-
-
-      // Tambahkan kategori dan subkategori ID
-      payload.append("category", formData.category);
-      payload.append("subCategory", formData.subCategory);
-
-      // Tambahkan toppings & addons sebagai JSON string
-      payload.append("toppings", JSON.stringify(toppings));
-      payload.append("addons", JSON.stringify(addons));
-
-      // Tambahkan rawMaterials (kalau kamu pakai)
-      payload.append("rawMaterials", JSON.stringify(formData.rawMaterials));
-
-      // Tambahkan gambar jika ada
-      if (imageFile) {
-        payload.append("images", imageFile);
-      }
-
-      for (let pair of payload.entries()) {
-        console.log(`${pair[0]}:`, pair[1]);
-      }
-
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        price: Number(formData.price),
+        // discountedPrice: Number(formData.price), // bisa ubah sesuai diskon
+        imageURL: imageURL || "",
+        mainCat: selectedMainCategory,
+        category: formData.category,
+        subCategory: formData.subCategory,
+        availableAt: formData.availableAt, // array of outlet ids
+        rawMaterials: formData.rawMaterials || [],
+        toppings: toppings.map((top) => ({
+          name: top.name,
+          price: Number(top.price),
+        })),
+        addons: addons.map((addon) => ({
+          name: addon.name,
+          options: addon.options.map((opt) => ({
+            label: opt.label,
+            price: Number(opt.price),
+            isDefault: opt.isDefault,
+          })),
+        })),
+        workstation: valueToSend
+      };
 
       await axios.post("/api/menu/menu-items", payload);
       navigate("/admin/menu");
@@ -327,7 +299,7 @@ const CreateMenu = () => {
   }
 
   return (
-    <div className="">
+    <div className="h-screen">
       <div className="flex justify-end px-6 items-center py-5 space-x-2 border-b">
         <FaBell className="text-2xl text-gray-400" />
         <Link
@@ -410,25 +382,58 @@ const CreateMenu = () => {
                 />
               </div>
 
-              {/* KATEGORI UTAMA */}
               <div>
-                <label className="my-2.5 text-xs block font-medium">KATEGORI UTAMA</label>
+                <label className="my-2.5 text-xs block font-medium">MAIN KATEGORI</label>
                 <div className="relative category-dropdown">
                   <input
                     type="text"
-                    value={searchTermCategories}
+                    value={searchTermMainCategories.charAt(0).toUpperCase() + searchTermMainCategories.slice(1)}
                     onChange={handleMainCategorySearch}
                     onFocus={() => setShowMainDropdown(true)}
                     placeholder="Cari kategori utama..."
                     className="w-full py-2 px-3 border rounded-lg"
                   />
 
-                  {showMainDropdown && visibleCategories.length > 0 && (
+                  {showMainDropdown && (
+                    <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
+                      {filteredMainCategories.length > 0 ? (
+                        filteredMainCategories.map((category, index) => (
+                          <div
+                            key={index}
+                            onClick={() => handleSelectMainCategory(category)}
+                            className="p-2 hover:bg-gray-100 cursor-pointer capitalize"
+                          >
+                            {category}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-2 text-gray-400 text-sm">Tidak ditemukan</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* KATEGORI UTAMA */}
+
+              <div>
+                <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
+                <div className="relative category-dropdown">
+                  <input
+                    type="text"
+                    value={searchTermCategories}
+                    onChange={handleCategorySearch}
+                    onFocus={() => setShowDropdown(true)}
+                    placeholder="Cari kategori utama..."
+                    className="w-full py-2 px-3 border rounded-lg"
+                  />
+
+                  {showDropdown && visibleCategories.length > 0 && (
                     <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
                       {visibleCategories.map((category) => (
                         <div
                           key={category._id}
-                          onClick={() => handleSelectMainCategory(category)}
+                          onClick={() => handleSelectCategory(category)}
                           className="p-2 hover:bg-gray-100 cursor-pointer"
                         >
                           {category.name}
@@ -548,7 +553,7 @@ const CreateMenu = () => {
             </div>
 
             {/* grid 2  */}
-            <div className="text-[14px] text-[#999999]">
+            <div className="text-[14px] text-[#999999] relative">
               <ToppingForm toppings={toppings} setToppings={setToppings} />
               <AddonForm addons={addons} setAddons={setAddons} />
               <div>
@@ -577,223 +582,29 @@ const CreateMenu = () => {
                   ))}
                 </div>
               </div>
+              <div className="flex justify-between">
+                <span>Apakah menu ini berada di dapur?</span>
 
-              {/* <div className="mb-5 space-y-1">
-                <div className="flex justify-between">
-                  <div className="flex items-center space-x-4">
-                    <label htmlFor="varian" className="font-semibold">Varian Produk</label>
-                    <div className="relative group">
-                      <p className="cursor-help w-4 h-4 rounded-full border text-center text-[9px]">i</p>
-                      <span className="absolute w-[340px] top-6 ml-2 hidden group-hover:inline-block bg-white border text-[#999999] text-xs rounded px-2 py-1 whitespace-wrap z-10 shadow-lg">
-                        Varian produk adalah variasi pilihan dari sebuah produk seperti, ukuran (Contoh: S, M, L), warna (Contoh: merah, kuning, hijau), corak atau motif.
-                      </span>
-                    </div>
+                <label className="inline-flex items-center cursor-pointer space-x-3">
+                  <span className="ml-3 text-sm font-medium text-gray-900">
+                    {isChecked ? "Ya" : "Tidak"}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={(e) => setIsChecked(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1
+          peer-checked:bg-[#005429] relative after:content-[''] after:absolute after:top-0.5 
+          after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
+          after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full">
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <h3>{isChecked ? "Ya" : "Tidak"}</h3>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer"
-                        checked={isChecked}
-                        onChange={(e) => setIsChecked(e.target.checked)} />
-                      <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1 
-                    peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full 
-                    peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 
-                    after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
-                    after:h-5 after:w-5 after:transition-all peer-checked:bg-[#005429]"></div>
-                    </label>
-                  </div>
-                </div>
-                <h3>Apakah produk ini memiliki varian seperti warna dan ukuran ?</h3>
+                </label>
               </div>
-              {isChecked && (
-                <VariantModal
-                  formData={formData}
-                />
-              )}
-              <div className="">
-                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <label htmlFor="varian" className="font-semibold">Opsi Tambahan</label>
-                    <div className="flex items-center space-x-2">
-                      <h3>{isOpsiOpen ? "Ya" : "Tidak"}</h3>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="sr-only peer"
-                          checked={isOpsiOpen}
-                          onChange={(e) => setIsOpsiOpen(e.target.checked)}
-                        />
-                        <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1 
-        peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full 
-        peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 
-        after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
-        after:h-5 after:w-5 after:transition-all peer-checked:bg-[#005429]"></div>
-                      </label>
-                    </div>
-                  </div>
-                  <h3>Anda dapat memilih lebih dari satu opsi tambahan</h3>
-                </div>
-              </div>
-              {isOpsiOpen && (
-                <FormOpsi
-                  formData={formData}
-                  options={options}
-                  handleInputChange={handleInputChange}
-                  handleOptionChange={handleOptionChange}
-                  removeOption={removeOption}
-                  addOption={addOption}
-                />
-              )} */}
             </div>
           </div>
         </div>
-        {/* <div className="p-6 bg-slate-50">
-          <button
-            onClick={() => setIsOptional(!isOptional)}
-            className="w-full flex text-left px-[20px] py-[15px] bg-slate-100 hover:bg-slate-200 transition font-medium items-center space-x-2 shadow-lg"
-          >
-            <span>{isOptional ? <FaChevronDown /> : <FaChevronRight />}</span>
-            <span className="text-[14px]">Pengaturan Lanjutan (Opsional)</span>
-          </button>
-
-          {isOptional && (
-            <div className="bg-white px-6 py-4 shadow-lg">
-              <div className="row">
-                <div className="grid grid-cols-3 gap-4 py-[25px] px-[15px] text-[12px]">
-                  <div className="row my-[15px]">
-                    <div className="flex items-center space-x-2">
-                      <h5 className="uppercase my-[10px] font-medium">Jual Di POS</h5>
-                      <FaInfoCircle />
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="pos" value="yes" />
-                        <span>Ya</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="pos" value="no" />
-                        <span>Tidak</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div className="row my-[15px]">
-                    <div className="flex items-center space-x-2">
-                      <h5 className="uppercase my-[10px] font-medium">Jual Di Pawoon Order</h5>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="po" value="yes" />
-                        <span>Ya</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="po" value="no" />
-                        <span>Tidak</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div className="row my-[15px]">
-                    <div className="flex items-center space-x-2">
-                      <h2 className="uppercase my-[10px] font-medium">Jual Di Digital Pawoon</h2>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="digital" value="yes" />
-                        <span>Ya</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="digital" value="no" />
-                        <span>Tidak</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div className="row my-[15px]">
-                    <div className="flex items-center space-x-2">
-                      <h5 className="uppercase my-[10px] font-medium">Kelola Stok</h5>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="stock" value="yes" />
-                        <span>Ya</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="stock" value="no" />
-                        <span>Tidak</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div className="row my-[15px]">
-                    <div className="flex items-center space-x-2">
-                      <h5 className="uppercase my-[10px] font-medium">Penjualan berdasarkan stok</h5>
-                      <FaInfoCircle />
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="pos" value="yes" />
-                        <span>Ya</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="pos" value="no" />
-                        <span>Tidak</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="row w-full my-[15px]">
-                    <div className="flex items-center space-x-2 my-[10px]">
-                      <h5 className="uppercase font-medium text-[12px]">deskripsi produk</h5>
-                      <FaInfoCircle size={12} />
-                    </div>
-                    <textarea name="" id="" className="w-full h-[120px] block border rounded"></textarea>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="row w-full my-[15px]">
-                    <div className="flex items-center space-x-2 my-[10px]">
-                      <h5 className="uppercase font-medium text-[12px]">Pajak</h5>
-                      <FaInfoCircle size={12} />
-                    </div>
-                    <select name="" id="" className="block border w-full p-2 rounded">
-                      <option value="">Mengikuti pajak outlet</option>
-                      <option value="">Tidak ada pajak</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="block w-full my-[15px] border">
-                <div className=" px-[10px] py-[5px] bg-gray-100">
-                  <h5 className="uppercase my-[10px] text-[12px] font-medium">detail produk</h5>
-                </div>
-                <div className="p-[20px]">
-                  <div className="mb-[15px]">
-                    <h3 className="uppercase text-[12px] font-medium my-[10px]">jenis produk</h3>
-                  </div>
-                  <div className="flex space-x-10">
-                    <div className="w-1/2 h-[200px] flex items-center justify-center py-[45px] px-[15px] cursor-pointer rounded border hover:bg-[#005429] hover:text-white active:bg-[#005429] active:text-white group">
-                      <div className="text-center">
-                        <FaGift className="mx-auto mb-2 text-xl text-[#005429] group-hover:text-white group-active:text-white" />
-                        <h4 className="font-semibold text-[14px]">Tunggal</h4>
-                        <p className="text-[13px]">Produk tidak memiliki bahan baku.</p>
-                        <p className="text-[13px]">Contoh: Buah Jeruk</p>
-                      </div>
-                    </div>
-
-                    <div className="w-1/2 h-[200px] flex items-center justify-center py-[45px] px-[15px] cursor-pointer active:bg-[#005429] active:text-white hover:bg-[#005429] hover:text-white bg-[#005429] rounded border text-white">
-                      <div className="text-center">
-                        <FaPizzaSlice className="mx-auto mb-2 text-xl text-white group-hover:text-white group-active:text-white" />
-                        <h4 className="font-semibold text-[14px]">Komposit</h4>
-                        <p className="text-[13px]">Produk memiliki bahan baku.</p>
-                        <p className="text-[13px]">Contoh: Donat, bahan baku: Tepung 100 gr dan Telur 2 butir</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-        </div> */}
       </form>
 
       {/* Modal Slide */}
@@ -807,8 +618,6 @@ const CreateMenu = () => {
 };
 
 export default CreateMenu;
-
-// import axios from "axios";
 // import React, { useEffect, useState } from "react";
 
 // const CreateMenu = () => {

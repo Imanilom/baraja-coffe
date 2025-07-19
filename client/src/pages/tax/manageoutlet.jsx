@@ -32,8 +32,8 @@ const CreateManageOutlet = () => {
     const fetchOutlets = async () => {
         try {
             const res = await axios.get("/api/outlet");
-            setOutlets(res.data || []);
-            setFilteredOutlets(res.data || []);
+            setOutlets(res.data.data || []);
+            setFilteredOutlets(res.data.data || []);
         } catch (err) {
             console.error("Gagal fetch outlet:", err);
         } finally {

@@ -26,7 +26,7 @@ const CreateStock = () => {
         try {
             const response = await axios.get('/api/outlet');
             // Pastikan response sesuai format
-            setOutletList(response.data || []);
+            setOutletList(response.data.data || []);
         } catch (error) {
             console.error('Gagal fetch outlet:', error);
         } finally {
@@ -110,6 +110,14 @@ const CreateStock = () => {
 
     return (
         <div className="">
+            {/* Header */}
+            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
+                <FaBell size={23} className="text-gray-400" />
+                <span className="text-[14px]">Hi Baraja</span>
+                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
+                    <FaUser size={30} />
+                </Link>
+            </div>
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="px-3 py-3 flex justify-between items-center border-b">
                     <div className="flex items-center space-x-2">
