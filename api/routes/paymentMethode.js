@@ -42,7 +42,7 @@ router.get('/payment-methods-and-types', (req, res) => {
         {
             id: 'qris',
             name: 'QRIS',
-            payment_method: 'QRIS',
+            payment_method: 'Qris',
             typeId: ['ewallet'],
             isDigital: true,
             isActive: true
