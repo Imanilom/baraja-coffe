@@ -30,6 +30,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/screens/payments/payment_method_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_success_screen.dart';
+import 'package:kasirbaraja/screens/payments/payment_type_screen.dart';
 import 'package:kasirbaraja/screens/settings/setting_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/detail_printer_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/printer_connection.dart';
