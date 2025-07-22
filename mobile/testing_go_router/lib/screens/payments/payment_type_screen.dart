@@ -513,8 +513,9 @@ class PaymentMethodScreen extends ConsumerWidget {
     // Update payment method based on selection
     final paymentInfo = state.getPaymentInfo();
     final paymentMethod = paymentInfo['type'] as String;
+    final paymentType = paymentInfo['method'] as String;
 
-    orderDetail.updatePaymentMethod(paymentMethod);
+    orderDetail.updatePaymentMethod(paymentMethod, paymentType);
 
     // Show loading
     showDialog(
@@ -555,6 +556,7 @@ class PaymentMethodScreen extends ConsumerWidget {
       // Hide loading
       if (context.mounted) Navigator.pop(context);
 
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: ${e.toString()}'),

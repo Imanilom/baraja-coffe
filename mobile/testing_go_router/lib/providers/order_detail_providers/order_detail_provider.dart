@@ -1,6 +1,7 @@
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
+import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -77,10 +78,15 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Set payment method
-  void updatePaymentMethod(String paymentMethod) {
+  void updatePaymentMethod(String paymentMethod, String? paymentType) {
     print('Payment Method: $paymentMethod');
     if (state != null) {
       state = state!.copyWith(paymentMethod: paymentMethod);
+      if (paymentType != null) {
+        state = state!.copyWith(
+          payment: PaymentModel(method: paymentType, amount: state!.grandTotal),
+        );
+      }
       print(state);
     }
   }
