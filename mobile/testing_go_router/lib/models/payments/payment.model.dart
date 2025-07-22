@@ -14,7 +14,7 @@ abstract class PaymentModel with _$PaymentModel {
   @JsonSerializable(explicitToJson: true)
   factory PaymentModel({
     // Basic payment info
-    @HiveField(0) @JsonKey(name: 'order_id') required String orderId,
+    @HiveField(0) @Default(null) @JsonKey(name: 'order_id') String? orderId,
     @HiveField(1) @JsonKey(name: 'transaction_id') String? transactionId,
     @HiveField(2) @Default('') String? method,
     @HiveField(3) @Default('') String? status,
