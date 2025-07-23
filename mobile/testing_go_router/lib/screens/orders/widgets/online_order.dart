@@ -25,6 +25,8 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
   Widget build(BuildContext context) {
     final onlineOrder = ref.watch(onlineOrderProvider);
 
+    print('Online order state: $onlineOrder');
+
     return Scaffold(
       body: Stack(
         children: [
@@ -59,7 +61,11 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
     );
   }
 
-  Widget _buildBody(BuildContext context, WidgetRef ref, AsyncValue onlineOrder) {
+  Widget _buildBody(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue onlineOrder,
+  ) {
     if (onlineOrder is AsyncData && (onlineOrder.value?.isEmpty ?? true)) {
       return _buildEmptyState();
     }
@@ -84,26 +90,37 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
     );
   }
 
-  void _handleScannedData(BuildContext context, WidgetRef ref, String scannedData) {
+  void _handleScannedData(
+    BuildContext context,
+    WidgetRef ref,
+    String scannedData,
+  ) {
     try {
       final orderId = scannedData.trim();
 
       final currentOrders = ref.read(onlineOrderProvider).value;
       if (currentOrders != null) {
-        final foundOrder = currentOrders.where((order) => order.orderId == orderId).firstOrNull;
+        final foundOrder =
+            currentOrders
+                .where((order) => order.orderId == orderId)
+                .firstOrNull;
 
         if (foundOrder != null) {
           ref.read(onlineOrderDetailProvider.notifier).clearOnlineOrderDetail();
-          ref.read(onlineOrderDetailProvider.notifier).savedOnlineOrderDetail(foundOrder);
+          ref
+              .read(onlineOrderDetailProvider.notifier)
+              .savedOnlineOrderDetail(foundOrder);
 
           setState(() {
             _showQRScanner = false;
           });
 
-
           _showSuccessSnackBar(context, 'Order ditemukan: $orderId');
         } else {
-          _showErrorSnackBar(context, 'Order dengan ID $orderId tidak ditemukan');
+          _showErrorSnackBar(
+            context,
+            'Order dengan ID $orderId tidak ditemukan',
+          );
         }
       } else {
         _showErrorSnackBar(context, 'Data order tidak tersedia');
@@ -198,10 +215,10 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
   }
 
   Widget _buildOrdersList(
-      BuildContext context,
-      WidgetRef ref,
-      List<dynamic> data,
-      ) {
+    BuildContext context,
+    WidgetRef ref,
+    List<dynamic> data,
+  ) {
     return RefreshIndicator(
       onRefresh: () async => ref.refresh(onlineOrderProvider.future),
       child: ListView.builder(
