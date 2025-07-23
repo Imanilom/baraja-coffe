@@ -18,6 +18,7 @@ class OrderService {
     try {
       print('start create order...');
       print('request body: ${createOrderRequest(orderDetail)}');
+      print('orderDetail: ${orderDetail.payment!.method.toString()}');
       Response response = await _dio.post(
         '/api/unified-order',
         data: createOrderRequest(orderDetail),
