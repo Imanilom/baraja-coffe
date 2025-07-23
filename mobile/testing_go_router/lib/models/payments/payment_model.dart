@@ -68,7 +68,7 @@ class PaymentState {
     }
     if (selectedPaymentType!.id == 'cash') {
       return {
-        'type': 'cash',
+        'type': 'Cash',
         'method': 'Cash',
         'amount': selectedCashAmount ?? 0,
         'change': 0, // You may want to calculate change elsewhere

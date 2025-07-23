@@ -2547,7 +2547,7 @@ export const cashierCharge = async (req, res) => {
       order_id: order_id,
       transaction_id: transactionId,
       method: payment_type,
-      status: status,
+      status: 'finished',
       paymentType: paymentType,
       amount: amount,
       remainingAmount: remainingAmount,
