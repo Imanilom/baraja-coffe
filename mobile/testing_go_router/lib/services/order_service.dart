@@ -59,7 +59,8 @@ class OrderService {
     }
   }
 
-  Future<List<dynamic>> fetchPendingOrders(String outletId) async {
+  // Future<List<dynamic>> fetchPendingOrders(String outletId) async {
+  Future<Map<String, dynamic>> fetchPendingOrders(String outletId) async {
     try {
       Response response = await _dio.get(
         '/api/pending-orders/$outletId',
@@ -71,7 +72,7 @@ class OrderService {
         ),
       );
 
-      return response.data as List;
+      return response.data;
     } on DioException catch (e) {
       print('error fetch pending orders: ${e.response?.data}');
       throw ApiResponseHandler.handleError(e);

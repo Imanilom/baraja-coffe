@@ -24,7 +24,7 @@ final onlineOrderProvider = FutureProvider.autoDispose<List<OrderDetailModel>>((
     return onlineOrders;
   } on DioException catch (e) {
     print('DioException: ${e.message}');
-    throw e.error ?? Exception('Failed to fetch activity: ${e.message}');
+    throw e.error ?? Exception('Failed to fetch online orders: ${e.message}');
   }
 });
 

@@ -62,7 +62,7 @@ class HiveService {
 
   static Future<CashierModel?> getCashier() async {
     final box = Hive.box('userBox');
-    return box.get('cashier');
+    return box.get('cashier') as CashierModel?;
   }
 
   static Future<void> clearCashier() async {

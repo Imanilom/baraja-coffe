@@ -14,6 +14,13 @@ class OrderHistoryRepository {
         cashier!.id!,
       );
 
+      print("Data order history yg diambil: ${response.length}");
+
+      if (response['orders'].isEmpty) {
+        print("Tidak ada data pending orders yang ditemukan. $response");
+        return [];
+      }
+
       final orders = response['orders'] as List;
       print('konversi json ke model ${orders.first.length}');
       final orderHistory =
