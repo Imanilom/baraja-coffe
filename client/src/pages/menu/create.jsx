@@ -208,7 +208,6 @@ const CreateMenu = () => {
     setFormData((prev) => ({
       ...prev,
       category: category._id,
-      subCategory: "",
     }));
 
     // Filter subcategories with matching parentCategory._id
@@ -247,7 +246,7 @@ const CreateMenu = () => {
   };
 
   const handleSubmit = async (e) => {
-    const valueToSend = isChecked ? "kitchen" : "";
+    const valueToSend = isChecked ? "kitchen" : "bar";
     e.preventDefault();
     try {
       let imageURL = "";
@@ -280,6 +279,8 @@ const CreateMenu = () => {
         })),
         workstation: valueToSend
       };
+
+      console.log(payload);
 
       await axios.post("/api/menu/menu-items", payload);
       navigate("/admin/menu");
@@ -554,6 +555,16 @@ const CreateMenu = () => {
 
             {/* grid 2  */}
             <div className="text-[14px] text-[#999999] relative">
+              <div className="">
+                <label className="block mb-1 text-sm font-medium">Deskripsi</label>
+                <textarea
+                  name="description"
+                  id="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  className="w-full border rounded p-2"
+                />
+              </div>
               <ToppingForm toppings={toppings} setToppings={setToppings} />
               <AddonForm addons={addons} setAddons={setAddons} />
               <div>
