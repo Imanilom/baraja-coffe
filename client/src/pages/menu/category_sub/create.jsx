@@ -23,7 +23,8 @@ const AddSubCategory = () => {
         try {
             const categoryResponse = await axios.get('/api/menu/categories');
             const categoryData = categoryResponse.data.data || [];
-            setCategories(categoryData);
+            const filteredCategories = categoryData.filter(cat => cat.parentCategory === null);
+            setCategories(filteredCategories);
         } catch (err) {
             setError('Failed to fetch categories');
             setCategories([]);
@@ -47,8 +48,6 @@ const AddSubCategory = () => {
                 type,
                 parentCategory: selectedCategory
             };
-
-            console.log(newCategory);
 
             await axios.post('/api/menu/categories', newCategory); // Kirim sebagai array
             // if (response.data.success) {
