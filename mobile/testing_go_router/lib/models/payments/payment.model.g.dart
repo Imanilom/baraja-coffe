@@ -17,7 +17,7 @@ class PaymentModelAdapter extends TypeAdapter<PaymentModel> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return PaymentModel(
-      orderId: fields[0] as String,
+      orderId: fields[0] == null ? null : fields[0] as String?,
       transactionId: fields[1] as String?,
       method: fields[2] == null ? '' : fields[2] as String?,
       status: fields[3] == null ? '' : fields[3] as String?,
@@ -133,7 +133,7 @@ class PaymentModelAdapter extends TypeAdapter<PaymentModel> {
 
 _PaymentModel _$PaymentModelFromJson(Map<String, dynamic> json) =>
     _PaymentModel(
-      orderId: json['order_id'] as String,
+      orderId: json['order_id'] as String? ?? null,
       transactionId: json['transaction_id'] as String?,
       method: json['method'] as String? ?? '',
       status: json['status'] as String? ?? '',

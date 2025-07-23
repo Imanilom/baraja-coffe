@@ -582,7 +582,7 @@ class OrderDetail extends ConsumerWidget {
                                   if (orderDetail != null &&
                                       orderDetail.items.isNotEmpty) {
                                     //confirm order
-                                    confirmOrder(ref, orderDetail);
+                                     confirmOrder(ref, orderDetail);
                                   }
                                 },
                                 child: Text('confirm'),
@@ -716,6 +716,7 @@ class OrderDetail extends ConsumerWidget {
                                     orderDetail.items.isEmpty
                                         ? null
                                         : () {
+
                                           if (orderDetail != null &&
                                               orderDetail.items.isNotEmpty) {
                                             // print('mau dibayar');
@@ -793,6 +794,7 @@ class _OrderSummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
     final textStyle =
         isBold
             ? const TextStyle(fontWeight: FontWeight.bold)

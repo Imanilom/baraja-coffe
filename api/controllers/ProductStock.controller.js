@@ -67,7 +67,7 @@ export const addStockMovement = async (req, res) => {
       }
 
       for (const move of movements) {
-        const { quantity, type, notes = '', referenceId = null } = move;
+        const { quantity, type, notes = '', referenceId = null, batch = null } = move;
 
         if (quantity == null || !['in', 'out', 'adjustment'].includes(type)) {
           throw new Error(`Movement tidak valid untuk productId: ${productId}`);
@@ -78,7 +78,8 @@ export const addStockMovement = async (req, res) => {
           quantity,
           type,
           notes,
-          referenceId: referenceId ? new mongoose.Types.ObjectId(referenceId) : undefined
+          referenceId: referenceId ? new mongoose.Types.ObjectId(referenceId) : undefined,
+          batch: batch || undefined // batch bisa berupa string/nomor batch
         });
       }
 

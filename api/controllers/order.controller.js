@@ -288,45 +288,6 @@ export const createAppOrder = async (req, res) => {
 };
 
 
-function mapOrderForFrontend(newOrder) {
-  return {
-    _id: newOrder._id,
-    orderId: newOrder.order_id,
-    userId: newOrder.user_id?._id || newOrder.user_id,
-    customerName: newOrder.user_id?.name || newOrder.user,
-    customerPhone: newOrder.user_id?.phone || newOrder.phoneNumber,
-    cashierId: newOrder.cashierId?._id || newOrder.cashierId,
-    cashierName: newOrder.cashierId?.name,
-    items: newOrder.items.map(item => ({
-      _id: item._id,
-      menuItemId: item.menuItem,
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-      subtotal: item.subtotal,
-      isPrinted: item.isPrinted || false,
-      selectedAddons: item.selectedAddons || [],
-      selectedToppings: item.selectedToppings || []
-    })),
-    status: newOrder.status,
-    paymentStatus: newOrder.paymentStatus,
-    orderType: newOrder.orderType,
-    deliveryAddress: newOrder.deliveryAddress,
-    tableNumber: newOrder.tableNumber,
-    paymentMethod: newOrder.paymentMethod,
-    totalBeforeDiscount: newOrder.totalBeforeDiscount,
-    totalAfterDiscount: newOrder.totalAfterDiscount,
-    taxAndService: newOrder.taxAndService,
-    grandTotal: newOrder.grandTotal,
-    appliedPromos: newOrder.appliedPromos || [],
-    source: newOrder.source,
-    notes: newOrder.notes,
-    createdAt: newOrder.createdAt,
-    updatedAt: newOrder.updatedAt
-  };
-}
-
-
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -841,11 +802,9 @@ export const createUnifiedOrder = async (req, res) => {
   try {
     const { source } = req.body;
     const validated = validateOrderData(req.body, source);
-    const { tableNumber } = validated;
+    const { tableNumber, orderType, reservationData } = validated;
 
-    console.log('request body:', req.body);
-
-
+    // Generate order ID
     let orderId;
     if (tableNumber) {
       orderId = await generateOrderId(String(tableNumber));
@@ -853,32 +812,47 @@ export const createUnifiedOrder = async (req, res) => {
       orderId = `${source.toUpperCase()}-${Date.now()}`;
     }
 
-    // Jangan mulai session dan transaksi di sini
+    // Add reservation-specific processing if needed
+    if (orderType === 'reservation' && reservationData) {
+      // Validate reservation data
+      if (!reservationData.reservationTime || !reservationData.guestCount ||
+        !reservationData.areaIds || !reservationData.tableIds) {
+        return res.status(400).json({
+          success: false,
+          message: 'Incomplete reservation data'
+        });
+      }
+    }
 
-    // Kirim ke job queue
+    // Create job for order processing
     const job = await orderQueue.add('create_order', {
       type: 'create_order',
-      payload: { orderId, orderData: validated, source }
+      payload: {
+        orderId,
+        orderData: validated,
+        source,
+        isReservation: orderType === 'reservation'
+      }
     }, { jobId: orderId });
 
-    // Tunggu job selesai
+    // Wait for job completion
     let result;
     try {
       result = await job.waitUntilFinished(queueEvents);
     } catch (queueErr) {
       return res.status(500).json({
         success: false,
-        message: `Order gagal diproses: ${queueErr.message}`
+        message: `Order processing failed: ${queueErr.message}`
       });
     }
 
-    // Hanya buat transaksi Midtrans kalau order berhasil diproses
+    // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(202).json({
         status: 'completed',
         orderId,
         jobId: job.id,
-        message: 'Order kasir diproses dan sudah dibayar',
+        message: 'Cashier order processed and paid',
       });
     }
 
@@ -911,11 +885,15 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    throw new Error('Sumber order tidak valid');
+    throw new Error('Invalid order source');
   } catch (err) {
-    return res.status(400).json({ success: false, error: err.message });
+    return res.status(400).json({
+      success: false,
+      error: err.message
+    });
   }
 };
+
 
 
 
@@ -1711,6 +1689,12 @@ export const getPendingOrders = async (req, res) => {
       order_id: { $in: orderIds }
     }).lean();
 
+    const paymentStatusMap = new Map();
+    payments.forEach(payment => {
+      paymentStatusMap.set(payment.order_id.toString(), payment.status);
+    });
+
+
     const successfulPaymentOrderIds = new Set(
       payments.filter(p => p.status === 'Success' || p.status === 'settlement')
         .map(p => p.order_id.toString())
@@ -1731,6 +1715,48 @@ export const getPendingOrders = async (req, res) => {
     const menuItems = await MenuItem.find({ _id: { $in: menuItemIds } }).lean();
     const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
 
+    // const enrichedOrders = unpaidOrders.map(order => {
+    //   const updatedItems = order.items.map(item => {
+    //     const menuItem = menuItemMap.get(item.menuItem?.toString());
+
+    //     const enrichedAddons = (item.addons || []).map(addon => {
+    //       const matchedAddon = menuItem?.addons?.find(ma => ma.name === addon.name);
+    //       const matchedOption = matchedAddon?.options?.find(opt => opt.price === addon.price);
+    //       return {
+    //         name: addon.name,
+    //         options: matchedOption
+    //           ? [{ price: addon.price, label: matchedOption.label }]
+    //           : addon.options || [],
+
+    //       };
+    //     });
+
+    //     return {
+    //       menuItem: menuItem ? {
+    //         _id: menuItem._id,
+    //         name: menuItem.name,
+    //         originalPrice: menuItem.price
+    //       } : null,
+    //       selectedToppings: item.toppings || [],
+    //       selectedAddons: enrichedAddons,
+    //       subtotal: item.subtotal,
+    //       quantity: item.quantity,
+    //       isPrinted: item.isPrinted,
+    //       notes: item.notes,
+    //     };
+    //   });
+
+    //   return {
+    //     ...order,
+    //     items: updatedItems,
+    //     // userId: order.user_id,
+    //     // cashierId: order.cashier,
+    //     // customerName: order.user,
+    //     // user: undefined,
+    //     // user_id: undefined,
+    //     // cashier: undefined,
+    //   };
+    // });
     const enrichedOrders = unpaidOrders.map(order => {
       const updatedItems = order.items.map(item => {
         const menuItem = menuItemMap.get(item.menuItem?.toString());
@@ -1742,7 +1768,7 @@ export const getPendingOrders = async (req, res) => {
             name: addon.name,
             options: matchedOption
               ? [{ price: addon.price, label: matchedOption.label }]
-              : addon.options || []
+              : addon.options || [],
           };
         });
 
@@ -1757,19 +1783,16 @@ export const getPendingOrders = async (req, res) => {
           subtotal: item.subtotal,
           quantity: item.quantity,
           isPrinted: item.isPrinted,
-          notes: item.notes
+          notes: item.notes,
         };
       });
 
+      const paymentStatus = paymentStatusMap.get(order._id.toString()) || 'Pending';
+
       return {
         ...order,
+        paymentStatus,
         items: updatedItems,
-        // userId: order.user_id,
-        // cashierId: order.cashier,
-        // customerName: order.user,
-        // user: undefined,
-        // user_id: undefined,
-        // cashier: undefined,
       };
     });
 
@@ -1780,28 +1803,6 @@ export const getPendingOrders = async (req, res) => {
   }
 };
 
-
-async function updateStock(order, session) {
-  if (!Array.isArray(order.items)) {
-    throw new Error("Order items must be an array");
-  }
-
-  for (const item of order.items) {
-    const menuItem = await MenuItem.findById(item.menuItem).session(session);
-    if (!menuItem) {
-      throw new Error(`Menu item ${item.menuItem} not found`);
-    }
-
-    // Update stok bahan baku untuk menu item
-    for (const material of menuItem.rawMaterials) {
-      await mongoose.model("RawMaterial").updateOne(
-        { _id: material.materialId },
-        { $inc: { quantity: -material.quantityRequired * item.quantity } },
-        { session }
-      );
-    }
-  }
-}
 
 // Get User Orders
 export const getUserOrders = async (req, res) => {
@@ -2190,3 +2191,388 @@ export const testSocket = async (req, res) => {
 
   res.status(200).json({ success: cashierRoom });
 }
+
+export const cashierCharges = async (req, res) => {
+  try {
+    const { payment_type, is_down_payment, down_payment_amount, remaining_payment } = req.body;
+
+    console.log('Received payment type:', payment_type);
+
+    if (payment_type === 'cash') {
+      // Handle cash payment
+      const { order_id, gross_amount } = req.body;
+      console.log('Payment type:', payment_type, 'Order ID:', order_id, 'Gross Amount:', gross_amount);
+
+      // Find the order to get the order._id
+      const order = await Order.findOne({ order_id: order_id });
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found'
+        });
+      }
+
+      // Check if payment already exists for this order
+      const existingPayment = await Payment.findOne({ order_id: order_id });
+      if (existingPayment) {
+        console.log('Payment already exists for order:', order_id);
+
+        // Generate QR code data using order._id only
+        const qrData = {
+          order_id: order._id.toString(),
+        };
+
+        const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
+
+        return res.status(200).json({
+          order_id: existingPayment.order_id,
+          transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
+          method: existingPayment.method,
+          status: existingPayment.status,
+          paymentType: existingPayment.paymentType,
+          amount: existingPayment.amount,
+          remainingAmount: existingPayment.remainingAmount,
+          discount: 0,
+          fraud_status: "accept",
+          transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
+          expiry_time: existingPayment.expiry_time || null,
+          settlement_time: existingPayment.settlement_time || null,
+          va_numbers: existingPayment.va_numbers || [],
+          permata_va_number: existingPayment.permata_va_number || null,
+          bill_key: existingPayment.bill_key || null,
+          biller_code: existingPayment.biller_code || null,
+          pdf_url: existingPayment.pdf_url || null,
+          currency: existingPayment.currency || "IDR",
+          merchant_id: existingPayment.merchant_id || "G711879663",
+          signature_key: existingPayment.signature_key || null,
+          actions: [
+            {
+              name: "generate-qr-code",
+              method: "GET",
+              url: qrCodeBase64,
+            }
+          ],
+          raw_response: existingPayment.raw_response || {
+            status_code: "201",
+            status_message: "Cash transaction is created",
+            transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
+            order_id: existingPayment.order_id,
+            merchant_id: "G711879663",
+            gross_amount: existingPayment.amount.toString() + ".00",
+            currency: "IDR",
+            payment_type: "cash",
+            transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
+            transaction_status: existingPayment.status,
+            fraud_status: "accept",
+            actions: [
+              {
+                name: "generate-qr-code",
+                method: "GET",
+                url: qrCodeBase64,
+              }
+            ],
+            acquirer: "cash",
+            qr_string: JSON.stringify(qrData),
+            expiry_time: existingPayment.expiry_time || null
+          },
+          createdAt: existingPayment.createdAt,
+          updatedAt: existingPayment.updatedAt,
+          __v: 0
+        });
+      }
+
+      // Log reservation payment details if present
+      if (is_down_payment !== undefined) {
+        console.log('Is Down Payment:', is_down_payment);
+        console.log('Down Payment Amount:', down_payment_amount);
+        console.log('Remaining Payment:', remaining_payment);
+      }
+
+      // Determine payment type and amounts based on reservation payment
+      let paymentType = 'Full';
+      let amount = gross_amount;
+      let remainingAmount = 0;
+
+      if (is_down_payment === true) {
+        paymentType = 'Down Payment';
+        amount = down_payment_amount || gross_amount;
+        remainingAmount = remaining_payment || 0;
+      }
+
+      // Generate transaction_id with UUID-like format
+      const generateTransactionId = () => {
+        const chars = '0123456789abcdef';
+        const sections = [8, 4, 4, 4, 12];
+        return sections.map(len =>
+          Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+        ).join('-');
+      };
+
+      const transactionId = generateTransactionId();
+      const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
+      // Generate QR code data using order._id only
+      const qrData = {
+        order_id: order._id.toString(),
+      };
+
+      const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
+
+      // Create actions array with QR code
+      const actions = [
+        {
+          name: "generate-qr-code",
+          method: "GET",
+          url: qrCodeBase64,
+        }
+      ];
+
+      // Create raw_response object
+      const rawResponse = {
+        status_code: "201",
+        status_message: "Cash transaction is created",
+        transaction_id: transactionId,
+        order_id: order_id,
+        merchant_id: "G711879663",
+        gross_amount: amount.toString() + ".00",
+        currency: "IDR",
+        payment_type: "cash",
+        transaction_time: currentTime,
+        transaction_status: "pending",
+        fraud_status: "accept",
+        actions: actions,
+        acquirer: "cash",
+        qr_string: JSON.stringify(qrData),
+        expiry_time: expiryTime
+      };
+
+      // Create payment with actions and raw_response
+      const payment = new Payment({
+        transaction_id: transactionId,
+        order_id: order_id,
+        amount: amount,
+        method: payment_type,
+        status: 'pending',
+        fraud_status: 'accept',
+        transaction_time: currentTime,
+        expiry_time: expiryTime,
+        settlement_time: null,
+        va_numbers: [],
+        permata_va_number: null,
+        bill_key: null,
+        biller_code: null,
+        pdf_url: null,
+        currency: 'IDR',
+        merchant_id: 'G711879663',
+        signature_key: null,
+        paymentType: paymentType,
+        remainingAmount: remainingAmount,
+        is_down_payment: is_down_payment || false,
+        actions: actions,
+        raw_response: rawResponse
+      });
+
+      // Save payment
+      const savedPayment = await payment.save();
+      console.log('Payment saved with ID:', savedPayment._id);
+
+      // Send response
+      return res.status(200).json({
+        order_id: order_id,
+        transaction_id: transactionId,
+        method: payment_type,
+        status: 'pending',
+        paymentType: paymentType,
+        amount: amount,
+        remainingAmount: remainingAmount,
+        discount: 0,
+        fraud_status: 'accept',
+        transaction_time: currentTime,
+        expiry_time: expiryTime,
+        settlement_time: null,
+        va_numbers: [],
+        permata_va_number: null,
+        bill_key: null,
+        biller_code: null,
+        pdf_url: null,
+        currency: 'IDR',
+        merchant_id: 'G711879663',
+        signature_key: null,
+        actions: actions,
+        raw_response: rawResponse,
+        createdAt: savedPayment.createdAt,
+        updatedAt: savedPayment.updatedAt,
+        __v: 0
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: 'Payment failed',
+        error: 'Order not found'
+      });
+    }
+  } catch (error) {
+    console.error('Payment processing error:', error);
+
+    // Enhanced error logging for reservation payments
+    if (req.body.is_down_payment !== undefined) {
+      console.error('Reservation payment error details:', {
+        is_down_payment: req.body.is_down_payment,
+        down_payment_amount: req.body.down_payment_amount,
+        remaining_payment: req.body.remaining_payment,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: payment_type === 'cash' ? 'Cash payment failed' : 'Payment failed',
+      error: error.message || error
+    });
+  }
+};
+
+export const cashierCharge = async (req, res) => {
+  try {
+    const {
+      payment_type,
+      order_id,
+      gross_amount,
+      is_down_payment,
+      down_payment_amount,
+      remaining_payment
+    } = req.body;
+
+    console.log('Received payment request:', {
+      payment_type,
+      order_id,
+      gross_amount,
+      is_down_payment,
+      down_payment_amount,
+      remaining_payment
+    });
+
+    if (order_id === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID is required'
+      });
+    }
+
+    // Cari order berdasarkan order_id
+    const order = await Order.findOne({ order_id });
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Cek apakah pembayaran sudah ada untuk order ini
+    const existingPayment = await Payment.findOne({ order_id });
+    if (existingPayment) {
+      console.log('Existing payment found for order:', order_id);
+
+      // Response untuk existing payment
+      return res.status(200).json({
+        order_id: existingPayment.order_id,
+        transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
+        method: existingPayment.method,
+        status: 'finished',
+        paymentType: 'full',
+        amount: existingPayment.amount,
+        remainingAmount: 0,
+        discount: 0,
+        fraud_status: "accept",
+        transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
+        currency: "IDR",
+        merchant_id: "G711879663",
+        createdAt: existingPayment.createdAt,
+        updatedAt: existingPayment.updatedAt
+      });
+    }
+
+    // Logika untuk payment baru
+    console.log('Creating new payment for order:', order_id);
+
+    // Tentukan jenis pembayaran dan jumlah
+    let paymentType = 'Full';
+    let amount = gross_amount;
+    let remainingAmount = 0;
+
+    if (is_down_payment === true) {
+      paymentType = 'Down Payment';
+      amount = down_payment_amount || gross_amount;
+      remainingAmount = remaining_payment || 0;
+    }
+
+    // Generate transaction ID
+    const generateTransactionId = () => {
+      const chars = '0123456789abcdef';
+      const sections = [8, 4, 4, 4, 12];
+      return sections.map(len =>
+        Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+      ).join('-');
+    };
+
+    const transactionId = generateTransactionId();
+    const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    // Status berdasarkan jenis pembayaran
+    // const status = payment_type === 'cash' ? 'finished' : 'pending';
+
+    // Data pembayaran baru
+    const paymentData = {
+      transaction_id: transactionId,
+      order_id: order_id,
+      amount: amount,
+      method: payment_type,
+      status: 'finished',
+      fraud_status: 'accept',
+      transaction_time: currentTime,
+      currency: 'IDR',
+      merchant_id: 'G711879663',
+      paymentType: paymentType,
+      remainingAmount: remainingAmount,
+      is_down_payment: is_down_payment || false
+    };
+
+    // Simpan pembayaran baru
+    const payment = new Payment(paymentData);
+    const savedPayment = await payment.save();
+    console.log('New payment saved with ID:', savedPayment._id);
+
+    // Response untuk new payment
+    const responseData = {
+      order_id: order_id,
+      transaction_id: transactionId,
+      method: payment_type,
+      status: 'finished',
+      paymentType: paymentType,
+      amount: amount,
+      remainingAmount: remainingAmount,
+      discount: 0,
+      fraud_status: 'accept',
+      transaction_time: currentTime,
+      currency: 'IDR',
+      merchant_id: 'G711879663',
+      createdAt: savedPayment.createdAt,
+      updatedAt: savedPayment.updatedAt
+    };
+
+    // Tambahkan field khusus untuk metode tertentu
+    // if (payment_type !== 'cash') {
+    //   responseData.expiry_time = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 menit kedepan
+    // }
+
+    return res.status(200).json(responseData);
+
+  } catch (error) {
+    console.error('Payment processing error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Payment failed',
+      error: error.message || error.toString()
+    });
+  }
+};

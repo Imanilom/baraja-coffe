@@ -20,6 +20,7 @@ import {
   getKitchenOrder,
   updateKitchenOrderStatus,
   // chargeCash,
+  cashierCharge,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
@@ -80,5 +81,8 @@ router.get('/orders/cashier/:cashierId', getCashierOrderHistory);
 
 //test socket
 router.get('/testsocket', testSocket);
+
+//cashierCharge
+router.post('/cashierCharge', cashierCharge);
 
 export default router;
