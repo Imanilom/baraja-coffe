@@ -1,4 +1,7 @@
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/payments/payment_method.model.dart';
+import 'package:kasirbaraja/models/payments/payment_model.dart';
+import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 
 extension OrderCalculations on OrderDetailModel {
   int calculateSubtotal() {
@@ -32,4 +35,24 @@ extension OrderCalculations on OrderDetailModel {
   //     },
   //   );
   // }
+}
+
+// ========== UTILITY EXTENSIONS ==========
+extension PaymentTypeExtension on PaymentTypeModel {
+  bool get hasCashPayment => id == 'cash';
+
+  bool get hasMultipleMethods => paymentMethods.length > 1;
+
+  List<PaymentMethodModel> get activeMethods =>
+      paymentMethods.where((method) => method.isActive).toList();
+}
+
+extension PaymentMethodExtension on PaymentMethodModel {
+  bool get isCash => methodCode.toLowerCase() == 'cash';
+
+  bool get isEWallet => typeId.contains('ewallet');
+
+  bool get isDebit => typeId.contains('debit');
+
+  bool get isBankTransfer => typeId.contains('banktransfer');
 }

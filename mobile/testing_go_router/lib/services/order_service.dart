@@ -18,6 +18,7 @@ class OrderService {
     try {
       print('start create order...');
       print('request body: ${createOrderRequest(orderDetail)}');
+      print('orderDetail: ${orderDetail.payment!.method.toString()}');
       Response response = await _dio.post(
         '/api/unified-order',
         data: createOrderRequest(orderDetail),
@@ -28,6 +29,28 @@ class OrderService {
           },
         ),
       );
+      print('response create order: ${response.data}');
+
+      Response chargeResponse = await _dio.post(
+        '/api/cashierCharge',
+        data: createChargeRequest(
+          response.data['orderId'],
+          orderDetail.grandTotal,
+          orderDetail.payment!.method.toString(),
+        ),
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      print('response charge: ${chargeResponse.data}');
+      if (chargeResponse.statusCode != 200) {
+        throw Exception('Failed to create charge');
+      }
+
       print('response status code create order: ${response.statusCode}');
       return response.data;
     } on DioException catch (e) {
@@ -148,11 +171,24 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
         }).toList(),
     'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
     'tableNumber': order.tableNumber ?? 1,
-    'paymentMethod':
-        PaymentMethodExtension.paymentMethodToJson(order.paymentMethod) ??
-        'Cash',
+    'paymentMethod': order.paymentMethod ?? 'Cash',
     'outlet': user.outletId,
     'totalPrice': order.grandTotal,
     'source': "Cashier",
+  };
+}
+
+Map<String, dynamic> createChargeRequest(
+  String orderId,
+  int grandTotal,
+  String paymentType,
+) {
+  return {
+    'payment_type': paymentType,
+    'is_down_payment': false,
+    'down_payment_amount': 0,
+    'remaining_payment': 0,
+    'order_id': orderId,
+    'gross_amount': grandTotal,
   };
 }

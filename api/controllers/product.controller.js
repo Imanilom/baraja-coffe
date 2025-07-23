@@ -5,44 +5,49 @@ import mongoose from 'mongoose';
 // 1. Tambah Produk Baru
 export const createProduct = async (req, res) => {
   try {
-    const { sku, barcode, name, category, unit, suppliers } = req.body;
+    const productsInput = Array.isArray(req.body) ? req.body : [req.body];
+    const productsToInsert = [];
 
-    if (!sku || !name || !category || !unit) {
-      return res.status(400).json({ message: 'SKU, Nama, Kategori, dan Satuan wajib diisi.' });
-    }
+    for (const input of productsInput) {
+      const { sku, barcode, name, category, unit, suppliers } = input;
 
-    // Validasi format suppliers jika disediakan
-    let supplierData = [];
-    if (suppliers && Array.isArray(suppliers)) {
-      for (const sup of suppliers) {
-        const supplier = await Supplier.findById(sup.supplierId);
-        if (!supplier) {
-          return res.status(400).json({ message: `Supplier dengan ID ${sup.supplierId} tidak ditemukan.` });
-        }
-        supplierData.push({
-          supplierId: sup.supplierId,
-          supplierName: supplier.name,
-          price: sup.price || 0,
-          lastPurchaseDate: sup.lastPurchaseDate ? new Date(sup.lastPurchaseDate) : undefined
-        });
+      if (!sku || !name || !category || !unit) {
+        return res.status(400).json({ message: 'SKU, Nama, Kategori, dan Satuan wajib diisi untuk setiap produk.' });
       }
+
+      // Validasi format suppliers jika disediakan
+      let supplierData = [];
+      if (suppliers && Array.isArray(suppliers)) {
+        for (const sup of suppliers) {
+          const supplier = await Supplier.findById(sup.supplierId);
+          if (!supplier) {
+            return res.status(400).json({ message: `Supplier dengan ID ${sup.supplierId} tidak ditemukan.` });
+          }
+          supplierData.push({
+            supplierId: sup.supplierId,
+            supplierName: supplier.name,
+            price: sup.price || 0,
+            lastPurchaseDate: sup.lastPurchaseDate ? new Date(sup.lastPurchaseDate) : undefined
+          });
+        }
+      }
+
+      productsToInsert.push({
+        sku: sku.toUpperCase(),
+        barcode: barcode ? barcode.trim() : undefined,
+        name: name.trim(),
+        category,
+        unit: unit.trim(),
+        suppliers: supplierData
+      });
     }
 
-    const product = new Product({
-      sku: sku.toUpperCase(),
-      barcode: barcode ? barcode.trim() : undefined,
-      name: name.trim(),
-      category,
-      unit: unit.trim(),
-      suppliers: supplierData
-    });
-
-    const savedProduct = await product.save();
-    res.status(201).json({ message: 'Produk berhasil dibuat', data: savedProduct });
+    const savedProducts = await Product.insertMany(productsToInsert, { ordered: false });
+    res.status(201).json({ message: 'Produk berhasil dibuat', data: savedProducts });
   } catch (error) {
     console.error('Error saat membuat produk:', error.message);
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'SKU atau Barcode sudah terdaftar' });
+      return res.status(400).json({ message: 'SKU atau Barcode sudah terdaftar pada salah satu produk.' });
     }
     res.status(500).json({ message: 'Terjadi kesalahan server', error: error.message });
   }

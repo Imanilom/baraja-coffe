@@ -100,6 +100,7 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
             _showQRScanner = false;
           });
 
+
           _showSuccessSnackBar(context, 'Order ditemukan: $orderId');
         } else {
           _showErrorSnackBar(context, 'Order dengan ID $orderId tidak ditemukan');
@@ -226,6 +227,7 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
+          // print(order?.paymentStatus);
           ref.read(onlineOrderDetailProvider.notifier).clearOnlineOrderDetail();
           ref
               .read(onlineOrderDetailProvider.notifier)
