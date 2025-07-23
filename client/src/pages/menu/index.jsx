@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaReceipt, FaTrashAlt } from 'react-icons/fa';
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaReceipt, FaTrashAlt, FaChevronRight, FaChevronLeft } from 'react-icons/fa';
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
@@ -50,38 +50,36 @@ const Menu = () => {
 
   const queryParams = new URLSearchParams(location.search);
   const ensureArray = (data) => Array.isArray(data) ? data : [];
+  const [limit] = useState(10);
+  const [offset, setOffset] = useState(0);
+  const [totalItems, setTotalItems] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 50;
+  const [totalPages, setTotalPages] = useState(1);
 
   const dropdownRef = useRef(null);
 
+  const fetchMenuItems = async (limit, offset) => {
+    const menuResponse = await axios.get('/api/menu/menu-items', {
+      params: { limit, offset }
+    });
+    return {
+      data: menuResponse.data.data,
+      meta: menuResponse.data.meta
+    };
+  };
   const fetchData = async () => {
     setLoading(true);
     try {
-      const menuResponse = await axios.get('/api/menu/menu-items');
-
-      const menuData = Array.isArray(menuResponse.data)
-        ? menuResponse.data
-        : (menuResponse.data && Array.isArray(menuResponse.data.data))
-          ? menuResponse.data.data
-          : [];
-
-      setMenuItems(menuData);
-      setFilteredData(menuData);
-
+      const { data, meta } = await fetchMenuItems(limit, offset);
+      setMenuItems(data);
+      setTotalItems(meta.totalItems);
+      setTotalPages(meta.totalPages);
+      setCurrentPage(meta.currentPage);
       const outletsResponse = await axios.get('/api/outlet');
-      const outletsData = Array.isArray(outletsResponse.data)
-        ? outletsResponse.data
-        : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
-          ? outletsResponse.data.data
-          : [];
+      setOutlets(outletsResponse.data.data);
 
-      setOutlets(outletsData);
-
-      const categoryResponse = await axios.get('/api/storage/categories');
-      const responseData = categoryResponse.data;
-
-      setCategory(responseData.mainCategories);
+      const categoryResponse = await axios.get('/api/menu/categories');
+      setCategory(categoryResponse.data.data.filter((cat) => !cat.parentCategory));
 
       setStatus([
         { id: "ya", name: "Ya" },
@@ -103,8 +101,23 @@ const Menu = () => {
 
   useEffect(() => {
     fetchData();
+  }, [offset]);
+
+  useEffect(() => {
     applyFilter(); // hanya untuk load awal
   }, []);
+
+  const handlePrevious = () => {
+    if (currentPage > 1) {
+      setOffset((currentPage - 2) * limit);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentPage < totalPages) {
+      setOffset(currentPage * limit);
+    }
+  };
 
   useEffect(() => {
 
@@ -126,20 +139,6 @@ const Menu = () => {
     return status.map(item => item.name);
   }, [status]);
 
-  const paginatedData = useMemo(() => {
-
-    // Ensure filteredData is an array before calling slice
-    if (!Array.isArray(filteredData)) {
-      console.error('filteredData is not an array:', filteredData);
-      return [];
-    }
-
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
-    const result = filteredData.slice(startIndex, endIndex);
-    return result;
-  }, [currentPage, filteredData]);
-
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -148,9 +147,6 @@ const Menu = () => {
       maximumFractionDigits: 0
     }).format(amount);
   };
-
-  // Calculate total pages based on filtered data
-  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
   // Filter outlets based on search input
   const filteredOutlets = useMemo(() => {
@@ -356,7 +352,7 @@ const Menu = () => {
               <h2 className="text-gray-400 ml-2 text-sm">Produk</h2>
             </div>
             <div className="text-sm text-gray-400">
-              ({paginatedData.length})
+              ({totalItems})
             </div>
           </Link>
         </button>
@@ -588,9 +584,9 @@ const Menu = () => {
                     )}</th>
                 </tr>
               </thead>
-              {paginatedData.length > 0 ? (
+              {menuItems.length > 0 ? (
                 <tbody>
-                  {paginatedData.map((item) => (
+                  {menuItems.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-100 text-[14px]">
                       <td className="p-[15px] text-right">
                         <input
@@ -699,7 +695,7 @@ const Menu = () => {
           </div>
 
           {/* Pagination */}
-          {paginatedData.length > 0 && (
+          {/* {paginatedData.length > 0 && (
             <div className="flex justify-between items-center mt-4">
               <span className="text-sm text-gray-600">
                 Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
@@ -723,7 +719,65 @@ const Menu = () => {
                 </div>
               )}
             </div>
-          )}
+          )} */}
+          <div className="flex justify-end items-center mt-6 gap-2 flex-wrap">
+            <button
+              onClick={handlePrevious}
+              disabled={currentPage === 1}
+              className="px-3 py-2 bg-gray-200 rounded disabled:opacity-50"
+            >
+              <FaChevronLeft />
+            </button>
+
+            {[...Array(totalPages)].map((_, index) => {
+              const page = index + 1;
+              // tampilkan hanya 2 sebelum dan 2 setelah halaman sekarang
+              if (
+                page === 1 ||
+                page === totalPages ||
+                (page >= currentPage - 2 && page <= currentPage + 2)
+              ) {
+                return (
+                  <button
+                    key={page}
+                    onClick={() => {
+                      setOffset((page - 1) * limit);
+                    }}
+                    className={`px-3 py-1 rounded ${currentPage === page
+                      ? "bg-[#005429] text-white"
+                      : "bg-gray-100 text-gray-700"
+                      }`}
+                  >
+                    {page}
+                  </button>
+                );
+              }
+
+              // Tambahkan "..." di tempat yang cocok
+              if (
+                (page === currentPage - 3 && page > 1) ||
+                (page === currentPage + 3 && page < totalPages)
+              ) {
+                return (
+                  <span key={page} className="px-2">
+                    ...
+                  </span>
+                );
+              }
+
+              return null;
+            })}
+
+            <button
+              onClick={handleNext}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 bg-gray-200 rounded disabled:opacity-50"
+            >
+              <FaChevronRight />
+            </button>
+          </div>
+
+
         </div>
       </div>
 
@@ -740,4 +794,5 @@ const Menu = () => {
   );
 };
 
-export default Menu;  
+export default Menu;
+
