@@ -363,7 +363,7 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          order.items.first.menuItem.category ?? '',
+                          order.items.first.menuItem.mainCategory ?? '',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[700],

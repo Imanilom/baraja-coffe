@@ -9,6 +9,29 @@ import 'package:image/image.dart' as img;
 import 'package:kasirbaraja/enums/order_type.dart';
 
 class PrinterService {
+  // Tambahkan fungsi helper untuk mengecek apakah ada items untuk workstation tertentu
+  static bool _hasItemsForWorkstation(
+    OrderDetailModel orderDetail,
+    String jobType,
+  ) {
+    switch (jobType) {
+      case 'kitchen':
+        return orderDetail.items.any(
+          (item) => item.menuItem.workstation == 'kitchen',
+        );
+      case 'bar':
+        return orderDetail.items.any(
+          (item) => item.menuItem.workstation == 'bar',
+        );
+      case 'customer':
+      case 'waiter':
+        // Customer dan waiter selalu print karena menampilkan semua items
+        return orderDetail.items.isNotEmpty;
+      default:
+        return false;
+    }
+  }
+
   static Future<void> connectPrinter(BluetoothPrinterModel printer) async {
     await PrintBluetoothThermal.disconnect;
     await PrintBluetoothThermal.connect(macPrinterAddress: printer.address);
@@ -71,11 +94,18 @@ class PrinterService {
     }
   }
 
+  // Modifikasi fungsi _printJobToSupportedPrinters
   static Future<void> _printJobToSupportedPrinters({
     required OrderDetailModel orderDetail,
     required String jobType,
     required List<BluetoothPrinterModel> printers,
   }) async {
+    // Cek apakah ada items untuk workstation ini
+    if (!_hasItemsForWorkstation(orderDetail, jobType)) {
+      print('⚠️ Tidak ada menu items untuk $jobType, skip printing');
+      return;
+    }
+
     final supportedPrinters =
         printers.where((printer) {
           switch (jobType) {

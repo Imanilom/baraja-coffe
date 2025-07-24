@@ -22,7 +22,7 @@ class MenuItemModelAdapter extends TypeAdapter<MenuItemModel> {
       originalPrice: fields[3] == null ? 0 : (fields[3] as num?)?.toInt(),
       discountedPrice: fields[4] == null ? 0 : (fields[4] as num?)?.toInt(),
       description: fields[5] == null ? '' : fields[5] as String?,
-      category: fields[6] == null ? '' : fields[6] as String?,
+      mainCategory: fields[6] == null ? '' : fields[6] as String?,
       subCategory: fields[7] == null ? '' : fields[7] as String?,
       imageURL: fields[8] == null ? '' : fields[8] as String?,
       toppings:
@@ -53,7 +53,7 @@ class MenuItemModelAdapter extends TypeAdapter<MenuItemModel> {
       ..writeByte(5)
       ..write(obj.description)
       ..writeByte(6)
-      ..write(obj.category)
+      ..write(obj.mainCategory)
       ..writeByte(7)
       ..write(obj.subCategory)
       ..writeByte(8)
@@ -96,7 +96,7 @@ _MenuItemModel _$MenuItemModelFromJson(Map<String, dynamic> json) =>
       originalPrice: (json['originalPrice'] as num?)?.toInt() ?? 0,
       discountedPrice: (json['discountedPrice'] as num?)?.toInt() ?? 0,
       description: json['description'] as String? ?? "",
-      category: json['category'] as String? ?? "",
+      mainCategory: json['mainCategory'] as String? ?? "",
       subCategory: json['subCategory'] as String? ?? "",
       imageURL: json['imageUrl'] as String? ?? "",
       toppings:
@@ -123,7 +123,7 @@ Map<String, dynamic> _$MenuItemModelToJson(_MenuItemModel instance) =>
       'originalPrice': instance.originalPrice,
       'discountedPrice': instance.discountedPrice,
       'description': instance.description,
-      'category': instance.category,
+      'mainCategory': instance.mainCategory,
       'subCategory': instance.subCategory,
       'imageUrl': instance.imageURL,
       'toppings': instance.toppings,
