@@ -849,7 +849,7 @@ export const createUnifiedOrder = async (req, res) => {
     // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(202).json({
-        status: 'completed',
+        status: 'Completed',
         orderId,
         jobId: job.id,
         message: 'Cashier order processed and paid',
@@ -1683,7 +1683,7 @@ export const getPendingOrders = async (req, res) => {
 
     // if (!pendingOrders.length) return res.status(200).json([]);
     if (!pendingOrders.length || pendingOrders.length === 0) {
-      return res.status(200).json({ message: 'No online order found.', pendingOrders });
+      return res.status(200).json({ message: 'No online order found.', orders: pendingOrders });
     }
 
     const orderIds = pendingOrders.map(order => order._id);
