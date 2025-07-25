@@ -242,7 +242,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
 
     try {
       final response = await dio.get(
-        '/api/order/$orderId',
+        '/api/cashier-order/$orderId',
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -257,15 +257,14 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
         print('API Response: $responseData');
 
         // Convert API response ke OrderDetailModel
-        final orderDetailModel = _convertToOrderDetailModel(
-          responseData['orderData'],
+        final orderDetailModel = OrderDetailModel.fromJson(
+          responseData['order'],
         );
+        // _convertToOrderDetailModel(
+        // responseData['orderData'],
+        // );
 
-        if (orderDetailModel != null) {
-          _showOrderDetailDialog(orderDetailModel);
-        } else {
-          _showErrorDialog('Gagal memproses data order');
-        }
+        _showOrderDetailDialog(orderDetailModel);
       } else {
         _showErrorDialog(
           'Gagal mengambil data order. Status: ${response.statusCode}',
@@ -416,6 +415,8 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
                     Text('Customer: ${orderDetail.user}'),
                   if (orderDetail.tableNumber!.isNotEmpty)
                     Text('Table: ${orderDetail.tableNumber}'),
+                  Text('Order Type: ${orderDetail.orderType.name}'),
+                  Text('Payment Status: ${orderDetail.paymentStatus}'),
                   const SizedBox(height: 12),
                   const Text(
                     'Items:',
