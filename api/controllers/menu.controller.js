@@ -131,18 +131,18 @@ export const createMenuItem = async (req, res) => {
 // GET /api/menu?limit=10&offset=0
 export const getMenuItems = async (req, res) => {
   try {
-    const { limit = 10, offset = 0 } = req.query;
+    // const { limit = 10, offset = 0 } = req.query;
 
-    // Validasi input
-    const parsedLimit = parseInt(limit);
-    const parsedOffset = parseInt(offset);
+    // // Validasi input
+    // const parsedLimit = parseInt(limit);
+    // const parsedOffset = parseInt(offset);
 
-    if (isNaN(parsedLimit) || isNaN(parsedOffset)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Limit and offset must be valid numbers.'
-      });
-    }
+    // if (isNaN(parsedLimit) || isNaN(parsedOffset)) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Limit and offset must be valid numbers.'
+    //   });
+    // }
 
     // Ambil semua menu items dengan pagination
     const menuItems = await MenuItem.find()
@@ -162,8 +162,8 @@ export const getMenuItems = async (req, res) => {
           select: 'name'
         }
       ])
-      .skip(parsedOffset)
-      .limit(parsedLimit)
+      // .skip(parsedOffset)
+      // .limit(parsedLimit)
       // ururt berdasarkan nama
       .sort({ name: 1 });
 
@@ -223,18 +223,18 @@ export const getMenuItems = async (req, res) => {
     });
 
     // Metadata pagination
-    const meta = {
-      totalItems,
-      itemCount: formattedMenuItems.length,
-      itemsPerPage: parsedLimit,
-      totalPages: Math.ceil(totalItems / parsedLimit),
-      currentPage: Math.floor(parsedOffset / parsedLimit) + 1
-    };
+    // const meta = {
+    //   totalItems,
+    //   itemCount: formattedMenuItems.length,
+    //   itemsPerPage: parsedLimit,
+    //   totalPages: Math.ceil(totalItems / parsedLimit),
+    //   currentPage: Math.floor(parsedOffset / parsedLimit) + 1
+    // };
 
     res.status(200).json({
       success: true,
       data: formattedMenuItems,
-      meta
+      // meta
     });
 
   } catch (error) {
