@@ -21,7 +21,20 @@ class OrderHistoryNotifier extends AsyncNotifier<List<OrderDetailModel>> {
   Future<List<OrderDetailModel>> build() async {
     // _repository = ref.read(orderHistoryRepositoryProvider);
     // final cashierId = ref.read(authCashierProvider).value?.id ?? '';
-    return await _repository.fetchOrderHistory();
+
+    return fetchOrderHistory();
+  }
+
+  //fetch order history
+  Future<List<OrderDetailModel>> fetchOrderHistory() async {
+    try {
+      final orderHistory = await _repository.fetchOrderHistory();
+
+      return orderHistory;
+    } catch (e) {
+      print("Gagal mengambil data order history: ${e.toString()}");
+      rethrow;
+    }
   }
 
   Future<void> refreshHistory() async {

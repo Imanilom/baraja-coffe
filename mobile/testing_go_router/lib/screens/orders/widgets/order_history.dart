@@ -58,6 +58,8 @@ class OrderHistory extends ConsumerWidget {
     print('build order history');
     final history = ref.watch(orderHistoryProvider);
 
+    print('Order history state: $history');
+
     return history.when(
       data:
           (list) =>

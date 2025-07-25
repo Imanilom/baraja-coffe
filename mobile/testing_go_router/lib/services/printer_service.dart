@@ -1,12 +1,37 @@
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 import 'package:kasirbaraja/enums/order_type.dart';
 
 class PrinterService {
+  // Tambahkan fungsi helper untuk mengecek apakah ada items untuk workstation tertentu
+  static bool _hasItemsForWorkstation(
+    OrderDetailModel orderDetail,
+    String jobType,
+  ) {
+    switch (jobType) {
+      case 'kitchen':
+        return orderDetail.items.any(
+          (item) => item.menuItem.workstation == 'kitchen',
+        );
+      case 'bar':
+        return orderDetail.items.any(
+          (item) => item.menuItem.workstation == 'bar',
+        );
+      case 'customer':
+      case 'waiter':
+        // Customer dan waiter selalu print karena menampilkan semua items
+        return orderDetail.items.isNotEmpty;
+      default:
+        return false;
+    }
+  }
+
   static Future<void> connectPrinter(BluetoothPrinterModel printer) async {
     await PrintBluetoothThermal.disconnect;
     await PrintBluetoothThermal.connect(macPrinterAddress: printer.address);
@@ -69,11 +94,18 @@ class PrinterService {
     }
   }
 
+  // Modifikasi fungsi _printJobToSupportedPrinters
   static Future<void> _printJobToSupportedPrinters({
     required OrderDetailModel orderDetail,
     required String jobType,
     required List<BluetoothPrinterModel> printers,
   }) async {
+    // Cek apakah ada items untuk workstation ini
+    if (!_hasItemsForWorkstation(orderDetail, jobType)) {
+      print('⚠️ Tidak ada menu items untuk $jobType, skip printing');
+      return;
+    }
+
     final supportedPrinters =
         printers.where((printer) {
           switch (jobType) {
@@ -337,7 +369,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: cashierName ?? "XXXXXXX",
+          text: cashierName ?? "Kasir",
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -351,7 +383,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: customerName ?? "XXXXXX",
+          text: customerName ?? "Pelanggan",
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -390,6 +422,8 @@ class PrinterService {
 
     // 2. Siapkan konten
     final List<int> bytes = [];
+    final hive = await HiveService.getCashier();
+    final cashierName = hive!.username ?? 'Kasir';
 
     // Header
     bytes.addAll(
@@ -397,7 +431,7 @@ class PrinterService {
         generator,
         paperSize,
         orderDetail.orderId,
-        orderDetail.cashierId,
+        cashierName,
         orderDetail.user,
         OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
       ),

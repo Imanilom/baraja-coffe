@@ -13,18 +13,20 @@ class OnlineOrderRepository {
       // print("response pending orders: $response");
       print("Data pending orders yg diambil: ${response.length}");
 
-      if (response.isEmpty) {
+      if (response['orders'] == null || response['orders'].length == 0) {
         print("Tidak ada data pending orders yang ditemukan. $response");
         return [];
       }
 
       // Batasi hanya 10 data
       final limitedResponse =
-          response.length > 10 ? response.sublist(0, 10) : response;
+          response['orders'].length > 10
+              ? response['orders'].sublist(0, 10)
+              : response['orders'];
 
       print("Data pending orders yg diambil sebelum limit: $limitedResponse");
       final onlineOrders =
-          limitedResponse.map((json) {
+          (limitedResponse as List).map((json) {
             // Pertama buat model dasar dari JSON
             print(
               "Data pending orders yg diambil, berikut datanya json: $json",

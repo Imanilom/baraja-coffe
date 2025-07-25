@@ -43,12 +43,15 @@ const CustomerManagement = () => {
             setLoading(true);
             try {
                 // Fetch customer data
-                const customerResponse = [
-                    { _id: "1", name: "Rilo", type: "Silver", telepon: "0812344" }
-                ];
+                // const customerResponse = [
+                //     { _id: "1", name: "Rilo", type: "Silver", telepon: "0812344" }
+                // ];
 
-                setCustomer(customerResponse);
-                setFilteredData(customerResponse); // Initialize filtered data with all customer
+                const customerResponse = await axios.get(`/api/user`);
+                const customer = customerResponse.data;
+
+                setCustomer(customer);
+                setFilteredData(customer); // Initialize filtered data with all customer
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -92,21 +95,6 @@ const CustomerManagement = () => {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
-
-    // Paginate the filtered data
-    const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
-        }
-
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
-        return result;
-    }, [currentPage, filteredData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -256,11 +244,11 @@ const CustomerManagement = () => {
                     <div className="flex justify-between p-4 text-[14px]">
                         <div className="">
                             <label htmlFor="" className="uppercase text-[#999999]">Total Pelanggan</label>
-                            <h3 className="text-white font-semibold ">3822 Pelanggan</h3>
+                            <h3 className="text-white font-semibold ">{customer.length}</h3>
                         </div>
                         <div className="">
                             <label htmlFor="" className="uppercase text-[#999999]">Pelanggan Paling Loyal</label>
-                            <h3 className="text-white font-semibold underline decoration-dashed underline-offset-[5px]">Mas Bambang SCN</h3>
+                            <h3 className="text-white font-semibold underline decoration-dashed underline-offset-[5px]">staffdapur</h3>
                         </div>
                         <div className="">
                             <label htmlFor="" className="uppercase text-[#999999]">Pelanggan Baru Bulan Ini</label>
@@ -282,26 +270,26 @@ const CustomerManagement = () => {
                                 <th className="px-4 py-3 font-normal"></th>
                             </tr>
                         </thead>
-                        {paginatedData.length > 0 ? (
+                        {customer.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((data, index) => {
+                                {customer.map((data, index) => {
                                     try {
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
                                                 <td className="px-4 py-3">
-                                                    {data.name || []}
+                                                    {data.username || "-"}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.telepon || []}
+                                                    {data.phone || "-"}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.email || []}
+                                                    {data.email || "-"}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.type || []}
+                                                    {data.consumerType || "-"}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.catatan || []}
+                                                    {data.catatan || "-"}
                                                 </td>
                                                 <td className="px-4 py-3">
 
@@ -366,7 +354,7 @@ const CustomerManagement = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                {paginatedData.length > 0 && (
+                {/* {paginatedData.length > 0 && (
                     <div className="flex justify-between items-center mt-4">
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
@@ -390,7 +378,7 @@ const CustomerManagement = () => {
                             </div>
                         )}
                     </div>
-                )}
+                )} */}
             </div>
 
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
