@@ -231,14 +231,16 @@ class PrinterService {
       final List<int> bytes = [];
 
       // Header
+      bytes.addAll(await generateHeadersBytes(generator, paperSize));
+      // Bill Data
       bytes.addAll(
-        await generateHeadersBytes(
+        await generateBillDataBytes(
           generator,
           paperSize,
-          null,
-          null,
-          null,
-          null,
+          null, // orderId,
+          null, // customerName,
+          null, // orderType,
+          null, // tableNumber,
         ),
       );
 
@@ -305,10 +307,6 @@ class PrinterService {
   static Future<List<int>> generateHeadersBytes(
     Generator generator,
     PaperSize paperSize,
-    String? orderId,
-    String? cashierName,
-    String? customerName,
-    String? orderType,
   ) async {
     final List<int> bytes = [];
 
@@ -331,7 +329,22 @@ class PrinterService {
 
     bytes.addAll(generator.feed(1));
 
-    // Data kode struk Tanggal Kasir dan Pelanggan
+    return bytes;
+  }
+
+  // Data kode struk Tanggal Kasir dan Pelanggan
+  static Future<List<int>> generateBillDataBytes(
+    Generator generator,
+    PaperSize paperSize,
+    String? orderId,
+    String? customerName,
+    String? orderType,
+    String? tableNumber,
+  ) async {
+    final List<int> bytes = [];
+    final hive = await HiveService.getCashier();
+    final cashierName = hive!.username ?? 'Kasir';
+
     bytes.addAll(
       generator.row([
         PosColumn(
@@ -369,7 +382,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: cashierName ?? "Kasir",
+          text: cashierName,
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -389,6 +402,22 @@ class PrinterService {
         ),
       ]),
     );
+    if (orderType == 'Dine-In') {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'No Meja',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: tableNumber ?? "Meja",
+            width: 8,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
 
     // Tambahkan jeda
     bytes.addAll(generator.feed(1));
@@ -422,18 +451,19 @@ class PrinterService {
 
     // 2. Siapkan konten
     final List<int> bytes = [];
-    final hive = await HiveService.getCashier();
-    final cashierName = hive!.username ?? 'Kasir';
 
     // Header
+    bytes.addAll(await generateHeadersBytes(generator, paperSize));
+
+    // Bill Data
     bytes.addAll(
-      await generateHeadersBytes(
+      await generateBillDataBytes(
         generator,
         paperSize,
         orderDetail.orderId,
-        cashierName,
         orderDetail.user,
         OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.tableNumber,
       ),
     );
 
@@ -554,6 +584,22 @@ class PrinterService {
       ),
     );
 
+    bytes.addAll(generator.feed(1));
+    // Bill Data
+    bytes.addAll(
+      await generateBillDataBytes(
+        generator,
+        paperSize,
+        orderDetail.orderId,
+        orderDetail.user,
+        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.tableNumber,
+      ),
+    );
+
+    bytes.addAll(generator.hr());
+
+    // Filter items for bar workstation
     final orderdetail =
         orderDetail.items
             .where((item) => item.menuItem.workstation == 'bar')
@@ -583,7 +629,6 @@ class PrinterService {
       ),
     );
     bytes.addAll(generator.feed(2));
-    bytes.addAll(generator.cut());
 
     return bytes;
   }
@@ -618,7 +663,20 @@ class PrinterService {
       ),
     );
 
-    bytes.addAll(generator.hr(ch: '='));
+    bytes.addAll(generator.feed(1));
+    // Bill Data
+    bytes.addAll(
+      await generateBillDataBytes(
+        generator,
+        paperSize,
+        orderDetail.orderId,
+        orderDetail.user,
+        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.tableNumber,
+      ),
+    );
+
+    bytes.addAll(generator.hr());
     print('print kitchen ${orderDetail.items}');
 
     final orderdetail =
@@ -631,24 +689,26 @@ class PrinterService {
         generator.row([
           PosColumn(
             text: item.menuItem.name!,
-            width: 6,
+            width: 9,
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
             text: 'x${item.quantity.toString()}',
-            width: 6,
-            styles: const PosStyles(align: PosAlign.center),
+            width: 3,
+            styles: const PosStyles(align: PosAlign.right),
           ),
         ]),
       );
     }
-    bytes.addAll(generator.hr(ch: '='));
+    bytes.addAll(generator.hr());
     bytes.addAll(
       generator.text(
         'Selesai mencetak',
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
+    bytes.addAll(generator.feed(4));
+
     return bytes;
   }
 
@@ -684,6 +744,19 @@ class PrinterService {
       ),
     );
 
+    bytes.addAll(generator.feed(1));
+    // Bill Data
+    bytes.addAll(
+      await generateBillDataBytes(
+        generator,
+        paperSize,
+        orderDetail.orderId,
+        orderDetail.user,
+        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.tableNumber,
+      ),
+    );
+
     bytes.addAll(generator.hr());
 
     final orderdetail = orderDetail.items;
@@ -705,6 +778,13 @@ class PrinterService {
       );
     }
     bytes.addAll(generator.hr());
+    bytes.addAll(
+      generator.text(
+        'Selesai',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+    bytes.addAll(generator.feed(4));
 
     return bytes;
   }

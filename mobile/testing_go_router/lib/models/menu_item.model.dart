@@ -55,7 +55,8 @@ abstract class MenuItemModel with _$MenuItemModel {
     description: json['description'] ?? "",
     mainCategory: json['mainCategory'] ?? "",
     // category: json['category']['name'] ?? "tidak ada kategori",
-    subCategory: json['subCategory']['name'] ?? "",
+    subCategory:
+        json['subCategory'] == null ? "" : json['subCategory']['name'] ?? "",
     imageURL: json['imageUrl'] ?? "",
     toppings:
         json['toppings'] == null

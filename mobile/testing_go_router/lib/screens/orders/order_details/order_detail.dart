@@ -106,6 +106,17 @@ class OrderDetail extends ConsumerWidget {
                           ? 'Meja ${orderDetail?.tableNumber}'
                           : 'Meja',
                   onPressed: () {
+                    if (orderDetail?.orderType == OrderType.takeAway) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Tidak bisa mengubah nomor meja pada pesanan Take Away',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
                     //initialize order detail
                     if (orderDetail == null) {
                       ref
@@ -175,46 +186,6 @@ class OrderDetail extends ConsumerWidget {
                         );
                       },
                     );
-                    // showDialog(
-                    //   context: context,
-                    //   builder: (context) {
-                    //     return AlertDialog(
-                    //       scrollable: true,
-                    //       title: const Text('Pilih Nomor Meja'),
-                    //       content: Column(
-                    //         mainAxisSize: MainAxisSize.min,
-                    //         children: List.generate(
-                    //           20,
-                    //           (index) => ListTile(
-                    //             title: Text('Meja ${index + 1}'),
-                    //             selected: orderDetail?.tableNumber == index + 1,
-                    //             selectedColor: Colors.white,
-                    //             selectedTileColor: Colors.green,
-                    //             shape: RoundedRectangleBorder(
-                    //               borderRadius: BorderRadius.circular(8),
-                    //             ),
-                    //             onTap: () {
-                    //               ref
-                    //                   .read(orderDetailProvider.notifier)
-                    //                   .updateCustomerDetails(
-                    //                     tableNumber: (index + 1).toString(),
-                    //                   );
-                    //               Navigator.pop(context);
-                    //             },
-                    //           ),
-                    //         ),
-                    //       ),
-                    //       actions: [
-                    //         TextButton(
-                    //           onPressed: () {
-                    //             Navigator.pop(context);
-                    //           },
-                    //           child: const Text('Tutup'),
-                    //         ),
-                    //       ],
-                    //     );
-                    //   },
-                    // );
                   },
                   color:
                       orderDetail?.tableNumber != "" &&
@@ -278,6 +249,10 @@ class OrderDetail extends ConsumerWidget {
                                     ref
                                         .read(orderDetailProvider.notifier)
                                         .updateOrderType(OrderType.takeAway);
+                                    //hapus nomor meja
+                                    ref
+                                        .read(orderDetailProvider.notifier)
+                                        .updateCustomerDetails(tableNumber: '');
                                     Navigator.pop(context);
                                   },
                                 ),
@@ -565,28 +540,96 @@ class OrderDetail extends ConsumerWidget {
                           ],
                         )
                         : currentWidgetIndex == 1
-                        ? Row(
-                          spacing: 8,
+                        ? Column(
                           children: [
-                            ElevatedButton(
-                              onPressed: () {
-                                ref
-                                    .read(onlineOrderDetailProvider.notifier)
-                                    .clearOnlineOrderDetail();
-                              },
-                              child: Text('cancel'),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Status Pembayaran',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  orderDetail.paymentStatus ?? 'Pending',
+                                  style: TextStyle(
+                                    color:
+                                        orderDetail.paymentStatus == 'Paid'
+                                            ? Colors.green
+                                            : Colors.orangeAccent,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  if (orderDetail != null &&
-                                      orderDetail.items.isNotEmpty) {
-                                    //confirm order
-                                     confirmOrder(ref, orderDetail);
-                                  }
-                                },
-                                child: Text('confirm'),
-                              ),
+                            const SizedBox(height: 8),
+                            Row(
+                              spacing: 8,
+                              children: [
+                                TextButton(
+                                  onPressed: () {
+                                    ref
+                                        .read(
+                                          onlineOrderDetailProvider.notifier,
+                                        )
+                                        .clearOnlineOrderDetail();
+                                  },
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: Colors.red[50],
+                                    foregroundColor: Colors.red,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: Text('Kembali'),
+                                ),
+                                Expanded(
+                                  child: TextButton(
+                                    onPressed: () {
+                                      print(
+                                        'payment status: ${orderDetail!.paymentStatus}',
+                                      );
+                                      if (orderDetail.items.isNotEmpty &&
+                                          orderDetail.paymentStatus !=
+                                              'Pending') {
+                                        //confirm order
+                                        print('order dikonfirmasi bohongan');
+                                        // confirmOrder(ref, orderDetail);
+                                      } else if (orderDetail.items.isNotEmpty &&
+                                          orderDetail.paymentStatus ==
+                                              'Pending') {
+                                        //lanjut ke metode pembayaran
+                                        print('lanjut ke metode pembayaran');
+                                        print('order detail: $orderDetail');
+                                        context.push(
+                                          '/payment-method',
+                                          extra: orderDetail,
+                                        );
+                                      } else {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              "Tidak ada item yang dipesan",
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      orderDetail.paymentStatus == 'Pending'
+                                          ? 'Lanjut Bayar'
+                                          : 'Konfirmasi',
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         )
@@ -663,6 +706,9 @@ class OrderDetail extends ConsumerWidget {
                                             } else if (orderDetail
                                                     .tableNumber ==
                                                 null) {
+                                              print(
+                                                'nomor meja tidak boleh kosong',
+                                              );
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
@@ -716,7 +762,6 @@ class OrderDetail extends ConsumerWidget {
                                     orderDetail.items.isEmpty
                                         ? null
                                         : () {
-
                                           if (orderDetail != null &&
                                               orderDetail.items.isNotEmpty) {
                                             // print('mau dibayar');
@@ -735,8 +780,10 @@ class OrderDetail extends ConsumerWidget {
                                               );
                                               return;
                                             } else if (orderDetail
-                                                    .tableNumber ==
-                                                "") {
+                                                        .tableNumber ==
+                                                    "" &&
+                                                orderDetail.orderType !=
+                                                    OrderType.takeAway) {
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
@@ -794,7 +841,6 @@ class _OrderSummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     final textStyle =
         isBold
             ? const TextStyle(fontWeight: FontWeight.bold)
