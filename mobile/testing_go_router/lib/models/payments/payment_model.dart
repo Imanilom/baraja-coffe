@@ -68,17 +68,17 @@ class PaymentState {
     }
     if (selectedPaymentType!.id == 'cash') {
       return {
-        'type': 'cash',
+        'type': 'Cash',
         'method': 'Cash',
         'amount': selectedCashAmount ?? 0,
-        'change': 0, // You may want to calculate change elsewhere
+        'change': change, // You may want to calculate change elsewhere
       };
     } else {
       return {
         'type': selectedPaymentType!.name,
         'method': selectedPaymentMethod?.methodCode ?? '',
         'amount': 0, // You may want to set this based on your logic
-        'change': 0,
+        'change': change,
       };
     }
   }

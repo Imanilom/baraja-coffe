@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { FaBell, FaUser, FaShoppingBag, FaChevronRight } from 'react-icons/fa';
 import axios from "axios";
+import Select from 'react-select';
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 const ReceiptMenu = () => {
@@ -39,7 +40,6 @@ const ReceiptMenu = () => {
                 const existingRecipe = allRecipes.find(r => r.menuItemId?._id === id);
                 if (existingRecipe) {
                     setExistingRecipeId(existingRecipe._id);
-                    console.log(existingRecipe);
 
                     // Jika ingin menampilkan resep yang sudah ada di form:
                     setBaseIngredients(existingRecipe.baseIngredients || []);
@@ -84,8 +84,17 @@ const ReceiptMenu = () => {
             optionLabel: a.options?.[0]?.label || "",
             ingredients: [{ productId: "", productName: "", productSku: "", quantity: "", unit: "" }]
         }));
+
         setAddonOptions(addons);
     };
+
+    const productOptions = productList.map(product => ({
+        value: product.name,
+        label: `${product.name} (${product.sku})`,
+        _id: product._id,
+        sku: product.sku,
+        unit: product.unit
+    }));
 
     const handleChange = (setter, data, index, field, value) => {
         const updated = [...data];
@@ -171,16 +180,26 @@ const ReceiptMenu = () => {
                             unit: ing.unit
                         }))
                 }))
+
         };
 
         console.log("Payload to be sent:", JSON.stringify(payload, null, 2));
 
         try {
-            const response = await axios.post(`/api/product/recipes`, payload, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
+            let response;
+            if (existingRecipeId) {
+                response = await axios.put(`/api/product/recipes/${existingRecipeId}`, payload, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+            } else {
+                response = await axios.post(`/api/product/recipes`, payload, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+            }
 
             console.log("Full response:", response);
             console.log("Response data:", response.data);
@@ -230,7 +249,7 @@ const ReceiptMenu = () => {
             </div>
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
+            <div className="px-3 py-4 flex items-center border-b bg-white">
                 <div className="flex items-center space-x-2 text-gray-400">
                     <FaShoppingBag size={21} />
                     <Link to="/admin/menu">Produk</Link>
@@ -238,13 +257,6 @@ const ReceiptMenu = () => {
                     <p>{menuName}</p>
                     <FaChevronRight />
                     <span>Kelola Resep</span>
-                </div>
-                <div className="flex space-x-2">
-                    <Link to="/admin/menu"
-                        className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
-                    >
-                        Batal
-                    </Link>
                 </div>
             </div>
 
@@ -264,29 +276,27 @@ const ReceiptMenu = () => {
                             <h2 className="text-lg font-semibold mb-4">Bahan Menu</h2>
                             {baseIngredients.map((item, index) => (
                                 <div key={index} className="grid grid-cols-5 gap-4 mb-2 items-center">
-                                    <select
-                                        value={item.productName}
-                                        onChange={(e) => {
-                                            const selectedProduct = productList.find(p => p.name === e.target.value);
+
+                                    <Select
+                                        className="text-sm"
+                                        classNamePrefix="react-select"
+                                        options={productOptions}
+                                        value={productOptions.find(opt => opt.value === item.productName) || null}
+                                        onChange={(selected) => {
                                             const updated = [...baseIngredients];
                                             updated[index] = {
                                                 ...updated[index],
-                                                productId: selectedProduct?._id || "",
-                                                productName: selectedProduct?.name || "",
-                                                productSku: selectedProduct?.sku || ""
+                                                productId: selected?._id || "",
+                                                productName: selected?.value || "",
+                                                productSku: selected?.sku || "",
+                                                unit: selected?.unit || "",
                                             };
                                             setBaseIngredients(updated);
                                         }}
-                                        className="border rounded p-2 text-sm"
+                                        placeholder="Pilih Bahan Baku"
+                                        isClearable
                                         required
-                                    >
-                                        <option value="">Pilih Bahan Baku</option>
-                                        {productList.map(product => (
-                                            <option key={product._id} value={product.name}>
-                                                {product.name} ({product.sku})
-                                            </option>
-                                        ))}
-                                    </select>
+                                    />
 
                                     <input
                                         type="text"
@@ -317,7 +327,7 @@ const ReceiptMenu = () => {
                                         onChange={(e) =>
                                             handleChange(setBaseIngredients, baseIngredients, index, "unit", e.target.value)
                                         }
-                                        className="border rounded p-2 text-sm"
+                                        className="border rounded p-2 text-sm lowercase"
                                         required
                                     />
                                     <button
@@ -351,7 +361,6 @@ const ReceiptMenu = () => {
                         {/* Toppings */}
                         <div>
                             <h2 className="text-lg font-semibold mb-4">Bahan Topping</h2>
-                            {console.log(toppingOptions)}
                             {toppingOptions.map((topping, tIdx) => (
                                 <div key={tIdx} className="mb-6 border border-gray-200 p-4 rounded">
                                     <div className="flex items-center gap-4 mb-3">
@@ -371,29 +380,26 @@ const ReceiptMenu = () => {
 
                                     {topping.ingredients.map((ing, iIdx) => (
                                         <div key={iIdx} className="grid grid-cols-5 gap-4 mb-2 items-center">
-                                            <select
-                                                value={ing.productName}
-                                                onChange={(e) => {
-                                                    const selectedProduct = productList.find(p => p.name === e.target.value);
+                                            <Select
+                                                className="text-sm"
+                                                classNamePrefix="react-select"
+                                                options={productOptions}
+                                                value={productOptions.find(opt => opt.value === ing.productName) || null}
+                                                onChange={(select) => {
                                                     const updated = [...toppingOptions];
                                                     updated[tIdx].ingredients[iIdx] = {
                                                         ...updated[tIdx].ingredients[iIdx],
-                                                        productId: selectedProduct?._id || "",
-                                                        productName: selectedProduct?.name || "",
-                                                        productSku: selectedProduct?.sku || ""
+                                                        productId: select?._id || "",
+                                                        productName: select?.value || "",
+                                                        productSku: select?.sku || "",
+                                                        unit: select?.unit || ""
                                                     };
                                                     setToppingOptions(updated);
                                                 }}
-                                                className="border rounded p-2 text-sm"
+                                                placeholder="Pilih Bahan"
+                                                isClearable
                                                 required
-                                            >
-                                                <option value="">Pilih Bahan</option>
-                                                {productList.map(product => (
-                                                    <option key={product._id} value={product.name}>
-                                                        {product.name} ({product.sku})
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            />
 
                                             <input
                                                 type="text"
@@ -424,7 +430,7 @@ const ReceiptMenu = () => {
                                                 onChange={(e) =>
                                                     handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "unit", e.target.value)
                                                 }
-                                                className="border rounded p-2 text-sm"
+                                                className="border rounded p-2 text-sm lowercase"
                                                 required
                                             />
                                             <button
@@ -460,21 +466,6 @@ const ReceiptMenu = () => {
                                     </button>
                                 </div>
                             ))}
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setToppingOptions([
-                                        ...toppingOptions,
-                                        {
-                                            toppingName: "",
-                                            ingredients: [{ productId: "", productName: "", productSku: "", quantity: "", unit: "" }]
-                                        }
-                                    ]);
-                                }}
-                                className="text-blue-600 text-sm mt-2"
-                            >
-                                + Tambah Topping
-                            </button>
                         </div>
 
                         {/* Addons */}
@@ -492,7 +483,7 @@ const ReceiptMenu = () => {
                                                 updated[aIdx].addonName = e.target.value;
                                                 setAddonOptions(updated);
                                             }}
-                                            className="border p-2 rounded text-sm"
+                                            className="border w-full p-2 rounded text-sm"
                                             required
                                         />
                                         <input
@@ -507,33 +498,31 @@ const ReceiptMenu = () => {
                                             className="border p-2 rounded text-sm"
                                             required
                                         />
+
                                     </div>
 
                                     {addon.ingredients.map((ing, iIdx) => (
                                         <div key={iIdx} className="grid grid-cols-5 gap-4 mb-2 items-center">
-                                            <select
-                                                value={ing.productName}
-                                                onChange={(e) => {
-                                                    const selectedProduct = productList.find(p => p.name === e.target.value);
+                                            <Select
+                                                className="text-sm"
+                                                classNamePrefix="react-select"
+                                                options={productOptions}
+                                                value={productOptions.find(opt => opt.value === ing.productName) || null}
+                                                onChange={(select) => {
                                                     const updated = [...addonOptions];
                                                     updated[aIdx].ingredients[iIdx] = {
                                                         ...updated[aIdx].ingredients[iIdx],
-                                                        productId: selectedProduct?._id || "",
-                                                        productName: selectedProduct?.name || "",
-                                                        productSku: selectedProduct?.sku || ""
+                                                        productId: select?._id || "",
+                                                        productName: select?.value || "",
+                                                        productSku: select?.sku || "",
+                                                        unit: select?.unit || "",
                                                     };
                                                     setAddonOptions(updated);
                                                 }}
-                                                className="border rounded p-2 text-sm"
+                                                placeholder="Pilih Bahan"
+                                                isClearable
                                                 required
-                                            >
-                                                <option value="">Pilih Bahan</option>
-                                                {productList.map(product => (
-                                                    <option key={product._id} value={product.name}>
-                                                        {product.name} ({product.sku})
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            />
                                             <input
                                                 type="text"
                                                 placeholder="SKU"
@@ -563,7 +552,7 @@ const ReceiptMenu = () => {
                                                 onChange={(e) =>
                                                     handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "unit", e.target.value)
                                                 }
-                                                className="border rounded p-2 text-sm"
+                                                className="border rounded p-2 text-sm lowercase"
                                                 required
                                             />
                                             <button
@@ -599,31 +588,20 @@ const ReceiptMenu = () => {
                                     </button>
                                 </div>
                             ))}
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setAddonOptions([
-                                        ...addonOptions,
-                                        {
-                                            addonName: "",
-                                            optionLabel: "",
-                                            ingredients: [{ productId: "", productName: "", productSku: "", quantity: "", unit: "" }]
-                                        }
-                                    ]);
-                                }}
-                                className="text-blue-600 text-sm mt-2"
-                            >
-                                + Tambah Addon
-                            </button>
                         </div>
 
                         {/* Submit Button */}
-                        <div className="pt-6">
+                        <div className="flex justify-end space-x-2">
+                            <Link to="/admin/menu"
+                                className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
+                            >
+                                Batal
+                            </Link>
                             <button
                                 type="submit"
                                 className="bg-[#005429] text-white px-6 py-2 rounded"
                             >
-                                Simpan Semua
+                                Simpan
                             </button>
                         </div>
                     </form>

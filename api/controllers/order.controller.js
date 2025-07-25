@@ -849,7 +849,7 @@ export const createUnifiedOrder = async (req, res) => {
     // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(202).json({
-        status: 'completed',
+        status: 'Completed',
         orderId,
         jobId: job.id,
         message: 'Cashier order processed and paid',
@@ -1681,7 +1681,10 @@ export const getPendingOrders = async (req, res) => {
       outlet: outletObjectId
     }).lean().sort({ createdAt: -1 });
 
-    if (!pendingOrders.length) return res.status(200).json([]);
+    // if (!pendingOrders.length) return res.status(200).json([]);
+    if (!pendingOrders.length || pendingOrders.length === 0) {
+      return res.status(200).json({ message: 'No online order found.', orders: pendingOrders });
+    }
 
     const orderIds = pendingOrders.map(order => order._id);
 
@@ -1796,7 +1799,8 @@ export const getPendingOrders = async (req, res) => {
       };
     });
 
-    res.status(200).json(enrichedOrders);
+    // res.status(200).json(enrichedOrders);
+    res.status(200).json({ orders: enrichedOrders });
   } catch (error) {
     console.error('Error fetching pending unpaid orders:', error);
     res.status(500).json({ message: 'Error fetching pending orders', error });
@@ -2090,14 +2094,14 @@ export const getCashierOrderHistory = async (req, res) => {
           subtotal: item.subtotal,
           isPrinted: item.isPrinted,
           menuItem: {
-            // ...item.menuItem.toObject(),
-            _id: item.menuItem._id,
-            name: item.menuItem.name,
-            originalPrice: item.menuItem.price,
-            discountedprice: item.menuItem.discountedPrice,
-            description: item.menuItem.description,
-            workstation: item.menuItem.workstation,
-            categories: item.menuItem.category, // renamed
+            ...item.menuItem,
+            // _id: item.menuItem._id,
+            // name: item.menuItem.name,
+            // originalPrice: item.menuItem.price,
+            // discountedprice: item.menuItem.discountedPrice,
+            // description: item.menuItem.description,
+            // workstation: item.menuItem.workstation,
+            // categories: item.menuItem.category, // renamed
           },
           selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
             name: addon.name,
@@ -2547,7 +2551,7 @@ export const cashierCharge = async (req, res) => {
       order_id: order_id,
       transaction_id: transactionId,
       method: payment_type,
-      status: status,
+      status: 'finished',
       paymentType: paymentType,
       amount: amount,
       remainingAmount: remainingAmount,

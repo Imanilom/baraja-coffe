@@ -15,13 +15,25 @@ const CategoryIndex = () => {
   const [categories, setCategories] = useState([]);
   const [categoryCounts, setCategoryCounts] = useState({});
   const [menuItems, setMenuItems] = useState([]);
+  const [totalItems, setTotalItems] = useState([]);
   const [filteredCategories, setFilteredCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedType, setSelectedType] = useState('all'); // State untuk menyimpan tipe yang dipilih
   const [currentPage, setCurrentPage] = useState(1); // Halaman saat ini
   const ITEMS_PER_PAGE = 50;
+  const [limit] = useState(20);
+  const [offset, setOffset] = useState(0);
 
+  const fetchMenuItems = async (limit, offset) => {
+    const menuResponse = await axios.get('/api/menu/menu-items', {
+      params: { limit, offset }
+    });
+    return {
+      data: menuResponse.data.data,
+      meta: menuResponse.data.meta
+    };
+  };
   // Fungsi untuk mengambil daftar kategori dari API
   useEffect(() => {
     const fetchData = async (type) => {
@@ -35,19 +47,13 @@ const CategoryIndex = () => {
         setCategories(categoryData.mainCategories);
         setFilteredCategories(categoryData.mainCategories);
 
-        const menuResponse = await axios.get('/api/menu/menu-items');
-
-        // Ensure menuResponse.data is an array
-        const menuData = Array.isArray(menuResponse.data) ?
-          menuResponse.data :
-          (menuResponse.data && Array.isArray(menuResponse.data.data)) ?
-            menuResponse.data.data : [];
-
-        setMenuItems(menuData);
+        const { data, meta } = await fetchMenuItems(limit, offset);
+        setMenuItems(data);
+        setTotalItems(meta.totalItems);
 
         // Hitung jumlah menu per kategori sekali saja di sini
         const counts = {};
-        menuData.forEach((menu) => {
+        data.forEach((menu) => {
           if (Array.isArray(menu.category)) {
             // Jika array of object (pakai .name) atau string langsung
             menu.category.forEach((cat) => {
@@ -227,6 +233,12 @@ const CategoryIndex = () => {
           >
             Tambah Kategori
           </Link>
+          <Link
+            to="/admin/subcategory-create"
+            className="bg-[#005429] text-white px-4 py-2 rounded inline-block text-[13px]"
+          >
+            Tambah Sub Kategori
+          </Link>
         </div>
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-2 md:grid-cols-2 py-4">
@@ -240,7 +252,7 @@ const CategoryIndex = () => {
               <h2 className="text-gray-400 ml-2 text-sm">Produk</h2>
             </div>
             <div className="text-sm text-gray-400">
-              ({menuItems.length})
+              ({totalItems})
             </div>
           </Link>
         </button>
