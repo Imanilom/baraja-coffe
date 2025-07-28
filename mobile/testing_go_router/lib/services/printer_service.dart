@@ -1,12 +1,37 @@
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 import 'package:kasirbaraja/enums/order_type.dart';
 
 class PrinterService {
+  // Tambahkan fungsi helper untuk mengecek apakah ada items untuk workstation tertentu
+  static bool _hasItemsForWorkstation(
+    OrderDetailModel orderDetail,
+    String jobType,
+  ) {
+    switch (jobType) {
+      case 'kitchen':
+        return orderDetail.items.any(
+          (item) => item.menuItem.workstation == 'kitchen',
+        );
+      case 'bar':
+        return orderDetail.items.any(
+          (item) => item.menuItem.workstation == 'bar',
+        );
+      case 'customer':
+      case 'waiter':
+        // Customer dan waiter selalu print karena menampilkan semua items
+        return orderDetail.items.isNotEmpty;
+      default:
+        return false;
+    }
+  }
+
   static Future<void> connectPrinter(BluetoothPrinterModel printer) async {
     await PrintBluetoothThermal.disconnect;
     await PrintBluetoothThermal.connect(macPrinterAddress: printer.address);
@@ -69,11 +94,18 @@ class PrinterService {
     }
   }
 
+  // Modifikasi fungsi _printJobToSupportedPrinters
   static Future<void> _printJobToSupportedPrinters({
     required OrderDetailModel orderDetail,
     required String jobType,
     required List<BluetoothPrinterModel> printers,
   }) async {
+    // Cek apakah ada items untuk workstation ini
+    if (!_hasItemsForWorkstation(orderDetail, jobType)) {
+      print('⚠️ Tidak ada menu items untuk $jobType, skip printing');
+      return;
+    }
+
     final supportedPrinters =
         printers.where((printer) {
           switch (jobType) {
@@ -199,14 +231,16 @@ class PrinterService {
       final List<int> bytes = [];
 
       // Header
+      bytes.addAll(await generateHeadersBytes(generator, paperSize));
+      // Bill Data
       bytes.addAll(
-        await generateHeadersBytes(
+        await generateBillDataBytes(
           generator,
           paperSize,
-          null,
-          null,
-          null,
-          null,
+          null, // orderId,
+          null, // customerName,
+          null, // orderType,
+          null, // tableNumber,
         ),
       );
 
@@ -273,10 +307,6 @@ class PrinterService {
   static Future<List<int>> generateHeadersBytes(
     Generator generator,
     PaperSize paperSize,
-    String? orderId,
-    String? cashierName,
-    String? customerName,
-    String? orderType,
   ) async {
     final List<int> bytes = [];
 
@@ -299,7 +329,22 @@ class PrinterService {
 
     bytes.addAll(generator.feed(1));
 
-    // Data kode struk Tanggal Kasir dan Pelanggan
+    return bytes;
+  }
+
+  // Data kode struk Tanggal Kasir dan Pelanggan
+  static Future<List<int>> generateBillDataBytes(
+    Generator generator,
+    PaperSize paperSize,
+    String? orderId,
+    String? customerName,
+    String? orderType,
+    String? tableNumber,
+  ) async {
+    final List<int> bytes = [];
+    final hive = await HiveService.getCashier();
+    final cashierName = hive!.username ?? 'Kasir';
+
     bytes.addAll(
       generator.row([
         PosColumn(
@@ -337,7 +382,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: cashierName ?? "XXXXXXX",
+          text: cashierName,
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -351,12 +396,28 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: customerName ?? "XXXXXX",
+          text: customerName ?? "Pelanggan",
           width: 8,
           styles: const PosStyles(align: PosAlign.right),
         ),
       ]),
     );
+    if (orderType == 'Dine-In') {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'No Meja',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: tableNumber ?? "Meja",
+            width: 8,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
 
     // Tambahkan jeda
     bytes.addAll(generator.feed(1));
@@ -392,14 +453,17 @@ class PrinterService {
     final List<int> bytes = [];
 
     // Header
+    bytes.addAll(await generateHeadersBytes(generator, paperSize));
+
+    // Bill Data
     bytes.addAll(
-      await generateHeadersBytes(
+      await generateBillDataBytes(
         generator,
         paperSize,
         orderDetail.orderId,
-        orderDetail.cashierId,
         orderDetail.user,
         OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.tableNumber,
       ),
     );
 
@@ -520,6 +584,22 @@ class PrinterService {
       ),
     );
 
+    bytes.addAll(generator.feed(1));
+    // Bill Data
+    bytes.addAll(
+      await generateBillDataBytes(
+        generator,
+        paperSize,
+        orderDetail.orderId,
+        orderDetail.user,
+        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.tableNumber,
+      ),
+    );
+
+    bytes.addAll(generator.hr());
+
+    // Filter items for bar workstation
     final orderdetail =
         orderDetail.items
             .where((item) => item.menuItem.workstation == 'bar')
@@ -549,7 +629,6 @@ class PrinterService {
       ),
     );
     bytes.addAll(generator.feed(2));
-    bytes.addAll(generator.cut());
 
     return bytes;
   }
@@ -584,7 +663,20 @@ class PrinterService {
       ),
     );
 
-    bytes.addAll(generator.hr(ch: '='));
+    bytes.addAll(generator.feed(1));
+    // Bill Data
+    bytes.addAll(
+      await generateBillDataBytes(
+        generator,
+        paperSize,
+        orderDetail.orderId,
+        orderDetail.user,
+        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.tableNumber,
+      ),
+    );
+
+    bytes.addAll(generator.hr());
     print('print kitchen ${orderDetail.items}');
 
     final orderdetail =
@@ -597,24 +689,26 @@ class PrinterService {
         generator.row([
           PosColumn(
             text: item.menuItem.name!,
-            width: 6,
+            width: 9,
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
             text: 'x${item.quantity.toString()}',
-            width: 6,
-            styles: const PosStyles(align: PosAlign.center),
+            width: 3,
+            styles: const PosStyles(align: PosAlign.right),
           ),
         ]),
       );
     }
-    bytes.addAll(generator.hr(ch: '='));
+    bytes.addAll(generator.hr());
     bytes.addAll(
       generator.text(
         'Selesai mencetak',
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
+    bytes.addAll(generator.feed(4));
+
     return bytes;
   }
 
@@ -650,6 +744,19 @@ class PrinterService {
       ),
     );
 
+    bytes.addAll(generator.feed(1));
+    // Bill Data
+    bytes.addAll(
+      await generateBillDataBytes(
+        generator,
+        paperSize,
+        orderDetail.orderId,
+        orderDetail.user,
+        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.tableNumber,
+      ),
+    );
+
     bytes.addAll(generator.hr());
 
     final orderdetail = orderDetail.items;
@@ -671,6 +778,13 @@ class PrinterService {
       );
     }
     bytes.addAll(generator.hr());
+    bytes.addAll(
+      generator.text(
+        'Selesai',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+    bytes.addAll(generator.feed(4));
 
     return bytes;
   }

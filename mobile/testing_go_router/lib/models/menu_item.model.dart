@@ -19,7 +19,7 @@ abstract class MenuItemModel with _$MenuItemModel {
     @HiveField(3) @Default(0) int? originalPrice, // Ubah menjadi int
     @HiveField(4) @Default(0) int? discountedPrice, // Tambahkan field baru
     @HiveField(5) @Default("") String? description,
-    @HiveField(6) @Default("") String? category, // Ubah tipe data
+    @HiveField(6) @Default("") String? mainCategory, // Ubah tipe data
     @HiveField(7) @Default("") String? subCategory, // Ubah tipe data
     // @HiveField(6) MenuCategoryModel? category, // Ubah tipe data
     // @HiveField(7) MenuSubCategoryModel? subCategory, // Ubah tipe data
@@ -53,8 +53,10 @@ abstract class MenuItemModel with _$MenuItemModel {
     originalPrice: json['originalPrice'],
     discountedPrice: json['discountedPrice'],
     description: json['description'] ?? "",
+    mainCategory: json['mainCategory'] ?? "",
     // category: json['category']['name'] ?? "tidak ada kategori",
-    // subCategory: json['subCategory'] ?? "tidak ada sub kategori",
+    subCategory:
+        json['subCategory'] == null ? "" : json['subCategory']['name'] ?? "",
     imageURL: json['imageUrl'] ?? "",
     toppings:
         json['toppings'] == null

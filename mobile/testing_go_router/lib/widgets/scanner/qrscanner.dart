@@ -49,7 +49,8 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
               borderWidth: 10,
               cutOutSize: MediaQuery.of(context).size.width * 0.6,
             ),
-            cameraFacing: isFrontCamera ? CameraFacing.front : CameraFacing.back,
+            cameraFacing:
+                isFrontCamera ? CameraFacing.front : CameraFacing.back,
           ),
 
           // Top controls
@@ -170,19 +171,13 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
                     const SizedBox(height: 8),
                     Text(
                       'Pastikan QR code berada dalam frame',
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Tekan ikon kamera untuk beralih antara kamera depan dan belakang',
-                      style: TextStyle(
-                        color: Colors.grey[500],
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -237,15 +232,17 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
   }
 
   Future<void> _callOrderAPI(String orderId) async {
-    final Dio dio = Dio(BaseOptions(
-      baseUrl: AppConfig.baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-    ));
+    final Dio dio = Dio(
+      BaseOptions(
+        baseUrl: AppConfig.baseUrl,
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+      ),
+    );
 
     try {
       final response = await dio.get(
-        '/api/order/$orderId',
+        '/api/cashier-order/$orderId',
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -260,15 +257,18 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
         print('API Response: $responseData');
 
         // Convert API response ke OrderDetailModel
-        final orderDetailModel = _convertToOrderDetailModel(responseData['orderData']);
+        final orderDetailModel = OrderDetailModel.fromJson(
+          responseData['order'],
+        );
+        // _convertToOrderDetailModel(
+        // responseData['orderData'],
+        // );
 
-        if (orderDetailModel != null) {
-          _showOrderDetailDialog(orderDetailModel);
-        } else {
-          _showErrorDialog('Gagal memproses data order');
-        }
+        _showOrderDetailDialog(orderDetailModel);
       } else {
-        _showErrorDialog('Gagal mengambil data order. Status: ${response.statusCode}');
+        _showErrorDialog(
+          'Gagal mengambil data order. Status: ${response.statusCode}',
+        );
       }
     } on DioException catch (e) {
       String errorMessage = 'Terjadi kesalahan jaringan';
@@ -306,7 +306,10 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
         for (var item in orderData['items']) {
           try {
             // Validate item data
-            if (item['menuItemId'] == null || item['name'] == null || item['price'] == null || item['quantity'] == null) {
+            if (item['menuItemId'] == null ||
+                item['name'] == null ||
+                item['price'] == null ||
+                item['quantity'] == null) {
               print('Missing required fields in item data');
               continue;
             }
@@ -316,8 +319,10 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
               id: item['menuItemId'],
               name: item['name'],
               discountedPrice: (item['price'] as num).toInt(), // Convert to int
-              category: item['category'] ?? '', // Default empty if not provided
-              workstation: item['workstation'] ?? '', // Default empty if not provided
+              mainCategory:
+                  item['mainCategory'] ?? '', // Default empty if not provided
+              workstation:
+                  item['workstation'] ?? '', // Default empty if not provided
               // Add other required fields with defaults
             );
 
@@ -325,7 +330,8 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
             final orderItem = OrderItemModel(
               menuItem: menuItem,
               quantity: item['quantity'] as int,
-              subtotal: ((item['price'] as num) * (item['quantity'] as int)).toInt(),
+              subtotal:
+                  ((item['price'] as num) * (item['quantity'] as int)).toInt(),
               selectedAddons: [], // Handle addons if available
               selectedToppings: [], // Handle toppings if available
               notes: item['notes']?.toString() ?? '',
@@ -409,42 +415,62 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
                     Text('Customer: ${orderDetail.user}'),
                   if (orderDetail.tableNumber!.isNotEmpty)
                     Text('Table: ${orderDetail.tableNumber}'),
+                  Text('Order Type: ${orderDetail.orderType.name}'),
+                  Text('Payment Status: ${orderDetail.paymentStatus}'),
                   const SizedBox(height: 12),
-                  const Text('Items:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Items:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
-                  ...orderDetail.items.map((item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text('${item.quantity}x ${item.menuItem.name}'),
-                        ),
-                        Text('Rp ${item.subtotal.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}'),
-                      ],
+                  ...orderDetail.items.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${item.quantity}x ${item.menuItem.name}',
+                            ),
+                          ),
+                          Text(
+                            'Rp ${item.subtotal.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
+                          ),
+                        ],
+                      ),
                     ),
-                  )),
+                  ),
                   const Divider(),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Subtotal:'),
-                      Text('Rp ${orderDetail.totalAfterDiscount.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}'),
+                      Text(
+                        'Rp ${orderDetail.totalAfterDiscount.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
+                      ),
                     ],
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Tax:'),
-                      Text('Rp ${orderDetail.totalTax.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}'),
+                      Text(
+                        'Rp ${orderDetail.totalTax.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
+                      ),
                     ],
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Total:', style: TextStyle(fontWeight: FontWeight.bold)),
-                      Text('Rp ${orderDetail.grandTotal.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const Text(
+                        'Total:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Rp ${orderDetail.grandTotal.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                 ],
