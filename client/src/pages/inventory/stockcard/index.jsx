@@ -533,10 +533,14 @@ const StockCardManagement = () => {
                                                     <img
                                                         src={item.imageURL || "https://via.placeholder.com/100"}
                                                         alt={item.name}
-                                                        className="w-[35px] h-[35px] object-cover rounded-lg"
+                                                        className="w-[35px] h-[35px] object-cover rounded-lg lowercase"
                                                     />
                                                     <div className="ml-4">
-                                                        <h3>{item.name}</h3>
+                                                        <h3>{item.name
+                                                            .toLowerCase()
+                                                            .split(' ')
+                                                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                                                            .join(' ')}</h3>
                                                     </div>
                                                 </div>
                                             </td>
@@ -550,7 +554,7 @@ const StockCardManagement = () => {
                                             <td className="p-[15px] text-right">-</td>
                                             <td className="p-[15px] text-right">-</td>
                                             <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">{item.unit ? item.unit : "-"}</td>
+                                            <td className="p-[15px] text-right lowercase">{item.unit ? item.unit : "-"}</td>
                                         </tr>
                                     ))}
                                 </tbody>
