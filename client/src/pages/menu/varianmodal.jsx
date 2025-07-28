@@ -167,13 +167,10 @@ const ToppingForm = ({ toppings, setToppings }) => {
             <div className="p-4 overflow-y-auto grow">
                 {toppings.map((item, index) => (
                     <div key={index} className="grid grid-cols-12 gap-2 items-start mb-4">
-                        {index === 0 && (
-                            <>
-                                <label className="col-span-6 font-medium">Nama Topping</label>
-                                <label className="col-span-5 font-medium">Harga</label>
-                                <div className="col-span-1"></div>
-                            </>
-                        )}
+
+                        <label className="col-span-6 font-medium">Nama Topping</label>
+                        <label className="col-span-5 font-medium">Harga</label>
+                        <div className="col-span-1"></div>
 
                         <div className="col-span-6">
                             <input

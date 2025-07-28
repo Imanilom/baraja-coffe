@@ -36,16 +36,16 @@ export const createMenuItem = async (req, res) => {
     }
 
     // Validate subCategory jika disertakan
-    if (subCategory) {
-      const subCat = await Category.findById(subCategory);
-      if (!subCat) {
-        return res.status(400).json({ error: 'Sub-kategori tidak ditemukan.' });
-      }
+    // if (subCategory) {
+    //   const subCat = await Category.findById(subCategory);
+    //   if (!subCat) {
+    //     return res.status(400).json({ error: 'Sub-kategori tidak ditemukan.' });
+    //   }
 
-      if (subCat.parentCategory?.toString() !== category.toString()) {
-        return res.status(400).json({ error: 'Sub-kategori tidak sesuai dengan kategori utama.' });
-      }
-    }
+    //   if (subCat.parentCategory?.toString() !== category.toString()) {
+    //     return res.status(400).json({ error: 'Sub-kategori tidak sesuai dengan kategori utama.' });
+    //   }
+    // }
 
     // Validate toppings
     let topping = req.body.toppings;

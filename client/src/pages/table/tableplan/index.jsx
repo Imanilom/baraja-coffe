@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
+import Select from "react-select";
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -16,9 +17,9 @@ const TablePlanManagement = () => {
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [filteredData, setFilteredData] = useState([]);
-    const [labelMap, setLabelMap] = useState([]);
     const [isOpen, setIsOpen] = useState(false);
     const [showDetail, setShowDetail] = useState(false);
+    const [tables, setTables] = useState([]);
 
     const openModal = () => setIsOpen(true);
     const closeModal = () => setIsOpen(false);
@@ -52,51 +53,39 @@ const TablePlanManagement = () => {
         }
     };
 
-    const fetchTable = async () => {
+    const fetchAreas = async () => {
         try {
-            // Simulasi response dari API
-            const dataFromAPI = [
-                { code: "A01", pax: 4 },
-                { code: "A02", pax: 2 },
-                { code: "B01", pax: 6 },
-                { code: "C07", pax: 5 },
-                { code: "D02", pax: 3 },
-                { code: "Z99", pax: 8 }
-            ];
+            const res = await axios.get('/api/areas');
+            const areaData = res.data.data;
 
-            // Penempatan posisi
-            const placement = {
-                A01: 0,
-                A02: 2,   // index 1 akan kosong
-                B01: 10,
-                C07: 15,
-                D02: 20,
-                Z99: 25
-            };
+            let allTables = [];
 
-            // Hitung totalBoxes minimal berdasarkan index tertinggi
-            const maxIndex = Math.max(...Object.values(placement));
-            const totalBoxes = Math.max(maxIndex + 1, 100);
+            // Ambil semua meja dari semua area
+            if (Array.isArray(areaData)) {
+                allTables = areaData.flatMap(area => area.tables || []);
+            } else {
+                allTables = areaData.tables || [];
+            }
 
-            const grid = Array(totalBoxes).fill(null);
+            // Total minimal kotak yang ingin ditampilkan
+            const totalBoxes = Math.max(allTables.length, 100);
 
-            dataFromAPI.forEach(item => {
-                const position = placement[item.code];
-                if (position !== undefined && position < totalBoxes) {
-                    grid[position] = item;
-                }
-            });
+            // Tambahkan null jika datanya kurang dari 100
+            const filledBoxes = [...allTables];
+            while (filledBoxes.length < totalBoxes) {
+                filledBoxes.push(null);
+            }
 
-            setLabelMap(grid);
-        } catch (error) {
-            console.error("Error fetching table data:", error);
+            setTables(filledBoxes);
+
+        } catch (err) {
+            console.error('Failed to fetch areas:', err);
         }
     };
 
-
     useEffect(() => {
+        fetchAreas();
         fetchOutlet();
-        fetchTable();
     }, []);
 
     // Get unique outlet names for the dropdown
@@ -338,21 +327,10 @@ const TablePlanManagement = () => {
                     <div className="flex flex-col col-span-3">
                         <label className="text-[13px] mb-1 text-gray-500">Area</label>
                         <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Tipe"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
+                            <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]">
+                                {"Semua Tipe"}
+                            </button>
+                            {/* {showInput && (
                                 <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
                                     {filteredOutlets.length > 0 ? (
                                         filteredOutlets.map((outlet, idx) => (
@@ -371,7 +349,7 @@ const TablePlanManagement = () => {
                                         <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
                                     )}
                                 </ul>
-                            )}
+                            )} */}
                         </div>
                     </div>
 
@@ -382,7 +360,7 @@ const TablePlanManagement = () => {
 
                 <div className="rounded shadow-slate-200 shadow-md">
                     <div className="grid grid-cols-8 border">
-                        {labelMap.map((item, index) => (
+                        {/* {labelMap.map((item, index) => (
                             <div key={index} className="col-span-1 p-2 border text-center">
                                 {item ? (
                                     <div
@@ -402,7 +380,35 @@ const TablePlanManagement = () => {
                                     <div className="w-[90px] h-[90px] mx-auto flex flex-col items-center justify-center rounded cursor-pointer"></div>
                                 )}
                             </div>
+                        ))} */}
+
+                        {tables.map((table, index) => (
+                            <div key={index} className="col-span-1 p-2 border text-center">
+                                <div
+                                    key={index}
+                                    className={`w-[90px] h-[90px] mx-auto flex flex-col items-center justify-center rounded cursor-pointer ${table ? 'border' : ''}`}
+                                    onClick={() => {
+                                        if (table) {
+                                            setShowDetail(true); // open modal
+                                            // bisa juga simpan item yg diklik ke state jika dinamis
+                                        }
+                                    }}
+                                >
+                                    {table ? (
+                                        <div>
+                                            <div className="text-sm text-gray-800 font-semibold">{table.table_number}</div>
+                                            <div className="text-[12px] text-gray-500">{table.seats} pax</div>
+                                            <div className={`text-xs font-medium mt-1 ${table.is_available ? 'text-green-600' : 'text-red-600'}`}>
+                                                {table.is_available ? 'Tersedia' : 'Terisi'}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        ''
+                                    )}
+                                </div>
+                            </div>
                         ))}
+
                     </div>
                 </div>
             </div>

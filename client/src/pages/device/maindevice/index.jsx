@@ -43,9 +43,7 @@ const DeviceManagement = () => {
             setLoading(true);
             try {
                 // Fetch attendances data
-                const attendancesResponse = [
-                    { _id: "1", name: "Rilo", type: "Programmer", outlet: "Baraja Amphitheater" }
-                ];
+                const attendancesResponse = [];
 
                 setAttendances(attendancesResponse);
                 setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
@@ -331,7 +329,7 @@ const DeviceManagement = () => {
                                 <h2 className="text-gray-400 ml-2 text-sm">Perangkat Utama</h2>
                             </div>
                             <div className="text-sm text-gray-400">
-                                (18)
+
                             </div>
                         </Link>
                     </button>
@@ -346,7 +344,7 @@ const DeviceManagement = () => {
                                 <h2 className="text-gray-400 ml-2 text-sm">Perangkat Tambahan</h2>
                             </div>
                             <div className="text-sm text-gray-400">
-                                (18)
+
                             </div>
                         </Link>
                     </div>
@@ -437,7 +435,7 @@ const DeviceManagement = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={4}>Tidak ada data ditemukan</td>
+                                    <td colSpan={6}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
