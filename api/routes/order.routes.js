@@ -13,6 +13,7 @@ import {
   createAppOrder,
   createUnifiedOrder,
   getOrderById,
+  getCashierOrderById,
   getQueuedOrders,
   confirmOrderByCashier,
   testSocket,
@@ -77,6 +78,7 @@ router.get('/orders/:userId', getUserOrders);
 router.get('/orders/history/:userId', getUserOrderHistory);
 
 router.get('/order/:orderId', getOrderById);
+router.get('/cashier-order/:orderId', getCashierOrderById);
 router.get('/orders/cashier/:cashierId', getCashierOrderHistory);
 
 //test socket

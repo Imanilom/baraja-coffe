@@ -804,6 +804,21 @@ export const createUnifiedOrder = async (req, res) => {
     const validated = validateOrderData(req.body, source);
     const { tableNumber, orderType, reservationData } = validated;
 
+    //check existing order
+    const existingOrder = await Order.findOne({ order_id: validated.order_id });
+    if (existingOrder) {
+      console.log('Order already exists in the database, confirming order...');
+      const result = await confirmOrder(req, validated.order_id);
+      if (result) {
+        return res.status(200).json({
+          status: 'Completed',
+          orderId,
+          jobId: job.id,
+          message: 'Cashier order processed and paid',
+        });
+      }
+    }
+
     // Generate order ID
     let orderId;
     if (tableNumber) {
@@ -849,7 +864,7 @@ export const createUnifiedOrder = async (req, res) => {
     // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(202).json({
-        status: 'completed',
+        status: 'Completed',
         orderId,
         jobId: job.id,
         message: 'Cashier order processed and paid',
@@ -1681,7 +1696,10 @@ export const getPendingOrders = async (req, res) => {
       outlet: outletObjectId
     }).lean().sort({ createdAt: -1 });
 
-    if (!pendingOrders.length) return res.status(200).json([]);
+    // if (!pendingOrders.length) return res.status(200).json([]);
+    if (!pendingOrders.length || pendingOrders.length === 0) {
+      return res.status(200).json({ message: 'No online order found.', orders: pendingOrders });
+    }
 
     const orderIds = pendingOrders.map(order => order._id);
 
@@ -1715,48 +1733,6 @@ export const getPendingOrders = async (req, res) => {
     const menuItems = await MenuItem.find({ _id: { $in: menuItemIds } }).lean();
     const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
 
-    // const enrichedOrders = unpaidOrders.map(order => {
-    //   const updatedItems = order.items.map(item => {
-    //     const menuItem = menuItemMap.get(item.menuItem?.toString());
-
-    //     const enrichedAddons = (item.addons || []).map(addon => {
-    //       const matchedAddon = menuItem?.addons?.find(ma => ma.name === addon.name);
-    //       const matchedOption = matchedAddon?.options?.find(opt => opt.price === addon.price);
-    //       return {
-    //         name: addon.name,
-    //         options: matchedOption
-    //           ? [{ price: addon.price, label: matchedOption.label }]
-    //           : addon.options || [],
-
-    //       };
-    //     });
-
-    //     return {
-    //       menuItem: menuItem ? {
-    //         _id: menuItem._id,
-    //         name: menuItem.name,
-    //         originalPrice: menuItem.price
-    //       } : null,
-    //       selectedToppings: item.toppings || [],
-    //       selectedAddons: enrichedAddons,
-    //       subtotal: item.subtotal,
-    //       quantity: item.quantity,
-    //       isPrinted: item.isPrinted,
-    //       notes: item.notes,
-    //     };
-    //   });
-
-    //   return {
-    //     ...order,
-    //     items: updatedItems,
-    //     // userId: order.user_id,
-    //     // cashierId: order.cashier,
-    //     // customerName: order.user,
-    //     // user: undefined,
-    //     // user_id: undefined,
-    //     // cashier: undefined,
-    //   };
-    // });
     const enrichedOrders = unpaidOrders.map(order => {
       const updatedItems = order.items.map(item => {
         const menuItem = menuItemMap.get(item.menuItem?.toString());
@@ -1796,7 +1772,8 @@ export const getPendingOrders = async (req, res) => {
       };
     });
 
-    res.status(200).json(enrichedOrders);
+    // res.status(200).json(enrichedOrders);
+    res.status(200).json({ orders: enrichedOrders });
   } catch (error) {
     console.error('Error fetching pending unpaid orders:', error);
     res.status(500).json({ message: 'Error fetching pending orders', error });
@@ -1887,6 +1864,157 @@ export const getUserOrderHistory = async (req, res) => {
   }
 };
 
+export const getCashierOrderById = async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+    if (!orderId) {
+      return res.status(400).json({ message: 'Order ID is required.' });
+    }
+    console.log('Fetching order with ID:', orderId);
+
+    // Mencari pesanan berdasarkan ID
+    const order = await Order.findById(orderId)
+      .populate('items.menuItem')
+      .lean();
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    console.log('Order ID:', order);
+
+    // Mencari payment dan reservation
+    const payment = await Payment.findOne({ order_id: order.order_id }).lean();
+    const reservation = await Reservation.findOne({ order_id: orderId })
+      .populate('area_id')
+      .populate('table_id')
+      .lean();
+
+    console.log('Payment:', payment);
+    console.log('Order:', orderId);
+    console.log('Reservation:', reservation);
+
+    // Format tanggal
+    const formatDate = (date) => {
+      const options = {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
+      };
+      return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
+    };
+
+    // Format tanggal untuk reservasi (tanpa jam)
+    const formatReservationDate = (dateString) => {
+      const options = {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta'
+      };
+      return new Intl.DateTimeFormat('id-ID', options).format(new Date(dateString));
+    };
+
+    // Generate order number dari order_id atau _id
+    const generateOrderNumber = (orderId) => {
+      if (typeof orderId === 'string' && orderId.includes('ORD-')) {
+        const parts = orderId.split('-');
+        return parts.length > 2 ? `#${parts[parts.length - 1]}` : `#${orderId.slice(-4)}`;
+      }
+      return `#${orderId.toString().slice(-4)}`;
+    };
+
+    // Format items mengikuti struktur getPendingOrders
+    const formattedItems = order.items.map(item => {
+      const menuItem = item.menuItem;
+      const basePrice = item.price || menuItem?.price || 0;
+      const quantity = item.quantity || 1;
+
+      // Enrich addons seperti di getPendingOrders
+      const enrichedAddons = (item.addons || []).map(addon => {
+        const matchedAddon = menuItem?.addons?.find(ma => ma.name === addon.name);
+        const matchedOption = matchedAddon?.options?.find(opt => opt.price === addon.price);
+        return {
+          name: addon.name,
+          options: matchedOption
+            ? [{ price: addon.price, label: matchedOption.label }]
+            : addon.options || [],
+        };
+      });
+
+      return {
+        menuItem: menuItem ? {
+          _id: menuItem._id,
+          name: menuItem.name,
+          originalPrice: menuItem.price
+        } : null,
+        selectedToppings: item.toppings || [],
+        selectedAddons: enrichedAddons,
+        subtotal: item.subtotal || (basePrice * quantity),
+        quantity: quantity,
+        isPrinted: item.isPrinted || false,
+        notes: item.notes,
+      };
+    });
+
+    // Prepare reservation data jika ada
+    let reservationData = null;
+    if (reservation) {
+      reservationData = {
+        _id: reservation._id.toString(),
+        reservationCode: reservation.reservation_code,
+        reservationDate: formatReservationDate(reservation.reservation_date),
+        reservationTime: reservation.reservation_time,
+        guestCount: reservation.guest_count,
+        status: reservation.status,
+        reservationType: reservation.reservation_type,
+        notes: reservation.notes,
+        area: {
+          _id: reservation.area_id?._id,
+          name: reservation.area_id?.area_name || 'Unknown Area'
+        },
+        tables: Array.isArray(reservation.table_id) ? reservation.table_id.map(table => ({
+          _id: table._id.toString(),
+          tableNumber: table.table_number || 'Unknown Table',
+          seats: table.seats,
+          tableType: table.table_type,
+          isAvailable: table.is_available,
+          isActive: table.is_active
+        })) : []
+      };
+
+      console.log('Tables detail:', JSON.stringify(reservationData.tables, null, 2));
+    }
+
+    console.log("Permata VA Number:", payment?.permata_va_number || 'N/A');
+
+    // Struktur return mengikuti getPendingOrders dengan fitur khusus tetap ada
+    const enrichedOrder = {
+      ...order,
+      orderNumber: generateOrderNumber(order.order_id || order._id),
+      orderDate: formatDate(order.createdAt),
+      items: formattedItems,
+      // total: payment?.amount || 0,
+      orderStatus: order.status,
+      paymentMethod: payment
+        ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
+        : 'Unknown',
+      paymentStatus: payment?.status || 'Unpaid',
+      reservation: reservationData
+    };
+
+    console.log('Order Data:', JSON.stringify(enrichedOrder, null, 2));
+
+    // Return format mengikuti getPendingOrders
+    res.status(200).json({ order: enrichedOrder });
+  } catch (error) {
+    console.error('Error fetching order:', error);
+    res.status(500).json({ message: 'Internal server error.', error });
+  }
+};
 
 export const getOrderById = async (req, res) => {
   try {
@@ -2090,14 +2218,16 @@ export const getCashierOrderHistory = async (req, res) => {
           subtotal: item.subtotal,
           isPrinted: item.isPrinted,
           menuItem: {
-            // ...item.menuItem.toObject(),
-            _id: item.menuItem._id,
-            name: item.menuItem.name,
-            originalPrice: item.menuItem.price,
-            discountedprice: item.menuItem.discountedPrice,
-            description: item.menuItem.description,
-            workstation: item.menuItem.workstation,
-            categories: item.menuItem.category, // renamed
+            ...item.menuItem,
+            category: item.category ? { id: item.category._id, name: item.category.name } : null,
+            subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
+            // _id: item.menuItem._id,
+            // name: item.menuItem.name,
+            // originalPrice: item.menuItem.price,
+            // discountedprice: item.menuItem.discountedPrice,
+            // description: item.menuItem.description,
+            // workstation: item.menuItem.workstation,
+            // categories: item.menuItem.category, // renamed
           },
           selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
             name: addon.name,
