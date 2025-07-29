@@ -798,26 +798,96 @@ export async function generateOrderId(tableNumber) {
   return `ORD-${day}${tableNumber}-${String(seq).padStart(3, '0')}`;
 }
 
+// Helper function untuk confirm order
+const confirmOrderHelper = async (orderId) => {
+  try {
+    // 1. Find order and update status
+    const order = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: 'Waiting' } },
+      { new: true }
+    ).populate('items.menuItem').populate('outlet');
+
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    // 2. Update payment status
+    const payment = await Payment.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: 'settlement', paidAt: new Date() } },
+      { new: true }
+    );
+
+    // 3. Send notification to cashier if order is from Web/App
+    if (order.source === 'Web' || order.source === 'App') {
+      const orderData = {
+        orderId: order.order_id,
+        source: order.source,
+        orderType: order.orderType,
+        tableNumber: order.tableNumber || null,
+        items: order.items.map(item => ({
+          name: item.menuItem?.name || 'Unknown Item',
+          quantity: item.quantity
+        })),
+        createdAt: order.createdAt,
+        paymentMethod: order.paymentMethod,
+        totalAmount: order.grandTotal,
+        outletId: order.outlet._id
+      };
+
+      // Broadcast to all cashiers in that outlet
+      try {
+        if (typeof broadcastNewOrder === 'function') {
+          broadcastNewOrder(order.outlet._id.toString(), orderData);
+        }
+      } catch (broadcastError) {
+        console.error('Failed to broadcast new order:', broadcastError);
+        // Continue execution even if broadcast fails
+      }
+    }
+
+    return {
+      success: true,
+      order,
+      payment
+    };
+
+  } catch (error) {
+    console.error('Error in confirmOrderHelper:', error);
+    throw error;
+  }
+};
+
 export const createUnifiedOrder = async (req, res) => {
   try {
-    const { source } = req.body;
+    const { order_id, source } = req.body;
+    // Check if order already exists
+    const existingOrder = await Order.findOne({ order_id: order_id });
+    if (existingOrder) {
+      console.log('Order already exists in the database, confirming order...');
+
+      try {
+        const result = await confirmOrderHelper(order_id);
+
+        return res.status(200).json({
+          status: 'Completed',
+          orderId: order_id, // ✅ Fixed: use order_id from req.body
+          message: 'Cashier order processed and paid',
+          order: result.order
+        });
+      } catch (confirmError) {
+        console.error('Failed to confirm existing order:', confirmError);
+        return res.status(500).json({
+          success: false,
+          message: `Failed to confirm order: ${confirmError.message}`
+        });
+      }
+    }
     const validated = validateOrderData(req.body, source);
     const { tableNumber, orderType, reservationData } = validated;
 
     //check existing order
-    const existingOrder = await Order.findOne({ order_id: validated.order_id });
-    if (existingOrder) {
-      console.log('Order already exists in the database, confirming order...');
-      const result = await confirmOrder(req, validated.order_id);
-      if (result) {
-        return res.status(200).json({
-          status: 'Completed',
-          orderId,
-          jobId: job.id,
-          message: 'Cashier order processed and paid',
-        });
-      }
-    }
 
     // Generate order ID
     let orderId;
@@ -916,55 +986,13 @@ export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
 
   try {
-    // 1. Find order and update status
-    const order = await Order.findOneAndUpdate(
-      { order_id: orderId },
-      { $set: { status: 'Waiting' } },
-      // { $set: { status: 'OnProcess' } },
-      { new: true }
-    ).populate('items.menuItem').populate('outlet');
-
-    if (!order) {
-      return res.status(404).json({ success: false, error: 'Order not found' });
-    }
-
-    // 2. Update payment status
-    const payment = await Payment.findOneAndUpdate(
-      { order_id: orderId },
-      { $set: { status: 'settlement', paidAt: new Date() } },
-      { new: true }
-    );
-
-    // 3. Send notification to cashier if order is from Web/App
-    if (order.source === 'Web' || order.source === 'App') {
-      const orderData = {
-        orderId: order.order_id,
-        source: order.source,
-        orderType: order.orderType,
-        tableNumber: order.tableNumber || null,
-        items: order.items.map(item => ({
-          name: item.menuItem?.name || 'Unknown Item',
-          quantity: item.quantity
-        })),
-        createdAt: order.createdAt,
-        paymentMethod: order.paymentMethod, // Use paymentMethod from order
-        totalAmount: order.grandTotal,     // Use grandTotal from order
-        outletId: order.outlet._id
-      };
-
-      // Broadcast to all cashiers in that outlet
-      if (typeof broadcastNewOrder === 'function') {
-        broadcastNewOrder(order.outlet._id.toString(), orderData);
-      } else {
-        console.error('broadcastNewOrder function not available');
-      }
-    }
+    const result = await confirmOrderHelper(orderId);
 
     return res.status(200).json({
       success: true,
       message: 'Order confirmed and being processed',
-      order: order,
-      payment: payment
+      order: result.order,
+      payment: result.payment
     });
 
   } catch (err) {
@@ -1750,7 +1778,7 @@ export const getPendingOrders = async (req, res) => {
 
         return {
           menuItem: menuItem ? {
-            _id: menuItem._id,
+            id: menuItem._id,
             name: menuItem.name,
             originalPrice: menuItem.price
           } : null,
@@ -1938,18 +1966,20 @@ export const getCashierOrderById = async (req, res) => {
         const matchedAddon = menuItem?.addons?.find(ma => ma.name === addon.name);
         const matchedOption = matchedAddon?.options?.find(opt => opt.price === addon.price);
         return {
+          id: addon._id,
           name: addon.name,
           options: matchedOption
-            ? [{ price: addon.price, label: matchedOption.label }]
+            ? [{ id: matchedOption._id, price: addon.price, label: matchedOption.label }]
             : addon.options || [],
         };
       });
 
       return {
         menuItem: menuItem ? {
-          _id: menuItem._id,
+          id: menuItem._id,
           name: menuItem.name,
-          originalPrice: menuItem.price
+          originalPrice: menuItem.price,
+          workstation: menuItem.workstation
         } : null,
         selectedToppings: item.toppings || [],
         selectedAddons: enrichedAddons,
