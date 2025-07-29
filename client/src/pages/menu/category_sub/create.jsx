@@ -113,10 +113,10 @@ const AddSubCategory = () => {
                         onChange={(e) => setType(e.target.value)}
                         className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     >
-                        <option value="food">Food</option>
-                        <option value="beverage">Beverage</option>
-                        <option value="instan">Instant Food</option>
-                        <option value="inventory">Inventory</option>
+                        <option value="food">Makanan</option>
+                        <option value="beverage">Minuman</option>
+                        <option value="instan">Makanan Instan</option>
+                        <option value="inventory">Inventori</option>
                     </select>
                 </div>
 
