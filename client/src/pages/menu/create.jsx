@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import Select from 'react-select';
 import axios from "axios";
 import {
   getDownloadURL,
@@ -124,6 +125,36 @@ const CreateMenu = () => {
     });
   };
 
+  const customSelectStyles = {
+    control: (provided) => ({
+      ...provided,
+      borderColor: '#ccc',
+      color: '#999999',
+    }),
+    singleValue: (provided) => ({
+      ...provided,
+      color: '#999999',
+    }),
+    input: (provided) => ({
+      ...provided,
+      color: '#999999',
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      color: '#999999',
+      backgroundColor: state.isFocused ? '#f0f0f0' : 'white',
+    }),
+    placeholder: (provided) => ({
+      ...provided,
+      color: '#999999',
+    }),
+    multiValueLabel: (provided) => ({
+      ...provided,
+      color: '#999999',
+    }),
+  };
+
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -165,86 +196,6 @@ const CreateMenu = () => {
     }
   };
 
-  const filteredMainCategories = MainCategories.filter((category) =>
-    category.toLowerCase().includes(searchTermMainCategories.toLowerCase())
-  );
-
-  const handleMainCategorySearch = (e) => {
-    setSearchTermMainCategories(e.target.value);
-    setShowMainDropdown(true);
-  };
-
-  const handleSelectMainCategory = (category) => {
-    const lowerCased = category.toLowerCase();
-    setSelectedMainCategory(lowerCased);
-    setSearchTermMainCategories(lowerCased);
-    setShowMainDropdown(false);
-  };
-
-  const handleCategorySearch = (e) => {
-    setSearchTermCategories(e.target.value);
-    setShowDropdown(true);
-  };
-
-  const handleSubCategorySearch = (e) => {
-    setSearchTermSub(e.target.value);
-    setShowSubDropdown(true);
-  };
-
-  const visibleCategories = categories.filter((cat) =>
-    cat.name.toLowerCase().includes(searchTermCategories.toLowerCase())
-  );
-
-  const visibleSubCategories = subCategories.filter((sub) =>
-    sub.name.toLowerCase().includes(searchTermSub.toLowerCase())
-  );
-
-  const handleSelectCategory = (category) => {
-    setSearchTermCategories(category.name);
-    setShowDropdown(false);
-    setShowSubDropdown(false);
-    setSearchTermSub("");
-
-    setFormData((prev) => ({
-      ...prev,
-      category: category._id,
-    }));
-
-    // Filter subcategories with matching parentCategory._id
-    const sub = allCategories.filter(
-      (cat) => cat.parentCategory === category._id
-    );
-    setSubCategories(sub);
-  };
-
-  const handleSelectSubCategory = (sub) => {
-    setSearchTermSub(sub.name);
-    setShowSubDropdown(false);
-    setFormData((prev) => ({
-      ...prev,
-      subCategory: sub._id,
-    }));
-  };
-
-  const [options, setOptions] = useState([
-    { opsi: "", price: "" },
-  ]);
-
-  const handleOptionChange = (index, key, value) => {
-    const updated = [...options];
-    updated[index][key] = value;
-    setOptions(updated);
-  };
-
-  const addOption = () => {
-    setOptions([...options, { opsi: "", price: "" }]);
-  };
-
-  const removeOption = (index) => {
-    const updated = options.filter((_, i) => i !== index);
-    setOptions(updated);
-  };
-
   const handleSubmit = async (e) => {
     const valueToSend = isChecked ? "kitchen" : "bar";
     e.preventDefault();
@@ -262,7 +213,7 @@ const CreateMenu = () => {
         imageURL: imageURL || "",
         mainCat: selectedMainCategory,
         category: formData.category,
-        subCategory: formData.subCategory,
+        subCategory: formData.subCategory || null,
         availableAt: formData.availableAt, // array of outlet ids
         rawMaterials: formData.rawMaterials || [],
         toppings: toppings.map((top) => ({
@@ -385,94 +336,81 @@ const CreateMenu = () => {
 
               <div>
                 <label className="my-2.5 text-xs block font-medium">MAIN KATEGORI</label>
-                <div className="relative category-dropdown">
-                  <input
-                    type="text"
-                    value={searchTermMainCategories.charAt(0).toUpperCase() + searchTermMainCategories.slice(1)}
-                    onChange={handleMainCategorySearch}
-                    onFocus={() => setShowMainDropdown(true)}
-                    placeholder="Cari kategori utama..."
-                    className="w-full py-2 px-3 border rounded-lg"
-                  />
+                <Select
+                  options={MainCategories.map((cat) => ({
+                    label: cat.charAt(0).toUpperCase() + cat.slice(1),
+                    value: cat.toLowerCase()
+                  }))}
+                  value={MainCategories.find(cat => cat === selectedMainCategory) ? {
+                    label: selectedMainCategory.charAt(0).toUpperCase() + selectedMainCategory.slice(1),
+                    value: selectedMainCategory
+                  } : null}
+                  onChange={(selectedOption) => {
+                    setSelectedMainCategory(selectedOption.value);
+                    setSearchTermMainCategories(selectedOption.value);
+                  }}
+                  styles={customSelectStyles}
+                  placeholder="Pilih kategori utama..."
+                />
 
-                  {showMainDropdown && (
-                    <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
-                      {filteredMainCategories.length > 0 ? (
-                        filteredMainCategories.map((category, index) => (
-                          <div
-                            key={index}
-                            onClick={() => handleSelectMainCategory(category)}
-                            className="p-2 hover:bg-gray-100 cursor-pointer capitalize"
-                          >
-                            {category}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-2 text-gray-400 text-sm">Tidak ditemukan</div>
-                      )}
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* KATEGORI UTAMA */}
 
               <div>
                 <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
-                <div className="relative category-dropdown">
-                  <input
-                    type="text"
-                    value={searchTermCategories}
-                    onChange={handleCategorySearch}
-                    onFocus={() => setShowDropdown(true)}
-                    placeholder="Cari kategori utama..."
-                    className="w-full py-2 px-3 border rounded-lg"
-                  />
-
-                  {showDropdown && visibleCategories.length > 0 && (
-                    <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
-                      {visibleCategories.map((category) => (
-                        <div
-                          key={category._id}
-                          onClick={() => handleSelectCategory(category)}
-                          className="p-2 hover:bg-gray-100 cursor-pointer"
-                        >
-                          {category.name}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <Select
+                  options={categories.map((cat) => ({
+                    label: cat.name,
+                    value: cat._id,
+                  }))}
+                  value={
+                    formData.category
+                      ? {
+                        label: categories.find((cat) => cat._id === formData.category)?.name || "",
+                        value: formData.category,
+                      }
+                      : null
+                  }
+                  onChange={(selected) => {
+                    setSearchTermCategories(selected.label);
+                    setFormData((prev) => ({
+                      ...prev,
+                      category: selected.value,
+                    }));
+                    const sub = allCategories.filter(
+                      (cat) => cat.parentCategory === selected.value
+                    );
+                    setSubCategories(sub);
+                  }}
+                  styles={customSelectStyles}
+                  placeholder="Pilih kategori..."
+                  className="mb-2"
+                />
               </div>
 
+
+
               {/* Sub Kategori */}
-              {visibleSubCategories.length > 0 && (
+              {subCategories.length > 0 && (
                 <div>
                   <label className="my-2.5 text-xs block font-medium">SUB KATEGORI</label>
-                  <div className="relative subcategory-dropdown">
-                    <input
-                      type="text"
-                      value={searchTermSub}
-                      onChange={handleSubCategorySearch}
-                      onFocus={() => setShowSubDropdown(true)}
-                      placeholder="Cari sub kategori..."
-                      className="w-full py-2 px-3 border rounded-lg"
-                    />
-
-                    {showSubDropdown && visibleSubCategories.length > 0 && (
-                      <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-60 overflow-y-auto">
-                        {visibleSubCategories.map((sub) => (
-                          <div
-                            key={sub._id}
-                            onClick={() => handleSelectSubCategory(sub)}
-                            className="p-2 hover:bg-gray-100 cursor-pointer"
-                          >
-                            {sub.name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <Select
+                    options={subCategories.map((sub) => ({
+                      label: sub.name,
+                      value: sub._id,
+                    }))}
+                    onChange={(selected) => {
+                      setSearchTermSub(selected.label);
+                      setFormData((prev) => ({
+                        ...prev,
+                        subCategory: selected.value,
+                      }));
+                    }}
+                    placeholder="Pilih sub kategori..."
+                    className="mb-2"
+                    styles={customSelectStyles}
+                  />
                 </div>
               )}
 
@@ -629,238 +567,3 @@ const CreateMenu = () => {
 };
 
 export default CreateMenu;
-// import React, { useEffect, useState } from "react";
-
-// const CreateMenu = () => {
-//   const [formData, setFormData] = useState({
-//     name: "",
-//     category: "",
-//     subCategory: "",
-//     imageUrl: "",
-//     originalPrice: "",
-//     discountedPrice: "",
-//     description: "",
-//     toppings: [],
-//     addons: [],
-//   });
-//   const [allCategories, setAllCategories] = useState([]);
-//   const [mainCategories, setMainCategories] = useState([]);
-//   const [filteredSubCategories, setFilteredSubCategories] = useState([]);
-
-//   // Fetch categories & subCategories saat komponen mount
-//   useEffect(() => {
-//     fetchCategories();
-//   }, []);
-
-//   const fetchCategories = async () => {
-//     try {
-//       const res = await axios.get("/api/menu/categories");
-//       const data = res.data.data;
-
-//       setAllCategories(data);
-//       // filter category yang tidak punya parent
-//       const parentNull = data.filter(cat => !cat.parentCategory);
-//       setMainCategories(parentNull);
-//     } catch (error) {
-//       console.error("Gagal fetch categories:", error);
-//     }
-//   };
-
-//   const handleCategoryChange = (e) => {
-//     const selectedId = e.target.value;
-//     setFormData((prev) => ({ ...prev, category: selectedId, subCategory: "" }));
-
-//     // filter subCategory dengan parentCategory._id === selectedId
-//     const subCats = allCategories.filter(
-//       (cat) => cat.parentCategory === selectedId
-//     );
-//     console.log(subCats);
-//     setFilteredSubCategories(subCats);
-//   };
-
-//   const handleChange = (e) => {
-//     const { name, value } = e.target;
-//     setFormData((prev) => ({ ...prev, [name]: value }));
-//   };
-
-//   const handleToppingChange = (index, field, value) => {
-//     const newToppings = [...formData.toppings];
-//     newToppings[index][field] = value;
-//     setFormData((prev) => ({ ...prev, toppings: newToppings }));
-//   };
-
-//   const addTopping = () => {
-//     setFormData((prev) => ({
-//       ...prev,
-//       toppings: [...prev.toppings, { name: "", price: "" }],
-//     }));
-//   };
-
-//   const removeTopping = (index) => {
-//     const newToppings = [...formData.toppings];
-//     newToppings.splice(index, 1);
-//     setFormData((prev) => ({ ...prev, toppings: newToppings }));
-//   };
-
-//   const handleAddonChange = (index, field, value) => {
-//     const newAddons = [...formData.addons];
-//     newAddons[index][field] = value;
-//     setFormData((prev) => ({ ...prev, addons: newAddons }));
-//   };
-
-//   const handleAddonOptionChange = (addonIndex, optionIndex, field, value) => {
-//     const newAddons = [...formData.addons];
-//     newAddons[addonIndex].options[optionIndex][field] = value;
-//     setFormData((prev) => ({ ...prev, addons: newAddons }));
-//   };
-
-//   const addAddon = () => {
-//     setFormData((prev) => ({
-//       ...prev,
-//       addons: [...prev.addons, { name: "", options: [{ label: "", price: "", isDefault: false }] }],
-//     }));
-//   };
-
-//   const addAddonOption = (addonIndex) => {
-//     const newAddons = [...formData.addons];
-//     newAddons[addonIndex].options.push({ label: "", price: "", isDefault: false });
-//     setFormData((prev) => ({ ...prev, addons: newAddons }));
-//   };
-
-//   const removeAddon = (index) => {
-//     const newAddons = [...formData.addons];
-//     newAddons.splice(index, 1);
-//     setFormData((prev) => ({ ...prev, addons: newAddons }));
-//   };
-
-//   return (
-//     <form className="space-y-4 p-4 max-w-2xl mx-auto">
-//       <h2 className="text-xl font-semibold mb-2">Form Produk</h2>
-
-//       <div>
-//         <label className="block mb-1 font-medium">Nama Produk</label>
-//         <input name="name" onChange={handleChange} className="border rounded w-full px-3 py-2" />
-//       </div>
-
-//       <div>
-//         <label className="block mb-1 font-medium">Kategori</label>
-//         <select
-//           name="category"
-//           value={formData.category}
-//           onChange={handleCategoryChange}
-//           className="border rounded w-full px-3 py-2"
-//         >
-//           <option value="">Pilih Kategori</option>
-//           {mainCategories.map((cat) => (
-//             <option key={cat._id} value={cat._id}>{cat.name}</option>
-//           ))}
-//         </select>
-//       </div>
-
-//       <div>
-//         <label className="block mb-1 font-medium">Sub Kategori</label>
-//         <select
-//           name="subCategory"
-//           value={formData.subCategory}
-//           onChange={handleChange}
-//           className="border rounded w-full px-3 py-2"
-//           disabled={!formData.category}
-//         >
-//           <option value="">Pilih Sub Kategori</option>
-//           {filteredSubCategories.map((sub) => (
-//             <option key={sub._id} value={sub._id}>{sub.name}</option>
-//           ))}
-//         </select>
-//       </div>
-
-//       <div>
-//         <label className="block mb-1 font-medium">Harga Asli</label>
-//         <input name="originalPrice" type="number" onChange={handleChange} className="border rounded w-full px-3 py-2" />
-//       </div>
-
-//       <div>
-//         <label className="block mb-1 font-medium">Harga Diskon</label>
-//         <input name="discountedPrice" type="number" onChange={handleChange} className="border rounded w-full px-3 py-2" />
-//       </div>
-
-//       <div>
-//         <label className="block mb-1 font-medium">Deskripsi</label>
-//         <textarea name="description" onChange={handleChange} className="border rounded w-full px-3 py-2"></textarea>
-//       </div>
-
-//       {/* Toppings */}
-//       <div>
-//         <label className="block mb-1 font-bold">Toppings</label>
-//         {formData.toppings.map((topping, index) => (
-//           <div key={index} className="flex gap-2 mb-2">
-//             <input
-//               placeholder="Nama"
-//               value={topping.name}
-//               onChange={(e) => handleToppingChange(index, "name", e.target.value)}
-//               className="border px-2 py-1 rounded w-1/2"
-//             />
-//             <input
-//               placeholder="Harga"
-//               type="number"
-//               value={topping.price}
-//               onChange={(e) => handleToppingChange(index, "price", e.target.value)}
-//               className="border px-2 py-1 rounded w-1/2"
-//             />
-//             <button type="button" onClick={() => removeTopping(index)} className="text-red-500">✕</button>
-//           </div>
-//         ))}
-//         <button type="button" onClick={addTopping} className="text-blue-500">+ Tambah Topping</button>
-//       </div>
-
-//       {/* Addons */}
-//       <div>
-//         <label className="block mb-1 font-bold">Addons</label>
-//         {formData.addons.map((addon, addonIndex) => (
-//           <div key={addonIndex} className="mb-4 p-2 border rounded">
-//             <input
-//               placeholder="Nama Addon"
-//               value={addon.name}
-//               onChange={(e) => handleAddonChange(addonIndex, "name", e.target.value)}
-//               className="border px-2 py-1 rounded w-full mb-2"
-//             />
-//             {addon.options.map((opt, optIndex) => (
-//               <div key={optIndex} className="flex gap-2 mb-2">
-//                 <input
-//                   placeholder="Label"
-//                   value={opt.label}
-//                   onChange={(e) => handleAddonOptionChange(addonIndex, optIndex, "label", e.target.value)}
-//                   className="border px-2 py-1 rounded w-1/2"
-//                 />
-//                 <input
-//                   placeholder="Harga"
-//                   type="number"
-//                   value={opt.price}
-//                   onChange={(e) => handleAddonOptionChange(addonIndex, optIndex, "price", e.target.value)}
-//                   className="border px-2 py-1 rounded w-1/2"
-//                 />
-//                 <label className="flex items-center space-x-1">
-//                   <input
-//                     type="checkbox"
-//                     checked={opt.isDefault}
-//                     onChange={(e) =>
-//                       handleAddonOptionChange(addonIndex, optIndex, "isDefault", e.target.checked)
-//                     }
-//                   />
-//                   <span className="text-sm">Default</span>
-//                 </label>
-//               </div>
-//             ))}
-//             <button type="button" onClick={() => addAddonOption(addonIndex)} className="text-blue-500">+ Tambah Opsi</button>
-//             <button type="button" onClick={() => removeAddon(addonIndex)} className="text-red-500 ml-4">✕ Hapus Addon</button>
-//           </div>
-//         ))}
-//         <button type="button" onClick={addAddon} className="text-blue-500">+ Tambah Addon</button>
-//       </div>
-
-//       <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">Simpan</button>
-//     </form>
-//   );
-// };
-
-// export default CreateMenu;
-

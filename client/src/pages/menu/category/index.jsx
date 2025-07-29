@@ -22,7 +22,7 @@ const CategoryIndex = () => {
   const [selectedType, setSelectedType] = useState('all'); // State untuk menyimpan tipe yang dipilih
   const [currentPage, setCurrentPage] = useState(1); // Halaman saat ini
   const ITEMS_PER_PAGE = 50;
-  const [limit] = useState(20);
+  const [limit] = useState(250);
   const [offset, setOffset] = useState(0);
 
   const fetchMenuItems = async (limit, offset) => {
