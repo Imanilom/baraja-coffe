@@ -431,7 +431,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
                         children: [
                           Expanded(
                             child: Text(
-                              '${item.quantity}x ${item.menuItem.name}',
+                              '${item.quantity}x ${item.menuItem.name} - workstation: ${item.menuItem.workstation}',
                             ),
                           ),
                           Text(
@@ -488,6 +488,9 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
+                print(
+                  'Navigating to Order Detail with orderDetail: $orderDetail',
+                );
                 widget.onScanned(orderDetail.orderId ?? '');
                 widget.onClose();
               },
