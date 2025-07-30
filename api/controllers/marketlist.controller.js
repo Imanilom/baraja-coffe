@@ -5,21 +5,27 @@ import Product from '../models/modul_market/Product.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
 import CashFlow from '../models/modul_market/CashFlow.model.js';
 import Debt from '../models/modul_market/Debt.model.js';
+import StockMovement from '../models/modul_menu/ProductStock.model.js';
 import User from '../models/user.model.js';
 import { getDayName } from '../services/getDay.js';
 import mongoose from 'mongoose';
 
 
 export const createRequest = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const user = await User.findById(req.user._id);
     if (!user || !['staff', 'admin', 'superadmin'].includes(user.role)) {
+      await session.abortTransaction();
       return res.status(403).json({ message: 'Akses ditolak' });
     }
 
     const { department, items } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
+      await session.abortTransaction();
       return res.status(400).json({ message: 'Items wajib diisi' });
     }
 
@@ -29,26 +35,52 @@ export const createRequest = async (req, res) => {
       const { productId, quantity, unit, productName, productSku, category, notes } = item;
 
       if (!productId || !quantity || !unit || !productName || !productSku || !category) {
+        await session.abortTransaction();
         return res.status(400).json({ message: 'Data item tidak lengkap' });
       }
 
-      // Cek stok di gudang
-      let stockDoc = await ProductStock.findOne({ productId });
+      // Cek stok
+      let stockDoc = await ProductStock.findOne({ productId }).session(session);
 
       const availableStock = stockDoc ? stockDoc.currentStock : 0;
-
-      const neededQuantity = Math.max(0, quantity - availableStock);
 
       let status = 'pending';
       let fulfilledQuantity = 0;
 
       if (availableStock >= quantity) {
-        status = 'dibeli'; // Stok cukup, tidak perlu beli
+        // Stok cukup: ambil dari gudang
+        status = 'dibeli'; // artinya: langsung tersedia dari stok
         fulfilledQuantity = quantity;
+
+        // Kurangi stok
+        if (!stockDoc) {
+          await session.abortTransaction();
+          return res.status(400).json({ message: `Produk ${productName} tidak memiliki dokumen stok.` });
+        }
+
+        stockDoc.movements.push({
+          quantity,
+          type: 'out',
+          referenceId: null, // akan diisi setelah request dibuat, atau isi dengan request._id nanti
+          notes: `Permintaan: ${department} - ${user.username}`
+        });
+
+        await stockDoc.save({ session });
+
       } else if (availableStock > 0 && availableStock < quantity) {
-        status = 'partial'; // Sebagian dipenuhi dari stok
+        // Sebagian dari stok
+        status = 'partial';
         fulfilledQuantity = availableStock;
+
+        stockDoc.movements.push({
+          quantity: availableStock,
+          type: 'out',
+          notes: `Partial fulfillment - Permintaan: ${department} - ${user.username}`
+        });
+
+        await stockDoc.save({ session });
       }
+      // Jika availableStock == 0, status tetap 'pending', tidak ada pengurangan stok
 
       updatedItems.push({
         productId,
@@ -63,20 +95,38 @@ export const createRequest = async (req, res) => {
       });
     }
 
+    // Simpan request
     const newRequest = new Request({
       department,
       requester: user.username,
       items: updatedItems
     });
 
-    await newRequest.save();
+    await newRequest.save({ session });
+
+    // Update referenceId di movements (optional)
+    for (const item of newRequest.items) {
+      if (item.fulfilledQuantity > 0) {
+        const stockDoc = await ProductStock.findOne({ productId: item.productId }).session(session);
+        const lastMove = stockDoc.movements[stockDoc.movements.length - 1];
+        if (!lastMove.referenceId && (lastMove.type === 'out')) {
+          lastMove.referenceId = newRequest._id;
+        }
+        await stockDoc.save({ session });
+      }
+    }
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(201).json({
-      message: 'Request berhasil dibuat.',
+      message: 'Request berhasil dibuat dan stok diperbarui.',
       data: newRequest
     });
 
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error('Error saat membuat request:', error.message);
     res.status(500).json({ message: 'Terjadi kesalahan server.' });
   }
@@ -102,6 +152,40 @@ export const getAllRequests = async (req, res) => {
   }
 };
 
+export const getRequestById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validasi ID menggunakan mongoose
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid request ID',
+      });
+    }
+
+    const request = await Request.findById(id);
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: 'Request not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: request,
+    });
+  } catch (error) {
+    console.error('Error in getRequestById:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while retrieving request',
+      error: error.message,
+    });
+  }
+};
 
 export const getAllRequestWithSuppliers = async (req, res) => {
   try {
@@ -176,6 +260,7 @@ export const approveRequestItems = async (req, res) => {
     request.reviewedBy = reviewedBy || 'anonymous';
     request.reviewedAt = new Date();
     request.status = 'approved'; // Set status ke approved
+    request.fulfillmentStatus='dibeli';
 
     await request.save();
 
@@ -248,7 +333,6 @@ export const getRequests = async (req, res) => {
   }
 };
 
-  // Input belanja harian berdasarkan request
 export const createMarketList = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -342,7 +426,7 @@ export const createMarketList = async (req, res) => {
         amountCharged,
         amountPaid,
         remainingBalance,
-        payment: itemPayment, // Simpan detail pembayaran
+        payment: itemPayment,
         department: item.department || '',
         requestId: item.requestId || null,
         requestItemId: item.requestItemId || null
@@ -377,7 +461,7 @@ export const createMarketList = async (req, res) => {
       }
     }
 
-    // Proses update request yang terkait
+    // Proses update request yang terkait (DIPERBAIKI)
     for (const requestId of relatedRequestIds) {
       const request = await Request.findById(requestId).session(session);
       if (!request) continue;
@@ -471,56 +555,77 @@ export const createMarketList = async (req, res) => {
 
     const savedMarketList = await marketListDoc.save({ session });
 
+    // Proses pergerakan stok
+  const stockOpsMap = new Map();
+const movementDocs = [];
 
-    // Tambahkan pergerakan stok masuk (in)
-    for (const item of items) {
-      const { productId, productName, quantityPurchased, quantityRequested } = item;
+for (const item of processedItems) {
+  const { productId, quantityPurchased, department, requestItemId, quantityRequested } = item;
+  if (!productId) continue;
 
-      // Catat pergerakan stok masuk (pembelian)
-      const stockMovementIn = new StockMovement({
+  const productObjectId = new mongoose.Types.ObjectId(productId);
+
+  const stockMovementIn = new StockMovement({
+    date: new Date(date),
+    productId: productObjectId,
+    quantity: quantityPurchased,
+    type: 'in',
+    referenceId: savedMarketList._id,
+    notes: `Masuk dari pembelian oleh ${user.username}`
+  });
+  movementDocs.push(stockMovementIn);
+
+  // Simpan operasi dalam map
+  if (!stockOpsMap.has(productId)) {
+    stockOpsMap.set(productId, {
+      inc: quantityPurchased,
+      movements: [stockMovementIn],
+      adjustmentQty: 0
+    });
+  } else {
+    const entry = stockOpsMap.get(productId);
+    entry.inc += quantityPurchased;
+    entry.movements.push(stockMovementIn);
+  }
+
+  if (requestItemId && department) {
+    const qtyDiff = quantityPurchased - (quantityRequested || 0);
+    if (qtyDiff > 0) {
+      const adjustmentMovement = new StockMovement({
         date: new Date(date),
-        quantity: quantityPurchased,
-        type: 'in',
+        productId: productObjectId,
+        quantity: qtyDiff,
+        type: 'adjustment',
         referenceId: savedMarketList._id,
-        notes: `Masuk dari pembelian oleh ${user.username}`
+        notes: `Sisa stok setelah dikirim ke departemen: ${department}`
       });
-
-      await stockMovementIn.save({ session });
-
-      // Update ProductStock
-      let productStock = await ProductStock.findOne({ productId }).session(session);
-      if (!productStock) {
-        productStock = new ProductStock({ productId });
-      }
-
-      productStock.movements.push(stockMovementIn);
-      await productStock.save({ session });
-
-      // Cek apakah ada requestItemId untuk menentukan distribusi
-      if (item.requestItemId && item.department) {
-        const qtyDiff = quantityPurchased - quantityRequested;
-
-        if (qtyDiff > 0) {
-          // Sisa stok lebih -> simpan di gudang sebagai adjustment
-          const stockAdjustment = new StockMovement({
-            date: new Date(date),
-            quantity: qtyDiff,
-            type: 'adjustment',
-            referenceId: savedMarketList._id,
-            notes: `Sisa stok setelah dikirim ke departemen: ${item.department} (${productName})`
-          });
-
-          await stockAdjustment.save({ session });
-          productStock.movements.push(stockAdjustment);
-
-          await productStock.save({ session });
-        } else {
-          // Jumlah pas atau kurang -> catat bahwa sudah dikirim ke departemen
-          // Tidak perlu penyesuaian stok
-          console.log(`Item ${productName} dikirim ke departemen: ${item.department}`);
-        }
-      }
+      movementDocs.push(adjustmentMovement);
+      const entry = stockOpsMap.get(productId);
+      entry.inc -= qtyDiff;
+      entry.movements.push(adjustmentMovement);
     }
+  }
+}
+
+// Konversi ke bulk ops
+const bulkStockOps = [];
+for (const [productId, entry] of stockOpsMap.entries()) {
+  bulkStockOps.push({
+    updateOne: {
+      filter: { productId: new mongoose.Types.ObjectId(productId) },
+      update: {
+        $inc: { currentStock: entry.inc },
+        $push: { movements: { $each: entry.movements } },
+        $setOnInsert: {
+          minStock: 0,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      },
+      upsert: true
+    }
+  });
+}
 
     // Buat catatan utang jika ada
     for (const debt of debtsToCreate) {
@@ -701,17 +806,48 @@ export const deleteDebt = async (req, res) => {
 // Controller untuk mendapatkan total hutang per supplier
 export const getDebtSummaryBySupplier = async (req, res) => {
   try {
+    // First validate all supplier references
+    const invalidDebts = await Debt.find({
+      supplierId: { 
+        $exists: true,
+        $not: { $type: 'objectId' } // Find non-ObjectId values
+      }
+    });
+
+    if (invalidDebts.length > 0) {
+      console.warn(`Found ${invalidDebts.length} debts with invalid supplierId references`);
+      // Optionally fix them here or report to admin
+    }
+
     const summary = await Debt.aggregate([
       {
         $match: {
           status: { $in: ['unpaid', 'partial'] },
-          supplierId: { $type: 'objectId' } // Hanya ambil yang supplierId adalah ObjectId
+          supplierId: { 
+            $exists: true,
+            $ne: null,
+            $type: 'objectId' // Only proper ObjectIds
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: 'suppliers',
+          localField: 'supplierId',
+          foreignField: '_id',
+          as: 'supplier'
+        }
+      },
+      {
+        $unwind: {
+          path: '$supplier',
+          preserveNullAndEmptyArrays: false // Exclude debts without valid suppliers
         }
       },
       {
         $group: {
           _id: '$supplierId',
-          supplierName: { $first: '$supplierName' },
+          supplierName: { $first: '$supplier.name' },
           totalDebt: { $sum: '$amount' },
           totalPaid: { $sum: '$paidAmount' },
           count: { $sum: 1 }
@@ -739,9 +875,11 @@ export const getDebtSummaryBySupplier = async (req, res) => {
       data: summary
     });
   } catch (error) {
+    console.error('Error in getDebtSummaryBySupplier:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Terjadi kesalahan server saat mengambil ringkasan hutang.',
+      error: error.message
     });
   }
 };
@@ -1005,8 +1143,6 @@ export const getWeeklyReport = async (req, res) => {
     });
   }
 };
-
-
 
 const getLastBalance = async () => {
   const lastEntry = await CashFlow.findOne().sort({ date: -1 });
