@@ -15,7 +15,7 @@ router.get('/payment-methods-and-types', (req, res) => {
             id: 'ewallet',
             name: 'E-Wallet',
             icon: 'ewallet.png',
-            isActive: true,
+            isActive: false,
         },
         {
             id: 'debit',
@@ -75,6 +75,30 @@ router.get('/payment-methods-and-types', (req, res) => {
             id: 'bca',
             name: 'BCA',
             payment_method: 'BCA',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'qrisbni',
+            name: 'Qris BNI',
+            payment_method: 'Qris',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'qrisbri',
+            name: 'Qris BRI',
+            payment_method: 'Qris',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'qrisbca',
+            name: 'Qris BCA',
+            payment_method: 'Qris',
             typeId: ['debit', 'banktransfer'],
             isDigital: false,
             isActive: true
