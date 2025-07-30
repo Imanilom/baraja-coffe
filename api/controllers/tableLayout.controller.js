@@ -112,7 +112,6 @@ export const getTableStatusByOutlet = async (req, res) => {
       tables: section.tables.map(table => ({
         tableNumber: table.tableNumber,
         capacity: table.capacity,
-        position: table.position,
         status: table.status,
         shape: table.shape,
         notes: table.notes,
@@ -166,7 +165,6 @@ export const getAvailableTablesByPeople = async (req, res) => {
           tables: filteredTables.map(table => ({
             tableNumber: table.tableNumber,
             capacity: table.capacity,
-            position: table.position,
             shape: table.shape,
             notes: table.notes,
             _id: table._id
@@ -182,6 +180,57 @@ export const getAvailableTablesByPeople = async (req, res) => {
 
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateTableStatus = async (req, res) => {
+  try {
+    const { outletId } = req.params;
+    const { sectionName, tableId, newStatus } = req.body;
+
+    // Validasi ObjectId dan status
+    if (!mongoose.Types.ObjectId.isValid(outletId)) {
+      return res.status(400).json({ message: 'Invalid outlet ID' });
+    }
+
+    const validStatuses = ['available', 'occupied', 'reserved', 'maintenance'];
+    if (!validStatuses.includes(newStatus)) {
+      return res.status(400).json({ message: 'Invalid table status' });
+    }
+
+    // Cari layout
+    const layout = await TableLayout.findOne({ outletId });
+    if (!layout) {
+      return res.status(404).json({ message: 'Table layout not found' });
+    }
+
+    // Cari section
+    const section = layout.sections.find(sec => sec.name === sectionName);
+    if (!section) {
+      return res.status(404).json({ message: 'Section not found' });
+    }
+
+    // Cari table
+    const table = section.tables.id(tableId);
+    if (!table) {
+      return res.status(404).json({ message: 'Table not found' });
+    }
+
+    // Update status
+    table.status = newStatus;
+
+    await layout.save();
+    res.json({
+      message: 'Table status updated successfully',
+      table: {
+        tableNumber: table.tableNumber,
+        status: table.status,
+        section: section.name,
+        tableId: table._id
+      }
+    });
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };

@@ -2204,9 +2204,13 @@ export const getPendingPaymentOrders = async (req, res) => {
     }
     console.log('Fetching order with ID:', orderId);
 
-    // Mencari pesanan berdasarkan ID
-    const order = await Order.findById(orderId)
+    // Mencari order berdasarkan kode order, bukan ObjectId
+    const order = await Order.findOne({ order_id: orderId })
       .populate('items.menuItem');
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
 
     const payment = await Payment.findOne({ order_id: order.order_id });
 
@@ -2217,6 +2221,7 @@ export const getPendingPaymentOrders = async (req, res) => {
     res.status(500).json({ message: 'Internal server error.' });
   }
 }
+
 
 // Get Cashier Order History
 export const getCashierOrderHistory = async (req, res) => {

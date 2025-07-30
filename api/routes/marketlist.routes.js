@@ -5,6 +5,7 @@ import {
   getUnpaidMarketLists,
   payMarketList,
   getAllRequests,
+  getRequestById,
   getAllRequestWithSuppliers,
   createRequest,
   approveRequestItems,
@@ -53,6 +54,8 @@ const allAuthenticated = authMiddleware;
 router.post('/request', staffAccess, createRequest);
 
 router.get('/requests', staffAccess, getAllRequests);
+
+router.get('/requests/:id', staffAccess, getRequestById);
 
 router.get('/requests-with-suppliers', staffAccess, getAllRequestWithSuppliers);
 
