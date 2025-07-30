@@ -5,7 +5,8 @@ import {
   updateTableLayout,
   deleteTableLayout,
   getTableStatusByOutlet,
-  getAvailableTablesByPeople
+  getAvailableTablesByPeople,
+  updateTableStatus 
 } from '../controllers/tableLayout.controller.js';
 
 const router = express.Router();
@@ -27,5 +28,8 @@ router.get('/table-status/:outletId', getTableStatusByOutlet);
 
 // Ambil status meja berdasarkan outlet
 router.get('/available-bypeople/:outletId', getAvailableTablesByPeople);
+
+// Update status meja
+router.put('/update-status/:outletId', updateTableStatus);
 
 export default router;

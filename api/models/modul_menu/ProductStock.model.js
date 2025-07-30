@@ -7,7 +7,7 @@ const stockMovementSchema = new mongoose.Schema({
   type: { type: String, enum: ['in', 'out', 'adjustment'], required: true },
   referenceId: mongoose.Schema.Types.ObjectId, // ID Recipe/Transaction
   notes: String
-}, { _id: false });
+}, { _id: true });
 
 const productStockSchema = new mongoose.Schema({
   productId: { 
