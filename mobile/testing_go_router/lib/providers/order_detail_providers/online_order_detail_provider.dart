@@ -1,6 +1,8 @@
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/services/order_service.dart';
 
 class OnlineOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
   OnlineOrderDetailProvider() : super(null);
@@ -32,6 +34,25 @@ class OnlineOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
     } else {
       return 0;
     }
+  }
+
+  Future<bool> submitOnlineOrder() async {
+    final cashier = await HiveService.getCashier();
+    //update cashier id di order detail model
+    state = state!.copyWith(cashierId: cashier!.id);
+    if (state == null) return false;
+    print('Mengirim data orderDetail ke backend... ${state!.toJson()}');
+    try {
+      final order = await OrderService().createOrder(state!);
+      print('Order ID : $order');
+      if (order.isNotEmpty) {
+        return true;
+      }
+    } catch (e) {
+      print('error apa? $e');
+      return false;
+    }
+    return false; // Return false if state is null
   }
 }
 

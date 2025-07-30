@@ -3,52 +3,179 @@ import Joi from 'joi';
 import moment from 'moment';
 import Reservation from '../models/Reservation.model.js';
 import Area from '../models/Area.model.js';
+import Table from '../models/Table.model.js'; // TAMBAHKAN IMPORT INI
 
 const router = express.Router();
 
 // Validation schemas
 const createReservationSchema = Joi.object({
-    customer_name: Joi.string().required(),
-    customer_phone: Joi.string().required(),
+    customer_name: Joi.string().optional(), // Ubah ke optional
+    customer_phone: Joi.string().optional(), // Ubah ke optional  
     customer_email: Joi.string().email().optional(),
     reservation_date: Joi.string().required(),
     reservation_time: Joi.string().required(),
     area_id: Joi.string().required(),
     guest_count: Joi.number().integer().min(1).required(),
+    table_ids: Joi.array().items(Joi.string()).required(), // Tambahkan validasi table_ids
     notes: Joi.string().optional()
 });
 
-// GET /api/reservations/availability - Check availability
+// GET /api/reservations/availability - Check availability (FIXED)
 router.get('/availability', async (req, res) => {
     try {
-        const { date, time, area_id, guest_count } = req.query;
+        const { date, time, area_id, guest_count, table_ids } = req.query;
+
+        console.log('Checking availability for:', { date, time, area_id, guest_count, table_ids });
 
         if (!date || !time || !area_id || !guest_count) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing required parameters'
+                message: 'Missing required parameters: date, time, area_id, guest_count'
             });
         }
 
+        // ✅ KONVERSI tanggal string ke Date object
+        const reservationDate = new Date(date);
+
+        // Validasi format tanggal
+        if (isNaN(reservationDate.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format. Use YYYY-MM-DD format'
+            });
+        }
+
+        // Get area information
         const area = await Area.findById(area_id);
         if (!area || !area.is_active) {
             return res.json({
                 success: true,
                 available: false,
-                message: 'Area not available'
+                message: 'Area not available',
+                reason: 'area_inactive'
             });
         }
 
+        // Check if guest count exceeds area capacity
         if (parseInt(guest_count) > area.capacity) {
             return res.json({
                 success: true,
                 available: false,
-                message: 'Guest count exceeds area capacity'
+                message: `Guest count (${guest_count}) exceeds area capacity (${area.capacity})`,
+                reason: 'capacity_exceeded'
             });
         }
 
+        // If specific tables are requested, check table availability
+        if (table_ids) {
+            const requestedTableIds = table_ids.split(',').map(id => id.trim());
+            console.log('Requested table IDs:', requestedTableIds);
+
+            // Get table information
+            const tables = await Table.find({
+                _id: { $in: requestedTableIds },
+                area_id: area_id,
+                is_active: true
+            });
+
+            console.log('Found tables:', tables.length, 'out of', requestedTableIds.length);
+
+            // Check if all requested tables exist and are active
+            if (tables.length !== requestedTableIds.length) {
+                return res.json({
+                    success: true,
+                    available: false,
+                    message: 'Some requested tables are not available or inactive',
+                    reason: 'table_not_found'
+                });
+            }
+
+            // Calculate total capacity of requested tables
+            const totalTableCapacity = tables.reduce((sum, table) => sum + table.seats, 0);
+
+            if (totalTableCapacity < parseInt(guest_count)) {
+                return res.json({
+                    success: true,
+                    available: false,
+                    message: `Selected tables capacity (${totalTableCapacity}) is insufficient for ${guest_count} guests`,
+                    reason: 'insufficient_table_capacity'
+                });
+            }
+
+            // ✅ PERBAIKAN: Gunakan Date object untuk query
+            const existingReservations = await Reservation.find({
+                reservation_date: {
+                    $gte: new Date(reservationDate.setHours(0, 0, 0, 0)),
+                    $lt: new Date(reservationDate.setHours(23, 59, 59, 999))
+                },
+                reservation_time: time,
+                table_id: { $in: requestedTableIds },
+                status: { $in: ['confirmed', 'pending'] }
+            });
+
+            console.log('Found existing reservations:', existingReservations.length);
+            console.log('Existing reservations details:', existingReservations.map(r => ({
+                id: r._id,
+                date: r.reservation_date,
+                time: r.reservation_time,
+                tables: r.table_id,
+                status: r.status
+            })));
+
+            if (existingReservations.length > 0) {
+                // Get conflicting table IDs
+                const conflictingTableIds = [];
+                existingReservations.forEach(reservation => {
+                    reservation.table_id.forEach(tableId => {
+                        if (requestedTableIds.includes(tableId.toString()) &&
+                            !conflictingTableIds.includes(tableId.toString())) {
+                            conflictingTableIds.push(tableId.toString());
+                        }
+                    });
+                });
+
+                // Get conflicting table numbers for user-friendly message
+                const conflictingTables = await Table.find({
+                    _id: { $in: conflictingTableIds }
+                });
+                const conflictingTableNumbers = conflictingTables.map(t => t.table_number);
+
+                return res.json({
+                    success: true,
+                    available: false,
+                    message: `Tables ${conflictingTableNumbers.join(', ')} are already reserved for this time slot`,
+                    reason: 'tables_already_reserved',
+                    conflicting_tables: conflictingTableNumbers
+                });
+            }
+
+            // All checks passed for specific tables
+            return res.json({
+                success: true,
+                available: true,
+                message: 'Selected tables are available',
+                data: {
+                    area_name: area.area_name,
+                    area_code: area.area_code,
+                    guest_count: parseInt(guest_count),
+                    table_count: tables.length,
+                    total_table_capacity: totalTableCapacity,
+                    selected_tables: tables.map(t => ({
+                        id: t._id,
+                        table_number: t.table_number,
+                        seats: t.seats
+                    }))
+                }
+            });
+        }
+
+        // If no specific tables requested, check general area availability
+        // ✅ PERBAIKAN: Gunakan Date object untuk query
         const existingReservations = await Reservation.find({
-            reservation_date: date,
+            reservation_date: {
+                $gte: new Date(reservationDate.setHours(0, 0, 0, 0)),
+                $lt: new Date(reservationDate.setHours(23, 59, 59, 999))
+            },
             reservation_time: time,
             area_id: area_id,
             status: { $in: ['confirmed', 'pending'] }
@@ -66,10 +193,18 @@ router.get('/availability', async (req, res) => {
             available: isAvailable,
             available_capacity: availableCapacity,
             total_capacity: area.capacity,
-            message: isAvailable ? 'Area available' : 'Insufficient capacity'
+            message: isAvailable ? 'Area has sufficient capacity' : 'Insufficient capacity in area',
+            reason: isAvailable ? 'available' : 'insufficient_capacity',
+            data: {
+                area_name: area.area_name,
+                area_code: area.area_code,
+                guest_count: parseInt(guest_count),
+                reserved_guests: totalReservedGuests
+            }
         });
 
     } catch (error) {
+        console.error('Error checking availability:', error);
         res.status(500).json({
             success: false,
             message: 'Error checking availability',
@@ -78,9 +213,11 @@ router.get('/availability', async (req, res) => {
     }
 });
 
-// POST /api/reservations - Create new reservation
+// POST /api/reservations - Create new reservation (FIXED)
 router.post('/', async (req, res) => {
     try {
+        console.log('Creating reservation with data:', req.body);
+
         const { error, value } = createReservationSchema.validate(req.body);
         if (error) {
             return res.status(400).json({
@@ -90,47 +227,102 @@ router.post('/', async (req, res) => {
             });
         }
 
-        const area = await Area.findById(value.area_id);
+        const { date, time, area_id, guest_count, table_ids, notes } = value;
+
+        // Validate area exists and is active
+        const area = await Area.findById(area_id);
         if (!area || !area.is_active) {
-            return res.status(404).json({
+            return res.status(400).json({
                 success: false,
                 message: 'Area not found or inactive'
             });
         }
 
-        const existingReservations = await Reservation.find({
-            reservation_date: value.reservation_date,
-            reservation_time: value.reservation_time,
-            area_id: value.area_id,
-            status: { $in: ['confirmed', 'pending'] }
+        // Validate tables exist and are active
+        const tables = await Table.find({
+            _id: { $in: table_ids },
+            area_id: area_id,
+            is_active: true
         });
 
-        const totalReservedGuests = existingReservations.reduce((sum, reservation) => {
-            return sum + reservation.guest_count;
-        }, 0);
-
-        if ((totalReservedGuests + value.guest_count) > area.capacity) {
+        if (tables.length !== table_ids.length) {
             return res.status(400).json({
                 success: false,
-                message: 'Insufficient capacity for this reservation'
+                message: 'Some tables not found or inactive'
             });
         }
 
+        // Check total table capacity
+        const totalTableCapacity = tables.reduce((sum, table) => sum + table.seats, 0);
+        if (totalTableCapacity < guest_count) {
+            return res.status(400).json({
+                success: false,
+                message: `Selected tables capacity (${totalTableCapacity}) insufficient for ${guest_count} guests`
+            });
+        }
+
+        // Check if tables are available (double-check before creating)
+        const conflictingReservations = await Reservation.find({
+            reservation_date: date,
+            reservation_time: time,
+            table_id: { $in: table_ids },
+            status: { $in: ['confirmed', 'pending'] }
+        });
+
+        if (conflictingReservations.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: 'One or more selected tables are already reserved for this time slot'
+            });
+        }
+
+        // Create reservation
         const reservation = new Reservation({
-            ...value,
-            area_code: area.area_code
+            reservation_date: date,
+            reservation_time: time,
+            area_id: area_id,
+            table_id: table_ids, // Simpan ke table_id (sesuai model)
+            guest_count: guest_count,
+            notes: notes || '',
+            status: 'confirmed'
         });
 
         await reservation.save();
-        await reservation.populate('area_id');
+
+        // Populate data for response
+        const populatedReservation = await Reservation.findById(reservation._id)
+            .populate('area_id', 'area_name area_code')
+            .populate('table_id', 'table_number seats');
+
+        console.log('Reservation created successfully:', populatedReservation);
 
         res.status(201).json({
             success: true,
             message: 'Reservation created successfully',
-            data: reservation
+            data: {
+                id: populatedReservation._id,
+                reservation_code: populatedReservation.reservation_code,
+                reservation_date: populatedReservation.reservation_date,
+                reservation_time: populatedReservation.reservation_time,
+                area: {
+                    id: populatedReservation.area_id._id,
+                    name: populatedReservation.area_id.area_name,
+                    code: populatedReservation.area_id.area_code
+                },
+                tables: populatedReservation.table_id.map(table => ({
+                    id: table._id,
+                    table_number: table.table_number,
+                    seats: table.seats
+                })),
+                guest_count: populatedReservation.guest_count,
+                notes: populatedReservation.notes,
+                status: populatedReservation.status,
+                created_at: populatedReservation.createdAt
+            }
         });
 
     } catch (error) {
+        console.error('Error creating reservation:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating reservation',
@@ -144,6 +336,7 @@ router.get('/:id', async (req, res) => {
     try {
         const reservation = await Reservation.findById(req.params.id)
             .populate('area_id')
+            .populate('table_id')
             .populate('order_id');
 
         if (!reservation) {
@@ -173,7 +366,7 @@ router.put('/:id', async (req, res) => {
             req.params.id,
             { $set: req.body },
             { new: true, runValidators: true }
-        ).populate('area_id');
+        ).populate('area_id').populate('table_id');
 
         if (!reservation) {
             return res.status(404).json({
