@@ -6,6 +6,7 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
@@ -51,6 +52,7 @@ class PaymentMethodScreen extends ConsumerWidget {
                 state,
                 notifier,
                 total.toInt(),
+                orderdetail,
               ),
           loading: () => const Center(child: CircularProgressIndicator()),
           error:
@@ -127,6 +129,7 @@ class PaymentMethodScreen extends ConsumerWidget {
     PaymentState state,
     PaymentNotifier notifier,
     int total,
+    OrderDetailModel orderdetail,
   ) {
     return Column(
       children: [
@@ -171,7 +174,7 @@ class PaymentMethodScreen extends ConsumerWidget {
                 if (_canProceedToPayment(state))
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
-                    child: _buildContinueButton(context, ref),
+                    child: _buildContinueButton(context, ref, orderdetail),
                   ),
               ],
             ),
@@ -442,7 +445,11 @@ class PaymentMethodScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContinueButton(BuildContext context, WidgetRef ref) {
+  Widget _buildContinueButton(
+    BuildContext context,
+    WidgetRef ref,
+    OrderDetailModel orderDetail,
+  ) {
     return Container(
       width: double.infinity,
       height: 50,
@@ -462,7 +469,7 @@ class PaymentMethodScreen extends ConsumerWidget {
         ],
       ),
       child: ElevatedButton(
-        onPressed: () => _processPayment(context, ref),
+        onPressed: () => _processPayment(context, ref, orderDetail),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
@@ -496,9 +503,16 @@ class PaymentMethodScreen extends ConsumerWidget {
     return PaymentHelper.getCashSuggestions(totalAmount);
   }
 
-  void _processPayment(BuildContext context, WidgetRef ref) async {
+  void _processPayment(
+    BuildContext context,
+    WidgetRef ref,
+    OrderDetailModel orderDetail,
+  ) async {
     final state = ref.read(paymentProvider);
-    final orderDetail = ref.watch(orderDetailProvider.notifier);
+    final orderDetailNotifier = ref.watch(orderDetailProvider.notifier);
+    final onlineOrderDetailNotifier = ref.watch(
+      onlineOrderDetailProvider.notifier,
+    );
 
     if (state.selectedPaymentType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -515,7 +529,16 @@ class PaymentMethodScreen extends ConsumerWidget {
     final paymentMethod = paymentInfo['type'] as String;
     final paymentType = paymentInfo['method'] as String;
 
-    orderDetail.updatePaymentMethod(paymentMethod, paymentType);
+    if (orderDetail.source == 'App') {
+      onlineOrderDetailNotifier.savedOnlineOrderDetail(
+        orderDetail.copyWith(
+          paymentMethod: paymentMethod,
+          paymentStatus: paymentType,
+        ),
+      );
+    } else {
+      orderDetailNotifier.updatePaymentMethod(paymentMethod, paymentType);
+    }
 
     // Show loading
     showDialog(
@@ -525,32 +548,61 @@ class PaymentMethodScreen extends ConsumerWidget {
     );
 
     try {
-      final success = await orderDetail.submitOrder();
+      if (orderDetail.source == 'App') {
+        final success = await onlineOrderDetailNotifier.submitOnlineOrder();
+        if (context.mounted) Navigator.pop(context);
 
-      // Hide loading
-      if (context.mounted) Navigator.pop(context);
+        if (success && context.mounted) {
+          ref.invalidate(orderHistoryProvider);
 
-      if (success && context.mounted) {
-        ref.invalidate(orderHistoryProvider);
+          context.goNamed(
+            'payment-success',
+            extra: {
+              'orderDetail': orderDetail,
+              'payment_method':
+                  paymentInfo['type'] == 'cash'
+                      ? 'Tunai'
+                      : state.selectedPaymentMethod?.name ?? '',
+              'amount': paymentInfo['amount'],
+              'change': paymentInfo['change'],
+            },
+          );
+        } else if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pembayaran gagal!'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else {
+        final success = await orderDetailNotifier.submitOrder();
+        // Hide loading
+        if (context.mounted) Navigator.pop(context);
 
-        context.goNamed(
-          'payment-success',
-          extra: {
-            'payment_method':
-                paymentInfo['type'] == 'cash'
-                    ? 'Tunai'
-                    : state.selectedPaymentMethod?.name ?? '',
-            'amount': paymentInfo['amount'],
-            'change': paymentInfo['change'],
-          },
-        );
-      } else if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pembayaran gagal!'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (success && context.mounted) {
+          ref.invalidate(orderHistoryProvider);
+
+          context.goNamed(
+            'payment-success',
+            extra: {
+              'orderDetail': orderDetail,
+              'payment_method':
+                  paymentInfo['type'] == 'cash'
+                      ? 'Tunai'
+                      : state.selectedPaymentMethod?.name ?? '',
+              'amount': paymentInfo['amount'],
+              'change': paymentInfo['change'],
+            },
+          );
+        } else if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pembayaran gagal!'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       // Hide loading
