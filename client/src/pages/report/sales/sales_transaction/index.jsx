@@ -1,12 +1,46 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
+import Select from "react-select";
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import ExportFilter from "../export";
 
 
 const SalesTransaction = () => {
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db', // Tailwind border-gray-300
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280', // text-gray-500
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            '&:hover': {
+                borderColor: '#9ca3af', // Tailwind border-gray-400
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500 for typed text
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af', // text-gray-400
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151', // gray-700
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            cursor: 'pointer',
+        }),
+    };
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
@@ -19,6 +53,7 @@ const SalesTransaction = () => {
     const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -83,10 +118,13 @@ const SalesTransaction = () => {
         fetchData();
     }, []);
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
+    const options = [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ];
 
     // Handle click outside dropdown to close
     useEffect(() => {
@@ -132,13 +170,6 @@ const SalesTransaction = () => {
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
     // Calculate grand totals for filtered data
     const {
         grandTotalFinal,
@@ -177,19 +208,19 @@ const SalesTransaction = () => {
         if (tempSearch) {
             filtered = filtered.filter(product => {
                 try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
-
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
-
                     const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
+
+                    // Periksa semua items, bukan hanya items[0]
+                    return product.items?.some(item => {
+                        const menuItem = item?.menuItem;
+                        if (!menuItem) return false;
+
+                        const name = (menuItem.name || '').toLowerCase();
+                        const customer = (menuItem.user || '').toLowerCase();
+                        const receipt = (menuItem._id || '').toLowerCase();
+
+                        return name.includes(searchTerm) || receipt.includes(searchTerm) || customer.includes(searchTerm);
+                    });
                 } catch (err) {
                     console.error("Error filtering by search:", err);
                     return false;
@@ -201,17 +232,9 @@ const SalesTransaction = () => {
         if (tempSelectedOutlet) {
             filtered = filtered.filter(product => {
                 try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
+                    const outletId = product.outlet;
 
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
+                    return outletId === tempSelectedOutlet;
                 } catch (err) {
                     console.error("Error filtering by outlet:", err);
                     return false;
@@ -241,6 +264,7 @@ const SalesTransaction = () => {
                     }
 
                     const isInRange = productDate >= startDate && productDate <= endDate;
+
                     if (!isInRange) {
                     }
                     return isInRange;
@@ -263,36 +287,6 @@ const SalesTransaction = () => {
         setSearch("");
         setFilteredData(ensureArray(products));
         setCurrentPage(1);
-    };
-
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
     };
 
 
@@ -344,7 +338,14 @@ const SalesTransaction = () => {
                     <FaChevronRight className="text-[15px] text-gray-500" />
                     <Link to="/admin/transaction-sales" className="text-[15px] text-[#005429]">Data Transaksi Penjualan</Link>
                 </div>
-                <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+
+                <ExportFilter
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                />
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
             </div>
 
             {/* Filters */}
@@ -352,54 +353,31 @@ const SalesTransaction = () => {
                 <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
+                        <Select
+                            className="text-sm"
+                            classNamePrefix="react-select"
+                            placeholder="Pilih Outlet"
+                            options={options}
+                            isSearchable
+                            value={
+                                options.find((opt) => opt.value === tempSelectedOutlet) ||
+                                options[0]
+                            }
+                            onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                            styles={customSelectStyles}
+                        />
                     </div>
 
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative z-50 text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
+                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
                             <Datepicker
                                 showFooter
                                 showShortcuts
                                 value={value}
                                 onChange={setValue}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
                             />
 
@@ -415,13 +393,13 @@ const SalesTransaction = () => {
                             placeholder="Produk / Pelanggan / Kode Struk"
                             value={tempSearch}
                             onChange={(e) => setTempSearch(e.target.value)}
-                            className="text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded"
+                            className="text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded"
                         />
                     </div>
 
                     <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[8px] rounded">Terapkan</button>
+                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[8px] rounded">Reset</button>
                     </div>
                 </div>
 
@@ -459,7 +437,7 @@ const SalesTransaction = () => {
                                         }
 
                                         const pbn = totalSubtotal * 0.10;
-                                        const total = totalSubtotal + pbn;
+                                        const total = Math.round(totalSubtotal + pbn);
 
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={product._id} onClick={() => setSelectedTrx(product)}>
@@ -479,7 +457,7 @@ const SalesTransaction = () => {
                                                     {orderType || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    {total.toLocaleString()}
+                                                    {total || ""}
                                                 </td>
                                             </tr>
                                         );

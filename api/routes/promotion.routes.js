@@ -3,7 +3,7 @@ import express from 'express';
 import { createPromo, deletePromo, getPromoById, getPromos, updatePromo } from '../controllers/promo.controller.js';
 import { createAutoPromo, deleteAutoPromo, getAutoPromoById, getAutoPromos, updateAutoPromo } from '../controllers/autopromo.controller.js';
 import { createVoucher, deleteVoucher, generateVoucherQR, getAllVouchers, getVoucherById, updateVoucher } from '../controllers/voucher.controller.js';
-import { createLoyaltyProgram, deleteLoyaltyProgram, getAllLoyaltyPrograms, getLoyaltyProgramById, updateLoyaltyProgram, createLoyaltyLevel, updateLoyaltyLevel, getAllLoyaltyLevels } from '../controllers/LoyaltyProgram.controller.js';
+import { createLoyaltyProgram, deleteLoyaltyProgram, getAllLoyaltyPrograms, getLoyaltyProgramById, updateLoyaltyProgram, createLoyaltyLevel, updateLoyaltyLevel, getAllLoyaltyLevels } from '../controllers/loyaltyProgram.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
