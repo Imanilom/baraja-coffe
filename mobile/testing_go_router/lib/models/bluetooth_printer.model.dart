@@ -11,7 +11,7 @@ abstract class BluetoothPrinterModel with _$BluetoothPrinterModel {
   factory BluetoothPrinterModel({
     @HiveField(0) required String name,
     @HiveField(1) required String address, //mac or ip
-    @HiveField(2) String? connectionType, // 'wifi' or 'bluetooth'
+    @HiveField(2) String? connectionType, // 'network' or 'bluetooth'
     @HiveField(3) @Default('mm58') String paperSize,
     @HiveField(4) @Default(true) bool canPrintCustomer,
     @HiveField(5) @Default(false) bool canPrintKitchen,
@@ -21,6 +21,7 @@ abstract class BluetoothPrinterModel with _$BluetoothPrinterModel {
     @HiveField(9) @Default(1) int kitchenCopies,
     @HiveField(10) @Default(1) int barCopies,
     @HiveField(11) @Default(1) int waiterCopies,
+    @HiveField(12) int? port, //for LAN printers
   }) = _BluetoothPrinterModel;
 
   factory BluetoothPrinterModel.fromJson(Map<String, dynamic> json) =>

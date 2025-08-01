@@ -27,10 +27,39 @@ class PrinterHomeScreen extends ConsumerWidget {
               icon: const Icon(Icons.add),
               label: const Text('Tambah Printer'),
               onPressed: () {
-                ref
-                    .read(printerScannerProvider.notifier)
-                    .clearScannedPrinters();
-                context.pushNamed('scan-printer');
+                // open dialog untuk pilihan type scan printer bluethooth atau network untuk ke halaman scan printer
+                showDialog(
+                  context: context,
+                  builder:
+                      (context) => AlertDialog(
+                        title: const Text('Pilih Tipe Printer'),
+                        content: const Text(
+                          'Pilih tipe printer yang ingin ditambahkan.',
+                        ),
+                        actionsAlignment: MainAxisAlignment.center,
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              // navigate to scan network printer screen
+                              Navigator.pop(context);
+                              context.pushNamed('scan-network-printer');
+                            },
+                            child: const Text('Ethernet / LAN'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              // navigate to scan bluetooth printer screen
+                              Navigator.pop(context);
+                              ref
+                                  .read(printerScannerProvider.notifier)
+                                  .clearScannedPrinters();
+                              context.pushNamed('scan-printer');
+                            },
+                            child: const Text('Bluetooth'),
+                          ),
+                        ],
+                      ),
+                );
               },
             ),
           ),
@@ -166,22 +195,5 @@ class PrinterHomeScreen extends ConsumerWidget {
         const SnackBar(content: Text('Gagal mencetak')),
       );
     }
-    // try {
-    //   final result = await PrintBluetoothThermal.writeBytes([
-    //     0x1B,
-    //     0x40,
-    //     0x1B,
-    //     0x61,
-    //     0x01,
-    //     0x1D,
-    //     0x21,
-    //     0x11,
-    //   ]);
-    //   if (!result) throw Exception('Gagal mengirim perintah print');
-    // } catch (e) {
-    //   ScaffoldMessenger.of(
-    //     context,
-    //   ).showSnackBar(SnackBar(content: Text('Print gagal: $e')));
-    // }
   }
 }
