@@ -1,168 +1,214 @@
-// routes/areas.js
+// routes/area.routes.js
 import express from 'express';
 import Area from '../models/Area.model.js';
 import Table from '../models/Table.model.js';
+import Reservation from '../models/Reservation.model.js';
 
 const router = express.Router();
 
-// GET /api/areas - Get all areas with tables
+// GET /api/areas - Get all areas with real-time availability
 router.get('/', async (req, res) => {
     try {
-        const areas = await Area.find({ is_active: true })
-            .populate({
-                path: 'tables',
-                match: { is_active: true },
-                select: 'table_number seats table_type is_available'
+        const { date, time } = req.query;
+
+        // Get all active areas
+        const areas = await Area.find({ is_active: true }).sort({ area_code: 1 });
+
+        // If date and time provided, calculate real-time availability
+        if (date && time) {
+            const areasWithAvailability = await Promise.all(
+                areas.map(async (area) => {
+                    // Get all tables for this area
+                    const tables = await Table.find({
+                        area_id: area._id,
+                        is_active: true
+                    });
+
+                    // Convert date string to Date object for query
+                    const reservationDate = new Date(date);
+
+                    // Get existing reservations for this area on the specified date and time
+                    const existingReservations = await Reservation.find({
+                        reservation_date: {
+                            $gte: new Date(reservationDate.setHours(0, 0, 0, 0)),
+                            $lt: new Date(reservationDate.setHours(23, 59, 59, 999))
+                        },
+                        reservation_time: time,
+                        area_id: area._id,
+                        status: { $in: ['confirmed', 'pending'] }
+                    });
+
+                    // Get reserved table IDs for this time slot
+                    const reservedTableIds = [];
+                    existingReservations.forEach(reservation => {
+                        reservation.table_id.forEach(tableId => {
+                            if (!reservedTableIds.includes(tableId.toString())) {
+                                reservedTableIds.push(tableId.toString());
+                            }
+                        });
+                    });
+
+                    // Calculate available tables
+                    const availableTables = tables.filter(table =>
+                        !reservedTableIds.includes(table._id.toString())
+                    );
+
+                    // Calculate total guests already reserved
+                    const totalReservedGuests = existingReservations.reduce((sum, reservation) => {
+                        return sum + reservation.guest_count;
+                    }, 0);
+
+                    const availableCapacity = area.capacity - totalReservedGuests;
+
+                    return {
+                        ...area.toObject(),
+                        totalTables: tables.length,
+                        availableTables: availableTables.length,
+                        reservedTables: tables.length - availableTables.length,
+                        availableCapacity: Math.max(0, availableCapacity),
+                        totalReservedGuests,
+                        isFullyBooked: availableTables.length === 0 || availableCapacity <= 0
+                    };
+                })
+            );
+
+            return res.json({
+                success: true,
+                data: areasWithAvailability
+            });
+        }
+
+        // If no date/time provided, return areas with basic table info
+        const areasWithTables = await Promise.all(
+            areas.map(async (area) => {
+                const tables = await Table.find({
+                    area_id: area._id,
+                    is_active: true
+                });
+
+                return {
+                    ...area.toObject(),
+                    totalTables: tables.length,
+                    availableTables: tables.length, // Assume all available without date/time
+                    reservedTables: 0,
+                    availableCapacity: area.capacity,
+                    totalReservedGuests: 0,
+                    isFullyBooked: false
+                };
             })
-            .sort({ area_code: 1 });
+        );
 
-        const formattedAreas = areas.map(area => ({
-            id: area._id.toString(),
-            area_code: area.area_code,
-            area_name: area.area_name,
-            capacity: area.capacity,
-            description: area.description,
-            is_active: area.is_active,
-            tables: area.tables.map(table => ({
-                id: table._id.toString(),
-                table_number: table.table_number,
-                seats: table.seats,
-                table_type: table.table_type,
-                is_available: table.is_available
-            })),
-            total_tables: area.tables.length,
-            available_tables: area.tables.filter(t => t.is_available).length,
-            created_at: area.created_at,
-            updated_at: area.updated_at
-        }));
-
-        res.status(200).json({
+        res.json({
             success: true,
-            message: 'Areas retrieved successfully',
-            data: formattedAreas
+            data: areasWithTables
         });
+
     } catch (error) {
-        console.error('Error getting areas:', error);
+        console.error('Error fetching areas:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to retrieve areas',
+            message: 'Error fetching areas',
             error: error.message
         });
     }
 });
 
-// GET /api/areas/:areaId/tables - Get tables for specific area
-router.get('/:areaId/tables', async (req, res) => {
+// GET /api/areas/:id/tables - Get tables for specific area with availability
+router.get('/:id/tables', async (req, res) => {
     try {
-        const { areaId } = req.params;
+        const { id } = req.params;
+        const { date, time } = req.query;
 
-        const area = await Area.findById(areaId);
-        if (!area) {
+        // Get area information
+        const area = await Area.findById(id);
+        if (!area || !area.is_active) {
             return res.status(404).json({
                 success: false,
-                message: 'Area not found'
+                message: 'Area not found or inactive'
             });
         }
 
+        // Get all tables for this area
         const tables = await Table.find({
-            area_id: areaId,
+            area_id: id,
             is_active: true
         }).sort({ table_number: 1 });
 
-        res.status(200).json({
-            success: true,
-            message: 'Tables retrieved successfully',
-            data: {
-                area: {
-                    id: area._id.toString(),
-                    area_code: area.area_code,
-                    area_name: area.area_name,
-                    capacity: area.capacity
+        // If date and time provided, check table availability
+        if (date && time) {
+            const reservationDate = new Date(date);
+
+            // Get existing reservations for this area on the specified date and time
+            const existingReservations = await Reservation.find({
+                reservation_date: {
+                    $gte: new Date(reservationDate.setHours(0, 0, 0, 0)),
+                    $lt: new Date(reservationDate.setHours(23, 59, 59, 999))
                 },
-                tables: tables.map(table => ({
-                    id: table._id.toString(),
-                    table_number: table.table_number,
-                    seats: table.seats,
-                    table_type: table.table_type,
-                    is_available: table.is_available
-                }))
-            }
-        });
-    } catch (error) {
-        console.error('Error getting tables:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to retrieve tables',
-            error: error.message
-        });
-    }
-});
-
-// GET /api/areas/availability - Check area availability
-router.get('/availability', async (req, res) => {
-    try {
-        const { date, time, area_id, guest_count } = req.query;
-
-        if (!date || !time || !area_id || !guest_count) {
-            return res.status(400).json({
-                success: false,
-                message: 'Missing required parameters: date, time, area_id, guest_count'
+                reservation_time: time,
+                area_id: id,
+                status: { $in: ['confirmed', 'pending'] }
             });
-        }
 
-        // Get area with tables
-        const area = await Area.findById(area_id).populate({
-            path: 'tables',
-            match: { is_active: true }
-        });
-
-        if (!area) {
-            return res.status(404).json({
-                success: false,
-                message: 'Area not found'
+            // Get reserved table IDs
+            const reservedTableIds = [];
+            existingReservations.forEach(reservation => {
+                reservation.table_id.forEach(tableId => {
+                    if (!reservedTableIds.includes(tableId.toString())) {
+                        reservedTableIds.push(tableId.toString());
+                    }
+                });
             });
-        }
 
-        // Check if guest count exceeds area capacity
-        if (parseInt(guest_count) > area.capacity) {
-            return res.status(200).json({
+            // Mark tables as available or not
+            const tablesWithAvailability = tables.map(table => ({
+                ...table.toObject(),
+                is_available_for_time: !reservedTableIds.includes(table._id.toString()),
+                is_reserved: reservedTableIds.includes(table._id.toString())
+            }));
+
+            return res.json({
                 success: true,
-                available: false,
-                message: `Guest count exceeds area capacity (${area.capacity})`,
-                reason: 'capacity_exceeded'
+                data: {
+                    area: area,
+                    tables: tablesWithAvailability,
+                    availability_info: {
+                        total_tables: tables.length,
+                        available_tables: tablesWithAvailability.filter(t => t.is_available_for_time).length,
+                        reserved_tables: reservedTableIds.length,
+                        date: date,
+                        time: time
+                    }
+                }
             });
         }
 
-        // For now, we'll consider area available if it has active tables
-        // You can extend this logic to check actual reservations
-        const availableTables = area.tables.filter(table => table.is_available);
-        const hasAvailableTables = availableTables.length > 0;
+        // If no date/time provided, return tables with default availability
+        const tablesWithAvailability = tables.map(table => ({
+            ...table.toObject(),
+            is_available_for_time: table.is_available,
+            is_reserved: false
+        }));
 
-        // Calculate required tables based on guest count and average seats per table
-        const avgSeatsPerTable = area.tables.reduce((sum, table) => sum + table.seats, 0) / area.tables.length || 4;
-        const requiredTables = Math.ceil(parseInt(guest_count) / avgSeatsPerTable);
-        const enoughTables = availableTables.length >= requiredTables;
-
-        res.status(200).json({
+        res.json({
             success: true,
-            available: hasAvailableTables && enoughTables,
-            message: hasAvailableTables && enoughTables
-                ? 'Area is available for reservation'
-                : 'Area is not available for the selected time and guest count',
             data: {
-                area_name: area.area_name,
-                total_tables: area.tables.length,
-                available_tables: availableTables.length,
-                required_tables: requiredTables,
-                guest_count: parseInt(guest_count),
-                capacity: area.capacity
+                area: area,
+                tables: tablesWithAvailability,
+                availability_info: {
+                    total_tables: tables.length,
+                    available_tables: tables.length,
+                    reserved_tables: 0,
+                    date: null,
+                    time: null
+                }
             }
         });
+
     } catch (error) {
-        console.error('Error checking availability:', error);
+        console.error('Error fetching area tables:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to check availability',
+            message: 'Error fetching area tables',
             error: error.message
         });
     }

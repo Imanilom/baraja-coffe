@@ -7,18 +7,28 @@ const ReceiptSettingSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  logoUrl: { type: String }, // URL lokal atau cloud untuk logo
+  logoUrl: { type: String },
   showDate: { type: Boolean, default: true },
   showTime: { type: Boolean, default: true },
   outletName: { type: String },
   outletAddress: { type: String },
   outletPhone: { type: String },
-  footerNote: { type: String }, // Catatan di bawah struk
+  footerNote: { type: String },
   thanksMessage: { type: String, default: 'Terima kasih atas kunjungan Anda!' },
+  socialMedia: {
+    instagram: { type: String },
+    tiktok: { type: String },
+    showInstagram: { type: Boolean, default: false },
+    showTiktok: { type: Boolean, default: false }
+  },
+  showVoucherCode: { type: Boolean, default: true },
+  showPoweredBy: { type: Boolean, default: false },
+  noteImageUrl: { type: String },
   customFields: [{
     label: String,
     value: String
   }]
 }, { timestamps: true });
 
-export const ReceiptSetting = mongoose.models.ReceiptSetting || mongoose.model('ReceiptSetting', ReceiptSettingSchema);
+export const ReceiptSetting = mongoose.models.ReceiptSetting || 
+  mongoose.model('ReceiptSetting', ReceiptSettingSchema);

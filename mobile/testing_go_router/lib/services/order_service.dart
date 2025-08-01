@@ -18,7 +18,7 @@ class OrderService {
     try {
       print('start create order...');
       print('request body: ${createOrderRequest(orderDetail)}');
-      print('orderDetail: ${orderDetail.payment!.method.toString()}');
+      // print('orderDetail: ${orderDetail.payment!.method.toString()}');
       Response response = await _dio.post(
         '/api/unified-order',
         data: createOrderRequest(orderDetail),
@@ -30,25 +30,25 @@ class OrderService {
         ),
       );
       print('response create order: ${response.data}');
-
-      Response chargeResponse = await _dio.post(
-        '/api/cashierCharge',
-        data: createChargeRequest(
-          response.data['orderId'],
-          orderDetail.grandTotal,
-          orderDetail.payment!.method.toString(),
-        ),
-        options: Options(
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-        ),
-      );
-
-      print('response charge: ${chargeResponse.data}');
-      if (chargeResponse.statusCode != 200) {
-        throw Exception('Failed to create charge');
+      if (orderDetail.source != 'App') {
+        Response chargeResponse = await _dio.post(
+          '/api/cashierCharge',
+          data: createChargeRequest(
+            response.data['orderId'],
+            orderDetail.grandTotal,
+            orderDetail.payment!.method.toString(),
+          ),
+          options: Options(
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          ),
+        );
+        print('response charge: ${chargeResponse.data}');
+        if (chargeResponse.statusCode != 200) {
+          throw Exception('Failed to create charge');
+        }
       }
 
       print('response status code create order: ${response.statusCode}');
@@ -146,6 +146,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
   final user = box.get('user') as UserModel;
 
   return {
+    'order_id': order.orderId,
     'user_id': order.userId ?? "",
     'user': order.user,
     'cashierId': order.cashierId ?? '',
