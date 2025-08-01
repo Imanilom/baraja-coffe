@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 
@@ -9,9 +10,9 @@ class PaymentSuccessScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final orderDetail = ref.watch(orderDetailProvider);
     final savedPrinter = ref.read(savedPrintersProvider.notifier);
     final arguments = GoRouterState.of(context).extra as Map<String, dynamic>;
+    final orderDetail = arguments['orderDetail'] as OrderDetailModel?;
 
     // Deteksi orientasi untuk responsive design
     final isLandscape =
@@ -33,8 +34,18 @@ class PaymentSuccessScreen extends ConsumerWidget {
               ),
               child:
                   isLandscape
-                      ? _buildLandscapeLayout(context, arguments, ref)
-                      : _buildPortraitLayout(context, arguments, ref),
+                      ? _buildLandscapeLayout(
+                        context,
+                        arguments,
+                        ref,
+                        orderDetail,
+                      )
+                      : _buildPortraitLayout(
+                        context,
+                        arguments,
+                        ref,
+                        orderDetail,
+                      ),
             ),
           ),
         ),
@@ -46,6 +57,7 @@ class PaymentSuccessScreen extends ConsumerWidget {
     BuildContext context,
     Map<String, dynamic> arguments,
     WidgetRef ref,
+    OrderDetailModel? orderDetail,
   ) {
     return Column(
       children: [
@@ -105,7 +117,7 @@ class PaymentSuccessScreen extends ConsumerWidget {
         const SizedBox(height: 40),
 
         // Action Buttons
-        _buildActionButtons(context, ref),
+        _buildActionButtons(context, ref, orderDetail),
 
         const SizedBox(height: 24),
       ],
@@ -116,6 +128,7 @@ class PaymentSuccessScreen extends ConsumerWidget {
     BuildContext context,
     Map<String, dynamic> arguments,
     WidgetRef ref,
+    OrderDetailModel? orderDetail,
   ) {
     return Row(
       children: [
@@ -187,7 +200,7 @@ class PaymentSuccessScreen extends ConsumerWidget {
               const SizedBox(height: 24),
 
               // Action Buttons
-              _buildActionButtons(context, ref),
+              _buildActionButtons(context, ref, orderDetail),
             ],
           ),
         ),
@@ -228,7 +241,13 @@ class PaymentSuccessScreen extends ConsumerWidget {
           SizedBox(height: isLandscape ? 4 : 8),
           FittedBox(
             child: Text(
-              'Rp ${arguments['change']?.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
+              arguments['change'] == null
+                  ? 'Tidak ada kembalian'
+                  : arguments['change'] == 0
+                  ? 'Tidak ada kembalian'
+                  : arguments['change'] < 0
+                  ? 'Kembalian tidak valid'
+                  : 'Rp ${arguments['change']?.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
               style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: Colors.green.shade600,
@@ -240,10 +259,14 @@ class PaymentSuccessScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context, WidgetRef ref) {
+  Widget _buildActionButtons(
+    BuildContext context,
+    WidgetRef ref,
+    OrderDetailModel? orderDetail,
+  ) {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
-    final orderDetail = ref.watch(orderDetailProvider);
+    // final orderDetail = ref.watch(orderDetailProvider);
     final savedPrinter = ref.read(savedPrintersProvider.notifier);
 
     return Row(

@@ -8,10 +8,7 @@
       enum: ['square', 'rectangle', 'circle', 'oval', 'custom'], 
       default: 'rectangle'
     },
-    position: {
-      x: { type: Number, required: true },
-      y: { type: Number, required: true }
-    },
+   
     status: {
       type: String,
       enum: ['available', 'occupied', 'reserved', 'maintenance'],

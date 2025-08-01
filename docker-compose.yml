@@ -14,8 +14,8 @@ services:
     command: redis-server --port 6379 --bind 127.0.0.1
 
   app:
-    image: rilspers/baraja-server:latest
-    container_name: baraja_server
+    image: barajacoffee/barajahub:latest
+    container_name: barajahub
     network_mode: "host"
     restart: always
     depends_on:
@@ -28,6 +28,8 @@ services:
       - HOST=0.0.0.0
       - PORT=3000
       - NODE_ENV=production
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     init: true
 
   watchtower:
@@ -36,7 +38,9 @@ services:
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./dockerconfigjson:/config.json
     environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=300
-      - WATCHTOWER_LABEL_ENABLE=true
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: "180"
+      DOCKER_CONFIG: "/config.json"

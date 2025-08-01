@@ -67,6 +67,21 @@ class MainScreen extends ConsumerWidget {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.list),
+              title: const Text('Reserve Order'),
+              onTap: () {
+                // Handle item 1 tap
+                currentPageIndex == 0
+                    ? null
+                    : ref.read(currentPageIndexProvider.notifier).setIndex(0);
+                currentWidgetIndex == 4
+                    ? null
+                    : ref.read(currentWidgetIndexProvider.notifier).setIndex(4);
+
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.history),
               title: const Text('History'),
               onTap: () {
