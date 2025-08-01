@@ -3,7 +3,7 @@ name: Build and Push to Docker Hub
 on:
   push:
     branches:
-      - main
+      - deploy
 
 jobs:
   build:
@@ -27,4 +27,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: username/repo:latest
+          tags: barajacoffee/barajahub:latest
