@@ -9,11 +9,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/services/notification_service.dart';
 import 'package:overlay_support/overlay_support.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
   await HiveService.init();
+  await initializeDateFormatting('id_ID', null);
 
   final printerBox = Hive.box<BluetoothPrinterModel>('printers');
 
