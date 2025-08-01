@@ -19,7 +19,7 @@ router.post('/:outletId', marketingAccess, createOrUpdateReceiptSetting);
 // Update langsung via ID setting (opsional)
 router.put('/:id', marketingAccess, updateReceiptSetting);
 
-// update  tes
+// update  tes www
 // [Admin] Ambil semua setting
 router.get('/', getAllReceiptSettings);
 
