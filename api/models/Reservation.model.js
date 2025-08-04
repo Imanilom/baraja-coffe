@@ -43,6 +43,14 @@ const reservationSchema = new mongoose.Schema({
         enum: ['pending', 'confirmed', 'cancelled', 'completed'],
         default: 'pending'
     },
+    check_in_time: {
+        type: Date,
+        default: null
+    },
+    check_out_time: {
+        type: Date,
+        default: null
+    },  
     notes: {
         type: String,
         default: ''

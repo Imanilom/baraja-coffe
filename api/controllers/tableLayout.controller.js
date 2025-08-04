@@ -189,9 +189,9 @@ export const updateTableStatus = async (req, res) => {
     const { outletId } = req.params;
     const { sectionName, tableId, newStatus } = req.body;
 
-    // Validasi ObjectId dan status
-    if (!mongoose.Types.ObjectId.isValid(outletId)) {
-      return res.status(400).json({ message: 'Invalid outlet ID' });
+    
+    if (!sectionName || !tableId || !newStatus) {
+      return res.status(400).json({ message: 'Missing required fields' });
     }
 
     const validStatuses = ['available', 'occupied', 'reserved', 'maintenance'];
@@ -199,38 +199,39 @@ export const updateTableStatus = async (req, res) => {
       return res.status(400).json({ message: 'Invalid table status' });
     }
 
-    // Cari layout
-    const layout = await TableLayout.findOne({ outletId });
-    if (!layout) {
-      return res.status(404).json({ message: 'Table layout not found' });
+    const outletLayout = await TableLayout.findOne({ outletId });
+    if (!outletLayout) {
+      return res.status(404).json({ message: 'Outlet layout not found' });
     }
 
-    // Cari section
-    const section = layout.sections.find(sec => sec.name === sectionName);
+
+    const section = outletLayout.sections.find(s => s.name === sectionName);
     if (!section) {
-      return res.status(404).json({ message: 'Section not found' });
+      return res.status(404).json({ 
+        message: `Section not found. Requested: '${sectionName}', Available: [${outletLayout.sections.map(s => s.name).join(', ')}]` 
+      });
     }
 
-    // Cari table
-    const table = section.tables.id(tableId);
+    const table = section.tables.find(t => t._id.toString() === tableId);
     if (!table) {
-      return res.status(404).json({ message: 'Table not found' });
+      return res.status(404).json({ 
+        message: `Table not found with ID: ${tableId}` 
+      });
     }
 
-    // Update status
     table.status = newStatus;
+    outletLayout.updatedAt = new Date();
+    outletLayout.lastUpdatedBy = req.user?._id || 'unknown'; // fallback
 
-    await layout.save();
+    await outletLayout.save();
+
     res.json({
       message: 'Table status updated successfully',
-      table: {
-        tableNumber: table.tableNumber,
-        status: table.status,
-        section: section.name,
-        tableId: table._id
-      }
+      updatedTable: table
     });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error updating table status:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

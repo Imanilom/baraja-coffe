@@ -61,7 +61,7 @@ const OrderSchema = new mongoose.Schema({
   grandTotal: { type: Number, required: true },
 
   // Sumber order
-  source: { type: String, enum: ['Web', 'App', 'Cashier'], required: true }
+  source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true }
 
 }, { timestamps: true });
 
