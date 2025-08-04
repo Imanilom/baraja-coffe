@@ -4,6 +4,7 @@ import moment from 'moment';
 import Reservation from '../models/Reservation.model.js';
 import Area from '../models/Area.model.js';
 import Table from '../models/Table.model.js'; // TAMBAHKAN IMPORT INI
+import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
@@ -14,11 +15,13 @@ const createReservationSchema = Joi.object({
     customer_email: Joi.string().email().optional(),
     reservation_date: Joi.string().required(),
     reservation_time: Joi.string().required(),
-    area_id: Joi.string().required(),
+    area_id: Joi.string().required(),   
     guest_count: Joi.number().integer().min(1).required(),
     table_ids: Joi.array().items(Joi.string()).required(), // Tambahkan validasi table_ids
     notes: Joi.string().optional()
 });
+
+const WaiterAccess = verifyToken(['waiter', 'admin', 'superadmin']);
 
 // GET /api/reservations/availability - Check availability (FIXED)
 router.get('/availability', async (req, res) => {
@@ -417,6 +420,206 @@ router.delete('/:id', async (req, res) => {
             error: error.message
         });
     }
+});
+
+// GET /api/reservations - Get all reservations with optional filters
+router.get('/', async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, area_id, date } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Build filter object
+    const filter = {};
+
+    if (status) {
+      filter.status = { $in: status.split(',') };
+    }
+
+    if (area_id) {
+      filter.area_id = area_id;
+    }
+
+    if (date) {
+      const targetDate = new Date(date);
+      if (isNaN(targetDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid date format. Use YYYY-MM-DD.',
+        });
+      }
+      filter.reservation_date = {
+        $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
+        $lt: new Date(targetDate.setHours(23, 59, 59, 999)),
+      };
+    }
+
+    // Fetch total count for pagination
+    const total = await Reservation.countDocuments(filter);
+
+    // Fetch reservations with populate
+    const reservations = await Reservation.find(filter)
+      .populate('area_id', 'area_name area_code')
+      .populate('table_id', 'table_number seats')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    res.json({
+      success: true,
+      data: reservations,
+      pagination: {
+        current_page: parseInt(page),
+        total_pages: Math.ceil(total / parseInt(limit)),
+        total_records: total,
+        limit: parseInt(limit),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching reservations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching reservations',
+      error: error.message,
+    });
+  }
+});
+
+// PUT /api/reservations/:id/check-in - Waiter: Check-in tamu
+router.put('/:id/check-in', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const reservation = await Reservation.findById(id);
+    if (!reservation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reservation not found',
+      });
+    }
+
+    // Validasi status
+    if (reservation.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot check-in: Reservation is cancelled',
+      });
+    }
+
+    if (reservation.status === 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot check-in: Reservation already completed',
+      });
+    }
+
+    // Jika sudah check-in, jangan izinkan lagi
+    if (reservation.check_in_time) {
+      return res.status(400).json({
+        success: false,
+        message: 'Guest already checked in',
+      });
+    }
+
+    // Lakukan check-in
+    reservation.status = 'confirmed';
+    reservation.check_in_time = new Date();
+
+    await reservation.save();
+
+    // Populate data sebelum kirim
+    const populated = await Reservation.findById(reservation._id)
+      .populate('area_id', 'area_name area_code')
+      .populate('table_id', 'table_number seats');
+
+    res.json({
+      success: true,
+      message: 'Guest checked in successfully',
+      data: {
+        id: populated._id,
+        status: populated.status,
+        check_in_time: populated.check_in_time,
+        reservation_code: populated.reservation_code,
+        area: {
+          name: populated.area_id.area_name,
+          code: populated.area_id.area_code,
+        },
+        tables: populated.table_id.map(t => ({
+          number: t.table_number,
+          seats: t.seats,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Error during check-in:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error during check-in',
+      error: error.message,
+    });
+  }
+});
+
+// PUT /api/reservations/:id/check-out - Waiter: Check-out tamu
+router.put('/:id/check-out', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const reservation = await Reservation.findById(id);
+    if (!reservation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reservation not found',
+      });
+    }
+
+    // Harus sudah check-in
+    if (!reservation.check_in_time) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot check-out: Guest has not checked in yet',
+      });
+    }
+
+    // Cegah double check-out
+    if (reservation.status === 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Reservation already completed',
+      });
+    }
+
+    // Lakukan check-out
+    reservation.status = 'completed';
+    reservation.check_out_time = new Date();
+
+    await reservation.save();
+
+    // Populate data
+    const populated = await Reservation.findById(reservation._id)
+      .populate('area_id', 'area_name area_code')
+      .populate('table_id', 'table_number seats');
+
+    res.json({
+      success: true,
+      message: 'Guest checked out successfully',
+      data: {
+        id: populated._id,
+        status: populated.status,
+        check_out_time: populated.check_out_time,
+        reservation_code: populated.reservation_code,
+        duration_minutes: Math.round(
+          (new Date(populated.check_out_time) - new Date(populated.check_in_time)) / 60000
+        ),
+      },
+    });
+  } catch (error) {
+    console.error('Error during check-out:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error during check-out',
+      error: error.message,
+    });
+  }
 });
 
 export default router;
