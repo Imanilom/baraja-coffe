@@ -25,68 +25,96 @@ const CategoryIndex = () => {
   const [limit] = useState(250);
   const [offset, setOffset] = useState(0);
 
-  const fetchMenuItems = async (limit, offset) => {
-    const menuResponse = await axios.get('/api/menu/menu-items', {
-      params: { limit, offset }
-    });
-    return {
-      data: menuResponse.data.data,
-      meta: menuResponse.data.meta
-    };
-  };
+  // const fetchMenuItems = async (limit, offset) => {
+  //   const menuResponse = await axios.get('/api/menu/menu-items', {
+  //     params: { limit, offset }
+  //   });
+  //   return {
+  //     data: menuResponse.data.data,
+  //     meta: menuResponse.data.meta
+  //   };
+  // };
   // Fungsi untuk mengambil daftar kategori dari API
+  const fetchData = async (type) => {
+    setLoading(true);
+    try {
+
+      const categoryResponse = await axios.get('/api/storage/categories');
+
+      const categoryData = categoryResponse.data;
+
+      setCategories(categoryData.mainCategories);
+      setFilteredCategories(categoryData.mainCategories);
+
+      // const { data, meta } = await fetchMenuItems(limit, offset);
+      // setMenuItems(data);
+      // setTotalItems(meta.totalItems);
+
+      const menuResponse = await axios.get('/api/menu/menu-items');
+      setMenuItems(menuResponse.data.data);
+
+      // Hitung jumlah menu per kategori sekali saja di sini
+      // const counts = {};
+      // menuItems.forEach((menu) => {
+      //   if (Array.isArray(menu.category)) {
+      //     // Jika array of object (pakai .name) atau string langsung
+      //     menu.category.forEach((cat) => {
+      //       const name =
+      //         typeof cat === 'string' ? cat : cat?.name;
+      //       const key = (name || '').toLowerCase().trim();
+      //       if (key) {
+      //         counts[key] = (counts[key] || 0) + 1;
+      //       }
+      //     });
+      //   } else {
+      //     // Jika kategori single string atau object
+      //     const name =
+      //       typeof menu.category === 'string'
+      //         ? menu.category
+      //         : menu.category?.name;
+      //     const key = (name || '').toLowerCase().trim();
+      //     if (key) {
+      //       counts[key] = (counts[key] || 0) + 1;
+      //     }
+      //   }
+      // });
+      // setCategoryCounts(counts);
+
+    } catch (err) {
+      setError('Failed to fetch categories');
+      setMenuItems([]);
+      setCategories([]);
+      console.error('Error fetching categories:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => {
-    const fetchData = async (type) => {
-      setLoading(true);
-      try {
-
-        const categoryResponse = await axios.get('/api/storage/categories');
-
-        const categoryData = categoryResponse.data;
-
-        setCategories(categoryData.mainCategories);
-        setFilteredCategories(categoryData.mainCategories);
-
-        const { data, meta } = await fetchMenuItems(limit, offset);
-        setMenuItems(data);
-        setTotalItems(meta.totalItems);
-
-        // Hitung jumlah menu per kategori sekali saja di sini
-        const counts = {};
-        data.forEach((menu) => {
-          if (Array.isArray(menu.category)) {
-            // Jika array of object (pakai .name) atau string langsung
-            menu.category.forEach((cat) => {
-              const name =
-                typeof cat === 'string' ? cat : cat?.name;
-              const key = (name || '').toLowerCase().trim();
-              if (key) {
-                counts[key] = (counts[key] || 0) + 1;
-              }
-            });
-          } else {
-            // Jika kategori single string atau object
-            const name =
-              typeof menu.category === 'string'
-                ? menu.category
-                : menu.category?.name;
-            const key = (name || '').toLowerCase().trim();
-            if (key) {
-              counts[key] = (counts[key] || 0) + 1;
-            }
+    const counts = {};
+    menuItems.forEach((menu) => {
+      if (Array.isArray(menu.category)) {
+        menu.category.forEach((cat) => {
+          const name = typeof cat === 'string' ? cat : cat?.name;
+          const key = (name || '').toLowerCase().trim();
+          if (key) {
+            counts[key] = (counts[key] || 0) + 1;
           }
         });
-        setCategoryCounts(counts);
-
-      } catch (err) {
-        setError('Failed to fetch categories');
-        setMenuItems([]);
-        setCategories([]);
-        console.error('Error fetching categories:', err);
-      } finally {
-        setLoading(false);
+      } else {
+        const name =
+          typeof menu.category === 'string'
+            ? menu.category
+            : menu.category?.name;
+        const key = (name || '').toLowerCase().trim();
+        if (key) {
+          counts[key] = (counts[key] || 0) + 1;
+        }
       }
-    };
+    });
+    setCategoryCounts(counts);
+  }, [menuItems]);
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -252,7 +280,8 @@ const CategoryIndex = () => {
               <h2 className="text-gray-400 ml-2 text-sm">Produk</h2>
             </div>
             <div className="text-sm text-gray-400">
-              ({totalItems})
+              {/* ({totalItems}) */}
+              {menuItems.length}
             </div>
           </Link>
         </button>

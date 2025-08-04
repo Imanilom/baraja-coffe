@@ -36,16 +36,16 @@ export const createMenuItem = async (req, res) => {
     }
 
     // Validate subCategory jika disertakan
-    // if (subCategory) {
-    //   const subCat = await Category.findById(subCategory);
-    //   if (!subCat) {
-    //     return res.status(400).json({ error: 'Sub-kategori tidak ditemukan.' });
-    //   }
+    if (subCategory) {
+      const subCat = await Category.findById(subCategory);
+      if (!subCat) {
+        return res.status(400).json({ error: 'Sub-kategori tidak ditemukan.' });
+      }
 
-    //   if (subCat.parentCategory?.toString() !== category.toString()) {
-    //     return res.status(400).json({ error: 'Sub-kategori tidak sesuai dengan kategori utama.' });
-    //   }
-    // }
+      if (subCat.parentCategory?.toString() !== category.toString()) {
+        return res.status(400).json({ error: 'Sub-kategori tidak sesuai dengan kategori utama.' });
+      }
+    }
 
     // Validate toppings
     let topping = req.body.toppings;
@@ -218,7 +218,9 @@ export const getMenuItems = async (req, res) => {
             isDefault: opt.isDefault
           }))
         })),
-        workstation: item.workstation
+        availableAt: item.availableAt,
+        workstation: item.workstation,
+        isActive: item.isActive
       };
     });
 
@@ -286,6 +288,7 @@ export const getMenuItemById = async (req, res) => {
       name: menuItem.name,
       price: menuItem.price,
       description: menuItem.description,
+      mainCategory: menuItem.mainCategory,
       category: menuItem.category ? { id: menuItem.category._id, name: menuItem.category.name } : null,
       subCategory: menuItem.subCategory ? { id: menuItem.subCategory._id, name: menuItem.subCategory.name } : null,
       imageURL: menuItem.imageURL,
@@ -293,7 +296,8 @@ export const getMenuItemById = async (req, res) => {
       reviewCount,
       toppings: menuItem.toppings,
       addons: menuItem.addons,
-      availableAt: menuItem.availableAt.map(outlet => outlet.toObject())
+      availableAt: menuItem.availableAt.map(outlet => outlet.toObject()),
+      workstation: menuItem.workstation
     };
 
     res.status(200).json({ success: true, data: response });

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaReceipt, FaTrashAlt, FaChevronRight, FaChevronLeft } from 'react-icons/fa';
+import Select from "react-select";
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaReceipt, FaTrashAlt, FaChevronRight, FaChevronLeft, FaEyeSlash, FaEye } from 'react-icons/fa';
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
@@ -22,6 +23,40 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
 };
 
 const Menu = () => {
+  const customStyles = {
+    control: (provided, state) => ({
+      ...provided,
+      borderColor: '#d1d5db', // Tailwind border-gray-300
+      minHeight: '34px',
+      fontSize: '13px',
+      color: '#6b7280', // text-gray-500
+      boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+      '&:hover': {
+        borderColor: '#9ca3af', // Tailwind border-gray-400
+      },
+    }),
+    singleValue: (provided) => ({
+      ...provided,
+      color: '#6b7280', // text-gray-500
+    }),
+    input: (provided) => ({
+      ...provided,
+      color: '#6b7280', // text-gray-500 for typed text
+    }),
+    placeholder: (provided) => ({
+      ...provided,
+      color: '#9ca3af', // text-gray-400
+      fontSize: '13px',
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      fontSize: '13px',
+      color: '#374151', // gray-700
+      backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+      cursor: 'pointer',
+    }),
+  };
+
   const location = useLocation();
   const [showInput, setShowInput] = useState(false);
   const [showInputStatus, setShowInputStatus] = useState(false);
@@ -54,27 +89,30 @@ const Menu = () => {
   const [offset, setOffset] = useState(0);
   const [totalItems, setTotalItems] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
+  // const [totalPages, setTotalPages] = useState(1);
 
   const dropdownRef = useRef(null);
 
-  const fetchMenuItems = async (limit, offset) => {
-    const menuResponse = await axios.get('/api/menu/menu-items', {
-      params: { limit, offset }
-    });
-    return {
-      data: menuResponse.data.data,
-      meta: menuResponse.data.meta
-    };
-  };
+  // const fetchMenuItems = async (limit, offset) => {
+  //   const menuResponse = await axios.get('/api/menu/menu-items', {
+  //     params: { limit, offset }
+  //   });
+  //   return {
+  //     data: menuResponse.data.data,
+  //     meta: menuResponse.data.meta
+  //   };
+  // };
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data, meta } = await fetchMenuItems(limit, offset);
-      setMenuItems(data);
-      setTotalItems(meta.totalItems);
-      setTotalPages(meta.totalPages);
-      setCurrentPage(meta.currentPage);
+      // const { data, meta } = await fetchMenuItems(limit, offset);
+      // setMenuItems(data);
+      // setTotalItems(meta.totalItems);
+      // setTotalPages(meta.totalPages);
+      // setCurrentPage(meta.currentPage);
+      const menuResponse = await axios.get('/api/menu/menu-items');
+      setMenuItems(menuResponse.data.data);
       const outletsResponse = await axios.get('/api/outlet');
       setOutlets(outletsResponse.data.data);
 
@@ -103,41 +141,61 @@ const Menu = () => {
     fetchData();
   }, [offset]);
 
-  useEffect(() => {
-    applyFilter(); // hanya untuk load awal
-  }, []);
+  const outletOptions = [
+    { value: '', label: 'Semua Outlet' },
+    ...outlets.map(outlet => ({ value: outlet.name, label: outlet.name }))
+  ];
 
-  const handlePrevious = () => {
-    if (currentPage > 1) {
-      setOffset((currentPage - 2) * limit);
-    }
-  };
+  const categoryOptions = [
+    { value: '', label: 'Semua Kategori' },
+    ...category.map(category => ({ value: category.name, label: category.name }))
+  ];
 
-  const handleNext = () => {
-    if (currentPage < totalPages) {
-      setOffset(currentPage * limit);
-    }
-  };
+  const statusOptions = [
+    { value: '', label: 'Semua Status' },
+    { value: true, label: 'Aktif' },
+    { value: false, label: 'Tidak Aktif' },
+  ];
 
-  useEffect(() => {
+  const filteredMenuItems = menuItems.filter((item) => {
+    const matchOutlet =
+      tempSelectedOutlet === '' ||
+      item.availableAt.some(outlet => outlet.name === tempSelectedOutlet);
+    const matchCategory = tempSelectedCategory === '' || item.category.name === tempSelectedCategory;
+    const matchStatus = tempSelectedStatus === '' || item.isActive === tempSelectedStatus;
 
-  }, [tempSearch, tempSelectedOutlet, tempSelectedCategory, tempSelectedStatus])
+    const matchSearch =
+      tempSearch === '' ||
+      item.name?.toLowerCase().includes(tempSearch.toLowerCase()) ||
+      item.sku?.toLowerCase().includes(tempSearch.toLowerCase()) ||
+      item.barcode?.toLowerCase().includes(tempSearch.toLowerCase());
+
+    return matchOutlet && matchCategory && matchStatus && matchSearch;
+  });
 
 
-  // Get unique outlet names for the dropdown
-  const uniqueOutlets = useMemo(() => {
-    return outlets.map(item => item.name);
-  }, [outlets]);
 
-  // Get unique outlet names for the dropdown
-  const uniqueCategory = useMemo(() => {
-    return category.map(item => item.name);
-  }, [category]);
+  // useEffect(() => {
+  //   applyFilter(); // hanya untuk load awal
+  // }, []);
 
-  // Get unique Status names for the dropdown
-  const uniqueStatus = useMemo(() => {
-    return status.map(item => item.name);
-  }, [status]);
+  // const handlePrevious = () => {
+  //   if (currentPage > 1) {
+  //     setOffset((currentPage - 2) * limit);
+  //   }
+  // };
+
+  // const handleNext = () => {
+  //   if (currentPage < totalPages) {
+  //     setOffset(currentPage * limit);
+  //   }
+  // };
+
+  const totalPages = Math.ceil(filteredMenuItems.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredMenuItems.slice(indexOfFirstItem, indexOfLastItem);
+
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('id-ID', {
@@ -148,107 +206,86 @@ const Menu = () => {
     }).format(amount);
   };
 
-  // Filter outlets based on search input
-  const filteredOutlets = useMemo(() => {
-    return uniqueOutlets.filter(outlet =>
-      outlet.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [search, uniqueOutlets]);
+  // useEffect(() => {
+  //   applyFilter();
+  // }, [tempSelectedOutlet, tempSelectedCategory, tempSelectedStatus, tempSearch]);
 
-  // Filter outlets based on search input
-  const filteredCategory = useMemo(() => {
-    return uniqueCategory.filter(outlet =>
-      outlet.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [search, uniqueCategory]);
+  // // Apply filter function
+  // const applyFilter = () => {
 
-  // Filter status based on search input
-  const filteredStatus = useMemo(() => {
-    return uniqueStatus.filter(status =>
-      status.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [search, uniqueStatus]);
+  //   // Make sure products is an array before attempting to filter
+  //   let filtered = ensureArray([...menuItems]);
 
-  useEffect(() => {
-    applyFilter();
-  }, [tempSelectedOutlet, tempSelectedCategory, tempSelectedStatus, tempSearch]);
+  //   // Filter by search term (product name, category, or SKU)
+  //   if (tempSearch) {
+  //     filtered = filtered.filter(menu => {
+  //       try {
+  //         if (!menu) {
+  //           return false;
+  //         }
 
-  // Apply filter function
-  const applyFilter = () => {
+  //         const name = (menu.name || '').toLowerCase();
+  //         const customer = (menu.user || '').toLowerCase();
+  //         const receipt = (menu.id || '').toLowerCase();
 
-    // Make sure products is an array before attempting to filter
-    let filtered = ensureArray([...menuItems]);
+  //         const searchTerm = tempSearch.toLowerCase();
+  //         return name.includes(searchTerm) ||
+  //           customer.includes(searchTerm) ||
+  //           receipt.includes(searchTerm);
+  //       } catch (err) {
+  //         console.error("Error filtering by search:", err);
+  //         return false;
+  //       }
+  //     });
+  //   }
 
-    // Filter by search term (product name, category, or SKU)
-    if (tempSearch) {
-      filtered = filtered.filter(menu => {
-        try {
-          if (!menu) {
-            return false;
-          }
+  //   // Filter by outlet
+  //   if (tempSelectedOutlet) {
+  //     filtered = filtered.filter(menu => {
+  //       try {
+  //         if (!menu?.availableAt?.length > 0) {
+  //           return false;
+  //         }
 
-          const name = (menu.name || '').toLowerCase();
-          const customer = (menu.user || '').toLowerCase();
-          const receipt = (menu.id || '').toLowerCase();
+  //         const outletName = menu?.availableAt;
+  //         const matches = outletName === tempSelectedOutlet;
 
-          const searchTerm = tempSearch.toLowerCase();
-          return name.includes(searchTerm) ||
-            customer.includes(searchTerm) ||
-            receipt.includes(searchTerm);
-        } catch (err) {
-          console.error("Error filtering by search:", err);
-          return false;
-        }
-      });
-    }
+  //         if (!matches) {
+  //         }
 
-    // Filter by outlet
-    if (tempSelectedOutlet) {
-      filtered = filtered.filter(menu => {
-        try {
-          if (!menu?.availableAt?.length > 0) {
-            return false;
-          }
+  //         return matches;
+  //       } catch (err) {
+  //         console.error("Error filtering by outlet:", err);
+  //         return false;
+  //       }
+  //     });
+  //   }
 
-          const outletName = menu?.availableAt;
-          const matches = outletName === tempSelectedOutlet;
+  //   // Filter by category
+  //   if (tempSelectedCategory) {
+  //     filtered = filtered.filter(menu => {
+  //       try {
+  //         if (!menu?.category?.length > 0) {
+  //           return false;
+  //         }
 
-          if (!matches) {
-          }
+  //         const categoryName = menu?.category[0];
+  //         const matches = categoryName === tempSelectedCategory;
 
-          return matches;
-        } catch (err) {
-          console.error("Error filtering by outlet:", err);
-          return false;
-        }
-      });
-    }
+  //         if (!matches) {
+  //         }
 
-    // Filter by category
-    if (tempSelectedCategory) {
-      filtered = filtered.filter(menu => {
-        try {
-          if (!menu?.category?.length > 0) {
-            return false;
-          }
+  //         return matches;
+  //       } catch (err) {
+  //         console.error("Error filtering by outlet:", err);
+  //         return false;
+  //       }
+  //     });
+  //   }
 
-          const categoryName = menu?.category[0];
-          const matches = categoryName === tempSelectedCategory;
-
-          if (!matches) {
-          }
-
-          return matches;
-        } catch (err) {
-          console.error("Error filtering by outlet:", err);
-          return false;
-        }
-      });
-    }
-
-    setFilteredData(filtered);
-    setCurrentPage(1); // Reset to first page after filter
-  };
+  //   setFilteredData(filtered);
+  //   setCurrentPage(1); // Reset to first page after filter
+  // };
 
   const handleDelete = async (itemId) => {
     try {
@@ -319,12 +356,12 @@ const Menu = () => {
           <p className="text-gray-400 inline-block">Produk</p>
         </div>
         <div className="flex space-x-2">
-          <button
+          {/* <button
             onClick={() => console.log('Impor Menu')}
             className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
           >
             Impor Produk
-          </button>
+          </button> */}
           <button
             onClick={() => console.log('Ekspor Produk')}
             className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
@@ -352,7 +389,8 @@ const Menu = () => {
               <h2 className="text-gray-400 ml-2 text-sm">Produk</h2>
             </div>
             <div className="text-sm text-gray-400">
-              ({totalItems})
+              ({menuItems.length})
+              {/* ({totalItems}) */}
             </div>
           </Link>
         </button>
@@ -418,122 +456,38 @@ const Menu = () => {
           <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
             <div className="flex flex-col col-span-3">
               <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-              <div className="relative">
-                {!showInput ? (
-                  <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                    {tempSelectedOutlet || "Semua Outlet"}
-                  </button>
-                ) : (
-                  <input
-                    type="text"
-                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    autoFocus
-                    placeholder=""
-                  />
-                )}
-                {showInput && (
-                  <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                    {filteredOutlets.length > 0 ? (
-                      filteredOutlets.map((outlet, idx) => (
-                        <li
-                          key={idx}
-                          onClick={() => {
-                            setTempSelectedOutlet(outlet);
-                            setShowInput(false);
-                          }}
-                          className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                        >
-                          {outlet}
-                        </li>
-                      ))
-                    ) : (
-                      <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                    )}
-                  </ul>
-                )}
-              </div>
+              <Select
+                className="text-sm"
+                options={outletOptions}
+                value={outletOptions.find(option => option.value === tempSelectedOutlet) || outletOptions[0]}
+                onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                styles={customStyles}
+                isSearchable
+              />
             </div>
 
             <div className="flex flex-col col-span-3">
               <label className="text-[13px] mb-1 text-gray-500">Kategori</label>
-              <div className="relative">
-                {!showInputCategory ? (
-                  <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputCategory(true)}>
-                    {tempSelectedCategory || "Semua Kategori"}
-                  </button>
-                ) : (
-                  <input
-                    type="text"
-                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                    value={search}
-                    onChange={(e) => setSearchCategory(e.target.value)}
-                    autoFocus
-                    placeholder=""
-                  />
-                )}
-                {showInputCategory && (
-                  <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                    {filteredCategory.length > 0 ? (
-                      filteredCategory.map((category, idx) => (
-                        <li
-                          key={idx}
-                          onClick={() => {
-                            setTempSelectedCategory(category);
-                            setShowInputCategory(false);
-                          }}
-                          className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                        >
-                          {category}
-                        </li>
-                      ))
-                    ) : (
-                      <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                    )}
-                  </ul>
-                )}
-              </div>
+              <Select
+                className="text-sm"
+                options={categoryOptions}
+                value={categoryOptions.find(option => option.value === tempSelectedCategory) || categoryOptions[0]}
+                onChange={(selected) => setTempSelectedCategory(selected.value)}
+                styles={customStyles}
+                isSearchable
+              />
             </div>
 
             <div className="flex flex-col col-span-3">
               <label className="text-[13px] mb-1 text-gray-500">Status Dijual</label>
-              <div className="relative">
-                {!showInputStatus ? (
-                  <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputStatus(true)}>
-                    {tempSelectedCategory || "Semua Status"}
-                  </button>
-                ) : (
-                  <input
-                    type="text"
-                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                    value={search}
-                    onChange={(e) => setSearchStatus(e.target.value)}
-                    autoFocus
-                    placeholder=""
-                  />
-                )}
-                {showInputStatus && (
-                  <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                    {filteredStatus.length > 0 ? (
-                      filteredStatus.map((status, idx) => (
-                        <li
-                          key={idx}
-                          onClick={() => {
-                            setTempSelectedStatus(status);
-                            setShowInputStatus(false);
-                          }}
-                          className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                        >
-                          {status}
-                        </li>
-                      ))
-                    ) : (
-                      <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                    )}
-                  </ul>
-                )}
-              </div>
+              <Select
+                className="text-sm"
+                options={statusOptions}
+                value={statusOptions.find(option => option.value === tempSelectedStatus) || statusOptions[0]}
+                onChange={(selected) => setTempSelectedStatus(selected.value)}
+                styles={customStyles}
+                isSearchable
+              />
             </div>
 
             <div className="flex flex-col col-span-3">
@@ -543,7 +497,7 @@ const Menu = () => {
                 placeholder="Produk / SKU / Barkode"
                 value={tempSearch}
                 onChange={(e) => setTempSearch(e.target.value)}
-                className="text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded"
+                className="text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded"
               />
             </div>
 
@@ -566,7 +520,7 @@ const Menu = () => {
                       onChange={(e) => {
                         const isChecked = e.target.checked;
                         setCheckAll(isChecked);
-                        setCheckedItems(isChecked ? paginatedData.map(item => item.id) : []);
+                        setCheckedItems(isChecked ? currentItems.map(item => item.id) : []);
                       }}
                     />
                   </th>
@@ -584,9 +538,9 @@ const Menu = () => {
                     )}</th>
                 </tr>
               </thead>
-              {menuItems.length > 0 ? (
+              {currentItems.length > 0 ? (
                 <tbody>
-                  {menuItems.map((item) => (
+                  {currentItems.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-100 text-[14px]">
                       <td className="p-[15px] text-right">
                         <input
@@ -599,7 +553,7 @@ const Menu = () => {
                               const updated = isChecked
                                 ? [...prev, item.id]
                                 : prev.filter(id => id !== item.id);
-                              setCheckAll(updated.length === paginatedData.length);
+                              setCheckAll(updated.length === currentItems.length);
                               return updated;
                             });
                           }}
@@ -674,7 +628,12 @@ const Menu = () => {
 
                                   }}>
                                   <FaTrash size={18} />
-                                  <span>Delete</span>
+                                  <span>Hapus</span>
+                                </button>
+                                <button
+                                  className="w-full flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
+                                  {item.isActive === true ? <FaEyeSlash className="text-red-500" /> : <FaEye className="text-[#005429]" />}
+                                  <span>{item.isActive === true ? "Matikan" : "Aktifkan"}</span>
                                 </button>
                               </ul>
                             </div>
@@ -695,32 +654,7 @@ const Menu = () => {
           </div>
 
           {/* Pagination */}
-          {/* {paginatedData.length > 0 && (
-            <div className="flex justify-between items-center mt-4">
-              <span className="text-sm text-gray-600">
-                Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-              </span>
-              {totalPages > 1 && (
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Sebelumnya
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Berikutnya
-                  </button>
-                </div>
-              )}
-            </div>
-          )} */}
-          <div className="flex justify-end items-center mt-6 gap-2 flex-wrap">
+          {/* <div className="flex justify-end items-center mt-6 gap-2 flex-wrap">
             <button
               onClick={handlePrevious}
               disabled={currentPage === 1}
@@ -772,6 +706,66 @@ const Menu = () => {
               onClick={handleNext}
               disabled={currentPage === totalPages}
               className="px-3 py-2 bg-gray-200 rounded disabled:opacity-50"
+            >
+              <FaChevronRight />
+            </button>
+          </div> */}
+          <div className="flex justify-end items-center mt-6 gap-2 flex-wrap">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-2 bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+
+              <FaChevronLeft />
+            </button>
+
+            {[...Array(totalPages)].map((_, index) => {
+              const page = index + 1;
+
+              // Show page numbers for first, last, current ±2
+              if (
+                page === 1 ||
+                page === totalPages ||
+                (page >= currentPage - 2 && page <= currentPage + 2)
+              ) {
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1 rounded border ${currentPage === page
+                      ? "bg-[#005429] text-white"
+                      : "bg-gray-100 text-gray-800"
+                      }`}
+                  >
+                    {page}
+                  </button>
+                );
+              }
+
+              // Show "..." when skipping
+              if (
+                (page === currentPage - 3 && page > 1) ||
+                (page === currentPage + 3 && page < totalPages)
+              ) {
+                return (
+                  <span key={page} className="px-2">
+                    ...
+                  </span>
+                );
+              }
+
+              return null;
+            })}
+
+            <button
+              onClick={() =>
+                setCurrentPage(prev =>
+                  prev < Math.ceil(menuItems.length / itemsPerPage) ? prev + 1 : prev
+                )
+              }
+              disabled={currentPage >= Math.ceil(menuItems.length / itemsPerPage)}
+              className="px-3 py-2 bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FaChevronRight />
             </button>
