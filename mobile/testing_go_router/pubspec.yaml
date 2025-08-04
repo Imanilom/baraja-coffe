@@ -39,7 +39,6 @@ dependencies:
   # image: ^4.5.4
   image: ^3.0.2
   qr_code_scanner_plus: ^2.0.10+1
-  esc_pos_printer: ^4.1.0
 
 dependency_overrides:
   image: ^4.5.4

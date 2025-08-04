@@ -29,13 +29,14 @@ class BluetoothPrinterModelAdapter extends TypeAdapter<BluetoothPrinterModel> {
       kitchenCopies: fields[9] == null ? 1 : (fields[9] as num).toInt(),
       barCopies: fields[10] == null ? 1 : (fields[10] as num).toInt(),
       waiterCopies: fields[11] == null ? 1 : (fields[11] as num).toInt(),
+      port: (fields[12] as num?)?.toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, BluetoothPrinterModel obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.name)
       ..writeByte(1)
@@ -59,7 +60,9 @@ class BluetoothPrinterModelAdapter extends TypeAdapter<BluetoothPrinterModel> {
       ..writeByte(10)
       ..write(obj.barCopies)
       ..writeByte(11)
-      ..write(obj.waiterCopies);
+      ..write(obj.waiterCopies)
+      ..writeByte(12)
+      ..write(obj.port);
   }
 
   @override
@@ -92,6 +95,7 @@ _BluetoothPrinterModel _$BluetoothPrinterModelFromJson(
   kitchenCopies: (json['kitchenCopies'] as num?)?.toInt() ?? 1,
   barCopies: (json['barCopies'] as num?)?.toInt() ?? 1,
   waiterCopies: (json['waiterCopies'] as num?)?.toInt() ?? 1,
+  port: (json['port'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$BluetoothPrinterModelToJson(
@@ -109,4 +113,5 @@ Map<String, dynamic> _$BluetoothPrinterModelToJson(
   'kitchenCopies': instance.kitchenCopies,
   'barCopies': instance.barCopies,
   'waiterCopies': instance.waiterCopies,
+  'port': instance.port,
 };
