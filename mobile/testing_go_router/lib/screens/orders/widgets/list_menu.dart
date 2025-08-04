@@ -177,7 +177,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                           (value) =>
                               ref.read(searchQueryProvider.notifier).state =
                                   value,
-                      autofocus: true,
+                      autofocus: false,
                     ),
                   ),
 
