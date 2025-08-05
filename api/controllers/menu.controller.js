@@ -627,16 +627,6 @@ export const getAvailableMenuItems = async (req, res) => {
     for (const item of menuItems) {
       let isAvailable = true;
 
-      if (item.rawMaterials && item.rawMaterials.length > 0) {
-        for (const material of item.rawMaterials) {
-          const rawMaterial = await RawMaterial.findById(material.materialId);
-          if (!rawMaterial || rawMaterial.stock < material.quantityRequired) {
-            isAvailable = false;
-            break;
-          }
-        }
-      }
-
       if (isAvailable) {
         availableMenus.push(item);
       }
@@ -697,17 +687,7 @@ export const filterMenuItems = async (req, res) => {
       });
     }
 
-    // Filter berdasarkan ketersediaan
-    if (available === 'true') {
-      filtered = filtered.filter(async item => {
-        if (!item.rawMaterials || item.rawMaterials.length === 0) return true;
-        for (const mat of item.rawMaterials) {
-          const rm = await RawMaterial.findById(mat.materialId);
-          if (!rm || rm.stock < mat.quantityRequired) return false;
-        }
-        return true;
-      });
-    }
+  
 
     res.status(200).json({ success: true, data: filtered });
   } catch (error) {
