@@ -31,6 +31,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/screens/payments/payment_method_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_success_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_type_screen.dart';
+import 'package:kasirbaraja/screens/reservation/reservation_menu_screen.dart';
 import 'package:kasirbaraja/screens/settings/setting_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/detail_printer_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/printer_connection.dart';
@@ -446,6 +447,33 @@ final routerProvider = Provider<GoRouter>((ref) {
             (context, state) => CustomTransitionPage(
               arguments: state.extra,
               child: const PaymentSuccessScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                const begin = Offset(1.0, 0.0);
+                const end = Offset.zero;
+                const curve = Curves.ease;
+                final tween = Tween(
+                  begin: begin,
+                  end: end,
+                ).chain(CurveTween(curve: curve));
+                return SlideTransition(
+                  position: animation.drive(tween),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      GoRoute(
+        path: '/reservation-menu',
+        name: 'reservation-menu',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              arguments: state.extra,
+              child: const ReservationMenuScreen(),
               transitionsBuilder: (
                 context,
                 animation,

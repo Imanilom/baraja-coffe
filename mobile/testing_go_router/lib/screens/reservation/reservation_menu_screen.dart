@@ -1,22 +1,25 @@
 import 'package:assorted_layout_widgets/assorted_layout_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/reservation_data.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/widgets/cards/menu_item_card.dart';
 
-class ListMenu extends ConsumerStatefulWidget {
-  const ListMenu({super.key});
+class ReservationMenuScreen extends ConsumerStatefulWidget {
+  const ReservationMenuScreen({super.key});
 
   @override
-  ConsumerState<ListMenu> createState() => _ListMenuState();
+  ConsumerState<ReservationMenuScreen> createState() =>
+      _ReservationMenuScreenState();
 }
 
-class _ListMenuState extends ConsumerState<ListMenu> {
+class _ReservationMenuScreenState extends ConsumerState<ReservationMenuScreen> {
   late final TextEditingController _searchController;
 
   @override
@@ -33,10 +36,10 @@ class _ListMenuState extends ConsumerState<ListMenu> {
 
   void _handleAddToOrder(MenuItemModel menuItem) {
     final orderDetail = ref.read(orderDetailProvider);
-    final notifier = ref.read(orderDetailProvider.notifier);
+    // final notifier = ref.read(orderDetailProvider.notifier);
 
     if (orderDetail == null) {
-      notifier.initializeOrder(orderType: OrderType.dineIn);
+      // notifier.initializeOrder(orderType: OrderType.dineIn);
     }
 
     final List<AddonModel> selectedAddons =
@@ -61,13 +64,13 @@ class _ListMenuState extends ConsumerState<ListMenu> {
 
     print('selectedAddons: $selectedAddons');
 
-    notifier.addItemToOrder(
-      OrderItemModel(
-        menuItem: menuItem,
-        selectedToppings: [],
-        selectedAddons: selectedAddons,
-      ),
-    );
+    // notifier.addItemToOrder(
+    //   OrderItemModel(
+    //     menuItem: menuItem,
+    //     selectedToppings: [],
+    //     selectedAddons: selectedAddons,
+    //   ),
+    // );
   }
 
   @override
@@ -75,7 +78,9 @@ class _ListMenuState extends ConsumerState<ListMenu> {
     final selectedCategory = ref.watch(categoryProvider);
     final menu = ref.watch(menuItemProvider);
     final isSearchBarVisible = ref.watch(searchBarProvider);
+    final arguments = GoRouterState.of(context).extra as ReservationData;
 
+    print('ReservationData: $arguments');
     const categories = ['All', 'makanan', 'minuman'];
 
     return Row(
