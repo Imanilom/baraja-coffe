@@ -17,8 +17,9 @@ T _$identity<T>(T value) => value;
 mixin _$BluetoothPrinterModel {
 
 @HiveField(0) String get name;@HiveField(1) String get address;//mac or ip
-@HiveField(2) String? get connectionType;// 'wifi' or 'bluetooth'
-@HiveField(3) String get paperSize;@HiveField(4) bool get canPrintCustomer;@HiveField(5) bool get canPrintKitchen;@HiveField(6) bool get canPrintBar;@HiveField(7) bool get canPrintWaiter;@HiveField(8) int get customerCopies;@HiveField(9) int get kitchenCopies;@HiveField(10) int get barCopies;@HiveField(11) int get waiterCopies;@HiveField(12) int? get port;
+@HiveField(2) String? get connectionType;// 'network' or 'bluetooth'
+@HiveField(3) String get paperSize;@HiveField(4) bool get canPrintCustomer;@HiveField(5) bool get canPrintKitchen;@HiveField(6) bool get canPrintBar;@HiveField(7) bool get canPrintWaiter;@HiveField(8) int get customerCopies;@HiveField(9) int get kitchenCopies;@HiveField(10) int get barCopies;@HiveField(11) int get waiterCopies;@HiveField(12) int? get port;//for LAN printers,
+@HiveField(13) bool get isEnabled;@HiveField(14) DateTime? get lastSeen;@HiveField(15) String? get manufacturer;@HiveField(16) String? get model;@HiveField(17) bool? get isOnline;
 /// Create a copy of BluetoothPrinterModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -31,16 +32,16 @@ $BluetoothPrinterModelCopyWith<BluetoothPrinterModel> get copyWith => _$Bluetoot
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BluetoothPrinterModel&&(identical(other.name, name) || other.name == name)&&(identical(other.address, address) || other.address == address)&&(identical(other.connectionType, connectionType) || other.connectionType == connectionType)&&(identical(other.paperSize, paperSize) || other.paperSize == paperSize)&&(identical(other.canPrintCustomer, canPrintCustomer) || other.canPrintCustomer == canPrintCustomer)&&(identical(other.canPrintKitchen, canPrintKitchen) || other.canPrintKitchen == canPrintKitchen)&&(identical(other.canPrintBar, canPrintBar) || other.canPrintBar == canPrintBar)&&(identical(other.canPrintWaiter, canPrintWaiter) || other.canPrintWaiter == canPrintWaiter)&&(identical(other.customerCopies, customerCopies) || other.customerCopies == customerCopies)&&(identical(other.kitchenCopies, kitchenCopies) || other.kitchenCopies == kitchenCopies)&&(identical(other.barCopies, barCopies) || other.barCopies == barCopies)&&(identical(other.waiterCopies, waiterCopies) || other.waiterCopies == waiterCopies)&&(identical(other.port, port) || other.port == port));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BluetoothPrinterModel&&(identical(other.name, name) || other.name == name)&&(identical(other.address, address) || other.address == address)&&(identical(other.connectionType, connectionType) || other.connectionType == connectionType)&&(identical(other.paperSize, paperSize) || other.paperSize == paperSize)&&(identical(other.canPrintCustomer, canPrintCustomer) || other.canPrintCustomer == canPrintCustomer)&&(identical(other.canPrintKitchen, canPrintKitchen) || other.canPrintKitchen == canPrintKitchen)&&(identical(other.canPrintBar, canPrintBar) || other.canPrintBar == canPrintBar)&&(identical(other.canPrintWaiter, canPrintWaiter) || other.canPrintWaiter == canPrintWaiter)&&(identical(other.customerCopies, customerCopies) || other.customerCopies == customerCopies)&&(identical(other.kitchenCopies, kitchenCopies) || other.kitchenCopies == kitchenCopies)&&(identical(other.barCopies, barCopies) || other.barCopies == barCopies)&&(identical(other.waiterCopies, waiterCopies) || other.waiterCopies == waiterCopies)&&(identical(other.port, port) || other.port == port)&&(identical(other.isEnabled, isEnabled) || other.isEnabled == isEnabled)&&(identical(other.lastSeen, lastSeen) || other.lastSeen == lastSeen)&&(identical(other.manufacturer, manufacturer) || other.manufacturer == manufacturer)&&(identical(other.model, model) || other.model == model)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,address,connectionType,paperSize,canPrintCustomer,canPrintKitchen,canPrintBar,canPrintWaiter,customerCopies,kitchenCopies,barCopies,waiterCopies,port);
+int get hashCode => Object.hash(runtimeType,name,address,connectionType,paperSize,canPrintCustomer,canPrintKitchen,canPrintBar,canPrintWaiter,customerCopies,kitchenCopies,barCopies,waiterCopies,port,isEnabled,lastSeen,manufacturer,model,isOnline);
 
 @override
 String toString() {
-  return 'BluetoothPrinterModel(name: $name, address: $address, connectionType: $connectionType, paperSize: $paperSize, canPrintCustomer: $canPrintCustomer, canPrintKitchen: $canPrintKitchen, canPrintBar: $canPrintBar, canPrintWaiter: $canPrintWaiter, customerCopies: $customerCopies, kitchenCopies: $kitchenCopies, barCopies: $barCopies, waiterCopies: $waiterCopies, port: $port)';
+  return 'BluetoothPrinterModel(name: $name, address: $address, connectionType: $connectionType, paperSize: $paperSize, canPrintCustomer: $canPrintCustomer, canPrintKitchen: $canPrintKitchen, canPrintBar: $canPrintBar, canPrintWaiter: $canPrintWaiter, customerCopies: $customerCopies, kitchenCopies: $kitchenCopies, barCopies: $barCopies, waiterCopies: $waiterCopies, port: $port, isEnabled: $isEnabled, lastSeen: $lastSeen, manufacturer: $manufacturer, model: $model, isOnline: $isOnline)';
 }
 
 
@@ -51,7 +52,7 @@ abstract mixin class $BluetoothPrinterModelCopyWith<$Res>  {
   factory $BluetoothPrinterModelCopyWith(BluetoothPrinterModel value, $Res Function(BluetoothPrinterModel) _then) = _$BluetoothPrinterModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) String name,@HiveField(1) String address,@HiveField(2) String? connectionType,@HiveField(3) String paperSize,@HiveField(4) bool canPrintCustomer,@HiveField(5) bool canPrintKitchen,@HiveField(6) bool canPrintBar,@HiveField(7) bool canPrintWaiter,@HiveField(8) int customerCopies,@HiveField(9) int kitchenCopies,@HiveField(10) int barCopies,@HiveField(11) int waiterCopies,@HiveField(12) int? port
+@HiveField(0) String name,@HiveField(1) String address,@HiveField(2) String? connectionType,@HiveField(3) String paperSize,@HiveField(4) bool canPrintCustomer,@HiveField(5) bool canPrintKitchen,@HiveField(6) bool canPrintBar,@HiveField(7) bool canPrintWaiter,@HiveField(8) int customerCopies,@HiveField(9) int kitchenCopies,@HiveField(10) int barCopies,@HiveField(11) int waiterCopies,@HiveField(12) int? port,@HiveField(13) bool isEnabled,@HiveField(14) DateTime? lastSeen,@HiveField(15) String? manufacturer,@HiveField(16) String? model,@HiveField(17) bool? isOnline
 });
 
 
@@ -68,7 +69,7 @@ class _$BluetoothPrinterModelCopyWithImpl<$Res>
 
 /// Create a copy of BluetoothPrinterModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? address = null,Object? connectionType = freezed,Object? paperSize = null,Object? canPrintCustomer = null,Object? canPrintKitchen = null,Object? canPrintBar = null,Object? canPrintWaiter = null,Object? customerCopies = null,Object? kitchenCopies = null,Object? barCopies = null,Object? waiterCopies = null,Object? port = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? address = null,Object? connectionType = freezed,Object? paperSize = null,Object? canPrintCustomer = null,Object? canPrintKitchen = null,Object? canPrintBar = null,Object? canPrintWaiter = null,Object? customerCopies = null,Object? kitchenCopies = null,Object? barCopies = null,Object? waiterCopies = null,Object? port = freezed,Object? isEnabled = null,Object? lastSeen = freezed,Object? manufacturer = freezed,Object? model = freezed,Object? isOnline = freezed,}) {
   return _then(_self.copyWith(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,address: null == address ? _self.address : address // ignore: cast_nullable_to_non_nullable
@@ -83,7 +84,12 @@ as int,kitchenCopies: null == kitchenCopies ? _self.kitchenCopies : kitchenCopie
 as int,barCopies: null == barCopies ? _self.barCopies : barCopies // ignore: cast_nullable_to_non_nullable
 as int,waiterCopies: null == waiterCopies ? _self.waiterCopies : waiterCopies // ignore: cast_nullable_to_non_nullable
 as int,port: freezed == port ? _self.port : port // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,isEnabled: null == isEnabled ? _self.isEnabled : isEnabled // ignore: cast_nullable_to_non_nullable
+as bool,lastSeen: freezed == lastSeen ? _self.lastSeen : lastSeen // ignore: cast_nullable_to_non_nullable
+as DateTime?,manufacturer: freezed == manufacturer ? _self.manufacturer : manufacturer // ignore: cast_nullable_to_non_nullable
+as String?,model: freezed == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
+as String?,isOnline: freezed == isOnline ? _self.isOnline : isOnline // ignore: cast_nullable_to_non_nullable
+as bool?,
   ));
 }
 
@@ -93,15 +99,15 @@ as int?,
 /// @nodoc
 @JsonSerializable()
 
-class _BluetoothPrinterModel implements BluetoothPrinterModel {
-   _BluetoothPrinterModel({@HiveField(0) required this.name, @HiveField(1) required this.address, @HiveField(2) this.connectionType, @HiveField(3) this.paperSize = 'mm58', @HiveField(4) this.canPrintCustomer = true, @HiveField(5) this.canPrintKitchen = false, @HiveField(6) this.canPrintBar = false, @HiveField(7) this.canPrintWaiter = false, @HiveField(8) this.customerCopies = 1, @HiveField(9) this.kitchenCopies = 1, @HiveField(10) this.barCopies = 1, @HiveField(11) this.waiterCopies = 1, @HiveField(12) this.port});
+class _BluetoothPrinterModel extends BluetoothPrinterModel {
+   _BluetoothPrinterModel({@HiveField(0) required this.name, @HiveField(1) required this.address, @HiveField(2) this.connectionType, @HiveField(3) this.paperSize = 'mm58', @HiveField(4) this.canPrintCustomer = true, @HiveField(5) this.canPrintKitchen = false, @HiveField(6) this.canPrintBar = false, @HiveField(7) this.canPrintWaiter = false, @HiveField(8) this.customerCopies = 1, @HiveField(9) this.kitchenCopies = 1, @HiveField(10) this.barCopies = 1, @HiveField(11) this.waiterCopies = 1, @HiveField(12) this.port, @HiveField(13) this.isEnabled = true, @HiveField(14) this.lastSeen, @HiveField(15) this.manufacturer, @HiveField(16) this.model, @HiveField(17) this.isOnline}): super._();
   factory _BluetoothPrinterModel.fromJson(Map<String, dynamic> json) => _$BluetoothPrinterModelFromJson(json);
 
 @override@HiveField(0) final  String name;
 @override@HiveField(1) final  String address;
 //mac or ip
 @override@HiveField(2) final  String? connectionType;
-// 'wifi' or 'bluetooth'
+// 'network' or 'bluetooth'
 @override@JsonKey()@HiveField(3) final  String paperSize;
 @override@JsonKey()@HiveField(4) final  bool canPrintCustomer;
 @override@JsonKey()@HiveField(5) final  bool canPrintKitchen;
@@ -112,6 +118,12 @@ class _BluetoothPrinterModel implements BluetoothPrinterModel {
 @override@JsonKey()@HiveField(10) final  int barCopies;
 @override@JsonKey()@HiveField(11) final  int waiterCopies;
 @override@HiveField(12) final  int? port;
+//for LAN printers,
+@override@JsonKey()@HiveField(13) final  bool isEnabled;
+@override@HiveField(14) final  DateTime? lastSeen;
+@override@HiveField(15) final  String? manufacturer;
+@override@HiveField(16) final  String? model;
+@override@HiveField(17) final  bool? isOnline;
 
 /// Create a copy of BluetoothPrinterModel
 /// with the given fields replaced by the non-null parameter values.
@@ -126,16 +138,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BluetoothPrinterModel&&(identical(other.name, name) || other.name == name)&&(identical(other.address, address) || other.address == address)&&(identical(other.connectionType, connectionType) || other.connectionType == connectionType)&&(identical(other.paperSize, paperSize) || other.paperSize == paperSize)&&(identical(other.canPrintCustomer, canPrintCustomer) || other.canPrintCustomer == canPrintCustomer)&&(identical(other.canPrintKitchen, canPrintKitchen) || other.canPrintKitchen == canPrintKitchen)&&(identical(other.canPrintBar, canPrintBar) || other.canPrintBar == canPrintBar)&&(identical(other.canPrintWaiter, canPrintWaiter) || other.canPrintWaiter == canPrintWaiter)&&(identical(other.customerCopies, customerCopies) || other.customerCopies == customerCopies)&&(identical(other.kitchenCopies, kitchenCopies) || other.kitchenCopies == kitchenCopies)&&(identical(other.barCopies, barCopies) || other.barCopies == barCopies)&&(identical(other.waiterCopies, waiterCopies) || other.waiterCopies == waiterCopies)&&(identical(other.port, port) || other.port == port));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BluetoothPrinterModel&&(identical(other.name, name) || other.name == name)&&(identical(other.address, address) || other.address == address)&&(identical(other.connectionType, connectionType) || other.connectionType == connectionType)&&(identical(other.paperSize, paperSize) || other.paperSize == paperSize)&&(identical(other.canPrintCustomer, canPrintCustomer) || other.canPrintCustomer == canPrintCustomer)&&(identical(other.canPrintKitchen, canPrintKitchen) || other.canPrintKitchen == canPrintKitchen)&&(identical(other.canPrintBar, canPrintBar) || other.canPrintBar == canPrintBar)&&(identical(other.canPrintWaiter, canPrintWaiter) || other.canPrintWaiter == canPrintWaiter)&&(identical(other.customerCopies, customerCopies) || other.customerCopies == customerCopies)&&(identical(other.kitchenCopies, kitchenCopies) || other.kitchenCopies == kitchenCopies)&&(identical(other.barCopies, barCopies) || other.barCopies == barCopies)&&(identical(other.waiterCopies, waiterCopies) || other.waiterCopies == waiterCopies)&&(identical(other.port, port) || other.port == port)&&(identical(other.isEnabled, isEnabled) || other.isEnabled == isEnabled)&&(identical(other.lastSeen, lastSeen) || other.lastSeen == lastSeen)&&(identical(other.manufacturer, manufacturer) || other.manufacturer == manufacturer)&&(identical(other.model, model) || other.model == model)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,address,connectionType,paperSize,canPrintCustomer,canPrintKitchen,canPrintBar,canPrintWaiter,customerCopies,kitchenCopies,barCopies,waiterCopies,port);
+int get hashCode => Object.hash(runtimeType,name,address,connectionType,paperSize,canPrintCustomer,canPrintKitchen,canPrintBar,canPrintWaiter,customerCopies,kitchenCopies,barCopies,waiterCopies,port,isEnabled,lastSeen,manufacturer,model,isOnline);
 
 @override
 String toString() {
-  return 'BluetoothPrinterModel(name: $name, address: $address, connectionType: $connectionType, paperSize: $paperSize, canPrintCustomer: $canPrintCustomer, canPrintKitchen: $canPrintKitchen, canPrintBar: $canPrintBar, canPrintWaiter: $canPrintWaiter, customerCopies: $customerCopies, kitchenCopies: $kitchenCopies, barCopies: $barCopies, waiterCopies: $waiterCopies, port: $port)';
+  return 'BluetoothPrinterModel(name: $name, address: $address, connectionType: $connectionType, paperSize: $paperSize, canPrintCustomer: $canPrintCustomer, canPrintKitchen: $canPrintKitchen, canPrintBar: $canPrintBar, canPrintWaiter: $canPrintWaiter, customerCopies: $customerCopies, kitchenCopies: $kitchenCopies, barCopies: $barCopies, waiterCopies: $waiterCopies, port: $port, isEnabled: $isEnabled, lastSeen: $lastSeen, manufacturer: $manufacturer, model: $model, isOnline: $isOnline)';
 }
 
 
@@ -146,7 +158,7 @@ abstract mixin class _$BluetoothPrinterModelCopyWith<$Res> implements $Bluetooth
   factory _$BluetoothPrinterModelCopyWith(_BluetoothPrinterModel value, $Res Function(_BluetoothPrinterModel) _then) = __$BluetoothPrinterModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) String name,@HiveField(1) String address,@HiveField(2) String? connectionType,@HiveField(3) String paperSize,@HiveField(4) bool canPrintCustomer,@HiveField(5) bool canPrintKitchen,@HiveField(6) bool canPrintBar,@HiveField(7) bool canPrintWaiter,@HiveField(8) int customerCopies,@HiveField(9) int kitchenCopies,@HiveField(10) int barCopies,@HiveField(11) int waiterCopies,@HiveField(12) int? port
+@HiveField(0) String name,@HiveField(1) String address,@HiveField(2) String? connectionType,@HiveField(3) String paperSize,@HiveField(4) bool canPrintCustomer,@HiveField(5) bool canPrintKitchen,@HiveField(6) bool canPrintBar,@HiveField(7) bool canPrintWaiter,@HiveField(8) int customerCopies,@HiveField(9) int kitchenCopies,@HiveField(10) int barCopies,@HiveField(11) int waiterCopies,@HiveField(12) int? port,@HiveField(13) bool isEnabled,@HiveField(14) DateTime? lastSeen,@HiveField(15) String? manufacturer,@HiveField(16) String? model,@HiveField(17) bool? isOnline
 });
 
 
@@ -163,7 +175,7 @@ class __$BluetoothPrinterModelCopyWithImpl<$Res>
 
 /// Create a copy of BluetoothPrinterModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? address = null,Object? connectionType = freezed,Object? paperSize = null,Object? canPrintCustomer = null,Object? canPrintKitchen = null,Object? canPrintBar = null,Object? canPrintWaiter = null,Object? customerCopies = null,Object? kitchenCopies = null,Object? barCopies = null,Object? waiterCopies = null,Object? port = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? address = null,Object? connectionType = freezed,Object? paperSize = null,Object? canPrintCustomer = null,Object? canPrintKitchen = null,Object? canPrintBar = null,Object? canPrintWaiter = null,Object? customerCopies = null,Object? kitchenCopies = null,Object? barCopies = null,Object? waiterCopies = null,Object? port = freezed,Object? isEnabled = null,Object? lastSeen = freezed,Object? manufacturer = freezed,Object? model = freezed,Object? isOnline = freezed,}) {
   return _then(_BluetoothPrinterModel(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,address: null == address ? _self.address : address // ignore: cast_nullable_to_non_nullable
@@ -178,7 +190,12 @@ as int,kitchenCopies: null == kitchenCopies ? _self.kitchenCopies : kitchenCopie
 as int,barCopies: null == barCopies ? _self.barCopies : barCopies // ignore: cast_nullable_to_non_nullable
 as int,waiterCopies: null == waiterCopies ? _self.waiterCopies : waiterCopies // ignore: cast_nullable_to_non_nullable
 as int,port: freezed == port ? _self.port : port // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,isEnabled: null == isEnabled ? _self.isEnabled : isEnabled // ignore: cast_nullable_to_non_nullable
+as bool,lastSeen: freezed == lastSeen ? _self.lastSeen : lastSeen // ignore: cast_nullable_to_non_nullable
+as DateTime?,manufacturer: freezed == manufacturer ? _self.manufacturer : manufacturer // ignore: cast_nullable_to_non_nullable
+as String?,model: freezed == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
+as String?,isOnline: freezed == isOnline ? _self.isOnline : isOnline // ignore: cast_nullable_to_non_nullable
+as bool?,
   ));
 }
 

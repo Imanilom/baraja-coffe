@@ -1,5 +1,6 @@
-// screens/reservation_screen.dart - Updated with real-time availability checking
+// screens/reservation_screen.dart - Updated with ConsumerWidget and Riverpod
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../models/table.dart';
 import '../../../models/area.dart';
@@ -10,37 +11,133 @@ import '../../../widgets/reservation/person_counter.dart';
 import '../../../widgets/reservation/area_selector.dart';
 import '../../../widgets/reservation/time_selector.dart';
 
-class ReservationOrder extends StatefulWidget {
+// Providers untuk state management
+final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
+final selectedTimeProvider = StateProvider<TimeOfDay>(
+  (ref) => const TimeOfDay(hour: 19, minute: 0),
+);
+final selectedAreaProvider = StateProvider<Area?>((ref) => null);
+final personCountProvider = StateProvider<int>((ref) => 1);
+final selectedTableIdsProvider = StateProvider<List<String>>((ref) => []);
+final isLoadingTablesProvider = StateProvider<bool>((ref) => false);
+final isLoadingAreasProvider = StateProvider<bool>((ref) => true);
+final isCheckingAvailabilityProvider = StateProvider<bool>((ref) => false);
+final availabilityResultProvider = StateProvider<Map<String, dynamic>?>(
+  (ref) => null,
+);
+
+// Provider untuk areas
+final areasProvider = StateNotifierProvider<AreasNotifier, List<Area>>((ref) {
+  return AreasNotifier();
+});
+
+// Provider untuk tables
+final tablesProvider = StateNotifierProvider<TablesNotifier, List<TableModel>>((
+  ref,
+) {
+  return TablesNotifier();
+});
+
+// StateNotifier untuk Areas
+class AreasNotifier extends StateNotifier<List<Area>> {
+  AreasNotifier() : super([]);
+
+  Future<void> loadAreas({required String date, required String time}) async {
+    try {
+      final loadedAreas = await ReservationService.getAreas(
+        date: date,
+        time: time,
+      );
+      state = loadedAreas.where((area) => area.isActive).toList();
+    } catch (e) {
+      state = [];
+      throw Exception('Gagal memuat data area: $e');
+    }
+  }
+
+  Future<void> refreshAreaAvailability({
+    required String date,
+    required String time,
+  }) async {
+    try {
+      final refreshedAreas = await ReservationService.refreshAreaAvailability(
+        date: date,
+        time: time,
+      );
+      state = refreshedAreas.where((area) => area.isActive).toList();
+    } catch (e) {
+      print('Error refreshing areas availability: $e');
+    }
+  }
+}
+
+// StateNotifier untuk Tables
+class TablesNotifier extends StateNotifier<List<TableModel>> {
+  TablesNotifier() : super([]);
+
+  Future<void> loadTablesForArea(
+    String areaId, {
+    required String date,
+    required String time,
+  }) async {
+    try {
+      final result = await ReservationService.getAreaTables(
+        areaId,
+        date: date,
+        time: time,
+      );
+      state = result['tables'];
+    } catch (e) {
+      state = [];
+      throw Exception('Gagal memuat meja untuk area: $e');
+    }
+  }
+
+  Future<void> refreshTableAvailability({
+    required String areaId,
+    required String date,
+    required String time,
+  }) async {
+    try {
+      final result = await ReservationService.refreshTableAvailability(
+        areaId: areaId,
+        date: date,
+        time: time,
+      );
+      state = result['tables'];
+    } catch (e) {
+      print('Error refreshing tables availability: $e');
+    }
+  }
+
+  void clearTables() {
+    state = [];
+  }
+}
+
+class ReservationOrder extends ConsumerStatefulWidget {
   const ReservationOrder({super.key});
 
   @override
-  State<ReservationOrder> createState() => _ReservationOrderState();
+  ConsumerState<ReservationOrder> createState() => _ReservationOrderState();
 }
 
-class _ReservationOrderState extends State<ReservationOrder> {
-  DateTime selectedDate = DateTime.now();
-  TimeOfDay selectedTime = const TimeOfDay(hour: 19, minute: 0);
-  Area? selectedArea;
-  int personCount = 1;
-  List<TableModel> tables = [];
-  List<String> selectedTableIds = [];
-  bool isLoadingTables = false;
-
-  List<Area> areas = [];
-  bool isLoadingAreas = true;
-  bool isCheckingAvailability = false;
-  Map<String, dynamic>? availabilityResult;
-
+class _ReservationOrderState extends ConsumerState<ReservationOrder> {
   @override
   void initState() {
     super.initState();
-    _loadAreas();
-    _validateInitialDateTime();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _validateInitialDateTime();
+      _loadAreas();
+    });
   }
 
   void _validateInitialDateTime() {
     final DateTime now = DateTime.now();
     final DateTime today = DateTime(now.year, now.month, now.day);
+    final selectedDate = ref.read(selectedDateProvider);
+    final selectedTime = ref.read(selectedTimeProvider);
+
     final DateTime currentSelectedDate = DateTime(
       selectedDate.year,
       selectedDate.month,
@@ -48,13 +145,13 @@ class _ReservationOrderState extends State<ReservationOrder> {
     );
 
     if (currentSelectedDate.isBefore(today)) {
-      selectedDate = now;
+      ref.read(selectedDateProvider.notifier).state = now;
     }
 
     if (currentSelectedDate.isAtSameMomentAs(today) &&
         !_isValidTime(selectedTime, selectedDate)) {
       final DateTime minimumTime = now.add(const Duration(minutes: 5));
-      selectedTime = TimeOfDay(
+      ref.read(selectedTimeProvider.notifier).state = TimeOfDay(
         hour: minimumTime.hour,
         minute: minimumTime.minute,
       );
@@ -63,33 +160,30 @@ class _ReservationOrderState extends State<ReservationOrder> {
 
   Future<void> _loadAreas() async {
     try {
-      setState(() {
-        isLoadingAreas = true;
-      });
+      ref.read(isLoadingAreasProvider.notifier).state = true;
 
-      // Load areas with real-time availability if date and time are selected
+      final selectedDate = ref.read(selectedDateProvider);
+      final selectedTime = ref.read(selectedTimeProvider);
+
       final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
       final timeStr =
           '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
 
-      final loadedAreas = await ReservationService.getAreas(
-        date: dateStr,
-        time: timeStr,
-      );
+      await ref
+          .read(areasProvider.notifier)
+          .loadAreas(date: dateStr, time: timeStr);
 
-      setState(() {
-        areas = loadedAreas.where((area) => area.isActive).toList();
-        isLoadingAreas = false;
-      });
+      ref.read(isLoadingAreasProvider.notifier).state = false;
     } catch (e) {
-      setState(() {
-        isLoadingAreas = false;
-      });
+      ref.read(isLoadingAreasProvider.notifier).state = false;
       _showErrorDialog('Gagal memuat data area: $e');
     }
   }
 
   Future<void> _refreshAreasAvailability() async {
+    final selectedDate = ref.read(selectedDateProvider);
+    final selectedTime = ref.read(selectedTimeProvider);
+
     if (!_isValidReservationDate() ||
         !_isValidTime(selectedTime, selectedDate)) {
       return;
@@ -100,59 +194,54 @@ class _ReservationOrderState extends State<ReservationOrder> {
       final timeStr =
           '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
 
-      final refreshedAreas = await ReservationService.refreshAreaAvailability(
-        date: dateStr,
-        time: timeStr,
-      );
+      await ref
+          .read(areasProvider.notifier)
+          .refreshAreaAvailability(date: dateStr, time: timeStr);
 
-      setState(() {
-        areas = refreshedAreas.where((area) => area.isActive).toList();
-
-        // Update selected area if it still exists
-        if (selectedArea != null) {
-          final updatedSelectedArea = areas.firstWhere(
-            (area) => area.id == selectedArea!.id,
-            orElse: () => selectedArea!,
-          );
-          selectedArea = updatedSelectedArea;
-        }
-      });
+      // Update selected area if it still exists
+      final selectedArea = ref.read(selectedAreaProvider);
+      if (selectedArea != null) {
+        final areas = ref.read(areasProvider);
+        final updatedSelectedArea = areas.firstWhere(
+          (area) => area.id == selectedArea.id,
+          orElse: () => selectedArea,
+        );
+        ref.read(selectedAreaProvider.notifier).state = updatedSelectedArea;
+      }
     } catch (e) {
       print('Error refreshing areas availability: $e');
     }
   }
 
   Future<void> _loadTablesForArea(String areaId) async {
-    setState(() {
-      isLoadingTables = true;
-      tables = [];
-      selectedTableIds.clear();
-    });
+    ref.read(isLoadingTablesProvider.notifier).state = true;
+    ref.read(tablesProvider.notifier).clearTables();
+    ref.read(selectedTableIdsProvider.notifier).state = [];
 
     try {
+      final selectedDate = ref.read(selectedDateProvider);
+      final selectedTime = ref.read(selectedTimeProvider);
+
       final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
       final timeStr =
           '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
 
-      final result = await ReservationService.getAreaTables(
-        areaId,
-        date: dateStr,
-        time: timeStr,
-      );
+      await ref
+          .read(tablesProvider.notifier)
+          .loadTablesForArea(areaId, date: dateStr, time: timeStr);
 
-      setState(() {
-        tables = result['tables'];
-        isLoadingTables = false;
-      });
+      ref.read(isLoadingTablesProvider.notifier).state = false;
     } catch (e) {
-      setState(() {
-        isLoadingTables = false;
-      });
+      ref.read(isLoadingTablesProvider.notifier).state = false;
       _showErrorDialog('Gagal memuat meja untuk area: $e');
     }
   }
 
   Future<void> _refreshTablesAvailability() async {
+    final selectedArea = ref.read(selectedAreaProvider);
+    final selectedDate = ref.read(selectedDateProvider);
+    final selectedTime = ref.read(selectedTimeProvider);
+
     if (selectedArea == null ||
         !_isValidReservationDate() ||
         !_isValidTime(selectedTime, selectedDate)) {
@@ -164,52 +253,59 @@ class _ReservationOrderState extends State<ReservationOrder> {
       final timeStr =
           '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
 
-      final result = await ReservationService.refreshTableAvailability(
-        areaId: selectedArea!.id,
-        date: dateStr,
-        time: timeStr,
-      );
-
-      setState(() {
-        tables = result['tables'];
-
-        // Remove selected tables that are no longer available
-        selectedTableIds.removeWhere((tableId) {
-          final table = tables.firstWhere(
-            (t) => t.id == tableId,
-            orElse:
-                () => TableModel(id: '', tableNumber: '', areaId: '', seats: 0),
+      await ref
+          .read(tablesProvider.notifier)
+          .refreshTableAvailability(
+            areaId: selectedArea.id,
+            date: dateStr,
+            time: timeStr,
           );
-          return table.id.isEmpty || !table.canBeSelected;
-        });
-      });
+
+      // Remove selected tables that are no longer available
+      final tables = ref.read(tablesProvider);
+      final selectedTableIds = ref.read(selectedTableIdsProvider);
+
+      final validTableIds =
+          selectedTableIds.where((tableId) {
+            final table = tables.firstWhere(
+              (t) => t.id == tableId,
+              orElse:
+                  () =>
+                      TableModel(id: '', tableNumber: '', areaId: '', seats: 0),
+            );
+            return table.id.isNotEmpty && table.canBeSelected;
+          }).toList();
+
+      ref.read(selectedTableIdsProvider.notifier).state = validTableIds;
     } catch (e) {
       print('Error refreshing tables availability: $e');
     }
   }
 
   void _onDateChanged(DateTime newDate) {
-    setState(() {
-      selectedDate = newDate;
-      selectedTableIds.clear(); // Clear selections when date changes
-    });
+    ref.read(selectedDateProvider.notifier).state = newDate;
+    ref.read(selectedTableIdsProvider.notifier).state =
+        []; // Clear selections when date changes
 
     // Refresh availability for new date
     _refreshAreasAvailability();
+    final selectedArea = ref.read(selectedAreaProvider);
     if (selectedArea != null) {
       _refreshTablesAvailability();
     }
   }
 
   Future<void> _onTimeChanged(TimeOfDay newTime) async {
+    final selectedDate = ref.read(selectedDateProvider);
+
     if (_isValidTime(newTime, selectedDate)) {
-      setState(() {
-        selectedTime = newTime;
-        selectedTableIds.clear(); // Clear selections when time changes
-      });
+      ref.read(selectedTimeProvider.notifier).state = newTime;
+      ref.read(selectedTableIdsProvider.notifier).state =
+          []; // Clear selections when time changes
 
       // Refresh availability for new time
       _refreshAreasAvailability();
+      final selectedArea = ref.read(selectedAreaProvider);
       if (selectedArea != null) {
         _refreshTablesAvailability();
       }
@@ -217,17 +313,20 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   void _onAreaChanged(Area area) {
-    setState(() {
-      selectedArea = area;
-      if (personCount > area.capacity) {
-        personCount = area.capacity;
-      }
-      selectedTableIds.clear(); // Clear table selections when area changes
-    });
+    ref.read(selectedAreaProvider.notifier).state = area;
+
+    final personCount = ref.read(personCountProvider);
+    if (personCount > area.capacity) {
+      ref.read(personCountProvider.notifier).state = area.capacity;
+    }
+
+    ref.read(selectedTableIdsProvider.notifier).state =
+        []; // Clear table selections when area changes
     _loadTablesForArea(area.id);
   }
 
   bool _isValidReservationDate() {
+    final selectedDate = ref.read(selectedDateProvider);
     final DateTime now = DateTime.now();
     final DateTime today = DateTime(now.year, now.month, now.day);
     final DateTime selectedDateOnly = DateTime(
@@ -266,6 +365,7 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   void _toggleTableSelection(String tableId) {
+    final tables = ref.read(tablesProvider);
     final table = tables.firstWhere((t) => t.id == tableId);
 
     if (!table.canBeSelected) {
@@ -273,13 +373,16 @@ class _ReservationOrderState extends State<ReservationOrder> {
       return;
     }
 
-    setState(() {
-      if (selectedTableIds.contains(tableId)) {
-        selectedTableIds.remove(tableId);
-      } else {
-        selectedTableIds.add(tableId);
-      }
-    });
+    final selectedTableIds = ref.read(selectedTableIdsProvider);
+    if (selectedTableIds.contains(tableId)) {
+      ref.read(selectedTableIdsProvider.notifier).state =
+          selectedTableIds.where((id) => id != tableId).toList();
+    } else {
+      ref.read(selectedTableIdsProvider.notifier).state = [
+        ...selectedTableIds,
+        tableId,
+      ];
+    }
   }
 
   void _showTableNotAvailableDialog(TableModel table) {
@@ -310,6 +413,9 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   int _calculateTotalCapacity() {
+    final tables = ref.read(tablesProvider);
+    final selectedTableIds = ref.read(selectedTableIdsProvider);
+
     int totalCapacity = 0;
     for (String tableId in selectedTableIds) {
       final table = tables.firstWhere((t) => t.id == tableId);
@@ -319,6 +425,9 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   String _getSelectedTableNumbers() {
+    final tables = ref.read(tablesProvider);
+    final selectedTableIds = ref.read(selectedTableIdsProvider);
+
     List<String> tableNumbers = [];
     for (String tableId in selectedTableIds) {
       final table = tables.firstWhere((t) => t.id == tableId);
@@ -328,12 +437,21 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   bool _isTableSelectionValid() {
+    final selectedTableIds = ref.read(selectedTableIdsProvider);
+    final personCount = ref.read(personCountProvider);
+
     if (selectedTableIds.isEmpty) return false;
     final totalCapacity = _calculateTotalCapacity();
     return totalCapacity >= personCount;
   }
 
   bool get _canMakeReservation {
+    final selectedArea = ref.read(selectedAreaProvider);
+    final selectedTableIds = ref.read(selectedTableIdsProvider);
+    final selectedDate = ref.read(selectedDateProvider);
+    final selectedTime = ref.read(selectedTimeProvider);
+    final isCheckingAvailability = ref.read(isCheckingAvailabilityProvider);
+
     return selectedArea != null &&
         selectedTableIds.isNotEmpty &&
         _isTableSelectionValid() &&
@@ -343,12 +461,16 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   Future<void> _checkAvailability() async {
+    final selectedArea = ref.read(selectedAreaProvider);
+    final selectedTableIds = ref.read(selectedTableIdsProvider);
+    final selectedDate = ref.read(selectedDateProvider);
+    final selectedTime = ref.read(selectedTimeProvider);
+    final personCount = ref.read(personCountProvider);
+
     if (selectedArea == null || selectedTableIds.isEmpty) return;
 
-    setState(() {
-      isCheckingAvailability = true;
-      availabilityResult = null;
-    });
+    ref.read(isCheckingAvailabilityProvider.notifier).state = true;
+    ref.read(availabilityResultProvider.notifier).state = null;
 
     final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
     final timeStr =
@@ -358,15 +480,13 @@ class _ReservationOrderState extends State<ReservationOrder> {
       final result = await ReservationService.checkAvailability(
         date: dateStr,
         time: timeStr,
-        areaId: selectedArea!.id,
+        areaId: selectedArea.id,
         guestCount: personCount,
         tableIds: selectedTableIds,
       );
 
-      setState(() {
-        isCheckingAvailability = false;
-        availabilityResult = result;
-      });
+      ref.read(isCheckingAvailabilityProvider.notifier).state = false;
+      ref.read(availabilityResultProvider.notifier).state = result;
 
       if (result['available'] == true) {
         _showAvailabilityDialog(result, true);
@@ -376,14 +496,12 @@ class _ReservationOrderState extends State<ReservationOrder> {
         await _refreshTablesAvailability();
       }
     } catch (e) {
-      setState(() {
-        isCheckingAvailability = false;
-        availabilityResult = {
-          'available': false,
-          'message': 'Gagal memeriksa ketersediaan: $e',
-          'reason': 'error',
-        };
-      });
+      ref.read(isCheckingAvailabilityProvider.notifier).state = false;
+      ref.read(availabilityResultProvider.notifier).state = {
+        'available': false,
+        'message': 'Gagal memeriksa ketersediaan: $e',
+        'reason': 'error',
+      };
     }
   }
 
@@ -416,13 +534,11 @@ class _ReservationOrderState extends State<ReservationOrder> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                setState(() {
-                  selectedTime = TimeOfDay(
-                    hour: minimumTime.hour,
-                    minute: minimumTime.minute,
-                  );
-                });
-                _onTimeChanged(selectedTime);
+                ref.read(selectedTimeProvider.notifier).state = TimeOfDay(
+                  hour: minimumTime.hour,
+                  minute: minimumTime.minute,
+                );
+                _onTimeChanged(ref.read(selectedTimeProvider));
               },
               child: const Text('Gunakan Waktu Minimum'),
             ),
@@ -433,6 +549,9 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   Future<void> _selectTime(BuildContext context) async {
+    final selectedTime = ref.read(selectedTimeProvider);
+    final selectedDate = ref.read(selectedDateProvider);
+
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: selectedTime,
@@ -448,6 +567,9 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   void _showAvailabilityDialog(Map<String, dynamic> result, bool isAvailable) {
+    final selectedArea = ref.read(selectedAreaProvider);
+    final personCount = ref.read(personCountProvider);
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -568,6 +690,12 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   void _navigateToMenuWithReservation() {
+    final selectedArea = ref.read(selectedAreaProvider);
+    final selectedDate = ref.read(selectedDateProvider);
+    final selectedTime = ref.read(selectedTimeProvider);
+    final personCount = ref.read(personCountProvider);
+    final selectedTableIds = ref.read(selectedTableIdsProvider);
+
     if (selectedArea == null) return;
 
     final String formattedDate = DateFormat(
@@ -580,8 +708,8 @@ class _ReservationOrderState extends State<ReservationOrder> {
     final reservationData = ReservationData(
       date: selectedDate,
       time: selectedTime,
-      areaId: selectedArea!.id,
-      areaCode: selectedArea!.areaCode,
+      areaId: selectedArea.id,
+      areaCode: selectedArea.areaCode,
       personCount: personCount,
       formattedDate: formattedDate,
       formattedTime: formattedTime,
@@ -591,11 +719,10 @@ class _ReservationOrderState extends State<ReservationOrder> {
     // Navigator.push(
     //   context,
     //   MaterialPageRoute(
-    //     builder:
-    //         (context) => MenuScreen(
-    //           isReservation: true,
-    //           reservationData: reservationData,
-    //         ),
+    //     builder: (context) => MenuScreen(
+    //       isReservation: true,
+    //       reservationData: reservationData,
+    //     ),
     //   ),
     // );
   }
@@ -625,6 +752,12 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   Widget _buildReservationButton() {
+    final selectedArea = ref.read(selectedAreaProvider);
+    final selectedTableIds = ref.read(selectedTableIdsProvider);
+    final selectedDate = ref.read(selectedDateProvider);
+    final selectedTime = ref.read(selectedTimeProvider);
+    final isCheckingAvailability = ref.read(isCheckingAvailabilityProvider);
+
     String buttonText = 'Cek Ketersediaan & Lanjut';
 
     if (!_isValidReservationDate()) {
@@ -634,7 +767,7 @@ class _ReservationOrderState extends State<ReservationOrder> {
       buttonText = 'Waktu Tidak Valid (Minimal 5 Menit dari Sekarang)';
     } else if (selectedArea == null) {
       buttonText = 'Pilih Area Terlebih Dahulu';
-    } else if (selectedArea!.isFullyBooked) {
+    } else if (selectedArea.isFullyBooked) {
       buttonText = 'Area Sudah Penuh untuk Waktu Ini';
     } else if (selectedTableIds.isEmpty) {
       buttonText = 'Pilih Meja Terlebih Dahulu';
@@ -680,6 +813,12 @@ class _ReservationOrderState extends State<ReservationOrder> {
   }
 
   Widget _buildTableList() {
+    final selectedArea = ref.watch(selectedAreaProvider);
+    final tables = ref.watch(tablesProvider);
+    final selectedTableIds = ref.watch(selectedTableIdsProvider);
+    final isLoadingTables = ref.watch(isLoadingTablesProvider);
+    final personCount = ref.watch(personCountProvider);
+
     if (selectedArea == null) return const SizedBox();
 
     if (isLoadingTables) {
@@ -698,7 +837,6 @@ class _ReservationOrderState extends State<ReservationOrder> {
     // Filter tables by availability status
     final availableTables =
         tables.where((table) => table.canBeSelected).toList();
-    // final unavailableTables = tables.where((table) => !table.canBeSelected).toList();
 
     return Container(
       margin: const EdgeInsets.only(top: 16),
@@ -746,8 +884,9 @@ class _ReservationOrderState extends State<ReservationOrder> {
               width: double.infinity,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.green.shade700,
+                color: Colors.green.shade50,
                 borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.green.shade200),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -783,7 +922,7 @@ class _ReservationOrderState extends State<ReservationOrder> {
           ],
 
           // Area availability warning
-          if (selectedArea!.isFullyBooked) ...[
+          if (selectedArea.isFullyBooked) ...[
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(8),
@@ -959,6 +1098,13 @@ class _ReservationOrderState extends State<ReservationOrder> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedDate = ref.watch(selectedDateProvider);
+    final selectedTime = ref.watch(selectedTimeProvider);
+    final selectedArea = ref.watch(selectedAreaProvider);
+    final personCount = ref.watch(personCountProvider);
+    final areas = ref.watch(areasProvider);
+    final isLoadingAreas = ref.watch(isLoadingAreasProvider);
+
     return Scaffold(
       backgroundColor: Colors.white,
       // appBar: const ClassicAppBar(title: 'Reservasi'),
@@ -1005,9 +1151,7 @@ class _ReservationOrderState extends State<ReservationOrder> {
                   personCount: personCount,
                   maxPersons: selectedArea?.capacity ?? 30,
                   onPersonCountChanged: (count) {
-                    setState(() {
-                      personCount = count;
-                    });
+                    ref.read(personCountProvider.notifier).state = count;
                   },
                 ),
 
