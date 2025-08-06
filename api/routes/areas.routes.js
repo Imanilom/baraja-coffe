@@ -6,28 +6,58 @@ import Reservation from '../models/Reservation.model.js';
 
 const router = express.Router();
 
-// GET /api/areas - Get all areas with real-time availability
+// AREA CRUD OPERATIONS //
+
+// Create a new area
+router.post('/', async (req, res) => {
+    try {
+        const { area_code, area_name, capacity, description } = req.body;
+
+        // Check if area code already exists
+        const existingArea = await Area.findOne({ area_code });
+        if (existingArea) {
+            return res.status(400).json({
+                success: false,
+                message: 'Area code already exists'
+            });
+        }
+
+        const newArea = new Area({
+            area_code: area_code.toUpperCase(),
+            area_name,
+            capacity,
+            description: description || ''
+        });
+
+        const savedArea = await newArea.save();
+        
+        res.status(201).json({
+            success: true,
+            message: 'Area created successfully',
+            data: savedArea
+        });
+    } catch (error) {
+        console.error('Error creating area:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating area',
+            error: error.message
+        });
+    }
+});
+
+// Get all areas
 router.get('/', async (req, res) => {
     try {
         const { date, time } = req.query;
-
-        // Get all active areas
         const areas = await Area.find({ is_active: true }).sort({ area_code: 1 });
 
-        // If date and time provided, calculate real-time availability
         if (date && time) {
             const areasWithAvailability = await Promise.all(
                 areas.map(async (area) => {
-                    // Get all tables for this area
-                    const tables = await Table.find({
-                        area_id: area._id,
-                        is_active: true
-                    });
-
-                    // Convert date string to Date object for query
+                    const tables = await Table.find({ area_id: area._id, is_active: true });
                     const reservationDate = new Date(date);
 
-                    // Get existing reservations for this area on the specified date and time
                     const existingReservations = await Reservation.find({
                         reservation_date: {
                             $gte: new Date(reservationDate.setHours(0, 0, 0, 0)),
@@ -38,7 +68,6 @@ router.get('/', async (req, res) => {
                         status: { $in: ['confirmed', 'pending'] }
                     });
 
-                    // Get reserved table IDs for this time slot
                     const reservedTableIds = [];
                     existingReservations.forEach(reservation => {
                         reservation.table_id.forEach(tableId => {
@@ -48,12 +77,10 @@ router.get('/', async (req, res) => {
                         });
                     });
 
-                    // Calculate available tables
                     const availableTables = tables.filter(table =>
                         !reservedTableIds.includes(table._id.toString())
                     );
 
-                    // Calculate total guests already reserved
                     const totalReservedGuests = existingReservations.reduce((sum, reservation) => {
                         return sum + reservation.guest_count;
                     }, 0);
@@ -67,42 +94,40 @@ router.get('/', async (req, res) => {
                         reservedTables: tables.length - availableTables.length,
                         availableCapacity: Math.max(0, availableCapacity),
                         totalReservedGuests,
-                        isFullyBooked: availableTables.length === 0 || availableCapacity <= 0
+                        isFullyBooked: availableTables.length === 0 || availableCapacity <= 0,
+                        tables: tables.map(table => ({
+                            ...table.toObject(),
+                            is_available_for_time: !reservedTableIds.includes(table._id.toString()),
+                            is_reserved: reservedTableIds.includes(table._id.toString())
+                        }))
                     };
                 })
             );
 
-            return res.json({
-                success: true,
-                data: areasWithAvailability
-            });
+            return res.json({ success: true, data: areasWithAvailability });
         }
 
-        // If no date/time provided, return areas with basic table info
         const areasWithTables = await Promise.all(
             areas.map(async (area) => {
-                const tables = await Table.find({
-                    area_id: area._id,
-                    is_active: true
-                });
-
+                const tables = await Table.find({ area_id: area._id, is_active: true });
                 return {
                     ...area.toObject(),
                     totalTables: tables.length,
-                    availableTables: tables.length, // Assume all available without date/time
-                    reservedTables: 0,
+                    availableTables: tables.filter(t => t.status === 'available').length,
+                    reservedTables: tables.filter(t => t.status === 'reserved' || t.status === 'occupied').length,
                     availableCapacity: area.capacity,
                     totalReservedGuests: 0,
-                    isFullyBooked: false
+                    isFullyBooked: false,
+                    tables: tables.map(table => ({
+                        ...table.toObject(),
+                        is_available_for_time: table.status === 'available',
+                        is_reserved: table.status === 'reserved' || table.status === 'occupied'
+                    }))
                 };
             })
         );
 
-        res.json({
-            success: true,
-            data: areasWithTables
-        });
-
+        res.json({ success: true, data: areasWithTables });
     } catch (error) {
         console.error('Error fetching areas:', error);
         res.status(500).json({
@@ -113,13 +138,346 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET /api/areas/:id/tables - Get tables for specific area with availability
+// Get single area by ID
+router.get('/:id', async (req, res) => {
+    try {
+        const area = await Area.findById(req.params.id);
+        if (!area || !area.is_active) {
+            return res.status(404).json({
+                success: false,
+                message: 'Area not found or inactive'
+            });
+        }
+
+        const tables = await Table.find({ area_id: area._id, is_active: true });
+        const areaWithTables = {
+            ...area.toObject(),
+            tables: tables
+        };
+
+        res.json({
+            success: true,
+            data: areaWithTables
+        });
+    } catch (error) {
+        console.error('Error fetching area:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching area',
+            error: error.message
+        });
+    }
+});
+
+// Update an area
+router.put('/:id', async (req, res) => {
+    try {
+        const { area_code, area_name, capacity, description, is_active } = req.body;
+        
+        // Check if area code is being changed to one that already exists
+        if (area_code) {
+            const existingArea = await Area.findOne({ 
+                area_code: area_code.toUpperCase(),
+                _id: { $ne: req.params.id }
+            });
+            if (existingArea) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Area code already exists'
+                });
+            }
+        }
+
+        const updatedArea = await Area.findByIdAndUpdate(
+            req.params.id,
+            {
+                area_code: area_code ? area_code.toUpperCase() : undefined,
+                area_name,
+                capacity,
+                description,
+                is_active
+            },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedArea) {
+            return res.status(404).json({
+                success: false,
+                message: 'Area not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Area updated successfully',
+            data: updatedArea
+        });
+    } catch (error) {
+        console.error('Error updating area:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating area',
+            error: error.message
+        });
+    }
+});
+
+// Delete (deactivate) an area
+router.delete('/:id', async (req, res) => {
+    try {
+        // Soft delete by setting is_active to false
+        const area = await Area.findByIdAndUpdate(
+            req.params.id,
+            { is_active: false },
+            { new: true }
+        );
+
+        if (!area) {
+            return res.status(404).json({
+                success: false,
+                message: 'Area not found'
+            });
+        }
+
+        // Also deactivate all tables in this area
+        await Table.updateMany(
+            { area_id: area._id },
+            { is_active: false }
+        );
+
+        res.json({
+            success: true,
+            message: 'Area and its tables deactivated successfully',
+            data: area
+        });
+    } catch (error) {
+        console.error('Error deactivating area:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error deactivating area',
+            error: error.message
+        });
+    }
+});
+
+// TABLE CRUD OPERATIONS //
+
+// Create a new table
+router.post('/tables', async (req, res) => {
+    try {
+        const { table_number, area_id, seats, table_type, shape, position } = req.body;
+
+        // Check if area exists and is active
+        const area = await Area.findOne({ _id: area_id, is_active: true });
+        if (!area) {
+            return res.status(400).json({
+                success: false,
+                message: 'Area not found or inactive'
+            });
+        }
+
+        // Check if table number already exists in this area
+        const existingTable = await Table.findOne({ 
+            table_number: table_number.toUpperCase(), 
+            area_id 
+        });
+        if (existingTable) {
+            return res.status(400).json({
+                success: false,
+                message: 'Table number already exists in this area'
+            });
+        }
+
+        const newTable = new Table({
+            table_number: table_number.toUpperCase(),
+            area_id,
+            seats: seats || 4,
+            table_type: table_type || 'regular',
+            shape: shape || 'rectangle',
+            position: position || { x: 0, y: 0 }
+        });
+
+        const savedTable = await newTable.save();
+        
+        res.status(201).json({
+            success: true,
+            message: 'Table created successfully',
+            data: savedTable
+        });
+    } catch (error) {
+        console.error('Error creating table:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating table',
+            error: error.message
+        });
+    }
+});
+
+// Get all tables (with optional area filter)
+router.get('/tables', async (req, res) => {
+    try {
+        const { area_id, status } = req.query;
+        const query = { is_active: true };
+
+        if (area_id) query.area_id = area_id;
+        if (status) query.status = status;
+
+        const tables = await Table.find(query)
+            .sort({ table_number: 1 })
+            .populate('area_id', 'area_code area_name');
+
+        res.json({
+            success: true,
+            data: tables
+        });
+    } catch (error) {
+        console.error('Error fetching tables:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching tables',
+            error: error.message
+        });
+    }
+});
+
+// Get single table by ID
+router.get('/tables/:id', async (req, res) => {
+    try {
+        const table = await Table.findById(req.params.id).populate('area_id', 'area_code area_name');
+        if (!table || !table.is_active) {
+            return res.status(404).json({
+                success: false,
+                message: 'Table not found or inactive'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: table
+        });
+    } catch (error) {
+        console.error('Error fetching table:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching table',
+            error: error.message
+        });
+    }
+});
+
+// Update a table
+router.put('/tables/:id', async (req, res) => {
+    try {
+        const { table_number, area_id, seats, table_type, shape, position, status, is_available, is_active } = req.body;
+
+        // Check if table number is being changed to one that already exists in the area
+        if (table_number) {
+            const existingTable = await Table.findOne({ 
+                table_number: table_number.toUpperCase(), 
+                area_id: area_id || req.body.area_id,
+                _id: { $ne: req.params.id }
+            });
+            if (existingTable) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Table number already exists in this area'
+                });
+            }
+        }
+
+        // Check if area exists and is active if area_id is being updated
+        if (area_id) {
+            const area = await Area.findOne({ _id: area_id, is_active: true });
+            if (!area) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Area not found or inactive'
+                });
+            }
+        }
+
+        const updateData = {
+            table_number: table_number ? table_number.toUpperCase() : undefined,
+            area_id,
+            seats,
+            table_type,
+            shape,
+            position,
+            status,
+            is_available,
+            is_active
+        };
+
+        // Remove undefined values
+        Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+
+        const updatedTable = await Table.findByIdAndUpdate(
+            req.params.id,
+            updateData,
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedTable) {
+            return res.status(404).json({
+                success: false,
+                message: 'Table not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Table updated successfully',
+            data: updatedTable
+        });
+    } catch (error) {
+        console.error('Error updating table:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating table',
+            error: error.message
+        });
+    }
+});
+
+// Delete (deactivate) a table
+router.delete('/tables/:id', async (req, res) => {
+    try {
+        // Soft delete by setting is_active to false
+        const table = await Table.findByIdAndUpdate(
+            req.params.id,
+            { is_active: false, status: 'maintenance' },
+            { new: true }
+        );
+
+        if (!table) {
+            return res.status(404).json({
+                success: false,
+                message: 'Table not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Table deactivated successfully',
+            data: table
+        });
+    } catch (error) {
+        console.error('Error deactivating table:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error deactivating table',
+            error: error.message
+        });
+    }
+});
+
+// Get tables for specific area with availability
 router.get('/:id/tables', async (req, res) => {
     try {
         const { id } = req.params;
         const { date, time } = req.query;
 
-        // Get area information
         const area = await Area.findById(id);
         if (!area || !area.is_active) {
             return res.status(404).json({
@@ -128,17 +486,13 @@ router.get('/:id/tables', async (req, res) => {
             });
         }
 
-        // Get all tables for this area
         const tables = await Table.find({
             area_id: id,
             is_active: true
         }).sort({ table_number: 1 });
 
-        // If date and time provided, check table availability
         if (date && time) {
             const reservationDate = new Date(date);
-
-            // Get existing reservations for this area on the specified date and time
             const existingReservations = await Reservation.find({
                 reservation_date: {
                     $gte: new Date(reservationDate.setHours(0, 0, 0, 0)),
@@ -149,7 +503,6 @@ router.get('/:id/tables', async (req, res) => {
                 status: { $in: ['confirmed', 'pending'] }
             });
 
-            // Get reserved table IDs
             const reservedTableIds = [];
             existingReservations.forEach(reservation => {
                 reservation.table_id.forEach(tableId => {
@@ -159,11 +512,11 @@ router.get('/:id/tables', async (req, res) => {
                 });
             });
 
-            // Mark tables as available or not
             const tablesWithAvailability = tables.map(table => ({
                 ...table.toObject(),
                 is_available_for_time: !reservedTableIds.includes(table._id.toString()),
-                is_reserved: reservedTableIds.includes(table._id.toString())
+                is_reserved: reservedTableIds.includes(table._id.toString()),
+                current_status: reservedTableIds.includes(table._id.toString()) ? 'reserved' : table.status
             }));
 
             return res.json({
@@ -182,11 +535,11 @@ router.get('/:id/tables', async (req, res) => {
             });
         }
 
-        // If no date/time provided, return tables with default availability
         const tablesWithAvailability = tables.map(table => ({
             ...table.toObject(),
-            is_available_for_time: table.is_available,
-            is_reserved: false
+            is_available_for_time: table.status === 'available',
+            is_reserved: table.status === 'reserved' || table.status === 'occupied',
+            current_status: table.status
         }));
 
         res.json({
@@ -196,14 +549,13 @@ router.get('/:id/tables', async (req, res) => {
                 tables: tablesWithAvailability,
                 availability_info: {
                     total_tables: tables.length,
-                    available_tables: tables.length,
-                    reserved_tables: 0,
+                    available_tables: tables.filter(t => t.status === 'available').length,
+                    reserved_tables: tables.filter(t => t.status === 'reserved' || t.status === 'occupied').length,
                     date: null,
                     time: null
                 }
             }
         });
-
     } catch (error) {
         console.error('Error fetching area tables:', error);
         res.status(500).json({
