@@ -83,137 +83,145 @@ class _ReservationMenuScreenState extends ConsumerState<ReservationMenuScreen> {
     print('ReservationData: $arguments');
     const categories = ['All', 'makanan', 'minuman'];
 
-    return Row(
-      children: [
-        // Categories Sidebar
-        Expanded(
-          flex: 1,
-          child: Scaffold(
-            backgroundColor: Colors.white,
-            bottomNavigationBar: BottomAppBar(
-              color: Colors.white,
-              padding: const EdgeInsets.all(8.0),
-              height: 52,
-              surfaceTintColor: Colors.white,
-              child: IconButton(
-                icon: Icon(
-                  isSearchBarVisible
-                      ? Icons.search_off_rounded
-                      : Icons.search_rounded,
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pilih Menu Reservasi')),
+      body: Row(
+        children: [
+          // Categories Sidebar
+          Expanded(
+            flex: 1,
+            child: Scaffold(
+              backgroundColor: Colors.white,
+              bottomNavigationBar: BottomAppBar(
+                color: Colors.white,
+                padding: const EdgeInsets.all(8.0),
+                height: 52,
+                surfaceTintColor: Colors.white,
+                child: IconButton(
+                  icon: Icon(
+                    isSearchBarVisible
+                        ? Icons.search_off_rounded
+                        : Icons.search_rounded,
+                  ),
+                  onPressed: () {
+                    ref.read(searchBarProvider.notifier).state =
+                        !isSearchBarVisible;
+                    if (!isSearchBarVisible) {
+                      _searchController.clear();
+                      ref.read(searchQueryProvider.notifier).state = '';
+                    }
+                  },
                 ),
-                onPressed: () {
-                  ref.read(searchBarProvider.notifier).state =
-                      !isSearchBarVisible;
-                  if (!isSearchBarVisible) {
-                    _searchController.clear();
-                    ref.read(searchQueryProvider.notifier).state = '';
-                  }
-                },
+              ),
+              body: ListView(
+                children:
+                    categories.map((category) {
+                      return ListTile(
+                        horizontalTitleGap: 4,
+                        visualDensity: const VisualDensity(vertical: -2),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                        ),
+                        dense: true,
+                        selected: selectedCategory == category,
+                        selectedTileColor: Colors.green.shade50,
+                        title: Text(
+                          category,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                        onTap:
+                            () =>
+                                ref.read(categoryProvider.notifier).state =
+                                    category,
+                      );
+                    }).toList(),
               ),
             ),
-            body: ListView(
-              children:
-                  categories.map((category) {
-                    return ListTile(
-                      horizontalTitleGap: 4,
-                      visualDensity: const VisualDensity(vertical: -2),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                      dense: true,
-                      selected: selectedCategory == category,
-                      selectedTileColor: Colors.green.shade50,
-                      title: Text(
-                        category,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                      onTap:
-                          () =>
-                              ref.read(categoryProvider.notifier).state =
-                                  category,
-                    );
-                  }).toList(),
-            ),
           ),
-        ),
 
-        VerticalDivider(width: 2, color: Colors.grey.shade200),
+          VerticalDivider(width: 2, color: Colors.grey.shade200),
 
-        // Main Content
-        Expanded(
-          flex: 4,
-          child: Container(
-            color: Colors.grey.shade200,
-            child: Column(
-              children: [
-                // Search Bar
-                if (isSearchBarVisible)
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Cari menu...',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            ref.read(searchQueryProvider.notifier).state = '';
-                          },
+          // Main Content
+          Expanded(
+            flex: 4,
+            child: Container(
+              color: Colors.grey.shade200,
+              child: Column(
+                children: [
+                  // Search Bar
+                  if (isSearchBarVisible)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Cari menu...',
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              ref.read(searchQueryProvider.notifier).state = '';
+                            },
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
                         ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
+                        onChanged:
+                            (value) =>
+                                ref.read(searchQueryProvider.notifier).state =
+                                    value,
+                        autofocus: false,
                       ),
-                      onChanged:
-                          (value) =>
-                              ref.read(searchQueryProvider.notifier).state =
-                                  value,
-                      autofocus: false,
+                    ),
+
+                  // Menu Grid
+                  Expanded(
+                    child: menu.when(
+                      loading:
+                          () =>
+                              const Center(child: CircularProgressIndicator()),
+                      error:
+                          (error, stack) =>
+                              Center(child: Text('Error: $error')),
+                      data:
+                          (data) =>
+                              data.isEmpty
+                                  ? const Center(
+                                    child: Text('Tidak ada menu ditemukan'),
+                                  )
+                                  : GridView.builder(
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: 4,
+                                          mainAxisSpacing: 4,
+                                          crossAxisSpacing: 4,
+                                          childAspectRatio: 1,
+                                        ),
+                                    padding: const EdgeInsets.all(8),
+                                    itemCount: data.length,
+                                    itemBuilder:
+                                        (context, index) => MenuItemCard(
+                                          menuItem: data[index],
+                                          onTap:
+                                              () => _handleAddToOrder(
+                                                data[index],
+                                              ),
+                                        ),
+                                  ),
                     ),
                   ),
-
-                // Menu Grid
-                Expanded(
-                  child: menu.when(
-                    loading:
-                        () => const Center(child: CircularProgressIndicator()),
-                    error:
-                        (error, stack) => Center(child: Text('Error: $error')),
-                    data:
-                        (data) =>
-                            data.isEmpty
-                                ? const Center(
-                                  child: Text('Tidak ada menu ditemukan'),
-                                )
-                                : GridView.builder(
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 4,
-                                        mainAxisSpacing: 4,
-                                        crossAxisSpacing: 4,
-                                        childAspectRatio: 1,
-                                      ),
-                                  padding: const EdgeInsets.all(8),
-                                  itemCount: data.length,
-                                  itemBuilder:
-                                      (context, index) => MenuItemCard(
-                                        menuItem: data[index],
-                                        onTap:
-                                            () =>
-                                                _handleAddToOrder(data[index]),
-                                      ),
-                                ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

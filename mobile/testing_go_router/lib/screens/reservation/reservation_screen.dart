@@ -1,6 +1,7 @@
 // screens/reservation_screen.dart - Updated with ConsumerWidget and Riverpod
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../models/table.dart';
 import '../../../models/area.dart';
@@ -754,6 +755,8 @@ class _ReservationScreenState extends ConsumerState<ReservationScreen> {
       formattedTime: formattedTime,
       selectedTableIds: selectedTableIds,
     );
+
+    context.pushNamed('reservation-menu', extra: reservationData);
 
     // Navigator.push(
     //   context,
