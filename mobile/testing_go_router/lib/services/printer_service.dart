@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 import 'package:kasirbaraja/enums/order_type.dart';
@@ -370,6 +371,79 @@ class PrinterService {
     }
   }
 
+  static Future<bool> testNetworkPrint(
+    BluetoothPrinterModel printer,
+    String address,
+  ) async {
+    try {
+      final profile = await CapabilityProfile.load();
+      PaperSize paperSize = PaperSize.mm58;
+      if (printer.paperSize == 'mm58') {
+        paperSize = PaperSize.mm58;
+      } else if (printer.paperSize == 'mm80') {
+        paperSize = PaperSize.mm80;
+      } else {
+        paperSize = PaperSize.mm72;
+      }
+      final generator = Generator(paperSize, profile);
+
+      // 2. Siapkan konten
+      final List<int> bytes = [];
+
+      // Header
+      bytes.addAll(await generateHeadersBytes(generator, paperSize));
+      // Bill Data
+      bytes.addAll(
+        await generateBillDataBytes(
+          generator,
+          paperSize,
+          null, // orderId,
+          null, // customerName,
+          null, // orderType,
+          null, // tableNumber,
+        ),
+      );
+
+      bytes.addAll(generator.hr(ch: '=', linesAfter: 1));
+
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'IP Address',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: address,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+
+      bytes.addAll(generator.hr(ch: '=', linesAfter: 1));
+
+      //footer
+      await generateFooterBytes(generator, paperSize).then((footerBytes) {
+        bytes.addAll(footerBytes);
+      });
+
+      //cut
+      bytes.addAll(generator.cut());
+
+      // 3. Kirim ke printer
+      final result = await NetworkDiscoveryService.testPrintToNetworkPrinter(
+        printer,
+        bytes,
+      );
+
+      return result;
+    } catch (e) {
+      print('Print error: $e');
+      return false;
+    }
+  }
+
   static Future<List<int>> generateLogoBytes(
     Generator generator,
     String imagePath,
@@ -413,7 +487,7 @@ class PrinterService {
     // Alamat Toko
     bytes.addAll(
       generator.text(
-        'Baraja Amphitheater\nJl. Tuparev No. 60, Kedungjaya,\nKec. Kedawung, Kab. Cirebon\nJawa Barat 45153, Indonesia\nKABUPATEN CIREBON\n0851-1708-9827',
+        'Baraja Amphitheater, Jl. Tuparev No. 60, Kedungjaya, Kec. Kedawung, Kab. Cirebon, Jawa Barat 45153, Indonesia, KABUPATEN CIREBON\n0851-1708-9827',
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
