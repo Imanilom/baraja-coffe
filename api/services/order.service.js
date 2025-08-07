@@ -31,7 +31,6 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
   let totalBeforeDiscount = 0;
   const bulkOps = [];
 
-  // Process each item sequentially to maintain transaction integrity
   for (const item of items) {
     if (!item.id || !item.quantity || item.quantity <= 0) {
       throw new Error(`Invalid item quantity (${item.quantity}) or missing ID for item`);
@@ -53,25 +52,16 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     let itemPrice = menuItem.price;
     const addons = [];
     const toppings = [];
+git 
 
-    // Process base ingredients
-    recipe.baseIngredients.forEach(ingredient => {
-      bulkOps.push(createStockUpdateOperation(
-        ingredient.productId,
-        -ingredient.quantity * item.quantity,
-        menuItem._id,
-        `Making ${menuItem.name}`
-      ));
-    });
-
-    // Process toppings if any
+    // Process toppings
     if (item.selectedToppings?.length > 0) {
       await processToppings(item, menuItem, recipe, bulkOps, toppings, (added) => {
         itemPrice += added;
       });
     }
 
-    // Process addons if any
+    // Process addons
     if (item.selectedAddons?.length > 0) {
       await processAddons(item, menuItem, recipe, bulkOps, addons, (added) => {
         itemPrice += added;
@@ -92,12 +82,12 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     });
   }
 
-  // Execute all inventory updates in a single bulk operation
+  // Execute inventory updates for toppings and addons
   if (bulkOps.length > 0) {
     await ProductStock.bulkWrite(bulkOps, { session });
   }
 
-  // Process promotions and discounts
+  // Promotions and discounts
   const promotionResults = await processPromotions({
     orderItems,
     outlet,
@@ -107,7 +97,7 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     totalBeforeDiscount
   });
 
-  // Calculate taxes and services
+  // Taxes and services
   const { taxAndServiceDetails, totalTax, totalServiceFee } = await calculateTaxesAndServices(
     outlet,
     promotionResults.totalAfterDiscount,
@@ -140,6 +130,7 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     taxesAndFees: taxAndServiceDetails
   };
 }
+
 
 /**
  * Processes all promotions for an order
