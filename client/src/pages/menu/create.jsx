@@ -126,35 +126,38 @@ const CreateMenu = () => {
   };
 
   const customSelectStyles = {
-    control: (provided) => ({
+    control: (provided, state) => ({
       ...provided,
-      borderColor: '#ccc',
-      color: '#999999',
+      borderColor: '#d1d5db', // Tailwind border-gray-300
+      minHeight: '34px',
+      fontSize: '13px',
+      color: '#6b7280', // text-gray-500
+      boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+      '&:hover': {
+        borderColor: '#9ca3af', // Tailwind border-gray-400
+      },
     }),
     singleValue: (provided) => ({
       ...provided,
-      color: '#999999',
+      color: '#6b7280', // text-gray-500
     }),
     input: (provided) => ({
       ...provided,
-      color: '#999999',
-    }),
-    option: (provided, state) => ({
-      ...provided,
-      color: '#999999',
-      backgroundColor: state.isFocused ? '#f0f0f0' : 'white',
+      color: '#6b7280', // text-gray-500 for typed text
     }),
     placeholder: (provided) => ({
       ...provided,
-      color: '#999999',
+      color: '#9ca3af', // text-gray-400
+      fontSize: '13px',
     }),
-    multiValueLabel: (provided) => ({
+    option: (provided, state) => ({
       ...provided,
-      color: '#999999',
+      fontSize: '13px',
+      color: '#374151', // gray-700
+      backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+      cursor: 'pointer',
     }),
   };
-
-
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -388,8 +391,6 @@ const CreateMenu = () => {
                   className="mb-2"
                 />
               </div>
-
-
 
               {/* Sub Kategori */}
               {subCategories.length > 0 && (

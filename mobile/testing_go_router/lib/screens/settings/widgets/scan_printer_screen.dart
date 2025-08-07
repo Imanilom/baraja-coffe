@@ -74,6 +74,7 @@ class ScanPrinterScreen extends ConsumerWidget {
     final printer = BluetoothPrinterModel(
       name: device.name,
       address: device.macAdress,
+      connectionType: 'bluetooth',
     );
 
     await ref.read(savedPrintersProvider.notifier).addPrinter(printer);
