@@ -31,9 +31,11 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/screens/payments/payment_method_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_success_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_type_screen.dart';
+import 'package:kasirbaraja/screens/reservation/reservation_menu_screen.dart';
 import 'package:kasirbaraja/screens/settings/setting_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/detail_printer_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/printer_connection.dart';
+import 'package:kasirbaraja/screens/settings/widgets/scan_network_printer_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/scan_printer_screen.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import '../screens/auth/login_screen.dart';
@@ -356,6 +358,33 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ),
           ),
           GoRoute(
+            path: 'scan-network-printer',
+            name: 'scan-network-printer',
+            pageBuilder:
+                (context, state) => CustomTransitionPage(
+                  arguments: state.extra,
+                  child: const ScanNetworkPrinterScreen(),
+                  transitionsBuilder: (
+                    context,
+                    animation,
+                    secondaryAnimation,
+                    child,
+                  ) {
+                    const begin = Offset(1.0, 0.0);
+                    const end = Offset.zero;
+                    const curve = Curves.ease;
+                    final tween = Tween(
+                      begin: begin,
+                      end: end,
+                    ).chain(CurveTween(curve: curve));
+                    return SlideTransition(
+                      position: animation.drive(tween),
+                      child: child,
+                    );
+                  },
+                ),
+          ),
+          GoRoute(
             path: 'detail-printer',
             name: 'detail-printer',
             pageBuilder:
@@ -418,6 +447,33 @@ final routerProvider = Provider<GoRouter>((ref) {
             (context, state) => CustomTransitionPage(
               arguments: state.extra,
               child: const PaymentSuccessScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                const begin = Offset(1.0, 0.0);
+                const end = Offset.zero;
+                const curve = Curves.ease;
+                final tween = Tween(
+                  begin: begin,
+                  end: end,
+                ).chain(CurveTween(curve: curve));
+                return SlideTransition(
+                  position: animation.drive(tween),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      GoRoute(
+        path: '/reservation-menu',
+        name: 'reservation-menu',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              arguments: state.extra,
+              child: const ReservationMenuScreen(),
               transitionsBuilder: (
                 context,
                 animation,

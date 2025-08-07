@@ -72,9 +72,19 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(cors({
   origin: '*', // atau domain frontend Anda
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [ 
+    'Content-Type', 
+    'Authorization', 
+    'ngrok-skip-browser-warning',
+    'X-Requested-With',
+    'Accept'],
+    credentials: true, 
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+
 }));
+
 app.use("/images", express.static("api/public/images")); // supaya bisa diakses dari browser
 
 // Route definitions...

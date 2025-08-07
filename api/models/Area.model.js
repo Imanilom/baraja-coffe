@@ -20,6 +20,11 @@ const areaSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    rentfee: {
+        type: Number,  
+        required: true,
+        min: 0
+    },
     is_active: {
         type: Boolean,
         default: true

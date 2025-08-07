@@ -1,48 +1,64 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaSearch, FaChevronRight, FaInfoCircle, FaBoxes } from 'react-icons/fa';
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaSearch, FaChevronRight, FaInfoCircle, FaBoxes, FaChevronLeft } from 'react-icons/fa';
 import axios from "axios";
+import dayjs from "dayjs";
+import BubbleAlert from './bubblralert'; // sesuaikan path jika perlu
+import Select from "react-select";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Datepicker from "react-tailwindcss-datepicker";
 
-const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="bg-white p-6 rounded shadow-md text-center w-96">
-                <FaTrash className="text-red-500 mx-auto mb-4" size={72} />
-                <h2 className="text-lg font-bold">Konfirmasi Penghapusan</h2>
-                <p>Apakah Anda yakin ingin menghapus item ini?</p>
-                <div className="flex justify-center mt-4">
-                    <button onClick={onClose} className="mr-2 px-4 py-2 bg-gray-300 rounded">Batal</button>
-                    <button onClick={onConfirm} className="px-4 py-2 bg-red-500 text-white rounded">Hapus</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const StockCardManagement = () => {
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db', // Tailwind border-gray-300
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280', // text-gray-500
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            '&:hover': {
+                borderColor: '#9ca3af', // Tailwind border-gray-400
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500 for typed text
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af', // text-gray-400
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151', // gray-700
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            cursor: 'pointer',
+        }),
+    };
     const location = useLocation();
-    const [showInput, setShowInput] = useState(false);
-    const [showInputStatus, setShowInputStatus] = useState(false);
-    const [showInputCategory, setShowInputCategory] = useState(false);
     const navigate = useNavigate(); // Use the new hook
-    const [marketLists, setMarketLists] = useState([]);
+    const [stock, setStock] = useState([]);
     const [category, setCategory] = useState([]);
     const [status, setStatus] = useState([]);
     const [tempSelectedCategory, setTempSelectedCategory] = useState("");
     const [tempSelectedStatus, setTempSelectedStatus] = useState("");
     const [tempSearch, setTempSearch] = useState("");
     const [error, setError] = useState(null);
-    const [checkedItems, setCheckedItems] = useState([]);
-    const [checkAll, setCheckAll] = useState(false);
 
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [outlets, setOutlets] = useState([]);
     const [search, setSearch] = useState("");
-    const [searchCategory, setSearchCategory] = useState("");
-    const [openDropdown, setOpenDropdown] = useState(null); // Menyimpan status dropdown
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
+    const [hasFiltered, setHasFiltered] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
@@ -52,24 +68,27 @@ const StockCardManagement = () => {
     const queryParams = new URLSearchParams(location.search);
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
+    const ITEMS_PER_PAGE = 10;
+    const selectedMonth = 7; // Agustus
+    const selectedYear = 2025;
 
     const dropdownRef = useRef(null);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchStock = async () => {
         try {
-            const marketlistResponse = await axios.get('/api/marketlist/products');
+            const stockResponse = await axios.get('/api/product/stock/all');
+            const stockData = stockResponse.data.data;
 
-            const marketlistData = Array.isArray(marketlistResponse.data)
-                ? marketlistResponse.data
-                : (marketlistResponse.data && Array.isArray(marketlistResponse.data.data))
-                    ? marketlistResponse.data.data
-                    : [];
+            setStock(stockData);
+            setFilteredData(stockData);
+        } catch (err) {
+            console.error("Error fetching stock:", err);
+            setStock([]);
+        }
+    };
 
-            setMarketLists(marketlistData);
-            setFilteredData(marketlistData);
-
+    const fetchOutlets = async () => {
+        try {
             const outletsResponse = await axios.get('/api/outlet');
             const outletsData = Array.isArray(outletsResponse.data)
                 ? outletsResponse.data
@@ -78,7 +97,14 @@ const StockCardManagement = () => {
                     : [];
 
             setOutlets(outletsData);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setOutlets([]);
+        }
+    };
 
+    const fetchCategories = async () => {
+        try {
             const categoryResponse = await axios.get('/api/storage/categories');
             const categoryData = Array.isArray(categoryResponse.data)
                 ? categoryResponse.data
@@ -87,34 +113,42 @@ const StockCardManagement = () => {
                     : [];
 
             setCategory(categoryData);
-
-            setStatus([
-                { _id: "ya", name: "Ya" },
-                { _id: "tidak", name: "Tidak" }
-            ]);
-
-            setError(null);
         } catch (err) {
-            console.error("Error fetching data:", err);
-            setError("Failed to load data. Please try again later.");
-            setMarketLists([]);
-            setFilteredData([]);
-            setOutlets([]);
+            console.error("Error fetching categories:", err);
             setCategory([]);
+        }
+    };
+
+    const fetchStatus = () => {
+        setStatus([
+            { _id: "ya", name: "Ya" },
+            { _id: "tidak", name: "Tidak" }
+        ]);
+    };
+
+    const fetchData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            await Promise.all([
+                fetchStock(),
+                fetchOutlets(),
+                fetchCategories()
+            ]);
+            fetchStatus();
+        } catch (err) {
+            console.error("General error:", err);
+            setError("Failed to load data. Please try again later.");
         } finally {
             setLoading(false);
         }
     };
 
+
     useEffect(() => {
         fetchData();
         applyFilter(); // hanya untuk load awal
     }, []);
-
-    useEffect(() => {
-
-    }, [tempSearch, tempSelectedOutlet, tempSelectedCategory, tempSelectedStatus])
-
 
     // Get unique outlet names for the dropdown
     const uniqueOutlets = useMemo(() => {
@@ -123,26 +157,80 @@ const StockCardManagement = () => {
 
     // Get unique outlet names for the dropdown
     const uniqueCategory = useMemo(() => {
-        return category.map(item => item.name);
-    }, [category]);
+        return stock.map(item => item.productId);
+    }, [stock]);
 
     // Get unique Status names for the dropdown
     const uniqueStatus = useMemo(() => {
         return status.map(item => item.name);
     }, [status]);
 
-    const paginatedData = useMemo(() => {
+    const applyFilter = () => {
+        const filtered = stock.map(item => {
+            const movements = item.movements || [];
 
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
+            // Filter by date jika startDate dan endDate tersedia
+            const rangeMovements = (value.startDate && value.endDate)
+                ? movements.filter(m => {
+                    const date = dayjs(m.date || m.createdAt);
+                    return date.isSameOrAfter(dayjs(value.startDate), 'day') &&
+                        date.isSameOrBefore(dayjs(value.endDate), 'day');
+                })
+                : movements;
+
+            // Movement sebelum tanggal mulai
+            const previousMovements = (value.startDate)
+                ? movements.filter(m => {
+                    const date = dayjs(m.date || m.createdAt);
+                    return date.isBefore(dayjs(value.startDate), 'day');
+                })
+                : [];
+
+            const stockInBefore = previousMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
+            const stockOutBefore = previousMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
+            const adjustmentBefore = previousMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
+
+            const firstStock = stockInBefore - stockOutBefore + adjustmentBefore;
+            // const firstStock = stockIn - stockOut - adjustmentBefore;
+
+            const stockIn = rangeMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
+            const stockOut = rangeMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
+            const stockAdjustment = rangeMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
+
+            const finalStock = firstStock + stockIn - stockOut + stockAdjustment;
+
+            return {
+                ...item,
+                firstStock,
+                stockIn,
+                stockOut,
+                stockAdjustment,
+                finalStock
+            };
+        });
+
+        // Filter by search jika searchTerm tidak kosong
+        const finalFiltered = tempSearch
+            ? filtered.filter(item =>
+                item.productId?.name.toLowerCase().includes(tempSearch.toLowerCase())
+            )
+            : filtered;
+
+        setFilteredData(finalFiltered);
+    };
+
+
+    useEffect(() => {
+        if (stock.length > 0 && !hasFiltered) {
+            applyFilter();
+            setHasFiltered(true);
         }
+    }, [stock, hasFiltered]);
 
+    const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
-        return result;
+        return filteredData.slice(startIndex, endIndex);
     }, [currentPage, filteredData]);
 
     const formatCurrency = (amount) => {
@@ -165,11 +253,11 @@ const StockCardManagement = () => {
     }, [search, uniqueOutlets]);
 
     // Filter outlets based on search input
-    const filteredCategory = useMemo(() => {
-        return uniqueCategory.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueCategory]);
+    // const filteredCategory = useMemo(() => {
+    //     return uniqueCategory.filter(stock =>
+    //         stock.toLowerCase().includes(search.toLowerCase())
+    //     );
+    // }, [search, uniqueCategory]);
 
     // Filter status based on search input
     const filteredStatus = useMemo(() => {
@@ -178,88 +266,18 @@ const StockCardManagement = () => {
         );
     }, [search, uniqueStatus]);
 
-
-    // Apply filter function
-    const applyFilter = () => {
-
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...marketLists]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(menu => {
-                try {
-                    if (!menu) {
-                        return false;
-                    }
-
-                    const name = (menu.name || '').toLowerCase();
-                    const customer = (menu.user || '').toLowerCase();
-                    const receipt = (menu._id || '').toLowerCase();
-
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(menu => {
-                try {
-                    if (!menu?.availableAt?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = menu?.availableAt;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by category
-        if (tempSelectedCategory) {
-            filtered = filtered.filter(menu => {
-                try {
-                    if (!menu?.category?.length > 0) {
-                        return false;
-                    }
-
-                    const categoryName = menu?.category[0];
-                    const matches = categoryName === tempSelectedCategory;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    };
+    const optionsOutlets = [
+        { value: "", label: "Semua Outlet" },
+        ...filteredOutlets.map((outlet) => ({
+            value: outlet,
+            label: outlet,
+        })),
+    ];
 
     const handleDelete = async (itemId) => {
         try {
             await axios.delete(`/api/menu/menu-items/${itemId}`);
-            setMarketLists(marketLists.filter(item => item._id !== itemId));
+            setStock(stock.filter(item => item._id !== itemId));
             setIsModalOpen(false);
         } catch (error) {
             console.error("Error deleting item:", error);
@@ -321,7 +339,7 @@ const StockCardManagement = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 py-4 px-3">
+            {/* <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 py-4 px-3">
                 <button
                     className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
                 >
@@ -342,59 +360,29 @@ const StockCardManagement = () => {
                         </div>
                     </Link>
                 </div>
-            </div>
+            </div> */}
 
             <div className="w-full pb-6 mb-[60px]">
                 <div className="px-[15px] pb-[15px]">
-                    <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-10 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                        <div className="flex flex-col col-span-2">
+                    <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                        {/* <div className="flex flex-col col-span-2">
                             <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
-                            <div className="relative">
-                                {!showInput ? (
-                                    <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                        {tempSelectedOutlet || "Semua Outlet"}
-                                    </button>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                        autoFocus
-                                        placeholder=""
-                                    />
-                                )}
-                                {showInput && (
-                                    <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                        <li
-                                            onClick={() => {
-                                                setTempSelectedOutlet(""); // Kosong berarti semua
-                                                setShowInput(false);
-                                            }}
-                                            className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                        >
-                                            Semua Outlet
-                                        </li>
-                                        {filteredOutlets.length > 0 ? (
-                                            filteredOutlets.map((outlet, idx) => (
-                                                <li
-                                                    key={idx}
-                                                    onClick={() => {
-                                                        setTempSelectedOutlet(outlet);
-                                                        setShowInput(false);
-                                                    }}
-                                                    className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                                >
-                                                    {outlet}
-                                                </li>
-                                            ))
-                                        ) : (
-                                            <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                        )}
-                                    </ul>
-                                )}
-                            </div>
-                        </div>
+                            <Select
+                                options={optionsOutlets}
+                                value={
+                                    optionsOutlets.find((option) => option.value === tempSelectedOutlet) ||
+                                    optionsOutlets[0]
+                                }
+                                onChange={(selected) => {
+                                    setTempSelectedOutlet(selected.value);
+                                }}
+                                className="text-sm"
+                                classNamePrefix="react-select"
+                                placeholder="Pilih Outlet"
+                                isSearchable
+                                styles={customSelectStyles}
+                            />
+                        </div> */}
 
                         <div className="flex flex-col col-span-2">
                             <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
@@ -402,10 +390,10 @@ const StockCardManagement = () => {
                                 <Datepicker
                                     showFooter
                                     showShortcuts
-                                    // value={value}
-                                    // onChange={setValue}
+                                    value={value}
+                                    onChange={setValue}
                                     displayFormat="DD-MM-YYYY"
-                                    inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                    inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
                                     popoverDirection="down"
                                 />
 
@@ -414,7 +402,9 @@ const StockCardManagement = () => {
                             </div>
                         </div>
 
-                        <div className="flex flex-col col-span-2">
+                        <div className="flex flex-col col-span-3"></div>
+
+                        {/* <div className="flex flex-col col-span-2">
                             <label className="text-[13px] mb-1 text-gray-500">Kategori</label>
                             <div className="relative">
                                 {!showInputCategory ? (
@@ -461,7 +451,7 @@ const StockCardManagement = () => {
                                     </ul>
                                 )}
                             </div>
-                        </div>
+                        </div> */}
 
                         <div className="flex flex-col col-span-2">
                             <label className="text-[13px] mb-1 text-gray-500">Cari</label>
@@ -472,21 +462,28 @@ const StockCardManagement = () => {
                                     placeholder="Cari Produk"
                                     value={tempSearch}
                                     onChange={(e) => setTempSearch(e.target.value)}
-                                    className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+                                    className="text-[13px] border py-[8px] pl-[30px] pr-[25px] rounded w-full"
                                 />
                             </div>
                         </div>
 
-                        <div className="flex justify-end space-x-2 items-end col-span-2">
-                            <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                            <button className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                        <div className="flex justify-end space-x-2 items-end col-span-1">
+                            <button onClick={applyFilter} className="bg-[#005429] border text-white text-[13px] px-[15px] py-[8px] rounded">Terapkan</button>
+                            <button className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded">Reset</button>
                         </div>
                     </div>
 
                     <div className="w-full mt-4 py-[20px] shadow-md">
                         <div className="flex justify-between px-[15px]">
-                            <div className="">
-                                <strong className="text-[14px] text-gray-400">Tampilkan Data</strong>
+                            <div className="flex space-x-4 text-sm text-gray-500">
+                                <label htmlFor="" className="flex space-x-2">
+                                    <div className="w-5 h-5 bg-red-500/30"></div>
+                                    <p>Stok Sudah Mencapai Batas</p>
+                                </label>
+                                <label htmlFor="" className="flex space-x-2">
+                                    <div className="w-5 h-5 bg-yellow-500/30"></div>
+                                    <p>Stok Hampir Habis</p>
+                                </label>
                             </div>
                             <div className="space-x-7">
                                 <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
@@ -507,6 +504,7 @@ const StockCardManagement = () => {
                             </div>
                         </div>
                     </div>
+                    <BubbleAlert paginatedData={filteredData} />
                     {/* Menu Table */}
                     <div className="w-full mt-4 shadow-md">
                         <table className="w-full table-auto text-gray-500">
@@ -517,9 +515,9 @@ const StockCardManagement = () => {
                                     <th className="p-[15px] font-normal text-right">Stok Awal</th>
                                     <th className="p-[15px] font-normal text-right">Stok Masuk</th>
                                     <th className="p-[15px] font-normal text-right">Stok Keluar</th>
-                                    <th className="p-[15px] font-normal text-right">Penjualan</th>
+                                    {/* <th className="p-[15px] font-normal text-right">Penjualan</th>
                                     <th className="p-[15px] font-normal text-right">Transfer</th>
-                                    <th className="p-[15px] font-normal text-right">Penyesuaian</th>
+                                    <th className="p-[15px] font-normal text-right">Penyesuaian</th> */}
                                     <th className="p-[15px] font-normal text-right">Stok Akhir</th>
                                     <th className="p-[15px] font-normal text-right">Satuan</th>
                                 </tr>
@@ -527,34 +525,43 @@ const StockCardManagement = () => {
                             {paginatedData.length > 0 ? (
                                 <tbody>
                                     {paginatedData.map((item) => (
-                                        <tr key={item._id} className="hover:bg-gray-100 text-[14px]">
+                                        <tr key={item._id}
+                                            className={`hover:bg-gray-100 text-[14px] ${item.currentStock === 0
+                                                ? 'bg-red-500/30'
+                                                : item.currentStock <= item.minStock
+                                                    ? 'bg-yellow-500/30'
+                                                    : ''
+                                                }`}>
                                             <td className="p-[15px]">
                                                 <div className="flex items-center">
-                                                    <img
+                                                    {/* <img
                                                         src={item.imageURL || "https://via.placeholder.com/100"}
                                                         alt={item.name}
                                                         className="w-[35px] h-[35px] object-cover rounded-lg lowercase"
-                                                    />
+                                                    /> */}
                                                     <div className="ml-4">
-                                                        <h3>{item.name
-                                                            .toLowerCase()
+                                                        <h3>{item.productId !== null ? item.productId.name.toLowerCase()
                                                             .split(' ')
                                                             .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                                                            .join(' ')}</h3>
+                                                            .join(' ') : "-"}</h3>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="p-[15px]">
-                                                {item.category ? item.category : "-"}
+                                                {item.productId !== null ? item.productId.category : "-"}
                                             </td>
+                                            <td className="p-[15px] text-right">{item.firstStock}</td>
+                                            <td className={`p-[15px] text-right ${item.stockIn > 0 ? 'text-[#005429]' : ''}`}>
+                                                {item.stockIn > 0 ? `+ ${item.stockIn}` : 0}
+                                            </td>
+                                            <td className={`p-[15px] text-right ${item.stockOut > 0 ? 'text-red-500' : ''}`}>
+                                                {item.stockOut > 0 ? `- ${item.stockOut}` : 0}
+                                            </td>
+                                            {/* <td className="p-[15px] text-right">-</td>
                                             <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right lowercase">{item.unit ? item.unit : "-"}</td>
+                                            <td className="p-[15px] text-right">-</td> */}
+                                            <td className="p-[15px] text-right">{item.finalStock}</td>
+                                            <td className="p-[15px] text-right lowercase">{item.productId !== null ? item.productId.unit : "-"}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -574,22 +581,61 @@ const StockCardManagement = () => {
                             <span className="text-sm text-gray-600">
                                 Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                             </span>
-                            <div className="flex space-x-2">
+                            <div className="flex justify-center space-x-2 mt-4">
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                     disabled={currentPage === 1}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-3 py-2 border rounded disabled:opacity-50"
                                 >
-                                    Sebelumnya
+                                    <FaChevronLeft />
                                 </button>
+
+                                {[...Array(totalPages)].map((_, index) => {
+                                    const page = index + 1;
+
+                                    if (
+                                        page === 1 ||
+                                        page === totalPages ||
+                                        (page >= currentPage - 2 && page <= currentPage + 2)
+                                    ) {
+                                        return (
+                                            <button
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`px-3 py-1 rounded border ${currentPage === page
+                                                    ? "bg-[#005429] text-white"
+                                                    : ""
+                                                    }`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    }
+
+                                    // Tampilkan "..." jika melompati halaman
+                                    if (
+                                        (page === currentPage - 3 && page > 1) ||
+                                        (page === currentPage + 3 && page < totalPages)
+                                    ) {
+                                        return (
+                                            <span key={`dots-${page}`} className="px-2 text-gray-500">
+                                                ...
+                                            </span>
+                                        );
+                                    }
+
+                                    return null;
+                                })}
+
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                     disabled={currentPage === totalPages}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-3 py-2 border rounded disabled:opacity-50"
                                 >
-                                    Berikutnya
+                                    <FaChevronRight />
                                 </button>
                             </div>
+
                         </div>
                     )}
                 </div>
@@ -599,11 +645,6 @@ const StockCardManagement = () => {
                 <div className="w-full h-[2px] bg-[#005429]">
                 </div>
             </div>
-            <ConfirmationModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onConfirm={() => handleDelete(itemToDelete)}
-            />
         </div>
     );
 };

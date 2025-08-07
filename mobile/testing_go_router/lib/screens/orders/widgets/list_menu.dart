@@ -39,16 +39,6 @@ class _ListMenuState extends ConsumerState<ListMenu> {
       notifier.initializeOrder(orderType: OrderType.dineIn);
     }
 
-    // final selectedAddons =
-    //     menuItem.addons
-    //         ?.where(
-    //           (addon) =>
-    //               addon.options?.any((option) => option.isDefault == true) ??
-    //               false,
-    //         )
-    //         .toList() ??
-    //     [];
-
     final List<AddonModel> selectedAddons =
         menuItem.addons!
             .map((addon) {
@@ -177,7 +167,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                           (value) =>
                               ref.read(searchQueryProvider.notifier).state =
                                   value,
-                      autofocus: true,
+                      autofocus: false,
                     ),
                   ),
 

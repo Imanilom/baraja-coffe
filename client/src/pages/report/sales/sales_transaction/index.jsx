@@ -1,12 +1,47 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
+import Select from "react-select";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
+import ExportFilter from "../export";
 
 
 const SalesTransaction = () => {
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db', // Tailwind border-gray-300
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280', // text-gray-500
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            '&:hover': {
+                borderColor: '#9ca3af', // Tailwind border-gray-400
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500 for typed text
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af', // text-gray-400
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151', // gray-700
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            cursor: 'pointer',
+        }),
+    };
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
@@ -16,14 +51,19 @@ const SalesTransaction = () => {
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
+    // const [value, setValue] = useState(null);
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
+    const ITEMS_PER_PAGE = 10;
 
     const dropdownRef = useRef(null);
 
@@ -37,56 +77,63 @@ const SalesTransaction = () => {
     const finalTotal = totalSubtotal + pb1;
 
     // Fetch products and outlets data
+    const fetchProducts = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get('/api/orders');
+            const productsData = Array.isArray(response.data)
+                ? response.data
+                : response.data?.data ?? [];
+
+            const completedData = productsData.filter(item => item.status === "Completed");
+
+            setProducts(completedData); // simpan semua data mentah
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching products:", err);
+            setError("Failed to load products.");
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    const fetchOutlets = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get('/api/outlet');
+
+            const outletsData = Array.isArray(response.data)
+                ? response.data
+                : (response.data && Array.isArray(response.data.data))
+                    ? response.data.data
+                    : [];
+
+            setOutlets(outletsData);
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setError("Failed to load outlets. Please try again later.");
+            setOutlets([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch products data
-                const productsResponse = await axios.get('/api/orders');
-
-                // Ensure productsResponse.data is an array
-                const productsData = Array.isArray(productsResponse.data) ?
-                    productsResponse.data :
-                    (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
-                        productsResponse.data.data : [];
-
-                // Ambil hanya data dengan status "Completed"
-                const completedData = productsData.filter(item => item.status === "Completed");
-
-                setProducts(completedData);
-                setFilteredData(completedData); // Initialize filtered data with all products
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setProducts([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
+        fetchProducts();
+        fetchOutlets();
     }, []);
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
+
+    const options = [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ];
 
     // Handle click outside dropdown to close
     useEffect(() => {
@@ -132,13 +179,6 @@ const SalesTransaction = () => {
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
     // Calculate grand totals for filtered data
     const {
         grandTotalFinal,
@@ -177,19 +217,19 @@ const SalesTransaction = () => {
         if (tempSearch) {
             filtered = filtered.filter(product => {
                 try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
-
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
-
                     const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
+
+                    // Periksa semua items, bukan hanya items[0]
+                    return product.items?.some(item => {
+                        const menuItem = item?.menuItem;
+                        if (!menuItem) return false;
+
+                        const name = (menuItem.name || '').toLowerCase();
+                        const customer = (product.user || '').toLowerCase();
+                        const receipt = (product.order_id || '').toLowerCase();
+
+                        return name.includes(searchTerm) || receipt.includes(searchTerm) || customer.includes(searchTerm);
+                    });
                 } catch (err) {
                     console.error("Error filtering by search:", err);
                     return false;
@@ -201,17 +241,9 @@ const SalesTransaction = () => {
         if (tempSelectedOutlet) {
             filtered = filtered.filter(product => {
                 try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
+                    const outletId = product.outlet;
 
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
+                    return outletId === tempSelectedOutlet;
                 } catch (err) {
                     console.error("Error filtering by outlet:", err);
                     return false;
@@ -241,6 +273,7 @@ const SalesTransaction = () => {
                     }
 
                     const isInRange = productDate >= startDate && productDate <= endDate;
+
                     if (!isInRange) {
                     }
                     return isInRange;
@@ -259,40 +292,12 @@ const SalesTransaction = () => {
     const resetFilter = () => {
         setTempSearch("");
         setTempSelectedOutlet("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(products));
-        setCurrentPage(1);
-    };
-
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
+        setValue({
+            startDate: dayjs(),
+            endDate: dayjs(),
         });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
+        setSearch("");
+        setCurrentPage(1);
     };
 
 
@@ -344,7 +349,14 @@ const SalesTransaction = () => {
                     <FaChevronRight className="text-[15px] text-gray-500" />
                     <Link to="/admin/transaction-sales" className="text-[15px] text-[#005429]">Data Transaksi Penjualan</Link>
                 </div>
-                <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+
+                <ExportFilter
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                />
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
             </div>
 
             {/* Filters */}
@@ -352,54 +364,31 @@ const SalesTransaction = () => {
                 <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
+                        <Select
+                            className="text-sm"
+                            classNamePrefix="react-select"
+                            placeholder="Pilih Outlet"
+                            options={options}
+                            isSearchable
+                            value={
+                                options.find((opt) => opt.value === tempSelectedOutlet) ||
+                                options[0]
+                            }
+                            onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                            styles={customSelectStyles}
+                        />
                     </div>
 
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative z-50 text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
+                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
                             <Datepicker
                                 showFooter
                                 showShortcuts
                                 value={value}
                                 onChange={setValue}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
                             />
 
@@ -415,13 +404,13 @@ const SalesTransaction = () => {
                             placeholder="Produk / Pelanggan / Kode Struk"
                             value={tempSearch}
                             onChange={(e) => setTempSearch(e.target.value)}
-                            className="text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded"
+                            className="text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded"
                         />
                     </div>
 
                     <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[8px] rounded">Terapkan</button>
+                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[8px] rounded">Reset</button>
                     </div>
                 </div>
 
@@ -459,7 +448,7 @@ const SalesTransaction = () => {
                                         }
 
                                         const pbn = totalSubtotal * 0.10;
-                                        const total = totalSubtotal + pbn;
+                                        const total = Math.round(totalSubtotal + pbn);
 
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={product._id} onClick={() => setSelectedTrx(product)}>
@@ -479,7 +468,7 @@ const SalesTransaction = () => {
                                                     {orderType || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    {total.toLocaleString()}
+                                                    {total.toLocaleString() || ""}
                                                 </td>
                                             </tr>
                                         );
@@ -601,20 +590,63 @@ const SalesTransaction = () => {
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        <div className="flex space-x-2">
+                        <div className="flex items-center space-x-2 mt-4">
+                            {/* Tombol Sebelumnya */}
                             <button
                                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                 disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 border rounded disabled:opacity-50"
                             >
-                                Sebelumnya
+                                <FaChevronLeft />
                             </button>
+
+                            {/* Tombol Angka */}
+                            {[...Array(totalPages)].map((_, index) => {
+                                const page = index + 1;
+
+                                if (
+                                    page === 1 ||
+                                    page === totalPages ||
+                                    (page >= currentPage - 2 && page <= currentPage + 2)
+                                ) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`px-3 py-1 rounded border ${currentPage === page
+                                                ? "bg-[#005429] text-white"
+                                                : ""
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                }
+
+                                // Tampilkan "..." jika melompati halaman
+                                if (
+                                    (page === currentPage - 3 && page > 1) ||
+                                    (page === currentPage + 3 && page < totalPages)
+                                ) {
+                                    return (
+                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
+                                            ...
+                                        </span>
+                                    );
+                                }
+
+                                return null;
+                            })}
+
+                            {/* Tombol Berikutnya */}
                             <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                onClick={() =>
+                                    setCurrentPage(prev => Math.min(prev + 1, totalPages))
+                                }
                                 disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 border rounded disabled:opacity-50"
                             >
-                                Berikutnya
+                                <FaChevronRight />
                             </button>
                         </div>
                     </div>

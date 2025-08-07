@@ -224,3 +224,8 @@ final tryAuthProvider =
     StateNotifierProvider<TryAuthNotifier, AsyncValue<AuthStatus>>(
       (ref) => TryAuthNotifier(ref.read(authRepositoryProvider), ref),
     );
+
+// // Provider untuk mendapatkan current cashier yang berhasil login
+// final currentCashierProvider = Provider<CashierModel?>((ref) {
+//   return ref.watch(authCashierProvider).valueOrNull;
+// });
