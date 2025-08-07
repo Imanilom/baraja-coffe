@@ -20,6 +20,7 @@ final selectedTimeProvider = StateProvider<TimeOfDay>(
 final selectedAreaProvider = StateProvider<Area?>((ref) => null);
 final personCountProvider = StateProvider<int>((ref) => 1);
 final selectedTableIdsProvider = StateProvider<List<String>>((ref) => []);
+final selectedTableNumbersProvider = StateProvider<List<String>>((ref) => []);
 final isLoadingTablesProvider = StateProvider<bool>((ref) => false);
 final isLoadingAreasProvider = StateProvider<bool>((ref) => true);
 final isCheckingAvailabilityProvider = StateProvider<bool>((ref) => false);
@@ -438,9 +439,17 @@ class _ReservationScreenState extends ConsumerState<ReservationScreen> {
         selectedTableIds ?? ref.read(selectedTableIdsProvider);
 
     List<String> tableNumbers = [];
-    for (String tableId in currentSelectedTableIds!) {
-      final table = currentTables!.firstWhere((t) => t.id == tableId);
-      tableNumbers.add(table.tableNumber);
+    if (currentTables != null && currentSelectedTableIds != null) {
+      for (String tableId in currentSelectedTableIds) {
+        final table = currentTables.firstWhere(
+          (t) => t.id == tableId,
+          orElse:
+              () => TableModel(id: '', tableNumber: '', areaId: '', seats: 0),
+        );
+        if (table.id.isNotEmpty) {
+          tableNumbers.add(table.tableNumber);
+        }
+      }
     }
     return tableNumbers.join(', ');
   }
@@ -735,6 +744,10 @@ class _ReservationScreenState extends ConsumerState<ReservationScreen> {
     final selectedTime = ref.read(selectedTimeProvider);
     final personCount = ref.read(personCountProvider);
     final selectedTableIds = ref.read(selectedTableIdsProvider);
+    final selectedTableNumbers = _getSelectedTableNumbers(
+      tables: ref.read(tablesProvider),
+      selectedTableIds: selectedTableIds,
+    );
 
     if (selectedArea == null) return;
 
@@ -756,7 +769,17 @@ class _ReservationScreenState extends ConsumerState<ReservationScreen> {
       selectedTableIds: selectedTableIds,
     );
 
-    context.pushNamed('reservation-menu', extra: reservationData);
+    print('Navigating to reservation menu with data: $reservationData');
+
+    context.pushNamed(
+      'reservation-menu',
+      extra: {
+        'reservationData': reservationData,
+        'isReservation': true,
+        'selectedArea': selectedArea.areaName,
+        'selectedTableNumbers': selectedTableNumbers,
+      },
+    );
 
     // Navigator.push(
     //   context,
