@@ -287,7 +287,6 @@ export const createAppOrder = async (req, res) => {
   }
 };
 
-
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -980,8 +979,6 @@ export const createUnifiedOrder = async (req, res) => {
 };
 
 
-
-
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
 
@@ -1205,7 +1202,6 @@ export const confirmOrderByCashier = async (req, res) => {
 
 
 // * Start Payment Handler
-
 export const charge = async (req, res) => {
   try {
     const { payment_type, is_down_payment, down_payment_amount, remaining_payment } = req.body;
@@ -1687,8 +1683,6 @@ export const updateKitchenOrderStatus = async (req, res) => {
   }
 }
 
-
-
 // ! End Kitchen sections
 
 // Mengambil semua order
@@ -1808,7 +1802,6 @@ export const getPendingOrders = async (req, res) => {
   }
 };
 
-
 // Get User Orders
 export const getUserOrders = async (req, res) => {
   try {
@@ -1823,9 +1816,7 @@ export const getUserOrders = async (req, res) => {
   }
 };
 
-
 // Get History User orders
-
 export const getUserOrderHistory = async (req, res) => {
   try {
     const userId = req.params.userId;

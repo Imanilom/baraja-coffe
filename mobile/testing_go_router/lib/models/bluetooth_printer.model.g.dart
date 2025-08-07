@@ -29,13 +29,19 @@ class BluetoothPrinterModelAdapter extends TypeAdapter<BluetoothPrinterModel> {
       kitchenCopies: fields[9] == null ? 1 : (fields[9] as num).toInt(),
       barCopies: fields[10] == null ? 1 : (fields[10] as num).toInt(),
       waiterCopies: fields[11] == null ? 1 : (fields[11] as num).toInt(),
+      port: (fields[12] as num?)?.toInt(),
+      isEnabled: fields[13] == null ? true : fields[13] as bool,
+      lastSeen: fields[14] as DateTime?,
+      manufacturer: fields[15] as String?,
+      model: fields[16] as String?,
+      isOnline: fields[17] as bool?,
     );
   }
 
   @override
   void write(BinaryWriter writer, BluetoothPrinterModel obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(18)
       ..writeByte(0)
       ..write(obj.name)
       ..writeByte(1)
@@ -59,7 +65,19 @@ class BluetoothPrinterModelAdapter extends TypeAdapter<BluetoothPrinterModel> {
       ..writeByte(10)
       ..write(obj.barCopies)
       ..writeByte(11)
-      ..write(obj.waiterCopies);
+      ..write(obj.waiterCopies)
+      ..writeByte(12)
+      ..write(obj.port)
+      ..writeByte(13)
+      ..write(obj.isEnabled)
+      ..writeByte(14)
+      ..write(obj.lastSeen)
+      ..writeByte(15)
+      ..write(obj.manufacturer)
+      ..writeByte(16)
+      ..write(obj.model)
+      ..writeByte(17)
+      ..write(obj.isOnline);
   }
 
   @override
@@ -92,6 +110,15 @@ _BluetoothPrinterModel _$BluetoothPrinterModelFromJson(
   kitchenCopies: (json['kitchenCopies'] as num?)?.toInt() ?? 1,
   barCopies: (json['barCopies'] as num?)?.toInt() ?? 1,
   waiterCopies: (json['waiterCopies'] as num?)?.toInt() ?? 1,
+  port: (json['port'] as num?)?.toInt(),
+  isEnabled: json['isEnabled'] as bool? ?? true,
+  lastSeen:
+      json['lastSeen'] == null
+          ? null
+          : DateTime.parse(json['lastSeen'] as String),
+  manufacturer: json['manufacturer'] as String?,
+  model: json['model'] as String?,
+  isOnline: json['isOnline'] as bool?,
 );
 
 Map<String, dynamic> _$BluetoothPrinterModelToJson(
@@ -109,4 +136,10 @@ Map<String, dynamic> _$BluetoothPrinterModelToJson(
   'kitchenCopies': instance.kitchenCopies,
   'barCopies': instance.barCopies,
   'waiterCopies': instance.waiterCopies,
+  'port': instance.port,
+  'isEnabled': instance.isEnabled,
+  'lastSeen': instance.lastSeen?.toIso8601String(),
+  'manufacturer': instance.manufacturer,
+  'model': instance.model,
+  'isOnline': instance.isOnline,
 };

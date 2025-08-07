@@ -106,8 +106,6 @@ export const addStockMovement = async (req, res) => {
   }
 };
 
-
-
 // GET /stock/:productId/movements
 export const getStockMovements = async (req, res) => {
   try {

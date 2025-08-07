@@ -57,3 +57,22 @@ final menuItemProvider = FutureProvider<List<MenuItemModel>>((ref) async {
     return entry.value.map((menuItem) => menuItem);
   }).toList();
 });
+
+final reservationMenuItemProvider = FutureProvider<List<MenuItemModel>>((
+  ref,
+) async {
+  final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
+  var searchQuery = ref.watch(searchQueryProvider);
+
+  // 🔹 Filter berdasarkan pencarian
+  if (searchQuery.isNotEmpty) {
+    return menuItems
+        .where(
+          (menuItem) =>
+              menuItem.name!.toLowerCase().contains(searchQuery.toLowerCase()),
+        )
+        .toList();
+  }
+
+  return menuItems;
+});
