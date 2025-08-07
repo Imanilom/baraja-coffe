@@ -7,7 +7,7 @@ import Modal from './modal';
 
 
 const TransferStockManagement = () => {
-    const [attendances, setAttendances] = useState([]);
+    const [transferStock, setTransferStock] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -26,7 +26,7 @@ const TransferStockManagement = () => {
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
+    const ITEMS_PER_PAGE = 10;
 
     const dropdownRef = useRef(null);
 
@@ -39,16 +39,17 @@ const TransferStockManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch attendances and outlets data
+    // Fetch transferStock and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch attendances data
-                const attendancesResponse = [];
+                // Fetch transferStock data
+                const transferStockResponse = await axios.get("/api/product/stock/all");
+                const transferStockData = transferStockResponse.data.data;
 
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
+                setTransferStock(transferStockData);
+                setFilteredData(transferStockData); // Initialize filtered data with all transferStock
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -66,7 +67,7 @@ const TransferStockManagement = () => {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
                 // Set empty arrays as fallback
-                setAttendances([]);
+                setTransferStock([]);
                 setFilteredData([]);
                 setOutlets([]);
             } finally {
@@ -95,19 +96,25 @@ const TransferStockManagement = () => {
     }, []);
 
     // Paginate the filtered data
+    const filteredWithMovements = useMemo(() => {
+        return filteredData
+            .flatMap(stock =>
+                (stock.movements || [])
+                    .filter(m => m.type === 'adjustment')
+                    .map(movement => ({
+                        ...movement,
+                        productName: stock.productId?.name || '-',
+                        productId: stock.productId, // jika kamu perlu info produk lainnya
+                    }))
+            )
+            .sort((a, b) => new Date(b.date) - new Date(a.date)); // 🔥 Sort terbaru dulu
+    }, [filteredData]);
+
     const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
-        }
-
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
-        return result;
-    }, [currentPage, filteredData]);
+        return filteredWithMovements.slice(startIndex, endIndex);
+    }, [currentPage, filteredWithMovements]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -156,8 +163,8 @@ const TransferStockManagement = () => {
     // Apply filter function
     const applyFilter = () => {
 
-        // Make sure attendances is an array before attempting to filter
-        let filtered = ensureArray([...attendances]);
+        // Make sure transferStock is an array before attempting to filter
+        let filtered = ensureArray([...transferStock]);
 
         // Filter by search term (product name, category, or SKU)
         if (tempSearch) {
@@ -270,10 +277,9 @@ const TransferStockManagement = () => {
         setTempSelectedOutlet2("");
         setValue(null);
         setSearch("");
-        setFilteredData(ensureArray(attendances));
+        setFilteredData(ensureArray(transferStock));
         setCurrentPage(1);
     };
-
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -481,45 +487,38 @@ const TransferStockManagement = () => {
                             <tr className="text-left text-[13px]">
                                 <th className="px-4 py-3 font-normal">Waktu Submit</th>
                                 <th className="px-4 py-3 font-normal">ID Transfer</th>
-                                <th className="px-4 py-3 font-normal">Outlet Asal</th>
-                                <th className="px-4 py-3 font-normal">Outlet Tujuan</th>
-                                <th className="px-4 py-3 font-normal">Tanggal</th>
+                                <th className="px-4 py-3 font-normal">Produk</th>
+                                <th className="px-4 py-3 font-normal">Qty</th>
+                                <th className="px-4 py-3 font-normal">Asal</th>
+                                <th className="px-4 py-3 font-normal">Tujuan</th>
+                                <th className="px-4 py-3 font-normal">Keterangan</th>
+                                {/* <th className="px-4 py-3 font-normal">Tanggal</th> */}
                             </tr>
                         </thead>
-                        {paginatedData.length > 0 ? (
+                        {paginatedData > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((data, index) => {
-                                    try {
-                                        return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
-                                                    {data.karyawan || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatDate(data.tanggal) || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatTime(data.waktu_masuk) || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatTime(data.waktu_keluar) || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {data.total || []}
-                                                </td>
-                                            </tr>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="5" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
+                                {paginatedData.map((movement) => (
+                                    <tr
+                                        className="text-left text-sm cursor-pointer hover:bg-slate-50"
+                                        key={movement._id}
+                                    >
+                                        <td className="px-4 py-3">
+                                            {formatDateTime(movement.date)}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {movement._id}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {stock.productId?.name && capitalizeWords(stock.productId.name)}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {movement.quantity}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {movement.notes || "-"}
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         ) : (
                             <tbody>
@@ -541,10 +540,10 @@ const TransferStockManagement = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                {paginatedData.length > 0 && (
+                {filteredWithMovements.length > 0 && (
                     <div className="flex justify-between items-center mt-4">
                         <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
+                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredWithMovements.length)} dari {filteredWithMovements.length} data
                         </span>
                         {totalPages > 1 && (
                             <div className="flex space-x-2">
@@ -566,6 +565,7 @@ const TransferStockManagement = () => {
                         )}
                     </div>
                 )}
+
             </div>
 
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">

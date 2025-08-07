@@ -45,9 +45,9 @@ export const addStockMovement = async (req, res) => {
     const stockUpdates = req.body;
 
     if (!Array.isArray(stockUpdates) || stockUpdates.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Data harus berupa array dan tidak boleh kosong' 
+      return res.status(400).json({
+        success: false,
+        message: 'Data harus berupa array dan tidak boleh kosong'
       });
     }
 
@@ -96,10 +96,10 @@ export const addStockMovement = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     console.error('❌ Error bulk stock movement:', error.message);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Gagal mencatat pergerakan stok', 
-      error: error.message 
+    return res.status(500).json({
+      success: false,
+      message: 'Gagal mencatat pergerakan stok',
+      error: error.message
     });
   } finally {
     session.endSession();
@@ -176,7 +176,7 @@ export const updateMinStock = async (req, res) => {
 // GET /stock/all
 export const getAllStock = async (req, res) => {
   try {
-    const stocks = await ProductStock.find().populate('productId', 'name sku category');
+    const stocks = await ProductStock.find().populate('productId', 'name sku category unit');
 
     res.status(200).json({
       success: true,
