@@ -57,3 +57,29 @@ final menuItemProvider = FutureProvider<List<MenuItemModel>>((ref) async {
     return entry.value.map((menuItem) => menuItem);
   }).toList();
 });
+
+final reservationMenuItemProvider = FutureProvider<List<MenuItemModel>>((
+  ref,
+) async {
+  final menuItems = await ref.read(menuItemRepository).getLocalMenuItems();
+  var searchQuery = ref.watch(searchQueryProvider);
+  var category = ref.watch(categoryProvider);
+
+  // 🔹 Filter berdasarkan kategori
+  if (category != 'All') {
+    return menuItems
+        .where((menuItem) => (menuItem.mainCategory)!.contains(category))
+        .toList();
+  }
+  // 🔹 Filter berdasarkan pencarian
+  if (searchQuery.isNotEmpty) {
+    return menuItems
+        .where(
+          (menuItem) =>
+              menuItem.name!.toLowerCase().contains(searchQuery.toLowerCase()),
+        )
+        .toList();
+  }
+
+  return menuItems;
+});
