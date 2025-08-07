@@ -81,7 +81,14 @@ const ExportFilter = ({ isOpen, onClose }) => {
             if (end) end.setHours(23, 59, 59, 999);
             const inDateRange = (!start || tanggal >= start) && (!end || tanggal <= end);
 
+            // ✅ Jika tidak ada filter yang dipilih, ambil semua item
+            const noFilterSelected =
+                selectedMainTypes.length === 0 &&
+                selectedCategories.length === 0;
+
             const filteredItems = order.items.filter((item) => {
+                if (noFilterSelected) return true;
+
                 const menuItem = item.menuItem || {};
                 const mainCat = menuItem.mainCategory;
                 const cat = menuItem.category;
@@ -97,7 +104,6 @@ const ExportFilter = ({ isOpen, onClose }) => {
                 const isWorkstationMatch = selectedCategories.includes(work);
                 const isMainCategoryMatch = selectedMainTypes.includes(isMainCategoryChecked);
 
-                // Logic kombinasi
                 if (isMainCategoryChecked && !isCategoryChecked && !isWorkstationChecked) {
                     return isMainCategoryMatch;
                 }
@@ -114,7 +120,6 @@ const ExportFilter = ({ isOpen, onClose }) => {
                     return isCategoryMatch || isWorkstationMatch;
                 }
 
-                // Jika tidak ada filter apapun, tampilkan semua
                 return true;
             });
 
@@ -134,7 +139,13 @@ const ExportFilter = ({ isOpen, onClose }) => {
             const outletName = outletObj?.name || '';
             const outletCode = outletObj?._id || '';
 
+            const noFilterSelected =
+                selectedMainTypes.length === 0 &&
+                selectedCategories.length === 0;
+
             const filteredItems = order.items.filter((item) => {
+                if (noFilterSelected) return true;
+
                 const menuItem = item.menuItem || {};
                 const mainCat = menuItem.mainCategory;
                 const cat = menuItem.category;
