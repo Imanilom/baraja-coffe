@@ -461,7 +461,7 @@ export const createMarketList = async (req, res) => {
       }
     }
 
-    // Proses update request yang terkait (DIPERBAIKI)
+    // Proses update request yang terkait
     for (const requestId of relatedRequestIds) {
       const request = await Request.findById(requestId).session(session);
       if (!request) continue;
@@ -556,76 +556,90 @@ export const createMarketList = async (req, res) => {
     const savedMarketList = await marketListDoc.save({ session });
 
     // Proses pergerakan stok
-  const stockOpsMap = new Map();
-const movementDocs = [];
+    const stockOpsMap = new Map();
+    const movementDocs = [];
 
-for (const item of processedItems) {
-  const { productId, quantityPurchased, department, requestItemId, quantityRequested } = item;
-  if (!productId) continue;
+    for (const item of processedItems) {
+      const { productId, quantityPurchased, department, requestItemId, quantityRequested } = item;
+      if (!productId) continue;
 
-  const productObjectId = new mongoose.Types.ObjectId(productId);
+      const productObjectId = new mongoose.Types.ObjectId(productId);
 
-  const stockMovementIn = new StockMovement({
-    date: new Date(date),
-    productId: productObjectId,
-    quantity: quantityPurchased,
-    type: 'in',
-    referenceId: savedMarketList._id,
-    notes: `Masuk dari pembelian oleh ${user.username}`
-  });
-  movementDocs.push(stockMovementIn);
-
-  // Simpan operasi dalam map
-  if (!stockOpsMap.has(productId)) {
-    stockOpsMap.set(productId, {
-      inc: quantityPurchased,
-      movements: [stockMovementIn],
-      adjustmentQty: 0
-    });
-  } else {
-    const entry = stockOpsMap.get(productId);
-    entry.inc += quantityPurchased;
-    entry.movements.push(stockMovementIn);
-  }
-
-  if (requestItemId && department) {
-    const qtyDiff = quantityPurchased - (quantityRequested || 0);
-    if (qtyDiff > 0) {
-      const adjustmentMovement = new StockMovement({
+      // Create stock movement for incoming items
+      const stockMovementIn = new StockMovement({
         date: new Date(date),
         productId: productObjectId,
-        quantity: qtyDiff,
-        type: 'adjustment',
+        quantity: quantityPurchased,
+        type: 'in',
         referenceId: savedMarketList._id,
-        notes: `Sisa stok setelah dikirim ke departemen: ${department}`
+        referenceType: 'MarketList',
+        notes: `Masuk dari pembelian oleh ${user.username}`
       });
-      movementDocs.push(adjustmentMovement);
-      const entry = stockOpsMap.get(productId);
-      entry.inc -= qtyDiff;
-      entry.movements.push(adjustmentMovement);
-    }
-  }
-}
+      movementDocs.push(stockMovementIn);
 
-// Konversi ke bulk ops
-const bulkStockOps = [];
-for (const [productId, entry] of stockOpsMap.entries()) {
-  bulkStockOps.push({
-    updateOne: {
-      filter: { productId: new mongoose.Types.ObjectId(productId) },
-      update: {
-        $inc: { currentStock: entry.inc },
-        $push: { movements: { $each: entry.movements } },
-        $setOnInsert: {
-          minStock: 0,
-          createdAt: new Date(),
-          updatedAt: new Date()
+      // Save to database immediately
+      await stockMovementIn.save({ session });
+
+      // Update stock operations map
+      if (!stockOpsMap.has(productId.toString())) {
+        stockOpsMap.set(productId.toString(), {
+          inc: quantityPurchased,
+          movements: [stockMovementIn._id],
+          adjustmentQty: 0
+        });
+      } else {
+        const entry = stockOpsMap.get(productId.toString());
+        entry.inc += quantityPurchased;
+        entry.movements.push(stockMovementIn._id);
+      }
+
+      // Handle adjustment if needed
+      if (requestItemId && department) {
+        const qtyDiff = quantityPurchased - (quantityRequested || 0);
+        if (qtyDiff > 0) {
+          const adjustmentMovement = new StockMovement({
+            date: new Date(date),
+            productId: productObjectId,
+            quantity: qtyDiff,
+            type: 'adjustment',
+            referenceId: savedMarketList._id,
+            referenceType: 'MarketList',
+            notes: `Sisa stok setelah dikirim ke departemen: ${department}`
+          });
+          movementDocs.push(adjustmentMovement);
+          await adjustmentMovement.save({ session });
+
+          const entry = stockOpsMap.get(productId.toString());
+          entry.inc -= qtyDiff;
+          entry.movements.push(adjustmentMovement._id);
+          entry.adjustmentQty += qtyDiff;
         }
-      },
-      upsert: true
+      }
     }
-  });
-}
+
+    // Update product stocks in bulk
+    const bulkStockOps = [];
+    for (const [productId, entry] of stockOpsMap.entries()) {
+      bulkStockOps.push({
+        updateOne: {
+          filter: { productId: new mongoose.Types.ObjectId(productId) },
+          update: { 
+            $inc: { currentStock: entry.inc },
+            $push: { movements: { $each: entry.movements } },
+            $set: { updatedAt: new Date() },
+            $setOnInsert: {
+              minStock: 0,
+              createdAt: new Date()
+            }
+          },
+          upsert: true
+        }
+      });
+    }
+
+    if (bulkStockOps.length > 0) {
+      await ProductStock.bulkWrite(bulkStockOps, { session });
+    }
 
     // Buat catatan utang jika ada
     for (const debt of debtsToCreate) {
@@ -658,7 +672,8 @@ for (const [productId, entry] of stockOpsMap.entries()) {
         cashFlow,
         debtsCreated: debtsToCreate.length,
         totalCharged,
-        totalPaid
+        totalPaid,
+        stockMovements: movementDocs.length
       }
     });
 

@@ -54,7 +54,11 @@ const reservationSchema = new mongoose.Schema({
     notes: {
         type: String,
         default: ''
-    }
+    },
+    equipment: [{
+        type: String,
+        default: [] 
+    }]
 }, {
     timestamps: true
 });
