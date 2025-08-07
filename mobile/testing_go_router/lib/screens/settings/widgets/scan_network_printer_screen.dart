@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/providers/printer_providers/network_printer_provider.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:kasirbaraja/services/printer_service.dart';
 
 class ScanNetworkPrinterScreen extends ConsumerStatefulWidget {
   const ScanNetworkPrinterScreen({super.key});
@@ -57,46 +60,259 @@ class _ScanNetworkPrinterScreenState
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// LEFT PANEL (Control Panel)
-          Flexible(
-            flex: 3,
-            child: SingleChildScrollView(
+          // Left Control Panel - Fixed width with scroll
+          SizedBox(
+            width: 350, // Fixed width untuk control panel
+            child: Container(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Card: Pemindaian Otomatis
-                  _buildAutoScanCard(scanState),
+              color: Colors.grey.shade100,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Progress and Error Section
+                    if (scanState.isScanning || scanState.error != null) ...[
+                      _buildProgressSection(scanState),
+                      const SizedBox(height: 16),
+                    ],
 
-                  const SizedBox(height: 12),
+                    // Scan Controls
+                    _buildScanControlCard(scanState),
 
-                  // Card: Tambah Manual
-                  _buildManualAddCard(),
-                ],
+                    const SizedBox(height: 16),
+
+                    // Manual Add Card
+                    _buildManualAddCard(),
+                  ],
+                ),
               ),
             ),
           ),
 
-          /// MIDDLE PANEL (Progress & Error)
-          Flexible(
-            flex: 2,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  if (scanState.isScanning) _buildProgressIndicator(scanState),
-                  if (scanState.error != null) _buildErrorBox(scanState),
-                ],
-              ),
-            ),
-          ),
+          // Vertical Divider
+          const VerticalDivider(width: 1, thickness: 1),
 
-          /// RIGHT PANEL (Result List)
-          Expanded(
-            flex: 5,
-            child: _buildResultsList(scanState, networkPrinters),
-          ),
+          // Right Results Panel - Expandable
+          Expanded(child: _buildResultsList(scanState, networkPrinters)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProgressSection(NetworkScanState scanState) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (scanState.isScanning) ...[
+              Text(
+                'Scanning Progress',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              LinearProgressIndicator(
+                value: scanState.progress > 0 ? scanState.progress : null,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                scanState.currentProgress,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              if (scanState.totalCount > 0)
+                Text(
+                  '${scanState.scannedCount}/${scanState.totalCount}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+            ],
+
+            if (scanState.error != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.error, color: Colors.red.shade600, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Error',
+                            style: TextStyle(
+                              color: Colors.red.shade800,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: () {
+                            ref
+                                .read(networkScannerProvider.notifier)
+                                .clearResults();
+                          },
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      scanState.error!,
+                      style: TextStyle(color: Colors.red.shade800),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScanControlCard(NetworkScanState scanState) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Pemindaian Otomatis',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+
+            // Subnet input
+            TextField(
+              controller: _subnetController,
+              decoration: const InputDecoration(
+                labelText: 'Custom Subnet (opsional)',
+                hintText: 'Contoh: 192.168.1',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.network_check),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Scan buttons - Stack vertically for better space usage
+            Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: scanState.isScanning ? null : _startFullScan,
+                    icon: const Icon(Icons.search),
+                    label: const Text('Scan Lengkap'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: scanState.isScanning ? null : _startQuickScan,
+                    icon: const Icon(Icons.speed),
+                    label: const Text('Quick Scan'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualAddCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tambah Manual',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+
+            // IP Address field
+            TextField(
+              controller: _manualIpController,
+              decoration: const InputDecoration(
+                labelText: 'IP Address',
+                hintText: '192.168.1.100',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Port field and Add button
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: _manualPortController,
+                    decoration: const InputDecoration(
+                      labelText: 'Port',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _addManualPrinter,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                  ),
+                  child: const Icon(Icons.add),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -130,138 +346,199 @@ class _ScanNetworkPrinterScreenState
             Text(
               'Lakukan pemindaian atau tambah printer secara manual',
               style: TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: allPrinters.length,
-      itemBuilder: (context, index) {
-        final printer = allPrinters[index];
-        final isSaved = savedPrinters.any((p) => p.address == printer.address);
-        final isFromScan = foundPrinters.any(
-          (p) => p.address == printer.address,
-        );
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor:
-                  printer.isOnline!
-                      ? Colors.green.shade100
-                      : Colors.red.shade100,
-              child: Icon(
-                Icons.print,
-                color:
-                    printer.isOnline!
-                        ? Colors.green.shade700
-                        : Colors.red.shade700,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Container(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(Icons.print, color: Colors.blue.shade600),
+              const SizedBox(width: 8),
+              Text(
+                'Printer Ditemukan (${allPrinters.length})',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
-            ),
-            title: Text(
-              printer.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('IP: ${printer.displayAddress}'),
-                if (printer.manufacturer != null)
-                  Text(
-                    '${printer.manufacturer} - ${printer.model ?? 'Unknown'}',
-                  ),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: printer.isOnline! ? Colors.green : Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        printer.isOnline! ? 'Online' : 'Offline',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    if (isSaved)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text(
-                          'Tersimpan',
-                          style: TextStyle(color: Colors.white, fontSize: 10),
-                        ),
-                      ),
-                    if (isFromScan && !isSaved)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text(
-                          'Baru',
-                          style: TextStyle(color: Colors.white, fontSize: 10),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Test Print Button
-                IconButton(
-                  icon: const Icon(Icons.print),
-                  onPressed: () => _testPrint(printer),
-                  tooltip: 'Test Print',
-                ),
-
-                // Save/Configure Button
-                if (!isSaved)
-                  IconButton(
-                    icon: const Icon(Icons.save),
-                    onPressed: () => _savePrinter(printer),
-                    tooltip: 'Simpan Printer',
-                  )
-                else ...[
-                  IconButton(
-                    icon: const Icon(Icons.settings),
-                    onPressed: () => _configurePrinter(printer),
-                    tooltip: 'Konfigurasi',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () => _deletePrinter(printer),
-                    tooltip: 'Hapus',
-                  ),
-                ],
-              ],
-            ),
+            ],
           ),
-        );
-      },
+        ),
+
+        // List
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: allPrinters.length,
+            itemBuilder: (context, index) {
+              final printer = allPrinters[index];
+              final isSaved = savedPrinters.any(
+                (p) => p.address == printer.address,
+              );
+              final isFromScan = foundPrinters.any(
+                (p) => p.address == printer.address,
+              );
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      // Status indicator
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor:
+                            printer.isOnline!
+                                ? Colors.green.shade100
+                                : Colors.red.shade100,
+                        child: Icon(
+                          Icons.print,
+                          color:
+                              printer.isOnline!
+                                  ? Colors.green.shade700
+                                  : Colors.red.shade700,
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      // Printer info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              printer.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'IP: ${printer.displayAddress}',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                            if (printer.manufacturer != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                '${printer.manufacturer} - ${printer.model ?? 'Unknown'}',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 6),
+                            // Status badges
+                            Wrap(
+                              spacing: 4,
+                              children: [
+                                _buildStatusChip(
+                                  printer.isOnline! ? 'Online' : 'Offline',
+                                  printer.isOnline! ? Colors.green : Colors.red,
+                                ),
+                                if (isSaved)
+                                  _buildStatusChip('Tersimpan', Colors.blue),
+                                if (isFromScan && !isSaved)
+                                  _buildStatusChip('Baru', Colors.orange),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Action buttons
+                      Column(
+                        children: [
+                          // Test Print Button
+                          IconButton(
+                            icon: const Icon(Icons.print),
+                            onPressed: () => _testPrint(printer),
+                            tooltip: 'Test Print',
+                          ),
+
+                          // Save/Configure/Delete buttons
+                          if (!isSaved)
+                            IconButton(
+                              icon: const Icon(Icons.save),
+                              onPressed: () => _savePrinter(printer),
+                              tooltip: 'Simpan Printer',
+                            )
+                          else ...[
+                            PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (value == 'configure') {
+                                  _configurePrinter(printer);
+                                } else if (value == 'delete') {
+                                  _deletePrinter(printer);
+                                }
+                              },
+                              itemBuilder:
+                                  (context) => [
+                                    const PopupMenuItem(
+                                      value: 'configure',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.settings),
+                                          SizedBox(width: 8),
+                                          Text('Konfigurasi'),
+                                        ],
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.delete, color: Colors.red),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Hapus',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 
@@ -406,10 +683,15 @@ class _ScanNetworkPrinterScreenState
     try {
       // Generate test print data
       final testBytes = await _generateTestPrintBytes(printer);
+      // Send to printer
       final success = await NetworkDiscoveryService.testPrintToNetworkPrinter(
         printer,
         testBytes,
       );
+      // final success = await PrinterService.testNetworkPrint(
+      //   printer,
+      //   printer.displayAddress,
+      // );
 
       if (mounted) Navigator.pop(context);
 
@@ -427,32 +709,57 @@ class _ScanNetworkPrinterScreenState
   Future<List<int>> _generateTestPrintBytes(
     BluetoothPrinterModel printer,
   ) async {
-    final testData = <int>[];
+    PaperSize paperSize = PaperSize.mm80;
+    final profile = await CapabilityProfile.load();
+    final generator = Generator(paperSize, profile);
 
-    // ESC/POS commands for test print
-    testData.addAll([0x1B, 0x40]); // ESC @ (Initialize)
-    testData.addAll([0x1B, 0x61, 0x01]); // ESC a 1 (Center align)
+    // 2. Siapkan konten
+    final List<int> bytes = [];
 
-    // Add test text
-    final testText = '''
-TEST PRINT
-===================
-Printer: ${printer.name}
-Address: ${printer.displayAddress}
-Time: ${DateTime.now()}
-Paper: ${printer.paperSize}
-===================
-Network Print Success!
+    bytes.addAll(
+      generator.text(
+        'Baraja Amphitheater\n Jl. Tuparev No. 60, Kedungjaya, Kec. Kedawung\nKab. Cirebon, Jawa Barat 45153, Indonesia\n KABUPATEN CIREBON\n0851-1708-9827',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          fontType: PosFontType.fontA,
+        ),
+      ),
+    );
 
+    bytes.addAll(generator.feed(1));
 
-''';
+    bytes.addAll(
+      generator.text(
+        'Dine-In / Takeaway / Delivery / Reservation',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          fontType: PosFontType.fontA,
+        ),
+      ),
+    );
+    //hr
+    bytes.addAll(generator.hr());
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'IP Address',
+          width: 5,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: printer.displayAddress,
+          width: 7,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(generator.hr());
 
-    testData.addAll(testText.codeUnits);
+    bytes.addAll(generator.feed(2));
+    //cut
+    bytes.addAll(generator.cut());
 
-    // Cut paper (if supported)
-    testData.addAll([0x1D, 0x56, 0x00]); // GS V 0 (Full cut)
-
-    return testData;
+    return bytes;
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -463,163 +770,6 @@ Network Print Success!
         content: Text(message),
         backgroundColor: isError ? Colors.red : Colors.green,
         behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  Widget _buildAutoScanCard(NetworkScanState scanState) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Pemindaian Otomatis',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _subnetController,
-              decoration: const InputDecoration(
-                labelText: 'Custom Subnet (opsional)',
-                hintText: 'Contoh: 192.168.1',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.network_check),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: scanState.isScanning ? null : _startFullScan,
-                    icon: const Icon(Icons.search),
-                    label: const Text('Scan Lengkap'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: scanState.isScanning ? null : _startQuickScan,
-                    icon: const Icon(Icons.speed),
-                    label: const Text('Quick Scan'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildManualAddCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tambah Manual',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: _manualIpController,
-                    decoration: const InputDecoration(
-                      labelText: 'IP Address',
-                      hintText: '192.168.1.100',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _manualPortController,
-                    decoration: const InputDecoration(
-                      labelText: 'Port',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _addManualPrinter,
-                  child: const Icon(Icons.add),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProgressIndicator(NetworkScanState scanState) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Sedang Memindai...',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: scanState.progress > 0 ? scanState.progress : null,
-        ),
-        const SizedBox(height: 8),
-        Text(scanState.currentProgress),
-        if (scanState.totalCount > 0)
-          Text('${scanState.scannedCount}/${scanState.totalCount}'),
-      ],
-    );
-  }
-
-  Widget _buildErrorBox(NetworkScanState scanState) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        border: Border.all(color: Colors.red.shade200),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error, color: Colors.red.shade600),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Error: ${scanState.error}',
-              style: TextStyle(color: Colors.red.shade800),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () {
-              ref.read(networkScannerProvider.notifier).clearResults();
-            },
-          ),
-        ],
       ),
     );
   }
