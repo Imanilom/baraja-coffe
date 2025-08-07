@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 import 'package:kasirbaraja/enums/order_type.dart';
@@ -34,6 +37,39 @@ class PrinterService {
   static Future<void> connectPrinter(BluetoothPrinterModel printer) async {
     await PrintBluetoothThermal.disconnect;
     await PrintBluetoothThermal.connect(macPrinterAddress: printer.address);
+  }
+
+  static Future<void> disconnectPrinter() async {
+    await PrintBluetoothThermal.disconnect;
+  }
+
+  // === NETWORK PRINTER METHODS ===
+  static Future<Socket?> connectNetworkPrinter(
+    BluetoothPrinterModel printer,
+  ) async {
+    try {
+      final socket = await Socket.connect(
+        printer.address,
+        printer.port!, // Default port for network printers
+        timeout: const Duration(seconds: 10),
+      );
+      print(
+        '✅ Berhasil terhubung ke network printer ${printer.name} (${printer.address}:${printer.port})',
+      );
+      return socket;
+    } catch (e) {
+      print('❌ Gagal terhubung ke network printer ${printer.name}: $e');
+      return null;
+    }
+  }
+
+  static Future<void> disconnectNetworkPrinter(Socket? socket) async {
+    try {
+      await socket?.close();
+      print('✅ Koneksi network printer ditutup');
+    } catch (e) {
+      print('❌ Error saat menutup koneksi network printer: $e');
+    }
   }
 
   static Future<void> printToPrinter(
@@ -68,11 +104,41 @@ class PrinterService {
     print('dokumen print ${orderDetail.items.toList()}');
 
     for (final job in jobs) {
+      // if (printers.any((element) => element.connectionType == 'bluetooth')) {
       await _printJobToSupportedPrinters(
         orderDetail: orderDetail,
         jobType: job,
         printers: printers,
       );
+      // }
+
+      if (printers.any((element) => element.connectionType == 'network')) {
+        print('Mencetak $job di printer jaringan...');
+        // final networkPrinters =
+        //     printers
+        //         .where((printer) => printer.connectionType == 'network')
+        //         .toList();
+
+        // for (final networkPrinter in networkPrinters) {
+        //   final socket = await connectNetworkPrinter(networkPrinter);
+        //   if (socket != null) {
+        //     try {
+        //       final bytes = await _generateBytesForJob(
+        //         orderDetail: orderDetail,
+        //         printer: networkPrinter,
+        //         jobType: job,
+        //       );
+        //       socket.add(bytes);
+        //       await socket.flush();
+        //     } catch (e) {
+        //       print('❌ Gagal mencetak $job di ${networkPrinter.name}: $e');
+        //     } finally {
+        //       await disconnectNetworkPrinter(socket);
+        //     }
+        //   }
+        // }
+      }
+      print('Dokumen $job telah dicetak untuk ${orderDetail.orderId}');
     }
   }
 
@@ -129,12 +195,43 @@ class PrinterService {
     print('📤 Mencetak $jobType di ${supportedPrinters.length} printer');
 
     for (final printer in supportedPrinters) {
-      print('📤 Mencetak $jobType di ${printer.name} (${printer.address})');
-      await _printSingleJob(
-        orderDetail: orderDetail,
-        printer: printer,
-        jobType: jobType,
+      print(
+        '📤 Mencetak $jobType di ${printer.connectionType} (${printer.address})',
       );
+      if (printer.connectionType == 'network') {
+        // Handle network printer
+        print(
+          '📤 Mencetak $jobType di ${printer.connectionType} (${printer.address})',
+        );
+        final socket = await connectNetworkPrinter(printer);
+        if (socket == null) {
+          print('❌ Gagal terhubung ke printer jaringan ${printer.name}');
+          continue;
+        }
+        try {
+          final bytes = await _generateBytesForJob(
+            orderDetail: orderDetail,
+            printer: printer,
+            jobType: jobType,
+          );
+          socket.add(bytes);
+          await socket.flush();
+        } catch (e) {
+          print('❌ Gagal mencetak $jobType di ${printer.name}: $e');
+        } finally {
+          await disconnectNetworkPrinter(socket);
+        }
+        continue;
+      }
+
+      if (printer.connectionType == 'bluetooth') {
+        await _printSingleJob(
+          orderDetail: orderDetail,
+          printer: printer,
+          jobType: jobType,
+        );
+        continue;
+      }
     }
   }
 
@@ -197,10 +294,6 @@ class PrinterService {
       default:
         throw 'Jenis struk tidak valid: $jobType';
     }
-  }
-
-  static Future<void> disconnectPrinter() async {
-    await PrintBluetoothThermal.disconnect;
   }
 
   static Future<bool> testPrint(
@@ -278,6 +371,79 @@ class PrinterService {
     }
   }
 
+  static Future<bool> testNetworkPrint(
+    BluetoothPrinterModel printer,
+    String address,
+  ) async {
+    try {
+      final profile = await CapabilityProfile.load();
+      PaperSize paperSize = PaperSize.mm58;
+      if (printer.paperSize == 'mm58') {
+        paperSize = PaperSize.mm58;
+      } else if (printer.paperSize == 'mm80') {
+        paperSize = PaperSize.mm80;
+      } else {
+        paperSize = PaperSize.mm72;
+      }
+      final generator = Generator(paperSize, profile);
+
+      // 2. Siapkan konten
+      final List<int> bytes = [];
+
+      // Header
+      bytes.addAll(await generateHeadersBytes(generator, paperSize));
+      // Bill Data
+      bytes.addAll(
+        await generateBillDataBytes(
+          generator,
+          paperSize,
+          null, // orderId,
+          null, // customerName,
+          null, // orderType,
+          null, // tableNumber,
+        ),
+      );
+
+      bytes.addAll(generator.hr(ch: '=', linesAfter: 1));
+
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'IP Address',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: address,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+
+      bytes.addAll(generator.hr(ch: '=', linesAfter: 1));
+
+      //footer
+      await generateFooterBytes(generator, paperSize).then((footerBytes) {
+        bytes.addAll(footerBytes);
+      });
+
+      //cut
+      bytes.addAll(generator.cut());
+
+      // 3. Kirim ke printer
+      final result = await NetworkDiscoveryService.testPrintToNetworkPrinter(
+        printer,
+        bytes,
+      );
+
+      return result;
+    } catch (e) {
+      print('Print error: $e');
+      return false;
+    }
+  }
+
   static Future<List<int>> generateLogoBytes(
     Generator generator,
     String imagePath,
@@ -321,7 +487,7 @@ class PrinterService {
     // Alamat Toko
     bytes.addAll(
       generator.text(
-        'Baraja Amphitheater\nJl. Tuparev No. 60, Kedungjaya,\nKec. Kedawung, Kab. Cirebon\nJawa Barat 45153, Indonesia\nKABUPATEN CIREBON\n0851-1708-9827',
+        'Baraja Amphitheater, Jl. Tuparev No. 60, Kedungjaya, Kec. Kedawung, Kab. Cirebon, Jawa Barat 45153, Indonesia, KABUPATEN CIREBON\n0851-1708-9827',
         styles: const PosStyles(align: PosAlign.center),
       ),
     );

@@ -22,6 +22,20 @@ const tableSchema = new mongoose.Schema({
         enum: ['regular', 'vip', 'family', 'couple'],
         default: 'regular'
     },
+    shape: { 
+          type: String,
+          enum: ['square', 'rectangle', 'circle', 'oval', 'custom'], 
+          default: 'rectangle'
+    },
+    position: {
+        x: { type: Number, default: 0 },
+        y: { type: Number, default: 0 }
+    },
+    status: {
+        type: String,
+        enum: ['available', 'occupied', 'reserved', 'maintenance'],
+        default: 'available'
+    },
     is_available: {
         type: Boolean,
         default: true

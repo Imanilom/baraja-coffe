@@ -1,6 +1,7 @@
 // screens/reservation_screen.dart - Updated with ConsumerWidget and Riverpod
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../models/table.dart';
 import '../../../models/area.dart';
@@ -115,14 +116,14 @@ class TablesNotifier extends StateNotifier<List<TableModel>> {
   }
 }
 
-class ReservationOrder extends ConsumerStatefulWidget {
-  const ReservationOrder({super.key});
+class ReservationScreen extends ConsumerStatefulWidget {
+  const ReservationScreen({super.key});
 
   @override
-  ConsumerState<ReservationOrder> createState() => _ReservationOrderState();
+  ConsumerState<ReservationScreen> createState() => _ReservationScreenState();
 }
 
-class _ReservationOrderState extends ConsumerState<ReservationOrder> {
+class _ReservationScreenState extends ConsumerState<ReservationScreen> {
   @override
   void initState() {
     super.initState();
@@ -412,37 +413,53 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
     );
   }
 
-  int _calculateTotalCapacity() {
-    final tables = ref.read(tablesProvider);
-    final selectedTableIds = ref.read(selectedTableIdsProvider);
+  int _calculateTotalCapacity({
+    List<TableModel>? tables,
+    List<String>? selectedTableIds,
+  }) {
+    final currentTables = tables ?? ref.read(tablesProvider);
+    final currentSelectedTableIds =
+        selectedTableIds ?? ref.read(selectedTableIdsProvider);
 
     int totalCapacity = 0;
-    for (String tableId in selectedTableIds) {
-      final table = tables.firstWhere((t) => t.id == tableId);
+    for (String tableId in currentSelectedTableIds!) {
+      final table = currentTables!.firstWhere((t) => t.id == tableId);
       totalCapacity += table.seats;
     }
     return totalCapacity;
   }
 
-  String _getSelectedTableNumbers() {
-    final tables = ref.read(tablesProvider);
-    final selectedTableIds = ref.read(selectedTableIdsProvider);
+  String _getSelectedTableNumbers({
+    List<TableModel>? tables,
+    List<String>? selectedTableIds,
+  }) {
+    final currentTables = tables ?? ref.read(tablesProvider);
+    final currentSelectedTableIds =
+        selectedTableIds ?? ref.read(selectedTableIdsProvider);
 
     List<String> tableNumbers = [];
-    for (String tableId in selectedTableIds) {
-      final table = tables.firstWhere((t) => t.id == tableId);
+    for (String tableId in currentSelectedTableIds!) {
+      final table = currentTables!.firstWhere((t) => t.id == tableId);
       tableNumbers.add(table.tableNumber);
     }
     return tableNumbers.join(', ');
   }
 
-  bool _isTableSelectionValid() {
-    final selectedTableIds = ref.read(selectedTableIdsProvider);
-    final personCount = ref.read(personCountProvider);
+  bool _isTableSelectionValid({
+    List<TableModel>? tables,
+    List<String>? selectedTableIds,
+    int? personCount,
+  }) {
+    final currentSelectedTableIds =
+        selectedTableIds ?? ref.read(selectedTableIdsProvider);
+    final currentPersonCount = personCount ?? ref.read(personCountProvider);
 
-    if (selectedTableIds.isEmpty) return false;
-    final totalCapacity = _calculateTotalCapacity();
-    return totalCapacity >= personCount;
+    if (currentSelectedTableIds!.isEmpty) return false;
+    final totalCapacity = _calculateTotalCapacity(
+      tables: tables,
+      selectedTableIds: currentSelectedTableIds,
+    );
+    return totalCapacity >= currentPersonCount!;
   }
 
   bool get _canMakeReservation {
@@ -466,6 +483,7 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
     final selectedDate = ref.read(selectedDateProvider);
     final selectedTime = ref.read(selectedTimeProvider);
     final personCount = ref.read(personCountProvider);
+    final tables = ref.read(tablesProvider);
 
     if (selectedArea == null || selectedTableIds.isEmpty) return;
 
@@ -489,9 +507,23 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
       ref.read(availabilityResultProvider.notifier).state = result;
 
       if (result['available'] == true) {
-        _showAvailabilityDialog(result, true);
+        _showAvailabilityDialog(
+          result,
+          true,
+          selectedArea: selectedArea,
+          personCount: personCount,
+          tables: tables,
+          selectedTableIds: selectedTableIds,
+        );
       } else {
-        _showAvailabilityDialog(result, false);
+        _showAvailabilityDialog(
+          result,
+          false,
+          selectedArea: selectedArea,
+          personCount: personCount,
+          tables: tables,
+          selectedTableIds: selectedTableIds,
+        );
         // Refresh table availability after failed check
         await _refreshTablesAvailability();
       }
@@ -566,10 +598,14 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
     }
   }
 
-  void _showAvailabilityDialog(Map<String, dynamic> result, bool isAvailable) {
-    final selectedArea = ref.read(selectedAreaProvider);
-    final personCount = ref.read(personCountProvider);
-
+  void _showAvailabilityDialog(
+    Map<String, dynamic> result,
+    bool isAvailable, {
+    required Area selectedArea,
+    required int personCount,
+    required List<TableModel> tables,
+    required List<String> selectedTableIds,
+  }) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -626,18 +662,22 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
                       const SizedBox(height: 8),
                       _buildInfoRow(
                         'Area',
-                        result['data']['area_name'] ??
-                            selectedArea?.areaName ??
-                            '',
+                        result['data']['area_name'] ?? selectedArea.areaName,
                       ),
                       _buildInfoRow(
                         'Jumlah Tamu',
                         '${result['data']['guest_count'] ?? personCount} orang',
                       ),
-                      _buildInfoRow('Meja Dipilih', _getSelectedTableNumbers()),
+                      _buildInfoRow(
+                        'Meja Dipilih',
+                        _getSelectedTableNumbers(
+                          tables: tables,
+                          selectedTableIds: selectedTableIds,
+                        ),
+                      ),
                       _buildInfoRow(
                         'Total Kapasitas',
-                        '${_calculateTotalCapacity()} orang',
+                        '${_calculateTotalCapacity(tables: tables, selectedTableIds: selectedTableIds)} orang',
                       ),
                     ],
                   ),
@@ -716,6 +756,8 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
       selectedTableIds: selectedTableIds,
     );
 
+    context.pushNamed('reservation-menu', extra: reservationData);
+
     // Navigator.push(
     //   context,
     //   MaterialPageRoute(
@@ -771,7 +813,10 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
       buttonText = 'Area Sudah Penuh untuk Waktu Ini';
     } else if (selectedTableIds.isEmpty) {
       buttonText = 'Pilih Meja Terlebih Dahulu';
-    } else if (!_isTableSelectionValid()) {
+    } else if (!_isTableSelectionValid(
+      selectedTableIds: selectedTableIds,
+      personCount: ref.read(personCountProvider),
+    )) {
       buttonText = 'Kapasitas Meja Tidak Mencukupi';
     }
 
@@ -896,7 +941,7 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Total Kapasitas: ${_calculateTotalCapacity()} orang',
+                          'Total Kapasitas: ${_calculateTotalCapacity(tables: tables, selectedTableIds: selectedTableIds)} orang',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -908,11 +953,17 @@ class _ReservationOrderState extends ConsumerState<ReservationOrder> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Status: ${_isTableSelectionValid() ? "Mencukupi" : "Tidak Mencukupi"} untuk $personCount orang',
+                    'Status: ${_isTableSelectionValid(tables: tables, selectedTableIds: selectedTableIds, personCount: personCount) ? "Mencukupi" : "Tidak Mencukupi"} untuk $personCount orang',
                     style: TextStyle(
                       fontSize: 11,
                       color:
-                          _isTableSelectionValid() ? Colors.green : Colors.red,
+                          _isTableSelectionValid(
+                                tables: tables,
+                                selectedTableIds: selectedTableIds,
+                                personCount: personCount,
+                              )
+                              ? Colors.green
+                              : Colors.red,
                     ),
                   ),
                 ],

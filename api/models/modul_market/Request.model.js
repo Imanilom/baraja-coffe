@@ -44,7 +44,7 @@ const requestSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
   department: {
     type: String,
-    enum: ['dapur', 'bar', 'lain-lain'],
+    enum: ['dapur', 'bar depan', 'bar belakang', 'event', 'ob'],
     required: true
   },
   requester: {
