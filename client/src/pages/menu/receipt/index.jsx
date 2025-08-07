@@ -133,7 +133,6 @@ const ReceiptMenu = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log("Submit button clicked");
 
         if (!validateForm()) {
             return;

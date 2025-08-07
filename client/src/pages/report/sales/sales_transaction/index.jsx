@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
 import Select from "react-select";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import ExportFilter from "../export";
 
@@ -50,7 +51,11 @@ const SalesTransaction = () => {
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
+    // const [value, setValue] = useState(null);
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -58,7 +63,7 @@ const SalesTransaction = () => {
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
+    const ITEMS_PER_PAGE = 10;
 
     const dropdownRef = useRef(null);
 
@@ -72,51 +77,55 @@ const SalesTransaction = () => {
     const finalTotal = totalSubtotal + pb1;
 
     // Fetch products and outlets data
+    const fetchProducts = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get('/api/orders');
+            const productsData = Array.isArray(response.data)
+                ? response.data
+                : response.data?.data ?? [];
+
+            const completedData = productsData.filter(item => item.status === "Completed");
+
+            setProducts(completedData); // simpan semua data mentah
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching products:", err);
+            setError("Failed to load products.");
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    const fetchOutlets = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get('/api/outlet');
+
+            const outletsData = Array.isArray(response.data)
+                ? response.data
+                : (response.data && Array.isArray(response.data.data))
+                    ? response.data.data
+                    : [];
+
+            setOutlets(outletsData);
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setError("Failed to load outlets. Please try again later.");
+            setOutlets([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch products data
-                const productsResponse = await axios.get('/api/orders');
-
-                // Ensure productsResponse.data is an array
-                const productsData = Array.isArray(productsResponse.data) ?
-                    productsResponse.data :
-                    (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
-                        productsResponse.data.data : [];
-
-                // Ambil hanya data dengan status "Completed"
-                const completedData = productsData.filter(item => item.status === "Completed");
-
-                setProducts(completedData);
-                setFilteredData(completedData); // Initialize filtered data with all products
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setProducts([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
+        fetchProducts();
+        fetchOutlets();
     }, []);
+
 
     const options = [
         { value: "", label: "Semua Outlet" },
@@ -216,8 +225,8 @@ const SalesTransaction = () => {
                         if (!menuItem) return false;
 
                         const name = (menuItem.name || '').toLowerCase();
-                        const customer = (menuItem.user || '').toLowerCase();
-                        const receipt = (menuItem._id || '').toLowerCase();
+                        const customer = (product.user || '').toLowerCase();
+                        const receipt = (product.order_id || '').toLowerCase();
 
                         return name.includes(searchTerm) || receipt.includes(searchTerm) || customer.includes(searchTerm);
                     });
@@ -283,9 +292,11 @@ const SalesTransaction = () => {
     const resetFilter = () => {
         setTempSearch("");
         setTempSelectedOutlet("");
-        setValue(null);
+        setValue({
+            startDate: dayjs(),
+            endDate: dayjs(),
+        });
         setSearch("");
-        setFilteredData(ensureArray(products));
         setCurrentPage(1);
     };
 
@@ -457,7 +468,7 @@ const SalesTransaction = () => {
                                                     {orderType || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    {total || ""}
+                                                    {total.toLocaleString() || ""}
                                                 </td>
                                             </tr>
                                         );
@@ -579,20 +590,63 @@ const SalesTransaction = () => {
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        <div className="flex space-x-2">
+                        <div className="flex items-center space-x-2 mt-4">
+                            {/* Tombol Sebelumnya */}
                             <button
                                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                 disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 border rounded disabled:opacity-50"
                             >
-                                Sebelumnya
+                                <FaChevronLeft />
                             </button>
+
+                            {/* Tombol Angka */}
+                            {[...Array(totalPages)].map((_, index) => {
+                                const page = index + 1;
+
+                                if (
+                                    page === 1 ||
+                                    page === totalPages ||
+                                    (page >= currentPage - 2 && page <= currentPage + 2)
+                                ) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`px-3 py-1 rounded border ${currentPage === page
+                                                ? "bg-[#005429] text-white"
+                                                : ""
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                }
+
+                                // Tampilkan "..." jika melompati halaman
+                                if (
+                                    (page === currentPage - 3 && page > 1) ||
+                                    (page === currentPage + 3 && page < totalPages)
+                                ) {
+                                    return (
+                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
+                                            ...
+                                        </span>
+                                    );
+                                }
+
+                                return null;
+                            })}
+
+                            {/* Tombol Berikutnya */}
                             <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                onClick={() =>
+                                    setCurrentPage(prev => Math.min(prev + 1, totalPages))
+                                }
                                 disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 border rounded disabled:opacity-50"
                             >
-                                Berikutnya
+                                <FaChevronRight />
                             </button>
                         </div>
                     </div>
