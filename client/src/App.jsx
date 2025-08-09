@@ -123,7 +123,7 @@ import CreateService from "./pages/tax/create_service";
 import UpdateOutlet from "./pages/outlet/update";
 import Commission from "./pages/commission";
 import CreateCommission from "./pages/commission/create";
-import CreateTable from "./pages/table/tablemanagement/create";
+import CreateArea from "./pages/table/tablemanagement/create";
 import UpdateTable from "./pages/table/tablemanagement/update";
 import TablePlanManagement from "./pages/table/tableplan";
 import UpdateSupplier from "./pages/purchase/supplier/update";
@@ -132,7 +132,7 @@ import PointManagement from "./pages/promotion/points";
 import UpdateAutoPromo from "./pages/promotion/autopromo/update";
 import ReceiptMenu from "./pages/menu/receipt";
 import AddSubCategory from "./pages/menu/category_sub/create";
-
+import CreateTable from "./pages/table/tableplan/create";
 
 
 export default function App() {
@@ -172,10 +172,11 @@ export default function App() {
 
                 {/* Table */}
                 <Route path="table-management" element={<Table />} />
-                <Route path="table-management/table-create" element={<CreateTable />} />
-                <Route path="table-management/table-update" element={<UpdateTable />} />
+                <Route path="table-management/table-create" element={<CreateArea />} />
+                <Route path="table-management/table-update/:id" element={<UpdateTable />} />
                 <Route path="table-plan" element={<TablePlanManagement />} />
-
+                <Route path="table-plan/create" element={<CreateTable />} />
+                <Route path="table-plan/update/:id" element={<CreateTable />} />
                 {/* Purchase */}
 
                 {/* supplier */}

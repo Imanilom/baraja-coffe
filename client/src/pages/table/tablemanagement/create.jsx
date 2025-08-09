@@ -1,76 +1,83 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
-import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown, FaBoxes, FaTrash } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { FaBoxes, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
 
-const CreateTable = () => {
+const CreateArea = () => {
     const navigate = useNavigate();
-    const [value, setValue] = useState(0); // default value
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [form, setForm] = useState({
-        status: '0',
-        outlet: '',
-        tanggal: '',
-        catatan: '',
+        area_code: '',
+        area_name: '',
+        capacity: 1,
+        description: '',
+        rentfee: 0,
+        roomSize: {
+            width: 1,
+            height: 1,
+            unit: 'm'
+        },
+        is_active: true
     });
 
     const [outletList, setOutletList] = useState([]);
-    const [productList, setProductList] = useState([]);
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState('');
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState('');
+    const [selectedOutlet, setSelectedOutlet] = useState('');
     const dropdownRef = useRef();
 
-    // ✅ Fetch outlet dari API
     const fetchOutlets = async () => {
-        // setLoading(true);
         try {
             const response = await axios.get('/api/outlet');
-            // Pastikan response sesuai format
             setOutletList(response.data.data || []);
         } catch (error) {
-            console.error('Gagal fetch outlet:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchMenuItems = async () => {
-        try {
-            const response = await axios.get('/api/menu/menu-items');
-            setProductList(response.data || []);
-        } catch (error) {
-            console.error('Gagal fetch produk:', error);
+            console.error('Failed to fetch outlets:', error);
         }
     };
 
     useEffect(() => {
         fetchOutlets();
-        fetchMenuItems();
     }, []);
-
-    const handleDecrease = () => {
-        setValue((prev) => Math.max(0, prev - 1));
-    };
-
-    const handleIncrease = () => {
-        setValue((prev) => Math.min(99, prev + 1));
-    };
-
-    const handleChange = (e) => {
-        let inputVal = e.target.value.replace(/\D/g, ""); // remove non-digits
-        if (inputVal.length > 2) inputVal = inputVal.slice(0, 2); // max 2 digits
-        setValue(inputVal === "" ? 0 : parseInt(inputVal));
-    };
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setForm((prevData) => ({
-            ...prevData,
-            [name]: value,
+        setForm(prev => ({
+            ...prev,
+            [name]: name === 'is_active' ? e.target.checked : value
         }));
     };
+
+    const handleCapacityChange = (operation) => {
+        setForm(prev => ({
+            ...prev,
+            capacity: operation === 'increase' 
+                ? Math.min(99, prev.capacity + 1)
+                : Math.max(1, prev.capacity - 1)
+        }));
+    };
+
+    const handleUnitChange = (e) => {
+        setForm(prev => ({
+            ...prev,
+            roomSize: {
+                ...prev.roomSize,
+                unit: e.target.value
+            }
+        }));
+    };
+
+    const handleRoomSizeChange = (e) => {
+        const { name, value } = e.target;
+        setForm(prev => ({
+            ...prev,
+            roomSize: {
+                ...prev.roomSize,
+                [name]: parseFloat(value) || 0
+            }
+        }));
+    };
+
+
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -86,51 +93,25 @@ const CreateTable = () => {
         outlet.name.toLowerCase().includes(search.toLowerCase())
     );
 
-    const handleFormChange = (e) => {
-        setForm({ ...form, [e.target.name]: e.target.value });
-    };
-
-    const [rows, setRows] = useState([
-        { namaProduk: '', jumlah: '', satuan: '', hargaBeli: '', total: 0 },
-    ]);
-
-    const handleRowChange = (index, field, value) => {
-        const updatedRows = [...rows];
-        updatedRows[index][field] = value;
-        const jumlah = parseFloat(updatedRows[index].jumlah) || 0;
-        const harga = parseFloat(updatedRows[index].hargaBeli) || 0;
-        updatedRows[index].total = jumlah * harga;
-        setRows(updatedRows);
-    };
-
-    const handleAddRow = () => {
-        setRows([...rows, { namaProduk: '', jumlah: '', satuan: '', hargaBeli: '', total: 0 }]);
-    };
-
-    const handleRemoveRow = (index) => {
-        setRows(rows.filter((_, i) => i !== index));
-    };
-
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        const payload = {
-            ...form,
-            outlet: tempSelectedOutlet,
-            detailProduk: rows,
-        };
-        console.log('Data terkirim:', payload);
+        setLoading(true);
+        try {
+            const response = await axios.post('/api/areas', {
+                ...form,
+                area_code: form.area_code.toUpperCase()
+            });
+            
+            if (response.data.success) {
+                navigate('/admin/table-management');
+            }
+        } catch (error) {
+            console.error('Error creating area:', error);
+            alert(error.response?.data?.message || 'Error creating area');
+        } finally {
+            setLoading(false);
+        }
     };
-
-    const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
-
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
 
     return (
         <div className="">
@@ -142,30 +123,28 @@ const CreateTable = () => {
                     <FaUser size={30} />
                 </Link>
             </div>
+            
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="px-3 py-3 flex justify-between items-center border-b">
                     <div className="flex items-center space-x-2">
                         <FaBoxes size={22} className="text-gray-400 inline-block" />
-                        <span
-                            className="text-gray-400 inline-block"
-                        >
-                            Pengaturan Meja
+                        <span className="text-gray-400 inline-block">
+                            Pengaturan Area
                         </span>
                         <FaChevronRight size={22} className="text-gray-400 inline-block" />
-                        <span
-                            className="text-gray-400 inline-block"
-                        >
+                        <span className="text-gray-400 inline-block">
                             Tambah Area
                         </span>
                     </div>
                 </div>
-                {/* === FORM INPUT ATAS === */}
+                
+                {/* Area Information */}
                 <div className="grid px-3 grid-cols-1 w-full md:w-1/2 gap-4">
-                    {/* === OUTLET CUSTOM === */}
+                    {/* Outlet Selection */}
                     <div className="flex items-center">
-                        <h3 className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
+                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
                             Outlet
-                        </h3>
+                        </label>
                         <div className="relative flex-1">
                             {!showInput ? (
                                 <button
@@ -173,7 +152,7 @@ const CreateTable = () => {
                                     className="w-full text-[13px] text-gray-500 border py-2 px-3 rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
                                     onClick={() => setShowInput(true)}
                                 >
-                                    {tempSelectedOutlet || 'Pilih Outlet'}
+                                    {selectedOutlet || 'Pilih Outlet'}
                                 </button>
                             ) : (
                                 <input
@@ -195,7 +174,7 @@ const CreateTable = () => {
                                             <li
                                                 key={idx}
                                                 onClick={() => {
-                                                    setTempSelectedOutlet(outlet.name);
+                                                    setSelectedOutlet(outlet.name);
                                                     setShowInput(false);
                                                     setSearch('');
                                                 }}
@@ -212,171 +191,167 @@ const CreateTable = () => {
                         </div>
                     </div>
 
-                    {/* === NAMA AREA === */}
+                    {/* Area Code */}
                     <div className="flex items-center">
-                        <h3 className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5 text-[14px]">Nama Area</h3>
+                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
+                            Kode Area
+                        </label>
                         <input
                             type="text"
-                            name="name_area"
-                            value={form.namearea}
-                            onChange={handleFormChange}
-                            className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
+                            name="area_code"
+                            value={form.area_code}
+                            onChange={handleInputChange}
+                            className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1 uppercase"
+                            required
                         />
                     </div>
 
-                    <div className="flex items-center text-[#999999]">
-                        <label className="w-[140px] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
-                            Status Area
+                    {/* Area Name */}
+                    <div className="flex items-center">
+                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
+                            Nama Area
                         </label>
-                        <div className="flex-1 space-x-4">
-                            <label className="text-[14px]">
-                                <input
-                                    type="radio"
-                                    name="status"
-                                    value="1"
-                                    checked={form.status === '1'}
-                                    onChange={handleInputChange}
-                                    className="form-radio"
-                                /> Aktif
-                            </label>
-                            <label className="text-[14px]">
-                                <input
-                                    type="radio"
-                                    name="status"
-                                    value="0"
-                                    checked={form.status === '0'}
-                                    onChange={handleInputChange}
-                                    className="form-radio"
-                                /> Non Aktif
-                            </label>
+                        <input
+                            type="text"
+                            name="area_name"
+                            value={form.area_name}
+                            onChange={handleInputChange}
+                            className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
+                            required
+                        />
+                    </div>
+
+                    {/* Capacity */}
+                    <div className="flex items-center">
+                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
+                            Kapasitas
+                        </label>
+                        <div className="flex items-center space-x-2">
+                            <button
+                                type="button"
+                                onClick={() => handleCapacityChange('decrease')}
+                                className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+                            >
+                                -
+                            </button>
+                            <input
+                                type="number"
+                                name="capacity"
+                                value={form.capacity}
+                                onChange={handleInputChange}
+                                min="1"
+                                max="99"
+                                className="w-16 text-center border border-gray-300 rounded py-1 px-2 focus:outline-none focus:ring-1 focus:ring-green-600"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => handleCapacityChange('increase')}
+                                className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+                            >
+                                +
+                            </button>
+                            <span className="text-sm text-gray-600">orang</span>
                         </div>
                     </div>
-                </div>
-                {/* === TABEL PRODUK === */}
-                <div className="relative">
-                    {/* Tombol */}
-                    <div className="w-3/4 mb-[10px] flex gap-2 px-3 text-[14px] justify-end">
-                        <button
-                            type="button"
-                            onClick={handleAddRow}
-                            className="bg-[#005429] text-white rounded px-3 py-2"
-                        >
-                            + Tambah Meja
-                        </button>
+
+                    {/* Rent Fee */}
+                    <div className="flex items-center">
+                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
+                            Biaya Sewa
+                        </label>
+                        <div className="relative flex-1">
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2">Rp</span>
+                            <input
+                                type="number"
+                                name="rentfee"
+                                value={form.rentfee}
+                                onChange={handleInputChange}
+                                min="0"
+                                className="w-full text-[13px] border py-2 px-3 rounded text-left pl-8"
+                                required
+                            />
+                        </div>
                     </div>
-                    <div className="px-3 relative mb-10">
-                        <table className="table-auto w-3/4 border-gray-300">
-                            <thead className="border">
-                                <tr className="">
-                                    <th className="w-1/4 border text-[14px] text-[#999999] font-semibold text-left after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Nama Meja</th>
-                                    <th className="w-1/4 border text-[14px] text-[#999999] font-semibold text-left">Kapasitas</th>
-                                    <th className="w-1/4 border text-[14px] text-[#999999] font-semibold">
-                                        <div className=" flex justify-between items-center">
-                                            <div className="">
-                                                <p>Batas Waktu</p>
-                                            </div>
-                                            <div className="flex items-center">
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input type="checkbox" className="sr-only peer" />
-                                                    <div className="w-8 h-[17px] bg-gray-200 rounded-full peer-focus:ring-2 peer-focus:ring-blue-300 
-        peer-checked:after:translate-x-4 rtl:peer-checked:after:-translate-x-4
-        peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] 
-        after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
-        after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#005429]">
-                                                    </div>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </th>
-                                    <th className="w-1/4 border text-[14px] text-[#999999] font-semibold">
-                                        <div className="flex justify-between items-center">
-                                            <div className="">
-                                                <p>Waktu Pengingat</p>
-                                            </div>
-                                            <div className="flex items-center">
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input type="checkbox" className="sr-only peer" />
-                                                    <div className="w-8 h-[17px] bg-gray-200 rounded-full peer-focus:ring-2 peer-focus:ring-blue-300 
-        peer-checked:after:translate-x-4 rtl:peer-checked:after:-translate-x-4
-        peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] 
-        after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
-        after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#005429]">
-                                                    </div>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.map((row, index) => (
-                                    <tr key={index}>
-                                        <td className="border">
-                                            <input
-                                                type="text"
-                                                value={row.namaProduk}
-                                                onChange={(e) => handleRowChange(index, 'namaProduk', e.target.value)}
-                                                className="w-full px-2 py-1 rounded-lg focus:outline-none focus:ring-0 focus:border-none"
-                                            />
-                                        </td>
-                                        <td className="border">
-                                            <div className="flex items-center space-x-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={handleDecrease}
-                                                    className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
-                                                >
-                                                    -
-                                                </button>
 
-                                                <input
-                                                    type="text"
-                                                    inputMode="numeric"
-                                                    pattern="[0-9]*"
-                                                    value={value}
-                                                    onChange={handleChange}
-                                                    className="w-16 text-center border border-gray-300 rounded py-1 px-2 focus:outline-none focus:ring-1 focus:ring-green-600"
-                                                />
+                     {/* Room Size */}
+                    <div className="flex items-center">
+                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
+                            Ukuran Ruangan
+                        </label>
+                        <div className="flex-1 space-y-2">
+                            <div className="flex items-center space-x-2">
+                                <input
+                                    type="number"
+                                    name="width"
+                                    value={form.roomSize.width}
+                                    onChange={handleRoomSizeChange}
+                                    min="0"
+                                    step="0.1"
+                                    className="w-20 text-[13px] border py-2 px-3 rounded text-left"
+                                    placeholder="Lebar"
+                                    required
+                                />
+                                <span className="text-sm">x</span>
+                                <input
+                                    type="number"
+                                    name="height"
+                                    value={form.roomSize.height}
+                                    onChange={handleRoomSizeChange}
+                                    min="0"
+                                    step="0.1"
+                                    className="w-20 text-[13px] border py-2 px-3 rounded text-left"
+                                    placeholder="Panjang"
+                                    required
+                                />
+                                <select
+                                    value={form.roomSize.unit}
+                                    onChange={handleUnitChange}
+                                    className="text-[13px] border py-2 px-3 rounded"
+                                >
+                                    <option value="m">meter</option>
+                                    <option value="cm">centimeter</option>
+                                    <option value="ft">feet</option>
+                                </select>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                                Ukuran ruangan diperlukan untuk penempatan meja
+                            </p>
+                        </div>
+                    </div>
 
-                                                <button
-                                                    type="button"
-                                                    onClick={handleIncrease}
-                                                    className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
-                                                >
-                                                    +
-                                                </button>
-                                                <span className="text-sm text-gray-600">orang</span>
-                                            </div>
-                                        </td>
-                                        <td className="border">
-                                            <input
-                                                type="number"
-                                                value={row.satuan}
-                                                onChange={(e) => handleRowChange(index, 'satuan', e.target.value)}
-                                                className="w-1/2 px-2 py-1 rounded-lg focus:outline-none focus:ring-0 focus:border-none"
-                                            />
-                                            <span className="text-sm text-gray-600">menit</span>
-                                        </td>
-                                        <td className="border flex items-center">
-                                            <input
-                                                type="number"
-                                                value={row.waktu}
-                                                onChange={(e) => handleRowChange(index, 'waktu', e.target.value)}
-                                                className="w-1/2 px-2 py-1 rounded-lg focus:outline-none focus:ring-0 focus:border-none"
-                                            />
-                                            <span className="text-sm text-gray-600">menit</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveRow(index)}
-                                                className="w-full flex justify-center text-red-500 hover:underline"
-                                            >
-                                                <FaTrash />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+
+                    {/* Description */}
+                    <div className="flex items-center">
+                        <label className="w-[140px] block text-[#999999] text-[14px]">
+                            Deskripsi
+                        </label>
+                        <textarea
+                            name="description"
+                            value={form.description}
+                            onChange={handleInputChange}
+                            className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
+                            rows="3"
+                        />
+                    </div>
+
+                    {/* Status */}
+                    <div className="flex items-center">
+                        <label className="w-[140px] block text-[#999999] text-[14px]">
+                            Status
+                        </label>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                name="is_active"
+                                checked={form.is_active}
+                                onChange={handleInputChange}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#005429]"></div>
+                            <span className="ml-3 text-sm font-medium text-gray-900">
+                                {form.is_active ? 'Aktif' : 'Nonaktif'}
+                            </span>
+                        </label>
                     </div>
                 </div>
 
@@ -390,9 +365,10 @@ const CreateTable = () => {
                         </Link>
                         <button
                             type="submit"
-                            className="bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
+                            disabled={loading}
+                            className="bg-[#005429] text-white text-sm px-3 py-1.5 rounded disabled:opacity-50"
                         >
-                            Simpan
+                            {loading ? 'Menyimpan...' : 'Simpan'}
                         </button>
                     </div>
                 </div>
@@ -401,4 +377,4 @@ const CreateTable = () => {
     );
 };
 
-export default CreateTable;
+export default CreateArea;
