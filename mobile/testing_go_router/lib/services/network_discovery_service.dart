@@ -1,5 +1,6 @@
 import 'dart:io';
 // import 'dart:typed_data';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:ping_discover_network_forked/ping_discover_network_forked.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
@@ -41,9 +42,9 @@ class DiscoveredDevice {
       port: defaultPort,
       manufacturer: deviceInfo['manufacturer'] ?? 'Unknown',
       model: deviceInfo['model'] ?? 'Thermal Printer',
-      paperSize:
-          deviceInfo['paperSize'] ??
-          'mm80', // Default based on most thermal printers
+      paperSize: PaperSizeConverter.toPaperString(
+        deviceInfo['paperSize'] ?? 'mm80',
+      ),
       lastSeen: DateTime.now(),
       isOnline: true,
     );
