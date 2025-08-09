@@ -647,7 +647,7 @@ const TableForm = () => {
 
                     <div className="mt-8 flex justify-end space-x-4">
                         <Link
-                            to="/admin/table-management"
+                            to="/admin/table-plan"
                             className="flex items-center px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
                         >
                             <FaTimes className="mr-2" /> Batal

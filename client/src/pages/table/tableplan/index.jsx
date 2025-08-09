@@ -384,10 +384,17 @@ const TablePlanManagement = () => {
 
                 {/* Edit Button */}
                 <button
-                    onClick={() => selectedArea && navigate(`/admin/table-management/edit/${selectedArea._id}`)}
+                    onClick={() => selectedArea && navigate(`/admin/table-management/table-update/${selectedArea._id}`)}
                     className="fixed right-5 bottom-20 bg-[#005429] text-white px-4 py-2 rounded text-sm hover:bg-[#006d34] flex items-center gap-2 shadow-lg"
                 >
                     <FaPencilAlt /> Edit Area
+                </button>
+
+                 <button
+                    onClick={() => navigate(`/admin/table-plan/create`)}
+                    className="fixed right-5 bottom-20 bg-[#005429] text-white px-4 py-2 rounded text-sm hover:bg-[#006d34] flex items-center gap-2 shadow-lg"
+                >
+                    <FaPencilAlt /> Add Table
                 </button>
             </div>
 
@@ -411,10 +418,8 @@ const TablePlanManagement = () => {
                 />
             )}
 
-            {/* Footer */}
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]"></div>
-            </div>
+            
+           
         </div>
     );
 };
