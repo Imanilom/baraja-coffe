@@ -198,40 +198,11 @@ class PrinterService {
       print(
         '📤 Mencetak $jobType di ${printer.connectionType} (${printer.address})',
       );
-      if (printer.connectionType == 'network') {
-        // Handle network printer
-        print(
-          '📤 Mencetak $jobType di ${printer.connectionType} (${printer.address})',
-        );
-        final socket = await connectNetworkPrinter(printer);
-        if (socket == null) {
-          print('❌ Gagal terhubung ke printer jaringan ${printer.name}');
-          continue;
-        }
-        try {
-          final bytes = await _generateBytesForJob(
-            orderDetail: orderDetail,
-            printer: printer,
-            jobType: jobType,
-          );
-          socket.add(bytes);
-          await socket.flush();
-        } catch (e) {
-          print('❌ Gagal mencetak $jobType di ${printer.name}: $e');
-        } finally {
-          await disconnectNetworkPrinter(socket);
-        }
-        continue;
-      }
-
-      if (printer.connectionType == 'bluetooth') {
-        await _printSingleJob(
-          orderDetail: orderDetail,
-          printer: printer,
-          jobType: jobType,
-        );
-        continue;
-      }
+      await _printSingleJob(
+        orderDetail: orderDetail,
+        printer: printer,
+        jobType: jobType,
+      );
     }
   }
 
@@ -242,7 +213,6 @@ class PrinterService {
   }) async {
     try {
       print('📤 Mencetak $jobType di ${printer.name} (${printer.address})');
-      await connectPrinter(printer);
 
       final bytes = await _generateBytesForJob(
         orderDetail: orderDetail,
@@ -252,11 +222,21 @@ class PrinterService {
 
       final copies = _getCopiesForJob(printer, jobType);
 
-      for (int i = 0; i < copies; i++) {
-        await PrintBluetoothThermal.writeBytes(bytes);
+      if (printer.connectionType == 'bluetooth') {
+        await connectPrinter(printer);
+        for (int i = 0; i < copies; i++) {
+          await PrintBluetoothThermal.writeBytes(bytes);
+        }
+        await disconnectPrinter();
       }
-
-      await disconnectPrinter();
+      if (printer.connectionType == 'network') {
+        for (int i = 0; i < copies; i++) {
+          await NetworkDiscoveryService.testPrintToNetworkPrinter(
+            printer,
+            bytes,
+          );
+        }
+      }
     } catch (e) {
       print('❌ Gagal mencetak $jobType di ${printer.name}: $e');
     }
@@ -304,11 +284,7 @@ class PrinterService {
       await disconnectPrinter();
       await connectPrinter(printer);
       // 1. Buat generator
-      print('printer yang dipilih: $printer');
-
       final profile = await CapabilityProfile.load();
-
-      print('profile sudah di buat: $profile');
       PaperSize paperSize;
       if (printer.paperSize == 'mm58') {
         paperSize = PaperSize.mm58;
@@ -322,48 +298,70 @@ class PrinterService {
       // 2. Siapkan konten
       final List<int> bytes = [];
 
-      // Header
-      bytes.addAll(await generateHeadersBytes(generator, paperSize));
-      // Bill Data
       bytes.addAll(
-        await generateBillDataBytes(
-          generator,
-          paperSize,
-          null, // orderId,
-          null, // customerName,
-          null, // orderType,
-          null, // tableNumber,
+        generator.text(
+          'Bluetooth Printer Test',
+          styles: const PosStyles(align: PosAlign.center, bold: true),
         ),
       );
 
-      bytes.addAll(generator.hr());
-
+      bytes.addAll(generator.hr(ch: '='));
       bytes.addAll(
         generator.row([
           PosColumn(
             text: 'Mac Address',
-            width: 5,
+            width: 6,
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
-            text: macAddress,
-            width: 7,
+            text: printer.address,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Paper Size',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: printer.paperSize,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Connection Type',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: printer.connectionType!,
+            width: 6,
             styles: const PosStyles(align: PosAlign.right),
           ),
         ]),
       );
 
-      bytes.addAll(generator.hr());
+      bytes.addAll(generator.hr(ch: '=', linesAfter: 1));
 
-      //footer
-      await generateFooterBytes(generator, paperSize).then((footerBytes) {
-        bytes.addAll(footerBytes);
-      });
+      //success message
+      bytes.addAll(
+        generator.text(
+          'Test Print Successfully',
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        ),
+      );
 
-      // 3. Kirim ke printer
-      print('print bytes: $bytes');
+      bytes.addAll(generator.feed(2));
+
       final result = await PrintBluetoothThermal.writeBytes(bytes);
-      print('result: $result');
       return result;
     } catch (e) {
       print('Print error: $e');
@@ -391,21 +389,21 @@ class PrinterService {
       final List<int> bytes = [];
 
       // Header
-      bytes.addAll(await generateHeadersBytes(generator, paperSize));
-      // Bill Data
+      // bytes.addAll(await generateHeadersBytes(generator, paperSize));
+
       bytes.addAll(
-        await generateBillDataBytes(
-          generator,
-          PaperSize.mm80,
-          null, // orderId,
-          null, // customerName,
-          null, // orderType,
-          null, // tableNumber,
+        generator.text(
+          'Network Printer Test',
+          styles: const PosStyles(
+            align: PosAlign.center,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          ),
         ),
       );
 
-      bytes.addAll(generator.hr(ch: '=', linesAfter: 1));
-
+      bytes.addAll(generator.hr(ch: '='));
       bytes.addAll(
         generator.row([
           PosColumn(
@@ -414,7 +412,35 @@ class PrinterService {
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
-            text: address,
+            text: '$address:${printer.port}',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Paper Size',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: printer.paperSize,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Connection Type',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: printer.connectionType!,
             width: 6,
             styles: const PosStyles(align: PosAlign.right),
           ),
@@ -423,10 +449,13 @@ class PrinterService {
 
       bytes.addAll(generator.hr(ch: '=', linesAfter: 1));
 
-      //footer
-      await generateFooterBytes(generator, paperSize).then((footerBytes) {
-        bytes.addAll(footerBytes);
-      });
+      //success message
+      bytes.addAll(
+        generator.text(
+          'Test Print Successfully',
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        ),
+      );
 
       //cut
       bytes.addAll(generator.cut());
