@@ -52,7 +52,6 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     let itemPrice = menuItem.price;
     const addons = [];
     const toppings = [];
-git 
 
     // Process toppings
     if (item.selectedToppings?.length > 0) {
