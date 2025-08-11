@@ -34,7 +34,6 @@ import 'package:kasirbaraja/screens/payments/payment_type_screen.dart';
 import 'package:kasirbaraja/screens/reservation/reservation_menu_screen.dart';
 import 'package:kasirbaraja/screens/settings/setting_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/detail_printer_screen.dart';
-import 'package:kasirbaraja/screens/settings/widgets/printer_connection.dart';
 import 'package:kasirbaraja/screens/settings/widgets/scan_network_printer_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/scan_printer_screen.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
