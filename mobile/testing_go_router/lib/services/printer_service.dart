@@ -309,7 +309,7 @@ class PrinterService {
       final profile = await CapabilityProfile.load();
 
       print('profile sudah di buat: $profile');
-      PaperSize paperSize = PaperSize.mm58;
+      PaperSize paperSize;
       if (printer.paperSize == 'mm58') {
         paperSize = PaperSize.mm58;
       } else if (printer.paperSize == 'mm80') {
@@ -377,7 +377,7 @@ class PrinterService {
   ) async {
     try {
       final profile = await CapabilityProfile.load();
-      PaperSize paperSize = PaperSize.mm58;
+      PaperSize paperSize;
       if (printer.paperSize == 'mm58') {
         paperSize = PaperSize.mm58;
       } else if (printer.paperSize == 'mm80') {
@@ -396,7 +396,7 @@ class PrinterService {
       bytes.addAll(
         await generateBillDataBytes(
           generator,
-          paperSize,
+          PaperSize.mm80,
           null, // orderId,
           null, // customerName,
           null, // orderType,

@@ -10,7 +10,7 @@ export const getProductStock = async (req, res) => {
       return res.status(400).json({ success: false, message: 'ID Produk tidak valid' });
     }
 
-    const productStock = await ProductStock.findOne({ productId }).populate('productId', 'name sku');
+    const productStock = await ProductStock.findOne({ productId }).populate('productId', 'name sku unit');
     if (!productStock) {
       return res.status(404).json({
         success: true,
@@ -174,7 +174,7 @@ export const updateMinStock = async (req, res) => {
 
 export const getAllStock = async (req, res) => {
   try {
-    const stocks = await ProductStock.find().populate('productId', 'name sku category');
+    const stocks = await ProductStock.find().populate('productId', 'name sku category unit');
     res.status(200).json({
       success: true,
       count: stocks.length,

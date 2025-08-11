@@ -1,5 +1,6 @@
 import 'dart:io';
 // import 'dart:typed_data';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:ping_discover_network_forked/ping_discover_network_forked.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
@@ -41,9 +42,8 @@ class DiscoveredDevice {
       port: defaultPort,
       manufacturer: deviceInfo['manufacturer'] ?? 'Unknown',
       model: deviceInfo['model'] ?? 'Thermal Printer',
-      paperSize:
-          deviceInfo['paperSize'] ??
-          'mm80', // Default based on most thermal printers
+      // paperSize: deviceInfo['paperSize'] ?? 'mm80',
+      paperSize: 'mm80',
       lastSeen: DateTime.now(),
       isOnline: true,
     );
@@ -111,7 +111,7 @@ class NetworkDiscoveryService {
 
           if (device.exists) {
             onProgress?.call('✅ Perangkat ditemukan di ${device.ip}:$port');
-
+            print('✅ Detail Perangkat ditemukan: $device');
             // Check if we already found this IP
             final existingDevice = discoveredDevices.firstWhere(
               (d) => d.ipAddress == device.ip,
@@ -230,6 +230,7 @@ class NetworkDiscoveryService {
         final printerInfo = await _queryPrinterInfo(ipAddress, 9100);
         deviceInfo.addAll(printerInfo);
       }
+      print('✅ Dapatkan info printer untuk $ipAddress: $deviceInfo');
 
       deviceInfo['detectedPorts'] = openPorts;
       deviceInfo['isPrinter'] = openPorts.any(
