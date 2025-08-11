@@ -6,9 +6,11 @@ import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
+import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:intl/intl.dart';
 
 class PrinterService {
   // Tambahkan fungsi helper untuk mengecek apakah ada items untuk workstation tertentu
@@ -487,7 +489,8 @@ class PrinterService {
     final image = img.decodeImage(imageBytes)!;
 
     // Resize gambar sesuai lebar kertas
-    final resizedImage = img.copyResize(image, width: paperSize.width - 84);
+
+    final resizedImage = img.copyResize(image, width: 300);
 
     // Konversi ke grayscale
     final grayscaleImage = img.grayscale(resizedImage);
@@ -680,7 +683,7 @@ class PrinterService {
             styles: const PosStyles(align: PosAlign.right),
           ),
           PosColumn(
-            text: item.subtotal.toString(),
+            text: formatPrice(item.subtotal).toString(),
             width: 5,
             styles: const PosStyles(align: PosAlign.right),
           ),
@@ -696,7 +699,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderDetail.totalAfterDiscount.toString(),
+          text: formatPrice(orderDetail.totalAfterDiscount).toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -710,7 +713,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderDetail.totalTax.toString(),
+          text: formatPrice(orderDetail.totalTax).toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -726,7 +729,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderDetail.grandTotal.toString(),
+          text: formatPrice(orderDetail.grandTotal).toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -740,8 +743,8 @@ class PrinterService {
     });
 
     //feed and cut
-    bytes.addAll(generator.feed(2));
-    // bytes.addAll(generator.cut());
+    // bytes.addAll(generator.feed(2));
+    bytes.addAll(generator.cut());
 
     return bytes;
   }
@@ -822,7 +825,10 @@ class PrinterService {
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
-    bytes.addAll(generator.feed(2));
+
+    //feed and cut
+    // bytes.addAll(generator.feed(2));
+    bytes.addAll(generator.cut());
 
     return bytes;
   }
@@ -901,7 +907,10 @@ class PrinterService {
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
-    bytes.addAll(generator.feed(4));
+
+    //feed and cut
+    bytes.addAll(generator.feed(2));
+    bytes.addAll(generator.cut());
 
     return bytes;
   }
@@ -978,7 +987,11 @@ class PrinterService {
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
-    bytes.addAll(generator.feed(4));
+
+    // bytes.addAll(generator.feed(4));
+    //feed and cut
+    bytes.addAll(generator.feed(2));
+    bytes.addAll(generator.cut());
 
     return bytes;
   }
@@ -1022,4 +1035,13 @@ class PrinterService {
 
     return bytes;
   }
+}
+
+String formatPrice(int amount) {
+  final formatter = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: '',
+    decimalDigits: 0,
+  );
+  return formatter.format(amount);
 }
