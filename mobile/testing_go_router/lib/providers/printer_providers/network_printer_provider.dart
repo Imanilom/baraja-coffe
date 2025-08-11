@@ -79,6 +79,10 @@ class NetworkScannerNotifier extends StateNotifier<NetworkScanState> {
             },
           );
 
+      print(
+        '📡 Ditemukan dengan ukuran ${discoveredDevices.first.deviceInfo['paperSize']}',
+      );
+
       // Convert discovered devices to printer models
       final foundPrinters =
           discoveredDevices
