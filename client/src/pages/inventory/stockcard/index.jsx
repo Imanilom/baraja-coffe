@@ -79,13 +79,25 @@ const StockCardManagement = () => {
             const stockResponse = await axios.get('/api/product/stock/all');
             const stockData = stockResponse.data.data;
 
-            setStock(stockData);
-            setFilteredData(stockData);
+            // Ambil movements untuk setiap productId
+            const stockWithMovements = await Promise.all(
+                stockData.map(async (item) => {
+                    const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
+                    return {
+                        ...item,
+                        movements: movementResponse.data.data.movements
+                    };
+                })
+            );
+
+            setStock(stockWithMovements);
+            setFilteredData(stockWithMovements);
         } catch (err) {
-            console.error("Error fetching stock:", err);
+            console.error("Error fetching stock or movements:", err);
             setStock([]);
         }
     };
+
 
     const fetchOutlets = async () => {
         try {
@@ -190,14 +202,14 @@ const StockCardManagement = () => {
             const stockOutBefore = previousMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
             const adjustmentBefore = previousMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
 
-            const firstStock = stockInBefore - stockOutBefore + adjustmentBefore;
+            const firstStock = stockInBefore - stockOutBefore;
             // const firstStock = stockIn - stockOut - adjustmentBefore;
 
             const stockIn = rangeMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
             const stockOut = rangeMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
             const stockAdjustment = rangeMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
 
-            const finalStock = firstStock + stockIn - stockOut + stockAdjustment;
+            const finalStock = firstStock + stockIn - stockOut;
 
             return {
                 ...item,
@@ -515,9 +527,9 @@ const StockCardManagement = () => {
                                     <th className="p-[15px] font-normal text-right">Stok Awal</th>
                                     <th className="p-[15px] font-normal text-right">Stok Masuk</th>
                                     <th className="p-[15px] font-normal text-right">Stok Keluar</th>
-                                    {/* <th className="p-[15px] font-normal text-right">Penjualan</th>
+                                    {/* <th className="p-[15px] font-normal text-right">Penjualan</th> */}
                                     <th className="p-[15px] font-normal text-right">Transfer</th>
-                                    <th className="p-[15px] font-normal text-right">Penyesuaian</th> */}
+                                    {/* <th className="p-[15px] font-normal text-right">Penyesuaian</th> */}
                                     <th className="p-[15px] font-normal text-right">Stok Akhir</th>
                                     <th className="p-[15px] font-normal text-right">Satuan</th>
                                 </tr>
@@ -557,9 +569,9 @@ const StockCardManagement = () => {
                                             <td className={`p-[15px] text-right ${item.stockOut > 0 ? 'text-red-500' : ''}`}>
                                                 {item.stockOut > 0 ? `- ${item.stockOut}` : 0}
                                             </td>
-                                            {/* <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td> */}
+                                            {/* <td className="p-[15px] text-right">-</td> */}
+                                            <td className="p-[15px] text-right">{item.stockAdjustment > 0 ? item.stockAdjustment : 0}</td>
+                                            {/* <td className="p-[15px] text-right">-</td> */}
                                             <td className="p-[15px] text-right">{item.finalStock}</td>
                                             <td className="p-[15px] text-right lowercase">{item.productId !== null ? item.productId.unit : "-"}</td>
                                         </tr>
