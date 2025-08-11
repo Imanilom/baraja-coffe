@@ -2,6 +2,7 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import Recipe from '../models/modul_menu/Recipe.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
+import StockMovement from '../models/modul_menu/StockMovement.model.js';
 import { checkAutoPromos, checkManualPromo, checkVoucher } from '../helpers/promo.helper.js';
 import { TaxAndService } from '../models/TaxAndService.model.js';
 import mongoose from 'mongoose';
@@ -163,6 +164,7 @@ async function processPromotions({ orderItems, outlet, orderType, voucherCode, c
 /**
  * Creates a stock update operation for bulkWrite
  */
+
 function createStockUpdateOperation(productId, quantityChange, referenceId, notes) {
   return {
     updateOne: {
@@ -173,7 +175,7 @@ function createStockUpdateOperation(productId, quantityChange, referenceId, note
           movements: {
             quantity: Math.abs(quantityChange),
             type: quantityChange < 0 ? 'out' : 'in',
-            referenceId,
+            referenceId: new mongoose.Types.ObjectId(referenceId),
             notes,
             date: new Date()
           }
@@ -182,6 +184,8 @@ function createStockUpdateOperation(productId, quantityChange, referenceId, note
     }
   };
 }
+
+
 
 /**
  * Processes toppings for a menu item
