@@ -52,7 +52,6 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     let itemPrice = menuItem.price;
     const addons = [];
     const toppings = [];
-git 
 
     // Process toppings
     if (item.selectedToppings?.length > 0) {
@@ -277,54 +276,54 @@ async function calculateTaxesAndServices(outlet, totalAfterDiscount, orderItems,
   for (const charge of taxesAndServices) {
     // Determine which items this charge applies to
     const applicableItems = charge.appliesToMenuItems?.length > 0
-      ? orderItems.filter(item => 
-          charge.appliesToMenuItems.some(menuId => 
-            menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
-          )
+      ? orderItems.filter(item =>
+        charge.appliesToMenuItems.some(menuId =>
+          menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
         )
+      )
       : orderItems;
-        
+
     const applicableSubtotal = applicableItems.reduce((sum, item) => sum + item.subtotal, 0);
 
     if (charge.type === 'tax') {
       const taxAmount = (charge.percentage / 100) * applicableSubtotal;
       totalTax += taxAmount;
-      
+
       taxAndServiceDetails.push({
         id: charge._id,
         name: charge.name,
         type: 'tax',
         amount: taxAmount,
         percentage: charge.percentage,
-        appliesTo: charge.appliesToMenuItems?.length > 0 
-          ? 'specific_items' 
+        appliesTo: charge.appliesToMenuItems?.length > 0
+          ? 'specific_items'
           : 'all_items'
       });
     } else if (charge.type === 'service') {
-      const feeAmount = charge.fixedFee 
-        ? charge.fixedFee 
+      const feeAmount = charge.fixedFee
+        ? charge.fixedFee
         : (charge.percentage / 100) * applicableSubtotal;
-      
+
       totalServiceFee += feeAmount;
-      
+
       taxAndServiceDetails.push({
         id: charge._id,
         name: charge.name,
         type: 'service',
         amount: feeAmount,
-        ...(charge.fixedFee 
-          ? { fixedFee: charge.fixedFee } 
+        ...(charge.fixedFee
+          ? { fixedFee: charge.fixedFee }
           : { percentage: charge.percentage }),
-        appliesTo: charge.appliesToMenuItems?.length > 0 
-          ? 'specific_items' 
+        appliesTo: charge.appliesToMenuItems?.length > 0
+          ? 'specific_items'
           : 'all_items'
       });
     }
   }
 
-  return { 
-    taxAndServiceDetails, 
-    totalTax, 
-    totalServiceFee 
+  return {
+    taxAndServiceDetails,
+    totalTax,
+    totalServiceFee
   };
 }

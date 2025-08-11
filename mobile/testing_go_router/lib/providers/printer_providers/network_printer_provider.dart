@@ -79,16 +79,53 @@ class NetworkScannerNotifier extends StateNotifier<NetworkScanState> {
             },
           );
 
-      print(
-        '📡 Ditemukan dengan ukuran ${discoveredDevices.first.deviceInfo['paperSize']}',
-      );
+      // Enhanced logging dengan detail paper size
+      print('📡 === HASIL PEMINDAIAN PRINTER ===');
+      for (int i = 0; i < discoveredDevices.length; i++) {
+        final device = discoveredDevices[i];
+        if (device.isPotentialPrinter) {
+          print('🖨️ Printer ${i + 1}:');
+          print('   IP: ${device.ipAddress}');
+          print(
+            '   Manufacturer: ${device.deviceInfo['manufacturer'] ?? 'Unknown'}',
+          );
+          print('   Model: ${device.deviceInfo['model'] ?? 'Unknown'}');
+          print(
+            '   Paper Size: ${device.deviceInfo['paperSize'] ?? 'Not detected'}',
+          );
+          print('   Ports: ${device.openPorts}');
+          print(
+            '   Response: ${device.deviceInfo['rawResponse']?.toString().substring(0, device.deviceInfo['rawResponse'].toString().length > 50 ? 50 : device.deviceInfo['rawResponse']?.toString().length ?? 0) ?? 'No response'}...',
+          );
+          print('   ---');
+        }
+      }
+      print('📡 === END HASIL PEMINDAIAN ===');
 
       // Convert discovered devices to printer models
       final foundPrinters =
-          discoveredDevices
-              .where((device) => device.isPotentialPrinter)
-              .map((device) => device.toPrinterModel())
-              .toList();
+          discoveredDevices.where((device) => device.isPotentialPrinter).map((
+            device,
+          ) {
+            // Log paper size before conversion
+            final paperSize = device.deviceInfo['paperSize'] ?? 'default';
+            print(
+              '🔄 Converting ${device.ipAddress} -> Paper size akan: $paperSize',
+            );
+
+            return device.toPrinterModel();
+          }).toList();
+
+      // Final verification log
+      print('✅ Konversi selesai:');
+      for (int i = 0; i < foundPrinters.length; i++) {
+        final printer = foundPrinters[i];
+        print('   ${i + 1}. ${printer.name}');
+        print('      Paper Size: ${printer.paperSize}');
+        print('      Address: ${printer.displayAddress}');
+        print('      Manufacturer: ${printer.manufacturer ?? 'Unknown'}');
+        print('      ---');
+      }
 
       state = state.copyWith(
         isScanning: false,
@@ -98,6 +135,7 @@ class NetworkScannerNotifier extends StateNotifier<NetworkScanState> {
             'Pemindaian selesai. Ditemukan ${foundPrinters.length} printer.',
       );
     } catch (e) {
+      print('❌ Error dalam pemindaian: $e');
       state = state.copyWith(
         isScanning: false,
         error: e.toString(),
