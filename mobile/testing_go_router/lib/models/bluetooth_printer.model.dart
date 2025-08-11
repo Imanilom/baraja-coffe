@@ -45,4 +45,18 @@ abstract class BluetoothPrinterModel with _$BluetoothPrinterModel {
     }
     return address;
   }
+
+  factory BluetoothPrinterModel.fromBluetoothInfo(dynamic info) {
+    final b = info;
+    final name = (b?.name ?? b?.deviceName ?? 'Unknown Printer') as String;
+    final address = (b?.address ?? b?.macAddress ?? '') as String;
+
+    return BluetoothPrinterModel(
+      name: name,
+      address: address,
+      connectionType: 'bluetooth',
+      lastSeen: DateTime.now(),
+      isOnline: true,
+    );
+  }
 }

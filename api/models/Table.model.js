@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import Area from './Area.model.js';
 
 const tableSchema = new mongoose.Schema({
     table_number: {
@@ -22,14 +23,14 @@ const tableSchema = new mongoose.Schema({
         enum: ['regular', 'vip', 'family', 'couple'],
         default: 'regular'
     },
-    shape: { 
-          type: String,
-          enum: ['square', 'rectangle', 'circle', 'oval', 'custom'], 
-          default: 'rectangle'
+    shape: {
+        type: String,
+        enum: ['square', 'rectangle', 'circle', 'oval', 'custom'],
+        default: 'rectangle'
     },
     position: {
-        x: { type: Number, default: 0 },
-        y: { type: Number, default: 0 }
+        x: { type: Number, default: 0, min: 0 },
+        y: { type: Number, default: 0, min: 0 }
     },
     status: {
         type: String,
@@ -51,9 +52,27 @@ const tableSchema = new mongoose.Schema({
 // Compound index untuk memastikan table_number unik per area
 tableSchema.index({ table_number: 1, area_id: 1 }, { unique: true });
 
-// Virtual untuk mendapatkan full table code (contoh: A01, B02)
+// Virtual untuk mendapatkan full table code
 tableSchema.virtual('table_code').get(function () {
     return this.table_number;
+});
+
+// Validasi posisi meja tidak melebihi ukuran ruangan
+tableSchema.pre('save', async function (next) {
+    try {
+        const area = await Area.findById(this.area_id);
+        if (!area) {
+            return next(new Error('Area tidak ditemukan'));
+        }
+
+        if (this.position.x > area.roomSize.width || this.position.y > area.roomSize.height) {
+            return next(new Error(`Posisi meja (${this.position.x}, ${this.position.y}) melebihi ukuran area (${area.roomSize.width}, ${area.roomSize.height})`));
+        }
+
+        next();
+    } catch (err) {
+        next(err);
+    }
 });
 
 const Table = mongoose.model('Table', tableSchema);
