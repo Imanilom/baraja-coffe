@@ -44,50 +44,61 @@ const StockOpnameManagement = () => {
 
     // Fetch attendances and outlets data
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
+        const fetchProduct = async () => {
             try {
-                // Fetch attendances data
-                const attendancesResponse = [];
-
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                const statusResponse = [
-                    { _id: "a", name: "Aktif" },
-                    { _id: "t", name: "Tidak Aktif" }
-                ]
-
-                const statusData = statusResponse || [];
-
-                setStatus(statusData);
-
-                setError(null);
+                setLoading(true);
+                const productResponse = await axios.get('/api/product/stock/all');
+                setAttendances(productResponse);
+                setFilteredData(productResponse);
             } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
+                console.error("Error fetching attendances:", err);
                 setAttendances([]);
                 setFilteredData([]);
-                setOutlets([]);
-                setStatus([]);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchData();
+        fetchProduct();
+    }, []);
+
+    useEffect(() => {
+        const fetchOutlets = async () => {
+            try {
+                setLoading(true);
+                const outletsResponse = await axios.get('/api/outlet');
+                const outletsData = Array.isArray(outletsResponse.data)
+                    ? outletsResponse.data
+                    : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
+                        ? outletsResponse.data.data
+                        : [];
+                setOutlets(outletsData);
+            } catch (err) {
+                console.error("Error fetching outlets:", err);
+                setOutlets([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchOutlets();
+    }, []);
+
+    useEffect(() => {
+        const fetchStatus = () => {
+            try {
+                const statusResponse = [
+                    { _id: "a", name: "Aktif" },
+                    { _id: "t", name: "Tidak Aktif" }
+                ];
+                setStatus(statusResponse || []);
+            } catch (err) {
+                console.error("Error setting status:", err);
+                setStatus([]);
+            }
+        };
+
+        fetchStatus();
     }, []);
 
     // Get unique outlet names for the dropdown
@@ -362,7 +373,7 @@ const StockOpnameManagement = () => {
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
                 <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-10 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-2">
+                    {/* <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
                         <div className="relative">
                             {!showInput ? (
@@ -409,7 +420,7 @@ const StockOpnameManagement = () => {
                                 </ul>
                             )}
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
@@ -429,7 +440,9 @@ const StockOpnameManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-2">
+                    <div className="col-span-4"></div>
+
+                    {/* <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Status</label>
                         <div className="relative">
                             <div className="relative">
@@ -478,7 +491,7 @@ const StockOpnameManagement = () => {
                                 )}
                             </div>
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">ID Opname</label>
