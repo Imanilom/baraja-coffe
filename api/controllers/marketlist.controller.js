@@ -3,7 +3,6 @@ import MarketList from '../models/modul_market/MarketList.model.js';
 import Request from '../models/modul_market/Request.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
-import StockMovement from '../models/modul_menu/StockMovement.model.js';
 import CashFlow from '../models/modul_market/CashFlow.model.js';
 import Debt from '../models/modul_market/Debt.model.js';
 import User from '../models/user.model.js';
@@ -520,8 +519,8 @@ export const createMarketList = async (req, res) => {
 
     const savedMarketList = await marketListDoc.save({ session });
 
-    const productUpdates = {};
-    const movementDocs = [];
+    // Prepare bulk operations for ProductStock updates
+    const productStockUpdates = [];
 
     for (const item of processedItems) {
       const { productId, quantityPurchased, department, requestItemId, quantityRequested } = item;
@@ -529,64 +528,41 @@ export const createMarketList = async (req, res) => {
 
       const productObjectId = new mongoose.Types.ObjectId(productId);
 
-      const stockMovementIn = new StockMovement({
-        date: new Date(date),
-        productId: productObjectId,
+      // Prepare the movement entries
+      const movements = [{
         quantity: quantityPurchased,
         type: 'in',
         referenceId: savedMarketList._id,
-        referenceType: 'MarketList',
         notes: `Pembelian oleh ${user.username}`,
-        createdBy: user.username
-      });
-      movementDocs.push(stockMovementIn);
+        date: new Date(date)
+      }];
 
       const qtyToDepartment = (requestItemId && department) ? (quantityRequested || 0) : 0;
-      const netChange = quantityPurchased;
-
-      if (!productUpdates[productId]) {
-        productUpdates[productId] = {
-          productId: productObjectId,
-          totalChange: netChange,
-          movements: [stockMovementIn._id]
-        };
-      } else {
-        productUpdates[productId].totalChange += netChange;
-        productUpdates[productId].movements.push(stockMovementIn._id);
-      }
-
       if (qtyToDepartment > 0) {
-        const departmentMovement = new StockMovement({
-          date: new Date(date),
-          productId: productObjectId,
+        movements.push({
           quantity: qtyToDepartment,
           type: 'adjustment',
           referenceId: savedMarketList._id,
-          referenceType: 'MarketList',
           notes: `Dikirim ke departemen: ${department}`,
-          createdBy: user.username
+          date: new Date(date)
         });
-        movementDocs.push(departmentMovement);
-        productUpdates[productId].movements.push(departmentMovement._id);
       }
+
+      productStockUpdates.push({
+        updateOne: {
+          filter: { productId: productObjectId },
+          update: {
+            $inc: { currentStock: quantityPurchased },
+            $push: { movements: { $each: movements } }
+          },
+          upsert: true
+        }
+      });
     }
 
-    if (movementDocs.length > 0) {
-      await StockMovement.insertMany(movementDocs, { session });
-    }
-
-    for (const productId in productUpdates) {
-      const update = productUpdates[productId];
-
-      await ProductStock.findOneAndUpdate(
-        { productId: update.productId },
-        {
-          $inc: { currentStock: update.totalChange },
-          $push: { movements: { $each: update.movements } },
-          $setOnInsert: { minStock: 0 }
-        },
-        { upsert: true, session, new: true }
-      );
+    // Execute all ProductStock updates in bulk
+    if (productStockUpdates.length > 0) {
+      await ProductStock.bulkWrite(productStockUpdates, { session });
     }
 
     for (const debt of debtsToCreate) {
@@ -617,8 +593,7 @@ export const createMarketList = async (req, res) => {
         cashFlow,
         debtsCreated: debtsToCreate.length,
         totalCharged,
-        totalPaid,
-        stockMovements: movementDocs.length
+        totalPaid
       }
     });
 
@@ -645,7 +620,6 @@ export const createMarketList = async (req, res) => {
     session.endSession();
   }
 };
-
 
 // Controller untuk mendapatkan semua data debts
 export const getAllDebts = async (req, res) => {
@@ -856,7 +830,6 @@ export const getDebtSummaryBySupplier = async (req, res) => {
   }
 };
 
-
 export const getUnpaidMarketLists = async (req, res) => {
   try {
     const unpaidLists = await MarketList.find({ 'payment.status': 'unpaid' }).sort({ date: -1 });
@@ -870,7 +843,6 @@ export const getUnpaidMarketLists = async (req, res) => {
     res.status(500).json({ message: 'Gagal mengambil data unpaid', error: error.message });
   }
 };
-
 
 export const payMarketList = async (req, res) => {
   try {
@@ -911,7 +883,6 @@ export const payMarketList = async (req, res) => {
     res.status(500).json({ message: 'Gagal membayar market list', error: error.message });
   }
 };
-
 
 // Lihat catatan cashflow (semua role bisa lihat jika login)
 export const getCashFlow = async (req, res) => {
@@ -966,7 +937,6 @@ export const addCashIn = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 // GET /api/marketlist/cashflow?start=YYYY-MM-DD&end=YYYY-MM-DD
 export const getFilteredCashFlow = async (req, res) => {

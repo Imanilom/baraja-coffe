@@ -7,6 +7,7 @@
  */
 import mongoose from 'mongoose';
 import ProductStock from '../../models/modul_menu/ProductStock.model.js';
+import StockMovement from '../../models/modul_menu/StockMovement.model.js';
 import Recipe from '../../models/modul_menu/Recipe.model.js';
 
 export async function updateInventoryHandler({ orderId, items }) {
