@@ -133,6 +133,8 @@ import UpdateAutoPromo from "./pages/promotion/autopromo/update";
 import ReceiptMenu from "./pages/menu/receipt";
 import AddSubCategory from "./pages/menu/category_sub/create";
 import CreateTable from "./pages/table/tableplan/create";
+import EventManagement from "./pages/event";
+import CreateEvent from "./pages/event/craete";
 
 
 export default function App() {
@@ -273,6 +275,10 @@ export default function App() {
                 <Route path="tax-and-service" element={<TaxManagementPage />} />
                 <Route path="target-sales" element={<TargetSalesManagementPage />} />
                 <Route path="receipt-design" element={<ReceiptDesign />} />
+
+                {/* Event */}
+                <Route path="event" element={<EventManagement />} />
+                <Route path="event/create-event" element={<CreateEvent />} />
 
                 {/* Voucher */}
                 <Route path="voucher" element={<Vouchermanagement />} />
