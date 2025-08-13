@@ -31,7 +31,7 @@ import ReceiptSetting from './routes/receiptSetting.routes.js';
 import productStockRoutes from './routes/productStock.routes.js';
 import DevRoutes from './routes/devRoutes.js';
 import LocationRoutes from './routes/location.routes.js';
-
+import EventRoutes from './routes/event.routes.js';
 
 import socketHandler from './socket/index.js';
 import { midtransWebhook } from './controllers/webhookController.js';
@@ -72,9 +72,19 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(cors({
   origin: '*', // atau domain frontend Anda
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [ 
+    'Content-Type', 
+    'Authorization', 
+    'ngrok-skip-browser-warning',
+    'X-Requested-With',
+    'Accept'],
+    credentials: true, 
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+
 }));
+
 app.use("/images", express.static("api/public/images")); // supaya bisa diakses dari browser
 
 // Route definitions...
@@ -101,6 +111,8 @@ app.use('/api/receipt-setting', ReceiptSetting);
 app.use('/api/product', productStockRoutes);
 app.use('/api/location', LocationRoutes);
 app.use('/api/dev', DevRoutes);
+app.use('/api/event', EventRoutes);
+
 // app.post('/api/midtrans/webhook', (req, res) => {
 //   res.status(200).send('OK');
 // });

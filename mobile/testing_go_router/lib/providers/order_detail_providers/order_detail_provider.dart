@@ -279,6 +279,19 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       }
 
       state = state!.copyWith(items: updatedItems);
+      //menghitung item sub total price
+      state = state!.copyWith(
+        items:
+            state!.items
+                .map(
+                  (item) => item.copyWith(subtotal: item.countSubTotalPrice()),
+                )
+                .toList(),
+      );
+
+      updateSubTotalPrice();
+      updateTax();
+      updateTotalPrice();
     }
   }
 

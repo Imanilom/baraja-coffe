@@ -275,7 +275,10 @@ class PaymentSuccessScreen extends ConsumerWidget {
         Expanded(
           child: OutlinedButton.icon(
             onPressed: () {
-              savedPrinter.printToPrinter(orderDetail!, 'all');
+              savedPrinter.printToPrinter(
+                orderDetail: orderDetail!,
+                printType: 'all',
+              );
               // Implementasi print receipt
             },
             icon: const Icon(Icons.print),

@@ -24,11 +24,11 @@ const OrderSchema = new mongoose.Schema({
   },
   paymentMethod: {  
     type: String,
-    enum: ['Cash', 'Card', 'E-Wallet', 'Debit', 'Bank Transfer']
+    enum: ['Cash', 'Card', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],
   },
   orderType: {
     type: String,
-    enum: ['Dine-In', 'Pickup', 'Delivery', 'Take Away', 'Reservation'],
+    enum: ['Dine-In', 'Pickup', 'Delivery', 'Take Away', 'Reservation', 'Event'],
     required: true
   },
   deliveryAddress: { type: String },
@@ -61,7 +61,7 @@ const OrderSchema = new mongoose.Schema({
   grandTotal: { type: Number, required: true },
 
   // Sumber order
-  source: { type: String, enum: ['Web', 'App', 'Cashier'], required: true }
+  source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true }
 
 }, { timestamps: true });
 

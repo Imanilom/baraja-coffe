@@ -20,9 +20,15 @@ const areaSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
-    benefit: {
-        type: [String],
-        default: ['none']
+    rentfee: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    roomSize: {
+        width: { type: Number, required: true, min: 1 },
+        height: { type: Number, required: true, min: 1 },
+        unit: { type: String, enum: ['m', 'cm', 'px'], default: 'm' }
     },
     is_active: {
         type: Boolean,

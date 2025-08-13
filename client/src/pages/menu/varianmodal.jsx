@@ -162,8 +162,8 @@ const ToppingForm = ({ toppings, setToppings }) => {
     };
 
     return (
-        <div className="">
-            <h3 className="text-sm font-semibold">Topping</h3>
+        <div>
+            <label className="text-xs block font-medium after:content-[''] after:text-red-500 after:text-lg after:ml-1 uppercase">Topping</label>
             <div className="p-4 overflow-y-auto grow">
                 {toppings.map((item, index) => (
                     <div key={index} className="grid grid-cols-12 gap-2 items-start mb-4">

@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:intl/intl.dart';
 
 class PrinterService {
   // Tambahkan fungsi helper untuk mengecek apakah ada items untuk workstation tertentu
@@ -34,6 +38,39 @@ class PrinterService {
   static Future<void> connectPrinter(BluetoothPrinterModel printer) async {
     await PrintBluetoothThermal.disconnect;
     await PrintBluetoothThermal.connect(macPrinterAddress: printer.address);
+  }
+
+  static Future<void> disconnectPrinter() async {
+    await PrintBluetoothThermal.disconnect;
+  }
+
+  // === NETWORK PRINTER METHODS ===
+  static Future<Socket?> connectNetworkPrinter(
+    BluetoothPrinterModel printer,
+  ) async {
+    try {
+      final socket = await Socket.connect(
+        printer.address,
+        printer.port!, // Default port for network printers
+        timeout: const Duration(seconds: 10),
+      );
+      print(
+        '✅ Berhasil terhubung ke network printer ${printer.name} (${printer.address}:${printer.port})',
+      );
+      return socket;
+    } catch (e) {
+      print('❌ Gagal terhubung ke network printer ${printer.name}: $e');
+      return null;
+    }
+  }
+
+  static Future<void> disconnectNetworkPrinter(Socket? socket) async {
+    try {
+      await socket?.close();
+      print('✅ Koneksi network printer ditutup');
+    } catch (e) {
+      print('❌ Error saat menutup koneksi network printer: $e');
+    }
   }
 
   static Future<void> printToPrinter(
@@ -68,11 +105,41 @@ class PrinterService {
     print('dokumen print ${orderDetail.items.toList()}');
 
     for (final job in jobs) {
+      // if (printers.any((element) => element.connectionType == 'bluetooth')) {
       await _printJobToSupportedPrinters(
         orderDetail: orderDetail,
         jobType: job,
         printers: printers,
       );
+      // }
+
+      if (printers.any((element) => element.connectionType == 'network')) {
+        print('Mencetak $job di printer jaringan...');
+        // final networkPrinters =
+        //     printers
+        //         .where((printer) => printer.connectionType == 'network')
+        //         .toList();
+
+        // for (final networkPrinter in networkPrinters) {
+        //   final socket = await connectNetworkPrinter(networkPrinter);
+        //   if (socket != null) {
+        //     try {
+        //       final bytes = await _generateBytesForJob(
+        //         orderDetail: orderDetail,
+        //         printer: networkPrinter,
+        //         jobType: job,
+        //       );
+        //       socket.add(bytes);
+        //       await socket.flush();
+        //     } catch (e) {
+        //       print('❌ Gagal mencetak $job di ${networkPrinter.name}: $e');
+        //     } finally {
+        //       await disconnectNetworkPrinter(socket);
+        //     }
+        //   }
+        // }
+      }
+      print('Dokumen $job telah dicetak untuk ${orderDetail.orderId}');
     }
   }
 
@@ -129,7 +196,9 @@ class PrinterService {
     print('📤 Mencetak $jobType di ${supportedPrinters.length} printer');
 
     for (final printer in supportedPrinters) {
-      print('📤 Mencetak $jobType di ${printer.name} (${printer.address})');
+      print(
+        '📤 Mencetak $jobType di ${printer.connectionType} (${printer.address})',
+      );
       await _printSingleJob(
         orderDetail: orderDetail,
         printer: printer,
@@ -145,7 +214,6 @@ class PrinterService {
   }) async {
     try {
       print('📤 Mencetak $jobType di ${printer.name} (${printer.address})');
-      await connectPrinter(printer);
 
       final bytes = await _generateBytesForJob(
         orderDetail: orderDetail,
@@ -155,11 +223,21 @@ class PrinterService {
 
       final copies = _getCopiesForJob(printer, jobType);
 
-      for (int i = 0; i < copies; i++) {
-        await PrintBluetoothThermal.writeBytes(bytes);
+      if (printer.connectionType == 'bluetooth') {
+        await connectPrinter(printer);
+        for (int i = 0; i < copies; i++) {
+          await PrintBluetoothThermal.writeBytes(bytes);
+        }
+        await disconnectPrinter();
       }
-
-      await disconnectPrinter();
+      if (printer.connectionType == 'network') {
+        for (int i = 0; i < copies; i++) {
+          await NetworkDiscoveryService.testPrintToNetworkPrinter(
+            printer,
+            bytes,
+          );
+        }
+      }
     } catch (e) {
       print('❌ Gagal mencetak $jobType di ${printer.name}: $e');
     }
@@ -199,10 +277,6 @@ class PrinterService {
     }
   }
 
-  static Future<void> disconnectPrinter() async {
-    await PrintBluetoothThermal.disconnect;
-  }
-
   static Future<bool> testPrint(
     BluetoothPrinterModel printer,
     String macAddress,
@@ -211,12 +285,98 @@ class PrinterService {
       await disconnectPrinter();
       await connectPrinter(printer);
       // 1. Buat generator
-      print('printer yang dipilih: $printer');
-
       final profile = await CapabilityProfile.load();
+      PaperSize paperSize;
+      if (printer.paperSize == 'mm58') {
+        paperSize = PaperSize.mm58;
+      } else if (printer.paperSize == 'mm80') {
+        paperSize = PaperSize.mm80;
+      } else {
+        paperSize = PaperSize.mm72;
+      }
+      final generator = Generator(paperSize, profile);
 
-      print('profile sudah di buat: $profile');
-      PaperSize paperSize = PaperSize.mm58;
+      // 2. Siapkan konten
+      final List<int> bytes = [];
+
+      bytes.addAll(
+        generator.text(
+          'Bluetooth Printer Test',
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        ),
+      );
+
+      bytes.addAll(generator.hr(ch: '='));
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Mac Address',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: printer.address,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Paper Size',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: printer.paperSize,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Connection Type',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: printer.connectionType!,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+
+      bytes.addAll(generator.hr(ch: '=', linesAfter: 1));
+
+      //success message
+      bytes.addAll(
+        generator.text(
+          'Test Print Successfully',
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        ),
+      );
+
+      bytes.addAll(generator.feed(2));
+
+      final result = await PrintBluetoothThermal.writeBytes(bytes);
+      return result;
+    } catch (e) {
+      print('Print error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> testNetworkPrint(
+    BluetoothPrinterModel printer,
+    String address,
+  ) async {
+    try {
+      final profile = await CapabilityProfile.load();
+      PaperSize paperSize;
       if (printer.paperSize == 'mm58') {
         paperSize = PaperSize.mm58;
       } else if (printer.paperSize == 'mm80') {
@@ -230,47 +390,83 @@ class PrinterService {
       final List<int> bytes = [];
 
       // Header
-      bytes.addAll(await generateHeadersBytes(generator, paperSize));
-      // Bill Data
+      // bytes.addAll(await generateHeadersBytes(generator, paperSize));
+
       bytes.addAll(
-        await generateBillDataBytes(
-          generator,
-          paperSize,
-          null, // orderId,
-          null, // customerName,
-          null, // orderType,
-          null, // tableNumber,
+        generator.text(
+          'Network Printer Test',
+          styles: const PosStyles(
+            align: PosAlign.center,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          ),
         ),
       );
 
-      bytes.addAll(generator.hr());
-
+      bytes.addAll(generator.hr(ch: '='));
       bytes.addAll(
         generator.row([
           PosColumn(
-            text: 'Mac Address',
-            width: 5,
+            text: 'IP Address',
+            width: 6,
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
-            text: macAddress,
-            width: 7,
+            text: '$address:${printer.port}',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Paper Size',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: printer.paperSize,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Connection Type',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: printer.connectionType!,
+            width: 6,
             styles: const PosStyles(align: PosAlign.right),
           ),
         ]),
       );
 
-      bytes.addAll(generator.hr());
+      bytes.addAll(generator.hr(ch: '=', linesAfter: 1));
 
-      //footer
-      await generateFooterBytes(generator, paperSize).then((footerBytes) {
-        bytes.addAll(footerBytes);
-      });
+      //success message
+      bytes.addAll(
+        generator.text(
+          'Test Print Successfully',
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        ),
+      );
+
+      //cut
+      bytes.addAll(generator.cut());
 
       // 3. Kirim ke printer
-      print('print bytes: $bytes');
-      final result = await PrintBluetoothThermal.writeBytes(bytes);
-      print('result: $result');
+      final result = await NetworkDiscoveryService.testPrintToNetworkPrinter(
+        printer,
+        bytes,
+      );
+
       return result;
     } catch (e) {
       print('Print error: $e');
@@ -292,7 +488,8 @@ class PrinterService {
     final image = img.decodeImage(imageBytes)!;
 
     // Resize gambar sesuai lebar kertas
-    final resizedImage = img.copyResize(image, width: paperSize.width - 84);
+
+    final resizedImage = img.copyResize(image, width: 300);
 
     // Konversi ke grayscale
     final grayscaleImage = img.grayscale(resizedImage);
@@ -321,7 +518,7 @@ class PrinterService {
     // Alamat Toko
     bytes.addAll(
       generator.text(
-        'Baraja Amphitheater\nJl. Tuparev No. 60, Kedungjaya,\nKec. Kedawung, Kab. Cirebon\nJawa Barat 45153, Indonesia\nKABUPATEN CIREBON\n0851-1708-9827',
+        'Baraja Amphitheater, Jl. Tuparev No. 60, Kedungjaya, Kec. Kedawung, Kab. Cirebon, Jawa Barat 45153, Indonesia, KABUPATEN CIREBON\n0851-1708-9827',
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
@@ -485,7 +682,7 @@ class PrinterService {
             styles: const PosStyles(align: PosAlign.right),
           ),
           PosColumn(
-            text: item.subtotal.toString(),
+            text: formatPrice(item.subtotal).toString(),
             width: 5,
             styles: const PosStyles(align: PosAlign.right),
           ),
@@ -501,7 +698,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderDetail.totalAfterDiscount.toString(),
+          text: formatPrice(orderDetail.totalAfterDiscount).toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -515,7 +712,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderDetail.totalTax.toString(),
+          text: formatPrice(orderDetail.totalTax).toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -531,7 +728,7 @@ class PrinterService {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: orderDetail.grandTotal.toString(),
+          text: formatPrice(orderDetail.grandTotal).toString(),
           width: 6,
           styles: const PosStyles(align: PosAlign.right),
         ),
@@ -545,8 +742,8 @@ class PrinterService {
     });
 
     //feed and cut
-    bytes.addAll(generator.feed(2));
-    // bytes.addAll(generator.cut());
+    // bytes.addAll(generator.feed(2));
+    bytes.addAll(generator.cut());
 
     return bytes;
   }
@@ -627,7 +824,10 @@ class PrinterService {
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
-    bytes.addAll(generator.feed(2));
+
+    //feed and cut
+    // bytes.addAll(generator.feed(2));
+    bytes.addAll(generator.cut());
 
     return bytes;
   }
@@ -706,7 +906,10 @@ class PrinterService {
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
-    bytes.addAll(generator.feed(4));
+
+    //feed and cut
+    bytes.addAll(generator.feed(2));
+    bytes.addAll(generator.cut());
 
     return bytes;
   }
@@ -783,7 +986,11 @@ class PrinterService {
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
-    bytes.addAll(generator.feed(4));
+
+    // bytes.addAll(generator.feed(4));
+    //feed and cut
+    bytes.addAll(generator.feed(2));
+    bytes.addAll(generator.cut());
 
     return bytes;
   }
@@ -827,4 +1034,13 @@ class PrinterService {
 
     return bytes;
   }
+}
+
+String formatPrice(int amount) {
+  final formatter = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: '',
+    decimalDigits: 0,
+  );
+  return formatter.format(amount);
 }
