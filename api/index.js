@@ -31,7 +31,7 @@ import ReceiptSetting from './routes/receiptSetting.routes.js';
 import productStockRoutes from './routes/productStock.routes.js';
 import DevRoutes from './routes/devRoutes.js';
 import LocationRoutes from './routes/location.routes.js';
-
+import EventRoutes from './routes/event.routes.js';
 
 import socketHandler from './socket/index.js';
 import { midtransWebhook } from './controllers/webhookController.js';
@@ -111,6 +111,8 @@ app.use('/api/receipt-setting', ReceiptSetting);
 app.use('/api/product', productStockRoutes);
 app.use('/api/location', LocationRoutes);
 app.use('/api/dev', DevRoutes);
+app.use('/api/event', EventRoutes);
+
 // app.post('/api/midtrans/webhook', (req, res) => {
 //   res.status(200).send('OK');
 // });

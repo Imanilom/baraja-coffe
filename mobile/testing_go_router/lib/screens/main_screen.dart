@@ -307,34 +307,34 @@ class MainScreen extends ConsumerWidget {
                 );
               },
             ),
-            if (_getOnlineOrderCount(ref) > 0)
-              Positioned(
-                right: 12,
-                top: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 16,
-                    minHeight: 16,
-                  ),
-                  child: Text(
-                    _getOnlineOrderCount(ref) > 99
-                        ? '99+'
-                        : _getOnlineOrderCount(ref).toString(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
+            // if (_getOnlineOrderCount(ref) > 0)
+            //   Positioned(
+            //     right: 12,
+            //     top: 8,
+            //     child: Container(
+            //       padding: const EdgeInsets.all(2),
+            //       decoration: BoxDecoration(
+            //         color: Colors.red,
+            //         borderRadius: BorderRadius.circular(10),
+            //         border: Border.all(color: Colors.white, width: 2),
+            //       ),
+            //       constraints: const BoxConstraints(
+            //         minWidth: 16,
+            //         minHeight: 16,
+            //       ),
+            //       child: Text(
+            //         _getOnlineOrderCount(ref) > 99
+            //             ? '99+'
+            //             : _getOnlineOrderCount(ref).toString(),
+            //         style: const TextStyle(
+            //           color: Colors.white,
+            //           fontSize: 10,
+            //           fontWeight: FontWeight.bold,
+            //         ),
+            //         textAlign: TextAlign.center,
+            //       ),
+            //     ),
+            //   ),
           ],
         ),
 
