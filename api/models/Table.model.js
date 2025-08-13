@@ -22,6 +22,20 @@ const tableSchema = new mongoose.Schema({
         enum: ['regular', 'vip', 'family', 'couple'],
         default: 'regular'
     },
+    shape: {
+        type: String,
+        enum: ['square', 'rectangle', 'circle', 'oval', 'custom'],
+        default: 'rectangle'
+    },
+    status: {
+        type: String,
+        enum: ['available', 'occupied', 'reserved', 'maintenance'],
+        default: 'available'
+    },
+    layoutImage: {
+        type: String,
+        default: 'https://placehold.co/1920x1080/png?text=No+Layout+Image'
+    },
     is_available: {
         type: Boolean,
         default: true
@@ -31,7 +45,7 @@ const tableSchema = new mongoose.Schema({
         default: true
     }
 }, {
-    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+    timestamps: true
 });
 
 // Compound index untuk memastikan table_number unik per area
