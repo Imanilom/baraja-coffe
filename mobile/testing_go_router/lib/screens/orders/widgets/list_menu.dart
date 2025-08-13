@@ -8,6 +8,7 @@ import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/widgets/cards/menu_item_card.dart';
+import 'package:kasirbaraja/widgets/dialogs/add_order_item_dialog.dart';
 
 class ListMenu extends ConsumerStatefulWidget {
   const ListMenu({super.key});
@@ -61,13 +62,33 @@ class _ListMenuState extends ConsumerState<ListMenu> {
 
     print('selectedAddons: $selectedAddons');
 
-    notifier.addItemToOrder(
-      OrderItemModel(
-        menuItem: menuItem,
-        selectedToppings: [],
-        selectedAddons: selectedAddons,
-      ),
+    final orderItem = OrderItemModel(
+      menuItem: menuItem,
+      selectedToppings: [],
+      selectedAddons: selectedAddons,
     );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder:
+          (context) => AddOrderItemDialog(
+            orderItem: orderItem,
+            onAddOrder: (addOrderItem) {
+              notifier.addItemToOrder(addOrderItem);
+            },
+            onClose: () => Navigator.pop(context),
+          ),
+    );
+
+    // notifier.addItemToOrder(
+    //   OrderItemModel(
+    //     menuItem: menuItem,
+    //     selectedToppings: [],
+    //     selectedAddons: selectedAddons,
+    //   ),
+    // );
   }
 
   @override
