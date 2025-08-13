@@ -38,7 +38,7 @@ const EventSchema = new mongoose.Schema({
     },
     imageUrl: {
         type: String,
-        required: true,
+        default: 'https://placehold.co/1920x1080/png',
         trim: true
     },
     category: {
