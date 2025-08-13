@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/general/setting_menu_model.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
-import 'package:kasirbaraja/screens/settings/widgets/printer_connection.dart';
 import 'package:kasirbaraja/screens/settings/widgets/printer_home_screen.dart';
 
 class SettingScreen extends ConsumerWidget {

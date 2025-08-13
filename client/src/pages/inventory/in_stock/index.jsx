@@ -6,6 +6,7 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Modal from './modal';
+import Header from "../../admin/header";
 
 
 const InStockManagement = () => {
@@ -46,14 +47,53 @@ const InStockManagement = () => {
     const fetchStock = async () => {
         try {
             const stockResponse = await axios.get('/api/product/stock/all');
-            const stockData = stockResponse.data.data;
+            const stockData = stockResponse.data.data || [];
 
-            setInStock(stockData);
+            const stockWithMovements = await Promise.all(
+                stockData.map(async (item) => {
+                    const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
+                    const movements = movementResponse.data.data.movements || [];
+
+                    return {
+                        ...item,
+                        movements
+                    };
+                })
+            );
+
+            setInStock(stockWithMovements);
+
+            // 🔹 Default awal: type "out" & hanya hari ini
+            const defaultMovements = [];
+            stockWithMovements.forEach(stock => {
+                (stock.movements || []).forEach(movement => {
+                    const movementDate = dayjs(movement.date);
+                    if (
+                        movement.type === "in" &&
+                        movementDate.isSame(dayjs(), 'day') // hanya tanggal hari ini
+                    ) {
+                        defaultMovements.push({
+                            ...movement,
+                            product: stock.productId?.name,
+                            unit: stock.productId?.unit
+                        });
+                    }
+                });
+            });
+
+            // Urutkan terbaru
+            const sortedDefault = defaultMovements.sort(
+                (a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()
+            );
+            setFilteredData(sortedDefault);
+
         } catch (err) {
-            console.error("Error fetching stock:", err);
+            console.error("Error fetching stock or movements:", err);
             setInStock([]);
+            setFilteredData([]);
         }
     };
+
 
     const fetchOutlets = async () => {
         try {
@@ -295,13 +335,7 @@ const InStockManagement = () => {
     return (
         <div className="">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
@@ -391,12 +425,12 @@ const InStockManagement = () => {
                     <div className="col-span-3"></div>
 
                     <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">ID Stok Masuk</label>
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Cari ID Stok"
+                                placeholder="Cari"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"

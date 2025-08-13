@@ -6,6 +6,7 @@ import BubbleAlert from './bubblralert'; // sesuaikan path jika perlu
 import Select from "react-select";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Datepicker from "react-tailwindcss-datepicker";
+import Header from "../../admin/header";
 
 const StockCardManagement = () => {
     const customSelectStyles = {
@@ -74,18 +75,39 @@ const StockCardManagement = () => {
 
     const dropdownRef = useRef(null);
 
-    const fetchStock = async () => {
+    const fetchMenu = async () => {
         try {
-            const stockResponse = await axios.get('/api/product/stock/all');
-            const stockData = stockResponse.data.data;
+            // const stockResponse = await axios.get('/api/product/stock/all');
+            const productResponse = await axios.get('/api/menu/menu-items');
+            // const stockData = stockResponse.data.data || [];
+            const productData = productResponse.data.data || [];
 
-            setStock(stockData);
-            setFilteredData(stockData);
+            // const stockWithMovements = await Promise.all(
+            //     stockData.map(async (item) => {
+            //         const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
+            //         const todayMovements = (movementResponse.data.data.movements || []).filter(movement =>
+            //             dayjs(movement.date).isSame(dayjs(), 'day') // hanya hari ini
+            //         );
+
+            //         return {
+            //             ...item,
+            //             movements: todayMovements
+            //         };
+            //     })
+            // );
+
+            setStock(productData);
+            setFilteredData(productData);
         } catch (err) {
-            console.error("Error fetching stock:", err);
+            console.error("Error fetching stock or movements:", err);
             setStock([]);
+            setFilteredData([]);
         }
     };
+
+    console.log(stock);
+
+
 
     const fetchOutlets = async () => {
         try {
@@ -131,7 +153,7 @@ const StockCardManagement = () => {
         setError(null);
         try {
             await Promise.all([
-                fetchStock(),
+                fetchMenu(),
                 fetchOutlets(),
                 fetchCategories()
             ]);
@@ -165,67 +187,108 @@ const StockCardManagement = () => {
         return status.map(item => item.name);
     }, [status]);
 
+    // const applyFilter = () => {
+    //     const filtered = stock.map(item => {
+    //         const movements = item.movements || [];
+
+    //         // Filter by date jika startDate dan endDate tersedia
+    //         const rangeMovements = (value.startDate && value.endDate)
+    //             ? movements.filter(m => {
+    //                 const date = dayjs(m.date || m.createdAt);
+    //                 return date.isSameOrAfter(dayjs(value.startDate), 'day') &&
+    //                     date.isSameOrBefore(dayjs(value.endDate), 'day');
+    //             })
+    //             : movements;
+
+    //         // Movement sebelum tanggal mulai
+    //         const previousMovements = (value.startDate)
+    //             ? movements.filter(m => {
+    //                 const date = dayjs(m.date || m.createdAt);
+    //                 return date.isBefore(dayjs(value.startDate), 'day');
+    //             })
+    //             : [];
+
+    //         const stockInBefore = previousMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
+    //         const stockOutBefore = previousMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
+    //         const adjustmentBefore = previousMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
+
+    //         const firstStock = stockInBefore - stockOutBefore;
+    //         // const firstStock = stockIn - stockOut - adjustmentBefore;
+
+    //         const stockIn = rangeMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
+    //         const stockOut = rangeMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
+    //         const stockAdjustment = rangeMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
+
+    //         const finalStock = firstStock + stockIn - stockOut;
+
+    //         return {
+    //             ...item,
+    //             firstStock,
+    //             stockIn,
+    //             stockOut,
+    //             stockAdjustment,
+    //             finalStock
+    //         };
+    //     });
+
+    //     // Filter by search jika searchTerm tidak kosong
+    //     const finalFiltered = tempSearch
+    //         ? filtered.filter(item =>
+    //             item.productId?.name.toLowerCase().includes(tempSearch.toLowerCase())
+    //         )
+    //         : filtered;
+
+    //     setFilteredData(finalFiltered);
+    // };
+
+
+    // useEffect(() => {
+    //     if (stock.length > 0 && !hasFiltered) {
+    //         applyFilter();
+    //         setHasFiltered(true);
+    //     }
+    // }, [stock, hasFiltered]);
+
     const applyFilter = () => {
-        const filtered = stock.map(item => {
-            const movements = item.movements || [];
+        // Selalu mulai dari seluruh produk
+        const updatedData = stock.map(item => {
+            // Cek apakah item ini masuk dalam range tanggal
+            const dateMatch = !value.startDate || !value.endDate
+                ? true
+                : (() => {
+                    const itemDate = dayjs(item.date);
+                    return itemDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
+                        itemDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'));
+                })();
 
-            // Filter by date jika startDate dan endDate tersedia
-            const rangeMovements = (value.startDate && value.endDate)
-                ? movements.filter(m => {
-                    const date = dayjs(m.date || m.createdAt);
-                    return date.isSameOrAfter(dayjs(value.startDate), 'day') &&
-                        date.isSameOrBefore(dayjs(value.endDate), 'day');
-                })
-                : movements;
+            // Cek pencarian
+            const searchMatch = !tempSearch ||
+                item.name?.toLowerCase().includes(tempSearch.toLowerCase()) ||
+                item.sku?.toLowerCase().includes(tempSearch.toLowerCase());
 
-            // Movement sebelum tanggal mulai
-            const previousMovements = (value.startDate)
-                ? movements.filter(m => {
-                    const date = dayjs(m.date || m.createdAt);
-                    return date.isBefore(dayjs(value.startDate), 'day');
-                })
-                : [];
+            // Kalau tidak match filter, ubah stok jadi 0 tapi name & category tetap ada
+            if (!dateMatch || !searchMatch) {
+                return {
+                    ...item,
+                    firstStock: 0,
+                    stockIn: 0,
+                    stockOut: 0,
+                    stockAdjustment: 0,
+                    finalStock: 0
+                };
+            }
 
-            const stockInBefore = previousMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
-            const stockOutBefore = previousMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
-            const adjustmentBefore = previousMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
-
-            const firstStock = stockInBefore - stockOutBefore + adjustmentBefore;
-            // const firstStock = stockIn - stockOut - adjustmentBefore;
-
-            const stockIn = rangeMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
-            const stockOut = rangeMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
-            const stockAdjustment = rangeMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
-
-            const finalStock = firstStock + stockIn - stockOut + stockAdjustment;
-
-            return {
-                ...item,
-                firstStock,
-                stockIn,
-                stockOut,
-                stockAdjustment,
-                finalStock
-            };
+            return item; // kalau match, biarkan apa adanya
         });
 
-        // Filter by search jika searchTerm tidak kosong
-        const finalFiltered = tempSearch
-            ? filtered.filter(item =>
-                item.productId?.name.toLowerCase().includes(tempSearch.toLowerCase())
-            )
-            : filtered;
+        // Urutkan dari terbaru
+        const sorted = updatedData.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
 
-        setFilteredData(finalFiltered);
+        setFilteredData(sorted);
+        setCurrentPage(1);
     };
 
 
-    useEffect(() => {
-        if (stock.length > 0 && !hasFiltered) {
-            applyFilter();
-            setHasFiltered(true);
-        }
-    }, [stock, hasFiltered]);
 
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -313,13 +376,8 @@ const StockCardManagement = () => {
 
     return (
         <div className="w-full">
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            {/* Header */}
+            <Header />
 
             <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
                 <div className="flex items-center space-x-2">
@@ -485,7 +543,7 @@ const StockCardManagement = () => {
                                     <p>Stok Hampir Habis</p>
                                 </label>
                             </div>
-                            <div className="space-x-7">
+                            {/* <div className="space-x-7">
                                 <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
                                     <span>Produk Dijual</span>
                                     <input type="checkbox" value="" className="sr-only peer" />
@@ -501,7 +559,7 @@ const StockCardManagement = () => {
                                     <input type="checkbox" value="" className="sr-only peer" />
                                     <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                 </label>
-                            </div>
+                            </div> */}
                         </div>
                     </div>
                     <BubbleAlert paginatedData={filteredData} />
@@ -510,16 +568,16 @@ const StockCardManagement = () => {
                         <table className="w-full table-auto text-gray-500">
                             <thead>
                                 <tr className="text-[14px]">
-                                    <th className="p-[15px] font-normal text-left">Produk</th>
-                                    <th className="p-[15px] font-normal text-left">Kategori</th>
-                                    <th className="p-[15px] font-normal text-right">Stok Awal</th>
-                                    <th className="p-[15px] font-normal text-right">Stok Masuk</th>
-                                    <th className="p-[15px] font-normal text-right">Stok Keluar</th>
-                                    {/* <th className="p-[15px] font-normal text-right">Penjualan</th>
-                                    <th className="p-[15px] font-normal text-right">Transfer</th>
-                                    <th className="p-[15px] font-normal text-right">Penyesuaian</th> */}
-                                    <th className="p-[15px] font-normal text-right">Stok Akhir</th>
-                                    <th className="p-[15px] font-normal text-right">Satuan</th>
+                                    <th className="p-[15px] font-normal text-left w-2/12">Produk</th>
+                                    <th className="p-[15px] font-normal text-left w-2/12">Kategori</th>
+                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Awal</th>
+                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Masuk</th>
+                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Keluar</th>
+                                    {/* <th className="p-[15px] font-normal text-right">Penjualan</th> */}
+                                    <th className="p-[15px] font-normal text-right w-1/12">Transfer</th>
+                                    {/* <th className="p-[15px] font-normal text-right">Penyesuaian</th> */}
+                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Akhir</th>
+                                    {/* <th className="p-[15px] font-normal text-right">Satuan</th> */}
                                 </tr>
                             </thead>
                             {paginatedData.length > 0 ? (
@@ -540,28 +598,32 @@ const StockCardManagement = () => {
                                                         className="w-[35px] h-[35px] object-cover rounded-lg lowercase"
                                                     /> */}
                                                     <div className="ml-4">
+                                                        <h3>{item.name}</h3>
+                                                    </div>
+                                                    {/* <div className="ml-4">
                                                         <h3>{item.productId !== null ? item.productId.name.toLowerCase()
                                                             .split(' ')
                                                             .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                                                             .join(' ') : "-"}</h3>
-                                                    </div>
+                                                    </div> */}
                                                 </div>
                                             </td>
                                             <td className="p-[15px]">
-                                                {item.productId !== null ? item.productId.category : "-"}
+                                                {item.category?.name}
+                                                {/* {item.productId !== null ? item.productId.category : "-"} */}
                                             </td>
-                                            <td className="p-[15px] text-right">{item.firstStock}</td>
+                                            <td className="p-[15px] text-right">{item.firstStock > 0 ? item.firstStock : 0}</td>
                                             <td className={`p-[15px] text-right ${item.stockIn > 0 ? 'text-[#005429]' : ''}`}>
                                                 {item.stockIn > 0 ? `+ ${item.stockIn}` : 0}
                                             </td>
                                             <td className={`p-[15px] text-right ${item.stockOut > 0 ? 'text-red-500' : ''}`}>
                                                 {item.stockOut > 0 ? `- ${item.stockOut}` : 0}
                                             </td>
-                                            {/* <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td>
-                                            <td className="p-[15px] text-right">-</td> */}
-                                            <td className="p-[15px] text-right">{item.finalStock}</td>
-                                            <td className="p-[15px] text-right lowercase">{item.productId !== null ? item.productId.unit : "-"}</td>
+                                            {/* <td className="p-[15px] text-right">-</td> */}
+                                            <td className="p-[15px] text-right">{item.stockAdjustment > 0 ? item.stockAdjustment : 0}</td>
+                                            {/* <td className="p-[15px] text-right">-</td> */}
+                                            <td className="p-[15px] text-right">{item.finalStock > 0 ? item.finalStock : 0}</td>
+                                            {/* <td className="p-[15px] text-right lowercase">{item.productId !== null ? item.productId.unit : "-"}</td> */}
                                         </tr>
                                     ))}
                                 </tbody>

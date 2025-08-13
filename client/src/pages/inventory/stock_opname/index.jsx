@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Modal from './modal';
+import Header from "../../admin/header";
 
 
 const StockOpnameManagement = () => {
@@ -22,7 +24,10 @@ const StockOpnameManagement = () => {
     const [searchStatus, setSearchStatus] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [tempSelectedStatus, setTempSelectedStatus] = useState("");
-    const [value, setValue] = useState(null);
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 
@@ -44,50 +49,61 @@ const StockOpnameManagement = () => {
 
     // Fetch attendances and outlets data
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
+        const fetchProduct = async () => {
             try {
-                // Fetch attendances data
-                const attendancesResponse = [];
-
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                const statusResponse = [
-                    { _id: "a", name: "Aktif" },
-                    { _id: "t", name: "Tidak Aktif" }
-                ]
-
-                const statusData = statusResponse || [];
-
-                setStatus(statusData);
-
-                setError(null);
+                setLoading(true);
+                const productResponse = await axios.get('/api/product/stock/all');
+                setAttendances(productResponse);
+                setFilteredData(productResponse);
             } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
+                console.error("Error fetching attendances:", err);
                 setAttendances([]);
                 setFilteredData([]);
-                setOutlets([]);
-                setStatus([]);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchData();
+        fetchProduct();
+    }, []);
+
+    useEffect(() => {
+        const fetchOutlets = async () => {
+            try {
+                setLoading(true);
+                const outletsResponse = await axios.get('/api/outlet');
+                const outletsData = Array.isArray(outletsResponse.data)
+                    ? outletsResponse.data
+                    : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
+                        ? outletsResponse.data.data
+                        : [];
+                setOutlets(outletsData);
+            } catch (err) {
+                console.error("Error fetching outlets:", err);
+                setOutlets([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchOutlets();
+    }, []);
+
+    useEffect(() => {
+        const fetchStatus = () => {
+            try {
+                const statusResponse = [
+                    { _id: "a", name: "Aktif" },
+                    { _id: "t", name: "Tidak Aktif" }
+                ];
+                setStatus(statusResponse || []);
+            } catch (err) {
+                console.error("Error setting status:", err);
+                setStatus([]);
+            }
+        };
+
+        fetchStatus();
     }, []);
 
     // Get unique outlet names for the dropdown
@@ -262,7 +278,10 @@ const StockOpnameManagement = () => {
         setTempSearch("");
         setTempSelectedOutlet("");
         setTempSelectedStatus("");
-        setValue(null);
+        const [value, setValue] = useState({
+            startDate: dayjs(),
+            endDate: dayjs()
+        });
         setSearch("");
         setSearchStatus("");
         setFilteredData(ensureArray(attendances));
@@ -336,13 +355,7 @@ const StockOpnameManagement = () => {
     return (
         <div className="">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
@@ -361,8 +374,8 @@ const StockOpnameManagement = () => {
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-10 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-2">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                    {/* <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
                         <div className="relative">
                             {!showInput ? (
@@ -409,7 +422,7 @@ const StockOpnameManagement = () => {
                                 </ul>
                             )}
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
@@ -429,7 +442,9 @@ const StockOpnameManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-2">
+                    <div className="col-span-3"></div>
+
+                    {/* <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Status</label>
                         <div className="relative">
                             <div className="relative">
@@ -478,15 +493,15 @@ const StockOpnameManagement = () => {
                                 )}
                             </div>
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">ID Opname</label>
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Cari ID Opname"
+                                placeholder="Cari"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
@@ -494,7 +509,7 @@ const StockOpnameManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
+                    <div className="flex justify-end space-x-2 items-end col-span-1">
                         <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
                         <button onClick={resetFilter} className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Reset</button>
                     </div>

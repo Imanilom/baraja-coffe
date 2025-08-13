@@ -6,6 +6,7 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Modal from './modal';
+import Header from "../../admin/header";
 
 
 const OutStockManagement = () => {
@@ -34,40 +35,108 @@ const OutStockManagement = () => {
     const dropdownRef = useRef(null);
 
     // Fetch outStock and outlets data
+    const fetchStock = async () => {
+        try {
+            const stockResponse = await axios.get('/api/product/stock/all');
+            const stockData = stockResponse.data.data || [];
+
+            const stockWithMovements = await Promise.all(
+                stockData.map(async (item) => {
+                    const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
+                    const movements = movementResponse.data.data.movements || [];
+
+                    return {
+                        ...item,
+                        movements
+                    };
+                })
+            );
+
+            setOutStock(stockWithMovements);
+
+            // 🔹 Default awal: type "out" & hanya hari ini
+            const defaultMovements = [];
+            stockWithMovements.forEach(stock => {
+                (stock.movements || []).forEach(movement => {
+                    const movementDate = dayjs(movement.date);
+                    if (
+                        movement.type === "out" &&
+                        movementDate.isSame(dayjs(), 'day') // hanya tanggal hari ini
+                    ) {
+                        defaultMovements.push({
+                            ...movement,
+                            product: stock.productId?.name,
+                            unit: stock.productId?.unit
+                        });
+                    }
+                });
+            });
+
+            // Urutkan terbaru
+            const sortedDefault = defaultMovements.sort(
+                (a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()
+            );
+            setFilteredData(sortedDefault);
+
+        } catch (err) {
+            console.error("Error fetching stock or movements:", err);
+            setOutStock([]);
+            setFilteredData([]);
+        }
+    };
+
+
+    const fetchOutlets = async () => {
+        try {
+            const outletsResponse = await axios.get('/api/outlet');
+            const outletsData = Array.isArray(outletsResponse.data)
+                ? outletsResponse.data
+                : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
+                    ? outletsResponse.data.data
+                    : [];
+
+            setOutlets(outletsData);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setOutlets([]);
+        }
+    };
+
+    // const fetchCategories = async () => {
+    //     try {
+    //         const categoryResponse = await axios.get('/api/storage/categories');
+    //         const categoryData = Array.isArray(categoryResponse.data)
+    //             ? categoryResponse.data
+    //             : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
+    //                 ? categoryResponse.data.data
+    //                 : [];
+
+    //         setCategory(categoryData);
+    //     } catch (err) {
+    //         console.error("Error fetching categories:", err);
+    //         setCategory([]);
+    //     }
+    // };
+
+    const fetchData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            await Promise.all([
+                fetchStock(),
+                fetchOutlets(),
+                // fetchCategories()
+            ]);
+            // fetchStatus();
+        } catch (err) {
+            console.error("General error:", err);
+            setError("Failed to load data. Please try again later.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch outStock data
-                const outStockResponse = await axios.get('/api/product/stock/all');
-                const outStockData = outStockResponse.data.data;
-
-                setOutStock(outStockData);
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setOutStock([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
     }, []);
 
@@ -258,13 +327,7 @@ const OutStockManagement = () => {
     return (
         <div className="">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
