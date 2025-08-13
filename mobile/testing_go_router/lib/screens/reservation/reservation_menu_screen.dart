@@ -9,6 +9,8 @@ import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/reservation_data.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/reservation_order_detail_provider.dart';
+import 'package:kasirbaraja/screens/reservation/reservation_order_detail_screen.dart';
 import 'package:kasirbaraja/widgets/cards/menu_item_card.dart';
 
 class ReservationMenuScreen extends ConsumerStatefulWidget {
@@ -35,11 +37,11 @@ class _ReservationMenuScreenState extends ConsumerState<ReservationMenuScreen> {
   }
 
   void _handleAddToOrder(MenuItemModel menuItem) {
-    final orderDetail = ref.read(orderDetailProvider);
-    // final notifier = ref.read(orderDetailProvider.notifier);
+    final orderDetail = ref.read(reservationOrderDetailProvider);
+    final notifier = ref.read(reservationOrderDetailProvider.notifier);
 
     if (orderDetail == null) {
-      // notifier.initializeOrder(orderType: OrderType.dineIn);
+      notifier.initializeOrder(orderType: OrderType.reservation);
     }
 
     final List<AddonModel> selectedAddons =
@@ -62,23 +64,28 @@ class _ReservationMenuScreenState extends ConsumerState<ReservationMenuScreen> {
             )
             .toList();
 
-    print('selectedAddons: $selectedAddons');
+    // print('selectedAddons: $selectedAddons');
 
-    // notifier.addItemToOrder(
-    //   OrderItemModel(
-    //     menuItem: menuItem,
-    //     selectedToppings: [],
-    //     selectedAddons: selectedAddons,
-    //   ),
-    // );
+    notifier.addItemToOrder(
+      OrderItemModel(
+        menuItem: menuItem,
+        selectedToppings: [],
+        selectedAddons: selectedAddons,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final selectedCategory = ref.watch(categoryProvider);
-    final menu = ref.watch(menuItemProvider);
+    final menu = ref.watch(reservationMenuItemProvider);
     final isSearchBarVisible = ref.watch(searchBarProvider);
-    final arguments = GoRouterState.of(context).extra as ReservationData;
+    final arguments = GoRouterState.of(context).extra as Map<String, dynamic>?;
+    final reservationData = arguments?['reservationData'] as ReservationData?;
+    final isReservation = arguments?['isReservation'] as bool? ?? false;
+    final selectedArea = arguments?['selectedArea'] as String?;
+    final selectedTableNumbers =
+        arguments?['selectedTableNumbers'] as List<String>? ?? [];
 
     print('ReservationData: $arguments');
     const categories = ['All', 'makanan', 'minuman'];
@@ -87,7 +94,6 @@ class _ReservationMenuScreenState extends ConsumerState<ReservationMenuScreen> {
       appBar: AppBar(title: const Text('Pilih Menu Reservasi')),
       body: Row(
         children: [
-          // Categories Sidebar
           Expanded(
             flex: 1,
             child: Scaffold(
@@ -220,6 +226,8 @@ class _ReservationMenuScreenState extends ConsumerState<ReservationMenuScreen> {
               ),
             ),
           ),
+
+          Expanded(flex: 3, child: ReservationOrderDetailScreen()),
         ],
       ),
     );

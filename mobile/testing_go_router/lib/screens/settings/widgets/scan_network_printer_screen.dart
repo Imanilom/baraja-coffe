@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
@@ -7,6 +10,7 @@ import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:kasirbaraja/services/printer_service.dart';
+import 'package:image/image.dart' as img;
 
 class ScanNetworkPrinterScreen extends ConsumerStatefulWidget {
   const ScanNetworkPrinterScreen({super.key});
@@ -716,6 +720,22 @@ class _ScanNetworkPrinterScreenState
     // 2. Siapkan konten
     final List<int> bytes = [];
 
+    final ByteData byteData = await rootBundle.load(
+      'assets/logo/logo_baraja.png',
+    );
+    final Uint8List imageBytes = byteData.buffer.asUint8List();
+    final image = img.decodeImage(imageBytes)!;
+
+    // Resize gambar sesuai lebar kertas 80mm
+    final resizedImage = img.copyResize(image, width: 300);
+
+    // Konversi ke grayscale
+    final grayscaleImage = img.grayscale(resizedImage);
+
+    bytes.addAll(generator.image(grayscaleImage));
+
+    bytes.addAll(generator.feed(1));
+
     bytes.addAll(
       generator.text(
         'Baraja Amphitheater\n Jl. Tuparev No. 60, Kedungjaya, Kec. Kedawung\nKab. Cirebon, Jawa Barat 45153, Indonesia\n KABUPATEN CIREBON\n0851-1708-9827',
@@ -724,6 +744,65 @@ class _ScanNetworkPrinterScreenState
           fontType: PosFontType.fontA,
         ),
       ),
+    );
+
+    bytes.addAll(generator.feed(1));
+
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Kode Transaksi',
+          width: 5,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: '1234567890',
+          width: 7,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Tanggal',
+          width: 5,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: DateTime.now().toLocal().toString(),
+          width: 7,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Kasir',
+          width: 5,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: 'Kasir 1',
+          width: 7,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Pelanggan',
+          width: 5,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: 'Pelanggan 1',
+          width: 7,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
     );
 
     bytes.addAll(generator.feed(1));
@@ -739,6 +818,7 @@ class _ScanNetworkPrinterScreenState
     );
     //hr
     bytes.addAll(generator.hr());
+
     bytes.addAll(
       generator.row([
         PosColumn(
@@ -754,6 +834,38 @@ class _ScanNetworkPrinterScreenState
       ]),
     );
     bytes.addAll(generator.hr());
+
+    bytes.addAll(generator.feed(1));
+
+    bytes.addAll(
+      generator.text(
+        '** LUNAS **',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+    bytes.addAll(generator.feed(1));
+    bytes.addAll(
+      generator.text(
+        'Password WiFi: ramadhandibaraja',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+    bytes.addAll(generator.feed(1));
+    bytes.addAll(
+      generator.text(
+        'Terima kasih telah berbelanja di\nBaraja Amphitheater',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
+
+    bytes.addAll(generator.feed(1));
+
+    bytes.addAll(
+      generator.text(
+        'IG: @barajacoffee',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
 
     bytes.addAll(generator.feed(2));
     //cut
