@@ -46,7 +46,7 @@ const tableSchema = new mongoose.Schema({
         default: true
     }
 }, {
-    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+    timestamps: true
 });
 
 // Compound index untuk memastikan table_number unik per area
