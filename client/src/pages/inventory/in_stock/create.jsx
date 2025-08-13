@@ -1,20 +1,56 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
+import Select from "react-select";
 import { Link } from "react-router-dom";
+import Datepicker from 'react-tailwindcss-datepicker';
 import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown, FaBoxes, FaTrash } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 const CreateStock = () => {
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db', // Tailwind border-gray-300
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280', // text-gray-500
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            '&:hover': {
+                borderColor: '#9ca3af', // Tailwind border-gray-400
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500 for typed text
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af', // text-gray-400
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151', // gray-700
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
+    };
     const navigate = useNavigate();
+    const [errorRows, setErrorRows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [form, setForm] = useState({
-        outlet: '',
-        tanggal: '',
+        tanggal: dayjs().format("YYYY-MM-DD"), // default hari ini dalam format ISO
         catatan: '',
     });
-
     const [outletList, setOutletList] = useState([]);
-    const [productList, setProductList] = useState([]);
+    const [menu, setMenu] = useState([]);
+    const [product, setProduct] = useState([]);
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState('');
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState('');
@@ -37,16 +73,40 @@ const CreateStock = () => {
     const fetchMenuItems = async () => {
         try {
             const response = await axios.get('/api/menu/menu-items');
-            setProductList(response.data || []);
+            setMenu(response.data || []);
         } catch (error) {
-            console.error('Gagal fetch produk:', error);
+            console.error('Gagal fetch Menu:', error);
         }
     };
+
+    const fetchProduct = async () => {
+        try {
+            const response = await axios.get('/api/marketlist/products');
+            setProduct(response.data.data ? response.data.data : response.data);
+        } catch (error) {
+            console.error('Gagal fetch Product:', error);
+        }
+    }
 
     useEffect(() => {
         fetchOutlets();
         fetchMenuItems();
+        fetchProduct();
     }, []);
+
+    const productOptions = product.map(p => ({
+        value: p._id,
+        label: p.name,
+        _id: p._id,
+        sku: p.sku,
+        unit: p.unit
+    }));
+
+    const handleChange = (setter, data, index, field, value) => {
+        const updated = [...data];
+        updated[index][field] = value;
+        setter(updated);
+    };
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -67,35 +127,63 @@ const CreateStock = () => {
     };
 
     const [rows, setRows] = useState([
-        { namaProduk: '', jumlah: '', satuan: '', hargaBeli: '', total: 0 },
+        { productId: "", productName: "", productSku: "", quantity: "", unit: "" }
     ]);
 
-    const handleRowChange = (index, field, value) => {
-        const updatedRows = [...rows];
-        updatedRows[index][field] = value;
-        const jumlah = parseFloat(updatedRows[index].jumlah) || 0;
-        const harga = parseFloat(updatedRows[index].hargaBeli) || 0;
-        updatedRows[index].total = jumlah * harga;
-        setRows(updatedRows);
-    };
-
     const handleAddRow = () => {
-        setRows([...rows, { namaProduk: '', jumlah: '', satuan: '', hargaBeli: '', total: 0 }]);
+        setRows([...rows, { productId: "", productName: "", productSku: "", quantity: "", unit: "" }]);
     };
 
     const handleRemoveRow = (index) => {
         setRows(rows.filter((_, i) => i !== index));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        const payload = {
-            ...form,
-            outlet: tempSelectedOutlet,
-            detailProduk: rows,
-        };
-        console.log('Data terkirim:', payload);
+
+        const invalidIndexes = [];
+
+        const payload = rows.map((row, index) => {
+            const hasValidProduct = !!row.productName;
+            const hasValidQuantity = parseFloat(row.quantity) > 0;
+
+            if (!hasValidProduct || !hasValidQuantity) {
+                invalidIndexes.push(index);
+                return null;
+            }
+
+            return {
+                productId: row.productName, // nilai ini adalah ID produk dari select
+                movements: [
+                    {
+                        quantity: parseFloat(row.quantity),
+                        type: "in",
+                        notes: form.catatan || "",
+                        date: form.tanggal,          // tambah ini
+                    }
+                ]
+            };
+        }).filter(item => item !== null);
+
+        setErrorRows(invalidIndexes);
+
+        if (payload.length === 0) {
+            alert("Tidak ada data produk yang valid untuk dikirim.");
+            return;
+        }
+
+        try {
+            const res = await axios.post('/api/product/stock/movement', payload);
+            console.log(res.data);
+            alert("Stok berhasil disimpan.");
+            navigate('/admin/inventory/in');
+        } catch (error) {
+            console.error("❌ Gagal simpan data stok:", error.response?.data || error);
+            alert("Gagal menyimpan stok. Silakan coba lagi.");
+        }
     };
+
+
 
     const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
 
@@ -144,7 +232,7 @@ const CreateStock = () => {
                 {/* === FORM INPUT ATAS === */}
                 <div className="grid px-3 grid-cols-1 w-full md:w-1/2 gap-4">
                     {/* === OUTLET CUSTOM === */}
-                    <div className="flex items-center">
+                    {/* <div className="flex items-center">
                         <h3 className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
                             Outlet
                         </h3>
@@ -192,28 +280,44 @@ const CreateStock = () => {
                                 </ul>
                             )}
                         </div>
-                    </div>
+                    </div> */}
 
                     {/* === TANGGAL === */}
-                    <div className="flex items-center">
-                        <h3 className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5 text-[14px]">Tanggal</h3>
-                        <input
-                            type="date"
-                            name="tanggal"
-                            value={form.tanggal}
-                            onChange={handleFormChange}
-                            className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
-                        />
+                    <div className="flex items-start gap-4">
+                        <label className="w-[140px] text-sm text-[#666] mt-2 after:content-['*'] after:text-red-500 after:ml-1">
+                            Tanggal
+                        </label>
+                        <div className="flex-1">
+                            <Datepicker
+                                useRange={false}
+                                asSingle={true}
+                                value={{
+                                    startDate: form.tanggal,
+                                    endDate: form.tanggal
+                                }}
+                                displayFormat={"DD-MM-YYYY"}
+                                onChange={(value) => {
+                                    const selectedDate = value?.startDate || "";
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        tanggal: selectedDate
+                                    }));
+                                }}
+                                inputClassName="w-full text-sm border py-2 px-3 rounded"
+                            />
+                        </div>
                     </div>
 
                     {/* === CATATAN === */}
-                    <div className="flex items-center">
-                        <h3 className="w-[140px] block text-[#999999] text-[14px] mb-2.5">Catatan</h3>
+                    <div className="flex items-start gap-4">
+                        <label className="w-[140px] text-sm text-[#666] mt-2">
+                            Catatan
+                        </label>
                         <textarea
                             name="catatan"
                             value={form.catatan}
                             onChange={handleFormChange}
-                            className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
+                            className="flex-1 text-sm border py-2 px-3 rounded"
                             rows="2"
                         />
                     </div>
@@ -226,10 +330,9 @@ const CreateStock = () => {
                             <thead className="border-b">
                                 <tr className="">
                                     <th className="pb-3 text-[14px] text-[#999999] font-semibold w-3/12 text-left after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Nama Produk</th>
+                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-2/12 text-left">SKU</th>
                                     <th className="pb-3 text-[14px] text-[#999999] font-semibold text-right w-2/12 after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Jumlah</th>
                                     <th className="pb-3 text-[14px] text-[#999999] font-semibold w-1/12 text-left">Satuan</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-2/12 text-right">Harga Beli / Unit</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-3/12 text-right">Total Harga Beli</th>
                                     <th className="pb-3 text-[14px] text-[#999999] font-semibold w-1/12">Aksi</th>
                                 </tr>
                             </thead>
@@ -237,41 +340,64 @@ const CreateStock = () => {
                                 {rows.map((row, index) => (
                                     <tr key={index}>
                                         <td className="pt-3">
+                                            <Select
+                                                options={productOptions}
+                                                value={productOptions.find(opt => opt.value === row.namaProduk)}
+                                                onChange={(selected) => {
+                                                    const updated = [...rows];
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        productId: selected?._id || "",
+                                                        productName: selected?.value || "",
+                                                        productSku: selected?.sku || "",
+                                                        unit: selected?.unit || "",
+                                                    };
+                                                    setRows(updated);
+                                                }}
+                                                className="w-full"
+                                                classNamePrefix="select"
+                                                placeholder="Pilih Produk"
+                                                styles={customSelectStyles}
+                                            />
+                                        </td>
+                                        <td>
                                             <input
                                                 type="text"
-                                                value={row.namaProduk}
-                                                onChange={(e) => handleRowChange(index, 'namaProduk', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg"
-                                            />
-                                        </td>
-                                        <td className="pt-3">
+                                                placeholder="SKU"
+                                                value={row.productSku}
+                                                onChange={(e) =>
+                                                    handleChange(setRows, rows, index, "productSku", e.target.value)
+                                                }
+                                                className="border rounded p-2 text-sm w-full"
+                                                required
+                                            /></td>
+                                        <td>
                                             <input
                                                 type="number"
-                                                value={row.jumlah}
-                                                onChange={(e) => handleRowChange(index, 'jumlah', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg text-right"
+                                                placeholder="Qty"
+                                                value={row.quantity}
+                                                onChange={(e) =>
+                                                    handleChange(setRows, rows, index, "quantity", e.target.value)
+                                                }
+                                                className="border rounded p-2 text-sm w-full"
+                                                min="0"
+                                                step="0.01"
+                                                required
                                             />
                                         </td>
-                                        <td className="pt-3">
+                                        <td>
                                             <input
                                                 type="text"
-                                                value={row.satuan}
-                                                onChange={(e) => handleRowChange(index, 'satuan', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg"
+                                                placeholder="Satuan"
+                                                value={row.unit}
+                                                onChange={(e) =>
+                                                    handleChange(setRows, rows, index, "unit", e.target.value)
+                                                }
+                                                className="border rounded p-2 text-sm lowercase"
+                                                required
                                             />
                                         </td>
-                                        <td className="pt-3">
-                                            <input
-                                                type="number"
-                                                value={row.hargaBeli}
-                                                onChange={(e) => handleRowChange(index, 'hargaBeli', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg text-right"
-                                            />
-                                        </td>
-                                        <td className=" text-right">
-                                            Rp {row.total.toLocaleString('id-ID')}
-                                        </td>
-                                        <td className=" text-center">
+                                        <td className="text-center">
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveRow(index)}
@@ -282,6 +408,7 @@ const CreateStock = () => {
                                         </td>
                                     </tr>
                                 ))}
+
                             </tbody>
                         </table>
 
@@ -299,12 +426,12 @@ const CreateStock = () => {
                 </div>
 
                 <div className="fixed bottom-0 left-64 right-0 flex justify-between items-center border-t px-3 py-3 bg-white z-50">
-                    <div className="">
+                    {/* <div className="">
                         <h3 className="block text-[#999999] text-[14px]">Kolom bertanda <b className="text-red-600">*</b> wajib diisi</h3>
                         <span className="text-[18px] text-[#999999]">
                             Grand Total: Rp {grandTotal.toLocaleString('id-ID')}
                         </span>
-                    </div>
+                    </div> */}
                     <div className="flex space-x-2">
                         <Link
                             to="/admin/inventory/in"
