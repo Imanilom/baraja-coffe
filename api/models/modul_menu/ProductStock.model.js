@@ -18,9 +18,13 @@ const productStockSchema = new mongoose.Schema({
     min: 0 
   },
   movements: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'StockMovement'
-  }]
+  quantity: { type: Number, required: true },
+  type: { type: String, enum: ['in', 'out', 'adjustment'], required: true },
+  referenceId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  notes: String,
+  date: { type: Date, default: Date.now }
+}]
+
 }, {
   timestamps: true,
   // Optimistic concurrency control

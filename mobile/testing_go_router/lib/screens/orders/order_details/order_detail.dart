@@ -78,7 +78,7 @@ class OrderDetail extends ConsumerWidget {
         ref.read(onlineOrderDetailProvider.notifier).clearOnlineOrderDetail();
         ref.invalidate(onlineOrderProvider);
         //melakukan print struk order
-        savedPrinter.printToPrinter(orderDetail, 'all');
+        savedPrinter.printToPrinter(orderDetail: orderDetail, printType: 'all');
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -338,9 +338,9 @@ class OrderDetail extends ConsumerWidget {
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'workstation: ${orderItem.menuItem.workstation}',
-                                ),
+                                // Text(
+                                //   'workstation: ${orderItem.menuItem.workstation}',
+                                // ),
                                 if (orderItem.selectedToppings.isNotEmpty)
                                   Text(
                                     'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}',

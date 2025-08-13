@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
 
 // State classes
@@ -78,12 +79,53 @@ class NetworkScannerNotifier extends StateNotifier<NetworkScanState> {
             },
           );
 
+      // Enhanced logging dengan detail paper size
+      print('📡 === HASIL PEMINDAIAN PRINTER ===');
+      for (int i = 0; i < discoveredDevices.length; i++) {
+        final device = discoveredDevices[i];
+        if (device.isPotentialPrinter) {
+          print('🖨️ Printer ${i + 1}:');
+          print('   IP: ${device.ipAddress}');
+          print(
+            '   Manufacturer: ${device.deviceInfo['manufacturer'] ?? 'Unknown'}',
+          );
+          print('   Model: ${device.deviceInfo['model'] ?? 'Unknown'}');
+          print(
+            '   Paper Size: ${device.deviceInfo['paperSize'] ?? 'Not detected'}',
+          );
+          print('   Ports: ${device.openPorts}');
+          print(
+            '   Response: ${device.deviceInfo['rawResponse']?.toString().substring(0, device.deviceInfo['rawResponse'].toString().length > 50 ? 50 : device.deviceInfo['rawResponse']?.toString().length ?? 0) ?? 'No response'}...',
+          );
+          print('   ---');
+        }
+      }
+      print('📡 === END HASIL PEMINDAIAN ===');
+
       // Convert discovered devices to printer models
       final foundPrinters =
-          discoveredDevices
-              .where((device) => device.isPotentialPrinter)
-              .map((device) => device.toPrinterModel())
-              .toList();
+          discoveredDevices.where((device) => device.isPotentialPrinter).map((
+            device,
+          ) {
+            // Log paper size before conversion
+            final paperSize = device.deviceInfo['paperSize'] ?? 'default';
+            print(
+              '🔄 Converting ${device.ipAddress} -> Paper size akan: $paperSize',
+            );
+
+            return device.toPrinterModel();
+          }).toList();
+
+      // Final verification log
+      print('✅ Konversi selesai:');
+      for (int i = 0; i < foundPrinters.length; i++) {
+        final printer = foundPrinters[i];
+        print('   ${i + 1}. ${printer.name}');
+        print('      Paper Size: ${printer.paperSize}');
+        print('      Address: ${printer.displayAddress}');
+        print('      Manufacturer: ${printer.manufacturer ?? 'Unknown'}');
+        print('      ---');
+      }
 
       state = state.copyWith(
         isScanning: false,
@@ -93,6 +135,7 @@ class NetworkScannerNotifier extends StateNotifier<NetworkScanState> {
             'Pemindaian selesai. Ditemukan ${foundPrinters.length} printer.',
       );
     } catch (e) {
+      print('❌ Error dalam pemindaian: $e');
       state = state.copyWith(
         isScanning: false,
         error: e.toString(),
@@ -165,44 +208,51 @@ class NetworkScannerNotifier extends StateNotifier<NetworkScanState> {
 // Network Printer Management Provider
 class NetworkPrinterManagerNotifier
     extends StateNotifier<List<BluetoothPrinterModel>> {
-  static const String _boxName = 'network_printers';
-  Box<BluetoothPrinterModel>? _box;
+  final Ref ref;
+  late Box<BluetoothPrinterModel> _box;
 
-  NetworkPrinterManagerNotifier() : super([]) {
-    _initHive();
+  NetworkPrinterManagerNotifier(this.ref) : super([]) {
+    _initializeBox();
   }
 
-  Future<void> _initHive() async {
+  void _initializeBox() {
     try {
-      _box = await Hive.openBox<BluetoothPrinterModel>(_boxName);
-      _loadPrinters();
+      _box = ref.watch(printerBoxProvider);
+      _loadNetworkPrinters();
     } catch (e) {
-      print('❌ Error initializing Hive box: $e');
+      print('❌ Error accessing shared Hive box: $e');
+      state = [];
     }
   }
 
-  void _loadPrinters() {
-    if (_box != null) {
-      final allPrinters = _box!.values.toList();
+  void _loadNetworkPrinters() {
+    try {
+      final allPrinters = _box.values.toList();
       // Filter only network printers
       final networkPrinters =
           allPrinters.where((p) => p.isNetworkPrinter).toList();
       state = networkPrinters;
+    } catch (e) {
+      print('❌ Error loading network printers: $e');
+      state = [];
     }
   }
 
   Future<void> savePrinter(BluetoothPrinterModel printer) async {
-    if (_box == null) return;
+    if (!printer.isNetworkPrinter) {
+      throw Exception(
+        'Hanya network printer yang bisa disimpan melalui provider ini',
+      );
+    }
 
     try {
-      // Generate unique key for network printer
-      final key =
-          'net_${printer.address.replaceAll('.', '_')}_${printer.networkPort}';
+      // Use address as key (consistent with SavedPrintersNotifier)
+      await _box.put(printer.address, printer);
+      _loadNetworkPrinters();
 
-      final printerWithKey = printer.copyWith();
-      await _box!.put(key, printerWithKey);
+      // Trigger update to savedPrintersProvider as well
+      ref.invalidate(savedPrintersProvider);
 
-      _loadPrinters();
       print('✅ Network printer saved: ${printer.name}');
     } catch (e) {
       print('❌ Error saving network printer: $e');
@@ -211,20 +261,24 @@ class NetworkPrinterManagerNotifier
   }
 
   Future<void> updatePrinter(BluetoothPrinterModel printer) async {
-    if (_box == null) return;
+    if (!printer.isNetworkPrinter) {
+      throw Exception(
+        'Hanya network printer yang bisa diupdate melalui provider ini',
+      );
+    }
 
     try {
-      // Find the key for this printer
-      final key = _box!.keys.firstWhere(
-        (k) => _box!.get(k)?.address == printer.address,
-        orElse: () => null,
-      );
-
-      if (key != null) {
-        await _box!.put(key, printer);
-        _loadPrinters();
-        print('✅ Network printer updated: ${printer.name}');
+      if (!_box.containsKey(printer.address)) {
+        throw Exception('Printer tidak ditemukan');
       }
+
+      await _box.put(printer.address, printer);
+      _loadNetworkPrinters();
+
+      // Trigger update to savedPrintersProvider as well
+      ref.invalidate(savedPrintersProvider);
+
+      print('✅ Network printer updated: ${printer.name}');
     } catch (e) {
       print('❌ Error updating network printer: $e');
       throw Exception('Gagal mengupdate printer: $e');
@@ -232,20 +286,19 @@ class NetworkPrinterManagerNotifier
   }
 
   Future<void> deletePrinter(String printerAddress) async {
-    if (_box == null) return;
-
     try {
-      // Find and delete the printer
-      final key = _box!.keys.firstWhere(
-        (k) => _box!.get(k)?.address == printerAddress,
-        orElse: () => null,
-      );
-
-      if (key != null) {
-        await _box!.delete(key);
-        _loadPrinters();
-        print('✅ Network printer deleted: $printerAddress');
+      final printer = _box.get(printerAddress);
+      if (printer == null || !printer.isNetworkPrinter) {
+        throw Exception('Network printer tidak ditemukan');
       }
+
+      await _box.delete(printerAddress);
+      _loadNetworkPrinters();
+
+      // Trigger update to savedPrintersProvider as well
+      ref.invalidate(savedPrintersProvider);
+
+      print('✅ Network printer deleted: $printerAddress');
     } catch (e) {
       print('❌ Error deleting network printer: $e');
       throw Exception('Gagal menghapus printer: $e');
@@ -269,14 +322,16 @@ class NetworkPrinterManagerNotifier
 
         updatedPrinters.add(updatedPrinter);
 
-        // Update in Hive
-        await updatePrinter(updatedPrinter);
+        // Update in shared box
+        await _box.put(printer.address, updatedPrinter);
       } else {
         updatedPrinters.add(printer);
       }
     }
 
     state = updatedPrinters;
+    // Trigger update to savedPrintersProvider
+    ref.invalidate(savedPrintersProvider);
   }
 
   List<BluetoothPrinterModel> getOnlinePrinters() {
@@ -310,7 +365,7 @@ final networkScannerProvider =
 final networkPrinterManagerProvider = StateNotifierProvider<
   NetworkPrinterManagerNotifier,
   List<BluetoothPrinterModel>
->((ref) => NetworkPrinterManagerNotifier());
+>((ref) => NetworkPrinterManagerNotifier(ref));
 
 // Helper providers
 final networkPrintersProvider = Provider<List<BluetoothPrinterModel>>((ref) {

@@ -576,6 +576,7 @@ class PaymentMethodScreen extends ConsumerWidget {
           );
         }
       } else {
+        print('Submitting create order...');
         final success = await orderDetailNotifier.submitOrder();
         // Hide loading
         if (context.mounted) Navigator.pop(context);

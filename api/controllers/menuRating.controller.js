@@ -9,7 +9,8 @@ export class MenuRatingController {
     static async createRating(req, res) {
         try {
             const { menuItemId, orderId, rating, review } = req.body;
-            const order = await Order.findById(orderId);
+            const order = await Order.findOne({ order_id: orderId });
+            const _id = order._id;
             const customerId = order.user_id;
 
             // const outletId = req.body.outletId; // Atau bisa dari order data
@@ -26,7 +27,7 @@ export class MenuRatingController {
             const existingRating = await MenuRating.findOne({
                 menuItemId,
                 customerId,
-                orderId
+                _id
             });
 
             if (existingRating) {
@@ -40,7 +41,7 @@ export class MenuRatingController {
             const newRating = new MenuRating({
                 menuItemId,
                 customerId,
-                orderId,
+                _id,
                 // outletId,
                 rating,
                 review,
@@ -202,13 +203,14 @@ export class MenuRatingController {
     static async getCustomerRating(req, res) {
         try {
             const { menuItemId, orderId } = req.params;
-            const order = await Order.findById(orderId);
+            const order = await Order.findOne({ order_id: orderId });
+            const _id = order._id;
             const customerId = order.user_id;
 
             const rating = await MenuRating.findOne({
                 menuItemId,
                 customerId,
-                orderId
+                _id
             })
 
             if (!rating) {

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes } from "react-icons/fa";
+import dayjs from "dayjs";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import Modal from './modal';
+import Header from "../../admin/header";
 
 
 const TransferStockManagement = () => {
@@ -19,7 +21,10 @@ const TransferStockManagement = () => {
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [tempSelectedOutlet2, setTempSelectedOutlet2] = useState("");
-    const [value, setValue] = useState(null);
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 
@@ -40,48 +45,124 @@ const TransferStockManagement = () => {
     const finalTotal = totalSubtotal + pb1;
 
     // Fetch transferStock and outlets data
+    const fetchStock = async () => {
+        try {
+            const stockResponse = await axios.get('/api/product/stock/all');
+            const stockData = stockResponse.data.data || [];
+
+            const stockWithMovements = await Promise.all(
+                stockData.map(async (item) => {
+                    const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
+                    const movements = movementResponse.data.data.movements || [];
+
+                    return {
+                        ...item,
+                        movements
+                    };
+                })
+            );
+
+            setTransferStock(stockWithMovements);
+
+            // 🔹 Default awal: type "out" & hanya hari ini
+            const defaultMovements = [];
+            stockWithMovements.forEach(stock => {
+                (stock.movements || []).forEach(movement => {
+                    const movementDate = dayjs(movement.date);
+                    if (
+                        movement.type === "adjustment" &&
+                        movementDate.isSame(dayjs(), 'day') // hanya tanggal hari ini
+                    ) {
+                        defaultMovements.push({
+                            ...movement,
+                            product: stock.productId?.name,
+                            unit: stock.productId?.unit
+                        });
+                    }
+                });
+            });
+
+            // Urutkan terbaru
+            const sortedDefault = defaultMovements.sort(
+                (a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()
+            );
+            setFilteredData(sortedDefault);
+
+        } catch (err) {
+            console.error("Error fetching stock or movements:", err);
+            setTransferStock([]);
+            setFilteredData([]);
+        }
+    };
+
+    console.log(filteredData);
+
+
+    const fetchOutlets = async () => {
+        try {
+            const outletsResponse = await axios.get('/api/outlet');
+            const outletsData = Array.isArray(outletsResponse.data)
+                ? outletsResponse.data
+                : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
+                    ? outletsResponse.data.data
+                    : [];
+
+            setOutlets(outletsData);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setOutlets([]);
+        }
+    };
+
+    // const fetchCategories = async () => {
+    //     try {
+    //         const categoryResponse = await axios.get('/api/storage/categories');
+    //         const categoryData = Array.isArray(categoryResponse.data)
+    //             ? categoryResponse.data
+    //             : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
+    //                 ? categoryResponse.data.data
+    //                 : [];
+
+    //         setCategory(categoryData);
+    //     } catch (err) {
+    //         console.error("Error fetching categories:", err);
+    //         setCategory([]);
+    //     }
+    // };
+
+    const fetchData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            await Promise.all([
+                fetchStock(),
+                fetchOutlets(),
+                // fetchCategories()
+            ]);
+            // fetchStatus();
+        } catch (err) {
+            console.error("General error:", err);
+            setError("Failed to load data. Please try again later.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch transferStock data
-                const transferStockResponse = await axios.get("/api/product/stock/all");
-                const transferStockData = transferStockResponse.data.data;
-
-                setTransferStock(transferStockData);
-                setFilteredData(transferStockData); // Initialize filtered data with all transferStock
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setTransferStock([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
     }, []);
+
 
     // Get unique outlet names for the dropdown
     const uniqueOutlets = useMemo(() => {
         return outlets.map(item => item.name);
     }, [outlets]);
+
+    const capitalizeWords = (text) => {
+        return text
+            .toLowerCase()
+            .replace(/\b\w/g, (char) => char.toUpperCase());
+    };
 
     // Handle click outside dropdown to close
     useEffect(() => {
@@ -96,25 +177,51 @@ const TransferStockManagement = () => {
     }, []);
 
     // Paginate the filtered data
-    const filteredWithMovements = useMemo(() => {
-        return filteredData
-            .flatMap(stock =>
-                (stock.movements || [])
-                    .filter(m => m.type === 'adjustment')
-                    .map(movement => ({
-                        ...movement,
-                        productName: stock.productId?.name || '-',
-                        productId: stock.productId, // jika kamu perlu info produk lainnya
-                    }))
+    const applyFilter = () => {
+        const allMovements = [];
+
+        transferStock.forEach(stock => {
+            const movements = stock.movements || [];
+
+            const movementsInRange = movements.filter(movement => {
+                const movementDate = dayjs(movement.date);
+                return (
+                    movement.type === "adjustment" && // hanya ambil stok masuk
+                    movementDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
+                    movementDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'))
+                );
+            });
+
+            movementsInRange.forEach(movement => {
+                allMovements.push({
+                    ...movement,
+                    product: stock.productId?.name,
+                    unit: stock.productId?.unit
+                });
+            });
+        });
+
+        // Filter berdasarkan pencarian jika ada
+        const searched = tempSearch
+            ? allMovements.filter(m =>
+                m._id.toLowerCase().includes(tempSearch.toLowerCase()) ||
+                m.product?.toLowerCase().includes(tempSearch.toLowerCase())
             )
-            .sort((a, b) => new Date(b.date) - new Date(a.date)); // 🔥 Sort terbaru dulu
-    }, [filteredData]);
+            : allMovements;
+
+        // Urutkan berdasarkan tanggal terbaru
+        const sorted = searched.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+
+        setFilteredData(sorted); // ← bikin state baru khusus movement hasil filter
+        setCurrentPage(1);
+    };
 
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
-        return filteredWithMovements.slice(startIndex, endIndex);
-    }, [currentPage, filteredWithMovements]);
+        return filteredData.slice(startIndex, endIndex);
+    }, [currentPage, filteredData]);
+
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -160,124 +267,17 @@ const TransferStockManagement = () => {
         );
     }, [search, uniqueOutlets]);
 
-    // Apply filter function
-    const applyFilter = () => {
-
-        // Make sure transferStock is an array before attempting to filter
-        let filtered = ensureArray([...transferStock]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
-                try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
-
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
-
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedOutlet2) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet2;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    };
+    useEffect(() => {
+        applyFilter();
+    }, []);
 
     // Reset filters
     const resetFilter = () => {
         setTempSearch("");
-        setTempSelectedOutlet("");
-        setTempSelectedOutlet2("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(transferStock));
+        setValue({
+            startDate: dayjs(),
+            endDate: dayjs(),
+        });
         setCurrentPage(1);
     };
 
@@ -318,13 +318,7 @@ const TransferStockManagement = () => {
     return (
         <div className="">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
@@ -343,8 +337,8 @@ const TransferStockManagement = () => {
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-10 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-2">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                    {/* <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Outlet Asal:</label>
                         <div className="relative">
                             {!showInput ? (
@@ -391,9 +385,9 @@ const TransferStockManagement = () => {
                                 </ul>
                             )}
                         </div>
-                    </div>
+                    </div> */}
 
-                    <div className="flex flex-col col-span-2">
+                    {/* <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Outlet Tujuan</label>
                         <div className="relative">
                             {!showInput2 ? (
@@ -440,7 +434,7 @@ const TransferStockManagement = () => {
                                 </ul>
                             )}
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
@@ -460,13 +454,15 @@ const TransferStockManagement = () => {
                         </div>
                     </div>
 
+                    <div className="col-span-3"></div>
+
                     <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">No Transfer Stok</label>
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Cari ID Transfer"
+                                placeholder="Cari"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
@@ -474,7 +470,7 @@ const TransferStockManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
+                    <div className="flex justify-end space-x-2 items-end col-span-1">
                         <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
                         <button onClick={resetFilter} className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Reset</button>
                     </div>
@@ -488,14 +484,15 @@ const TransferStockManagement = () => {
                                 <th className="px-4 py-3 font-normal">Waktu Submit</th>
                                 <th className="px-4 py-3 font-normal">ID Transfer</th>
                                 <th className="px-4 py-3 font-normal">Produk</th>
+                                <th className="px-4 py-3 font-normal">Unit</th>
                                 <th className="px-4 py-3 font-normal">Qty</th>
-                                <th className="px-4 py-3 font-normal">Asal</th>
-                                <th className="px-4 py-3 font-normal">Tujuan</th>
+                                {/* <th className="px-4 py-3 font-normal">Asal</th>
+                                <th className="px-4 py-3 font-normal">Tujuan</th> */}
                                 <th className="px-4 py-3 font-normal">Keterangan</th>
                                 {/* <th className="px-4 py-3 font-normal">Tanggal</th> */}
                             </tr>
                         </thead>
-                        {paginatedData > 0 ? (
+                        {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {paginatedData.map((movement) => (
                                     <tr
@@ -509,7 +506,10 @@ const TransferStockManagement = () => {
                                             {movement._id}
                                         </td>
                                         <td className="px-4 py-3">
-                                            {stock.productId?.name && capitalizeWords(stock.productId.name)}
+                                            {movement.product && capitalizeWords(movement.product)}
+                                        </td>
+                                        <td className="px-4 py-3 lowercase">
+                                            {movement.unit}
                                         </td>
                                         <td className="px-4 py-3">
                                             {movement.quantity}
@@ -540,29 +540,67 @@ const TransferStockManagement = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                {filteredWithMovements.length > 0 && (
+
+                {paginatedData.length > 0 && (
                     <div className="flex justify-between items-center mt-4">
                         <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredWithMovements.length)} dari {filteredWithMovements.length} data
+                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        {totalPages > 1 && (
-                            <div className="flex space-x-2">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Sebelumnya
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Berikutnya
-                                </button>
-                            </div>
-                        )}
+                        <div className="flex justify-center space-x-2 mt-4">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-2 border rounded disabled:opacity-50"
+                            >
+                                <FaChevronLeft />
+                            </button>
+
+                            {[...Array(totalPages)].map((_, index) => {
+                                const page = index + 1;
+
+                                if (
+                                    page === 1 ||
+                                    page === totalPages ||
+                                    (page >= currentPage - 2 && page <= currentPage + 2)
+                                ) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`px-3 py-1 rounded border ${currentPage === page
+                                                ? "bg-[#005429] text-white"
+                                                : ""
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                }
+
+                                // Tampilkan "..." jika melompati halaman
+                                if (
+                                    (page === currentPage - 3 && page > 1) ||
+                                    (page === currentPage + 3 && page < totalPages)
+                                ) {
+                                    return (
+                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
+                                            ...
+                                        </span>
+                                    );
+                                }
+
+                                return null;
+                            })}
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-2 border rounded disabled:opacity-50"
+                            >
+                                <FaChevronRight />
+                            </button>
+                        </div>
+
                     </div>
                 )}
 

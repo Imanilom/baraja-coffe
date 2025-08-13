@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/providers/printer_providers/network_printer_provider.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
@@ -39,7 +40,10 @@ class _ScanNetworkPrinterScreenState
   @override
   Widget build(BuildContext context) {
     final scanState = ref.watch(networkScannerProvider);
-    final networkPrinters = ref.watch(networkPrinterManagerProvider);
+    // PERUBAHAN: Gunakan savedPrintersProvider dan filter network printer di sini
+    final allSavedPrinters = ref.watch(savedPrintersProvider);
+    final savedNetworkPrinters =
+        allSavedPrinters.where((p) => p.isNetworkPrinter).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -53,6 +57,7 @@ class _ScanNetworkPrinterScreenState
                 scanState.isScanning
                     ? null
                     : () {
+                      // PERUBAHAN: Refresh status melalui networkPrinterManagerProvider
                       ref
                           .read(networkPrinterManagerProvider.notifier)
                           .refreshPrinterStatus();
@@ -66,7 +71,7 @@ class _ScanNetworkPrinterScreenState
         children: [
           // Left Control Panel - Fixed width with scroll
           SizedBox(
-            width: 350, // Fixed width untuk control panel
+            width: 350,
             child: Container(
               padding: const EdgeInsets.all(16),
               color: Colors.grey.shade100,
@@ -97,7 +102,7 @@ class _ScanNetworkPrinterScreenState
           const VerticalDivider(width: 1, thickness: 1),
 
           // Right Results Panel - Expandable
-          Expanded(child: _buildResultsList(scanState, networkPrinters)),
+          Expanded(child: _buildResultsList(scanState, savedNetworkPrinters)),
         ],
       ),
     );
@@ -216,7 +221,7 @@ class _ScanNetworkPrinterScreenState
             ),
             const SizedBox(height: 12),
 
-            // Scan buttons - Stack vertically for better space usage
+            // Scan buttons
             Column(
               children: [
                 SizedBox(
@@ -621,10 +626,16 @@ class _ScanNetworkPrinterScreenState
 
   Future<void> _savePrinter(BluetoothPrinterModel printer) async {
     try {
-      await ref
-          .read(networkPrinterManagerProvider.notifier)
-          .savePrinter(printer);
-      _showSnackBar('Printer ${printer.name} berhasil disimpan');
+      // PERUBAHAN: Gunakan savedPrintersProvider untuk menyimpan printer
+      final result = await ref
+          .read(savedPrintersProvider.notifier)
+          .addPrinter(printer);
+
+      if (result.isSuccess) {
+        _showSnackBar('Printer ${printer.name} berhasil disimpan');
+      } else {
+        _showSnackBar(result.error ?? 'Gagal menyimpan printer', isError: true);
+      }
     } catch (e) {
       _showSnackBar('Gagal menyimpan printer: $e', isError: true);
     }
@@ -653,10 +664,19 @@ class _ScanNetworkPrinterScreenState
                 onPressed: () async {
                   Navigator.pop(context);
                   try {
-                    await ref
-                        .read(networkPrinterManagerProvider.notifier)
-                        .deletePrinter(printer.address);
-                    _showSnackBar('Printer berhasil dihapus');
+                    // PERUBAHAN: Gunakan savedPrintersProvider untuk menghapus printer
+                    final result = await ref
+                        .read(savedPrintersProvider.notifier)
+                        .removePrinter(printer.address);
+
+                    if (result.isSuccess) {
+                      _showSnackBar('Printer berhasil dihapus');
+                    } else {
+                      _showSnackBar(
+                        result.error ?? 'Gagal menghapus printer',
+                        isError: true,
+                      );
+                    }
                   } catch (e) {
                     _showSnackBar('Gagal menghapus printer: $e', isError: true);
                   }
@@ -687,15 +707,11 @@ class _ScanNetworkPrinterScreenState
     try {
       // Generate test print data
       final testBytes = await _generateTestPrintBytes(printer);
-      // Send to printer
-      final success = await NetworkDiscoveryService.testPrintToNetworkPrinter(
+
+      final success = await PrinterService.testNetworkPrint(
         printer,
-        testBytes,
+        printer.displayAddress,
       );
-      // final success = await PrinterService.testNetworkPrint(
-      //   printer,
-      //   printer.displayAddress,
-      // );
 
       if (mounted) Navigator.pop(context);
 
@@ -713,11 +729,11 @@ class _ScanNetworkPrinterScreenState
   Future<List<int>> _generateTestPrintBytes(
     BluetoothPrinterModel printer,
   ) async {
+    print('paper size generated: ${printer.paperSize}');
     PaperSize paperSize = PaperSize.mm80;
     final profile = await CapabilityProfile.load();
     final generator = Generator(paperSize, profile);
 
-    // 2. Siapkan konten
     final List<int> bytes = [];
 
     final ByteData byteData = await rootBundle.load(
@@ -733,7 +749,6 @@ class _ScanNetworkPrinterScreenState
     final grayscaleImage = img.grayscale(resizedImage);
 
     bytes.addAll(generator.image(grayscaleImage));
-
     bytes.addAll(generator.feed(1));
 
     bytes.addAll(
@@ -816,7 +831,7 @@ class _ScanNetworkPrinterScreenState
         ),
       ),
     );
-    //hr
+
     bytes.addAll(generator.hr());
 
     bytes.addAll(
@@ -868,7 +883,6 @@ class _ScanNetworkPrinterScreenState
     );
 
     bytes.addAll(generator.feed(2));
-    //cut
     bytes.addAll(generator.cut());
 
     return bytes;

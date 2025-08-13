@@ -11,40 +11,40 @@ const router = express.Router();
 // Create a new area
 router.post('/', async (req, res) => {
     try {
-        const { area_code, area_name, capacity, description } = req.body;
+        const { area_code, area_name, capacity, description, rentfee, roomSize } = req.body;
+
+        if (!roomSize?.width || !roomSize?.height) {
+            return res.status(400).json({ success: false, message: 'Room size (width & height) is required' });
+        }
 
         // Check if area code already exists
-        const existingArea = await Area.findOne({ area_code });
+        const existingArea = await Area.findOne({ area_code: area_code.toUpperCase() });
         if (existingArea) {
-            return res.status(400).json({
-                success: false,
-                message: 'Area code already exists'
-            });
+            return res.status(400).json({ success: false, message: 'Area code already exists' });
         }
 
         const newArea = new Area({
             area_code: area_code.toUpperCase(),
             area_name,
             capacity,
-            description: description || ''
+            description: description || '',
+            rentfee: rentfee || 0,
+            roomSize: {
+                width: roomSize.width,
+                height: roomSize.height,
+                unit: roomSize.unit || 'm'
+            }
         });
 
         const savedArea = await newArea.save();
-        
-        res.status(201).json({
-            success: true,
-            message: 'Area created successfully',
-            data: savedArea
-        });
+
+        res.status(201).json({ success: true, message: 'Area created successfully', data: savedArea });
     } catch (error) {
         console.error('Error creating area:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error creating area',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Error creating area', error: error.message });
     }
 });
+
 
 // Get all areas
 router.get('/', async (req, res) => {
@@ -52,12 +52,13 @@ router.get('/', async (req, res) => {
         const { date, time } = req.query;
         const areas = await Area.find({ is_active: true }).sort({ area_code: 1 });
 
+        // If date & time provided → include availability info
         if (date && time) {
             const areasWithAvailability = await Promise.all(
                 areas.map(async (area) => {
                     const tables = await Table.find({ area_id: area._id, is_active: true });
-                    const reservationDate = new Date(date);
 
+                    const reservationDate = new Date(date);
                     const existingReservations = await Reservation.find({
                         reservation_date: {
                             $gte: new Date(reservationDate.setHours(0, 0, 0, 0)),
@@ -69,36 +70,30 @@ router.get('/', async (req, res) => {
                     });
 
                     const reservedTableIds = [];
-                    existingReservations.forEach(reservation => {
-                        reservation.table_id.forEach(tableId => {
+                    existingReservations.forEach(r => {
+                        r.table_id.forEach(tableId => {
                             if (!reservedTableIds.includes(tableId.toString())) {
                                 reservedTableIds.push(tableId.toString());
                             }
                         });
                     });
 
-                    const availableTables = tables.filter(table =>
-                        !reservedTableIds.includes(table._id.toString())
-                    );
-
-                    const totalReservedGuests = existingReservations.reduce((sum, reservation) => {
-                        return sum + reservation.guest_count;
-                    }, 0);
-
-                    const availableCapacity = area.capacity - totalReservedGuests;
+                    const availableTables = tables.filter(t => !reservedTableIds.includes(t._id.toString()));
+                    const totalReservedGuests = existingReservations.reduce((sum, r) => sum + r.guest_count, 0);
+                    const availableCapacity = Math.max(0, area.capacity - totalReservedGuests);
 
                     return {
                         ...area.toObject(),
                         totalTables: tables.length,
                         availableTables: availableTables.length,
                         reservedTables: tables.length - availableTables.length,
-                        availableCapacity: Math.max(0, availableCapacity),
+                        availableCapacity,
                         totalReservedGuests,
                         isFullyBooked: availableTables.length === 0 || availableCapacity <= 0,
-                        tables: tables.map(table => ({
-                            ...table.toObject(),
-                            is_available_for_time: !reservedTableIds.includes(table._id.toString()),
-                            is_reserved: reservedTableIds.includes(table._id.toString())
+                        tables: tables.map(t => ({
+                            ...t.toObject(),
+                            is_available_for_time: !reservedTableIds.includes(t._id.toString()),
+                            is_reserved: reservedTableIds.includes(t._id.toString())
                         }))
                     };
                 })
@@ -107,6 +102,7 @@ router.get('/', async (req, res) => {
             return res.json({ success: true, data: areasWithAvailability });
         }
 
+        // Default return without reservation check
         const areasWithTables = await Promise.all(
             areas.map(async (area) => {
                 const tables = await Table.find({ area_id: area._id, is_active: true });
@@ -114,15 +110,11 @@ router.get('/', async (req, res) => {
                     ...area.toObject(),
                     totalTables: tables.length,
                     availableTables: tables.filter(t => t.status === 'available').length,
-                    reservedTables: tables.filter(t => t.status === 'reserved' || t.status === 'occupied').length,
+                    reservedTables: tables.filter(t => t.status !== 'available').length,
                     availableCapacity: area.capacity,
                     totalReservedGuests: 0,
                     isFullyBooked: false,
-                    tables: tables.map(table => ({
-                        ...table.toObject(),
-                        is_available_for_time: table.status === 'available',
-                        is_reserved: table.status === 'reserved' || table.status === 'occupied'
-                    }))
+                    tables
                 };
             })
         );
@@ -130,61 +122,40 @@ router.get('/', async (req, res) => {
         res.json({ success: true, data: areasWithTables });
     } catch (error) {
         console.error('Error fetching areas:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching areas',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Error fetching areas', error: error.message });
     }
 });
+
 
 // Get single area by ID
 router.get('/:id', async (req, res) => {
     try {
         const area = await Area.findById(req.params.id);
         if (!area || !area.is_active) {
-            return res.status(404).json({
-                success: false,
-                message: 'Area not found or inactive'
-            });
+            return res.status(404).json({ success: false, message: 'Area not found or inactive' });
         }
 
         const tables = await Table.find({ area_id: area._id, is_active: true });
-        const areaWithTables = {
-            ...area.toObject(),
-            tables: tables
-        };
-
-        res.json({
-            success: true,
-            data: areaWithTables
-        });
+        res.json({ success: true, data: { ...area.toObject(), tables } });
     } catch (error) {
         console.error('Error fetching area:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching area',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Error fetching area', error: error.message });
     }
 });
+
 
 // Update an area
 router.put('/:id', async (req, res) => {
     try {
-        const { area_code, area_name, capacity, description, is_active } = req.body;
-        
-        // Check if area code is being changed to one that already exists
+        const { area_code, area_name, capacity, description, rentfee, is_active, roomSize } = req.body;
+
         if (area_code) {
-            const existingArea = await Area.findOne({ 
+            const exists = await Area.findOne({
                 area_code: area_code.toUpperCase(),
                 _id: { $ne: req.params.id }
             });
-            if (existingArea) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Area code already exists'
-                });
+            if (exists) {
+                return res.status(400).json({ success: false, message: 'Area code already exists' });
             }
         }
 
@@ -195,32 +166,22 @@ router.put('/:id', async (req, res) => {
                 area_name,
                 capacity,
                 description,
-                is_active
+                rentfee,
+                is_active,
+                roomSize
             },
             { new: true, runValidators: true }
         );
 
-        if (!updatedArea) {
-            return res.status(404).json({
-                success: false,
-                message: 'Area not found'
-            });
-        }
+        if (!updatedArea) return res.status(404).json({ success: false, message: 'Area not found' });
 
-        res.json({
-            success: true,
-            message: 'Area updated successfully',
-            data: updatedArea
-        });
+        res.json({ success: true, message: 'Area updated successfully', data: updatedArea });
     } catch (error) {
         console.error('Error updating area:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error updating area',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Error updating area', error: error.message });
     }
 });
+
 
 // Delete (deactivate) an area
 router.delete('/:id', async (req, res) => {
@@ -267,26 +228,18 @@ router.post('/tables', async (req, res) => {
     try {
         const { table_number, area_id, seats, table_type, shape, position } = req.body;
 
-        // Check if area exists and is active
         const area = await Area.findOne({ _id: area_id, is_active: true });
-        if (!area) {
+        if (!area) return res.status(400).json({ success: false, message: 'Area not found or inactive' });
+
+        if (position?.x > area.roomSize.width || position?.y > area.roomSize.height) {
             return res.status(400).json({
                 success: false,
-                message: 'Area not found or inactive'
+                message: `Position (${position.x}, ${position.y}) exceeds area size (${area.roomSize.width}, ${area.roomSize.height})`
             });
         }
 
-        // Check if table number already exists in this area
-        const existingTable = await Table.findOne({ 
-            table_number: table_number.toUpperCase(), 
-            area_id 
-        });
-        if (existingTable) {
-            return res.status(400).json({
-                success: false,
-                message: 'Table number already exists in this area'
-            });
-        }
+        const exists = await Table.findOne({ table_number: table_number.toUpperCase(), area_id });
+        if (exists) return res.status(400).json({ success: false, message: 'Table number already exists in this area' });
 
         const newTable = new Table({
             table_number: table_number.toUpperCase(),
@@ -297,22 +250,14 @@ router.post('/tables', async (req, res) => {
             position: position || { x: 0, y: 0 }
         });
 
-        const savedTable = await newTable.save();
-        
-        res.status(201).json({
-            success: true,
-            message: 'Table created successfully',
-            data: savedTable
-        });
+        const saved = await newTable.save();
+        res.status(201).json({ success: true, message: 'Table created successfully', data: saved });
     } catch (error) {
         console.error('Error creating table:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error creating table',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Error creating table', error: error.message });
     }
 });
+
 
 // Get all tables (with optional area filter)
 router.get('/tables', async (req, res) => {
@@ -371,74 +316,50 @@ router.put('/tables/:id', async (req, res) => {
     try {
         const { table_number, area_id, seats, table_type, shape, position, status, is_available, is_active } = req.body;
 
-        // Check if table number is being changed to one that already exists in the area
+        const table = await Table.findById(req.params.id);
+        if (!table) return res.status(404).json({ success: false, message: 'Table not found' });
+
+        const areaToCheck = area_id ? await Area.findById(area_id) : await Area.findById(table.area_id);
+        if (!areaToCheck || !areaToCheck.is_active) {
+            return res.status(400).json({ success: false, message: 'Area not found or inactive' });
+        }
+
+        if (position?.x > areaToCheck.roomSize.width || position?.y > areaToCheck.roomSize.height) {
+            return res.status(400).json({
+                success: false,
+                message: `Position (${position.x}, ${position.y}) exceeds area size (${areaToCheck.roomSize.width}, ${areaToCheck.roomSize.height})`
+            });
+        }
+
         if (table_number) {
-            const existingTable = await Table.findOne({ 
-                table_number: table_number.toUpperCase(), 
-                area_id: area_id || req.body.area_id,
+            const exists = await Table.findOne({
+                table_number: table_number.toUpperCase(),
+                area_id: area_id || table.area_id,
                 _id: { $ne: req.params.id }
             });
-            if (existingTable) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Table number already exists in this area'
-                });
-            }
+            if (exists) return res.status(400).json({ success: false, message: 'Table number already exists in this area' });
         }
 
-        // Check if area exists and is active if area_id is being updated
-        if (area_id) {
-            const area = await Area.findOne({ _id: area_id, is_active: true });
-            if (!area) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Area not found or inactive'
-                });
-            }
-        }
-
-        const updateData = {
-            table_number: table_number ? table_number.toUpperCase() : undefined,
-            area_id,
-            seats,
-            table_type,
-            shape,
-            position,
-            status,
-            is_available,
-            is_active
-        };
-
-        // Remove undefined values
-        Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
-
-        const updatedTable = await Table.findByIdAndUpdate(
-            req.params.id,
-            updateData,
-            { new: true, runValidators: true }
-        );
-
-        if (!updatedTable) {
-            return res.status(404).json({
-                success: false,
-                message: 'Table not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            message: 'Table updated successfully',
-            data: updatedTable
+        Object.assign(table, {
+            table_number: table_number ? table_number.toUpperCase() : table.table_number,
+            area_id: area_id || table.area_id,
+            seats: seats ?? table.seats,
+            table_type: table_type ?? table.table_type,
+            shape: shape ?? table.shape,
+            position: position ?? table.position,
+            status: status ?? table.status,
+            is_available: is_available ?? table.is_available,
+            is_active: is_active ?? table.is_active
         });
+
+        const updated = await table.save();
+        res.json({ success: true, message: 'Table updated successfully', data: updated });
     } catch (error) {
         console.error('Error updating table:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error updating table',
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Error updating table', error: error.message });
     }
 });
+
 
 // Delete (deactivate) a table
 router.delete('/tables/:id', async (req, res) => {
