@@ -6,6 +6,7 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Modal from './modal';
+import Header from "../../admin/header";
 
 
 const InStockManagement = () => {
@@ -61,11 +62,16 @@ const InStockManagement = () => {
             );
 
             setInStock(stockWithMovements);
-            // 🔹 Default awal langsung filter semua movements type "in"
+
+            // 🔹 Default awal: type "out" & hanya hari ini
             const defaultMovements = [];
             stockWithMovements.forEach(stock => {
                 (stock.movements || []).forEach(movement => {
-                    if (movement.type === "in") {
+                    const movementDate = dayjs(movement.date);
+                    if (
+                        movement.type === "in" &&
+                        movementDate.isSame(dayjs(), 'day') // hanya tanggal hari ini
+                    ) {
                         defaultMovements.push({
                             ...movement,
                             product: stock.productId?.name,
@@ -74,6 +80,8 @@ const InStockManagement = () => {
                     }
                 });
             });
+
+            // Urutkan terbaru
             const sortedDefault = defaultMovements.sort(
                 (a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()
             );
@@ -85,8 +93,6 @@ const InStockManagement = () => {
             setFilteredData([]);
         }
     };
-
-
 
 
     const fetchOutlets = async () => {
@@ -329,13 +335,7 @@ const InStockManagement = () => {
     return (
         <div className="">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
