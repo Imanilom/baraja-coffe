@@ -33,7 +33,7 @@ const MenuItemSchema = new mongoose.Schema({
   },
   imageURL: {
     type: String,
-    default: 'https://placehold.co/1920x1080/png '
+    default: 'https://placehold.co/1920x1080/png'
   },
   costPrice: { // Harga pokok produksi (auto-calculated)
     type: Number,
