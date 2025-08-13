@@ -7,70 +7,87 @@ export class MenuRatingController {
 
     // CREATE - Membuat rating baru
     static async createRating(req, res) {
-        try {
-            const { menuItemId, orderId, rating, review } = req.body;
-            const order = await Order.findOne({ order_id: orderId });
-            const _id = order._id;
-            const customerId = order.user_id;
+    try {
+        const { menuItemId, orderId, rating, review } = req.body;
 
-            // const outletId = req.body.outletId; // Atau bisa dari order data
-
-            // Validasi input
-            if (!menuItemId || !orderId || !rating) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Menu item ID, order ID, and rating are required'
-                });
-            }
-
-            // Cek apakah customer sudah pernah rating menu ini di order yang sama
-            const existingRating = await MenuRating.findOne({
-                menuItemId,
-                customerId,
-                _id
-            });
-
-            if (existingRating) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'You have already rated this menu item for this order'
-                });
-            }
-
-            // Buat rating baru
-            const newRating = new MenuRating({
-                menuItemId,
-                customerId,
-                _id,
-                // outletId,
-                rating,
-                review,
-                // images: images || [],
-                // tags: tags || []
-            });
-
-            await newRating.save();
-
-            // Populate data untuk response
-            const populatedRating = await MenuRating.findById(newRating._id)
-                // .populate('menuItemId', 'name imageURL')
-                .populate('customerId', 'name email')
-            // .populate('outletId', 'name address');
-
-            res.status(201).json({
-                success: true,
-                message: 'Rating created successfully',
-                data: populatedRating
-            });
-
-        } catch (error) {
-            console.error('Error creating rating:', error);
-            res.status(500).json({
+        // Validasi input awal
+        if (!menuItemId || !orderId || rating == null) {
+            return res.status(400).json({
                 success: false,
-                message: error.message || 'Internal server error'
+                message: 'Menu item ID, order ID, and rating are required'
             });
         }
+
+        // Ambil order dan validasi keberadaannya
+        const order = await Order.findById(orderId).lean();
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        const customerId = order.user_id;
+        if (!customerId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Order has no associated customer'
+            });
+        }
+
+        // Cek apakah sudah ada rating sebelumnya
+        const existingRating = await MenuRating.findOne({
+            menuItemId,
+            customerId,
+            orderId
+        });
+        if (existingRating) {
+            return res.status(400).json({
+                success: false,
+                message: 'You have already rated this menu item for this order'
+            });
+        }
+
+        // Buat rating baru
+        const newRating = new MenuRating({
+            menuItemId,
+            customerId,
+            orderId,
+            rating,
+            review
+        });
+
+        await newRating.save();
+
+        // Populate untuk response
+        const populatedRating = await MenuRating.findById(newRating._id)
+            .populate('menuItemId', 'name imageURL')
+            .populate('customerId', 'name email');
+
+        return res.status(201).json({
+            success: true,
+            message: 'Rating created successfully',
+            data: populatedRating
+        });
+
+    } catch (error) {
+        console.error('Error creating rating:', error);
+
+        // Handle duplicate key (index unik schema)
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: 'Duplicate rating: You have already rated this menu item for this order'
+            });
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Internal server error'
+        });
     }
+}
+
 
     // READ - Mendapatkan semua rating untuk menu tertentu
     static async getMenuRatings(req, res) {
