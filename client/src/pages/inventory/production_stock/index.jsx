@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBoxes, FaInfoCircle } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
@@ -16,7 +17,11 @@ const ProductionStockManagement = () => {
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
+
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 
@@ -234,7 +239,11 @@ const ProductionStockManagement = () => {
     const resetFilter = () => {
         setTempSearch("");
         setTempSelectedOutlet("");
-        setValue(null);
+
+        setValue({
+            startDate: dayjs(),
+            endDate: dayjs(),
+        });
         setSearch("");
         setFilteredData(ensureArray(attendances));
         setCurrentPage(1);
