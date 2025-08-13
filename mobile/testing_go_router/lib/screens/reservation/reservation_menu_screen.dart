@@ -84,8 +84,8 @@ class _ReservationMenuScreenState extends ConsumerState<ReservationMenuScreen> {
     final reservationData = arguments?['reservationData'] as ReservationData?;
     final isReservation = arguments?['isReservation'] as bool? ?? false;
     final selectedArea = arguments?['selectedArea'] as String?;
-    final selectedTableNumbers =
-        arguments?['selectedTableNumbers'] as List<String>? ?? [];
+    // final selectedTableNumbers =
+    //     arguments?['selectedTableNumbers'] as List<String>? ?? [];
 
     print('ReservationData: $arguments');
     const categories = ['All', 'makanan', 'minuman'];
