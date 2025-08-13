@@ -1,23 +1,28 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
+import dayjs from "dayjs";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Modal from './modal';
+import Header from "../../admin/header";
 
 
 const InStockManagement = () => {
-    const [attendances, setAttendances] = useState([]);
+    const [inStock, setInStock] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
+    const [hasFiltered, setHasFiltered] = useState(false);
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
     const [showModal, setShowModal] = useState(false);
@@ -25,7 +30,7 @@ const InStockManagement = () => {
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
+    const ITEMS_PER_PAGE = 10;
 
     const dropdownRef = useRef(null);
 
@@ -38,43 +43,112 @@ const InStockManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch attendances and outlets data
+    // Fetch inStock and outlets data
+    const fetchStock = async () => {
+        try {
+            const stockResponse = await axios.get('/api/product/stock/all');
+            const stockData = stockResponse.data.data || [];
+
+            const stockWithMovements = await Promise.all(
+                stockData.map(async (item) => {
+                    const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
+                    const movements = movementResponse.data.data.movements || [];
+
+                    return {
+                        ...item,
+                        movements
+                    };
+                })
+            );
+
+            setInStock(stockWithMovements);
+
+            // 🔹 Default awal: type "out" & hanya hari ini
+            const defaultMovements = [];
+            stockWithMovements.forEach(stock => {
+                (stock.movements || []).forEach(movement => {
+                    const movementDate = dayjs(movement.date);
+                    if (
+                        movement.type === "in" &&
+                        movementDate.isSame(dayjs(), 'day') // hanya tanggal hari ini
+                    ) {
+                        defaultMovements.push({
+                            ...movement,
+                            product: stock.productId?.name,
+                            unit: stock.productId?.unit
+                        });
+                    }
+                });
+            });
+
+            // Urutkan terbaru
+            const sortedDefault = defaultMovements.sort(
+                (a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()
+            );
+            setFilteredData(sortedDefault);
+
+        } catch (err) {
+            console.error("Error fetching stock or movements:", err);
+            setInStock([]);
+            setFilteredData([]);
+        }
+    };
+
+
+    const fetchOutlets = async () => {
+        try {
+            const outletsResponse = await axios.get('/api/outlet');
+            const outletsData = Array.isArray(outletsResponse.data)
+                ? outletsResponse.data
+                : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
+                    ? outletsResponse.data.data
+                    : [];
+
+            setOutlets(outletsData);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setOutlets([]);
+        }
+    };
+
+    // const fetchCategories = async () => {
+    //     try {
+    //         const categoryResponse = await axios.get('/api/storage/categories');
+    //         const categoryData = Array.isArray(categoryResponse.data)
+    //             ? categoryResponse.data
+    //             : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
+    //                 ? categoryResponse.data.data
+    //                 : [];
+
+    //         setCategory(categoryData);
+    //     } catch (err) {
+    //         console.error("Error fetching categories:", err);
+    //         setCategory([]);
+    //     }
+    // };
+
+    const fetchData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            await Promise.all([
+                fetchStock(),
+                fetchOutlets(),
+                // fetchCategories()
+            ]);
+            // fetchStatus();
+        } catch (err) {
+            console.error("General error:", err);
+            setError("Failed to load data. Please try again later.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch attendances data
-                const attendancesResponse = [];
-
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setAttendances([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
     }, []);
+
 
     // Get unique outlet names for the dropdown
     const uniqueOutlets = useMemo(() => {
@@ -91,21 +165,6 @@ const InStockManagement = () => {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
-
-    // Paginate the filtered data
-    const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
-        }
-
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
-        return result;
-    }, [currentPage, filteredData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -144,101 +203,68 @@ const InStockManagement = () => {
         );
     }, [search, uniqueOutlets]);
 
-    // Apply filter function
-    const applyFilter = () => {
-
-        // Make sure attendances is an array before attempting to filter
-        let filtered = ensureArray([...attendances]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
-                try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
-
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
-
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
+    const capitalizeWords = (text) => {
+        return text
+            .toLowerCase()
+            .replace(/\b\w/g, (char) => char.toUpperCase());
     };
 
-    // Reset filters
+    // Apply filter function
+    const applyFilter = () => {
+        const allMovements = [];
+
+        inStock.forEach(stock => {
+            const movements = stock.movements || [];
+
+            const movementsInRange = movements.filter(movement => {
+                const movementDate = dayjs(movement.date);
+                return (
+                    movement.type === "in" && // hanya ambil stok masuk
+                    movementDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
+                    movementDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'))
+                );
+            });
+
+            movementsInRange.forEach(movement => {
+                allMovements.push({
+                    ...movement,
+                    product: stock.productId?.name,
+                    unit: stock.productId?.unit
+                });
+            });
+        });
+
+        // Filter berdasarkan pencarian jika ada
+        const searched = tempSearch
+            ? allMovements.filter(m =>
+                m._id.toLowerCase().includes(tempSearch.toLowerCase()) ||
+                m.product?.toLowerCase().includes(tempSearch.toLowerCase())
+            )
+            : allMovements;
+
+        // Urutkan berdasarkan tanggal terbaru
+        const sorted = searched.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+
+        setFilteredData(sorted); // ← bikin state baru khusus movement hasil filter
+        setCurrentPage(1);
+    };
+
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return filteredData.slice(startIndex, endIndex);
+    }, [currentPage, filteredData]);
+
+    useEffect(() => {
+        applyFilter();
+    }, []);
+
     const resetFilter = () => {
         setTempSearch("");
-        setTempSelectedOutlet("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(attendances));
+        setValue({
+            startDate: dayjs(),
+            endDate: dayjs(),
+        });
         setCurrentPage(1);
     };
 
@@ -309,13 +335,7 @@ const InStockManagement = () => {
     return (
         <div className="">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
@@ -335,7 +355,7 @@ const InStockManagement = () => {
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
                 <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-2">
+                    {/* <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
                         <div className="relative">
                             {!showInput ? (
@@ -382,7 +402,7 @@ const InStockManagement = () => {
                                 </ul>
                             )}
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
@@ -402,13 +422,15 @@ const InStockManagement = () => {
                         </div>
                     </div>
 
+                    <div className="col-span-3"></div>
+
                     <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">ID Stok Masuk</label>
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Cari ID Stok"
+                                placeholder="Cari"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
@@ -416,7 +438,7 @@ const InStockManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
+                    <div className="flex justify-end space-x-2 items-end col-span-1">
                         <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
                         <button onClick={resetFilter} className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Reset</button>
                     </div>
@@ -429,44 +451,26 @@ const InStockManagement = () => {
                             <tr className="text-left text-[13px]">
                                 <th className="px-4 py-3 font-normal">Waktu Submit</th>
                                 <th className="px-4 py-3 font-normal">ID Stok Masuk</th>
-                                <th className="px-4 py-3 font-normal">Outlet</th>
-                                <th className="px-4 py-3 font-normal">Tanggal</th>
+                                <th className="px-4 py-3 font-normal">Produk</th>
+                                <th className="px-4 py-3 font-normal">Unit</th>
+                                <th className="px-4 py-3 font-normal">Qty</th>
+                                <th className="px-4 py-3 font-normal">Keterangan</th>
+                                {/* <th className="px-4 py-3 font-normal">Outlet</th>
+                                <th className="px-4 py-3 font-normal">Tanggal</th> */}
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((data, index) => {
-                                    try {
-                                        return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
-                                                    {data.karyawan || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatDate(data.tanggal) || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatTime(data.waktu_masuk) || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatTime(data.waktu_keluar) || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {data.total || []}
-                                                </td>
-                                            </tr>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="5" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
+                                {paginatedData.map((movement) => (
+                                    <tr key={movement._id} className="text-left text-sm cursor-pointer hover:bg-slate-50">
+                                        <td className="px-4 py-3">{formatDateTime(movement.date)}</td>
+                                        <td className="px-4 py-3">{movement._id}</td>
+                                        <td className="px-4 py-3">{movement.product && capitalizeWords(movement.product)}</td>
+                                        <td className="px-4 py-3 lowercase">{movement.unit}</td>
+                                        <td className="px-4 py-3">{movement.quantity}</td>
+                                        <td className="px-4 py-3">{movement.notes || "-"}</td>
+                                    </tr>
+                                ))}
                             </tbody>
                         ) : (
                             <tbody>
@@ -484,6 +488,7 @@ const InStockManagement = () => {
                                 </tr>
                             </tbody>
                         )}
+
                     </table>
                 </div>
 
@@ -493,24 +498,61 @@ const InStockManagement = () => {
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        {totalPages > 1 && (
-                            <div className="flex space-x-2">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Sebelumnya
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Berikutnya
-                                </button>
-                            </div>
-                        )}
+                        <div className="flex justify-center space-x-2 mt-4">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-2 border rounded disabled:opacity-50"
+                            >
+                                <FaChevronLeft />
+                            </button>
+
+                            {[...Array(totalPages)].map((_, index) => {
+                                const page = index + 1;
+
+                                if (
+                                    page === 1 ||
+                                    page === totalPages ||
+                                    (page >= currentPage - 2 && page <= currentPage + 2)
+                                ) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`px-3 py-1 rounded border ${currentPage === page
+                                                ? "bg-[#005429] text-white"
+                                                : ""
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                }
+
+                                // Tampilkan "..." jika melompati halaman
+                                if (
+                                    (page === currentPage - 3 && page > 1) ||
+                                    (page === currentPage + 3 && page < totalPages)
+                                ) {
+                                    return (
+                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
+                                            ...
+                                        </span>
+                                    );
+                                }
+
+                                return null;
+                            })}
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-2 border rounded disabled:opacity-50"
+                            >
+                                <FaChevronRight />
+                            </button>
+                        </div>
+
                     </div>
                 )}
             </div>
@@ -521,7 +563,7 @@ const InStockManagement = () => {
             </div>
 
             <Modal show={showModal} onClose={() => setShowModal(false)} onSubmit={handleSubmit} />
-        </div>
+        </div >
     );
 };
 

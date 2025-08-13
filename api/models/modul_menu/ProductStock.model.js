@@ -1,13 +1,4 @@
-// models/ProductStock.js
 import mongoose from 'mongoose';
-
-const stockMovementSchema = new mongoose.Schema({
-  date: { type: Date, default: Date.now },
-  quantity: { type: Number, required: true },
-  type: { type: String, enum: ['in', 'out', 'adjustment'], required: true },
-  referenceId: mongoose.Schema.Types.ObjectId, // ID Recipe/Transaction
-  notes: String
-}, { _id: true });
 
 const productStockSchema = new mongoose.Schema({
   productId: { 
@@ -18,25 +9,40 @@ const productStockSchema = new mongoose.Schema({
   },
   currentStock: { 
     type: Number, 
-    default: 0 
+    default: 0,
+    min: 0
   },
   minStock: { 
     type: Number, 
-    default: 0 
+    default: 0,
+    min: 0 
   },
-  movements: [stockMovementSchema]
+  movements: [{
+  quantity: { type: Number, required: true },
+  type: { type: String, enum: ['in', 'out', 'adjustment'], required: true },
+  referenceId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  notes: String,
+  date: { type: Date, default: Date.now }
+}]
+
+}, {
+  timestamps: true,
+  // Optimistic concurrency control
+  optimisticConcurrency: true,
+  versionKey: 'version'
 });
 
-// Auto-update currentStock
+// Index tambahan
+productStockSchema.index({ productId: 1 }, { unique: true });
+productStockSchema.index({ 'movements': 1 });
+
+// Middleware untuk validasi
 productStockSchema.pre('save', function(next) {
-  this.currentStock = this.movements.reduce((total, move) => {
-    return move.type === 'in' ? 
-      total + move.quantity : 
-      total - move.quantity;
-  }, 0);
+  if (this.isNew && this.currentStock < 0) {
+    throw new Error('Stok awal tidak boleh negatif');
+  }
   next();
 });
 
 const ProductStock = mongoose.model('ProductStock', productStockSchema);
-
 export default ProductStock;

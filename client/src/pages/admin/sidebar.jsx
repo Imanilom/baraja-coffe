@@ -18,6 +18,7 @@ import {
   FaTh,
   FaDollarSign,
   FaChevronRight,
+  FaTicketAlt,
 } from "react-icons/fa";
 
 const useActiveRoute = () => {
@@ -74,6 +75,7 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
       section: "Bisnis",
       items: [
         { name: "Outlet", path: "/admin/outlet", icon: <FaStoreAlt /> },
+        { name: "Event", path: "#", icon: <FaTicketAlt /> },
         { name: "Karyawan", path: "/admin/employee", icon: <FaIdBadge /> },
         { name: "Pelanggan", path: "/admin/customer", icon: <FaUserFriends /> },
         {

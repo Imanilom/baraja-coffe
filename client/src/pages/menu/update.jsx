@@ -12,15 +12,53 @@ import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaGif
 import { useNavigate, useParams } from "react-router-dom";
 import ToppingForm from "./varianmodal";
 import AddonForm from "./opsimodal";
+import ConfirmationModal from "./confirmmodal";
+import Select from "react-select";
 
 const UpdateMenu = () => {
+  const customStyles = {
+    control: (provided, state) => ({
+      ...provided,
+      borderColor: '#d1d5db', // Tailwind border-gray-300
+      minHeight: '34px',
+      fontSize: '14px',
+      color: '#6b7280', // text-gray-500
+      boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+      '&:hover': {
+        borderColor: '#9ca3af', // Tailwind border-gray-400
+      },
+    }),
+    singleValue: (provided) => ({
+      ...provided,
+      color: '#6b7280', // text-gray-500
+    }),
+    input: (provided) => ({
+      ...provided,
+      color: '#6b7280', // text-gray-500 for typed text
+    }),
+    placeholder: (provided) => ({
+      ...provided,
+      color: '#9ca3af', // text-gray-400
+      fontSize: '13px',
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      fontSize: '13px',
+      color: '#374151', // gray-700
+      backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+      cursor: 'pointer',
+    }),
+  };
   const { id } = useParams(); // Get the menu item ID from the URL
   const [title, setTitle] = useState([]);
+  const MainCategories = ['makanan', 'minuman', 'dessert', 'snack'];
   const [formData, setFormData] = useState({
     name: "",
     price: 0,
     description: "",
-    category: { id: "", name: "" },
+    mainCategory: "",
+    category: "",
+    subCategory: "",
     imageURL: "",
     toppings: [],
     addons: [],
@@ -31,13 +69,13 @@ const UpdateMenu = () => {
 
 
   const [isChecked, setIsChecked] = useState(false);
-  const [toppings, setToppings] = useState([]);
-  const [addons, setAddons] = useState([]);
+  const [selectedMainCategory, setSelectedMainCategory] = useState("");
 
   const [isOptional, setIsOptional] = useState([false]);
   const [loading, setLoading] = useState(true);
 
   const [categories, setCategories] = useState([]);
+  const [allCategories, setAllCategories] = useState([]);
   const [rawMaterials, setRawMaterials] = useState([]);
   const [outlets, setOutlets] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
@@ -48,16 +86,12 @@ const UpdateMenu = () => {
     setLoading(true);
     const fetchCategories = async () => {
       try {
-        const response = await axios.get("/api/menu/categories");
-        const fetchedCategories = response.data.data || [];
-        setCategories(fetchedCategories);
+        const res = await axios.get("/api/menu/categories");
+        const data = res.data.data;
 
-        // Create a mapping of category IDs to names
-        const map = {};
-        fetchedCategories.forEach(category => {
-          map[category._id] = category.name;
-        });
-        setCategoryMap(map);
+        setAllCategories(data);
+        const main = data.filter((cat) => !cat.parentCategory);
+        setCategories(main);
       } catch (error) {
         console.error("Error fetching categories:", error);
       } finally {
@@ -107,6 +141,32 @@ const UpdateMenu = () => {
     fetchRawMaterial();
     fetchMenuItem(); // Fetch the menu item to update
   }, [id]);
+
+  useEffect(() => {
+    if (formData.workstation === "kitchen") {
+      setIsChecked(true);
+    } else {
+      setIsChecked(false);
+    }
+  }, [formData.workstation]);
+
+  const mainCategoryOptions = MainCategories.map((cat) => ({
+    label: cat.charAt(0).toUpperCase() + cat.slice(1),
+    value: cat.toLowerCase()
+  }));
+
+
+  const categoryOptions = categories.map(category => ({
+    value: category._id,
+    label: category.name,
+  }));
+
+  const allCategoryOptions = allCategories
+    .filter((cat) => cat.parentCategory === formData.category?.id)
+    .map((cat) => ({
+      value: cat._id,
+      label: cat.name,
+    }));
 
   const fileRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -207,23 +267,14 @@ const UpdateMenu = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    console.log(formData)
-
-    // const data = new FormData();
-    const formDataToSubmit = {
-      name: formData.name,
-      price: Number(formData.price),
-      description: formData.description,
-      category: selectedCategories.map(id => categoryMap[id]), // Get names instead of IDs
-      imageURL: formData.imageURL || "https://placehold.co/1920x1080/png",
-      toppings: [],
-      addons: [],
-      rawMaterials: []
+    const payload = {
+      ...formData,
+      category: formData.category?.id || "",      // ambil hanya ID
+      subCategory: formData.subCategory?.id || "", // sama juga
     };
 
     try {
-      const response = await axios.put(`/api/menu/menu-items/${id}`, formData);
-      console.log(response);
+      await axios.put(`/api/menu/menu-items/${id}`, payload);
       navigate("/admin/menu");
     } catch (error) {
       console.error("Error updating menu item:", error);
@@ -284,31 +335,15 @@ const UpdateMenu = () => {
           </div>
         </div>
         {/* Modal */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded shadow-md text-center space-y-4">
-              <p className="text-lg font-semibold">Yakin ingin membatalkan?</p>
-              <div className="flex justify-center gap-4">
-                <Link
-                  to="/admin/menu"
-                  className="px-4 py-2 bg-red-500 text-white rounded"
-                >
-                  Ya, Batalkan
-                </Link>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-gray-300 rounded"
-                >
-                  Tidak
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ConfirmationModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          onConfirm={() => navigate("/admin/menu")}
+        />
         <div className="bg-slate-50 p-6">
           <div className="grid grid-cols-2 p-12 space-x-4 bg-white shadow-md">
             {/* grid 1 */}
-            <div className="text-[#999999]">
+            <div className="text-gray-500">
 
               {/* Name */}
               <div>
@@ -323,28 +358,74 @@ const UpdateMenu = () => {
                 />
               </div>
 
-              {/* Category (Checkboxes) */}
-              <div className="">
-                <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
-                <select
-                  className="w-full py-2 px-3 border rounded-lg"
-                  value={formData.category.name || ""}
-                  onChange={(e) => {
-                    const selected = categories.find(cat => cat.name === e.target.value);
+              {/* mainCategory */}
+              <div>
+                <label className="my-2.5 text-xs block font-medium">MAIN KATEGORI</label>
+                <Select
+                  options={mainCategoryOptions}
+                  value={
+                    mainCategoryOptions.find(opt => opt.value === formData.mainCategory) || null
+                  }
+                  onChange={(selectedOption) => {
                     setFormData(prev => ({
                       ...prev,
-                      category: selected || { id: "", name: "" }
+                      mainCategory: selectedOption?.value || ""
                     }));
                   }}
-                >
-                  <option value="">Pilih kategori</option>
-                  {categories.map(category => (
-                    <option key={category._id} value={category.name}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
+                  styles={customStyles}
+                  placeholder="Pilih kategori utama..."
+                />
+              </div>
 
+              {/* Category */}
+              <div className="">
+                <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
+                <Select
+                  className="w-full text-sm"
+                  options={categoryOptions}
+                  value={
+                    formData.category && formData.category.name
+                      ? {
+                        value: formData.category._id || "",
+                        label: formData.category.name,
+                      }
+                      : null
+                  }
+                  onChange={(selectedOption) => {
+                    const selectedCategory = categories.find(cat => cat._id === selectedOption?.value);
+                    setFormData(prev => ({
+                      ...prev,
+                      category: selectedCategory,
+                      subCategory: "", // reset subCategory
+                    }));
+                  }}
+                  styles={customStyles}
+                />
+              </div>
+
+              <div className="mt-4">
+                <label className="my-2.5 text-xs block font-medium">SUB KATEGORI</label>
+                <Select
+                  className="w-full text-sm"
+                  options={allCategoryOptions}
+                  value={
+                    formData.subCategory
+                      ? {
+                        value: formData.subCategory._id,
+                        label: formData.subCategory.name,
+                      }
+                      : null
+                  }
+                  onChange={(selectedOption) => {
+                    const selectedSub = allCategories.find(sub => sub._id === selectedOption?.value);
+                    setFormData(prev => ({
+                      ...prev,
+                      subCategory: selectedSub,
+                    }));
+                  }}
+                  styles={customStyles}
+                  placeholder="Pilih sub kategori"
+                />
               </div>
 
               {/* Price */}
@@ -417,43 +498,14 @@ const UpdateMenu = () => {
               </div>
             </div>
 
-            {/* grid 2  */}
-            {/* <div className="">
-              <div className="mb-20">
-                <div className="flex justify-between">
-                  <div className="flex">
-                    <label htmlFor="varian">Varian Produk</label>
-                  </div>
-                  <input type="radio" />
-                </div>
-                <h3>Apakah produk ini memiliki varian seperti warna dan ukuran ?</h3>
-              </div>
-              <div className="">
-                <div className="">
-                  <div className="flex">
-                    <label htmlFor="varian">Opsi Tambahan</label>
-                  </div>
-                  <button
-                    type="button"
-                    className="bg-slate-50 shadow-sm p-2"
-                    onClick={() => setIsOpen(true)}
-                  >
-                    Tambah Opsi Tambahan
-                  </button>
-                </div>
-                <h3>Anda dapat memilih lebih dari satu opsi tambahan</h3>
-
-                {isOpen && (
-                  <div
-                    className="fixed inset-0 bg-black bg-opacity-30 z-40"
-                    onClick={() => setIsOpen(false)}
-                  />
-                )}
-              </div>
-            </div> */}
-
-            <div className="text-[14px] text-[#999999]">
-              <ToppingForm toppings={formData.toppings} setToppings={setToppings} />
+            <div className="text-[14px] text-gray-500">
+              {/* <ToppingForm toppings={formData.toppings} setToppings={setToppings} /> */}
+              <ToppingForm
+                toppings={formData.toppings}
+                setToppings={(updatedToppings) =>
+                  setFormData((prev) => ({ ...prev, toppings: updatedToppings }))
+                }
+              />
               <AddonForm
                 addons={formData.addons || []}
                 setAddons={(addons) => setFormData((prev) => ({ ...prev, addons }))}
@@ -482,7 +534,6 @@ const UpdateMenu = () => {
                         }}
                         className="form-checkbox text-blue-600"
                       />
-                      {console.log(formData.availableAt.includes(outlet._id))}
                       <span>{outlet.name}</span>
                     </label>
                   ))}
@@ -498,8 +549,15 @@ const UpdateMenu = () => {
                   </span>
                   <input
                     type="checkbox"
-                    checked={formData.workstation === "kitchen" && isChecked}
-                    onChange={(e) => setIsChecked(e.target.checked)}
+                    checked={isChecked}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsChecked(checked);
+                      setFormData((prevData) => ({
+                        ...prevData,
+                        workstation: checked ? "kitchen" : "bar",
+                      }));
+                    }}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1
@@ -512,8 +570,16 @@ const UpdateMenu = () => {
             </div>
           </div>
         </div>
+      </form>
+    </div>
+  );
+};
 
-        {/* <div className="p-6 bg-slate-50 shadow-lg">
+export default UpdateMenu;
+
+
+
+{/* <div className="p-6 bg-slate-50 shadow-lg">
           <button
             onClick={() => setIsOptional(!isOptional)}
             className="w-full flex text-left px-[20px] py-[15px] bg-slate-100 hover:bg-slate-200 transition font-medium items-center space-x-2"
@@ -659,78 +725,3 @@ const UpdateMenu = () => {
             </div>
           )}
         </div> */}
-      </form>
-
-      {/* Modal Slide */}
-      <div
-        className={`fixed top-0 right-0 h-full max-w-screen-sm w-full bg-white shadow-lg transform transition-transform duration-300 z-50 ${isOpen ? "translate-x-0" : "translate-x-full"
-          }`}
-      >
-        <div className="p-4 flex justify-between items-center border-b">
-          <h2 className="text-lg font-semibold">Tambah Opsi Tambahan</h2>
-          <button onClick={() => setIsOpen(false)} className="text-gray-600 hover:text-black">
-            ✕
-          </button>
-        </div>
-
-        <div className="p-4 pb-32 overflow-y-auto h-[calc(100%-4rem)]"> {/* extra bottom padding for fixed button */}
-          {/* <form> */}
-          <div className="w-full">
-            <label htmlFor="">Nama Grup Opsi Tambahan</label>
-            <input type="text" className="border block w-full" />
-          </div>
-          <span>
-            <label htmlFor="">Jumlah Pilihan</label>
-          </span>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="">Minimal pilihan Opsi Tambahan</label>
-            </div>
-            <div className="flex justify-end">
-              <input type="number" className="border" />
-            </div>
-            <div>
-              <label htmlFor="">Maksimal pilihan Opsi Tambahan</label>
-            </div>
-            <div className="flex justify-end">
-              <input type="number" className="border" />
-            </div>
-            <div>
-              <label htmlFor="">Nama Opsi Tambahan</label>
-              <input type="text" className="block border w-full" />
-            </div>
-            <div>
-              <label htmlFor="">Harga</label>
-              <input type="number" className="block border w-full" />
-            </div>
-            <div className="col-span-2">
-              <Link>
-                <span>+ Tambah Opsi Lain</span>
-              </Link>
-            </div>
-            <div className="col-span-2 flex justify-between">
-              <div className="flex-wrap">
-                <label htmlFor="">Bahan Baku</label>
-                <p>Apakah opsi tambahan ini memiliki bahan baku?</p>
-              </div>
-              <p>Tidak</p>
-            </div>
-          </div>
-          {/* </form> */}
-        </div>
-
-        {/* Fixed Bottom Button */}
-        {/* <div className="fixed bottom-0 right-0 w-full max-w-screen-lg bg-white border-t px-4 py-3 flex justify-end">
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            Simpan
-          </button>
-        </div> */}
-      </div>
-    </div>
-  );
-};
-
-export default UpdateMenu;
