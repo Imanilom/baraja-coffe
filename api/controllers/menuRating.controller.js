@@ -8,26 +8,23 @@ export class MenuRatingController {
     // CREATE - Membuat rating baru
     static async createRating(req, res) {
         try {
-            const { menuItemId, orderId, rating, review } = req.body;
-            const order = await Order.findOne({ order_id: orderId });
-            const _id = order._id;
-            const customerId = order.user_id;
+            const { menuItemId, rating, review } = req.body;
 
-            // const outletId = req.body.outletId; // Atau bisa dari order data
+            // Get order data from validation middleware
+            const { orderObjectId, customerId } = req.orderData;
 
-            // Validasi input
-            if (!menuItemId || !orderId || !rating) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Menu item ID, order ID, and rating are required'
-                });
-            }
+            console.log('Creating rating with:');
+            console.log('- menuItemId:', menuItemId);
+            console.log('- orderObjectId:', orderObjectId);
+            console.log('- customerId:', customerId);
+            console.log('- rating:', rating);
+            console.log('- review:', review);
 
             // Cek apakah customer sudah pernah rating menu ini di order yang sama
             const existingRating = await MenuRating.findOne({
                 menuItemId,
                 customerId,
-                _id
+                orderId: orderObjectId // Use the ObjectId from the order
             });
 
             if (existingRating) {
@@ -41,21 +38,19 @@ export class MenuRatingController {
             const newRating = new MenuRating({
                 menuItemId,
                 customerId,
-                _id,
-                // outletId,
+                orderId: orderObjectId, // Use the ObjectId
                 rating,
-                review,
-                // images: images || [],
-                // tags: tags || []
+                review: review || null,
             });
 
+            console.log('Saving new rating:', newRating);
             await newRating.save();
 
             // Populate data untuk response
             const populatedRating = await MenuRating.findById(newRating._id)
-                // .populate('menuItemId', 'name imageURL')
-                .populate('customerId', 'name email')
-            // .populate('outletId', 'name address');
+                .populate('customerId', 'name email');
+
+            console.log('Rating created successfully:', populatedRating);
 
             res.status(201).json({
                 success: true,
