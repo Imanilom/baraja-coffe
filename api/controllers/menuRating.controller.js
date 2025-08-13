@@ -205,39 +205,56 @@ export class MenuRatingController {
     }
 
     // READ - Mendapatkan rating customer untuk menu tertentu
-    static async getCustomerRating(req, res) {
-        try {
-            const { menuItemId, orderId } = req.params;
-            const order = await Order.findOne({ order_id: orderId });
-            const _id = order._id;
-            const customerId = order.user_id;
+   static async getCustomerRating(req, res) {
+    try {
+        const { menuItemId, orderId } = req.params;
+        let order;
 
-            const rating = await MenuRating.findOne({
-                menuItemId,
-                customerId,
-                _id
-            })
+        // Cek apakah orderId adalah ObjectId yang valid
+        if (mongoose.Types.ObjectId.isValid(orderId)) {
+            order = await Order.findById(orderId).lean();
+        } else {
+            order = await Order.findOne({ order_id: orderId }).lean();
+        }
 
-            if (!rating) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Rating not found'
-                });
-            }
-
-            res.status(200).json({
-                success: true,
-                data: rating
-            });
-
-        } catch (error) {
-            console.error('Error fetching customer rating:', error);
-            res.status(500).json({
+        if (!order) {
+            return res.status(404).json({
                 success: false,
-                message: 'Internal server error'
+                message: 'Order not found'
             });
         }
+
+        const customerId = order.user_id;
+
+        const rating = await MenuRating.findOne({
+            menuItemId,
+            customerId,
+            orderId: order._id // pakai ObjectId asli dari order
+        }).populate('menuItemId', 'name imageURL');
+
+        if (!rating) {
+            return res.status(404).json({
+                success: false,
+                message: 'Rating not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: rating
+        });
+
+    } catch (error) {
+        console.error('Error fetching customer rating:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
     }
+}
+
+
+
 
     // UPDATE - Update rating (hanya untuk customer yang membuat rating)
     static async updateRating(req, res) {
