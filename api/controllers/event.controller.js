@@ -1,5 +1,6 @@
 // controllers/eventController.js
 import Event from '../models/Event.model.js';
+import { MenuItem } from '../models/MenuItem.model.js';
 
 // Create new event
 export async function createEvent(req, res) {
