@@ -6,25 +6,23 @@ import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
-class EditOrderItemDialog extends StatefulWidget {
+class AddOrderItemDialog extends StatefulWidget {
   final OrderItemModel orderItem;
-  final Function(OrderItemModel) onEditOrder;
+  final Function(OrderItemModel) onAddOrder;
   final Function() onClose;
-  final Function()? onDeleteOrderItem;
 
-  const EditOrderItemDialog({
+  const AddOrderItemDialog({
     super.key,
     required this.orderItem,
-    required this.onEditOrder,
+    required this.onAddOrder,
     required this.onClose,
-    this.onDeleteOrderItem,
   });
 
   @override
-  EditOrderItemDialogState createState() => EditOrderItemDialogState();
+  AddOrderItemDialogState createState() => AddOrderItemDialogState();
 }
 
-class EditOrderItemDialogState extends State<EditOrderItemDialog> {
+class AddOrderItemDialogState extends State<AddOrderItemDialog> {
   late List<ToppingModel> selectedToppings;
   late List<AddonModel> selectedAddons;
   late int quantity;
@@ -124,7 +122,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  'Edit Item',
+                  'Add Item',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -132,7 +130,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                   ),
                 ),
               ),
-              _buildDeleteButton(),
+              // _buildDeleteButton(),
             ],
           ),
         ],
@@ -588,7 +586,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                   selectedAddons: selectedAddons,
                   notes: note.isEmpty ? null : note,
                 );
-                widget.onEditOrder(editedOrderItem);
+                widget.onAddOrder(editedOrderItem);
                 widget.onClose();
               },
               style: ElevatedButton.styleFrom(
@@ -601,7 +599,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                 elevation: 2,
               ),
               child: const Text(
-                'Simpan',
+                'Tambahkan',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
             ),
@@ -655,25 +653,25 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                   ),
                 ),
               ),
-              ElevatedButton(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  widget.onDeleteOrderItem?.call();
-                  Navigator.of(context).pop();
-                  widget.onClose();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red[600],
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-                child: const Text(
-                  'Hapus',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
+              // ElevatedButton(
+              //   onPressed: () {
+              //     HapticFeedback.lightImpact();
+              //     widget.onDeleteOrderItem?.call();
+              //     Navigator.of(context).pop();
+              //     widget.onClose();
+              //   },
+              //   style: ElevatedButton.styleFrom(
+              //     backgroundColor: Colors.red[600],
+              //     foregroundColor: Colors.white,
+              //     shape: RoundedRectangleBorder(
+              //       borderRadius: BorderRadius.circular(6),
+              //     ),
+              //   ),
+              //   child: const Text(
+              //     'Hapus',
+              //     style: TextStyle(fontWeight: FontWeight.w600),
+              //   ),
+              // ),
             ],
           ),
     );

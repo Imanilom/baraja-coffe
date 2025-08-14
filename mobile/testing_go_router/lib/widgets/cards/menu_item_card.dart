@@ -28,18 +28,38 @@ class MenuItemCard extends ConsumerWidget {
             Expanded(
               child: ClipRRect(
                 clipBehavior: Clip.antiAlias,
-                child: Image.network(
-                  menuItem.imageURL!,
-                  fit:
-                      BoxFit.cover, // Gambar akan mengisi ruang tanpa terpotong
-                  width: double.infinity, // Pastikan lebar penuh
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.image, color: Colors.grey),
-                    );
-                  },
-                ),
+                child:
+                    menuItem.imageURL == null
+                        ? Container(
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.image, color: Colors.grey),
+                        )
+                        : Image.network(
+                          menuItem.imageURL!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Icon(
+                                Icons.image,
+                                color: Colors.grey,
+                              ),
+                            );
+                          },
+                        ),
+                // child: Image.network(
+                //   menuItem.imageURL!,
+                //   fit:
+                //       BoxFit.cover, // Gambar akan mengisi ruang tanpa terpotong
+                //   width: double.infinity, // Pastikan lebar penuh
+                //   errorBuilder: (context, error, stackTrace) {
+                //     return Container(
+                //       color: Colors.grey[300],
+                //       child: const Icon(Icons.image, color: Colors.grey),
+                //     );
+                //   },
+                // ),
               ),
             ),
             Padding(
