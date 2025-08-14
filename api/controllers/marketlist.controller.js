@@ -22,12 +22,11 @@ export const createRequest = async (req, res) => {
     }
 
     const { department, items } = req.body;
-
     if (!Array.isArray(items) || items.length === 0) {
       await session.abortTransaction();
       return res.status(400).json({ message: 'Items wajib diisi' });
     }
- 
+
     const updatedItems = [];
 
     for (const item of items) {
@@ -38,20 +37,31 @@ export const createRequest = async (req, res) => {
         return res.status(400).json({ message: 'Data item tidak lengkap' });
       }
 
+      // Ambil data produk untuk validasi minimumrequest
+      const productDoc = await Product.findById(productId).session(session);
+      if (!productDoc) {
+        await session.abortTransaction();
+        return res.status(404).json({ message: `Produk dengan ID ${productId} tidak ditemukan` });
+      }
+
+      if (quantity < productDoc.minimumrequest) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          message: `Permintaan untuk produk "${productDoc.name}" minimal ${productDoc.minimumrequest} ${productDoc.unit}`
+        });
+      }
+
       // Cek stok
       let stockDoc = await ProductStock.findOne({ productId }).session(session);
-
       const availableStock = stockDoc ? stockDoc.currentStock : 0;
 
       let status = 'pending';
       let fulfilledQuantity = 0;
 
       if (availableStock >= quantity) {
-        // Stok cukup: ambil dari gudang
-        status = 'dibeli'; // artinya: langsung tersedia dari stok
+        status = 'dibeli';
         fulfilledQuantity = quantity;
 
-        // Kurangi stok
         if (!stockDoc) {
           await session.abortTransaction();
           return res.status(400).json({ message: `Produk ${productName} tidak memiliki dokumen stok.` });
@@ -60,14 +70,13 @@ export const createRequest = async (req, res) => {
         stockDoc.movements.push({
           quantity,
           type: 'out',
-          referenceId: null, // akan diisi setelah request dibuat, atau isi dengan request._id nanti
+          referenceId: null,
           notes: `Permintaan: ${department} - ${user.username}`
         });
 
         await stockDoc.save({ session });
 
       } else if (availableStock > 0 && availableStock < quantity) {
-        // Sebagian dari stok
         status = 'partial';
         fulfilledQuantity = availableStock;
 
@@ -79,22 +88,20 @@ export const createRequest = async (req, res) => {
 
         await stockDoc.save({ session });
       }
-      // Jika availableStock == 0, status tetap 'pending', tidak ada pengurangan stok
 
       updatedItems.push({
         productId,
-        productName,
-        productSku,
-        category,
+        productName: productDoc.name, // pastikan dari DB
+        productSku: productDoc.sku,
+        category: productDoc.category,
         quantity,
-        unit,
+        unit: productDoc.unit,
         notes,
         status,
         fulfilledQuantity
       });
     }
 
-    // Simpan request
     const newRequest = new Request({
       department,
       requester: user.username,
@@ -103,12 +110,12 @@ export const createRequest = async (req, res) => {
 
     await newRequest.save({ session });
 
-    // Update referenceId di movements (optional)
+    // Update referenceId di movements
     for (const item of newRequest.items) {
       if (item.fulfilledQuantity > 0) {
         const stockDoc = await ProductStock.findOne({ productId: item.productId }).session(session);
         const lastMove = stockDoc.movements[stockDoc.movements.length - 1];
-        if (!lastMove.referenceId && (lastMove.type === 'out')) {
+        if (!lastMove.referenceId && lastMove.type === 'out') {
           lastMove.referenceId = newRequest._id;
         }
         await stockDoc.save({ session });
@@ -127,7 +134,7 @@ export const createRequest = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error('Error saat membuat request:', error.message);
-    res.status(500).json({ message: 'Terjadi kesalahan server.' });
+    res.status(500).json({ message: error.message || 'Terjadi kesalahan server.' });
   }
 };
 

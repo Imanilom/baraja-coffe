@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import Select from "react-select";
-import { Link } from "react-router-dom";
-import { FaTimes, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft, FaTicketAlt } from "react-icons/fa";
+import { Link, useNavigate } from "react-router-dom";
+import { FaTimes, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft, FaTicketAlt, FaPlus } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
+// import DatePicker from "react-datepicker";
+// import "react-datepicker/dist/react-datepicker.css";
 import Header from "../admin/header";
 
 
@@ -43,11 +45,12 @@ const CreateEvent = () => {
         }),
     };
 
+    const navigate = useNavigate();
     const [form, setForm] = useState({
         name: "",
         description: "",
         location: "",
-        date: "",
+        date: null,
         price: "",
         organizer: "",
         contactEmail: "",
@@ -113,8 +116,9 @@ const CreateEvent = () => {
             capacity: Number(form.capacity),
             tags: form.tags.split(",").map((tag) => tag.trim())
         };
-        console.log("Submit data:", payload);
-        // axios.post("/api/events", payload);
+        // console.log("Submit data:", payload);
+        axios.post("/api/event", payload);
+        navigate("/admin/event");
     };
 
     return (
@@ -203,6 +207,20 @@ const CreateEvent = () => {
                             showTimePicker={true}
                             inputClassName="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
                         />
+                        {/* <DatePicker
+                            selected={form.date ? new Date(form.date) : null} // selalu Date object
+                            onChange={(date) => setForm(prev => ({
+                                ...prev,
+                                date: date ? date.toISOString() : null // simpan ISO string
+                            }))}
+                            showTimeSelect
+                            timeFormat="HH:mm"
+                            timeIntervals={1}
+                            dateFormat="dd-MM-yyyy HH:mm"
+                            placeholderText="Pilih tanggal & waktu"
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400"
+                        /> */}
+
                     </div>
 
                     {/* Harga */}
@@ -268,7 +286,7 @@ const CreateEvent = () => {
                                     />
                                 ) : (
                                     <span className="text-gray-400 text-center px-2">
-                                        Klik untuk upload
+                                        <FaPlus size={48} />
                                     </span>
                                 )}
                             </label>
@@ -389,12 +407,12 @@ const CreateEvent = () => {
 
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3">
-                    <button
-                        type="button"
+                    <Link
+                        to="/admin/event"
                         className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-600"
                     >
                         Batal
-                    </button>
+                    </Link>
                     <button
                         type="submit"
                         className="px-5 py-2.5 rounded-lg border bg-[#005429] text-white"
