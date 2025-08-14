@@ -42,10 +42,11 @@ const ShoppingList = () => {
             setLoading(true);
             try {
                 // Fetch attendances data
-                const attendancesResponse = [];
+                const marketlistResponse = await axios.get("/api/marketlist/products");
+                const marketlistData = marketlistResponse.data.data ? marketlistResponse.data.data : marketlistResponse.data;
 
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
+                setAttendances(marketlistData);
+                setFilteredData(marketlistData); // Initialize filtered data with all attendances
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -186,6 +187,13 @@ const ShoppingList = () => {
             }
         );
     }, [groupedArray]);
+
+
+    const capitalizeWords = (text) => {
+        return text
+            .toLowerCase()
+            .replace(/\b\w/g, (char) => char.toUpperCase());
+    };
 
     // Apply filter function
     const applyFilter = () => {
@@ -420,7 +428,7 @@ const ShoppingList = () => {
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
                                 <th className="px-4 py-3 font-normal">Produk</th>
-                                <th className="px-4 py-3 font-normal">Brand</th>
+                                {/* <th className="px-4 py-3 font-normal">Brand</th> */}
                                 <th className="px-4 py-3 font-normal">supplier</th>
                                 <th className="px-4 py-3 font-normal text-right">Jumlah</th>
                                 <th className="px-4 py-3 font-normal text-right">Satuan</th>
@@ -434,13 +442,13 @@ const ShoppingList = () => {
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
                                                 <td className="px-4 py-3">
-                                                    {data.tanggal || []}
+                                                    {capitalizeWords(data.name) || []}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                {/* <td className="px-4 py-3">
                                                     {data.jenis || []}
-                                                </td>
+                                                </td> */}
                                                 <td className="px-4 py-3">
-                                                    {data.jumlah || []}
+                                                    {data.suppliers?.supplierName || []}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     {data.supplier || []}
