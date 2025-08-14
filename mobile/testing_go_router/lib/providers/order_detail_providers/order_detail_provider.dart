@@ -1,5 +1,6 @@
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
+import 'package:kasirbaraja/extentions/order_item_extensions.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
@@ -106,10 +107,53 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     }
   }
 
+  /// Fungsi reusable untuk mencari index item yang sama
+  /// berdasarkan menuItem id, toppings, addons, dan notes
+  int findExistingOrderItemIndex(OrderItemModel targetItem) {
+    if (state == null) return -1;
+
+    return state!.items.indexWhere(
+      (item) =>
+          item.menuItem.id == targetItem.menuItem.id &&
+          areToppingsEqual(
+            item.selectedToppings,
+            targetItem.selectedToppings,
+          ) &&
+          areAddonsEqual(item.selectedAddons, targetItem.selectedAddons) &&
+          areNotesEqual(item.notes, targetItem.notes),
+    );
+  }
+
+  /// Fungsi reusable untuk mencari index item yang sama
+  /// tetapi mengecualikan index tertentu (berguna untuk edit)
+  int findExistingOrderItemIndexExcept(
+    OrderItemModel targetItem,
+    int excludeIndex,
+  ) {
+    if (state == null) return -1;
+
+    for (int i = 0; i < state!.items.length; i++) {
+      if (i == excludeIndex) continue; // skip index yang dikecualikan
+
+      final item = state!.items[i];
+      if (item.menuItem.id == targetItem.menuItem.id &&
+          areToppingsEqual(
+            item.selectedToppings,
+            targetItem.selectedToppings,
+          ) &&
+          areAddonsEqual(item.selectedAddons, targetItem.selectedAddons) &&
+          areNotesEqual(item.notes, targetItem.notes)) {
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
   // Tambahkan menu ke daftar pesanan
   void addItemToOrder(OrderItemModel orderItem) {
     print('memeriksa apakah menu item sudah ada....');
-    // const existingOrderItemIndex = -1;
+
     for (var item in state!.items) {
       print(
         'Comparing item id: ${item.menuItem.id} vs ${orderItem.menuItem.id}',
@@ -120,14 +164,14 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       print(
         'Addons equal: ${areAddonsEqual(item.selectedAddons, orderItem.selectedAddons)}',
       );
+      print('Notes equal: ${areNotesEqual(item.notes, orderItem.notes)}');
     }
-    final existingOrderItemIndex = state!.items.indexWhere(
-      (item) =>
-          item.menuItem.id == orderItem.menuItem.id &&
-          areToppingsEqual(item.selectedToppings, orderItem.selectedToppings) &&
-          areAddonsEqual(item.selectedAddons, orderItem.selectedAddons),
-    ); //letak errornya disiini
-    // print('mendapatkan index: $existingOrderItemIndex');
+
+    // Menggunakan fungsi reusable
+    // final existingOrderItemIndex = findExistingOrderItemIndex(orderItem);
+    print('Mencari index item yang sama pada extension...');
+    final existingOrderItemIndex = state!.items.findSimilarItemIndex(orderItem);
+
     if (existingOrderItemIndex != -1) {
       print('menu item sudah ada, mencoba menambahkan quantity...');
       // Jika menu item sudah ada, tambahkan quantity-nya
@@ -172,19 +216,9 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   bool areAddonsEqual(List<AddonModel> addons1, List<AddonModel> addons2) {
-    // final addons1Ids = addons1.map((addon) => addon.options.first.id).toList();
-    // final addons2Ids = addons2.map((addon) => addon.options.first.id).toList();
-    // // print('addons1Ids: $addons1Ids');
-    // // print('addons2Ids: $addons2Ids');
-    // return listEquality.equals(
-    //   addons1Ids,
-    //   addons2Ids,
-    // );
     if (addons1.length != addons2.length) return false;
 
     for (var i = 0; i < addons1.length; i++) {
-      // final ids1 = addons1[i].options.map((e) => e.id).toList();
-      // final ids2 = addons2[i].options.map((e) => e.id).toList();
       final ids1 = addons1[i].options!.map((e) => e.id).toList()..sort();
       final ids2 = addons2[i].options!.map((e) => e.id).toList()..sort();
 
@@ -194,24 +228,10 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     return true;
   }
 
-  // bool _areToppingsEqual(
-  //     List<ToppingModel> toppings1, List<ToppingModel> toppings2) {
-  //   if (toppings1.length != toppings2.length) return false;
-  //   for (var i = 0; i < toppings1.length; i++) {
-  //     if (toppings1[i].id != toppings2[i].id) return false;
-  //   }
-  //   return true;
-  // }
-
-  // bool _areAddonsEqual(List<AddonModel> addons1, List<AddonModel> addons2) {
-  //   if (addons1.length != addons2.length) return false;
-  //   for (var i = 0; i < addons1.length; i++) {
-  //     if (addons1[i].options.first.id != addons2[i].options.first.id) {
-  //       return false;
-  //     }
-  //   }
-  //   return true;
-  // }
+  // apakah note pada order item sama
+  bool areNotesEqual(String? note1, String? note2) {
+    return note1 == note2;
+  }
 
   void removeItem(OrderItemModel menuItem) {
     final index = state!.items.indexOf(menuItem);
@@ -249,20 +269,15 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     if (indexOldItem != -1) {
       print('item order ditemukan, mengganti item...');
 
-      final existingOrderItemIndex = state!.items.indexWhere(
-        (item) =>
-            item.menuItem.id == newOrderItem.menuItem.id &&
-            areToppingsEqual(
-              item.selectedToppings,
-              newOrderItem.selectedToppings,
-            ) &&
-            areAddonsEqual(item.selectedAddons, newOrderItem.selectedAddons),
+      // Menggunakan fungsi reusable dengan pengecualian index lama
+      final existingOrderItemIndex = findExistingOrderItemIndexExcept(
+        newOrderItem,
+        indexOldItem,
       );
 
       final updatedItems = [...state!.items]; // buat salinan
 
-      if (existingOrderItemIndex != -1 &&
-          existingOrderItemIndex != indexOldItem) {
+      if (existingOrderItemIndex != -1) {
         print('item order ada yang sama, menambahkan quantity...');
 
         final updatedItem = updatedItems[existingOrderItemIndex].copyWith(
