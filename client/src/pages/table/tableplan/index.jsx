@@ -95,27 +95,27 @@ const TablePlanManagement = () => {
     // Handle pan move
     const handlePanMove = (e) => {
         if (!panning) return;
-        
+
         const newOffset = {
             x: e.clientX - panStart.x,
             y: e.clientY - panStart.y
         };
-        
+
         // Calculate bounds based on area size and container size
         if (selectedArea && containerRef.current) {
             const containerWidth = containerRef.current.clientWidth;
             const containerHeight = containerRef.current.clientHeight;
             const areaWidth = selectedArea.roomSize.width * scale;
             const areaHeight = selectedArea.roomSize.height * scale;
-            
+
             // Limit panning to keep the area visible
             const maxX = Math.max(0, areaWidth - containerWidth);
             const maxY = Math.max(0, areaHeight - containerHeight);
-            
+
             newOffset.x = Math.min(0, Math.max(-maxX, newOffset.x));
             newOffset.y = Math.min(0, Math.max(-maxY, newOffset.y));
         }
-        
+
         setOffset(newOffset);
     };
 
@@ -229,21 +229,21 @@ const TablePlanManagement = () => {
                                     Ukuran: {selectedArea.roomSize.width} x {selectedArea.roomSize.height} {selectedArea.roomSize.unit}
                                 </div>
                                 <div className="flex space-x-1">
-                                    <button 
+                                    <button
                                         onClick={handleZoomIn}
                                         className="p-1 bg-gray-200 rounded hover:bg-gray-300"
                                         title="Zoom In"
                                     >
                                         <FaExpand size={14} />
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={handleZoomOut}
                                         className="p-1 bg-gray-200 rounded hover:bg-gray-300"
                                         title="Zoom Out"
                                     >
                                         <FaCompress size={14} />
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={handleResetView}
                                         className="p-1 bg-gray-200 rounded hover:bg-gray-300 text-xs"
                                         title="Reset View"
@@ -254,7 +254,7 @@ const TablePlanManagement = () => {
                             </div>
                         </div>
 
-                        <div 
+                        <div
                             ref={containerRef}
                             className="relative border-2 border-gray-300 bg-gray-50 rounded-md overflow-hidden"
                             style={{
@@ -266,7 +266,7 @@ const TablePlanManagement = () => {
                             onMouseDown={handlePanStart}
                         >
                             {/* Area container with panning and zoom */}
-                            <div 
+                            <div
                                 className="absolute inset-0"
                                 style={{
                                     transform: `translate(${offset.x}px, ${offset.y}px)`,
@@ -275,7 +275,7 @@ const TablePlanManagement = () => {
                                 }}
                             >
                                 {/* Grid background (minor grid - 10cm) */}
-                                <div 
+                                <div
                                     className="absolute inset-0"
                                     style={{
                                         backgroundImage: 'linear-gradient(to right, #f0f0f0 1px, transparent 1px), linear-gradient(to bottom, #f0f0f0 1px, transparent 1px)',
@@ -283,7 +283,7 @@ const TablePlanManagement = () => {
                                     }}
                                 >
                                     {/* Major grid lines (1m) */}
-                                    <div 
+                                    <div
                                         className="absolute inset-0"
                                         style={{
                                             backgroundImage: 'linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px)',
@@ -302,17 +302,17 @@ const TablePlanManagement = () => {
                                     <div
                                         key={table._id}
                                         className={`absolute flex flex-col items-center justify-center rounded cursor-pointer border-2 
-                                            ${table.status === 'available' ? 'border-green-500 bg-green-100 hover:bg-green-200' : 
-                                              table.status === 'occupied' ? 'border-red-500 bg-red-100 hover:bg-red-200' :
-                                              table.status === 'reserved' ? 'border-yellow-500 bg-yellow-100 hover:bg-yellow-200' :
-                                              'border-gray-500 bg-gray-100 hover:bg-gray-200'}`}
+                                            ${table.status === 'available' ? 'border-green-500 bg-green-100 hover:bg-green-200' :
+                                                table.status === 'occupied' ? 'border-red-500 bg-red-100 hover:bg-red-200' :
+                                                    table.status === 'reserved' ? 'border-yellow-500 bg-yellow-100 hover:bg-yellow-200' :
+                                                        'border-gray-500 bg-gray-100 hover:bg-gray-200'}`}
                                         style={{
                                             left: `${table.position.x * scale}px`,
                                             top: `${table.position.y * scale}px`,
                                             width: `${table.size?.width ? table.size.width * scale : 0.8 * scale}px`,
                                             height: `${table.size?.height ? table.size.height * scale : 0.8 * scale}px`,
-                                            borderRadius: table.shape === 'circle' ? '50%' : 
-                                                         table.shape === 'oval' ? '50%' : '4px',
+                                            borderRadius: table.shape === 'circle' ? '50%' :
+                                                table.shape === 'oval' ? '50%' : '4px',
                                             transform: 'translate(-50%, -50%)',
                                             transition: 'background-color 0.2s',
                                             zIndex: 10
@@ -326,10 +326,10 @@ const TablePlanManagement = () => {
                                             {table.seats} kursi
                                         </div>
                                         <div className={`text-xs font-medium mt-1 
-                                            ${table.status === 'available' ? 'text-green-600' : 
-                                              table.status === 'occupied' ? 'text-red-600' :
-                                              table.status === 'reserved' ? 'text-yellow-600' :
-                                              'text-gray-600'}`}>
+                                            ${table.status === 'available' ? 'text-green-600' :
+                                                table.status === 'occupied' ? 'text-red-600' :
+                                                    table.status === 'reserved' ? 'text-yellow-600' :
+                                                        'text-gray-600'}`}>
                                             {formatStatus(table.status)}
                                         </div>
                                     </div>
@@ -347,13 +347,13 @@ const TablePlanManagement = () => {
                             <h4 className="font-semibold mb-2">Daftar Meja</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {selectedArea.tables?.map(table => (
-                                    <div 
-                                        key={table._id} 
+                                    <div
+                                        key={table._id}
                                         className={`p-3 rounded border cursor-pointer hover:shadow-md transition-shadow
-                                            ${table.status === 'available' ? 'border-green-300 bg-green-50 hover:bg-green-100' : 
-                                              table.status === 'occupied' ? 'border-red-300 bg-red-50 hover:bg-red-100' :
-                                              table.status === 'reserved' ? 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100' :
-                                              'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}
+                                            ${table.status === 'available' ? 'border-green-300 bg-green-50 hover:bg-green-100' :
+                                                table.status === 'occupied' ? 'border-red-300 bg-red-50 hover:bg-red-100' :
+                                                    table.status === 'reserved' ? 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100' :
+                                                        'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}
                                         onClick={() => handleTableClick(table)}
                                     >
                                         <div className="flex justify-between items-start">
@@ -364,10 +364,10 @@ const TablePlanManagement = () => {
                                                 </p>
                                             </div>
                                             <span className={`text-xs px-2 py-1 rounded 
-                                                ${table.status === 'available' ? 'bg-green-100 text-green-800' : 
-                                                  table.status === 'occupied' ? 'bg-red-100 text-red-800' :
-                                                  table.status === 'reserved' ? 'bg-yellow-100 text-yellow-800' :
-                                                  'bg-gray-100 text-gray-800'}`}>
+                                                ${table.status === 'available' ? 'bg-green-100 text-green-800' :
+                                                    table.status === 'occupied' ? 'bg-red-100 text-red-800' :
+                                                        table.status === 'reserved' ? 'bg-yellow-100 text-yellow-800' :
+                                                            'bg-gray-100 text-gray-800'}`}>
                                                 {formatStatus(table.status)}
                                             </span>
                                         </div>
@@ -382,15 +382,7 @@ const TablePlanManagement = () => {
                     </div>
                 )}
 
-                {/* Edit Button */}
                 <button
-                    onClick={() => selectedArea && navigate(`/admin/table-management/table-update/${selectedArea._id}`)}
-                    className="fixed right-5 bottom-20 bg-[#005429] text-white px-4 py-2 rounded text-sm hover:bg-[#006d34] flex items-center gap-2 shadow-lg"
-                >
-                    <FaPencilAlt /> Edit Area
-                </button>
-
-                 <button
                     onClick={() => navigate(`/admin/table-plan/create`)}
                     className="fixed right-5 bottom-20 bg-[#005429] text-white px-4 py-2 rounded text-sm hover:bg-[#006d34] flex items-center gap-2 shadow-lg"
                 >
@@ -404,6 +396,7 @@ const TablePlanManagement = () => {
                     isOpen={showDetail}
                     onClose={() => setShowDetail(false)}
                     data={{
+                        tableId: selectedTable?._id || '',
                         tableName: selectedTable.table_number,
                         areaName: selectedArea?.area_name || '',
                         areaStatus: selectedArea?.is_active ? 'Aktif' : 'Nonaktif',
@@ -417,9 +410,6 @@ const TablePlanManagement = () => {
                     }}
                 />
             )}
-
-            
-           
         </div>
     );
 };
