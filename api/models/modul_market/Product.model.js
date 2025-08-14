@@ -43,6 +43,16 @@ const productSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  minimumrequest: {
+    type: Number,
+    default: 1,
+    min: 1
+  },
+  limitperrequest: {
+    type: Number,
+    default: 1,
+    min: 1
+  },
   suppliers: [productSupplierSchema],
   createdAt: {
     type: Date,
