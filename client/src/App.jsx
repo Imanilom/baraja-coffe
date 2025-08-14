@@ -135,6 +135,7 @@ import AddSubCategory from "./pages/menu/category_sub/create";
 import CreateTable from "./pages/table/tableplan/create";
 import EventManagement from "./pages/event";
 import CreateEvent from "./pages/event/craete";
+import UpdateTableForm from "./pages/table/tableplan/update";
 
 
 export default function App() {
@@ -178,7 +179,7 @@ export default function App() {
                 <Route path="table-management/table-update/:id" element={<UpdateTable />} />
                 <Route path="table-plan" element={<TablePlanManagement />} />
                 <Route path="table-plan/create" element={<CreateTable />} />
-                <Route path="table-plan/update/:id" element={<CreateTable />} />
+                <Route path="table-plan/update/:id" element={<UpdateTableForm />} />
                 {/* Purchase */}
 
                 {/* supplier */}

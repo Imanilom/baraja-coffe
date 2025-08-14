@@ -1,6 +1,10 @@
 import React from "react";
+import { FaPencilAlt } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 
 const DetailMejaModal = ({ isOpen, onClose, data = {} }) => {
+
+    const navigate = useNavigate();
     if (!isOpen) return null;
 
     return (
@@ -54,6 +58,13 @@ const DetailMejaModal = ({ isOpen, onClose, data = {} }) => {
 
                 {/* Footer */}
                 <div className="border-t px-6 py-2 flex justify-end">
+                    {/* Edit Button */}
+                    <button
+                        onClick={() => navigate(`/admin/table-plan/update/${data?.tableId}`)}
+                        className="bg-[#005429] text-white px-4 py-2 rounded text-sm hover:bg-[#006d34] flex items-center gap-2 shadow-lg"
+                    >
+                        <FaPencilAlt /> Edit Area
+                    </button>
                     <button
                         onClick={onClose}
                         className="bg-[#005429] hover:bg-[#006d34] text-white text-sm py-2 px-4 rounded"
