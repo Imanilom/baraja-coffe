@@ -5,7 +5,6 @@ import 'package:kasirbaraja/helper/payment_helper.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
-import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
@@ -21,8 +20,16 @@ class PaymentMethodScreen extends ConsumerWidget {
     final notifier = ref.read(paymentProvider.notifier);
     final paymentTypesAsync = ref.watch(paymentTypesProvider);
 
-    final OrderDetailModel orderdetail =
-        GoRouterState.of(context).extra as OrderDetailModel;
+    // ✅ PERBAIKAN: Tambahkan null check untuk extra
+    final extra = GoRouterState.of(context).extra;
+    if (extra == null || extra is! OrderDetailModel) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Error')),
+        body: const Center(child: Text('Order detail tidak ditemukan')),
+      );
+    }
+
+    final OrderDetailModel orderdetail = extra;
     final total = orderdetail.grandTotal;
 
     print('Total amount: $total');
@@ -42,49 +49,46 @@ class PaymentMethodScreen extends ConsumerWidget {
         ),
         centerTitle: true,
       ),
-      body: Expanded(
-        child: paymentTypesAsync.when(
-          data:
-              (paymentTypes) => _buildPaymentContent(
-                context,
-                ref,
-                paymentTypes,
-                state,
-                notifier,
-                total.toInt(),
-                orderdetail,
+      // ✅ PERBAIKAN: Hapus Expanded dari body
+      body: paymentTypesAsync.when(
+        data:
+            (paymentTypes) => _buildPaymentContent(
+              context,
+              ref,
+              paymentTypes,
+              state,
+              notifier,
+              total.toInt(),
+              orderdetail,
+            ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error:
+            (error, stack) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Gagal memuat metode pembayaran',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () => ref.refresh(paymentTypesProvider),
+                    child: const Text('Coba Lagi'),
+                  ),
+                ],
               ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error:
-              (error, stack) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Gagal memuat metode pembayaran',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 16),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton(
-                      onPressed: () => ref.refresh(paymentTypesProvider),
-                      child: const Text('Coba Lagi'),
-                    ),
-                  ],
-                ),
-              ),
-        ),
+            ),
       ),
     );
   }
 
   Widget _buildTotalCard(int total) {
     return Container(
+      // ✅ PERBAIKAN: Tambahkan constraints untuk mencegah overflow
+      constraints: const BoxConstraints(maxWidth: 200),
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -133,18 +137,23 @@ class PaymentMethodScreen extends ConsumerWidget {
   ) {
     return Column(
       children: [
-        // Payment Types Selection,
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Total Amount Card
-            _buildTotalCard(total.toInt()),
-
-            Expanded(child: _buildPaymentTypes(paymentTypes, state, notifier)),
-          ],
+        // ✅ PERBAIKAN: Gunakan Flexible untuk layout yang lebih aman
+        Flexible(
+          flex: 2,
+          child: Row(
+            children: [
+              // Total Amount Card
+              _buildTotalCard(total.toInt()),
+              // Payment Types
+              Expanded(
+                child: _buildPaymentTypes(paymentTypes, state, notifier),
+              ),
+            ],
+          ),
         ),
         // Payment Methods Content
         Expanded(
+          flex: 3,
           child: Container(
             width: double.infinity,
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -163,12 +172,12 @@ class PaymentMethodScreen extends ConsumerWidget {
             child: Column(
               children: [
                 if (state.selectedPaymentType != null) ...[
-                  _buildPaymentMethodsSection(state, notifier, total),
+                  Expanded(
+                    child: _buildPaymentMethodsSection(state, notifier, total),
+                  ),
                 ] else ...[
-                  _buildEmptyState(),
+                  const Expanded(child: _EmptyStateWidget()),
                 ],
-
-                // const Spacer(),
 
                 // Continue Button
                 if (_canProceedToPayment(state))
@@ -207,75 +216,83 @@ class PaymentMethodScreen extends ConsumerWidget {
               ),
             ),
           ),
-          SizedBox(
-            height: 80,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              itemCount: activeTypes.length,
-              itemBuilder: (context, index) {
-                final paymentType = activeTypes[index];
-                final isSelected =
-                    state.selectedPaymentType?.id == paymentType.id;
+          // ✅ PERBAIKAN: Bungkus dengan Flexible untuk mencegah overflow
+          Flexible(
+            child: SizedBox(
+              height: 80,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                itemCount: activeTypes.length,
+                itemBuilder: (context, index) {
+                  final paymentType = activeTypes[index];
+                  final isSelected =
+                      state.selectedPaymentType?.id == paymentType.id;
 
-                return Container(
-                  margin: const EdgeInsets.only(right: 12),
-                  child: GestureDetector(
-                    onTap: () {
-                      notifier.clearSelection();
-                      notifier.selectPaymentType(paymentType);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 100,
-                      decoration: BoxDecoration(
-                        color:
-                            isSelected ? const Color(0xFF2E7D4F) : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
+                  return Container(
+                    margin: const EdgeInsets.only(right: 12),
+                    child: GestureDetector(
+                      onTap: () {
+                        notifier.clearSelection();
+                        notifier.selectPaymentType(paymentType);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 100,
+                        decoration: BoxDecoration(
                           color:
                               isSelected
                                   ? const Color(0xFF2E7D4F)
-                                  : Colors.grey.shade300,
-                          width: 1.5,
+                                  : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color:
+                                isSelected
+                                    ? const Color(0xFF2E7D4F)
+                                    : Colors.grey.shade300,
+                            width: 1.5,
+                          ),
+                          boxShadow:
+                              isSelected
+                                  ? [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF2E7D4F,
+                                      ).withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                  : [],
                         ),
-                        boxShadow:
-                            isSelected
-                                ? [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFF2E7D4F,
-                                    ).withOpacity(0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ]
-                                : [],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _getPaymentTypeIcon(paymentType.id),
-                            size: 24,
-                            color: isSelected ? Colors.white : Colors.grey[600],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            paymentType.name,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _getPaymentTypeIcon(paymentType.id),
+                              size: 24,
                               color:
-                                  isSelected ? Colors.white : Colors.grey[700],
+                                  isSelected ? Colors.white : Colors.grey[600],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Text(
+                              paymentType.name,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color:
+                                    isSelected
+                                        ? Colors.white
+                                        : Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -306,30 +323,27 @@ class PaymentMethodScreen extends ConsumerWidget {
   ) {
     final paymentType = state.selectedPaymentType!;
 
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            paymentType.id == 'cash'
-                ? 'Pilih Jumlah Tunai'
-                : 'Pilih ${paymentType.name}',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF2E2E2E),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          paymentType.id == 'cash'
+              ? 'Pilih Jumlah Tunai'
+              : 'Pilih ${paymentType.name}',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF2E2E2E),
           ),
-          const SizedBox(height: 16),
-
-          Expanded(
-            child:
-                paymentType.id == 'cash'
-                    ? _buildCashOptions(total, notifier, state)
-                    : _buildPaymentMethodOptions(paymentType, notifier, state),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child:
+              paymentType.id == 'cash'
+                  ? _buildCashOptions(total, notifier, state)
+                  : _buildPaymentMethodOptions(paymentType, notifier, state),
+        ),
+      ],
     );
   }
 
@@ -340,42 +354,54 @@ class PaymentMethodScreen extends ConsumerWidget {
   ) {
     final cashSuggestions = _getCashSuggestions(total);
 
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        childAspectRatio: 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: cashSuggestions.length,
-      itemBuilder: (context, index) {
-        final amount = cashSuggestions[index];
-        final isSelected = state.selectedCashAmount == amount;
+    // ✅ PERBAIKAN: Gunakan LayoutBuilder untuk responsive grid
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth > 600 ? 6 : 4;
 
-        return GestureDetector(
-          onTap: () => notifier.selectCashAmount(amount),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF2E7D4F) : Colors.grey[50],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color:
-                    isSelected ? const Color(0xFF2E7D4F) : Colors.grey.shade300,
-                width: 1.5,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                amount == total ? 'Uang Pas' : formatRupiah(amount),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : Colors.grey[700],
+        return GridView.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: 3,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: cashSuggestions.length,
+          itemBuilder: (context, index) {
+            final amount = cashSuggestions[index];
+            final isSelected = state.selectedCashAmount == amount;
+
+            return GestureDetector(
+              onTap: () => notifier.selectCashAmount(amount),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF2E7D4F) : Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color:
+                        isSelected
+                            ? const Color(0xFF2E7D4F)
+                            : Colors.grey.shade300,
+                    width: 1.5,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    amount == total ? 'Uang Pas' : formatRupiah(amount),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white : Colors.grey[700],
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -389,59 +415,56 @@ class PaymentMethodScreen extends ConsumerWidget {
     final activeMethods =
         paymentType.paymentMethods.where((method) => method.isActive).toList();
 
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        childAspectRatio: 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: activeMethods.length,
-      itemBuilder: (context, index) {
-        final method = activeMethods[index];
-        final isSelected = state.selectedPaymentMethod?.id == method.id;
+    // ✅ PERBAIKAN: Responsive grid dan text handling
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth > 600 ? 6 : 4;
 
-        return GestureDetector(
-          onTap: () => notifier.selectPaymentMethod(method),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF2E7D4F) : Colors.grey[50],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color:
-                    isSelected ? const Color(0xFF2E7D4F) : Colors.grey.shade300,
-                width: 1.5,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                method.name,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : Colors.grey[700],
+        return GridView.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: 3,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: activeMethods.length,
+          itemBuilder: (context, index) {
+            final method = activeMethods[index];
+            final isSelected = state.selectedPaymentMethod?.id == method.id;
+
+            return GestureDetector(
+              onTap: () => notifier.selectPaymentMethod(method),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF2E7D4F) : Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color:
+                        isSelected
+                            ? const Color(0xFF2E7D4F)
+                            : Colors.grey.shade300,
+                    width: 1.5,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    method.name,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white : Colors.grey[700],
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.payment, size: 64, color: Colors.grey[300]),
-        const SizedBox(height: 16),
-        Text(
-          'Pilih metode pembayaran\nterlebih dahulu',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16, color: Colors.grey[500]),
-        ),
-      ],
     );
   }
 
@@ -617,5 +640,26 @@ class PaymentMethodScreen extends ConsumerWidget {
         ),
       );
     }
+  }
+}
+
+// ✅ PERBAIKAN: Extract empty state ke widget terpisah
+class _EmptyStateWidget extends StatelessWidget {
+  const _EmptyStateWidget();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.payment, size: 64, color: Colors.grey[300]),
+        const SizedBox(height: 16),
+        Text(
+          'Pilih metode pembayaran\nterlebih dahulu',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 16, color: Colors.grey[500]),
+        ),
+      ],
+    );
   }
 }
