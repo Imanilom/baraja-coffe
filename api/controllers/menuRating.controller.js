@@ -205,8 +205,9 @@ export class MenuRatingController {
             const rating = await MenuRating.findOne({
                 menuItemId,
                 customerId,
-                _id
+                orderId: _id
             })
+
 
             if (!rating) {
                 return res.status(404).json({
