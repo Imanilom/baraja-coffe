@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:kasirbaraja/providers/message_provider.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -131,7 +132,7 @@ final authCashierProvider =
 //state onselected cashier
 final selectedCashierProvider = StateProvider<CashierModel?>((ref) => null);
 
-enum AuthStatus { authenticated, unauthenticated, needPin }
+enum AuthStatus { authenticated, needDataSync, unauthenticated, needPin }
 
 class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
   TryAuthNotifier(this._authRepository, this.ref)
@@ -141,6 +142,23 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
 
   final AuthRepository _authRepository;
   final Ref ref;
+
+  Future<bool> _hasRequiredLocalData() async {
+    try {
+      // Check if all required Hive boxes have data
+      final menuItemsBox = HiveService.menuItemsBox;
+      final taxServiceBox = HiveService.taxAndServiceBox;
+      final paymentMethodsBox = HiveService.paymentMethodsBox;
+
+      return menuItemsBox.isNotEmpty &&
+          taxServiceBox.isNotEmpty &&
+          paymentMethodsBox.isNotEmpty;
+    } catch (e) {
+      // If boxes are not initialized yet, return false
+      debugPrint('Error checking local data: $e');
+      return false;
+    }
+  }
 
   Future<void> checkLoginStatus() async {
     state = const AsyncValue.loading();
@@ -153,24 +171,20 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
 
       if (user != null) {
         if (cashier != null) {
-          // print('cek login cashier disini dulu?: ${cashier.toString()}');
           state = const AsyncValue.data(AuthStatus.authenticated);
-          // print('cashier !null ${state.value}');
           return;
         }
-        // print(
-        //   'cek login status disini dulu ngga?: ${user.outletId.toString()}',
-        // );
-        // print('cek login status disini dulu ngga?: ${user.id}');
-        // print('cek login status disini dulu ngga?: ${user.role}');
-        state = const AsyncValue.data(AuthStatus.needPin);
-        // print('user !null ${state.value}');
+        final syncData = await _hasRequiredLocalData();
+        if (syncData) {
+          print('to need pin disini');
+          state = const AsyncValue.data(AuthStatus.needPin);
+        } else {
+          state = const AsyncValue.data(AuthStatus.needDataSync);
+        }
       } else if (cashier != null) {
         state = const AsyncValue.data(AuthStatus.authenticated);
-        // print('cashier !null ${state.value}');
       } else {
         state = const AsyncValue.data(AuthStatus.unauthenticated);
-        // print('else ${state.value}');
       }
     } catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
@@ -194,7 +208,9 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
       await _authRepository.login(username, password);
       // print('kita berada di try auth provider login manager');
 
-      state = const AsyncValue.data(AuthStatus.needPin);
+      //check login status
+      await checkLoginStatus();
+      // state = const AsyncValue.data(AuthStatus.needPin);
     } catch (e) {
       // state = const AsyncValue.data(AuthStatus.unauthenticated);
       print('login gagal: $e');

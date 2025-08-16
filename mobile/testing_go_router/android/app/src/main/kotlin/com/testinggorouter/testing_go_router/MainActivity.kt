@@ -1,4 +1,4 @@
-package com.testinggorouter.testing_go_router
+package com.kasir.baraja
 
 import io.flutter.embedding.android.FlutterActivity
 
