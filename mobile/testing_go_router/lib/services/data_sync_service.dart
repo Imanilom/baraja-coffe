@@ -1,12 +1,14 @@
 // lib/services/data_sync_service.dart
 import 'package:dio/dio.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:kasirbaraja/models/tax_and_service.model.dart';
+// import 'package:kasirbaraja/models/tax_and_service.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
+import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
+// import 'package:kasirbaraja/services/hive_service.dart';
 
 // Data sync progress state
 class DataSyncProgress {
@@ -80,7 +82,7 @@ class DataSyncService {
           currentTask: 'Downloading tax and service data...',
         ),
       );
-      await _syncTaxAndService();
+      await TaxAndServiceRepository().getTaxAndServices();
 
       // Step 3: Sync Payment Methods
       currentStep++;
@@ -116,24 +118,22 @@ class DataSyncService {
   }
 
   // Private method to sync tax and service
-  Future<void> _syncTaxAndService() async {
-    try {
-      final response = await _dio.get('/api/tax-service');
-      final List<dynamic> data = response.data;
+  // Future<void> _syncTaxAndService() async {
+  //   try {
+  //     final response = await _dio.get('/api/tax-service');
+  //     final List<dynamic> data = response.data;
 
-      final taxServiceBox = await Hive.openBox<TaxAndServiceModel>(
-        'taxAndService',
-      );
-      await taxServiceBox.clear(); // Clear existing data
+  //     final taxServiceBox = HiveService.taxAndServiceBox;
+  //     await taxServiceBox.clear();
 
-      for (final item in data) {
-        final taxService = TaxAndServiceModel.fromJson(item);
-        await taxServiceBox.put(taxService.id, taxService);
-      }
-    } catch (e) {
-      throw Exception('Failed to sync tax and service: $e');
-    }
-  }
+  //     for (final item in data) {
+  //       final taxService = TaxAndServiceModel.fromJson(item);
+  //       await taxServiceBox.put(taxService.id, taxService);
+  //     }
+  //   } catch (e) {
+  //     throw Exception('Failed to sync tax and service: $e');
+  //   }
+  // }
 
   // Private method to sync payment methods
   Future<void> _syncPaymentMethods() async {

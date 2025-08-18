@@ -33,7 +33,6 @@ class HiveService {
   }
 
   static Future<void> _openBoxes() async {
-    // Open all boxes that will be used in the app
     await Hive.openBox('userBox');
     await Hive.openBox<MenuItemModel>('menuItemsBox');
     await Hive.openBox<BluetoothPrinterModel>('printers');
@@ -42,6 +41,7 @@ class HiveService {
   }
 
   // Helper methods to get boxes
+  static Box get userBox => Hive.box('userBox');
   static Box<MenuItemModel> get menuItemsBox =>
       Hive.box<MenuItemModel>('menuItemsBox');
   static Box<TaxAndServiceModel> get taxAndServiceBox =>
@@ -51,6 +51,7 @@ class HiveService {
 
   // Clear all data (useful for logout or data refresh)
   static Future<void> clearAllData() async {
+    await userBox.clear();
     await menuItemsBox.clear();
     await taxAndServiceBox.clear();
     await paymentMethodsBox.clear();

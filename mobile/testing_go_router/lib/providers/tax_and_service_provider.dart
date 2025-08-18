@@ -11,8 +11,6 @@ final taxProvider = FutureProvider<List<TaxAndServiceModel>>((ref) async {
   // Simulate fetching data from an API or database
   final repository = ref.watch(taxAndServiceRepository);
   final taxAndServices = await repository.getTaxAndServices();
-  print("Fetched Tax and Services: $taxAndServices");
-
   // Return the fetched data
   if (taxAndServices.isEmpty) {
     // If no data is found, you can return an empty list or handle it as needed

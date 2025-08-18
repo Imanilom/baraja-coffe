@@ -178,7 +178,6 @@ final availableCashiersProvider = Provider<List<String>>((ref) {
 // Main Widget
 class SalesReportPage extends ConsumerStatefulWidget {
   const SalesReportPage({super.key});
-
   @override
   ConsumerState<SalesReportPage> createState() => _SalesReportPageState();
 }
@@ -237,15 +236,15 @@ class _SalesReportPageState extends ConsumerState<SalesReportPage> {
         children: [
           // Left Panel - Filters and Summary
           Container(
-            width: 300,
+            width: 320,
             color: Colors.white,
             child: Column(
               children: [
                 // Filter Section
-                FilterSection(),
+                Flexible(flex: 0, child: FilterSection()),
 
                 // Summary Section
-                Expanded(child: SummarySection()),
+                Flexible(flex: 1, child: SummarySection()),
               ],
             ),
           ),
@@ -288,6 +287,7 @@ class FilterSection extends ConsumerWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             'Filter Laporan',
@@ -297,10 +297,13 @@ class FilterSection extends ConsumerWidget {
               color: Colors.blue[800],
             ),
           ),
-          SizedBox(height: 16),
+          SizedBox(height: 12),
 
           // Period Filter
-          Text('Periode:', style: TextStyle(fontWeight: FontWeight.w500)),
+          Text(
+            'Periode:',
+            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+          ),
           SizedBox(height: 4),
           DropdownButtonFormField<String>(
             value: filter.period,
@@ -314,8 +317,10 @@ class FilterSection extends ConsumerWidget {
             items:
                 availablePeriods
                     .map(
-                      (period) =>
-                          DropdownMenuItem(value: period, child: Text(period)),
+                      (period) => DropdownMenuItem(
+                        value: period,
+                        child: Text(period, style: TextStyle(fontSize: 13)),
+                      ),
                     )
                     .toList(),
             onChanged: (value) {
@@ -327,10 +332,13 @@ class FilterSection extends ConsumerWidget {
             },
           ),
 
-          SizedBox(height: 12),
+          SizedBox(height: 10),
 
           // Cashier Filter
-          Text('Kasir:', style: TextStyle(fontWeight: FontWeight.w500)),
+          Text(
+            'Kasir:',
+            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+          ),
           SizedBox(height: 4),
           DropdownButtonFormField<String>(
             value: filter.cashier,
@@ -346,7 +354,7 @@ class FilterSection extends ConsumerWidget {
                     .map(
                       (cashier) => DropdownMenuItem(
                         value: cashier,
-                        child: Text(cashier),
+                        child: Text(cashier, style: TextStyle(fontSize: 13)),
                       ),
                     )
                     .toList(),
@@ -359,7 +367,7 @@ class FilterSection extends ConsumerWidget {
             },
           ),
 
-          SizedBox(height: 16),
+          SizedBox(height: 12),
 
           Row(
             children: [
@@ -373,8 +381,9 @@ class FilterSection extends ConsumerWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[800],
                     foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 8),
                   ),
-                  child: Text('Terapkan'),
+                  child: Text('Terapkan', style: TextStyle(fontSize: 12)),
                 ),
               ),
               SizedBox(width: 8),
@@ -383,7 +392,10 @@ class FilterSection extends ConsumerWidget {
                   onPressed: () {
                     ref.read(salesReportFilterProvider.notifier).resetFilter();
                   },
-                  child: Text('Reset'),
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: Text('Reset', style: TextStyle(fontSize: 12)),
                 ),
               ),
             ],
@@ -402,49 +414,51 @@ class SummarySection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(salesSummaryProvider);
 
-    return Padding(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Ringkasan',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
+    return Expanded(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Ringkasan',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
             ),
-          ),
-          SizedBox(height: 16),
+            SizedBox(height: 16),
 
-          _buildSummaryCard(
-            'Total Transaksi',
-            '${summary.totalTransactions}',
-            Icons.receipt_long,
-            Colors.green,
-          ),
+            _buildSummaryCard(
+              'Total Transaksi',
+              '${summary.totalTransactions}',
+              Icons.receipt_long,
+              Colors.green,
+            ),
 
-          _buildSummaryCard(
-            'Total Penjualan',
-            'Rp ${_formatCurrency(summary.totalSales)}',
-            Icons.attach_money,
-            Colors.blue,
-          ),
+            _buildSummaryCard(
+              'Total Penjualan',
+              'Rp ${_formatCurrency(summary.totalSales)}',
+              Icons.attach_money,
+              Colors.blue,
+            ),
 
-          _buildSummaryCard(
-            'Rata-rata per Transaksi',
-            'Rp ${_formatCurrency(summary.averagePerTransaction)}',
-            Icons.trending_up,
-            Colors.orange,
-          ),
+            _buildSummaryCard(
+              'Rata-rata per Transaksi',
+              'Rp ${_formatCurrency(summary.averagePerTransaction)}',
+              Icons.trending_up,
+              Colors.orange,
+            ),
 
-          _buildSummaryCard(
-            'Total Item Terjual',
-            '${summary.totalItems}',
-            Icons.inventory,
-            Colors.purple,
-          ),
-        ],
+            _buildSummaryCard(
+              'Total Item Terjual',
+              '${summary.totalItems}',
+              Icons.inventory,
+              Colors.purple,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -456,44 +470,50 @@ class SummarySection extends ConsumerWidget {
     Color color,
   ) {
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            padding: EdgeInsets.all(8),
+            padding: EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: color,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(icon, color: Colors.white, size: 20),
+            child: Icon(icon, color: Colors.white, size: 18),
           ),
-          SizedBox(width: 12),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: Colors.grey[600],
                     fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: 4),
+                SizedBox(height: 2),
                 Text(
                   value,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: color,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -699,7 +719,7 @@ String _formatCurrency(int amount) {
     if (count > 0 && count % 3 == 0) {
       result = '.$result';
     }
-    result = str[i] + result;
+    result = str[i] + result.toString();
     count++;
   }
 
