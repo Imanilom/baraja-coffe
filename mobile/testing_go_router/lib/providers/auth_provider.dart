@@ -192,13 +192,11 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
   }
 
   Future<void> logout() async {
-    final box = Hive.box('userBox');
-    await box.delete('user');
-    await box.delete('cashier');
+    await HiveService.clearAllData();
+
     ref.read(selectedCashierProvider.notifier).state = null;
     ref.read(messageProvider.notifier).clearMessage();
-    // Clear the state
-    // to unauthenticated
+
     state = const AsyncValue.data(AuthStatus.unauthenticated);
   }
 

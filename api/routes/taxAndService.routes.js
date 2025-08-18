@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getAllCharges,
+  getAllChargesForCashier,
   getChargeById,
   createCharge,
   updateCharge,
@@ -13,6 +14,7 @@ const marketingAccess = verifyToken(['admin', 'superadmin', 'marketing']);
 const router = express.Router();
 
 router.get('/', getAllCharges);
+router.get('/cashier', getAllChargesForCashier);
 router.get('/:id', getChargeById);
 router.post('/', marketingAccess, createCharge);
 router.put('/:id', marketingAccess, updateCharge);

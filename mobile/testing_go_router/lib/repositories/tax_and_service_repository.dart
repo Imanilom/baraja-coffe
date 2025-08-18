@@ -1,28 +1,26 @@
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/tax_and_service.model.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/tax_and_service_service.dart';
 
 class TaxAndServiceRepository {
   final TaxAndServiceService _taxAndServiceService = TaxAndServiceService();
 
   // Open the Hive box for tax and services
-  final Box<TaxAndServiceModel> _box = Hive.box<TaxAndServiceModel>(
-    'taxAndServicesBox',
-  );
+  final Box<TaxAndServiceModel> _box = HiveService.taxAndServiceBox;
 
   Future<List<TaxAndServiceModel>> getTaxAndServices() async {
     try {
-      // If the box is empty, fetch from the service
       if (_box.isEmpty) {
         final taxAndServicesResponse =
             await _taxAndServiceService.fetchTaxAndServices();
-        print("Tax and Services Response: $taxAndServicesResponse");
         final taxAndServicesList =
             (taxAndServicesResponse['data'] as List)
                 .map((json) => TaxAndServiceModel.fromJson(json))
                 .toList();
 
         // Save fetched data to Hive
+        // await _box.clear();
         await _box.addAll(taxAndServicesList);
       }
 
