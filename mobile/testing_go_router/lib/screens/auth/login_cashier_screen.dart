@@ -7,6 +7,9 @@ import 'package:hive_ce/hive.dart';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:kasirbaraja/widgets/inputs/pin_input.dart';
 
+//loading state provider
+final _isLoading = StateProvider<bool>((ref) => false);
+
 class ModernLoginCashierScreen extends ConsumerWidget {
   const ModernLoginCashierScreen({super.key});
 
@@ -119,7 +122,62 @@ class ModernLoginCashierScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // Header,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                color: Colors.white,
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+              ),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    child: Icon(Icons.person, color: Colors.green),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        manager.username,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      Text(
+                        manager.role,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.red[50],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.red[200]!),
+                      ),
+                    ),
+                    icon: const Icon(Icons.logout_rounded, color: Colors.red),
+                    onPressed: () {
+                      //confirmation dialog
+                      showLogoutDialog(context, ref);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.all(24),
             child: Row(
@@ -134,32 +192,7 @@ class ModernLoginCashierScreen extends ConsumerWidget {
                     color: Color(0xFF111827),
                   ),
                 ),
-                const Spacer(),
-                IconButton(
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.red[50],
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.red[200]!),
-                    ),
-                  ),
-                  icon: const Icon(Icons.logout_rounded, color: Colors.red),
-                  onPressed: () {
-                    ref.read(tryAuthProvider.notifier).logout();
-                  },
-                ),
               ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              '${manager.username} - (${manager.role}) - ${manager.outletId}',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF111827),
-              ),
             ),
           ),
           Divider(color: Colors.grey[200], thickness: 1),
@@ -304,6 +337,42 @@ class ModernLoginCashierScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+    );
+  }
+
+  void showLogoutDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi'),
+          content: const Text('Apakah Anda yakin ingin keluar?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Batal', style: TextStyle(color: Colors.grey[600])),
+            ),
+            TextButton(
+              onPressed: () {
+                ref.watch(_isLoading)
+                    ? null
+                    : ref.read(tryAuthProvider.notifier).logout();
+                Navigator.of(context).pop();
+                ref.read(_isLoading.notifier).state = false;
+              },
+              child:
+                  ref.watch(_isLoading)
+                      ? const CircularProgressIndicator()
+                      : const Text(
+                        'Ya, Keluar',
+                        style: TextStyle(color: Colors.red),
+                      ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

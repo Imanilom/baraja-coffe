@@ -9,9 +9,25 @@ export const getAllCharges = async (req, res) => {
       .populate('appliesToOutlets', 'name')
     res.status(200).json(charges);
   } catch (err) {
-    res.status(500).json({ 
-      error: 'Gagal mengambil data pajak dan service.', 
-      details: err.message 
+    res.status(500).json({
+      error: 'Gagal mengambil data pajak dan service.',
+      details: err.message
+    });
+  }
+};
+
+export const getAllChargesForCashier = async (req, res) => {
+  try {
+    const charges = await TaxAndService.find()
+      .populate('appliesToOutlets', 'name')
+    res.status(200).json({
+      status: "success",
+      data: charges
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: 'Gagal mengambil data pajak dan service.',
+      details: err.message
     });
   }
 };
@@ -26,9 +42,9 @@ export const getChargeById = async (req, res) => {
 
     res.status(200).json(charge);
   } catch (err) {
-    res.status(500).json({ 
-      error: 'Gagal mengambil data.', 
-      details: err.message 
+    res.status(500).json({
+      error: 'Gagal mengambil data.',
+      details: err.message
     });
   }
 };
@@ -58,7 +74,7 @@ export const createCharge = async (req, res) => {
     });
   } catch (err) {
     console.error('Error creating charge:', err);
-    res.status(400).json({ 
+    res.status(400).json({
       success: false,
       error: err.message || 'Gagal membuat data'
     });
@@ -86,7 +102,7 @@ export const updateCharge = async (req, res) => {
       }
     }
 
-  
+
 
     // Siapkan payload update
     const updateData = {
@@ -104,9 +120,9 @@ export const updateCharge = async (req, res) => {
 
     res.status(200).json(updated);
   } catch (err) {
-    res.status(400).json({ 
-      error: 'Gagal mengubah data.', 
-      details: err.message 
+    res.status(400).json({
+      error: 'Gagal mengubah data.',
+      details: err.message
     });
   }
 };
@@ -120,9 +136,9 @@ export const deleteCharge = async (req, res) => {
 
     res.status(200).json({ message: 'Berhasil dihapus.' });
   } catch (err) {
-    res.status(500).json({ 
-      error: 'Gagal menghapus data.', 
-      details: err.message 
+    res.status(500).json({
+      error: 'Gagal menghapus data.',
+      details: err.message
     });
   }
 };

@@ -8,9 +8,11 @@ class TaxAndServiceService {
   Future<Map<String, dynamic>> fetchTaxAndServices() async {
     try {
       final response = await _dio.get(
-        '/api/tax-service',
+        '/api/tax-service/cashier',
         options: Options(headers: {'ngrok-skip-browser-warning': true}),
       );
+
+      print('response tax and service: ${response.data}');
 
       return response.data;
     } on DioException catch (e) {
