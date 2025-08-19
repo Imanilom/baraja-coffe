@@ -1,12 +1,9 @@
 // lib/services/data_sync_service.dart
 import 'package:dio/dio.dart';
-import 'package:hive_ce/hive.dart';
-// import 'package:kasirbaraja/models/tax_and_service.model.dart';
-import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
-import 'package:kasirbaraja/configs/app_config.dart';
+import 'package:kasirbaraja/repositories/payment_type_repository.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
 // import 'package:kasirbaraja/services/hive_service.dart';
 
@@ -44,24 +41,15 @@ class DataSyncProgress {
   }
 }
 
-// Data sync service
 class DataSyncService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
-
-  // Sync all data from server
   Future<void> syncAllData({
     required Function(DataSyncProgress) onProgress,
     // String? token,
   }) async {
-    const totalSteps = 4;
+    const totalSteps = 3;
     int currentStep = 0;
 
     try {
-      // Set authorization header if token provided
-      // if (token != null) {
-      //   _dio.options.headers['Authorization'] = 'Bearer $token';
-      // }
-
       // Step 1: Sync Menu Items
       currentStep++;
       onProgress(
@@ -93,7 +81,7 @@ class DataSyncService {
           currentTask: 'Downloading payment methods...',
         ),
       );
-      await _syncPaymentMethods();
+      await PaymentTypeRepository().getPaymentTypes();
 
       // Completed
       onProgress(
@@ -114,46 +102,6 @@ class DataSyncService {
         ),
       );
       rethrow;
-    }
-  }
-
-  // Private method to sync tax and service
-  // Future<void> _syncTaxAndService() async {
-  //   try {
-  //     final response = await _dio.get('/api/tax-service');
-  //     final List<dynamic> data = response.data;
-
-  //     final taxServiceBox = HiveService.taxAndServiceBox;
-  //     await taxServiceBox.clear();
-
-  //     for (final item in data) {
-  //       final taxService = TaxAndServiceModel.fromJson(item);
-  //       await taxServiceBox.put(taxService.id, taxService);
-  //     }
-  //   } catch (e) {
-  //     throw Exception('Failed to sync tax and service: $e');
-  //   }
-  // }
-
-  // Private method to sync payment methods
-  Future<void> _syncPaymentMethods() async {
-    try {
-      final response = await _dio.get(
-        '/api/paymentlist/payment-methods-and-types',
-      );
-      final List<dynamic> data = response.data['paymentTypes'] ?? response.data;
-
-      final paymentMethodsBox = await Hive.openBox<PaymentTypeModel>(
-        'paymentMethods',
-      );
-      await paymentMethodsBox.clear(); // Clear existing data
-
-      for (final item in data) {
-        final paymentType = PaymentTypeModel.fromJson(item);
-        await paymentMethodsBox.put(paymentType.id, paymentType);
-      }
-    } catch (e) {
-      throw Exception('Failed to sync payment methods: $e');
     }
   }
 }
@@ -189,7 +137,6 @@ class DataSyncNotifier extends StateNotifier<DataSyncProgress?> {
         // token: token,
       );
       await _authState.checkLoginStatus();
-      // _authState.state = const AsyncValue.data(AuthStatus.needPin);
     } catch (e) {
       // Error is already handled in syncAllData
       rethrow;

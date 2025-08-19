@@ -1,5 +1,6 @@
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/payment_type_service.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -8,9 +9,7 @@ class PaymentTypeRepository {
 
   Future<List<PaymentTypeModel>> getPaymentTypes() async {
     try {
-      final paymentTypeBox = await Hive.openBox<PaymentTypeModel>(
-        'PaymentTypesBox',
-      );
+      final paymentTypeBox = HiveService.paymentTypeBox;
       final paymentTypeResponse = await _paymentTypeService.fetchPaymentTypes();
 
       final serverTypes =
@@ -66,6 +65,16 @@ class PaymentTypeRepository {
     } catch (e) {
       rethrow;
     }
+  }
+
+  //get local payment types
+  Future<List<PaymentTypeModel>> getLocalPaymentTypes() async {
+    final paymentTypeBox = HiveService.paymentTypeBox;
+    if (paymentTypeBox.isEmpty) {
+      print('PaymentTypeBox is empty, fetching from server...');
+      return getPaymentTypes();
+    }
+    return paymentTypeBox.values.toList();
   }
 
   // ===== Helper Methods =====
