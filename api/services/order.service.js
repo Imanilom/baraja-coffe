@@ -2,7 +2,6 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import Recipe from '../models/modul_menu/Recipe.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
-import StockMovement from '../models/modul_menu/StockMovement.model.js';
 import { checkAutoPromos, checkManualPromo, checkVoucher } from '../helpers/promo.helper.js';
 import { TaxAndService } from '../models/TaxAndService.model.js';
 import mongoose from 'mongoose';
@@ -18,7 +17,7 @@ import mongoose from 'mongoose';
  * @param {mongoose.ClientSession} session - MongoDB session for transaction
  * @returns {Promise<Object>} Processed order details
  */
-export async function processOrderItems({ items, outlet, orderType, voucherCode, customerType = 'General' }, session) {
+export async function processOrderItems({ items, outlet, orderType, voucherCode, customerType }, session) {
   // Validate input
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new Error('Order items cannot be empty');
