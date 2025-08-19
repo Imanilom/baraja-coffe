@@ -1,7 +1,7 @@
 // lib/screens/data_sync_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart'; // Import GoRouter
+// import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:kasirbaraja/services/data_sync_service.dart';
 
 class DataSyncScreen extends ConsumerStatefulWidget {
@@ -59,19 +59,19 @@ class _DataSyncScreenState extends ConsumerState<DataSyncScreen>
           .syncData(token: widget.userToken);
 
       // Wait a bit before completing to show success state
-      print('waiting delayed...');
-      await Future.delayed(const Duration(seconds: 2));
+      // print('waiting delayed...');
+      // await Future.delayed(const Duration(seconds: 2));
 
-      if (mounted) {
-        // Use GoRouter for navigation or fallback to callback
-        if (widget.onSyncComplete != null) {
-          print('on complete success');
-          widget.onSyncComplete!();
-        } else {
-          print('on else complete');
-          context.go('/main'); // Default navigation with GoRouter
-        }
-      }
+      // if (mounted) {
+      //   // Use GoRouter for navigation or fallback to callback
+      //   if (widget.onSyncComplete != null) {
+      //     print('on complete success');
+      //     widget.onSyncComplete!();
+      //   } else {
+      //     print('on else complete');
+      //     context.go('/main'); // Default navigation with GoRouter
+      //   }
+      // }
     } catch (e) {
       if (mounted) {
         _showErrorDialog(e.toString());
@@ -86,7 +86,10 @@ class _DataSyncScreenState extends ConsumerState<DataSyncScreen>
       builder:
           (context) => AlertDialog(
             title: const Text('Sync Error'),
-            content: Text('Failed to sync data: $error'),
+            content: Text(
+              'Failed to sync data: $error, please try again.'
+              'jika tetap error, silahkan hubungi admin.',
+            ),
             actions: [
               TextButton(
                 onPressed: () {
@@ -95,18 +98,16 @@ class _DataSyncScreenState extends ConsumerState<DataSyncScreen>
                 },
                 child: const Text('Retry'),
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  // Use GoRouter or callback for navigation
-                  if (widget.onSyncComplete != null) {
-                    widget.onSyncComplete!();
-                  } else {
-                    context.go('/main'); // Skip to main screen
-                  }
-                },
-                child: const Text('Skip'),
-              ),
+              // TextButton(
+              //   onPressed: () {
+              //     Navigator.of(context).pop();
+              //     // Use GoRouter or callback for navigation
+              //     if (widget.onSyncComplete != null) {
+              //       widget.onSyncComplete!();
+              //     } else {}
+              //   },
+              //   child: const Text('Skip'),
+              // ),
             ],
           ),
     );
@@ -290,12 +291,12 @@ class _DataSyncScreenState extends ConsumerState<DataSyncScreen>
                       syncState.currentStep >= 3,
                       syncState.currentStep > 3 || syncState.isCompleted,
                     ),
-                    _buildCompactStepIndicator(
-                      4,
-                      'Areas',
-                      syncState.currentStep >= 4,
-                      syncState.isCompleted,
-                    ),
+                    // _buildCompactStepIndicator(
+                    //   4,
+                    //   'Areas',
+                    //   syncState.currentStep >= 4,
+                    //   syncState.isCompleted,
+                    // ),
                   ],
                 ),
 
