@@ -2,6 +2,7 @@
 
 import 'package:hive_ce/hive.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:kasirbaraja/models/outlet_info.model.dart';
 
 part 'tax_and_service.model.g.dart';
 part 'tax_and_service.model.freezed.dart';
@@ -17,6 +18,7 @@ abstract class TaxAndServiceModel with _$TaxAndServiceModel {
     @HiveField(4) @Default(0) int? percentage, //example: 10 for 10%
     @HiveField(5) @Default(0) int? fixedFee,
     @HiveField(6) bool? isActive,
+    @HiveField(7) @Default(null) List<OutletInfoModel>? appliesToOutlets,
   }) = _TaxAndServiceModel;
 
   factory TaxAndServiceModel.fromJson(Map<String, dynamic> json) =>

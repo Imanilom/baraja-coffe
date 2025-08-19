@@ -4,6 +4,7 @@ import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/outlet_info.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/tax_and_service.model.dart';
@@ -28,6 +29,7 @@ class HiveService {
     Hive.registerAdapter(PaymentTypeModelAdapter());
     Hive.registerAdapter(PaymentMethodModelAdapter());
     Hive.registerAdapter(TaxAndServiceModelAdapter());
+    Hive.registerAdapter(OutletInfoModelAdapter());
 
     await _openBoxes();
   }

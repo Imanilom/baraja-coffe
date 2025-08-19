@@ -24,13 +24,17 @@ class TaxAndServiceModelAdapter extends TypeAdapter<TaxAndServiceModel> {
       percentage: fields[4] == null ? 0 : (fields[4] as num?)?.toInt(),
       fixedFee: fields[5] == null ? 0 : (fields[5] as num?)?.toInt(),
       isActive: fields[6] as bool?,
+      appliesToOutlets:
+          fields[7] == null
+              ? null
+              : (fields[7] as List?)?.cast<OutletInfoModel>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, TaxAndServiceModel obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,7 +48,9 @@ class TaxAndServiceModelAdapter extends TypeAdapter<TaxAndServiceModel> {
       ..writeByte(5)
       ..write(obj.fixedFee)
       ..writeByte(6)
-      ..write(obj.isActive);
+      ..write(obj.isActive)
+      ..writeByte(7)
+      ..write(obj.appliesToOutlets);
   }
 
   @override
@@ -71,6 +77,11 @@ _TaxAndServiceModel _$TaxAndServiceModelFromJson(Map<String, dynamic> json) =>
       percentage: (json['percentage'] as num?)?.toInt() ?? 0,
       fixedFee: (json['fixedFee'] as num?)?.toInt() ?? 0,
       isActive: json['isActive'] as bool?,
+      appliesToOutlets:
+          (json['appliesToOutlets'] as List<dynamic>?)
+              ?.map((e) => OutletInfoModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          null,
     );
 
 Map<String, dynamic> _$TaxAndServiceModelToJson(_TaxAndServiceModel instance) =>
@@ -82,4 +93,5 @@ Map<String, dynamic> _$TaxAndServiceModelToJson(_TaxAndServiceModel instance) =>
       'percentage': instance.percentage,
       'fixedFee': instance.fixedFee,
       'isActive': instance.isActive,
+      'appliesToOutlets': instance.appliesToOutlets,
     };

@@ -8,6 +8,7 @@ import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
+import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,52 +18,17 @@ import 'package:collection/collection.dart';
 class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   OrderDetailNotifier() : super(null);
 
+  final TaxAndServiceRepository _taxAndServiceRepository =
+      TaxAndServiceRepository();
+
+  bool _isCalculating = false;
+
   /// this method does nothing. Otherwise, it creates a ,new `OrderDetailModel`
   void initializeOrder({required OrderType orderType}) {
     print('memeriksa apakah order sudah ada...');
     if (state != null) return;
     print('Initialize order');
     state = OrderDetailModel(orderType: orderType, items: []);
-  }
-
-  //update total price
-
-  void updateTotalPrice() {
-    if (state != null) {
-      print('Menghitung total harga...');
-      final totalPrice =
-          state!.totalAfterDiscount + state!.totalTax + state!.totalServiceFee;
-      state = state!.copyWith(grandTotal: totalPrice);
-    }
-  }
-
-  void updateSubTotalPrice() {
-    if (state != null) {
-      print('Menghitung total harga...');
-      final totalBeforeDiscount = state!.items.fold(
-        0,
-        (sum, item) => sum + item.countSubTotalPrice(),
-      );
-      state = state!.copyWith(totalBeforeDiscount: totalBeforeDiscount);
-
-      final totalAfterDiscount =
-          totalBeforeDiscount -
-          (state!.discounts != null ? state!.discounts!.totalDiscount : 0);
-      state = state!.copyWith(totalAfterDiscount: totalAfterDiscount);
-    }
-  }
-
-  // membuat tax
-  void updateTax() {
-    if (state != null) {
-      print('Menghitung pajak...');
-      final tax = state!.items.fold(
-        0,
-        (sum, item) => sum + (item.subtotal * 0.1).toInt(), // 10% tax
-      );
-      state = state!.copyWith(totalTax: tax);
-      print('Tax: $tax');
-    }
   }
 
   void addOrderFromSavedOrderDetail(OrderDetailModel orderDetail) {
@@ -152,28 +118,11 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   // Tambahkan menu ke daftar pesanan
   void addItemToOrder(OrderItemModel orderItem) {
-    print('memeriksa apakah menu item sudah ada....');
-
-    for (var item in state!.items) {
-      print(
-        'Comparing item id: ${item.menuItem.id} vs ${orderItem.menuItem.id}',
-      );
-      print(
-        'Toppings equal: ${areToppingsEqual(item.selectedToppings, orderItem.selectedToppings)}',
-      );
-      print(
-        'Addons equal: ${areAddonsEqual(item.selectedAddons, orderItem.selectedAddons)}',
-      );
-      print('Notes equal: ${areNotesEqual(item.notes, orderItem.notes)}');
-    }
-
     // Menggunakan fungsi reusable
     // final existingOrderItemIndex = findExistingOrderItemIndex(orderItem);
-    print('Mencari index item yang sama pada extension...');
     final existingOrderItemIndex = state!.items.findSimilarItemIndex(orderItem);
 
     if (existingOrderItemIndex != -1) {
-      print('menu item sudah ada, mencoba menambahkan quantity...');
       // Jika menu item sudah ada, tambahkan quantity-nya
       final updatedItem = state!.items[existingOrderItemIndex].copyWith(
         quantity:
@@ -183,23 +132,11 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       updatedItems[existingOrderItemIndex] = updatedItem;
       state = state!.copyWith(items: updatedItems);
     } else {
-      print('menu item belum ada, menambahkannya ke daftar...');
-      print('data orderitem : $orderItem');
       //simpan orderItem ke dalam daftar pesanan
       state = state!.copyWith(items: [...state!.items, orderItem]);
     }
 
-    //menghitung item sub total price
-    state = state!.copyWith(
-      items:
-          state!.items
-              .map((item) => item.copyWith(subtotal: item.countSubTotalPrice()))
-              .toList(),
-    );
-
-    updateSubTotalPrice();
-    updateTax();
-    updateTotalPrice();
+    _recalculateAll();
     print('Item order berhasil ditambahkan.');
   }
 
@@ -246,6 +183,8 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     } else {
       print('Item tidak ditemukan, tidak ada yang dihapus.');
     }
+
+    _recalculateAll();
   }
 
   void updateItemQuantity(String menuItemId, int quantity) {
@@ -294,19 +233,8 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       }
 
       state = state!.copyWith(items: updatedItems);
-      //menghitung item sub total price
-      state = state!.copyWith(
-        items:
-            state!.items
-                .map(
-                  (item) => item.copyWith(subtotal: item.countSubTotalPrice()),
-                )
-                .toList(),
-      );
-
-      updateSubTotalPrice();
-      updateTax();
-      updateTotalPrice();
+      _recalculateAll();
+      print('Item order berhasil diubah.');
     }
   }
 
@@ -327,21 +255,85 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   // Kirim data orderDetail ke backend
   Future<bool> submitOrder() async {
     final cashier = await HiveService.getCashier();
-    //update cashier id di order detail model
+
     state = state!.copyWith(cashierId: cashier!.id);
     if (state == null) return false;
-    print('Mengirim data orderDetail ke backend... ${state!.toJson()}');
+
     try {
       final order = await OrderService().createOrder(state!);
-      print('Order ID : $order');
+
       if (order.isNotEmpty) {
         return true;
       }
     } catch (e) {
-      print('error apa? $e');
       return false;
     }
     return false; // Return false if state is null
+  }
+
+  Future<void> _recalculateAll() async {
+    if (state == null || _isCalculating) return;
+
+    _isCalculating = true;
+
+    try {
+      // 1. Update subtotal setiap item
+      final updatedItems =
+          state!.items
+              .map((item) => item.copyWith(subtotal: item.countSubTotalPrice()))
+              .toList();
+
+      // 2. Hitung total before discount
+      final totalBeforeDiscount = updatedItems.fold(
+        0,
+        (sum, item) => sum + item.subtotal,
+      );
+
+      // 3. Hitung total after discount
+      final discountAmount = state!.discounts?.totalDiscount ?? 0;
+      final totalAfterDiscount = totalBeforeDiscount - discountAmount;
+
+      // 4. Hitung tax dan service (jika ada outlet ID)
+      int totalTax = 0;
+      int totalServiceFee = 0;
+
+      if (totalAfterDiscount > 0) {
+        try {
+          final result = await _taxAndServiceRepository.calculateOrderTotals(
+            totalAfterDiscount,
+          );
+          totalTax = result.taxAmount;
+          totalServiceFee = result.serviceAmount;
+        } catch (e) {
+          print('Error calculating tax and service: $e');
+          // Keep existing values atau set ke 0
+        }
+      }
+
+      // 5. Hitung grand total
+      final grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
+
+      // 6. Update state sekali saja
+      state = state!.copyWith(
+        items: updatedItems,
+        totalBeforeDiscount: totalBeforeDiscount,
+        totalAfterDiscount: totalAfterDiscount,
+        totalTax: totalTax,
+        totalServiceFee: totalServiceFee,
+        grandTotal: grandTotal,
+      );
+
+      print('Calculation completed:');
+      print('- Before discount: $totalBeforeDiscount');
+      print('- After discount: $totalAfterDiscount');
+      print('- Tax: $totalTax');
+      print('- Service: $totalServiceFee');
+      print('- Grand total: $grandTotal');
+    } catch (e) {
+      print('Error in recalculation: $e');
+    } finally {
+      _isCalculating = false;
+    }
   }
 }
 
