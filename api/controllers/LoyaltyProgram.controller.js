@@ -126,52 +126,98 @@ export const deleteLoyaltyProgram = async (req, res) => {
 
 // Loyalty Level
 
+// CREATE
 export const createLoyaltyLevel = async (req, res) => {
   try {
-    const { name, requiredPoints, description } = req.body;
+    const {
+      name,
+      requiredPoints,
+      description,
+      pointsPerCurrency,
+      currencyUnit,
+      levelUpBonusPoints,
+      benefits
+    } = req.body;
 
-    // Validasi input
-    if (!name || !requiredPoints) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    // Validasi input wajib
+    if (!name || requiredPoints == null || pointsPerCurrency == null || currencyUnit == null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: name, requiredPoints, pointsPerCurrency, currencyUnit'
+      });
     }
 
-    // Periksa apakah nama level sudah ada
-    const existingLevel = await LoyaltyLevel.findOne({ name });
+    // Validasi angka
+    if (requiredPoints < 0 || pointsPerCurrency <= 0 || currencyUnit <= 0 || (levelUpBonusPoints && levelUpBonusPoints < 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Numeric fields must be positive values'
+      });
+    }
+
+    // Validasi benefits
+    if (benefits && !Array.isArray(benefits)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Benefits must be an array of strings'
+      });
+    }
+
+    // Cek duplikat nama
+    const existingLevel = await LoyaltyLevel.findOne({ name: name.trim() });
     if (existingLevel) {
       return res.status(400).json({ success: false, message: 'Loyalty level with this name already exists' });
     }
 
-    // Buat level loyalitas baru
+    // Buat level baru
     const newLevel = new LoyaltyLevel({
-      name,
+      name: name.trim(),
       requiredPoints,
       description,
+      pointsPerCurrency,
+      currencyUnit,
+      levelUpBonusPoints: levelUpBonusPoints || 0,
+      benefits: benefits || []
     });
 
     await newLevel.save();
 
-    res.status(201).json({ success: true, message: 'Loyalty level created successfully', data: newLevel });
+    res.status(201).json({
+      success: true,
+      message: 'Loyalty level created successfully',
+      data: newLevel
+    });
   } catch (error) {
     console.error('Error creating loyalty level:', error);
-    res.status(500).json({ success: false, message: 'Failed to create loyalty level', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create loyalty level',
+      error: error.message
+    });
   }
 };
 
+// GET ALL
 export const getAllLoyaltyLevels = async (req, res) => {
   try {
     const levels = await LoyaltyLevel.find().sort({ requiredPoints: 1 });
 
-    if (!levels || levels.length === 0) {
-      return res.status(404).json({ success: false, message: 'No loyalty levels found' });
-    }
-
-    res.status(200).json({ success: true, data: levels });
+    res.status(200).json({
+      success: true,
+      count: levels.length,
+      data: levels
+    });
   } catch (error) {
     console.error('Error fetching loyalty levels:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch loyalty levels', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch loyalty levels',
+      error: error.message
+    });
   }
 };
 
+// UPDATE
 export const updateLoyaltyLevel = async (req, res) => {
   try {
     const levelId = req.params.id;
@@ -181,15 +227,46 @@ export const updateLoyaltyLevel = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid loyalty level ID' });
     }
 
-    const level = await LoyaltyLevel.findByIdAndUpdate(levelId, updates, { new: true, runValidators: true });
+    // Validasi benefits kalau dikirim
+    if (updates.benefits && !Array.isArray(updates.benefits)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Benefits must be an array of strings'
+      });
+    }
+
+    // Validasi angka
+    const numericFields = ['requiredPoints', 'pointsPerCurrency', 'currencyUnit', 'levelUpBonusPoints'];
+    for (const field of numericFields) {
+      if (updates[field] != null && updates[field] < 0) {
+        return res.status(400).json({
+          success: false,
+          message: `${field} must be a positive number`
+        });
+      }
+    }
+
+    const level = await LoyaltyLevel.findByIdAndUpdate(
+      levelId,
+      updates,
+      { new: true, runValidators: true }
+    );
 
     if (!level) {
       return res.status(404).json({ success: false, message: 'Loyalty level not found' });
     }
 
-    res.status(200).json({ success: true, message: 'Loyalty level updated successfully', data: level });
+    res.status(200).json({
+      success: true,
+      message: 'Loyalty level updated successfully',
+      data: level
+    });
   } catch (error) {
     console.error('Error updating loyalty level:', error);
-    res.status(500).json({ success: false, message: 'Failed to update loyalty level', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update loyalty level',
+      error: error.message
+    });
   }
 };
