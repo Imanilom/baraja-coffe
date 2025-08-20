@@ -9,7 +9,7 @@ import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/screens/orders/order_screen.dart';
-import 'package:kasirbaraja/screens/rekap_kasir/rekap_kasir_screen.dart';
+import 'package:kasirbaraja/screens/reports/sales_report_screen.dart';
 import 'package:kasirbaraja/screens/reservation/reservation_screen.dart';
 
 class MainScreen extends ConsumerWidget {
