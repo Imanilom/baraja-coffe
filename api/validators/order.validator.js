@@ -9,7 +9,7 @@ export function validateOrderData(data, source) {
   if (!data.items || data.items.length === 0) {
     throw new Error('Order must contain at least one item');
   }
-  
+
   if (!data.orderType) {
     throw new Error('Order type is required');
   }
@@ -19,7 +19,7 @@ export function validateOrderData(data, source) {
     case 'App':
       if (!data.userId) throw new Error('User ID is required');
       if (!data.paymentDetails?.method) throw new Error('Payment method is required');
-      
+
       // Order type specific validation
       if (data.orderType === 'dineIn' && !data.tableNumber) {
         throw new Error('Table number is required for dine-in orders');
@@ -33,7 +33,7 @@ export function validateOrderData(data, source) {
       if (data.orderType === 'reservation' && !data.reservationData) {
         throw new Error('Reservation data is required for reservation orders');
       }
-      
+
       return {
         ...data,
         formattedOrderType: formatOrderType(data.orderType)
@@ -144,7 +144,7 @@ export async function createMidtransSnapTransaction(orderId, amount, customer) {
 
 // Daftar metode pembayaran yang didukung
 const SUPPORTED_PAYMENT_METHODS = [
-  'cash', 'bank_transfer', 'gopay', 'qris', 
+  'cash', 'bank_transfer', 'gopay', 'qris',
   'shopeepay', 'credit_card'
 ];
 
@@ -158,7 +158,7 @@ const generateTransactionId = () => {
 };
 
 const getCurrentTime = () => new Date().toISOString().replace('T', ' ').substring(0, 19);
-const getExpiryTime = (minutes = 15) => 
+const getExpiryTime = (minutes = 15) =>
   new Date(Date.now() + minutes * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
 
 /**
@@ -260,7 +260,7 @@ async function handleCashPayment({
     url: qrCode,
   }];
   savedPayment.raw_response = createCashPaymentResponse(savedPayment, qrString);
-  
+
   await savedPayment.save();
   return { payment: savedPayment, qrCode, qrString, isExisting: false };
 }
@@ -363,9 +363,9 @@ async function handleOnlinePayment({
  */
 export const charge = async (req, res) => {
   try {
-    const { 
-      payment_type, 
-      order_id, 
+    const {
+      payment_type,
+      order_id,
       gross_amount,
       is_down_payment,
       down_payment_amount,
@@ -418,11 +418,11 @@ export const charge = async (req, res) => {
     }
 
     // Pembayaran online
-    const { 
-      payment, 
+    const {
+      payment,
       midtransResponse,
       paymentType,
-      remainingAmount 
+      remainingAmount
     } = await handleOnlinePayment({
       payment_type,
       order_id,
@@ -452,8 +452,8 @@ export const charge = async (req, res) => {
 
     // Tambahkan field khusus berdasarkan metode pembayaran
     if (payment_type === 'bank_transfer') {
-      response.va_number = midtransResponse.va_numbers?.[0]?.va_number || 
-                         midtransResponse.permata_va_number;
+      response.va_number = midtransResponse.va_numbers?.[0]?.va_number ||
+        midtransResponse.permata_va_number;
     }
 
     return res.status(201).json(response);

@@ -111,8 +111,8 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     totals: {
       beforeDiscount: totalBeforeDiscount,
       afterDiscount: promotionResults.totalAfterDiscount,
-      tax: totalTax,
-      serviceFee: totalServiceFee,
+      totalTax: totalTax,
+      totalServiceFee: totalServiceFee,
       grandTotal
     },
     discounts: {
