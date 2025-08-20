@@ -425,10 +425,25 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
           topping.name!,
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
-        subtitle: Text(
-          formatRupiah(topping.price!),
-          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-        ),
+        subtitle:
+            topping.price! > 0
+                ? Text(
+                  '+ ${formatRupiah(topping.price!)}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+                : Text(
+                  'Free',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 10,
+                    color: Colors.green,
+                    backgroundColor: Colors.green[50],
+                  ),
+                ),
         value: isSelected,
         activeColor: const Color(0xFF4CAF50),
         controlAffinity: ListTileControlAffinity.trailing,
@@ -528,6 +543,25 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
           option.label!,
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
+        subtitle:
+            option.price! > 0
+                ? Text(
+                  '+ ${formatRupiah(option.price!)}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+                : Text(
+                  'Free',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 10,
+                    color: Colors.green,
+                    backgroundColor: Colors.green[50],
+                  ),
+                ),
         value: option,
         groupValue: selectedAddon.options?.firstOrNull,
         activeColor: const Color(0xFF4CAF50),

@@ -91,7 +91,7 @@ final paymentTypesProvider = FutureProvider<List<PaymentTypeModel>>((
 ) async {
   try {
     final repository = ref.read(paymentRepositoryProvider);
-    final types = await repository.getPaymentTypes();
+    final types = await repository.getLocalPaymentTypes();
 
     // Filter only active payment types
     return types.where((type) => type.isActive).toList();

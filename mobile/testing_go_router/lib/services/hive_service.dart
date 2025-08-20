@@ -4,6 +4,7 @@ import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/outlet_info.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/models/tax_and_service.model.dart';
@@ -28,6 +29,7 @@ class HiveService {
     Hive.registerAdapter(PaymentTypeModelAdapter());
     Hive.registerAdapter(PaymentMethodModelAdapter());
     Hive.registerAdapter(TaxAndServiceModelAdapter());
+    Hive.registerAdapter(OutletInfoModelAdapter());
 
     await _openBoxes();
   }
@@ -37,7 +39,7 @@ class HiveService {
     await Hive.openBox<MenuItemModel>('menuItemsBox');
     await Hive.openBox<BluetoothPrinterModel>('printers');
     await Hive.openBox<TaxAndServiceModel>('taxAndService');
-    await Hive.openBox<PaymentTypeModel>('paymentMethods');
+    await Hive.openBox<PaymentTypeModel>('paymentTypes');
   }
 
   // Helper methods to get boxes
@@ -46,29 +48,29 @@ class HiveService {
       Hive.box<MenuItemModel>('menuItemsBox');
   static Box<TaxAndServiceModel> get taxAndServiceBox =>
       Hive.box<TaxAndServiceModel>('taxAndService');
-  static Box<PaymentTypeModel> get paymentMethodsBox =>
-      Hive.box<PaymentTypeModel>('paymentMethods');
+  static Box<PaymentTypeModel> get paymentTypeBox =>
+      Hive.box<PaymentTypeModel>('paymentTypes');
 
   // Clear all data (useful for logout or data refresh)
   static Future<void> clearAllData() async {
     await userBox.clear();
     await menuItemsBox.clear();
     await taxAndServiceBox.clear();
-    await paymentMethodsBox.clear();
+    await paymentTypeBox.clear();
   }
 
   // Close all boxes (call this when app is closing)
   static Future<void> closeAllBoxes() async {
     await menuItemsBox.close();
     await taxAndServiceBox.close();
-    await paymentMethodsBox.close();
+    await paymentTypeBox.close();
   }
 
   // Check if data exists (to determine if sync is needed)
   static bool hasData() {
     return menuItemsBox.isNotEmpty ||
         taxAndServiceBox.isNotEmpty ||
-        paymentMethodsBox.isNotEmpty;
+        paymentTypeBox.isNotEmpty;
   }
 
   // Get data count for each type
@@ -76,7 +78,7 @@ class HiveService {
     return {
       'menuItemsBox': menuItemsBox.length,
       'taxAndService': taxAndServiceBox.length,
-      'paymentMethods': paymentMethodsBox.length,
+      'paymentTypes': paymentTypeBox.length,
     };
   }
 
