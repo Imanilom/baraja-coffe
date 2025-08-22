@@ -7,6 +7,7 @@ import cors from 'cors';
 import http from 'http';
 import { Server } from 'socket.io';
 import WebSocket from 'ws';
+import { initializeFirebase } from './config/firebase.js';
 // Routes imports...
 import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
@@ -51,8 +52,8 @@ mongoose
 
 const __dirname = path.resolve();
 const app = express();
+initializeFirebase();
 const server = http.createServer(app);
-
 const io = new Server(server, {
   cors: {
     origin: "*",

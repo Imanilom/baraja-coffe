@@ -15,6 +15,8 @@ import { db } from '../utils/mongo.js';
 import { io, broadcastNewOrder } from '../index.js';
 import Reservation from '../models/Reservation.model.js';
 import QRCode from 'qrcode';
+// Import FCM service di bagian atas file
+import FCMNotificationService from '../services/fcmNotificationService.js';
 
 
 const queueEvents = new QueueEvents('orderQueue');
@@ -1133,6 +1135,92 @@ export async function generateOrderId(tableNumber) {
 }
 
 // Helper function untuk confirm order
+// const confirmOrderHelper = async (orderId) => {
+//   try {
+//     // 1. Find order and update status
+//     const order = await Order.findOneAndUpdate(
+//       { order_id: orderId },
+//       { $set: { status: 'Waiting' } },
+//       { new: true }
+//     ).populate('items.menuItem').populate('outlet');
+
+
+//     if (!order) {
+//       throw new Error('Order not found');
+//     }
+
+//     // 2. Update payment status
+//     const payment = await Payment.findOneAndUpdate(
+//       { order_id: orderId },
+//       { $set: { status: 'settlement', paidAt: new Date() } },
+//       { new: true }
+//     );
+
+//     // 3. Send notification to cashier if order is from Web/App
+//     // 3. Send FCM notification to customer
+//     console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
+//     if (order.user && order.user_id._id) {
+//       try {
+//         const orderData = {
+//           orderId: order.order_id,
+//           cashier: {
+//             id: 'kasir123',  // contoh
+//             name: 'Kasir Utama',
+//           }
+//         };
+
+//         const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
+//           order.user_id._id.toString(),
+//           orderData
+//         );
+
+//         console.log('📱 FCM Notification result:', notificationResult);
+//       } catch (notificationError) {
+//         console.error('❌ Failed to send FCM notification:', notificationError);
+//         // Continue execution even if notification fails
+//       }
+//     }
+
+//     // 4. Send notification to cashier dashboard if order is from Web/App
+//     if (order.source === 'Web' || order.source === 'App') {
+//       const orderData = {
+//         orderId: order.order_id,
+//         source: order.source,
+//         orderType: order.orderType,
+//         tableNumber: order.tableNumber || null,
+//         items: order.items.map(item => ({
+//           name: item.menuItem?.name || 'Unknown Item',
+//           quantity: item.quantity
+//         })),
+//         createdAt: order.createdAt,
+//         paymentMethod: order.paymentMethod,
+//         totalAmount: order.grandTotal,
+//         outletId: order.outlet._id
+//       };
+
+//       // Broadcast to all cashiers in that outlet
+//       try {
+//         if (typeof broadcastNewOrder === 'function') {
+//           broadcastNewOrder(order.outlet._id.toString(), orderData);
+//         }
+//       } catch (broadcastError) {
+//         console.error('Failed to broadcast new order:', broadcastError);
+//         // Continue execution even if broadcast fails
+//       }
+//     }
+
+//     return {
+//       success: true,
+//       order,
+//       payment
+//     };
+
+//   } catch (error) {
+//     console.error('Error in confirmOrderHelper:', error);
+//     throw error;
+//   }
+// };
+
 const confirmOrderHelper = async (orderId) => {
   try {
     // 1. Find order and update status
@@ -1140,7 +1228,7 @@ const confirmOrderHelper = async (orderId) => {
       { order_id: orderId },
       { $set: { status: 'Waiting' } },
       { new: true }
-    ).populate('items.menuItem').populate('outlet');
+    ).populate('items.menuItem').populate('outlet').populate('user_id', 'name email phone');
 
     if (!order) {
       throw new Error('Order not found');
@@ -1153,7 +1241,56 @@ const confirmOrderHelper = async (orderId) => {
       { new: true }
     );
 
-    // 3. Send notification to cashier if order is from Web/App
+    // 🔥 EMIT STATUS UPDATE KE CLIENT
+    const statusUpdateData = {
+      order_id: orderId,  // Gunakan string order_id
+      orderStatus: 'Waiting',
+      paymentStatus: 'settlement',
+      message: 'Pesanan dikonfirmasi kasir, menunggu kitchen',
+      timestamp: new Date(),
+      cashier: {
+        id: 'kasir123',  // Ganti dengan ID kasir yang sebenarnya
+        name: 'Kasir' // Ganti dengan nama kasir yang sebenarnya
+      }
+    };
+
+    // Emit ke room spesifik untuk order tracking
+    io.to(`order_${orderId}`).emit('order_status_update', statusUpdateData);
+
+    // Emit event khusus untuk konfirmasi kasir
+    io.to(`order_${orderId}`).emit('order_confirmed', {
+      orderId: orderId,
+      orderStatus: 'Waiting',
+      paymentStatus: 'settlement',
+      cashier: statusUpdateData.cashier,
+      message: 'Your order is now being prepared',
+      timestamp: new Date()
+    });
+
+    console.log(`🔔 Emitted order status update to room: order_${orderId}`, statusUpdateData);
+
+    // 3. Send FCM notification to customer
+    console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
+    if (order.user && order.user_id._id) {
+      try {
+        const orderData = {
+          orderId: order.order_id,
+          cashier: statusUpdateData.cashier
+        };
+
+        const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
+          order.user_id._id.toString(),
+          orderData
+        );
+
+        console.log('📱 FCM Notification result:', notificationResult);
+      } catch (notificationError) {
+        console.error('❌ Failed to send FCM notification:', notificationError);
+        // Continue execution even if notification fails
+      }
+    }
+
+    // 4. Send notification to cashier dashboard if order is from Web/App
     if (order.source === 'Web' || order.source === 'App') {
       const orderData = {
         orderId: order.order_id,
@@ -1399,6 +1536,143 @@ export const getQueuedOrders = async (req, res) => {
 };
 
 // POST /api/orders/:jobId/confirm
+// export const confirmOrderByCashier = async (req, res) => {
+//   const { jobId } = req.params;
+//   const { cashierId, cashierName } = req.body;
+
+//   // Enhanced validation
+//   if (!cashierId || !cashierName) {
+//     return res.status(400).json({
+//       success: false,
+//       error: 'cashierId dan cashierName wajib diisi',
+//       code: 'MISSING_REQUIRED_FIELDS'
+//     });
+//   }
+
+//   try {
+//     // Get job with lock to prevent race conditions
+//     const job = await orderQueue.getJob(jobId);
+//     if (!job) {
+//       return res.status(404).json({
+//         success: false,
+//         error: 'Job tidak ditemukan',
+//         code: 'JOB_NOT_FOUND'
+//       });
+//     }
+
+//     // Validate job data
+//     const orderId = job.data?.order_id;
+//     if (!orderId) {
+//       return res.status(400).json({
+//         success: false,
+//         error: 'Data order tidak valid',
+//         code: 'INVALID_JOB_DATA'
+//       });
+//     }
+
+//     // Check if already claimed
+//     if (job.data?.cashierId) {
+//       const currentCashier = job.data.cashierId === cashierId ?
+//         'Anda' : `Kasir ${job.data.cashierName || job.data.cashierId}`;
+//       return res.status(409).json({
+//         success: false,
+//         error: `${currentCashier} sudah mengambil order ini`,
+//         code: 'ORDER_ALREADY_CLAIMED'
+//       });
+//     }
+
+//     // Start transaction for atomic updates
+//     const session = await mongoose.startSession();
+//     session.startTransaction();
+
+//     try {
+//       // Update order status and assign cashier
+//       const order = await Order.findOneAndUpdate(
+//         { order_id: orderId },
+//         {
+//           status: 'OnProcess',
+//           cashier: {
+//             id: cashierId,
+//             name: cashierName
+//           },
+//           processingStartedAt: new Date()
+//         },
+//         { new: true, session }
+//       );
+
+//       if (!order) {
+//         await session.abortTransaction();
+//         return res.status(404).json({
+//           success: false,
+//           error: 'Order tidak ditemukan di database',
+//           code: 'ORDER_NOT_FOUND'
+//         });
+//       }
+
+//       // Update job data with cashier info
+//       await job.update({
+//         ...job.data,
+//         cashierId,
+//         cashierName,
+//         status: 'processing'
+//       });
+
+//       await session.commitTransaction();
+
+//       // Log the claim event
+//       console.log('Order claimed by cashier:', {
+//         orderId,
+//         jobId,
+//         cashierId,
+//         cashierName,
+//         timestamp: new Date()
+//       });
+
+//       // Emit real-time update
+//       req.io.emit('order-status-updated', {
+//         orderId,
+//         status: 'OnProcess',
+//         cashier: { id: cashierId, name: cashierName }
+//       });
+
+//       res.status(200).json({
+//         success: true,
+//         message: 'Order berhasil diklaim dan akan diproses',
+//         data: {
+//           orderId,
+//           status: order.status,
+//           cashier: order.cashier,
+//           estimatedTime: '10-15 menit' // Could be dynamic based on order content
+//         }
+//       });
+
+//     } catch (transactionError) {
+//       await session.abortTransaction();
+//       throw transactionError;
+//     } finally {
+//       await session.endSession();
+//     }
+
+//   } catch (error) {
+//     console.error('Failed to confirm order:', {
+//       jobId,
+//       cashierId,
+//       error: error.message,
+//       stack: error.stack,
+//       timestamp: new Date()
+//     });
+
+//     const statusCode = error.code === 'ORDER_ALREADY_CLAIMED' ? 409 : 500;
+//     res.status(statusCode).json({
+//       success: false,
+//       error: 'Gagal mengkonfirmasi order',
+//       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+//       code: error.code || 'INTERNAL_SERVER_ERROR'
+//     });
+//   }
+// };
+
+// In your order controller - update the confirmOrderByCashier function
 export const confirmOrderByCashier = async (req, res) => {
   const { jobId } = req.params;
   const { cashierId, cashierName } = req.body;
@@ -1491,12 +1765,42 @@ export const confirmOrderByCashier = async (req, res) => {
         timestamp: new Date()
       });
 
-      // Emit real-time update
-      req.io.emit('order-status-updated', {
+      // ✅ EMIT SOCKET EVENTS FOR ORDER STATUS CHANGE
+      const statusUpdateData = {
+        order_id: orderId, // Use string order_id for consistency
+        status: 'OnProcess',
+        paymentStatus: order.paymentStatus || 'Pending',
+        cashier: { id: cashierId, name: cashierName },
+        processingStartedAt: new Date(),
+        timestamp: new Date()
+      };
+
+      // Emit to customer app (order room)
+      io.to(`order_${orderId}`).emit('order_status_update', statusUpdateData);
+
+      // Emit to all cashier rooms for real-time updates
+      io.to('cashier_room').emit('order_confirmed', {
         orderId,
         status: 'OnProcess',
-        cashier: { id: cashierId, name: cashierName }
+        cashier: { id: cashierId, name: cashierName },
+        timestamp: new Date()
       });
+
+      // Emit to kitchen if order has kitchen items
+      const hasKitchenItems = order.items.some(item =>
+        item.menuItem && item.menuItem.workstation === 'kitchen'
+      );
+
+      if (hasKitchenItems) {
+        io.to('kitchen_room').emit('new_kitchen_order', {
+          orderId,
+          items: order.items.filter(item =>
+            item.menuItem && item.menuItem.workstation === 'kitchen'
+          ),
+          cashier: { id: cashierId, name: cashierName },
+          timestamp: new Date()
+        });
+      }
 
       res.status(200).json({
         success: true,
@@ -1505,7 +1809,7 @@ export const confirmOrderByCashier = async (req, res) => {
           orderId,
           status: order.status,
           cashier: order.cashier,
-          estimatedTime: '10-15 menit' // Could be dynamic based on order content
+          estimatedTime: '10-15 menit'
         }
       });
 
@@ -1534,6 +1838,197 @@ export const confirmOrderByCashier = async (req, res) => {
     });
   }
 };
+
+
+
+// export const confirmOrderByCashier = async (req, res) => {
+//   const { jobId } = req.params;
+//   const { cashierId, cashierName } = req.body;
+
+//   // Enhanced validation
+//   if (!cashierId || !cashierName) {
+//     return res.status(400).json({
+//       success: false,
+//       error: 'cashierId dan cashierName wajib diisi',
+//       code: 'MISSING_REQUIRED_FIELDS'
+//     });
+//   }
+
+//   try {
+//     // Get job with lock to prevent race conditions
+//     const job = await orderQueue.getJob(jobId);
+//     if (!job) {
+//       return res.status(404).json({
+//         success: false,
+//         error: 'Job tidak ditemukan',
+//         code: 'JOB_NOT_FOUND'
+//       });
+//     }
+
+//     // Validate job data
+//     const orderId = job.data?.order_id;
+//     if (!orderId) {
+//       return res.status(400).json({
+//         success: false,
+//         error: 'Data order tidak valid',
+//         code: 'INVALID_JOB_DATA'
+//       });
+//     }
+
+//     // Check if already claimed
+//     if (job.data?.cashierId) {
+//       const currentCashier = job.data.cashierId === cashierId ?
+//         'Anda' : `Kasir ${job.data.cashierName || job.data.cashierId}`;
+//       return res.status(409).json({
+//         success: false,
+//         error: `${currentCashier} sudah mengambil order ini`,
+//         code: 'ORDER_ALREADY_CLAIMED'
+//       });
+//     }
+
+//     // Start transaction for atomic updates
+//     const session = await mongoose.startSession();
+//     session.startTransaction();
+
+//     try {
+//       // Update order status and assign cashier
+//       const order = await Order.findOneAndUpdate(
+//         { order_id: orderId },
+//         {
+//           status: 'OnProcess',
+//           cashier: {
+//             id: cashierId,
+//             name: cashierName
+//           },
+//           processingStartedAt: new Date()
+//         },
+//         { new: true, session }
+//       ).populate('userId', '_id'); // Populate userId untuk mendapatkan user info
+
+//       if (!order) {
+//         await session.abortTransaction();
+//         return res.status(404).json({
+//           success: false,
+//           error: 'Order tidak ditemukan di database',
+//           code: 'ORDER_NOT_FOUND'
+//         });
+//       }
+
+//       // Update job data with cashier info
+//       await job.update({
+//         ...job.data,
+//         cashierId,
+//         cashierName,
+//         status: 'processing'
+//       });
+
+//       await session.commitTransaction();
+
+//       // Log the claim event
+//       console.log('Order claimed by cashier:', {
+//         orderId,
+//         jobId,
+//         cashierId,
+//         cashierName,
+//         userId: order.userId._id,
+//         timestamp: new Date()
+//       });
+
+//       // ✅ EMIT SOCKET EVENTS FOR ORDER STATUS CHANGE
+//       const statusUpdateData = {
+//         order_id: orderId, // Use string order_id for consistency
+//         status: 'OnProcess',
+//         paymentStatus: order.paymentStatus || 'Pending',
+//         cashier: { id: cashierId, name: cashierName },
+//         processingStartedAt: new Date(),
+//         timestamp: new Date()
+//       };
+
+//       // Emit to customer app (order room)
+//       io.to(`order_${orderId}`).emit('order_status_update', statusUpdateData);
+
+//       // Emit to all cashier rooms for real-time updates
+//       io.to('cashier_room').emit('order_confirmed', {
+//         orderId,
+//         status: 'OnProcess',
+//         cashier: { id: cashierId, name: cashierName },
+//         timestamp: new Date()
+//       });
+
+//       // Emit to kitchen if order has kitchen items
+//       const hasKitchenItems = order.items.some(item =>
+//         item.menuItem && item.menuItem.workstation === 'kitchen'
+//       );
+
+//       if (hasKitchenItems) {
+//         io.to('kitchen_room').emit('new_kitchen_order', {
+//           orderId,
+//           items: order.items.filter(item =>
+//             item.menuItem && item.menuItem.workstation === 'kitchen'
+//           ),
+//           cashier: { id: cashierId, name: cashierName },
+//           timestamp: new Date()
+//         });
+//       }
+
+//       // 🔥 SEND FCM NOTIFICATION TO CUSTOMER
+//       try {
+//         console.log('📲 Sending FCM notification for order confirmation...');
+
+//         const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
+//           order.userId._id.toString(), // Convert ObjectId to string
+//           {
+//             orderId: orderId,
+//             cashier: { id: cashierId, name: cashierName }
+//           }
+//         );
+
+//         if (notificationResult.success) {
+//           console.log('✅ FCM notification sent successfully:', notificationResult);
+//         } else {
+//           console.log('⚠️ FCM notification failed:', notificationResult);
+//         }
+//       } catch (fcmError) {
+//         // Don't fail the entire request if notification fails
+//         console.error('💥 FCM notification error:', fcmError);
+//       }
+
+//       res.status(200).json({
+//         success: true,
+//         message: 'Order berhasil diklaim dan akan diproses',
+//         data: {
+//           orderId,
+//           status: order.status,
+//           cashier: order.cashier,
+//           estimatedTime: '10-15 menit'
+//         }
+//       });
+
+//     } catch (transactionError) {
+//       await session.abortTransaction();
+//       throw transactionError;
+//     } finally {
+//       await session.endSession();
+//     }
+
+//   } catch (error) {
+//     console.error('Failed to confirm order:', {
+//       jobId,
+//       cashierId,
+//       error: error.message,
+//       stack: error.stack,
+//       timestamp: new Date()
+//     });
+
+//     const statusCode = error.code === 'ORDER_ALREADY_CLAIMED' ? 409 : 500;
+//     res.status(statusCode).json({
+//       success: false,
+//       error: 'Gagal mengkonfirmasi order',
+//       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+//       code: error.code || 'INTERNAL_SERVER_ERROR'
+//     });
+//   }
+// };
 
 
 // * Start Payment Handler
