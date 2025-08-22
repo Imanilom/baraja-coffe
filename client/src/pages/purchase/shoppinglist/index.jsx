@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaShoppingCart } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaShoppingCart, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 
 
 const ShoppingList = () => {
-    const [attendances, setAttendances] = useState([]);
+    const [request, setRequest] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -36,17 +36,17 @@ const ShoppingList = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch attendances and outlets data
+    // Fetch request and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch attendances data
-                const marketlistResponse = await axios.get("/api/marketlist/products");
+                // Fetch request data
+                const marketlistResponse = await axios.get("/api/marketlist/requests");
                 const marketlistData = marketlistResponse.data.data ? marketlistResponse.data.data : marketlistResponse.data;
 
-                setAttendances(marketlistData);
-                setFilteredData(marketlistData); // Initialize filtered data with all attendances
+                setRequest(marketlistData);
+                setFilteredData(marketlistData); // Initialize filtered data with all request
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -64,7 +64,7 @@ const ShoppingList = () => {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
                 // Set empty arrays as fallback
-                setAttendances([]);
+                setRequest([]);
                 setFilteredData([]);
                 setOutlets([]);
             } finally {
@@ -136,57 +136,12 @@ const ShoppingList = () => {
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
-    const groupedArray = useMemo(() => {
-        const grouped = {};
-
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
-
-            const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem.category
-                : [item.menuItem?.category || 'Uncategorized'];
-            const quantity = Number(item?.quantity) || 0;
-            const subtotal = Number(item?.subtotal) || 0;
-
-            categories.forEach(category => {
-                const key = `${category}`;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        category,
-                        quantity: 0,
-                        subtotal: 0
-                    };
-                }
-
-                grouped[key].quantity += quantity;
-                grouped[key].subtotal += subtotal;
-            });
-        });
-
-        return Object.values(grouped);
-    }, [filteredData]);
     // Filter outlets based on search input
     const filteredOutlets = useMemo(() => {
         return uniqueOutlets.filter(outlet =>
             outlet.toLowerCase().includes(search.toLowerCase())
         );
     }, [search, uniqueOutlets]);
-
-    // Calculate grand totals for filtered data
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.quantity += curr.quantity;
-                acc.subtotal += curr.subtotal;
-                return acc;
-            },
-            {
-                quantity: 0,
-                subtotal: 0,
-            }
-        );
-    }, [groupedArray]);
 
 
     const capitalizeWords = (text) => {
@@ -198,8 +153,8 @@ const ShoppingList = () => {
     // Apply filter function
     const applyFilter = () => {
 
-        // Make sure attendances is an array before attempting to filter
-        let filtered = ensureArray([...attendances]);
+        // Make sure request is an array before attempting to filter
+        let filtered = ensureArray([...request]);
 
         // Filter by search term (product name, category, or SKU)
         if (tempSearch) {
@@ -289,7 +244,7 @@ const ShoppingList = () => {
         setTempSelectedOutlet("");
         setValue(null);
         setSearch("");
-        setFilteredData(ensureArray(attendances));
+        setFilteredData(ensureArray(request));
         setCurrentPage(1);
     };
 
@@ -378,47 +333,27 @@ const ShoppingList = () => {
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-3 gap-[20px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-1">
-                        <label className="text-[13px] mb-1 text-gray-500">Produk</label>
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 items-end rounded bg-slate-50 shadow-slate-200 shadow-md space-x-5">
+                    <div className="flex flex-col col-span-7">
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder=""
+                                placeholder="Cari"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
                     </div>
-
-                    <div className="flex flex-col col-span-1">
-                        <label className="text-[13px] mb-1 text-gray-500">Brand</label>
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder=""
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col col-span-1">
-                        <label className="text-[13px] mb-1 text-gray-500">Supplier</label>
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder=""
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
-                            />
-                        </div>
+                    <div className="flex justify-end items-end col-span-1">
+                        <button
+                            onClick={applyFilter}
+                            className="bg-[#005429] text-white text-[13px] px-4 py-[6px] border border-[#005429] rounded"
+                        >
+                            Cari
+                        </button>
                     </div>
                 </div>
 
@@ -427,52 +362,65 @@ const ShoppingList = () => {
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
+                                <th className="px-4 py-3 font-normal">Tanggal</th>
+                                <th className="px-4 py-3 font-normal">Permintaan</th>
                                 <th className="px-4 py-3 font-normal">Produk</th>
-                                {/* <th className="px-4 py-3 font-normal">Brand</th> */}
-                                <th className="px-4 py-3 font-normal">supplier</th>
-                                <th className="px-4 py-3 font-normal text-right">Jumlah</th>
-                                <th className="px-4 py-3 font-normal text-right">Satuan</th>
-                                <th className="px-4 py-3 font-normal text-right">Harga Satuan</th>
+                                <th className="px-4 py-3 font-normal text-right">Jumlah Permintaan</th>
+                                <th className="px-4 py-3 font-normal text-right">Jumlah Diberikan</th>
+                                <th className="px-4 py-3 font-normal">Satuan</th>
+                                <th className="px-4 py-3 font-normal">Status</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((data, index) => {
-                                    try {
+                                {paginatedData.map((data, requestIndex) => (
+                                    data.items?.map((item, itemIndex) => {
+                                        const product = item.productId || {};
                                         return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
+                                            <tr
+                                                key={`${data._id}-${itemIndex}`}
+                                                className="text-left text-sm cursor-pointer hover:bg-slate-50"
+                                            >
+                                                {/* Produk */}
                                                 <td className="px-4 py-3">
-                                                    {capitalizeWords(data.name) || []}
+                                                    {formatDateTime(data.date) || "-"}
                                                 </td>
-                                                {/* <td className="px-4 py-3">
-                                                    {data.jenis || []}
-                                                </td> */}
+
                                                 <td className="px-4 py-3">
-                                                    {data.suppliers?.supplierName || []}
+                                                    {capitalizeWords(item.productName || product.name || "-")}
                                                 </td>
+
+                                                <td className="px-4 py-3">
+                                                    {data.requester || "-"}
+                                                </td>
+
+                                                {/* Qty */}
                                                 <td className="px-4 py-3 text-right">
-                                                    {data.supplier || []}
+                                                    {item.quantity || 0}
                                                 </td>
-                                                <td className="px-4 py-3">
-                                                    {data.keterangan || []}
+
+                                                {/* Jumlah total (qty * harga) */}
+                                                <td className="px-4 py-3 text-right">
+                                                    {item.fulfilledQuantity
+                                                        ? (item.fulfilledQuantity)
+                                                        : "-"}
                                                 </td>
+
+                                                {/* Satuan */}
+                                                <td className="px-4 py-3 lowercase">
+                                                    {item.unit || product.unit || "-"}
+                                                </td>
+
+                                                {/* Harga Satuan */}
                                                 <td className="px-4 py-3">
-                                                    {data.keterangan || []}
+                                                    {item.status ? (item.status) : "-"}
                                                 </td>
                                             </tr>
                                         );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="5" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
+                                    })
+                                ))}
                             </tbody>
+
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
@@ -496,13 +444,6 @@ const ShoppingList = () => {
                                 </tr>
                             </tbody>
                         )}
-
-                        <tfoot className="border-t font-semibold text-sm">
-                            <tr>
-                                <td className="p-[15px]">Total Produk</td>
-                                <td className="p-[15px] text-left rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal + (grandTotal.subtotal * 0.10))}</p></td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
 
@@ -512,22 +453,61 @@ const ShoppingList = () => {
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        <div className="flex space-x-2">
+                        <div className="flex justify-center space-x-2 mt-4">
                             <button
                                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                 disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 border rounded disabled:opacity-50"
                             >
-                                Sebelumnya
+                                <FaChevronLeft />
                             </button>
+
+                            {[...Array(totalPages)].map((_, index) => {
+                                const page = index + 1;
+
+                                if (
+                                    page === 1 ||
+                                    page === totalPages ||
+                                    (page >= currentPage - 2 && page <= currentPage + 2)
+                                ) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`px-3 py-1 rounded border ${currentPage === page
+                                                ? "bg-[#005429] text-white"
+                                                : ""
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                }
+
+                                // Tampilkan "..." jika melompati halaman
+                                if (
+                                    (page === currentPage - 3 && page > 1) ||
+                                    (page === currentPage + 3 && page < totalPages)
+                                ) {
+                                    return (
+                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
+                                            ...
+                                        </span>
+                                    );
+                                }
+
+                                return null;
+                            })}
+
                             <button
                                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                 disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 border rounded disabled:opacity-50"
                             >
-                                Berikutnya
+                                <FaChevronRight />
                             </button>
                         </div>
+
                     </div>
                 )}
             </div>

@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
+import dayjs from "dayjs";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import Header from "../../../admin/header";
 
 
 const InstallmentManagement = () => {
-    const [attendances, setAttendances] = useState([]);
+    const [checked, setChecked] = useState(false);
+    const [debt, setDebt] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -16,7 +19,10 @@ const InstallmentManagement = () => {
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
+    const [value, setValue] = useState({
+        startDate: dayjs().format("YYYY-MM-DD"),
+        endDate: dayjs().format("YYYY-MM-DD"),
+    });
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 
@@ -36,16 +42,17 @@ const InstallmentManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch attendances and outlets data
+    // Fetch debt and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch attendances data
-                const attendancesResponse = [];
+                // Fetch debt data
+                const debtResponse = await axios.get("/api/marketlist/debts");
+                const debtData = debtResponse.data.data ? debtResponse.data.data : debtResponse.data;
 
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
+                setDebt(debtData);
+                setFilteredData(debtData); // Initialize filtered data with all debt
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -63,7 +70,7 @@ const InstallmentManagement = () => {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
                 // Set empty arrays as fallback
-                setAttendances([]);
+                setDebt([]);
                 setFilteredData([]);
                 setOutlets([]);
             } finally {
@@ -144,37 +151,40 @@ const InstallmentManagement = () => {
 
     // Calculate grand totals for filtered data
     const {
-        grandTotalFinal,
+        grandTotalAmount,
+        grandTotal,
+        grandTotalPaidAmount
     } = useMemo(() => {
         const totals = {
-            grandTotalFinal: 0,
+            grandTotalAmount: 0,
+            grandTotal: 0,
+            grandTotalPaidAmount: 0,
         };
 
         if (!Array.isArray(filteredData)) {
             return totals;
         }
 
-        filteredData.forEach(product => {
+        filteredData.forEach(debt => {
             try {
-                const item = product?.items?.[0];
-                if (!item) return;
+                const amount = Number(debt.amount) || 0;
+                const paidAmount = Number(debt.paidAmount) || 0;
 
-                const subtotal = Number(item.subtotal) || 0;
-
-                totals.grandTotalFinal += subtotal + pb1;
+                totals.grandTotalAmount += amount;
+                totals.grandTotal += amount - paidAmount;
+                totals.grandTotalPaidAmount += paidAmount;
             } catch (err) {
-                console.error("Error calculating totals for product:", err);
+                console.error("Error calculating totals for debt:", err);
             }
         });
-
         return totals;
     }, [filteredData]);
 
     // Apply filter function
     const applyFilter = () => {
 
-        // Make sure attendances is an array before attempting to filter
-        let filtered = ensureArray([...attendances]);
+        // Make sure debt is an array before attempting to filter
+        let filtered = ensureArray([...debt]);
 
         // Filter by search term (product name, category, or SKU)
         if (tempSearch) {
@@ -264,7 +274,7 @@ const InstallmentManagement = () => {
         setTempSelectedOutlet("");
         setValue(null);
         setSearch("");
-        setFilteredData(ensureArray(attendances));
+        setFilteredData(ensureArray(debt));
         setCurrentPage(1);
     };
 
@@ -327,75 +337,35 @@ const InstallmentManagement = () => {
     }
 
     return (
-        <div className="">
+        <div className="min-h-screen flex flex-col">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/operational-menu" className="text-[15px] text-gray-500">Laporan Operasional</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Cicilan</span>
+            <div className="px-3 py-2 flex flex-wrap justify-between items-center border-b">
+                <div className="flex flex-wrap items-center space-x-2 text-sm">
+                    <FaClipboardList size={18} className="text-gray-500" />
+                    <p className="text-gray-500">Laporan</p>
+                    <FaChevronRight className="text-gray-500" />
+                    <Link to="/admin/operational-menu" className="text-gray-500">
+                        Laporan Operasional
+                    </Link>
+                    <FaChevronRight className="text-gray-500" />
+                    <span className="text-[#005429]">Hutang</span>
                 </div>
-                <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                <button className="mt-2 sm:mt-0 bg-[#005429] text-white text-[13px] px-4 py-2 rounded">
+                    Ekspor
+                </button>
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
+            <div className="px-3 pb-16 flex-1">
+                <div className="my-3 py-3 px-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-11 gap-3 items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
 
-                    <div className="flex flex-col col-span-3">
+                    {/* Tanggal */}
+                    <div className="flex flex-col col-span-1 sm:col-span-2 lg:col-span-3">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
+                        <div className="relative text-gray-500">
                             <Datepicker
                                 showFooter
                                 showShortcuts
@@ -405,19 +375,20 @@ const InstallmentManagement = () => {
                                 inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
                             />
-
-                            {/* Overlay untuk menyembunyikan ikon kalender */}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
+                    {/* Spacer */}
+                    <div className="hidden lg:block col-span-3"></div>
+
+                    {/* Cari */}
+                    <div className="flex flex-col col-span-1 sm:col-span-2 lg:col-span-3">
                         <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="ID Struk / Pelanggan"
+                                placeholder="Cari"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
@@ -425,67 +396,83 @@ const InstallmentManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                    {/* Buttons */}
+                    <div className="flex justify-start sm:justify-end space-x-2 items-end col-span-1 sm:col-span-2 lg:col-span-2">
+                        <button
+                            onClick={applyFilter}
+                            className="bg-[#005429] text-white text-[13px] px-4 py-2 rounded"
+                        >
+                            Terapkan
+                        </button>
+                        <button
+                            onClick={resetFilter}
+                            className="text-gray-400 border text-[13px] px-4 py-2 rounded"
+                        >
+                            Reset
+                        </button>
                     </div>
                 </div>
 
-                <div className="flex space-x-4">
-                    <span className="text-gray-500 text-[14px]">Tampilan Data Lunas:</span>
+                {/* Switch */}
+                <div className="flex flex-wrap gap-3 items-center mt-3">
+                    <span className="text-gray-500 text-[14px]">Tampilkan Data Lunas:</span>
                     <label className="font-medium text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                        <span>Tidak</span>
-                        <input type="checkbox" value="" className="sr-only peer"
-                        // checked={payMethod.linkAja}
-                        // onChange={() =>
-                        //     setPayMethod(prev => ({ ...prev, linkAja: !prev.linkAja }))
-                        // }
+                        <span className="w-[40px]">{checked ? "Ya" : "Tidak"}</span>
+                        <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => setChecked(e.target.checked)}
+                            className="sr-only peer"
                         />
-                        <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <div className="relative w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
                     </label>
-
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
+
+                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
+                    <table className="min-w-full text-smmin-w-full table-fixed text-xs sm:text-sm border-collapse">
+                        <thead className="bg-slate-50 text-gray-400">
                             <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">ID Struk</th>
-                                <th className="px-4 py-3 font-normal">Pelanggan</th>
-                                <th className="px-4 py-3 font-normal">Status</th>
-                                <th className="px-4 py-3 font-normal text-right">Total Tagihan</th>
-                                <th className="px-4 py-3 font-normal text-right">Sisa Tagihan</th>
-                                <th className="px-4 py-3 font-normal text-right">Tagihan Selanjutnya</th>
-                                <th className="px-4 py-3 font-normal">Jatuh Tempo Selanjutnya</th>
+                                <th className="px-4 py-3 font-medium">Tanggal</th>
+                                <th className="px-4 py-3 font-medium">ID Struk</th>
+                                <th className="px-4 py-3 font-medium">Supplier</th>
+                                <th className="px-4 py-3 font-medium">Status</th>
+                                <th className="px-4 py-3 font-medium text-right truncate">Total Tagihan</th>
+                                <th className="px-4 py-3 font-medium text-right truncate">Sisa Tagihan</th>
+                                <th className="px-4 py-3 font-medium text-right truncate">Dibayar Tagihan</th>
+                                <th className="px-4 py-3 font-medium">Keterangan</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
+                            <tbody className="text-gray-500 divide-y">
                                 {paginatedData.map((data, index) => {
                                     try {
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
-                                                    {data.idstruk || []}
+                                                <td className="px-4 py-3 truncate">
+                                                    {formatDateTime(data.date) || []}
                                                 </td>
-                                                <td className="px-4 py-3">
-                                                    {data.pelanggan || []}
+                                                <td className="px-4 py-3 truncate">
+                                                    {data._id || []}
+                                                </td>
+                                                <td className="px-4 py-3 truncate">
+                                                    {data.supplierName || []}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {data.status || []}
                                                 </td>
-                                                <td className="px-4 py-3">
-                                                    {formatCurrency(data.totaltagihan) || []}
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatCurrency(data.amount) || []}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(data.sisatagihan) || []}
+                                                    {formatCurrency(data.amount - data.paidAmount) || []}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(data.tagihanselamanya) || []}
+                                                    {formatCurrency(data.paidAmount) || []}
                                                 </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatDate(data.jatuhtemposelanjutnya) || []}
+                                                <td className="px-4 py-3 max-w-[150px] truncate" title={data.notes || "-"}>
+                                                    {data.notes || []}
                                                 </td>
                                             </tr>
                                         );
@@ -504,53 +491,92 @@ const InstallmentManagement = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={8}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
 
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
-                                <td className="px-4 py-2" colSpan="3">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded" colSpan="1"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotalFinal.toLocaleString()}</p></td>
-                                <td className="px-2 py-2 text-right rounded" colSpan="1"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotalFinal.toLocaleString()}</p></td>
-                                <td className="px-2 py-2 text-right rounded" colSpan="1"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotalFinal.toLocaleString()}</p></td>
+                                <td className="px-4 py-2" colSpan="4">Grand Total</td>
+                                <td className="px-2 py-2 text-right rounded truncate" colSpan="1"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotalAmount.toLocaleString()}</p></td>
+                                <td className="px-2 py-2 text-right rounded truncate" colSpan="1"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotal.toLocaleString()}</p></td>
+                                <td className="px-2 py-2 text-right rounded truncate" colSpan="1"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full text-right">Rp {grandTotalPaidAmount.toLocaleString()}</p></td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
+                {/* Pagination */}
+
                 {paginatedData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
+                    <div className="flex flex-col sm:flex-row justify-between items-center mt-4 space-y-2 sm:space-y-0">
+                        <span className="text-sm text-gray-600 text-center sm:text-left">
+                            Menampilkan{" "}
+                            {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
+                            {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari{" "}
+                            {filteredData.length} data
                         </span>
-                        <div className="flex space-x-2">
+                        <div className="flex flex-wrap justify-center sm:justify-end space-x-1">
                             <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                                 disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 border rounded disabled:opacity-50"
                             >
-                                Sebelumnya
+                                <FaChevronLeft />
                             </button>
+                            {[...Array(totalPages)].map((_, index) => {
+                                const page = index + 1;
+                                if (
+                                    page === 1 ||
+                                    page === totalPages ||
+                                    (page >= currentPage - 2 && page <= currentPage + 2)
+                                ) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`px-3 py-1 rounded border ${currentPage === page
+                                                ? "bg-[#005429] text-white"
+                                                : "bg-white"
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                }
+                                if (
+                                    (page === currentPage - 3 && page > 1) ||
+                                    (page === currentPage + 3 && page < totalPages)
+                                ) {
+                                    return (
+                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
+                                            ...
+                                        </span>
+                                    );
+                                }
+                                return null;
+                            })}
                             <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                onClick={() =>
+                                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                                }
                                 disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 border rounded disabled:opacity-50"
                             >
-                                Berikutnya
+                                <FaChevronRight />
                             </button>
                         </div>
                     </div>
                 )}
             </div>
 
+            {/* Footer Fixed */}
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <div className="w-full h-[2px] bg-[#005429]" />
             </div>
         </div>
+
     );
 };
 

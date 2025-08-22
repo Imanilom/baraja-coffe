@@ -62,14 +62,14 @@ const OperationalMenu = () => {
                         </div>
                     </Link>
 
-                    {/* Cicilan */}
+                    {/* Hutang */}
                     <Link
                         to="/admin/operational/installment"
                         className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
                     >
                         <div className="flex items-center space-x-2">
                             <FaFileInvoiceDollar size={24} />
-                            <h2 className="font-semibold">Cicilan</h2>
+                            <h2 className="font-semibold">Hutang</h2>
                         </div>
                     </Link>
 
