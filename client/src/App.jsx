@@ -136,6 +136,7 @@ import CreateTable from "./pages/table/tableplan/create";
 import EventManagement from "./pages/event";
 import CreateEvent from "./pages/event/craete";
 import UpdateTableForm from "./pages/table/tableplan/update";
+import ProductionListManagement from "./pages/inventory/production_list";
 
 
 export default function App() {
@@ -244,7 +245,8 @@ export default function App() {
                 <Route path="inventory/stockopname-create" element={<CreateStokOpname />} />
                 <Route path="inventory/transfer" element={<TransferStockManagement />} />
                 <Route path="inventory/transfer-stock-create" element={<CreateTransferStock />} />
-                <Route path="inventory/production" element={<ProductionStockManagement />} />
+                <Route path="inventory/production-stock" element={<ProductionStockManagement />} />
+                <Route path="inventory/production-list" element={<ProductionListManagement />} />
                 <Route path="inventory/production-create" element={<CreateProduction />} />
 
                 {/* Tax And Service */}

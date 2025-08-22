@@ -56,8 +56,9 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
             { name: "Stok Masuk", path: "/admin/inventory/in" },
             { name: "Stok Keluar", path: "/admin/inventory/out" },
             { name: "Transfer Stok", path: "/admin/inventory/transfer" },
-            { name: "Stok Opname", path: "/admin/inventory/stockopname" },
-            { name: "Produksi Stok", path: "/admin/inventory/production" },
+            // { name: "Stok Opname", path: "/admin/inventory/stockopname" },
+            { name: "Produk List", path: "/admin/inventory/production-list" },
+            { name: "Produk Stok", path: "/admin/inventory/production-stock" },
           ]
         },
         {
@@ -110,6 +111,9 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
 
   return (
     <>
+      <div className={`${isSidebarOpen ? "bg-black absolute w-full h-screen opacity-50 z-30 lg:hidden" : "w-0 overflow-hidden"}`}>
+
+      </div>
       <div className={`h-screen bg-gray-800 text-white fixed top-0 left-0 flex flex-col transition-all duration-300 z-40
     ${isSidebarOpen ? "w-64" : "w-0 overflow-hidden"}`}>
         <style>
@@ -127,7 +131,7 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
         }
 
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background-color: gray;
+          background-color: white;
           border-radius: 10px;
         }
 

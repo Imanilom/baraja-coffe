@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import Datepicker from 'react-tailwindcss-datepicker';
 import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown, FaBoxes, FaTrash } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import Header from "../../admin/header";
 
 const CreateStock = () => {
     const customSelectStyles = {
@@ -183,6 +184,11 @@ const CreateStock = () => {
         }
     };
 
+    const capitalizeWords = (text) => {
+        return text
+            .toLowerCase()
+            .replace(/\b\w/g, (char) => char.toUpperCase());
+    };
 
 
     const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
@@ -199,29 +205,24 @@ const CreateStock = () => {
     return (
         <div className="">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="px-3 py-3 flex justify-between items-center border-b">
+            <Header />
+
+            <form onSubmit={handleSubmit} className="space-y-6 relative">
+                <div className="px-3 py-3 flex justify-between items-center border-b text-sm">
                     <div className="flex items-center space-x-2">
-                        <FaBoxes size={22} className="text-gray-400 inline-block" />
+                        <FaBoxes size={18} className="text-gray-400 inline-block" />
                         <span
                             className="text-gray-400 inline-block"
                         >
                             Inventori
                         </span>
-                        <FaChevronRight size={22} className="text-gray-400 inline-block" />
+                        <FaChevronRight className="text-gray-400 inline-block" />
                         <span
                             className="text-gray-400 inline-block"
                         >
                             Stok Masuk
                         </span>
-                        <FaChevronRight size={22} className="text-gray-400 inline-block" />
+                        <FaChevronRight className="text-gray-400 inline-block" />
                         <span
                             className="text-gray-400 inline-block"
                         >
@@ -231,56 +232,6 @@ const CreateStock = () => {
                 </div>
                 {/* === FORM INPUT ATAS === */}
                 <div className="grid px-3 grid-cols-1 w-full md:w-1/2 gap-4">
-                    {/* === OUTLET CUSTOM === */}
-                    {/* <div className="flex items-center">
-                        <h3 className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
-                            Outlet
-                        </h3>
-                        <div className="relative flex-1">
-                            {!showInput ? (
-                                <button
-                                    type="button"
-                                    className="w-full text-[13px] text-gray-500 border py-2 px-3 rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
-                                    onClick={() => setShowInput(true)}
-                                >
-                                    {tempSelectedOutlet || 'Pilih Outlet'}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-2 px-3 rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder="Cari outlet..."
-                                />
-                            )}
-                            {showInput && (
-                                <ul
-                                    className="absolute z-10 bg-white border mt-1 w-full rounded shadow-md max-h-48 overflow-auto"
-                                    ref={dropdownRef}
-                                >
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet.name);
-                                                    setShowInput(false);
-                                                    setSearch('');
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet.name}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div> */}
 
                     {/* === TANGGAL === */}
                     <div className="flex items-start gap-4">
@@ -329,11 +280,11 @@ const CreateStock = () => {
                         <table className="table-auto w-full border-gray-300" cellPadding={10}>
                             <thead className="border-b">
                                 <tr className="">
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-3/12 text-left after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Nama Produk</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-2/12 text-left">SKU</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold text-right w-2/12 after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Jumlah</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-1/12 text-left">Satuan</th>
-                                    <th className="pb-3 text-[14px] text-[#999999] font-semibold w-1/12">Aksi</th>
+                                    <th className="pb-3 text-sm text-[#999999] font-semibold w-3/12 text-left after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Nama Produk</th>
+                                    <th className="pb-3 text-sm text-[#999999] font-semibold w-2/12 text-left">SKU</th>
+                                    <th className="pb-3 text-sm text-[#999999] font-semibold text-right w-2/12 after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Jumlah</th>
+                                    <th className="pb-3 text-sm text-[#999999] font-semibold w-1/12 text-left">Satuan</th>
+                                    <th className="pb-3 text-sm text-[#999999] font-semibold w-1/12">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -358,6 +309,7 @@ const CreateStock = () => {
                                                 classNamePrefix="select"
                                                 placeholder="Pilih Produk"
                                                 styles={customSelectStyles}
+                                                getOptionLabel={(option) => capitalizeWords(option.label || option.value)}
                                             />
                                         </td>
                                         <td>
@@ -425,13 +377,10 @@ const CreateStock = () => {
                     </div>
                 </div>
 
-                <div className="fixed bottom-0 left-64 right-0 flex justify-between items-center border-t px-3 py-3 bg-white z-50">
-                    {/* <div className="">
+                <div className="fixed bottom-0 left-0 right-0 flex justify-between items-center border-t px-3 py-3 bg-white z-20">
+                    <div className="">
                         <h3 className="block text-[#999999] text-[14px]">Kolom bertanda <b className="text-red-600">*</b> wajib diisi</h3>
-                        <span className="text-[18px] text-[#999999]">
-                            Grand Total: Rp {grandTotal.toLocaleString('id-ID')}
-                        </span>
-                    </div> */}
+                    </div>
                     <div className="flex space-x-2">
                         <Link
                             to="/admin/inventory/in"

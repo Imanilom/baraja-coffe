@@ -35,7 +35,7 @@ const AdminDashboard = () => {
       {/* Tombol Toggle di luar sidebar */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className={`fixed top-0 z-50 bg-gray-800 text-white p-2 rounded-r-full transition-all duration-300
+        className={`fixed top-0 z-40 bg-gray-800 text-white p-2 rounded-r-full transition-all duration-300
           ${isSidebarOpen ? "left-64" : "left-0"}`}
       >
         {isSidebarOpen ? <FaChevronLeft /> : <FaChevronRight />}
@@ -45,10 +45,10 @@ const AdminDashboard = () => {
         <Sidebar isSidebarOpen={isSidebarOpen} />
 
         <div
-          className={`transition-all duration-300 w-full custom-scrollbar overflow-auto h-screen ${isSidebarOpen ? "pl-64" : "pl-0"
+          className={`transition-all duration-300 w-full custom-scrollbar overflow-auto h-screen ${isSidebarOpen ? "lg:ml-64" : "ml-0"
             }`}
         >
-          <Outlet />
+          <Outlet context={{ isSidebarOpen }} />
         </div>
       </div>
     </>
