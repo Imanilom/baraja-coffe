@@ -24,7 +24,8 @@ export async function createOrderHandler({ orderId, orderData, source }) {
       // Determine initial status based on source and payment method
       let initialStatus = 'Pending';
       if (source === 'Cashier') {
-        initialStatus = orderData.paymentMethod === 'Cash' ? 'Completed' : 'Pending';
+        // initialStatus = orderData.paymentMethod === 'Cash' ? 'Completed' : 'Pending';
+        initialStatus = 'Completed';
       }
 
       // Build complete order document
@@ -34,8 +35,8 @@ export async function createOrderHandler({ orderId, orderData, source }) {
         items: orderItems,
         totalBeforeDiscount: totals.beforeDiscount,
         totalAfterDiscount: totals.afterDiscount,
-        tax: totals.tax,
-        serviceFee: totals.serviceFee,
+        totalTax: totals.totalTax,
+        totalServiceFee: totals.totalServiceFee,
         grandTotal: totals.grandTotal,
         status: initialStatus,
         source,
@@ -72,7 +73,7 @@ export async function createOrderHandler({ orderId, orderData, source }) {
     // Enqueue inventory update after successful transaction
     const queueResult = await enqueueInventoryUpdate(orderResult);
     console.log('Order and inventory queue processed:', queueResult);
-    
+
     return {
       ...queueResult,
       orderNumber: orderId,
@@ -86,7 +87,7 @@ export async function createOrderHandler({ orderId, orderData, source }) {
       orderId,
       source
     });
-    
+
     // Handle specific error cases
     if (err.message.includes('Failed to process order items')) {
       throw new Error(`ORDER_PROCESSING_FAILED: ${err.message}`);
@@ -94,13 +95,13 @@ export async function createOrderHandler({ orderId, orderData, source }) {
     if (err instanceof mongoose.Error.ValidationError) {
       throw new Error(`VALIDATION_ERROR: ${err.message}`);
     }
-    
+
     throw err;
   }
 }
 
 export async function enqueueInventoryUpdate(orderResult) {
-  if (!orderResult?.success) { 
+  if (!orderResult?.success) {
     throw new Error('Cannot enqueue inventory update for failed order');
   }
 
@@ -130,8 +131,8 @@ export async function enqueueInventoryUpdate(orderResult) {
       }
     );
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       orderId: orderResult.orderId,
       orderNumber: orderResult.orderNumber
     };
@@ -140,7 +141,7 @@ export async function enqueueInventoryUpdate(orderResult) {
       error: err.message,
       orderId: orderResult?.orderId
     });
-    
+
     // Implement fallback mechanism here if needed
     throw new Error('INVENTORY_UPDATE_ENQUEUE_FAILED');
   }

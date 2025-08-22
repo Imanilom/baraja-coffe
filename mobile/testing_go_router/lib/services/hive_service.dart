@@ -4,8 +4,10 @@ import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/outlet_info.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
+import 'package:kasirbaraja/models/tax_and_service.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
@@ -26,12 +28,58 @@ class HiveService {
     Hive.registerAdapter(BluetoothPrinterModelAdapter());
     Hive.registerAdapter(PaymentTypeModelAdapter());
     Hive.registerAdapter(PaymentMethodModelAdapter());
+    Hive.registerAdapter(TaxAndServiceModelAdapter());
+    Hive.registerAdapter(OutletInfoModelAdapter());
 
-    await Future.wait([
-      Hive.openBox('userBox'),
-      Hive.openBox<MenuItemModel>('menuItemsBox'),
-      Hive.openBox<BluetoothPrinterModel>('printers'),
-    ]);
+    await _openBoxes();
+  }
+
+  static Future<void> _openBoxes() async {
+    await Hive.openBox('userBox');
+    await Hive.openBox<MenuItemModel>('menuItemsBox');
+    await Hive.openBox<BluetoothPrinterModel>('printers');
+    await Hive.openBox<TaxAndServiceModel>('taxAndService');
+    await Hive.openBox<PaymentTypeModel>('paymentTypes');
+  }
+
+  // Helper methods to get boxes
+  static Box get userBox => Hive.box('userBox');
+  static Box<MenuItemModel> get menuItemsBox =>
+      Hive.box<MenuItemModel>('menuItemsBox');
+  static Box<TaxAndServiceModel> get taxAndServiceBox =>
+      Hive.box<TaxAndServiceModel>('taxAndService');
+  static Box<PaymentTypeModel> get paymentTypeBox =>
+      Hive.box<PaymentTypeModel>('paymentTypes');
+
+  // Clear all data (useful for logout or data refresh)
+  static Future<void> clearAllData() async {
+    await userBox.clear();
+    await menuItemsBox.clear();
+    await taxAndServiceBox.clear();
+    await paymentTypeBox.clear();
+  }
+
+  // Close all boxes (call this when app is closing)
+  static Future<void> closeAllBoxes() async {
+    await menuItemsBox.close();
+    await taxAndServiceBox.close();
+    await paymentTypeBox.close();
+  }
+
+  // Check if data exists (to determine if sync is needed)
+  static bool hasData() {
+    return menuItemsBox.isNotEmpty ||
+        taxAndServiceBox.isNotEmpty ||
+        paymentTypeBox.isNotEmpty;
+  }
+
+  // Get data count for each type
+  static Map<String, int> getDataCounts() {
+    return {
+      'menuItemsBox': menuItemsBox.length,
+      'taxAndService': taxAndServiceBox.length,
+      'paymentTypes': paymentTypeBox.length,
+    };
   }
 
   //simpan data user ke hive dengan userModel

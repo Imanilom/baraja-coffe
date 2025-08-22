@@ -13,6 +13,7 @@ import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/menu_subcategory.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
+import 'package:kasirbaraja/models/outlet_info.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/payments/payment_action.model.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
@@ -35,6 +36,7 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(MenuSubCategoryModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
+    registerAdapter(OutletInfoModelAdapter());
     registerAdapter(PaymentActionModelAdapter());
     registerAdapter(PaymentMethodModelAdapter());
     registerAdapter(PaymentModelAdapter());
@@ -59,6 +61,7 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(MenuSubCategoryModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
+    registerAdapter(OutletInfoModelAdapter());
     registerAdapter(PaymentActionModelAdapter());
     registerAdapter(PaymentMethodModelAdapter());
     registerAdapter(PaymentModelAdapter());

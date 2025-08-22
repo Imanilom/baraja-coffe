@@ -94,7 +94,8 @@ class _ListMenuState extends ConsumerState<ListMenu> {
   @override
   Widget build(BuildContext context) {
     final selectedCategory = ref.watch(categoryProvider);
-    final menu = ref.watch(menuItemProvider);
+    // final menu = ref.watch(menuItemProvider);
+    final menu = ref.watch(reservationMenuItemProvider);
     final isSearchBarVisible = ref.watch(searchBarProvider);
 
     const categories = ['All', 'makanan', 'minuman'];

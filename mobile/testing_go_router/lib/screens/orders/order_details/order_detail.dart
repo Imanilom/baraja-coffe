@@ -587,158 +587,268 @@ class OrderDetail extends ConsumerWidget {
                         )
                         : orderDetail.items.isNotEmpty
                         ? orderDetail.user == ''
-                            ? TextButton(
-                              onPressed: () {
-                                // open dialog untuk input nama pelanggan
-                                showDialog(
-                                  context: context,
-                                  builder: (context) {
-                                    //controller untuk text field
-                                    final TextEditingController controller =
-                                        TextEditingController(
-                                          text: orderDetail?.user ?? '',
+                            ? Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () {
+                                    //konfirmasi delete
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) {
+                                        return AlertDialog(
+                                          title: const Text('Hapus Pesanan'),
+                                          content: const Text(
+                                            'Apakah Anda yakin ingin menghapus pesanan ini?',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                              },
+                                              child: const Text('Batal'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                //hapus order detail
+                                                ref
+                                                    .read(
+                                                      orderDetailProvider
+                                                          .notifier,
+                                                    )
+                                                    .clearOrder();
+                                                Navigator.pop(context);
+                                              },
+                                              child: const Text('Hapus'),
+                                            ),
+                                          ],
                                         );
-                                    return SingleChildScrollView(
-                                      physics: const BouncingScrollPhysics(),
-                                      padding: const EdgeInsets.all(16),
-                                      child: AlertDialog(
-                                        title: const Text(
-                                          'Masukkan Nama Pelanggan',
-                                        ),
-                                        content: TextField(
-                                          autofocus: true,
-                                          decoration: const InputDecoration(
-                                            hintText: 'Nama Pelanggan',
-                                          ),
-                                          controller: controller,
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.pop(context);
-                                            },
-                                            child: const Text('Tutup'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              //update customer name
-                                              ref
-                                                  .read(
-                                                    orderDetailProvider
-                                                        .notifier,
-                                                  )
-                                                  .updateCustomerDetails(
-                                                    customerName:
-                                                        controller.text,
-                                                  );
-                                              Navigator.pop(context);
-                                            },
-                                            child: const Text('Simpan'),
-                                          ),
-                                        ],
-                                      ),
+                                      },
                                     );
                                   },
-                                );
-                              },
-                              //persegi panjang dan outline stroke,
-                              style: TextButton.styleFrom(
-                                foregroundColor: Colors.blue,
-                                backgroundColor: Colors.blue[50],
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  icon: const Icon(Icons.clear_rounded),
+                                  color: Colors.redAccent,
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.red[50],
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              child: const Text('Isi Nama Pelanggan'),
+                                Expanded(
+                                  child: TextButton(
+                                    onPressed: () {
+                                      // open dialog untuk input nama pelanggan
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) {
+                                          //controller untuk text field
+                                          final TextEditingController
+                                          controller = TextEditingController(
+                                            text: orderDetail?.user ?? '',
+                                          );
+                                          return SingleChildScrollView(
+                                            physics:
+                                                const BouncingScrollPhysics(),
+                                            padding: const EdgeInsets.all(16),
+                                            child: AlertDialog(
+                                              title: const Text(
+                                                'Masukkan Nama Pelanggan',
+                                              ),
+                                              content: TextField(
+                                                autofocus: true,
+                                                decoration:
+                                                    const InputDecoration(
+                                                      hintText:
+                                                          'Nama Pelanggan',
+                                                    ),
+                                                controller: controller,
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () {
+                                                    Navigator.pop(context);
+                                                  },
+                                                  child: const Text('Tutup'),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () {
+                                                    //update customer name
+                                                    ref
+                                                        .read(
+                                                          orderDetailProvider
+                                                              .notifier,
+                                                        )
+                                                        .updateCustomerDetails(
+                                                          customerName:
+                                                              controller.text,
+                                                        );
+                                                    Navigator.pop(context);
+                                                  },
+                                                  child: const Text('Simpan'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                    //persegi panjang dan outline stroke,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.blue,
+                                      backgroundColor: Colors.blue[50],
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Text('Isi Nama Pelanggan'),
+                                  ),
+                                ),
+                              ],
                             )
                             : orderDetail.tableNumber == null ||
                                 orderDetail.tableNumber == '' &&
                                     orderDetail.orderType != OrderType.takeAway
-                            ? TextButton(
-                              onPressed: () {
-                                // open dialog untuk input nomor meja
-                                showDialog(
-                                  context: context,
-                                  builder: (context) {
-                                    //controller untuk text field
-                                    final TextEditingController controller =
-                                        TextEditingController(
-                                          text: orderDetail?.tableNumber ?? '',
+                            ? Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () {
+                                    //konfirmasi delete
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) {
+                                        return AlertDialog(
+                                          title: const Text('Hapus Pesanan'),
+                                          content: const Text(
+                                            'Apakah Anda yakin ingin menghapus pesanan ini?',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                              },
+                                              child: const Text('Batal'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                //hapus order detail
+                                                ref
+                                                    .read(
+                                                      orderDetailProvider
+                                                          .notifier,
+                                                    )
+                                                    .clearOrder();
+                                                Navigator.pop(context);
+                                              },
+                                              child: const Text('Hapus'),
+                                            ),
+                                          ],
                                         );
-                                    return SingleChildScrollView(
-                                      physics: const BouncingScrollPhysics(),
-                                      padding: const EdgeInsets.all(16),
-                                      child: AlertDialog(
-                                        title: const Text(
-                                          'Masukkan Nomor Meja',
-                                        ),
-                                        content: TextField(
-                                          autofocus: true,
-                                          decoration: const InputDecoration(
-                                            hintText: 'Nomor Meja',
-                                          ),
-                                          controller: controller,
-                                          onChanged: (value) {
-                                            final cursorPosition =
-                                                controller
-                                                    .selection
-                                                    .base
-                                                    .offset;
-                                            controller.value = TextEditingValue(
-                                              text: value.toUpperCase(),
-                                              selection:
-                                                  TextSelection.collapsed(
-                                                    offset: cursorPosition,
-                                                  ),
-                                            );
-                                          },
-                                          // inputFormatters: [
-                                          //   // deny spaces,
-                                          //   FilteringTextInputFormatter.deny(
-                                          //     RegExp(r'\s'),
-                                          //     replacementString: '',
-                                          //   ),
-                                          //   UpperCaseTextFormatter(),
-                                          // ],
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.pop(context);
-                                            },
-                                            child: const Text('Batal'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              //update customer name
-                                              ref
-                                                  .read(
-                                                    orderDetailProvider
-                                                        .notifier,
-                                                  )
-                                                  .updateCustomerDetails(
-                                                    tableNumber:
-                                                        controller.text,
-                                                  );
-                                              Navigator.pop(context);
-                                            },
-                                            child: const Text('Simpan'),
-                                          ),
-                                        ],
-                                      ),
+                                      },
                                     );
                                   },
-                                );
-                              },
-                              //persegi panjang dan outline stroke,
-                              style: TextButton.styleFrom(
-                                foregroundColor: Colors.orange,
-                                backgroundColor: Colors.orange[50],
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  icon: const Icon(Icons.clear_rounded),
+                                  color: Colors.redAccent,
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.red[50],
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              child: const Text('Isi Nomor Meja'),
+                                Expanded(
+                                  child: TextButton(
+                                    onPressed: () {
+                                      // open dialog untuk input nomor meja
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) {
+                                          //controller untuk text field
+                                          final TextEditingController
+                                          controller = TextEditingController(
+                                            text:
+                                                orderDetail?.tableNumber ?? '',
+                                          );
+                                          return SingleChildScrollView(
+                                            physics:
+                                                const BouncingScrollPhysics(),
+                                            padding: const EdgeInsets.all(16),
+                                            child: AlertDialog(
+                                              title: const Text(
+                                                'Masukkan Nomor Meja',
+                                              ),
+                                              content: TextField(
+                                                autofocus: true,
+                                                decoration:
+                                                    const InputDecoration(
+                                                      hintText: 'Nomor Meja',
+                                                    ),
+                                                controller: controller,
+                                                onChanged: (value) {
+                                                  final cursorPosition =
+                                                      controller
+                                                          .selection
+                                                          .base
+                                                          .offset;
+                                                  controller
+                                                      .value = TextEditingValue(
+                                                    text: value.toUpperCase(),
+                                                    selection:
+                                                        TextSelection.collapsed(
+                                                          offset:
+                                                              cursorPosition,
+                                                        ),
+                                                  );
+                                                },
+                                                // inputFormatters: [
+                                                //   // deny spaces,
+                                                //   FilteringTextInputFormatter.deny(
+                                                //     RegExp(r'\s'),
+                                                //     replacementString: '',
+                                                //   ),
+                                                //   UpperCaseTextFormatter(),
+                                                // ],
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () {
+                                                    Navigator.pop(context);
+                                                  },
+                                                  child: const Text('Batal'),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () {
+                                                    //update customer name
+                                                    ref
+                                                        .read(
+                                                          orderDetailProvider
+                                                              .notifier,
+                                                        )
+                                                        .updateCustomerDetails(
+                                                          tableNumber:
+                                                              controller.text,
+                                                        );
+                                                    Navigator.pop(context);
+                                                  },
+                                                  child: const Text('Simpan'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                    //persegi panjang dan outline stroke,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.orange,
+                                      backgroundColor: Colors.orange[50],
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Text('Isi Nomor Meja'),
+                                  ),
+                                ),
+                              ],
                             )
                             : Row(
                               children: [
