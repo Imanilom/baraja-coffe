@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import Header from "../../../admin/header";
+import dayjs from "dayjs";
 
 const Reconciliation = () => {
     const [products, setProducts] = useState([]);
@@ -14,7 +16,10 @@ const Reconciliation = () => {
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 
@@ -279,145 +284,122 @@ const Reconciliation = () => {
     }
 
     return (
-        <div className="">
+        <div className="min-h-screen flex flex-col">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/operational-menu" className="text-[15px] text-gray-500">Laporan Operasional</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/Reconciliationummary" className="text-[15px] text-[#005429]">Rekap Kas</Link>
+            <div className="px-3 py-2 flex flex-col sm:flex-row sm:justify-between sm:items-center border-b gap-2">
+                <div className="flex items-center flex-wrap gap-1 text-sm">
+                    <FaClipboardList size={18} className="text-gray-500" />
+                    <p className="text-gray-500">Laporan</p>
+                    <FaChevronRight className="text-gray-400" />
+                    <Link to="/admin/operational-menu" className="text-gray-500">
+                        Laporan Operasional
+                    </Link>
+                    <FaChevronRight className="text-gray-400" />
+                    <Link to="/Reconciliationummary" className="text-[#005429]">
+                        Rekap Kas
+                    </Link>
                 </div>
                 <button
-                    // onClick={exportToExcel} 
-                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                    className="bg-[#005429] text-white text-sm px-4 py-2 rounded w-full sm:w-auto"
+                >
+                    Ekspor
+                </button>
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-gray-50 shadow-md">
-                    <div className="flex flex-col col-span-5">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder="Cari outlet..."
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
+            <div className="px-3 pb-4 mb-[60px]">
+                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
 
-                    <div className="flex flex-col col-span-5">
+                    {/* Tanggal */}
+                    <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
+                        <div className="relative text-gray-500">
                             <Datepicker
                                 showFooter
                                 showShortcuts
                                 value={value}
                                 onChange={setValue}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
                             />
-
-                            {/* Overlay untuk menyembunyikan ikon kalender */}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
                         </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                    {/* Buttons */}
+                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
+                        <button
+                            onClick={applyFilter}
+                            className="w-full sm:w-auto bg-[#005429] border text-white text-[13px] px-[15px] py-[8px] rounded"
+                        >
+                            Terapkan
+                        </button>
+                        <button className="w-full sm:w-auto text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded">
+                            Reset
+                        </button>
                     </div>
                 </div>
 
                 {/* Table */}
-                <div className="rounded shadow-md shadow-slate-200">
+                <div className="rounded shadow-md shadow-slate-200 overflow-x-auto">
                     <table className="min-w-full table-auto">
-                        <thead className="text-[14px] text-gray-400">
+                        <thead className="text-sm text-gray-400 bg-gray-50">
                             <tr>
-                                <th className="px-4 py-4 text-left font-normal">Waktu</th>
-                                <th className="px-4 py-4 text-left font-normal">ID Rekap Kas</th>
-                                <th className="px-4 py-4 text-left font-normal">Outlet</th>
-                                <th className="px-4 py-4 text-right font-normal">Penjualan</th>
-                                <th className="px-4 py-4 text-right font-normal">Selisih</th>
+                                <th className="px-4 py-3 text-left font-normal">Waktu</th>
+                                <th className="px-4 py-3 text-left font-normal">ID Rekap Kas</th>
+                                <th className="px-4 py-3 text-left font-normal">Outlet</th>
+                                <th className="px-4 py-3 text-right font-normal">Penjualan</th>
+                                <th className="px-4 py-3 text-right font-normal">Selisih</th>
                             </tr>
                         </thead>
                         {filteredData.length > 0 ? (
-                            <tbody>
-                                {filteredData.map((item, i) => {
-                                    return (
-                                        <tr key={i} className="hover:bg-gray-50 text-gray-500">
-                                            <td className="p-[15px]">{item.waktu}</td>
-                                            <td className="p-[15px]">{item.rekap}</td>
-                                            <td className="p-[15px] text-right">{item.outlet}</td>
-                                            <td className="p-[15px] text-right">{formatRupiah(item.penjualan)}</td>
-                                            <td className="p-[15px] text-right">{formatRupiah(item.selisih)}</td>
-                                        </tr>
-                                    );
-                                })}
+                            <tbody className="text-sm">
+                                {filteredData.map((item, i) => (
+                                    <tr key={i} className="hover:bg-gray-50 text-gray-600">
+                                        <td className="px-4 py-3">{item.waktu}</td>
+                                        <td className="px-4 py-3">{item.rekap}</td>
+                                        <td className="px-4 py-3">{item.outlet}</td>
+                                        <td className="px-4 py-3 text-right">{formatRupiah(item.penjualan)}</td>
+                                        <td className="px-4 py-3 text-right">{formatRupiah(item.selisih)}</td>
+                                    </tr>
+                                ))}
                             </tbody>
                         ) : (
                             <tbody>
-                                <tr className="py-6 text-center w-full h-96 text-gray-500">
-                                    <td colSpan={5} className="uppercase">Data tidak di temukan</td>
+                                <tr>
+                                    <td colSpan={5} className="py-10 text-center text-gray-500">
+                                        DATA TIDAK DITEMUKAN
+                                    </td>
                                 </tr>
                             </tbody>
                         )}
-                        <tfoot className="border-t font-semibold text-sm">
+                        <tfoot className="border-t font-semibold text-sm bg-gray-50">
                             <tr>
-                                <td className="p-[15px]" colSpan={3}>Total</td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal + (grandTotal.subtotal * 0.10))}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal + (grandTotal.subtotal * 0.10))}</p></td>
+                                <td className="px-4 py-3" colSpan={3}>
+                                    Total
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                    <span className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(grandTotal.subtotal + grandTotal.subtotal * 0.1)}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                    <span className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(grandTotal.subtotal + grandTotal.subtotal * 0.1)}
+                                    </span>
+                                </td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
             </div>
 
+            {/* Bottom bar */}
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <div className="w-full h-[2px] bg-[#005429]"></div>
             </div>
         </div>
     );

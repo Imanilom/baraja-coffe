@@ -1,307 +1,304 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
+import Select from "react-select";
 import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown, FaBoxes, FaTrash } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import Header from "../../admin/header";
 
 const CreateProduction = () => {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(true);
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db', // Tailwind border-gray-300
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280', // text-gray-500
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            '&:hover': {
+                borderColor: '#9ca3af', // Tailwind border-gray-400
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500 for typed text
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af', // text-gray-400
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151', // gray-700
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            cursor: 'pointer',
+        }),
+    };
+    const [supplier, setSupplier] = useState("");
     const [form, setForm] = useState({
-        outlet: '',
-        tanggal: '',
-        email: '',
-        catatan: '',
+        minimumrequest: "",
+        limitperrequest: "",
+        sku: "",
+        name: "",
+        category: "",
+        unit: "",
+        supplier: null, // untuk select supplier
+        price: "",
     });
 
-    const [outletList, setOutletList] = useState([]);
-    const [showInput, setShowInput] = useState(false);
-    const [showInput2, setShowInput2] = useState(false);
-    const [search, setSearch] = useState('');
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState('');
-    const [tempSelectedOutlet2, setTempSelectedOutlet2] = useState('');
-    const dropdownRef = useRef();
+    const categoryOptions = [
+        { value: "food", label: "Makanan" },
+        { value: "beverages", label: "Minuman" },
+        { value: "packaging", label: "Packaging" },
+        { value: "instan", label: "Instan" },
+        { value: "perlengkapan", label: "Perlengkapan" },
+    ];
 
-    // ✅ Fetch outlet dari API
-    const fetchOutlets = async () => {
-        setLoading(true);
+    const fetchSupplier = async () => {
         try {
-            const response = await axios.get('/api/outlet');
-            // Pastikan response sesuai format
-            setOutletList(response.data.data || []);
-        } catch (error) {
-            console.error('Gagal fetch outlet:', error);
-        } finally {
-            setLoading(false);
+            const supplierResponse = await axios.get('/api/marketlist/supplier');
+            const supplierData = supplierResponse.data.data ? supplierResponse.data.data : supplierResponse.data;
+
+            setSupplier(supplierData.map((sup) => ({
+                value: sup._id,
+                label: sup.name, // tampilkan nama supplier
+            })));
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setOutlets([]);
         }
     };
 
     useEffect(() => {
-        fetchOutlets();
+        fetchSupplier();
     }, []);
 
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-                setShowInput2(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    const filteredOutlets = outletList.filter((outlet) =>
-        outlet.name.toLowerCase().includes(search.toLowerCase())
-    );
-
-    const handleFormChange = (e) => {
+    const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    const [rows, setRows] = useState([
-        { namaProduk: '', jumlah: '', satuan: '', hargaBeli: '', total: 0 },
-    ]);
-
-    const handleRowChange = (index, field, value) => {
-        const updatedRows = [...rows];
-        updatedRows[index][field] = value;
-        const jumlah = parseFloat(updatedRows[index].jumlah) || 0;
-        const harga = parseFloat(updatedRows[index].hargaBeli) || 0;
-        updatedRows[index].total = jumlah * harga;
-        setRows(updatedRows);
+    const handleSupplierChange = (selectedOption) => {
+        setForm({ ...form, supplier: selectedOption });
     };
 
-    const handleAddRow = () => {
-        setRows([...rows, { namaProduk: '', jumlah: '', satuan: '', hargaBeli: '', total: 0 }]);
-    };
-
-    const handleRemoveRow = (index) => {
-        setRows(rows.filter((_, i) => i !== index));
-    };
-
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
+
         const payload = {
-            ...form,
-            outlet: tempSelectedOutlet,
-            detailProduk: rows,
+            minimumrequest: Number(form.minimumrequest),
+            limitperrequest: Number(form.limitperrequest),
+            sku: form.sku,
+            name: form.name,
+            category: form.category,
+            unit: form.unit,
+            suppliers: [
+                {
+                    supplierId: form.supplier?.value, // hanya kirim ID
+                    price: Number(form.price),
+                },
+            ],
         };
-        console.log('Data terkirim:', payload);
+
+        try {
+            const response = await axios.post("/api/marketlist/product", payload);
+            console.log("Produk berhasil disimpan:", response.data);
+
+            // Redirect kalau sukses
+            navigate("/admin/inventory/production-list");
+        } catch (error) {
+            if (error.response) {
+                // Server balas dengan status error
+                console.error("Error dari server:", error.response.data);
+                alert(`Gagal menyimpan: ${error.response.data.message || "Terjadi kesalahan"}`);
+            } else if (error.request) {
+                // Tidak ada respons dari server
+                console.error("Tidak ada respons:", error.request);
+                alert("Tidak dapat terhubung ke server");
+            } else {
+                // Error lain (misalnya kesalahan di kode)
+                console.error("Error:", error.message);
+                alert("Terjadi error: " + error.message);
+            }
+        }
     };
 
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
 
     return (
         <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="px-3 py-3 flex justify-between items-center border-b">
-                    <div className="flex items-center space-x-2">
-                        <FaBoxes size={22} className="text-gray-400 inline-block" />
-                        <span
-                            className="text-gray-400 inline-block"
-                        >
-                            Inventori
-                        </span>
-                        <FaChevronRight size={22} className="text-gray-400 inline-block" />
-                        <span
-                            className="text-gray-400 inline-block"
-                        >
-                            Produksi Stok
-                        </span>
-                        <FaChevronRight size={22} className="text-gray-400 inline-block" />
-                        <span
-                            className="text-gray-400 inline-block"
-                        >
-                            Produksi Produk
-                        </span>
+            <Header />
+
+            <div className="px-3 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b bg-white space-y-2 sm:space-y-0">
+                <div className="flex items-center space-x-2 text-sm">
+                    <FaBoxes size={18} className="text-gray-500" />
+                    <p className="text-gray-500">Inventori</p>
+                    <FaChevronRight className="text-gray-500" />
+                    <p className="text-gray-500">Produk</p>
+                    <FaChevronRight className="text-gray-500" />
+                    <p className="text-[#005429]">Tambah Produk</p>
+                </div>
+                <div className="flex w-full sm:w-auto">
+                    <div
+                        className="w-full sm:w-auto bg-white text-white px-4 py-2 rounded border border-white text-[13px] cursor-default"
+                    >
+                        Ekspor
                     </div>
                 </div>
-                {/* === FORM INPUT ATAS === */}
-                <div className="grid px-3 grid-cols-1 w-full md:w-1/2 gap-4">
-                    <div className="space-y-4">
-                        {/* OUTLET ASAL */}
-                        <div className="flex">
-                            <label className="w-[140px] text-[13px] text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1">
-                                Outlet
-                            </label>
-                            <div className="relative flex-1">
-                                {!showInput ? (
-                                    <button
-                                        type="button"
-                                        className="w-full text-[13px] text-gray-500 border py-2 px-3 rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
-                                        onClick={() => setShowInput(true)}
-                                    >
-                                        {tempSelectedOutlet || 'Pilih Outlet'}
-                                    </button>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        className="w-full text-[13px] border py-2 px-3 rounded text-left"
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                        autoFocus
-                                        placeholder="Cari outlet..."
-                                    />
-                                )}
-                                {showInput && (
-                                    <ul
-                                        className="absolute z-10 bg-white border mt-1 w-full rounded shadow-md max-h-48 overflow-auto"
-                                        ref={dropdownRef}
-                                    >
-                                        {filteredOutlets.length > 0 ? (
-                                            filteredOutlets.map((outlet, idx) => (
-                                                <li
-                                                    key={idx}
-                                                    onClick={() => {
-                                                        setTempSelectedOutlet(outlet.name);
-                                                        setShowInput(false);
-                                                        setSearch('');
-                                                    }}
-                                                    className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                                >
-                                                    {outlet.name}
-                                                </li>
-                                            ))
-                                        ) : (
-                                            <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                        )}
-                                    </ul>
-                                )}
-                            </div>
-                        </div>
+            </div>
+            <div className="px-6 py-8 max-w-4xl mx-auto">
+                <form
+                    onSubmit={handleSubmit}
+                    className="bg-white shadow-sm border border-gray-200 rounded-xl p-8 space-y-6"
+                >
 
-                        {/* TANGGAL */}
-                        <div className="flex items-center">
-                            <label className="w-[140px] text-[13px] text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1">
-                                Tanggal
+                    {/* SKU + Name */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                SKU
                             </label>
                             <input
-                                type="date"
-                                name="tanggal"
-                                value={form.tanggal}
-                                onChange={handleFormChange}
-                                className="w-full text-[13px] border py-2 px-3 rounded relative flex-1"
+                                type="text"
+                                name="sku"
+                                value={form.sku}
+                                onChange={handleChange}
+                                placeholder="Masukkan SKU produk"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#005429] focus:outline-none"
                             />
                         </div>
-
-                        {/* CATATAN */}
-                        <div className="flex items-center">
-                            <label className="w-[140px] text-[13px] text-[#999999]">Catatan</label>
-                            <textarea
-                                name="catatan"
-                                value={form.catatan}
-                                onChange={handleFormChange}
-                                className="w-full text-[13px] border py-2 px-3 rounded relative flex-1"
-                                placeholder="Ketik Catatan..."
-                                rows="2"
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Nama Produk
+                            </label>
+                            <input
+                                type="text"
+                                name="name"
+                                value={form.name}
+                                onChange={handleChange}
+                                placeholder="Masukkan nama produk"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#005429] focus:outline-none"
                             />
                         </div>
                     </div>
 
-                </div>
-
-                {/* === TABEL PRODUK === */}
-                <div className="relative">
-                    <div className="px-3 relative">
-                        <table className="table-auto w-full border-gray-300" cellPadding={10}>
-                            <thead className="border-b">
-                                <tr className="">
-                                    <th className="text-[14px] font-semibold text-[#999999] pb-3 w-3/12 text-left after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Nama Produk</th>
-                                    <th className="text-[14px] font-semibold text-[#999999] pb-3 w-2/12"></th>
-                                    <th className="text-[14px] font-semibold text-[#999999] pb-3 text-right w-2/12 after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Jumlah</th>
-                                    <th className="text-[14px] font-semibold text-[#999999] pb-3 w-1/12 text-left">Satuan</th>
-                                    <th className="text-[14px] font-semibold text-[#999999] pb-3 w-1/12"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.map((row, index) => (
-                                    <tr key={index}>
-                                        <td className="pt-3">
-                                            <input
-                                                type="text"
-                                                value={row.namaProduk}
-                                                onChange={(e) => handleRowChange(index, 'namaProduk', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg"
-                                            />
-                                        </td>
-                                        <td className="pt-3"></td>
-                                        <td className="pt-3">
-                                            <input
-                                                type="number"
-                                                value={row.jumlah}
-                                                onChange={(e) => handleRowChange(index, 'jumlah', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg"
-                                            />
-                                        </td>
-                                        <td className="pt-3">-
-                                            {/* <input
-                                                type="text"
-                                                value={row.satuan}
-                                                onChange={(e) => handleRowChange(index, 'satuan', e.target.value)}
-                                                className="w-full border px-2 py-1 rounded-lg"
-                                            /> */}
-                                        </td>
-                                        <td className=" text-center">
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveRow(index)}
-                                                className="text-red-500 hover:underline"
-                                            >
-                                                <FaTrash />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-
-                        {/* Tombol */}
-                        <div className="flex gap-2 px-3 mb-[150px] text-[14px]">
-                            <button
-                                type="button"
-                                onClick={handleAddRow}
-                                className="text-[#005249]"
-                            >
-                                + Tambah Produk
-                            </button>
+                    {/* Category + Unit */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Kategori
+                            </label>
+                            <Select
+                                name="category"
+                                options={categoryOptions}
+                                value={
+                                    categoryOptions.find((opt) => opt.value === form.category) || null
+                                }
+                                onChange={(selectedOption) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        category: selectedOption?.value || "",
+                                    }))
+                                }
+                                className="text-sm"
+                                placeholder="Pilih kategori..."
+                                styles={customSelectStyles}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Satuan
+                            </label>
+                            <input
+                                type="text"
+                                name="unit"
+                                value={form.unit}
+                                onChange={handleChange}
+                                placeholder="Contoh: Pcs, Box, Kg"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#005429] focus:outline-none"
+                            />
                         </div>
                     </div>
 
-                    <div className="fixed bottom-0 left-64 right-0 flex justify-between items-center border-t px-3 py-3 z-50 bg-white">
-                        <h3 className="block text-[#999999] text-[14px]">Kolom bertanda <b className="text-red-600">*</b> wajib diisi</h3>
-                        <div className="flex space-x-2">
-                            <Link
-                                to="/admin/inventory/production"
-                                className="block border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
-                            >
-                                Batal
-                            </Link>
-                            <button
-                                type="submit"
-                                className="block bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
-                            >
-                                Simpan
-                            </button>
+                    {/* Minimum + Limit */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Minimum Request
+                            </label>
+                            <input
+                                type="number"
+                                name="minimumrequest"
+                                value={form.minimumrequest}
+                                onChange={handleChange}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#005429] focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Limit per Request
+                            </label>
+                            <input
+                                type="number"
+                                name="limitperrequest"
+                                value={form.limitperrequest}
+                                onChange={handleChange}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#005429] focus:outline-none"
+                            />
                         </div>
                     </div>
-                </div>
-            </form>
+
+                    {/* Supplier */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Supplier
+                        </label>
+                        <Select
+                            options={supplier}
+                            value={form.supplier}
+                            onChange={handleSupplierChange}
+                            placeholder="Pilih Supplier"
+                            styles={customSelectStyles}
+                        />
+                    </div>
+
+                    {/* Price */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Harga
+                        </label>
+                        <input
+                            type="number"
+                            name="price"
+                            value={form.price}
+                            onChange={handleChange}
+                            placeholder="Masukkan harga produk"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#005429] focus:outline-none"
+                        />
+                    </div>
+
+                    {/* Button */}
+                    <div className="flex justify-end space-x-2">
+                        <Link
+                            to="/admin/inventory/production-list"
+                            className="bg-white text-[#005429] border border-[#005429] px-6 py-2 rounded-md text-sm font-medium shadow-sm transition"
+                        >
+                            Kembali
+                        </Link>
+                        <button
+                            type="submit"
+                            className="bg-[#005429] text-white border border-[#005429] px-6 py-2 rounded-md text-sm font-medium shadow-sm transition"
+                        >
+                            Simpan Produk
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 };
