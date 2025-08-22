@@ -47,36 +47,50 @@ export default function SignIn() {
   };
 
   return (
-    <div className="min-h-screen flex justify-end bg-army">
-      <div className="w-full max-w-xs px-6 bg-white shadow-xl border border-army/20 transform transition-all h-screen py-10">
+    <div className="min-h-screen bg-[#005429] flex items-center justify-center px-4">
+      <div className="w-full max-w-md sm:max-w-sm md:max-w-md lg:max-w-lg px-6 bg-white shadow-xl border border-army/20 transform transition-all py-10 rounded-xl">
+
+        {/* Logo */}
         <div className="text-center mb-8">
           <img
             src="/images/baraja.png"
             alt="Logo"
-            className="w-full my-auto max-w-xs"
+            className="w-32 mx-auto md:w-40 lg:w-48"
           />
-          {/* <p className="text-xl text-army/80">Selamat Datang Kembali</p> */}
         </div>
 
+        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <label htmlFor="identifier" className="block text-sm font-medium text-army/80">Username or Email</label>
+            <label
+              htmlFor="identifier"
+              className="block text-sm font-medium text-army/80"
+            >
+              Username or Email
+            </label>
             <input
               type="text"
               id="identifier"
               onChange={handleChange}
-              className="w-full px-4 py-2 rounded-lg bg-beige border border-army/30 focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
+              className="w-full px-4 py-2 rounded-lg bg-beige border border-army/30 
+                     focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
               placeholder="Your username or email"
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="password" className="block text-sm font-medium text-army/80">Password</label>
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-army/80"
+            >
+              Password
+            </label>
             <input
               type="password"
               id="password"
               onChange={handleChange}
-              className="w-full px-4 py-2 rounded-lg bg-beige border border-army/30 focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
+              className="w-full px-4 py-2 rounded-lg bg-beige border border-army/30 
+                     focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
               placeholder="••••••••"
             />
           </div>
@@ -84,12 +98,15 @@ export default function SignIn() {
           <button
             disabled={loading}
             type="submit"
-            className="w-full bg-army text-army py-2 rounded-lg uppercase font-semibold tracking-wider hover:bg-army-dark hover:text-white transition-all disabled:opacity-80 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+            className="w-full bg-army text-army py-2 rounded-lg uppercase font-semibold tracking-wider 
+                   hover:bg-army-dark hover:text-white transition-all 
+                   disabled:opacity-80 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
           >
-            {loading ? 'Signing In...' : 'Sign In'}
+            {loading ? "Signing In..." : "Sign In"}
           </button>
         </form>
 
+        {/* Divider */}
         <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -99,25 +116,33 @@ export default function SignIn() {
               <span className="bg-beige px-2 text-army/70">Or continue with</span>
             </div>
           </div>
-          <br />
-          <div className="relative flex justify-center text-xs uppercase">
+
+          <div className="mt-4 flex justify-center">
             <OAuth />
           </div>
         </div>
 
+        {/* Footer */}
         <p className="mt-6 text-center text-sm text-army/80">
-          Don't have an account?{' '}
-          <Link to="/sign-up" className="font-medium text-army hover:text-army-dark hover:underline transition-colors">
+          Don't have an account?{" "}
+          <Link
+            to="/sign-up"
+            className="font-medium text-army hover:text-army-dark hover:underline transition-colors"
+          >
             Create account
           </Link>
         </p>
 
+        {/* Error message */}
         {error && (
           <div className="mt-5 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-center text-sm">
-            {typeof error === 'object' ? error.message || 'Something went wrong!' : error}
+            {typeof error === "object"
+              ? error.message || "Something went wrong!"
+              : error}
           </div>
         )}
       </div>
     </div>
+
   );
 }

@@ -7,6 +7,7 @@ import Select from "react-select";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Datepicker from "react-tailwindcss-datepicker";
 import Header from "../../admin/header";
+import ExportInventory from "../exportInventory";
 
 const StockCardManagement = () => {
     const customSelectStyles = {
@@ -104,8 +105,6 @@ const StockCardManagement = () => {
             setFilteredData([]);
         }
     };
-
-    console.log(stock);
 
 
 
@@ -288,8 +287,6 @@ const StockCardManagement = () => {
         setCurrentPage(1);
     };
 
-
-
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
@@ -375,339 +372,231 @@ const StockCardManagement = () => {
     }
 
     return (
-        <div className="w-full">
+        <div className="min-h-screen flex flex-col">
             {/* Header */}
             <Header />
 
-            <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
-                <div className="flex items-center space-x-2">
-                    <FaBoxes size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Inventori</p>
-                    <FaChevronRight size={22} className="text-[15px] text-gray-500 inline-block" />
-                    <p className="text-[15px] text-[#005429]">Kartu Stok</p>
-                    <FaInfoCircle size={17} className="text-gray-400 inline-block" />
+            {/* Sub Header */}
+            <div className="px-3 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b bg-white space-y-2 sm:space-y-0">
+                <div className="flex items-center space-x-2 text-sm">
+                    <FaBoxes size={18} className="text-gray-500" />
+                    <p className="text-gray-500">Inventori</p>
+                    <FaChevronRight className="text-gray-500" />
+                    <p className="text-[#005429]">Kartu Stok</p>
+                    <FaInfoCircle size={15} className="text-gray-400" />
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex w-full sm:w-auto">
+                    <ExportInventory
+                        isOpen={isModalOpen}
+                        onClose={() => setIsModalOpen(false)}
+                    />
                     <button
-                        onClick={() => console.log('Ekspor')}
-                        className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
+                        onClick={() => setIsModalOpen(true)}
+                        className="w-full sm:w-auto bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
                     >
                         Ekspor
                     </button>
                 </div>
             </div>
 
-            {/* <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 py-4 px-3">
-                <button
-                    className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
-                >
-                    <Link className="flex justify-between items-center p-4">
-                        <div className="flex space-x-4">
-                            <strong className="text-gray-400 ml-2 text-sm">Kartu Produk</strong>
-                        </div>
-                    </Link>
-                </button>
-
-                <div
-                    className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
-                >
-                    <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-                        to={"/admin/inventory/cardoutlet"}>
-                        <div className="flex space-x-4">
-                            <h2 className="text-gray-400 ml-2 text-sm">Kartu Outlet</h2>
-                        </div>
-                    </Link>
-                </div>
-            </div> */}
-
-            <div className="w-full pb-6 mb-[60px]">
-                <div className="px-[15px] pb-[15px]">
-                    <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                        {/* <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
-                            <Select
-                                options={optionsOutlets}
-                                value={
-                                    optionsOutlets.find((option) => option.value === tempSelectedOutlet) ||
-                                    optionsOutlets[0]
-                                }
-                                onChange={(selected) => {
-                                    setTempSelectedOutlet(selected.value);
-                                }}
-                                className="text-sm"
-                                classNamePrefix="react-select"
-                                placeholder="Pilih Outlet"
-                                isSearchable
-                                styles={customSelectStyles}
+            <div className="px-3 pb-4 mb-[60px]">
+                {/* Filter */}
+                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
+                    {/* Date */}
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
+                        <div className="relative text-gray-500">
+                            <Datepicker
+                                showFooter
+                                showShortcuts
+                                value={value}
+                                onChange={setValue}
+                                displayFormat="DD-MM-YYYY"
+                                inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                popoverDirection="down"
                             />
-                        </div> */}
-
-                        <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                            <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
-                                <Datepicker
-                                    showFooter
-                                    showShortcuts
-                                    value={value}
-                                    onChange={setValue}
-                                    displayFormat="DD-MM-YYYY"
-                                    inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                                    popoverDirection="down"
-                                />
-
-                                {/* Overlay untuk menyembunyikan ikon kalender */}
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col col-span-3"></div>
-
-                        {/* <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Kategori</label>
-                            <div className="relative">
-                                {!showInputCategory ? (
-                                    <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputCategory(true)}>
-                                        {tempSelectedCategory || "Semua Kategori"}
-                                    </button>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                        value={search}
-                                        onChange={(e) => setSearchCategory(e.target.value)}
-                                        autoFocus
-                                        placeholder=""
-                                    />
-                                )}
-                                {showInputCategory && (
-                                    <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                        <li
-                                            onClick={() => {
-                                                setTempSelectedCategory(""); // Kosong berarti semua
-                                                setShowInput(false);
-                                            }}
-                                            className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                        >
-                                            Semua Kategori
-                                        </li>
-                                        {filteredCategory.length > 0 ? (
-                                            filteredCategory.map((category, idx) => (
-                                                <li
-                                                    key={idx}
-                                                    onClick={() => {
-                                                        setTempSelectedCategory(category);
-                                                        setShowInputCategory(false);
-                                                    }}
-                                                    className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                                >
-                                                    {category}
-                                                </li>
-                                            ))
-                                        ) : (
-                                            <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                        )}
-                                    </ul>
-                                )}
-                            </div>
-                        </div> */}
-
-                        <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-                            <div className="relative">
-                                <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                                <input
-                                    type="text"
-                                    placeholder="Cari Produk"
-                                    value={tempSearch}
-                                    onChange={(e) => setTempSearch(e.target.value)}
-                                    className="text-[13px] border py-[8px] pl-[30px] pr-[25px] rounded w-full"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end space-x-2 items-end col-span-1">
-                            <button onClick={applyFilter} className="bg-[#005429] border text-white text-[13px] px-[15px] py-[8px] rounded">Terapkan</button>
-                            <button className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded">Reset</button>
                         </div>
                     </div>
 
-                    <div className="w-full mt-4 py-[20px] shadow-md">
-                        <div className="flex justify-between px-[15px]">
-                            <div className="flex space-x-4 text-sm text-gray-500">
-                                <label htmlFor="" className="flex space-x-2">
-                                    <div className="w-5 h-5 bg-red-500/30"></div>
-                                    <p>Stok Sudah Mencapai Batas</p>
-                                </label>
-                                <label htmlFor="" className="flex space-x-2">
-                                    <div className="w-5 h-5 bg-yellow-500/30"></div>
-                                    <p>Stok Hampir Habis</p>
-                                </label>
-                            </div>
-                            {/* <div className="space-x-7">
-                                <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                                    <span>Produk Dijual</span>
-                                    <input type="checkbox" value="" className="sr-only peer" />
-                                    <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                                <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                                    <span>Produk Tidak Dijual</span>
-                                    <input type="checkbox" value="" className="sr-only peer" />
-                                    <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                                <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                                    <span>Stok Kosong</span>
-                                    <input type="checkbox" value="" className="sr-only peer" />
-                                    <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                            </div> */}
+                    {/* Spacer */}
+                    <div className="hidden lg:block col-span-3"></div>
+
+                    {/* Search */}
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                        <div className="relative">
+                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                placeholder="Cari"
+                                value={tempSearch}
+                                onChange={(e) => setTempSearch(e.target.value)}
+                                className="text-[13px] border py-[8px] pl-[30px] pr-[25px] rounded w-full"
+                            />
                         </div>
                     </div>
-                    <BubbleAlert paginatedData={filteredData} />
-                    {/* Menu Table */}
-                    <div className="w-full mt-4 shadow-md">
-                        <table className="w-full table-auto text-gray-500">
-                            <thead>
-                                <tr className="text-[14px]">
-                                    <th className="p-[15px] font-normal text-left w-2/12">Produk</th>
-                                    <th className="p-[15px] font-normal text-left w-2/12">Kategori</th>
-                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Awal</th>
-                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Masuk</th>
-                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Keluar</th>
-                                    {/* <th className="p-[15px] font-normal text-right">Penjualan</th> */}
-                                    <th className="p-[15px] font-normal text-right w-1/12">Transfer</th>
-                                    {/* <th className="p-[15px] font-normal text-right">Penyesuaian</th> */}
-                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Akhir</th>
-                                    {/* <th className="p-[15px] font-normal text-right">Satuan</th> */}
-                                </tr>
-                            </thead>
-                            {paginatedData.length > 0 ? (
-                                <tbody>
-                                    {paginatedData.map((item) => (
-                                        <tr key={item._id}
-                                            className={`hover:bg-gray-100 text-[14px] ${item.currentStock === 0
-                                                ? 'bg-red-500/30'
-                                                : item.currentStock <= item.minStock
-                                                    ? 'bg-yellow-500/30'
-                                                    : ''
-                                                }`}>
-                                            <td className="p-[15px]">
-                                                <div className="flex items-center">
-                                                    {/* <img
-                                                        src={item.imageURL || "https://via.placeholder.com/100"}
-                                                        alt={item.name}
-                                                        className="w-[35px] h-[35px] object-cover rounded-lg lowercase"
-                                                    /> */}
-                                                    <div className="ml-4">
-                                                        <h3>{item.name}</h3>
-                                                    </div>
-                                                    {/* <div className="ml-4">
-                                                        <h3>{item.productId !== null ? item.productId.name.toLowerCase()
-                                                            .split(' ')
-                                                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                                                            .join(' ') : "-"}</h3>
-                                                    </div> */}
-                                                </div>
-                                            </td>
-                                            <td className="p-[15px]">
-                                                {item.category?.name}
-                                                {/* {item.productId !== null ? item.productId.category : "-"} */}
-                                            </td>
-                                            <td className="p-[15px] text-right">{item.firstStock > 0 ? item.firstStock : 0}</td>
-                                            <td className={`p-[15px] text-right ${item.stockIn > 0 ? 'text-[#005429]' : ''}`}>
-                                                {item.stockIn > 0 ? `+ ${item.stockIn}` : 0}
-                                            </td>
-                                            <td className={`p-[15px] text-right ${item.stockOut > 0 ? 'text-red-500' : ''}`}>
-                                                {item.stockOut > 0 ? `- ${item.stockOut}` : 0}
-                                            </td>
-                                            {/* <td className="p-[15px] text-right">-</td> */}
-                                            <td className="p-[15px] text-right">{item.stockAdjustment > 0 ? item.stockAdjustment : 0}</td>
-                                            {/* <td className="p-[15px] text-right">-</td> */}
-                                            <td className="p-[15px] text-right">{item.finalStock > 0 ? item.finalStock : 0}</td>
-                                            {/* <td className="p-[15px] text-right lowercase">{item.productId !== null ? item.productId.unit : "-"}</td> */}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            ) : (
-                                <tbody>
-                                    <tr className="py-6 text-center w-full h-96">
-                                        <td colSpan={7}>Tidak ada data ditemukan</td>
-                                    </tr>
-                                </tbody>
-                            )}
-                        </table>
+
+                    {/* Buttons */}
+                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
+                        <button
+                            onClick={applyFilter}
+                            className="w-full sm:w-auto bg-[#005429] border text-white text-[13px] px-[15px] py-[8px] rounded"
+                        >
+                            Terapkan
+                        </button>
+                        <button className="w-full sm:w-auto text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded">
+                            Reset
+                        </button>
                     </div>
-
-                    {/* Pagination */}
-                    {paginatedData.length > 0 && (
-                        <div className="flex justify-between items-center mt-4">
-                            <span className="text-sm text-gray-600">
-                                Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                            </span>
-                            <div className="flex justify-center space-x-2 mt-4">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="px-3 py-2 border rounded disabled:opacity-50"
-                                >
-                                    <FaChevronLeft />
-                                </button>
-
-                                {[...Array(totalPages)].map((_, index) => {
-                                    const page = index + 1;
-
-                                    if (
-                                        page === 1 ||
-                                        page === totalPages ||
-                                        (page >= currentPage - 2 && page <= currentPage + 2)
-                                    ) {
-                                        return (
-                                            <button
-                                                key={page}
-                                                onClick={() => setCurrentPage(page)}
-                                                className={`px-3 py-1 rounded border ${currentPage === page
-                                                    ? "bg-[#005429] text-white"
-                                                    : ""
-                                                    }`}
-                                            >
-                                                {page}
-                                            </button>
-                                        );
-                                    }
-
-                                    // Tampilkan "..." jika melompati halaman
-                                    if (
-                                        (page === currentPage - 3 && page > 1) ||
-                                        (page === currentPage + 3 && page < totalPages)
-                                    ) {
-                                        return (
-                                            <span key={`dots-${page}`} className="px-2 text-gray-500">
-                                                ...
-                                            </span>
-                                        );
-                                    }
-
-                                    return null;
-                                })}
-
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="px-3 py-2 border rounded disabled:opacity-50"
-                                >
-                                    <FaChevronRight />
-                                </button>
-                            </div>
-
-                        </div>
-                    )}
                 </div>
+
+                {/* Info Legend */}
+                <div className="w-full mt-4 py-[15px] shadow-md">
+                    <div className="flex flex-col sm:flex-row justify-between px-[15px] space-y-2 sm:space-y-0">
+                        <div className="flex flex-col sm:flex-row sm:space-x-4 text-sm text-gray-500 space-y-2 sm:space-y-0">
+                            <label className="flex space-x-2 items-center">
+                                <div className="w-5 h-5 bg-red-500/30 rounded"></div>
+                                <p>Stok Sudah Mencapai Batas</p>
+                            </label>
+                            <label className="flex space-x-2 items-center">
+                                <div className="w-5 h-5 bg-yellow-500/30 rounded"></div>
+                                <p>Stok Hampir Habis</p>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                {/* <BubbleAlert paginatedData={filteredData} /> */}
+
+                {/* Table */}
+                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
+                    <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
+                        <thead className="bg-slate-50 text-gray-400">
+                            <tr>
+                                <th className="p-3 font-medium text-left w-[20%]">Produk</th>
+                                <th className="p-3 font-medium text-left w-[15%]">Kategori</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Stok Awal</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Stok Masuk</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Stok Keluar</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Transfer</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Stok Akhir</th>
+                            </tr>
+                        </thead>
+                        {paginatedData.length > 0 ? (
+                            <tbody className="text-gray-500 divide-y">
+                                {paginatedData.map((item) => (
+                                    <tr
+                                        key={item._id}
+                                        className={`hover:bg-gray-100 ${item.currentStock <= 0
+                                            ? "bg-red-500/30"
+                                            : item.currentStock <= item.minStock
+                                                ? "bg-yellow-500/30"
+                                                : ""
+                                            }`}
+                                    >
+                                        <td className="p-3 truncate">{item.name}</td>
+                                        <td className="p-3 truncate">{item.category?.name}</td>
+                                        <td className="p-3 text-right">{item.firstStock || 0}</td>
+                                        <td
+                                            className={`p-3 text-right ${item.stockIn > 0 ? "text-[#005429]" : ""
+                                                }`}
+                                        >
+                                            {item.stockIn > 0 ? `+ ${item.stockIn}` : 0}
+                                        </td>
+                                        <td
+                                            className={`p-3 text-right ${item.stockOut > 0 ? "text-red-500" : ""
+                                                }`}
+                                        >
+                                            {item.stockOut > 0 ? `- ${item.stockOut}` : 0}
+                                        </td>
+                                        <td className="p-3 text-right">
+                                            {item.stockAdjustment || 0}
+                                        </td>
+                                        <td className="p-3 text-right">{item.finalStock || 0}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        ) : (
+                            <tbody>
+                                <tr>
+                                    <td colSpan={7} className="text-center py-16 text-gray-400">
+                                        Tidak ada data ditemukan
+                                    </td>
+                                </tr>
+                            </tbody>
+                        )}
+                    </table>
+                </div>
+
+                {/* Pagination */}
+                {paginatedData.length > 0 && (
+                    <div className="flex flex-col sm:flex-row justify-between items-center mt-4 space-y-2 sm:space-y-0">
+                        <span className="text-sm text-gray-600 text-center sm:text-left">
+                            Menampilkan{" "}
+                            {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
+                            {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari{" "}
+                            {filteredData.length} data
+                        </span>
+                        <div className="flex flex-wrap justify-center sm:justify-end space-x-1">
+                            <button
+                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-2 border rounded disabled:opacity-50"
+                            >
+                                <FaChevronLeft />
+                            </button>
+                            {[...Array(totalPages)].map((_, index) => {
+                                const page = index + 1;
+                                if (
+                                    page === 1 ||
+                                    page === totalPages ||
+                                    (page >= currentPage - 2 && page <= currentPage + 2)
+                                ) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`px-3 py-1 rounded border ${currentPage === page
+                                                ? "bg-[#005429] text-white"
+                                                : "bg-white"
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                }
+                                if (
+                                    (page === currentPage - 3 && page > 1) ||
+                                    (page === currentPage + 3 && page < totalPages)
+                                ) {
+                                    return (
+                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
+                                            ...
+                                        </span>
+                                    );
+                                }
+                                return null;
+                            })}
+                            <button
+                                onClick={() =>
+                                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                                }
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-2 border rounded disabled:opacity-50"
+                            >
+                                <FaChevronRight />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
+            {/* Footer */}
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <div className="w-full h-[2px] bg-[#005429]" />
             </div>
         </div>
+
     );
 };
 

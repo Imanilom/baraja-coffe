@@ -7,20 +7,19 @@ const BubbleAlert = ({ paginatedData }) => {
         const newMessages = [];
 
         paginatedData.forEach((item) => {
-            if (!item.productId) return;
 
-            const productName = item.productId.name
+            const productName = item?.name
                 .toLowerCase()
                 .split(' ')
                 .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                 .join(' ');
 
-            if (item.currentStock === 0) {
+            if (item?.stockData?.currentStock <= 0 || item?.stockData == null) {
                 newMessages.push({
                     type: 'danger',
-                    text: `Stok produk "${productName}" hampir habis atau sudah habis!`,
+                    text: `Stok produk "${productName}" habis! Isi sekarang!`,
                 });
-            } else if (item.currentStock <= item.minStock) {
+            } else if (item?.stockData?.currentStock <= item?.stockData?.minStock) {
                 newMessages.push({
                     type: 'warning',
                     text: `Stok produk "${productName}" menipis, segera restock.`,
