@@ -423,10 +423,25 @@ class AddOrderItemDialogState extends State<AddOrderItemDialog> {
           topping.name!,
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
-        subtitle: Text(
-          formatRupiah(topping.price!),
-          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-        ),
+        subtitle:
+            topping.price! > 0
+                ? Text(
+                  '+ ${formatRupiah(topping.price!)}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+                : Text(
+                  'Free',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 10,
+                    color: Colors.green,
+                    backgroundColor: Colors.green[50],
+                  ),
+                ),
         value: isSelected,
         activeColor: const Color(0xFF4CAF50),
         controlAffinity: ListTileControlAffinity.trailing,
@@ -509,10 +524,7 @@ class AddOrderItemDialogState extends State<AddOrderItemDialog> {
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
-        color:
-            isSelected
-                ? const Color(0xFF4CAF50).withOpacity(0.1)
-                : Colors.white,
+        color: isSelected ? Colors.green[50] : Colors.white,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isSelected ? const Color(0xFF4CAF50) : Colors.grey[200]!,
@@ -526,6 +538,25 @@ class AddOrderItemDialogState extends State<AddOrderItemDialog> {
           option.label!,
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
+        subtitle:
+            option.price! > 0
+                ? Text(
+                  '+ ${formatRupiah(option.price!)}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+                : Text(
+                  'Free',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 10,
+                    color: Colors.green,
+                    backgroundColor: Colors.green[50],
+                  ),
+                ),
         value: option,
         groupValue: selectedAddon.options?.firstOrNull,
         activeColor: const Color(0xFF4CAF50),

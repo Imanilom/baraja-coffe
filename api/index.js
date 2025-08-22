@@ -17,6 +17,7 @@ import storageRoutes from './routes/storage.routes.js';
 import contentRoutes from './routes/content.routes.js';
 import outletRoutes from './routes/outlet.routes.js';
 import posRoutes from './routes/pos.routes.js';
+import fcmRoutes from './routes/fcm.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import historyRoutes from './routes/history.routes.js';
 import paymentMethodsRouter from './routes/paymentMethode.js';
@@ -73,15 +74,15 @@ app.use(cookieParser());
 app.use(cors({
   origin: '*', // atau domain frontend Anda
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: [ 
-    'Content-Type', 
-    'Authorization', 
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
     'ngrok-skip-browser-warning',
     'X-Requested-With',
     'Accept'],
-    credentials: true, 
-    preflightContinue: false,
-    optionsSuccessStatus: 204
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 
 }));
 
@@ -89,6 +90,7 @@ app.use("/images", express.static("api/public/images")); // supaya bisa diakses 
 
 // Route definitions...
 app.use('/api/user', userRoutes);
+app.use('/api/fcm', fcmRoutes);
 app.use('/api/staff', posRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/areas', areaRoutes);
