@@ -2058,11 +2058,13 @@ export const getPendingOrders = async (req, res) => {
       return res.status(200).json({ message: 'No online order found.', orders: pendingOrders });
     }
 
-    const orderIds = pendingOrders.map(order => order._id);
+    const orderIds = pendingOrders.map(order => order.order_id);
 
     const payments = await Payment.find({
       order_id: { $in: orderIds }
     }).lean();
+
+    console.log(payments);
 
     const paymentStatusMap = new Map();
     payments.forEach(payment => {
@@ -2120,7 +2122,7 @@ export const getPendingOrders = async (req, res) => {
         };
       });
 
-      const paymentStatus = paymentStatusMap.get(order._id.toString()) || 'Pending';
+      const paymentStatus = paymentStatusMap.get(order.order_id.toString()) || 'Pending';
 
       return {
         ...order,
