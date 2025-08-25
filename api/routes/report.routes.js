@@ -1,6 +1,7 @@
 import express from 'express';
 import {
-    salesReport
+    salesReport,
+    getCashierSalesReport
 } from '../controllers/report.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -12,7 +13,7 @@ const adminAccess = verifyToken(['admin', 'superadmin']);
 
 
 // router.post('/raw-material', adminAccess, createRawMaterial); // Create a new Raw Material
-router.get('/sales', salesReport); // Get all Sales
+router.get('/sales', getCashierSalesReport); // Get all Sales
 // router.put('/raw-material/:id', adminAccess, updateRawMaterial); // Update a specific Raw Material
 // router.delete('/raw-material/:id', adminAccess, deleteRawMaterial); // Delete a specific Raw Material
 
