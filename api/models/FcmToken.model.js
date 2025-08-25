@@ -5,26 +5,20 @@ const FcmTokenSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true,
+        unique: true, // pastikan 1 user = 1 dokumen
     },
-    fcmToken: {
-        type: String,
-        required: false,
-    },
-    deviceType: {
-        type: String, // contoh: "android", "ios", "web"
-        default: "android",
-    },
+    fcmTokens: [
+        {
+            token: { type: String, required: true },
+            deviceType: { type: String, default: "android" },
+            lastUsedAt: { type: Date, default: Date.now }
+        }
+    ],
     createdAt: {
-        type: Date,
-        default: Date.now,
-    },
-    lastUsedAt: {
         type: Date,
         default: Date.now,
     }
 });
-
-FcmTokenSchema.index({ user: 1, fcmToken: 1 }, { unique: true });
 
 const FcmToken = mongoose.model("FcmToken", FcmTokenSchema);
 export default FcmToken;
