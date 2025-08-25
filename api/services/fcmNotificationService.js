@@ -6,22 +6,20 @@ class FCMNotificationService {
     /**
      * Send notification to specific user
      */
+
     async sendToUser(userId, notification, data = {}) {
         try {
             console.log(`📤 Sending notification to user: ${userId}`);
 
-            // Ambil token user
-            const userTokens = await FcmToken.find({
-                user: userId,
-                fcmToken: { $exists: true, $ne: null, $ne: '' }
-            });
+            // Ambil 1 dokumen user
+            const userTokensDoc = await FcmToken.findOne({ user: userId });
 
-            if (userTokens.length === 0) {
+            if (!userTokensDoc || !userTokensDoc.fcmTokens || userTokensDoc.fcmTokens.length === 0) {
                 console.log(`⚠️ No FCM tokens found for user: ${userId}`);
                 return { success: false, message: 'No FCM tokens found' };
             }
 
-            const tokens = userTokens.map(t => t.fcmToken);
+            const tokens = userTokensDoc.fcmTokens.map(t => t.token);
 
             const message = {
                 notification: {
@@ -33,8 +31,7 @@ class FCMNotificationService {
                     ...data,
                     timestamp: new Date().toISOString(),
                     click_action: 'FLUTTER_NOTIFICATION_CLICK'
-                },
-                token: "" // nanti diisi di sendToToken
+                }
             };
 
             const results = await Promise.allSettled(
@@ -57,7 +54,7 @@ class FCMNotificationService {
             });
 
             if (invalidTokens.length > 0) {
-                await this.cleanupInvalidTokens(invalidTokens);
+                await this.cleanupInvalidTokens(userId, invalidTokens);
             }
 
             console.log(`✅ Notification sent successfully to ${successCount}/${tokens.length} tokens`);
@@ -73,6 +70,7 @@ class FCMNotificationService {
             return { success: false, error: error.message };
         }
     }
+
 
     async sendToToken(token, message) {
         try {
@@ -92,14 +90,18 @@ class FCMNotificationService {
         return invalidErrors.some(e => error.toLowerCase().includes(e));
     }
 
-    async cleanupInvalidTokens(invalidTokens) {
+    async cleanupInvalidTokens(userId, invalidTokens) {
         try {
-            const result = await FcmToken.deleteMany({ fcmToken: { $in: invalidTokens } });
-            console.log(`🧹 Cleaned up ${result.deletedCount} invalid tokens`);
+            const result = await FcmToken.updateOne(
+                { user: userId },
+                { $pull: { fcmTokens: { token: { $in: invalidTokens } } } }
+            );
+            console.log(`🧹 Cleaned up ${result.modifiedCount} invalid tokens`);
         } catch (err) {
             console.error('💥 Error cleaning up invalid tokens:', err);
         }
     }
+
 
     async sendOrderConfirmationNotification(userId, orderData) {
         const notification = {

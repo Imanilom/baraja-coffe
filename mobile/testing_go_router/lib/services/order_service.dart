@@ -26,6 +26,7 @@ class OrderService {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
           },
         ),
       );
@@ -68,6 +69,7 @@ class OrderService {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
           },
         ),
       );
@@ -103,6 +105,7 @@ class OrderService {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
           },
         ),
       );
@@ -124,6 +127,7 @@ class OrderService {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
           },
         ),
       );
