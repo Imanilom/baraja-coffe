@@ -24,6 +24,7 @@ import historyRoutes from './routes/history.routes.js';
 import paymentMethodsRouter from './routes/paymentMethode.js';
 import tableLayoutRoutes from './routes/tableLayout.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import favoriteRoutes from './routes/favorite.routes.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
@@ -91,12 +92,13 @@ app.use(cors({
 app.use("/images", express.static("api/public/images")); // supaya bisa diakses dari browser
 
 // Route definitions...
+app.use('/api', orderRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/favorites', favoriteRoutes);
 app.use('/api/fcm', fcmRoutes);
 app.use('/api/staff', posRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/areas', areaRoutes);
-app.use('/api', orderRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/paymentlist', paymentMethodsRouter);
 app.use('/api/menu', menuRoutes);
