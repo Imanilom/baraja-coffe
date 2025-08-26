@@ -43,7 +43,7 @@ export const midtransWebhook = async (req, res) => {
 
     console.log(`💰 Payment record updated for order ${order_id}`);
 
-    // Find related order
+    // Find related order using STRING order_id (bukan ObjectId)
     const order = await Order.findOne({ order_id: order_id })
       .populate('user_id', 'name email phone')
       .populate('cashierId', 'name');
@@ -66,14 +66,20 @@ export const midtransWebhook = async (req, res) => {
 
           console.log(`✅ Order ${order_id} marked as paid`);
 
-          // Notify client
-          io.to(order._id.toString()).emit('payment_status_update', {
-            order_id,
+          // ✅ PERBAIKAN 1: Emit dengan order_id STRING (bukan ObjectId)
+          const paymentUpdateData = {
+            order_id: order_id,  // <- Gunakan string order_id
             status: order.status,
             paymentStatus: order.paymentStatus,
             transaction_status,
             timestamp: new Date()
-          });
+          };
+
+          // Emit ke room spesifik menggunakan order_id string
+          io.to(`order_${order_id}`).emit('payment_status_update', paymentUpdateData);
+          io.to(`order_${order_id}`).emit('order_status_update', paymentUpdateData);
+
+          console.log(`🔔 Emitted updates to room: order_${order_id}`);
 
           // Broadcast to cashier
           const mappedOrder = mapOrderForFrontend(order);
@@ -84,6 +90,18 @@ export const midtransWebhook = async (req, res) => {
           await order.save();
 
           console.log(`⚠️ Order ${order_id} payment challenged`);
+
+          // Emit challenge status
+          const challengeData = {
+            order_id: order_id,
+            status: order.status,
+            paymentStatus: order.paymentStatus,
+            transaction_status,
+            timestamp: new Date()
+          };
+
+          io.to(`order_${order_id}`).emit('payment_status_update', challengeData);
+          io.to(`order_${order_id}`).emit('order_status_update', challengeData);
         }
         break;
 
@@ -95,6 +113,18 @@ export const midtransWebhook = async (req, res) => {
         await order.save();
 
         console.log(`❌ Order ${order_id} payment failed: ${transaction_status}`);
+
+        // Emit failed status
+        const failedData = {
+          order_id: order_id,
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          transaction_status,
+          timestamp: new Date()
+        };
+
+        io.to(`order_${order_id}`).emit('payment_status_update', failedData);
+        io.to(`order_${order_id}`).emit('order_status_update', failedData);
         break;
 
       case 'pending':
@@ -103,19 +133,23 @@ export const midtransWebhook = async (req, res) => {
         await order.save();
 
         console.log(`ℹ️ Order ${order_id} is still pending`);
+
+        // Emit pending status
+        const pendingData = {
+          order_id: order_id,
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          transaction_status,
+          timestamp: new Date()
+        };
+
+        io.to(`order_${order_id}`).emit('payment_status_update', pendingData);
+        io.to(`order_${order_id}`).emit('order_status_update', pendingData);
         break;
 
       default:
         console.warn(`⚠️ Unhandled transaction status: ${transaction_status}`);
     }
-
-    // Emit global status update
-    io.emit('order_status_update', {
-      order_id: order._id,
-      status: order.status,
-      paymentStatus: order.paymentStatus,
-      timestamp: new Date()
-    });
 
     res.status(200).json({ status: 'ok' });
 
@@ -126,7 +160,7 @@ export const midtransWebhook = async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Failed to process webhook',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
@@ -137,7 +171,7 @@ export const midtransWebhook = async (req, res) => {
 function mapOrderForFrontend(order) {
   return {
     _id: order._id,
-    orderId: order.order_id,
+    orderId: order.order_id,  // ✅ Konsisten dengan string
     userId: order.user_id?._id || order.user_id,
     customerName: order.user_id?.name || order.user,
     customerPhone: order.user_id?.phone || order.phoneNumber,

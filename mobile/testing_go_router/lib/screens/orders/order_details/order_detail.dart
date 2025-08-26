@@ -544,6 +544,10 @@ class OrderDetail extends ConsumerWidget {
                                               'Pending') {
                                         //confirm order
                                         print('order dikonfirmasi bohongan');
+                                        context.push(
+                                          '/payment-method',
+                                          extra: orderDetail,
+                                        );
                                         // confirmOrder(ref, orderDetail);
                                       } else if (orderDetail.items.isNotEmpty &&
                                           orderDetail.paymentStatus ==

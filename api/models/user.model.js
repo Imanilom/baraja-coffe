@@ -46,11 +46,17 @@ const UserSchema = new mongoose.Schema({
   // outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' }, // Kasir & Staff harus terkait dengan outlet
   claimedVouchers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' }],
   loyaltyPoints: { type: Number, required: true, default: 0 },
-  loyaltyLevel: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'LoyaltyLevel', 
-    required: false 
+  loyaltyLevel: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'LoyaltyLevel',
+    required: false
   },
+  favorites: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'MenuItem'
+    }
+  ],
 
 }, { timestamps: true });
 
