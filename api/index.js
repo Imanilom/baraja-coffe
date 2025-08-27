@@ -25,6 +25,7 @@ import paymentMethodsRouter from './routes/paymentMethode.js';
 import tableLayoutRoutes from './routes/tableLayout.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import favoriteRoutes from './routes/favorite.routes.js';
+import deviceRoutes from './routes/device.routes.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
@@ -120,6 +121,7 @@ app.use('/api/location', LocationRoutes);
 app.use('/api/dev', DevRoutes);
 app.use('/api/event', EventRoutes);
 app.use('/api/accounting', AccountingRoutes);
+app.use('/api/devices', deviceRoutes);
 // app.post('/api/midtrans/webhook', (req, res) => {
 //   res.status(200).send('OK');
 // });
