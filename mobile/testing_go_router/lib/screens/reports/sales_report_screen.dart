@@ -37,7 +37,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
   @override
   Widget build(BuildContext context) {
     final ref = this.ref;
-    final reportProvider = ref.watch(salesReportProvider('default'));
+    // final reportProvider = ref.watch(salesReportProvider('default'));
     print('reportProvider: $reportProvider');
     return Scaffold(
       backgroundColor: Colors.grey[50],

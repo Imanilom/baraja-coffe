@@ -28,8 +28,8 @@ export const getSalesSummary = async (req, res) => {
         const toObjectId = (id) => {
             if (!id) return null;
             try {
-                const trimId = id.trim(); // Hapus spasi di awal/akhir
-                return new mongoose.Types.ObjectId(trimId);
+                // const trimId = id.trim(); // Hapus spasi di awal/akhir
+                return new mongoose.Types.ObjectId(id);
             } catch (error) {
                 console.warn(`Invalid ObjectId: ${id}`);
                 return null;

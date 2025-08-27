@@ -1,11 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
+import 'package:kasirbaraja/models/report/summary_report.model.dart';
 
 class SalesReportService {
   // This class would contain methods to generate sales reports
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
 
-  Future<Map<String, dynamic>> fetchSalesReportSummary(
+  Future<SalesSummary> fetchSalesReportSummary(
     String outletId,
     String date,
   ) async {
@@ -22,12 +23,28 @@ class SalesReportService {
         ),
       );
 
-      print('Sales report response data: ${response.data}');
-
-      return response.data;
+      return SalesSummary.fromJson(response.data);
     } on DioException catch (e) {
-      print('error fetching sales report: ${e.response?.data}');
-      throw Exception('Failed to fetch sales report');
+      throw _handleDioError(e);
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  String _handleDioError(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+        return 'Connection timeout';
+      case DioExceptionType.sendTimeout:
+        return 'Send timeout';
+      case DioExceptionType.receiveTimeout:
+        return 'Receive timeout';
+      case DioExceptionType.badResponse:
+        return 'Server error: ${e.response?.statusCode}';
+      case DioExceptionType.cancel:
+        return 'Request cancelled';
+      default:
+        return 'Network error occurred';
     }
   }
 }
