@@ -57,6 +57,13 @@ const UserSchema = new mongoose.Schema({
       ref: 'MenuItem'
     }
   ],
+  authType: {
+    type: String,
+    enum: ["local", "google"],
+    default: "local",
+  },
+
+
 
 }, { timestamps: true });
 
