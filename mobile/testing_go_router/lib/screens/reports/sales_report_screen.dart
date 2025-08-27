@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/providers/sales_report_provider.dart';
 // Import service yang sudah dibuat sebelumnya
 // import 'sales_report_service.dart';
 
@@ -35,6 +36,9 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
 
   @override
   Widget build(BuildContext context) {
+    final ref = this.ref;
+    final reportProvider = ref.watch(salesReportProvider('default'));
+    print('reportProvider: $reportProvider');
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
