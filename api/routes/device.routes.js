@@ -7,7 +7,6 @@ import {
   deleteDevice,
   setDeviceQuotas,
   getDeviceQuotas,
-  validateDeviceForLogin
 } from '../controllers/device.controller.js';
 
 const router = Router();
@@ -22,7 +21,5 @@ router.delete('/devices/:id', deleteDevice);
 router.post('/quotas', setDeviceQuotas);
 router.get('/quotas', getDeviceQuotas);
 
-// Gunakan di auth
-router.post('/login', validateDeviceForLogin, staffLoginController);
 
 export default router;
