@@ -11,13 +11,13 @@ import {
     getCashiersList
 } from '../controllers/cashierReport.controller.js'
 import { verifyToken } from '../utils/verifyUser.js';
+import { validateSalesReportQuery } from '../utils/salesReportQuery.js';
 
 const router = express.Router();
 
 
 // Middleware for admin and superadmin access
 const adminAccess = verifyToken(['admin', 'superadmin']);
-
 
 // router.post('/raw-material', adminAccess, createRawMaterial); // Create a new Raw Material
 router.get('/sales', salesReport); // Get all Sales
