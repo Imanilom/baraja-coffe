@@ -265,39 +265,20 @@ const SupplierManagement = () => {
                                                 <td className="px-4 py-3 max-w-[150px] truncate" title={data.email}>
                                                     {data.email || []}
                                                 </td>
-                                                <td className="p-[15px]">
-                                                    {/* Dropdown Menu */}
-                                                    <div className="relative text-right">
-                                                        <button
-                                                            className="px-2 bg-white border border-gray-200 hover:bg-green-800 rounded-sm"
-                                                            onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
-                                                        >
-                                                            <span className="text-xl text-gray-200 hover:text-white">
-                                                                •••
-                                                            </span>
-                                                        </button>
-                                                        {openDropdown === data._id && (
-                                                            <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
-                                                                <ul className="w-full">
-                                                                    <Link
-                                                                        to={`/admin/purchase/supplier-update/${data._id}`}
-                                                                        className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                                                                    >
-                                                                        <FaPencilAlt size={18} />
-                                                                        <span>Ubah</span>
-                                                                    </Link>
-                                                                    <button className="w-full flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                                                                        onClick={() => {
-                                                                            setItemToDelete(data._id);
-                                                                            setIsModalOpen(true);
-                                                                        }}>
-                                                                        <FaTrash size={18} />
-                                                                        <p>Hapus</p>
-                                                                    </button>
-                                                                </ul>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                <td className="p-[15px] flex space-x-2">
+                                                    <Link
+                                                        to={`/admin/purchase/supplier-update/${data._id}`}
+                                                        className="bg-transparent flex items-center px-2 text-sm cursor-pointer hover:bg-gray-100"
+                                                    >
+                                                        <FaPencilAlt size={18} />
+                                                    </Link>
+                                                    <button className="w-full flex items-center px-2 text-red-500 text-sm cursor-pointer hover:bg-gray-100"
+                                                        onClick={() => {
+                                                            setItemToDelete(data._id);
+                                                            setIsModalOpen(true);
+                                                        }}>
+                                                        <FaTrash size={18} />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         );

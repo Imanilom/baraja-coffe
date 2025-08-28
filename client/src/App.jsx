@@ -107,7 +107,7 @@ import CreateStock from "./pages/inventory/in_stock/create";
 import CreateOutStock from "./pages/inventory/out_stock/create";
 import CreateTransferStock from "./pages/inventory/transfer_stock/create";
 import CreateStokOpname from "./pages/inventory/stock_opname/create";
-import CreateProduction from "./pages/inventory/production_stock/create";
+import CreateProduction from "./pages/inventory/production_list/create";
 import CreatePurchaseOrder from "./pages/purchase/purchaseorder/create";
 import ExpenditureListManagement from "./pages/purchase/expenditurelist";
 import CreateShoppingList from "./pages/purchase/shoppinglist/create";
@@ -137,6 +137,7 @@ import EventManagement from "./pages/event";
 import CreateEvent from "./pages/event/craete";
 import UpdateTableForm from "./pages/table/tableplan/update";
 import ProductionListManagement from "./pages/inventory/production_list";
+import UpdateProduction from "./pages/inventory/production_list/update";
 
 
 export default function App() {
@@ -247,6 +248,7 @@ export default function App() {
                 <Route path="inventory/transfer-stock-create" element={<CreateTransferStock />} />
                 <Route path="inventory/production-stock" element={<ProductionStockManagement />} />
                 <Route path="inventory/production-list" element={<ProductionListManagement />} />
+                <Route path="inventory/production-update/:id" element={<UpdateProduction />} />
                 <Route path="inventory/production-create" element={<CreateProduction />} />
 
                 {/* Tax And Service */}

@@ -31,6 +31,10 @@ export default function SignIn() {
       });
       const data = await res.json();
 
+      // 🔥 Logging response sebelum dipakai
+      console.log("Response status:", res.status);
+      console.log("Full response JSON:", data);
+
       if (!res.ok) {
         throw new Error(data.message || 'Sign-in failed');
       }

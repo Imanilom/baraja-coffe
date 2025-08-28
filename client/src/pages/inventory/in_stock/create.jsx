@@ -95,7 +95,7 @@ const CreateStock = () => {
         fetchProduct();
     }, []);
 
-    const productOptions = product.map(p => ({
+    const productOptions = menu.map(p => ({
         value: p._id,
         label: p.name,
         _id: p._id,
@@ -162,7 +162,8 @@ const CreateStock = () => {
                         notes: form.catatan || "",
                         date: form.tanggal,          // tambah ini
                     }
-                ]
+                ],
+                referenceType: "Marketlist"
             };
         }).filter(item => item !== null);
 

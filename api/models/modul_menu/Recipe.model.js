@@ -17,6 +17,10 @@ const ingredientSchema = new mongoose.Schema({
   unit: {
     type: String,
     required: true
+  },
+  isDefault: {
+    type: Boolean,
+    default: false
   }
 }, { _id: false });
 
