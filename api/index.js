@@ -7,6 +7,7 @@ import cors from 'cors';
 import http from 'http';
 import { Server } from 'socket.io';
 import WebSocket from 'ws';
+import { initializeFirebase } from './config/firebase.js';
 // Routes imports...
 import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
@@ -22,6 +23,9 @@ import reportRoutes from './routes/report.routes.js';
 import historyRoutes from './routes/history.routes.js';
 import paymentMethodsRouter from './routes/paymentMethode.js';
 import tableLayoutRoutes from './routes/tableLayout.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
+import favoriteRoutes from './routes/favorite.routes.js';
+import deviceRoutes from './routes/device.routes.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
@@ -51,8 +55,8 @@ mongoose
 
 const __dirname = path.resolve();
 const app = express();
+initializeFirebase();
 const server = http.createServer(app);
-
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -89,12 +93,14 @@ app.use(cors({
 app.use("/images", express.static("api/public/images")); // supaya bisa diakses dari browser
 
 // Route definitions...
+app.use('/api', orderRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/favorites', favoriteRoutes);
 app.use('/api/fcm', fcmRoutes);
 app.use('/api/staff', posRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/areas', areaRoutes);
-app.use('/api', orderRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/paymentlist', paymentMethodsRouter);
 app.use('/api/menu', menuRoutes);
 app.use('/api/rating', ratingRoutes);
@@ -115,6 +121,7 @@ app.use('/api/location', LocationRoutes);
 app.use('/api/dev', DevRoutes);
 app.use('/api/event', EventRoutes);
 app.use('/api/accounting', AccountingRoutes);
+app.use('/api/devices', deviceRoutes);
 // app.post('/api/midtrans/webhook', (req, res) => {
 //   res.status(200).send('OK');
 // });

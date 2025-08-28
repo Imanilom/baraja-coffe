@@ -252,12 +252,13 @@ class MainScreen extends ConsumerWidget {
                     ref: ref,
                     icon: Icons.receipt_long,
                     title: 'Rekap Kasir',
-                    isSelected: currentPageIndex == 2,
+                    // isSelected: currentPageIndex == 2,
                     onTap: () {
-                      if (currentPageIndex != 2) {
-                        ref.read(currentPageIndexProvider.notifier).setIndex(2);
-                      }
-                      Navigator.pop(context);
+                      // if (currentPageIndex != 2) {
+                      //   ref.read(currentPageIndexProvider.notifier).setIndex(2);
+                      // }
+                      // Navigator.pop(context);
+                      context.pushNamed('sales-report');
                     },
                   ),
                 ],
@@ -373,7 +374,7 @@ class MainScreen extends ConsumerWidget {
         children: const <Widget>[
           OrderScreen(),
           ReservationScreen(),
-          SalesReportPage(),
+          // SalesReportScreen(),
         ],
       ),
     );

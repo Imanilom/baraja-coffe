@@ -2,17 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/providers/sales_report_provider.dart';
 // Import service yang sudah dibuat sebelumnya
 // import 'sales_report_service.dart';
 
-class SalesReportPage extends ConsumerStatefulWidget {
-  const SalesReportPage({super.key});
+class SalesReportScreen extends ConsumerStatefulWidget {
+  const SalesReportScreen({super.key});
 
   @override
-  ConsumerState<SalesReportPage> createState() => _SalesReportPageState();
+  ConsumerState<SalesReportScreen> createState() => _SalesReportScreenState();
 }
 
-class _SalesReportPageState extends ConsumerState<SalesReportPage>
+class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
   DateTime selectedDate = DateTime.now();
@@ -35,6 +36,9 @@ class _SalesReportPageState extends ConsumerState<SalesReportPage>
 
   @override
   Widget build(BuildContext context) {
+    final ref = this.ref;
+    // final reportProvider = ref.watch(salesReportProvider('default'));
+    print('reportProvider: $reportProvider');
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -43,6 +47,7 @@ class _SalesReportPageState extends ConsumerState<SalesReportPage>
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: Colors.indigo[600],
+        foregroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
