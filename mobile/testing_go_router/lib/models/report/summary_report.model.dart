@@ -115,3 +115,35 @@ class OrderTypeBreakdown {
     );
   }
 }
+
+class SalesFilter {
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final String? cashier;
+  final String? paymentMethod;
+  final String? orderType;
+
+  SalesFilter({
+    this.startDate,
+    this.endDate,
+    this.cashier,
+    this.paymentMethod,
+    this.orderType,
+  });
+
+  SalesFilter copyWith({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? cashier,
+    String? paymentMethod,
+    String? orderType,
+  }) {
+    return SalesFilter(
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      cashier: cashier ?? this.cashier,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      orderType: orderType ?? this.orderType,
+    );
+  }
+}

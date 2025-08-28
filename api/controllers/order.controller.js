@@ -2559,7 +2559,7 @@ export const getPendingOrders = async (req, res) => {
       order_id: { $in: orderIds }
     }).lean();
 
-    console.log(payments);
+    // console.log(payments);
 
     const paymentStatusMap = new Map();
     payments.forEach(payment => {
@@ -2595,9 +2595,10 @@ export const getPendingOrders = async (req, res) => {
           const matchedAddon = menuItem?.addons?.find(ma => ma.name === addon.name);
           const matchedOption = matchedAddon?.options?.find(opt => opt.price === addon.price);
           return {
+            id: addon._id,
             name: addon.name,
             options: matchedOption
-              ? [{ price: addon.price, label: matchedOption.label }]
+              ? [{ id: matchedOption._id, price: addon.price, label: matchedOption.label }]
               : addon.options || [],
           };
         });
@@ -2796,6 +2797,8 @@ export const getCashierOrderById = async (req, res) => {
             : addon.options || [],
         };
       });
+
+      console.log({ history_addon: enrichedAddons });
 
       return {
         menuItem: menuItem ? {

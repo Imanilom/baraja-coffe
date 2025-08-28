@@ -8,13 +8,36 @@ class SalesReportService {
 
   Future<SalesSummary> fetchSalesReportSummary(
     String outletId,
-    String date,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? cashier,
+    String? paymentMethod,
+    String? orderType,
   ) async {
-    print('Fetching sales report for outletId: $outletId, date: $date');
+    print('Fetching sales report for outletId: $outletId');
     try {
+      final queryParams = <String, dynamic>{};
+
+      if (startDate != null) {
+        queryParams['startDate'] = startDate.toIso8601String();
+      }
+      if (endDate != null) {
+        queryParams['endDate'] = endDate.toIso8601String();
+      }
+      if (cashier != null && cashier.isNotEmpty) {
+        queryParams['cashier'] = cashier;
+      }
+      if (paymentMethod != null && paymentMethod.isNotEmpty) {
+        queryParams['paymentMethod'] = paymentMethod;
+      }
+      if (orderType != null && orderType.isNotEmpty) {
+        queryParams['orderType'] = orderType;
+      }
+      queryParams['outletId'] = outletId;
+
       Response response = await _dio.get(
         '/api/report/sales/summary',
-        queryParameters: {'outletId': outletId, 'date': date},
+        queryParameters: queryParams,
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -34,17 +57,31 @@ class SalesReportService {
   String _handleDioError(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
-        return 'Connection timeout';
+        return 'Connection timeout - Periksa koneksi internet';
       case DioExceptionType.sendTimeout:
-        return 'Send timeout';
+        return 'Send timeout - Server tidak merespon';
       case DioExceptionType.receiveTimeout:
-        return 'Receive timeout';
+        return 'Receive timeout - Data terlalu lama diunduh';
       case DioExceptionType.badResponse:
-        return 'Server error: ${e.response?.statusCode}';
+        final statusCode = e.response?.statusCode;
+        switch (statusCode) {
+          case 400:
+            return 'Bad request - Parameter tidak valid';
+          case 401:
+            return 'Unauthorized - Silakan login kembali';
+          case 403:
+            return 'Forbidden - Akses ditolak';
+          case 404:
+            return 'Not found - Endpoint tidak ditemukan';
+          case 500:
+            return 'Server error - Silakan coba lagi nanti';
+          default:
+            return 'Server error: $statusCode';
+        }
       case DioExceptionType.cancel:
-        return 'Request cancelled';
+        return 'Request dibatalkan';
       default:
-        return 'Network error occurred';
+        return 'Network error - Periksa koneksi internet';
     }
   }
 }

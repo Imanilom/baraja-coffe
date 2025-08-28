@@ -3,6 +3,17 @@ import { Order } from "../models/order.model.js";
 // import { Outlet } from '../models/Outlet.model.js';
 import moment from 'moment';
 
+const toObjectId = (id) => {
+    if (!id) return null;
+    try {
+        // const trimId = id.trim(); // Hapus spasi di awal/akhir
+        return new mongoose.Types.ObjectId(id);
+    } catch (error) {
+        console.warn(`Invalid ObjectId: ${id}`);
+        return null;
+    }
+};
+
 export const getSalesSummary = async (req, res) => {
     try {
         const {
@@ -24,17 +35,6 @@ export const getSalesSummary = async (req, res) => {
         //     path: 'cashier',
         //     select: '_id name' // Hanya pilih _id dan name dari cashier
         // });
-
-        const toObjectId = (id) => {
-            if (!id) return null;
-            try {
-                // const trimId = id.trim(); // Hapus spasi di awal/akhir
-                return new mongoose.Types.ObjectId(id);
-            } catch (error) {
-                console.warn(`Invalid ObjectId: ${id}`);
-                return null;
-            }
-        };
 
         // Date filter
         if (startDate || endDate) {
@@ -183,7 +183,7 @@ export const getOrderDetails = async (req, res) => {
             startDate,
             endDate,
             cashierId,
-            outlet,
+            outletId,
             paymentMethod,
             orderType,
             page = 1,
@@ -203,8 +203,20 @@ export const getOrderDetails = async (req, res) => {
             }
         }
 
-        if (cashierId) filter.cashierId = cashierId;
-        if (outlet) filter.outlet = outlet;
+        if (cashierId) {
+            const cashierObjectId = toObjectId(cashierId);
+            if (cashierObjectId) {
+                filter.cashierId = cashierObjectId;
+            }
+        }
+
+        if (outletId) {
+            const outletObjectId = toObjectId(outletId);
+            if (outletObjectId) {
+                filter.outlet = outletObjectId;
+            }
+        }
+
         if (paymentMethod) filter.paymentMethod = { $in: paymentMethod.split(',') };
         if (orderType) filter.orderType = { $in: orderType.split(',') };
 

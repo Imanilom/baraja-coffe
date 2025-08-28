@@ -138,4 +138,11 @@ class HiveService {
     final box = Hive.box<MenuItemModel>('menuItemsBox');
     await box.clear();
   }
+
+  //get outletId dari user yang sudah disimpan di hive
+  static String get outletId {
+    final box = Hive.box('userBox');
+    final user = box.get('user') as UserModel?;
+    return user?.outletId ?? '';
+  }
 }

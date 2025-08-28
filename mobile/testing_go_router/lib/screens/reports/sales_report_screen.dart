@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/sales_report_provider.dart';
-// Import service yang sudah dibuat sebelumnya
-// import 'sales_report_service.dart';
 
 class SalesReportScreen extends ConsumerStatefulWidget {
   const SalesReportScreen({super.key});
@@ -36,9 +34,6 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
 
   @override
   Widget build(BuildContext context) {
-    final ref = this.ref;
-    // final reportProvider = ref.watch(salesReportProvider('default'));
-    print('reportProvider: $reportProvider');
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -141,92 +136,160 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
   }
 
   Widget _buildDateRangeSelector() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+    return Consumer(
+      builder: (context, ref, child) {
+        final filter = ref.watch(salesFilterProvider);
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 1,
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.calendar_today, color: Colors.indigo[600]),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              '${DateFormat('dd MMM yyyy').format(selectedDateRange.startDate)} - ${DateFormat('dd MMM yyyy').format(selectedDateRange.endDate)}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
+          child: Row(
+            children: [
+              Icon(Icons.calendar_today, color: Colors.indigo[600]),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  filter.startDate != null && filter.endDate != null
+                      ? '${DateFormat('dd MMM yyyy').format(filter.startDate!)} - ${DateFormat('dd MMM yyyy').format(filter.endDate!)}'
+                      : 'Pilih periode',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: _showDatePicker,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigo[600],
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Ubah Periode'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: _showDatePicker,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo[600],
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Ubah Periode'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildSummaryCards() {
-    // Simulasi data - seharusnya menggunakan provider dari service
     return Consumer(
       builder: (context, ref, child) {
-        // final summaryAsync = ref.watch(dailySummaryProvider(selectedDate));
+        final salesAnalyticsAsync = ref.watch(salesSummaryProvider);
 
-        // Untuk demo, kita gunakan data statis
-        return Row(
-          children: [
-            Expanded(
-              child: _buildSummaryCard(
-                'Total Penjualan',
-                'Rp 66.000',
-                Icons.attach_money,
-                Colors.green,
-                'Hari Ini',
+        return salesAnalyticsAsync.when(
+          data: (response) {
+            final summary = response.data.summary;
+            return Row(
+              children: [
+                Expanded(
+                  child: _buildSummaryCard(
+                    'Total Penjualan',
+                    NumberFormat.currency(
+                      locale: 'id',
+                      symbol: 'Rp ',
+                      decimalDigits: 0,
+                    ).format(summary.totalSales),
+                    Icons.attach_money,
+                    Colors.green,
+                    'Total Revenue',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildSummaryCard(
+                    'Total Transaksi',
+                    '${summary.totalTransactions}',
+                    Icons.receipt_long,
+                    Colors.blue,
+                    'Transactions',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildSummaryCard(
+                    'Rata-rata Order',
+                    NumberFormat.currency(
+                      locale: 'id',
+                      symbol: 'Rp ',
+                      decimalDigits: 0,
+                    ).format(summary.avgOrderValue),
+                    Icons.trending_up,
+                    Colors.orange,
+                    'Per Transaksi',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildSummaryCard(
+                    'Total Items',
+                    '${summary.totalItems}',
+                    Icons.inventory,
+                    Colors.purple,
+                    'Items Terjual',
+                  ),
+                ),
+              ],
+            );
+          },
+          loading:
+              () => Row(
+                children: List.generate(
+                  4,
+                  (index) => Expanded(
+                    child: Container(
+                      margin: EdgeInsets.only(right: index < 3 ? 12 : 0),
+                      height: 140,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildSummaryCard(
-                'Total Transaksi',
-                '2',
-                Icons.receipt_long,
-                Colors.blue,
-                'Hari Ini',
+          error:
+              (error, stackTrace) => Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red[600], size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Error: $error',
+                      style: TextStyle(color: Colors.red[700]),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () => ref.refresh(salesSummaryProvider),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[600],
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildSummaryCard(
-                'Rata-rata Order',
-                'Rp 33.000',
-                Icons.trending_up,
-                Colors.orange,
-                'Per Transaksi',
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildSummaryCard(
-                'Total Pajak',
-                'Rp 3.000',
-                Icons.account_balance,
-                Colors.purple,
-                'PPN 10%',
-              ),
-            ),
-          ],
         );
       },
     );
@@ -298,39 +361,92 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
   }
 
   Widget _buildPaymentMethodBreakdown() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.payment, color: Colors.indigo[600]),
-              const SizedBox(width: 8),
-              const Text(
-                'Breakdown Metode Pembayaran',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    return Consumer(
+      builder: (context, ref, child) {
+        final salesAnalyticsAsync = ref.watch(salesSummaryProvider);
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 1,
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildPaymentMethodItem('Cash', 'Rp 33.000', '50%', Colors.green),
-          const SizedBox(height: 12),
-          _buildPaymentMethodItem('Debit', 'Rp 33.000', '50%', Colors.blue),
-        ],
-      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.payment, color: Colors.indigo[600]),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Breakdown Metode Pembayaran',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              salesAnalyticsAsync.when(
+                data: (response) {
+                  final paymentMethods = response.data.paymentMethodBreakdown;
+                  if (paymentMethods.isEmpty) {
+                    return const Center(
+                      child: Text('Tidak ada data metode pembayaran'),
+                    );
+                  }
+
+                  return Column(
+                    children:
+                        paymentMethods.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final payment = entry.value;
+                          final colors = [
+                            Colors.green,
+                            Colors.blue,
+                            Colors.orange,
+                            Colors.purple,
+                          ];
+                          final color = colors[index % colors.length];
+
+                          return Column(
+                            children: [
+                              _buildPaymentMethodItem(
+                                payment.method,
+                                NumberFormat.currency(
+                                  locale: 'id',
+                                  symbol: 'Rp ',
+                                  decimalDigits: 0,
+                                ).format(payment.amount),
+                                '${payment.percentage}%',
+                                color,
+                              ),
+                              if (index < paymentMethods.length - 1)
+                                const SizedBox(height: 12),
+                            ],
+                          );
+                        }).toList(),
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error:
+                    (error, _) => Center(
+                      child: Text(
+                        'Error loading payment data: $error',
+                        style: TextStyle(color: Colors.red[600]),
+                      ),
+                    ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -382,39 +498,88 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
   }
 
   Widget _buildOrderTypeBreakdown() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.restaurant, color: Colors.indigo[600]),
-              const SizedBox(width: 8),
-              const Text(
-                'Breakdown Tipe Order',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    return Consumer(
+      builder: (context, ref, child) {
+        final salesAnalyticsAsync = ref.watch(salesSummaryProvider);
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 1,
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildOrderTypeItem('Dine-In', '1 order', '50%', Colors.green),
-          const SizedBox(height: 12),
-          _buildOrderTypeItem('Take Away', '1 order', '50%', Colors.orange),
-        ],
-      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.restaurant, color: Colors.indigo[600]),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Breakdown Tipe Order',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              salesAnalyticsAsync.when(
+                data: (response) {
+                  final orderTypes = response.data.orderTypeBreakdown;
+                  if (orderTypes.isEmpty) {
+                    return const Center(
+                      child: Text('Tidak ada data tipe order'),
+                    );
+                  }
+
+                  return Column(
+                    children:
+                        orderTypes.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final order = entry.value;
+                          final colors = [
+                            Colors.green,
+                            Colors.orange,
+                            Colors.blue,
+                            Colors.purple,
+                          ];
+                          final color = colors[index % colors.length];
+
+                          return Column(
+                            children: [
+                              _buildOrderTypeItem(
+                                order.type,
+                                '${order.count} order${order.count > 1 ? 's' : ''}',
+                                '${order.percentage}%',
+                                color,
+                              ),
+                              if (index < orderTypes.length - 1)
+                                const SizedBox(height: 12),
+                            ],
+                          );
+                        }).toList(),
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error:
+                    (error, _) => Center(
+                      child: Text(
+                        'Error loading order type data: $error',
+                        style: TextStyle(color: Colors.red[600]),
+                      ),
+                    ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1050,13 +1215,17 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
 
   // Dialog dan Handler Methods
   void _showDatePicker() async {
+    final currentFilter = ref.read(salesFilterProvider);
+
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now(),
       initialDateRange: DateTimeRange(
-        start: selectedDateRange.startDate,
-        end: selectedDateRange.endDate,
+        start:
+            currentFilter.startDate ??
+            DateTime.now().subtract(const Duration(days: 7)),
+        end: currentFilter.endDate ?? DateTime.now(),
       ),
       builder: (context, child) {
         return Theme(
@@ -1074,15 +1243,9 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
     );
 
     if (picked != null) {
-      setState(() {
-        selectedDateRange = DateRange(
-          startDate: picked.start,
-          endDate: picked.end,
-        );
-      });
-
-      // Update provider filter jika menggunakan riverpod
-      // ref.read(salesReportFilterProvider.notifier).updateDateRange(picked.start, picked.end);
+      ref
+          .read(salesFilterProvider.notifier)
+          .updateDateRange(picked.start, picked.end);
     }
   }
 
