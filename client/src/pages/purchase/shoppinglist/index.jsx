@@ -326,9 +326,9 @@ const ShoppingList = () => {
                     <span className="text-[15px] text-[#005429]">Daftar Belanja</span>
                     <FaInfoCircle className="text-[15px] text-gray-500" />
                 </div>
-                <div className="flex space-x-2">
+                {/* <div className="flex space-x-2">
                     <Link to="/admin/purchase/shopping-list-create" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Kelola Daftar Belanja</Link>
-                </div>
+                </div> */}
             </div>
 
             {/* Filters */}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
@@ -8,7 +9,8 @@ import Header from "../../../admin/header";
 import dayjs from "dayjs";
 
 const Reconciliation = () => {
-    const [products, setProducts] = useState([]);
+    const { currentUser } = useSelector((state) => state.user);
+    const [cashflow, setCashflow] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -30,48 +32,42 @@ const Reconciliation = () => {
 
     const dropdownRef = useRef(null);
 
-    // Fetch products and outlets data
+    // Fetch cashflow and outlets data
+    const fetchCashflow = async () => {
+        setLoading(true);
+        try {
+            // Fetch cashflow data
+            const cashflowResponse = await axios.get("/api/marketlist/cashflow", {
+                headers: {
+                    Authorization: `Bearer ${currentUser.token}`,
+                },
+            });
+            const cashflowData = cashflowResponse.data.data ? cashflowResponse.data.data : cashflowResponse.data;
+
+            setCashflow(cashflowData || []);
+            setFilteredData(cashflowData || []);
+
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            setError("Failed to load data. Please try again later.");
+            // Set empty arrays as fallback
+            setCashflow([]);
+            setFilteredData([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch products data
-                const data = [];
-
-                setProducts(data || []);
-                setFilteredData(data || []); // Initialize filtered data with all products
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setProducts([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
+        fetchCashflow();
     }, []);
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
+    const formatDateTime = (datetime) => {
+        const date = new Date(datetime);
+        const pad = (n) => n.toString().padStart(2, "0");
+        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    };
 
     // Handle click outside dropdown to close
     useEffect(() => {
@@ -84,59 +80,6 @@ const Reconciliation = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const groupedArray = useMemo(() => {
-        const grouped = {};
-
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
-
-            const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem.category
-                : [item.menuItem?.category || 'Uncategorized'];
-            const quantity = Number(item?.quantity) || 0;
-            const subtotal = Number(item?.subtotal) || 0;
-
-            categories.forEach(category => {
-                const key = `${category}`;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        category,
-                        quantity: 0,
-                        subtotal: 0
-                    };
-                }
-
-                grouped[key].quantity += quantity;
-                grouped[key].subtotal += subtotal;
-            });
-        });
-
-        return Object.values(grouped);
-    }, [filteredData]);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    // Calculate grand totals for filtered data
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.quantity += curr.quantity;
-                acc.subtotal += curr.subtotal;
-                return acc;
-            },
-            {
-                quantity: 0,
-                subtotal: 0,
-            }
-        );
-    }, [groupedArray]);
-
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
@@ -146,68 +89,42 @@ const Reconciliation = () => {
         }).format(amount);
     };
 
+    const totalCashIn = filteredData.reduce((sum, item) => sum + item.cashIn, 0);
+    const totalCashOut = filteredData.reduce((sum, item) => sum + item.cashOut, 0);
+
+
     // Apply filter function
-    const applyFilter = () => {
+    const applyFilter = async () => {
+        try {
+            if (value && value.startDate && value.endDate) {
+                const start = new Date(value.startDate).toISOString().split("T")[0]; // YYYY-MM-DD
+                const end = new Date(value.endDate).toISOString().split("T")[0]; // YYYY-MM-DD
 
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
+                // Kirim request ke endpoint API dengan query parameter
+                const res = await axios.get(`/api/marketlist/cashflow`, {
+                    params: { start, end },
+                    headers: {
+                        Authorization: `Bearer ${currentUser.token}`,
+                    },
+                });
 
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
+                // Respon dari API langsung dipakai untuk data
+                setFilteredData(res.data);
+                setCurrentPage(1); // reset ke halaman pertama
+            } else {
+                // fallback kalau tidak ada filter
+                const res = await axios.get(`/api/marketlist/cashflow`, {
+                    headers: {
+                        Authorization: `Bearer ${currentUser.token}`,
+                    },
+                });
 
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
+                setFilteredData(res.data);
+                setCurrentPage(1);
+            }
+        } catch (err) {
+            console.error("Error fetching filtered data:", err);
         }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
     };
 
     // Reset filters
@@ -216,7 +133,7 @@ const Reconciliation = () => {
         setTempSelectedOutlet("");
         setValue(null);
         setSearch("");
-        setFilteredData(ensureArray(products));
+        setFilteredData(ensureArray(cashflow));
         setCurrentPage(1);
     };
 
@@ -246,15 +163,6 @@ const Reconciliation = () => {
         XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
         XLSX.writeFile(wb, "Penjualan_Produk.xlsx");
     };
-
-    useEffect(() => {
-        if (products.length > 0) {
-            const today = new Date();
-            const todayRange = { startDate: today, endDate: today };
-            setValue(todayRange);
-            setTimeout(() => applyFilter(), 0);
-        }
-    }, [products]);
 
     // Show loading state
     if (loading) {
@@ -329,9 +237,13 @@ const Reconciliation = () => {
                         </div>
                     </div>
 
+                    {/* Spacer */}
+                    <div className="hidden lg:block col-span-5"></div>
+
                     {/* Buttons */}
                     <div className="flex lg:justify-end space-x-2 items-end col-span-1">
                         <button
+                            type="button"
                             onClick={applyFilter}
                             className="w-full sm:w-auto bg-[#005429] border text-white text-[13px] px-[15px] py-[8px] rounded"
                         >
@@ -349,23 +261,72 @@ const Reconciliation = () => {
                         <thead className="text-sm text-gray-400 bg-gray-50">
                             <tr>
                                 <th className="px-4 py-3 text-left font-normal">Waktu</th>
-                                <th className="px-4 py-3 text-left font-normal">ID Rekap Kas</th>
-                                <th className="px-4 py-3 text-left font-normal">Outlet</th>
-                                <th className="px-4 py-3 text-right font-normal">Penjualan</th>
-                                <th className="px-4 py-3 text-right font-normal">Selisih</th>
+                                <th className="px-4 py-3 text-right font-normal">Uang Masuk</th>
+                                <th className="px-4 py-3 text-right font-normal">Uang Keluar</th>
+                                <th className="px-4 py-3 text-left font-normal">Keterangan</th>
+                                <th className="px-4 py-3 text-left font-normal">Status</th>
                             </tr>
                         </thead>
                         {filteredData.length > 0 ? (
                             <tbody className="text-sm">
-                                {filteredData.map((item, i) => (
-                                    <tr key={i} className="hover:bg-gray-50 text-gray-600">
-                                        <td className="px-4 py-3">{item.waktu}</td>
-                                        <td className="px-4 py-3">{item.rekap}</td>
-                                        <td className="px-4 py-3">{item.outlet}</td>
-                                        <td className="px-4 py-3 text-right">{formatRupiah(item.penjualan)}</td>
-                                        <td className="px-4 py-3 text-right">{formatRupiah(item.selisih)}</td>
-                                    </tr>
-                                ))}
+                                {filteredData.map((cf) => {
+                                    const items =
+                                        cf.relatedMarketList?.items?.map((itm) => ({
+                                            name: itm.productName,
+                                            amount: itm.amountCharged,
+                                            status: itm.payment?.status,
+                                            method: itm.payment?.method,
+                                            type: "Belanja",
+                                        })) || [];
+
+                                    const expenses =
+                                        cf.relatedMarketList?.additionalExpenses?.map((exp) => ({
+                                            name: exp.name,
+                                            amount: exp.amount,
+                                            status: exp.payment?.status,
+                                            method: exp.payment?.method,
+                                            type: "Pengeluaran Lain",
+                                        })) || [];
+
+                                    const allCashOuts = [...items, ...expenses];
+
+                                    return (
+                                        <>
+                                            {/* Baris CashIn hanya muncul kalau > 0 */}
+                                            {cf.cashIn > 0 && (
+                                                <tr className="hover:bg-gray-50 text-gray-600 font-medium bg-gray-100">
+                                                    <td className="px-4 py-3">
+                                                        {cf.day}, {formatDateTime(cf.date)}
+                                                    </td>
+                                                    <td className="px-4 text-right py-3">{formatCurrency(cf.cashIn)}</td>
+                                                    <td className="px-4 text-right py-3">-</td>
+                                                    <td className="px-4 py-3">{cf.description}</td>
+                                                    <td className="px-4 py-3">-</td>
+                                                </tr>
+                                            )}
+
+                                            {/* Baris CashOut */}
+                                            {allCashOuts.map((out, i) => (
+                                                <tr
+                                                    key={`${cf._id}-${out.name}-${i}`}
+                                                    className="hover:bg-gray-50 text-gray-600"
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        {cf.day}, {formatDateTime(cf.date)}
+                                                    </td>
+                                                    <td className="px-4 text-right py-3">-</td>
+                                                    <td className="px-4 text-right py-3">
+                                                        {formatCurrency(out.amount)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {out.type}: {out.name}
+                                                    </td>
+                                                    <td className="px-4 py-3">{out.status || "-"}</td>
+                                                </tr>
+                                            ))}
+                                        </>
+                                    );
+                                })}
                             </tbody>
                         ) : (
                             <tbody>
@@ -376,19 +337,20 @@ const Reconciliation = () => {
                                 </tr>
                             </tbody>
                         )}
+
                         <tfoot className="border-t font-semibold text-sm bg-gray-50">
                             <tr>
-                                <td className="px-4 py-3" colSpan={3}>
+                                <td className="px-4 py-3">
                                     Total
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                     <span className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(grandTotal.subtotal + grandTotal.subtotal * 0.1)}
+                                        {formatCurrency(totalCashIn)}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                     <span className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(grandTotal.subtotal + grandTotal.subtotal * 0.1)}
+                                        {formatCurrency(totalCashOut)}
                                     </span>
                                 </td>
                             </tr>

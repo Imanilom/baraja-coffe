@@ -3,11 +3,12 @@ import axios from "axios";
 import dayjs from "dayjs";
 import Select from "react-select";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBoxes, FaInfoCircle, FaChevronLeft } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBoxes, FaInfoCircle, FaChevronLeft, FaPencilAlt } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import { get } from "mongoose";
 import Header from "../../admin/header";
+import MessageAlert from "../messageAlert";
 
 
 const ProductionListManagement = () => {
@@ -354,6 +355,8 @@ const ProductionListManagement = () => {
                 </Link>
             </div>
 
+            <MessageAlert />
+
             {/* Filters */}
             <div className="px-3 pb-4 mb-[60px]">
                 <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
@@ -423,15 +426,16 @@ const ProductionListManagement = () => {
                                 <th className="px-4 py-3 font-normal text-right w-[10%]">Min. Permintaan</th>
                                 <th className="px-4 py-3 font-normal text-right w-[10%]">Limit Permintaan</th>
                                 <th className="px-4 py-3 font-normal w-[10%]">Unit</th>
+                                <th className="px-4 py-3 font-normal w-[2%]"></th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
                             <tbody className="text-gray-500 divide-y">
                                 {paginatedData.flatMap((data) =>
-                                    (data.suppliers?.length ? data.suppliers : [{}]).map((sup, idx) => (
+                                    (data.suppliers?.length ? data.suppliers : [{}]).map((sup) => (
                                         <tr
                                             className="hover:bg-slate-50"
-                                            key={`${data._id}-${idx}`}
+                                            key={`${data._id}`}
                                         >
                                             <td className="px-4 py-3">{capitalizeWords(data.name) || "-"}</td>
                                             <td className="px-4 py-3">{data.sku || "-"}</td>
@@ -440,6 +444,17 @@ const ProductionListManagement = () => {
                                             <td className="px-4 py-3 text-right">{data.minimumrequest || 0}</td>
                                             <td className="px-4 py-3 text-right">{data.limitperrequest || 0}</td>
                                             <td className="px-4 py-3 lowercase">{data.unit || "-"}</td>
+                                            <td className="">
+                                                {/* Dropdown Menu */}
+                                                <div className="relative text-right">
+                                                    <Link
+                                                        to={`/admin/inventory/production-update/${data._id}`}
+                                                        className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
+                                                    >
+                                                        <FaPencilAlt size={18} />
+                                                    </Link>
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))
                                 )}

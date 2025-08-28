@@ -462,7 +462,7 @@ const Menu = () => {
       </div>
 
       {/* Pagination */}
-      <div className="flex justify-end items-center mt-6 gap-2 flex-wrap">
+      <div className="flex justify-end items-center mt-6 gap-2 flex-wrap mb-[60px]">
         <button
           onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
           disabled={currentPage === 1}

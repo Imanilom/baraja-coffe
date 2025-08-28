@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft, FaCross } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Modal from './modal';
@@ -45,86 +45,109 @@ const InStockManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch inStock and outlets data
-    const fetchStock = async () => {
+    const fetchMenuCapacity = async () => {
         try {
-            const stockResponse = await axios.get('/api/product/stock/all');
-            const stockData = stockResponse.data.data || [];
+            const [recipesRes, stockRes] = await Promise.all([
+                axios.get("/api/product/recipes"),
+                axios.get("/api/product/stock/all")
+            ]);
 
-            const stockWithMovements = await Promise.all(
-                stockData.map(async (item) => {
-                    const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
-                    const movements = movementResponse.data.data.movements || [];
+            const recipes = recipesRes.data.data || recipesRes.data;
+            const stock = stockRes.data.data || stockRes.data;
 
+            const results = [];
+
+            for (const menu of recipes) {
+                let ingredients = menu.baseIngredients.filter(ing => ing.isDefault);
+
+                // Loop per ingredient
+                const movementsPerIngredient = ingredients.map(ing => {
+                    const s = stock.find(st => st.productId._id === ing.productId);
+                    if (!s) return [];
+
+                    return s.movements
+                        .filter(m => m.type === "adjustment")
+                        .map(m => ({
+                            date: dayjs(m.date).format("YYYY-MM-DD"),
+                            capacityIn: Math.floor(m.quantity / ing.quantity)
+                        }));
+                }).flat();
+
+                const uniqueDates = [...new Set(movementsPerIngredient.map(m => m.date))];
+
+                const menuMovements = uniqueDates.map(date => {
+                    const capacities = movementsPerIngredient
+                        .filter(m => m.date === date)
+                        .map(m => m.capacityIn);
+
+                    const menuCapacity = capacities.length ? Math.min(...capacities) : 0;
                     return {
-                        ...item,
-                        movements
+                        menu: menu.menuItemId?.name,
+                        date,
+                        capacityIn: menuCapacity
                     };
-                })
-            );
+                }).filter(m => m.capacityIn > 0);
 
-            setInStock(stockWithMovements);
+                results.push(...menuMovements);
+            }
 
-            // 🔹 Default awal: type "out" & hanya hari ini
-            const defaultMovements = [];
-            stockWithMovements.forEach(stock => {
-                (stock.movements || []).forEach(movement => {
-                    const movementDate = dayjs(movement.date);
-                    if (
-                        movement.type === "in" &&
-                        movementDate.isSame(dayjs(), 'day') // hanya tanggal hari ini
-                    ) {
-                        defaultMovements.push({
-                            ...movement,
-                            product: stock.productId?.name,
-                            unit: stock.productId?.unit
-                        });
-                    }
-                });
-            });
+            // **Sort results by date ascending**
+            results.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-            // Urutkan terbaru
-            const sortedDefault = defaultMovements.sort(
-                (a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()
-            );
-            setFilteredData(sortedDefault);
-
+            return results;
         } catch (err) {
-            console.error("Error fetching stock or movements:", err);
-            setInStock([]);
-            setFilteredData([]);
+            console.error(err);
+            return [];
         }
     };
 
-
-    const fetchOutlets = async () => {
-        try {
-            const outletsResponse = await axios.get('/api/outlet');
-            const outletsData = Array.isArray(outletsResponse.data)
-                ? outletsResponse.data
-                : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
-                    ? outletsResponse.data.data
-                    : [];
-
-            setOutlets(outletsData);
-        } catch (err) {
-            console.error("Error fetching outlets:", err);
-            setOutlets([]);
-        }
-    };
-
-    const fetchData = async () => {
+    const applyFilter = async () => {
         setLoading(true);
         setError(null);
+
         try {
-            await Promise.all([
-                fetchStock(),
-                fetchOutlets(),
-                // fetchCategories()
+            const [menuRes, capacityRes] = await Promise.all([
+                axios.get("/api/menu/menu-items"),
+                fetchMenuCapacity(value) // fetch kapasitas menu per tanggal
             ]);
-            // fetchStatus();
+
+            const capacities = capacityRes || [];
+
+            // Gabungkan menu hanya yang memiliki capacityIn > 0
+            const merged = [];
+
+            menuRes.data.data.forEach(menu => {
+                // Ambil semua capacities untuk menu ini
+                const menuCapacities = capacities.filter(c => c.menu === menu.name);
+
+                if (menuCapacities.length > 0) {
+                    // Jika ada filter tanggal, filter dulu
+                    const filteredCapacities = menuCapacities.filter(c => {
+                        if (!value?.startDate || !value?.endDate) return true;
+                        return dayjs(c.date).isBetween(
+                            dayjs(value.startDate).startOf("day"),
+                            dayjs(value.endDate).endOf("day"),
+                            null,
+                            '[]'
+                        );
+                    });
+
+                    filteredCapacities.forEach(c => {
+                        merged.push({
+                            ...menu,
+                            capacityIn: c.capacityIn,
+                            date: c.date
+                        });
+                    });
+                }
+            });
+
+            // **Urutkan berdasarkan tanggal ascending**
+            merged.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            setFilteredData(merged);
         } catch (err) {
-            console.error("General error:", err);
+            console.error("Error applying filter:", err);
             setError("Failed to load data. Please try again later.");
         } finally {
             setLoading(false);
@@ -132,14 +155,8 @@ const InStockManagement = () => {
     };
 
     useEffect(() => {
-        fetchData();
-    }, []);
-
-
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
+        fetchMenuCapacity();
+    }, [])
 
     // Handle click outside dropdown to close
     useEffect(() => {
@@ -152,87 +169,19 @@ const InStockManagement = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
-
     const formatDateTime = (datetime) => {
         const date = new Date(datetime);
         const pad = (n) => n.toString().padStart(2, "0");
         return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     };
 
-    const formatDate = (dat) => {
-        const date = new Date(dat);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
-    };
-
-    const formatTime = (time) => {
-        const date = new Date(time);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
 
     const capitalizeWords = (text) => {
         return text
             .toLowerCase()
             .replace(/\b\w/g, (char) => char.toUpperCase());
-    };
-
-    // Apply filter function
-    const applyFilter = () => {
-        const allMovements = [];
-
-        inStock.forEach(stock => {
-            const movements = stock.movements || [];
-
-            const movementsInRange = movements.filter(movement => {
-                const movementDate = dayjs(movement.date);
-                return (
-                    movement.type === "in" && // hanya ambil stok masuk
-                    movementDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
-                    movementDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'))
-                );
-            });
-
-            movementsInRange.forEach(movement => {
-                allMovements.push({
-                    ...movement,
-                    product: stock.productId?.name,
-                    unit: stock.productId?.unit
-                });
-            });
-        });
-
-        // Filter berdasarkan pencarian jika ada
-        const searched = tempSearch
-            ? allMovements.filter(m =>
-                m._id.toLowerCase().includes(tempSearch.toLowerCase()) ||
-                m.product?.toLowerCase().includes(tempSearch.toLowerCase())
-            )
-            : allMovements;
-
-        // Urutkan berdasarkan tanggal terbaru
-        const sorted = searched.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
-
-        setFilteredData(sorted); // ← bikin state baru khusus movement hasil filter
-        setCurrentPage(1);
     };
 
     const paginatedData = useMemo(() => {
@@ -259,37 +208,6 @@ const InStockManagement = () => {
         alert('File berhasil diimpor!');
         setShowModal(false);
     };
-
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
-    };
-
 
     // Show loading state
     if (loading) {
@@ -332,19 +250,13 @@ const InStockManagement = () => {
                     <span className="text-[#005429]">Stok Masuk</span>
                     <FaInfoCircle size={15} className="text-gray-400" />
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    {/* <button
-                        onClick={() => setShowModal(true)}
-                        className="w-full sm:w-auto bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px]"
-                    >
-                        Impor Stok Masuk
-                    </button> */}
-                    <Link
+                <div className="flex flex-col sm:flex-row gap-2 w-full py-4 sm:w-auto">
+                    {/* <Link
                         to="/admin/inventory/instock-create"
                         className="w-full sm:w-auto bg-[#005429] text-white px-4 py-2 rounded border border-white hover:text-white text-[13px]"
                     >
                         Tambah Stok Masuk
-                    </Link>
+                    </Link> */}
                 </div>
             </div>
 
@@ -408,31 +320,23 @@ const InStockManagement = () => {
                         <thead className="text-gray-400">
                             <tr className="text-left">
                                 <th className="px-4 py-3 font-normal w-[20%]">Waktu Submit</th>
-                                <th className="px-4 py-3 font-normal w-[15%]">ID Stok Masuk</th>
-                                <th className="px-4 py-3 font-normal w-[10%]">Produk</th>
-                                <th className="px-4 py-3 font-normal w-[10%]">Unit</th>
+                                <th className="px-4 py-3 font-normal w-[15%]">Menu</th>
+                                <th className="px-4 py-3 font-normal w-[15%]">Kategori</th>
                                 <th className="px-4 py-3 font-normal text-right w-[10%]">Qty</th>
-                                <th className="px-4 py-3 font-normal w-[10%]">Keterangan</th>
                             </tr>
                         </thead>
+                        {console.log(paginatedData)}
                         {paginatedData.length > 0 ? (
                             <tbody className="text-gray-500 divide-y">
                                 {paginatedData.map((movement) => (
                                     <tr
                                         key={movement._id}
                                         className="text-left text-sm cursor-pointer hover:bg-slate-50"
-                                        onClick={() => setSelectedMovement(movement)}
                                     >
                                         <td className="px-4 py-3 truncate">{formatDateTime(movement.date)}</td>
-                                        <td className="px-4 py-3 truncate">{movement._id}</td>
-                                        <td className="px-4 py-3 truncate">
-                                            {movement.product && capitalizeWords(movement.product)}
-                                        </td>
-                                        <td className="px-4 py-3 lowercase">{movement.unit}</td>
-                                        <td className="px-4 py-3 text-right">{movement.quantity}</td>
-                                        <td className="px-4 py-3 max-w-[150px] truncate" title={movement.notes}>
-                                            {movement.notes || "-"}
-                                        </td>
+                                        <td className="px-4 py-3 truncate">{movement.name}</td>
+                                        <td className="px-4 py-3 truncate">{movement.category?.name}</td>
+                                        <td className="px-4 py-3 text-right">x{movement.capacityIn}</td>
                                     </tr>
                                 ))}
                             </tbody>

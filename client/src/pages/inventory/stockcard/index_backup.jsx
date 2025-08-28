@@ -45,13 +45,24 @@ const StockCardManagement = () => {
     };
     const location = useLocation();
     const navigate = useNavigate(); // Use the new hook
+    const [stock, setStock] = useState([]);
+    const [category, setCategory] = useState([]);
+    const [status, setStatus] = useState([]);
+    const [tempSelectedCategory, setTempSelectedCategory] = useState("");
+    const [tempSelectedStatus, setTempSelectedStatus] = useState("");
     const [tempSearch, setTempSearch] = useState("");
     const [error, setError] = useState(null);
+
+    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
+    const [outlets, setOutlets] = useState([]);
+    const [search, setSearch] = useState("");
     const [value, setValue] = useState({
         startDate: dayjs(),
         endDate: dayjs()
     });
+    const [hasFiltered, setHasFiltered] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
 
     const [filteredData, setFilteredData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -60,136 +71,221 @@ const StockCardManagement = () => {
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 10;
+    const selectedMonth = 7; // Agustus
+    const selectedYear = 2025;
 
     const dropdownRef = useRef(null);
 
-    const fetchMenuCapacity = async (value) => {
+    const fetchMenu = async () => {
         try {
-            const [recipesRes, stockRes] = await Promise.all([
-                axios.get("/api/product/recipes"),
-                axios.get("/api/product/stock/all")
-            ]);
+            // const stockResponse = await axios.get('/api/product/stock/all');
+            const productResponse = await axios.get('/api/menu/menu-items');
+            // const stockData = stockResponse.data.data || [];
+            const productData = productResponse.data.data || [];
 
-            const recipes = recipesRes.data.data ? recipesRes.data.data : recipesRes.data;
-            const stock = stockRes.data.data ? stockRes.data.data : stockRes.data;
+            // const stockWithMovements = await Promise.all(
+            //     stockData.map(async (item) => {
+            //         const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
+            //         const todayMovements = (movementResponse.data.data.movements || []).filter(movement =>
+            //             dayjs(movement.date).isSame(dayjs(), 'day') // hanya hari ini
+            //         );
 
-            const startDate = value?.startDate ? dayjs(value.startDate).startOf("day") : null;
-            const endDate = value?.endDate ? dayjs(value.endDate).endOf("day") : null;
+            //         return {
+            //             ...item,
+            //             movements: todayMovements
+            //         };
+            //     })
+            // );
 
-            const results = [];
-
-            for (const menu of recipes) {
-                // Ambil hanya baseIngredients yang isDefault === true
-                let ingredients = menu.baseIngredients.filter(ing => ing.isDefault);
-
-                const stockDetails = ingredients.map(ing => {
-                    const s = stock.find(s => s.productId._id === ing.productId);
-                    if (!s) return null;
-
-                    const stockAwalIn = s.movements
-                        .filter(m => dayjs(m.date).isBefore(startDate) && m.type === "adjustment")
-                        .reduce((sum, m) => sum + m.quantity, 0);
-
-                    const stockAwalOut = s.movements
-                        .filter(m => dayjs(m.date).isBefore(startDate) && m.type === "out")
-                        .reduce((sum, m) => sum + m.quantity, 0);
-
-                    const stockAwal = stockAwalIn - stockAwalOut;
-
-                    const stockMasuk = s.movements
-                        .filter(m => m.type === "adjustment" && dayjs(m.date).isBetween(startDate, endDate, null, '[]'))
-                        .reduce((sum, m) => sum + m.quantity, 0);
-
-                    // hanya out yang referenceId sesuai menu
-                    const stockKeluar = s.movements
-                        .filter(m =>
-                            m.type === "out" &&
-                            dayjs(m.date).isBetween(startDate, endDate, null, '[]') &&
-                            m.referenceId === menu.menuItemId?._id
-                        )
-                        .reduce((sum, m) => sum + m.quantity, 0);
-
-                    const stockAkhir = stockAwal + stockMasuk - stockKeluar;
-
-                    return {
-                        ingredient: s.productId.name,
-                        stockAwal,
-                        stockMasuk,
-                        stockKeluar,
-                        stockAkhir,
-                        capacityFirst: Math.floor(stockAwal / ing.quantity),
-                        capacityIn: Math.floor(stockMasuk / ing.quantity),
-                        capacityOut: Math.floor(stockKeluar / ing.quantity),
-                        capacityLast: Math.floor(stockAkhir / ing.quantity)
-                    };
-                }).filter(Boolean);
-
-                results.push({
-                    menu: menu.menuItemId?.name,
-                    stockDetails,
-                    capacityFirst: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityFirst)) : 0,
-                    capacityIn: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityIn)) : 0,
-                    capacityOut: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityOut)) : 0,
-                    capacityLast: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityLast)) : 0,
-                    filterRange: { startDate: startDate?.format("YYYY-MM-DD"), endDate: endDate?.format("YYYY-MM-DD") }
-                });
-            }
-
-            return results;
+            setStock(productData);
+            setFilteredData(productData);
         } catch (err) {
-            console.error("Error fetching recipes or stock:", err);
-            return [];
+            console.error("Error fetching stock or movements:", err);
+            setStock([]);
+            setFilteredData([]);
         }
     };
 
-    const applyFilter = async () => {
+
+
+    const fetchOutlets = async () => {
+        try {
+            const outletsResponse = await axios.get('/api/outlet');
+            const outletsData = Array.isArray(outletsResponse.data)
+                ? outletsResponse.data
+                : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
+                    ? outletsResponse.data.data
+                    : [];
+
+            setOutlets(outletsData);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setOutlets([]);
+        }
+    };
+
+    const fetchCategories = async () => {
+        try {
+            const categoryResponse = await axios.get('/api/storage/categories');
+            const categoryData = Array.isArray(categoryResponse.data)
+                ? categoryResponse.data
+                : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
+                    ? categoryResponse.data.data
+                    : [];
+
+            setCategory(categoryData);
+        } catch (err) {
+            console.error("Error fetching categories:", err);
+            setCategory([]);
+        }
+    };
+
+    const fetchStatus = () => {
+        setStatus([
+            { _id: "ya", name: "Ya" },
+            { _id: "tidak", name: "Tidak" }
+        ]);
+    };
+
+    const fetchData = async () => {
         setLoading(true);
         setError(null);
-
         try {
-            // Ambil data menu dan kapasitas
-            const [menuRes, capacityRes] = await Promise.all([
-                axios.get("/api/menu/menu-items"),
-                fetchMenuCapacity(value) // value dari datepicker
+            await Promise.all([
+                fetchMenu(),
+                fetchOutlets(),
+                fetchCategories()
             ]);
-
-            const menuItems = menuRes.data.data || [];
-            const capacities = capacityRes || [];
-
-            // Gabungkan menu dengan kapasitas
-            let merged = menuItems.map(menu => {
-                const capacity = capacities.find(c => c.menu === menu.name);
-                return {
-                    ...menu,
-                    capacityFirst: capacity?.capacityFirst ?? 0,   // stok awal
-                    capacityIn: capacity?.capacityIn ?? 0,         // stok masuk
-                    capacityOut: capacity?.capacityOut ?? 0,       // stok keluar
-                    capacityLast: capacity?.capacityLast ?? 0,     // stok akhir
-                    stockDetails: capacity?.stockDetails || [],    // detail tiap ingredient
-                    dateRange: capacity?.filterRange ?? null
-                };
-            });
-
-            // 🔍 Filter berdasarkan tempSearch (misalnya nama menu)
-            if (tempSearch) {
-                merged = merged.filter(menu =>
-                    menu.name.toLowerCase().includes(tempSearch.toLowerCase())
-                );
-            }
-
-            setFilteredData(merged);
+            fetchStatus();
         } catch (err) {
-            console.error("Error applying filter:", err);
+            console.error("General error:", err);
             setError("Failed to load data. Please try again later.");
         } finally {
             setLoading(false);
         }
     };
 
-    // Gunakan useEffect untuk jalankan saat component mount atau value berubah
+
     useEffect(() => {
-        applyFilter();
+        fetchData();
+        applyFilter(); // hanya untuk load awal
     }, []);
+
+    // Get unique outlet names for the dropdown
+    const uniqueOutlets = useMemo(() => {
+        return outlets.map(item => item.name);
+    }, [outlets]);
+
+    // Get unique outlet names for the dropdown
+    const uniqueCategory = useMemo(() => {
+        return stock.map(item => item.productId);
+    }, [stock]);
+
+    // Get unique Status names for the dropdown
+    const uniqueStatus = useMemo(() => {
+        return status.map(item => item.name);
+    }, [status]);
+
+    // const applyFilter = () => {
+    //     const filtered = stock.map(item => {
+    //         const movements = item.movements || [];
+
+    //         // Filter by date jika startDate dan endDate tersedia
+    //         const rangeMovements = (value.startDate && value.endDate)
+    //             ? movements.filter(m => {
+    //                 const date = dayjs(m.date || m.createdAt);
+    //                 return date.isSameOrAfter(dayjs(value.startDate), 'day') &&
+    //                     date.isSameOrBefore(dayjs(value.endDate), 'day');
+    //             })
+    //             : movements;
+
+    //         // Movement sebelum tanggal mulai
+    //         const previousMovements = (value.startDate)
+    //             ? movements.filter(m => {
+    //                 const date = dayjs(m.date || m.createdAt);
+    //                 return date.isBefore(dayjs(value.startDate), 'day');
+    //             })
+    //             : [];
+
+    //         const stockInBefore = previousMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
+    //         const stockOutBefore = previousMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
+    //         const adjustmentBefore = previousMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
+
+    //         const firstStock = stockInBefore - stockOutBefore;
+    //         // const firstStock = stockIn - stockOut - adjustmentBefore;
+
+    //         const stockIn = rangeMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
+    //         const stockOut = rangeMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
+    //         const stockAdjustment = rangeMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
+
+    //         const finalStock = firstStock + stockIn - stockOut;
+
+    //         return {
+    //             ...item,
+    //             firstStock,
+    //             stockIn,
+    //             stockOut,
+    //             stockAdjustment,
+    //             finalStock
+    //         };
+    //     });
+
+    //     // Filter by search jika searchTerm tidak kosong
+    //     const finalFiltered = tempSearch
+    //         ? filtered.filter(item =>
+    //             item.productId?.name.toLowerCase().includes(tempSearch.toLowerCase())
+    //         )
+    //         : filtered;
+
+    //     setFilteredData(finalFiltered);
+    // };
+
+
+    // useEffect(() => {
+    //     if (stock.length > 0 && !hasFiltered) {
+    //         applyFilter();
+    //         setHasFiltered(true);
+    //     }
+    // }, [stock, hasFiltered]);
+
+    const applyFilter = () => {
+        // Selalu mulai dari seluruh produk
+        const updatedData = stock.map(item => {
+            // Cek apakah item ini masuk dalam range tanggal
+            const dateMatch = !value.startDate || !value.endDate
+                ? true
+                : (() => {
+                    const itemDate = dayjs(item.date);
+                    return itemDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
+                        itemDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'));
+                })();
+
+            // Cek pencarian
+            const searchMatch = !tempSearch ||
+                item.name?.toLowerCase().includes(tempSearch.toLowerCase()) ||
+                item.sku?.toLowerCase().includes(tempSearch.toLowerCase());
+
+            // Kalau tidak match filter, ubah stok jadi 0 tapi name & category tetap ada
+            if (!dateMatch || !searchMatch) {
+                return {
+                    ...item,
+                    firstStock: 0,
+                    stockIn: 0,
+                    stockOut: 0,
+                    stockAdjustment: 0,
+                    finalStock: 0
+                };
+            }
+
+            return item; // kalau match, biarkan apa adanya
+        });
+
+        // Urutkan dari terbaru
+        const sorted = updatedData.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+
+        setFilteredData(sorted);
+        setCurrentPage(1);
+    };
 
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -197,8 +293,56 @@ const StockCardManagement = () => {
         return filteredData.slice(startIndex, endIndex);
     }, [currentPage, filteredData]);
 
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    };
+
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+
+    // Filter outlets based on search input
+    const filteredOutlets = useMemo(() => {
+        return uniqueOutlets.filter(outlet =>
+            outlet.toLowerCase().includes(search.toLowerCase())
+        );
+    }, [search, uniqueOutlets]);
+
+    // Filter outlets based on search input
+    // const filteredCategory = useMemo(() => {
+    //     return uniqueCategory.filter(stock =>
+    //         stock.toLowerCase().includes(search.toLowerCase())
+    //     );
+    // }, [search, uniqueCategory]);
+
+    // Filter status based on search input
+    const filteredStatus = useMemo(() => {
+        return uniqueStatus.filter(status =>
+            status.toLowerCase().includes(search.toLowerCase())
+        );
+    }, [search, uniqueStatus]);
+
+    const optionsOutlets = [
+        { value: "", label: "Semua Outlet" },
+        ...filteredOutlets.map((outlet) => ({
+            value: outlet,
+            label: outlet,
+        })),
+    ];
+
+    const handleDelete = async (itemId) => {
+        try {
+            await axios.delete(`/api/menu/menu-items/${itemId}`);
+            setStock(stock.filter(item => item._id !== itemId));
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error("Error deleting item:", error);
+        }
+    };
 
     // Show loading state
     if (loading) {
@@ -334,6 +478,7 @@ const StockCardManagement = () => {
                                 <th className="p-3 font-medium text-right w-[10%]">Stok Awal</th>
                                 <th className="p-3 font-medium text-right w-[10%]">Stok Masuk</th>
                                 <th className="p-3 font-medium text-right w-[10%]">Stok Keluar</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Transfer</th>
                                 <th className="p-3 font-medium text-right w-[10%]">Stok Akhir</th>
                             </tr>
                         </thead>
@@ -342,24 +487,32 @@ const StockCardManagement = () => {
                                 {paginatedData.map((item) => (
                                     <tr
                                         key={item._id}
-                                        className={`hover:bg-gray-100 `}
+                                        className={`hover:bg-gray-100 ${item.currentStock <= 0
+                                            ? "bg-red-500/30"
+                                            : item.currentStock <= item.minStock
+                                                ? "bg-yellow-500/30"
+                                                : ""
+                                            }`}
                                     >
                                         <td className="p-3 truncate">{item.name}</td>
                                         <td className="p-3 truncate">{item.category?.name}</td>
-                                        <td className="p-3 text-right">{item.capacityFirst || 0}</td>
+                                        <td className="p-3 text-right">{item.firstStock || 0}</td>
                                         <td
-                                            className={`p-3 text-right ${item.capacityIn > 0 ? "text-[#005429]" : ""
+                                            className={`p-3 text-right ${item.stockIn > 0 ? "text-[#005429]" : ""
                                                 }`}
                                         >
-                                            {item.capacityIn > 0 ? `+ ${item.capacityIn}` : 0}
+                                            {item.stockIn > 0 ? `+ ${item.stockIn}` : 0}
                                         </td>
                                         <td
-                                            className={`p-3 text-right ${item.capacityOut > 0 ? "text-red-500" : ""
+                                            className={`p-3 text-right ${item.stockOut > 0 ? "text-red-500" : ""
                                                 }`}
                                         >
-                                            {item.capacityOut > 0 ? `- ${item.capacityOut}` : 0}
+                                            {item.stockOut > 0 ? `- ${item.stockOut}` : 0}
                                         </td>
-                                        <td className="p-3 text-right">{item.capacityLast || 0}</td>
+                                        <td className="p-3 text-right">
+                                            {item.stockAdjustment || 0}
+                                        </td>
+                                        <td className="p-3 text-right">{item.finalStock || 0}</td>
                                     </tr>
                                 ))}
                             </tbody>

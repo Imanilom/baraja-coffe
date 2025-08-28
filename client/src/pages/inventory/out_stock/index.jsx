@@ -13,15 +13,10 @@ import MovementSideModal from "../../../components/movementSideModal";
 const OutStockManagement = () => {
     const [selectedMovement, setSelectedMovement] = useState(null);
     const [showModal, setShowModal] = useState(false);
-    const [outStock, setOutStock] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [selectedTrx, setSelectedTrx] = useState(null);
+    const [stockOutFromOrder, setStockFromOrder] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [value, setValue] = useState({
         startDate: dayjs(),
         endDate: dayjs()
@@ -36,140 +31,50 @@ const OutStockManagement = () => {
 
     const dropdownRef = useRef(null);
 
-    // Fetch outStock and outlets data
-    const fetchStock = async () => {
+    const fetchCategories = async () => {
+        const res = await axios.get("/api/menu/categories");
+        setCategories(res.data.data ? res.data.data : res.data);
+    };
+
+    const fetchStockOutFromOrder = async () => {
+        setLoading(true);
         try {
-            const stockResponse = await axios.get('/api/product/stock/all');
-            const stockData = stockResponse.data.data || [];
+            const response = await axios.get("/api/orders");
+            const productsData = Array.isArray(response.data)
+                ? response.data
+                : response.data?.data ?? [];
 
-            const stockWithMovements = await Promise.all(
-                stockData.map(async (item) => {
-                    const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
-                    const movements = movementResponse.data.data.movements || [];
-
-                    return {
-                        ...item,
-                        movements
-                    };
-                })
+            const completedData = productsData.filter(
+                (item) => item.status === "Completed"
             );
-            setOutStock(stockWithMovements);
 
-            // 🔹 Default awal: type "out" & hanya hari ini
-            const defaultMovements = [];
-            stockWithMovements.forEach(stock => {
-                (stock.movements || []).forEach(movement => {
-                    const movementDate = dayjs(movement.date);
-                    if (
-                        movement.type === "out" &&
-                        movementDate.isSame(dayjs(), 'day') // hanya tanggal hari ini
-                    ) {
-                        defaultMovements.push({
-                            ...movement,
-                            product: stock.productId?.name,
-                            unit: stock.productId?.unit
-                        });
-                    }
-                });
+            setStockFromOrder(completedData);
+
+            // ✅ filter hari ini saat pertama kali load
+            const todayStart = dayjs().startOf("day");
+            const todayEnd = dayjs().endOf("day");
+
+            const filtered = completedData.filter((stockOut) => {
+                const stockOutDate = dayjs(stockOut.createdAt);
+                return stockOutDate.isBetween(todayStart, todayEnd, "day", "[]");
             });
 
-            // Urutkan terbaru
-            const sortedDefault = defaultMovements.sort(
-                (a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()
-            );
-            setFilteredData(sortedDefault);
-
+            setFilteredData(filtered);
+            setError(null);
         } catch (err) {
-            console.error("Error fetching stock or movements:", err);
-            setOutStock([]);
+            console.error("Error fetching Stock Out:", err);
+            setError("Failed to load Stock Out.");
+            setStockFromOrder([]);
             setFilteredData([]);
-        }
-    };
-
-
-    const fetchOutlets = async () => {
-        try {
-            const outletsResponse = await axios.get('/api/outlet');
-            const outletsData = Array.isArray(outletsResponse.data)
-                ? outletsResponse.data
-                : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
-                    ? outletsResponse.data.data
-                    : [];
-
-            setOutlets(outletsData);
-        } catch (err) {
-            console.error("Error fetching outlets:", err);
-            setOutlets([]);
-        }
-    };
-
-    // const fetchCategories = async () => {
-    //     try {
-    //         const categoryResponse = await axios.get('/api/storage/categories');
-    //         const categoryData = Array.isArray(categoryResponse.data)
-    //             ? categoryResponse.data
-    //             : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
-    //                 ? categoryResponse.data.data
-    //                 : [];
-
-    //         setCategory(categoryData);
-    //     } catch (err) {
-    //         console.error("Error fetching categories:", err);
-    //         setCategory([]);
-    //     }
-    // };
-
-    const fetchData = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            await Promise.all([
-                fetchStock(),
-                fetchOutlets(),
-                // fetchCategories()
-            ]);
-            // fetchStatus();
-        } catch (err) {
-            console.error("General error:", err);
-            setError("Failed to load data. Please try again later.");
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
     const capitalizeWords = (text) => {
         return text
             .toLowerCase()
             .replace(/\b\w/g, (char) => char.toUpperCase());
-    };
-
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
     };
 
     const formatDateTime = (datetime) => {
@@ -178,77 +83,76 @@ const OutStockManagement = () => {
         return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     };
 
-    const formatDate = (dat) => {
-        const date = new Date(dat);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
-    };
-
-    const formatTime = (time) => {
-        const date = new Date(time);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
     // Apply filter function
     const applyFilter = () => {
-        const allMovements = [];
+        let filtered = [...stockOutFromOrder];
 
-        outStock.forEach(stock => {
-            const movements = stock.movements || [];
+        // Search filter
+        if (tempSearch) {
+            const searchTerm = tempSearch.toLowerCase();
+            filtered = filtered.filter((stockOut) =>
+                stockOut.items?.some((item) => {
+                    const menuItem = item?.menuItem;
+                    if (!menuItem) return false;
 
-            const movementsInRange = movements.filter(movement => {
-                const movementDate = dayjs(movement.date);
-                return (
-                    movement.type === "out" && // hanya ambil stok masuk
-                    movementDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
-                    movementDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'))
-                );
+                    const categoryName =
+                        categories.find((c) => c._id === menuItem.category)?.name || "";
+
+                    return (
+                        (menuItem.name || "").toLowerCase().includes(searchTerm) ||
+                        categoryName.toLowerCase().includes(searchTerm)
+                    );
+                })
+            );
+        }
+
+        // Date range filter
+        if (value?.startDate && value?.endDate) {
+            filtered = filtered.filter((stockOut) => {
+                if (!stockOut.createdAt) return false;
+
+                const stockOutDate = dayjs(stockOut.createdAt);
+                const startDate = dayjs(value.startDate).startOf("day");
+                const endDate = dayjs(value.endDate).endOf("day");
+
+                return stockOutDate.isBetween(startDate, endDate, "day", "[]");
             });
+        }
 
-            movementsInRange.forEach(movement => {
-                allMovements.push({
-                    ...movement,
-                    product: stock.productId?.name,
-                    unit: stock.productId?.unit
-                });
-            });
-        });
-
-        // Filter berdasarkan pencarian jika ada
-        const searched = tempSearch
-            ? allMovements.filter(m =>
-                m._id.toLowerCase().includes(tempSearch.toLowerCase()) ||
-                m.product?.toLowerCase().includes(tempSearch.toLowerCase())
-            )
-            : allMovements;
-
-        // Urutkan berdasarkan tanggal terbaru
-        const sorted = searched.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
-
-        setFilteredData(sorted); // ← bikin state baru khusus movement hasil filter
-        setCurrentPage(1);
+        setFilteredData(filtered);
+        setCurrentPage(1); // reset ke halaman pertama
     };
+
+    useEffect(() => {
+        fetchStockOutFromOrder();
+        fetchCategories();
+    }, []);
+
+    const flattenedData = useMemo(() => {
+        return filteredData.flatMap(stockOut =>
+            (stockOut.items || []).map((i, idx) => {
+                const categoryName =
+                    categories.find(c => c._id === i?.menuItem?.category)?.name || "-";
+
+                return {
+                    _id: `${stockOut._id}-${idx}`,
+                    createdAt: stockOut.createdAt,
+                    menuName: i?.menuItem?.name,
+                    category: categoryName, // ✅ sudah nama kategori
+                    quantity: i?.quantity,
+                };
+            })
+        );
+    }, [filteredData, categories]);
+
+    // Calculate total pages based on filtered data
+    const totalPages = Math.ceil(flattenedData.length / ITEMS_PER_PAGE);
 
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
-        return filteredData.slice(startIndex, endIndex);
-    }, [currentPage, filteredData]);
-
-    useEffect(() => {
-        applyFilter();
-    }, []);
+        return flattenedData.slice(startIndex, endIndex);
+    }, [currentPage, flattenedData]);
 
     // Reset filters
     const resetFilter = () => {
@@ -266,37 +170,6 @@ const OutStockManagement = () => {
         alert('File berhasil diimpor!');
         setShowModal(false);
     };
-
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
-    };
-
 
     // Show loading state
     if (loading) {
@@ -339,19 +212,19 @@ const OutStockManagement = () => {
                     <span className="text-[#005429]">Stok Keluar</span>
                     <FaInfoCircle size={15} className="text-gray-400" />
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
+                <div className="flex flex-wrap gap-2 mt-2 py-4 sm:mt-0">
                     {/* <button
                         onClick={() => setShowModal(true)}
                         className="w-full sm:w-auto bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px]"
                     >
                         Impor Stok Keluar
                     </button> */}
-                    <Link
+                    {/* <Link
                         to="/admin/inventory/outstock-create"
                         className="w-full sm:w-auto bg-[#005429] text-white px-4 py-2 rounded border border-white hover:text-white text-[13px]"
                     >
                         Tambah Stok Keluar
-                    </Link>
+                    </Link> */}
                 </div>
             </div>
 
@@ -409,44 +282,37 @@ const OutStockManagement = () => {
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
+                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md mt-4">
                     <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
-                        <thead className="text-gray-400 bg-gray-50">
+                        <thead className="text-gray-400">
                             <tr className="text-left">
                                 <th className="px-4 py-3 font-normal w-[20%]">Waktu Submit</th>
-                                <th className="px-4 py-3 font-normal w-[15%]">ID Stok Keluar</th>
-                                <th className="px-4 py-3 font-normal w-[10%]">Produk</th>
-                                <th className="px-4 py-3 font-normal w-[10%]">Unit</th>
+                                <th className="px-4 py-3 font-normal w-[15%]">Menu</th>
+                                <th className="px-4 py-3 font-normal w-[15%]">Kategori</th>
                                 <th className="px-4 py-3 font-normal text-right w-[10%]">Qty</th>
-                                <th className="px-4 py-3 font-normal w-[10%]">Keterangan</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
                             <tbody className="text-gray-500 divide-y">
-                                {paginatedData.map((movement) => (
+                                {paginatedData.map(row => (
                                     <tr
-                                        key={movement._id}
-                                        className="cursor-pointer hover:bg-slate-50"
-                                        onClick={() => setSelectedMovement(movement)}
+                                        key={row._id}
+                                        className="text-left text-sm cursor-pointer hover:bg-slate-50"
                                     >
-                                        <td className="px-4 py-3 truncate">{formatDateTime(movement.date)}</td>
-                                        <td className="px-4 py-3 truncate">{movement._id}</td>
-                                        <td className="px-4 py-3 truncate">{movement.product && capitalizeWords(movement.product)}</td>
-                                        <td className="px-4 py-3 lowercase">{movement.unit}</td>
-                                        <td className="px-4 py-3 text-right">{movement.quantity}</td>
-                                        <td className="px-4 py-3 max-w-[150px] truncate" title={movement.notes}>
-                                            {movement.notes || "-"}
-                                        </td>
+                                        <td className="px-4 py-3 truncate">{formatDateTime(row.createdAt)}</td>
+                                        <td className="px-4 py-3 truncate">{row.menuName}</td>
+                                        <td className="px-4 py-3 truncate">{row.category}</td>
+                                        <td className="px-4 py-3 text-right">x{row.quantity}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         ) : (
                             <tbody>
                                 <tr>
-                                    <td colSpan={6} className="py-12 text-center text-gray-400">
-                                        <div className="flex flex-col items-center">
-                                            <FaSearch size={60} className="mb-3" />
-                                            <p className="uppercase">Data Tidak Ditemukan</p>
+                                    <td colSpan={10} className="py-10 text-center">
+                                        <div className="flex justify-center items-center flex-col space-y-2 text-gray-400">
+                                            <FaSearch size={60} />
+                                            <p className="uppercase">Data Tidak ditemukan</p>
                                         </div>
                                     </td>
                                 </tr>
