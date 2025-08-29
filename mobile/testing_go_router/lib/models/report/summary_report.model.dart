@@ -119,14 +119,14 @@ class OrderTypeBreakdown {
 class SalesFilter {
   final DateTime? startDate;
   final DateTime? endDate;
-  final String? cashier;
+  final String? cashierId;
   final String? paymentMethod;
   final String? orderType;
 
   SalesFilter({
     this.startDate,
     this.endDate,
-    this.cashier,
+    this.cashierId,
     this.paymentMethod,
     this.orderType,
   });
@@ -134,14 +134,14 @@ class SalesFilter {
   SalesFilter copyWith({
     DateTime? startDate,
     DateTime? endDate,
-    String? cashier,
+    String? cashierId,
     String? paymentMethod,
     String? orderType,
   }) {
     return SalesFilter(
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
-      cashier: cashier ?? this.cashier,
+      cashierId: cashierId ?? this.cashierId,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       orderType: orderType ?? this.orderType,
     );

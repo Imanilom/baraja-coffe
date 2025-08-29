@@ -1,6 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
+import 'package:kasirbaraja/models/report/analytic_report.model.dart';
+import 'package:kasirbaraja/models/report/order_detail_report.model.dart';
 import 'package:kasirbaraja/models/report/summary_report.model.dart';
+import 'package:kasirbaraja/models/report/performance_report.model.dart';
 
 class SalesReportService {
   // This class would contain methods to generate sales reports
@@ -10,7 +13,7 @@ class SalesReportService {
     String outletId,
     DateTime? startDate,
     DateTime? endDate,
-    String? cashier,
+    String? cashierId,
     String? paymentMethod,
     String? orderType,
   ) async {
@@ -24,8 +27,8 @@ class SalesReportService {
       if (endDate != null) {
         queryParams['endDate'] = endDate.toIso8601String();
       }
-      if (cashier != null && cashier.isNotEmpty) {
-        queryParams['cashier'] = cashier;
+      if (cashierId != null && cashierId.isNotEmpty) {
+        queryParams['cashierId'] = cashierId;
       }
       if (paymentMethod != null && paymentMethod.isNotEmpty) {
         queryParams['paymentMethod'] = paymentMethod;
@@ -47,6 +50,141 @@ class SalesReportService {
       );
 
       return SalesSummary.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  Future<OrderDetailReport> fetchOrderDetailReport({
+    String? outletId,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? cashierId,
+    String? paymentMethod,
+    String? orderType,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    print('Fetching order detail report for outletId: $outletId');
+    try {
+      final queryParams = <String, dynamic>{'page': page, 'limit': limit};
+
+      if (startDate != null) {
+        queryParams['startDate'] = startDate.toIso8601String();
+      }
+      if (endDate != null) {
+        queryParams['endDate'] = endDate.toIso8601String();
+      }
+      if (cashierId != null && cashierId.isNotEmpty) {
+        queryParams['cashierId'] = cashierId;
+      }
+      if (paymentMethod != null && paymentMethod.isNotEmpty) {
+        queryParams['paymentMethod'] = paymentMethod;
+      }
+      if (orderType != null && orderType.isNotEmpty) {
+        queryParams['orderType'] = orderType;
+      }
+      queryParams['outletId'] = outletId;
+
+      Response response = await _dio.get(
+        '/api/report/sales/order-detail',
+        queryParameters: queryParams,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      return OrderDetailReport.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  Future<SalesAnalyticsReport> fetchSalesAnalyticsReport({
+    String? outletId,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? cashierId,
+    String? paymentMethod,
+    String? orderType,
+  }) async {
+    print('Fetching sales analysis report for outletId: $outletId');
+    try {
+      final queryParams = <String, dynamic>{};
+
+      if (startDate != null) {
+        queryParams['startDate'] = startDate.toIso8601String();
+      }
+      if (endDate != null) {
+        queryParams['endDate'] = endDate.toIso8601String();
+      }
+      if (cashierId != null && cashierId.isNotEmpty) {
+        queryParams['cashierId'] = cashierId;
+      }
+      if (paymentMethod != null && paymentMethod.isNotEmpty) {
+        queryParams['paymentMethod'] = paymentMethod;
+      }
+      if (orderType != null && orderType.isNotEmpty) {
+        queryParams['orderType'] = orderType;
+      }
+      queryParams['outletId'] = outletId;
+
+      Response response = await _dio.get(
+        '/api/report/sales/analytics',
+        queryParameters: queryParams,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      return SalesAnalyticsReport.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  Future<PerformanceReportModel> fetchPerformanceReport({
+    String? outletId,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? cashierId,
+  }) async {
+    print('Fetching performance report for outletId: $outletId');
+    try {
+      final queryParams = <String, dynamic>{};
+
+      if (startDate != null) {
+        queryParams['startDate'] = startDate.toIso8601String();
+      }
+      if (endDate != null) {
+        queryParams['endDate'] = endDate.toIso8601String();
+      }
+      queryParams['outletId'] = outletId;
+
+      Response response = await _dio.get(
+        '/api/report/sales/performance',
+        queryParameters: queryParams,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      return PerformanceReportModel.fromJson(response.data);
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {
