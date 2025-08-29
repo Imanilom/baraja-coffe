@@ -26,6 +26,7 @@ import tableLayoutRoutes from './routes/tableLayout.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import favoriteRoutes from './routes/favorite.routes.js';
 import deviceRoutes from './routes/device.routes.js';
+import voucherRoutes from './routes/voucher.routes.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
@@ -95,6 +96,7 @@ app.use("/images", express.static("api/public/images")); // supaya bisa diakses 
 // Route definitions...
 app.use('/api', orderRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/vouchers', voucherRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/fcm', fcmRoutes);
 app.use('/api/staff', posRoutes);
