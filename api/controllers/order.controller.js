@@ -2951,6 +2951,8 @@ export const getOrderById = async (req, res) => {
         addons: item.addons || [],
         toppings: item.toppings || [],
         notes: item.notes,
+        outletId: item.outletId || null,
+        outletName: item.outletName || null,
       };
     });
 
