@@ -4,7 +4,7 @@ import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/screens/orders/order_details/order_detail.dart';
 import 'package:kasirbaraja/screens/orders/widgets/list_menu.dart';
 import 'package:kasirbaraja/screens/orders/widgets/online_order.dart';
-import 'package:kasirbaraja/screens/orders/widgets/order_history.dart';
+import 'package:kasirbaraja/screens/orders/order_histories/order_history.dart';
 import 'package:kasirbaraja/screens/orders/widgets/saved_order.dart';
 import 'package:kasirbaraja/screens/orders/widgets/reservation_order.dart';
 
@@ -26,7 +26,7 @@ class OrderScreen extends ConsumerWidget {
               Container(color: Colors.grey[200], child: OnlineOrder()),
               Container(
                 color: Colors.grey[200],
-                child: Center(child: OrderHistory()),
+                child: Center(child: OrderHistoryScreen()),
               ),
               Container(
                 color: Colors.grey[200],

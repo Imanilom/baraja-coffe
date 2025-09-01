@@ -11,6 +11,7 @@ import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/screens/orders/order_screen.dart';
 import 'package:kasirbaraja/screens/reports/sales_report_screen.dart';
 import 'package:kasirbaraja/screens/reservation/reservation_screen.dart';
+import 'package:kasirbaraja/screens/orders/order_histories/order_history.dart';
 
 class MainScreen extends ConsumerWidget {
   const MainScreen({super.key});
@@ -232,16 +233,10 @@ class MainScreen extends ConsumerWidget {
                     ref: ref,
                     icon: Icons.history,
                     title: 'History',
-                    isSelected:
-                        currentPageIndex == 0 && currentWidgetIndex == 2,
+                    isSelected: currentPageIndex == 2,
                     onTap: () {
-                      if (currentPageIndex != 0) {
-                        ref.read(currentPageIndexProvider.notifier).setIndex(0);
-                      }
-                      if (currentWidgetIndex != 2) {
-                        ref
-                            .read(currentWidgetIndexProvider.notifier)
-                            .setIndex(2);
+                      if (currentPageIndex != 2) {
+                        ref.read(currentPageIndexProvider.notifier).setIndex(2);
                       }
                       Navigator.pop(context);
                     },
@@ -374,6 +369,7 @@ class MainScreen extends ConsumerWidget {
         children: const <Widget>[
           OrderScreen(),
           ReservationScreen(),
+          OrderHistoryScreen(),
           // SalesReportScreen(),
         ],
       ),

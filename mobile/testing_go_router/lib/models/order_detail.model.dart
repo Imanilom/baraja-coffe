@@ -85,6 +85,7 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @Default(null)
     PaymentModel? payment,
     @HiveField(26) @Default('') String? paymentStatus,
+    @HiveField(27) @Default(null) @JsonKey(name: '_id') String? id,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>
