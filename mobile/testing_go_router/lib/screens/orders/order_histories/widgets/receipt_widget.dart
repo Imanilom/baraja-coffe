@@ -4,6 +4,10 @@ import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
+import 'package:kasirbaraja/utils/format_rupiah.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
+
+final isPrintHistory = StateProvider<bool>((ref) => false);
 
 class ReceiptWidget extends ConsumerWidget {
   const ReceiptWidget({super.key});
@@ -11,6 +15,8 @@ class ReceiptWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedOrder = ref.watch(historyDetailProvider);
+    final isPrint = ref.watch(isPrintHistory);
+    final setIsPrint = ref.read(isPrintHistory.notifier);
 
     if (selectedOrder == null) {
       return Container(
@@ -36,34 +42,6 @@ class ReceiptWidget extends ConsumerWidget {
       color: Colors.grey[50],
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.white,
-            child: Row(
-              children: [
-                Icon(Icons.receipt, color: Colors.blue[700]),
-                const SizedBox(width: 8),
-                const Text(
-                  'Receipt Preview',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.print),
-                  onPressed: () {
-                    // Implement print functionality
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Print functionality would be implemented here',
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -86,6 +64,31 @@ class ReceiptWidget extends ConsumerWidget {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: TextButton.icon(
+              style: TextButton.styleFrom(
+                backgroundColor: isPrint ? Colors.grey[500] : Colors.blue[700],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                // width full,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => isPrint ? null : _showPrintDialog(context, ref),
+              label:
+                  isPrint ? const Text('Print...') : const Text('Print Struk'),
+              icon:
+                  isPrint
+                      ? const CircularProgressIndicator()
+                      : const Icon(Icons.print),
+            ),
+          ),
         ],
       ),
     );
@@ -97,18 +100,8 @@ class ReceiptWidget extends ConsumerWidget {
       children: [
         // Header
         const Text(
-          'LA BARAJA COFFEE',
+          'BARAJA AMPHITHEATER',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const Text(
-          'Jl. Coffee Street No. 123',
-          style: TextStyle(fontSize: 12),
-          textAlign: TextAlign.center,
-        ),
-        const Text(
-          'Tel: (021) 1234-5678',
-          style: TextStyle(fontSize: 12),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
@@ -139,39 +132,33 @@ class ReceiptWidget extends ConsumerWidget {
         const SizedBox(height: 16),
 
         // Pricing
-        _buildReceiptRow(
-          'Subtotal',
-          'Rp ${NumberFormat('#,###').format(order.totalBeforeDiscount)}',
-        ),
+        _buildReceiptRow('Subtotal', formatPrice(order.totalBeforeDiscount)),
 
         if (order.discounts!.autoPromoDiscount > 0)
           _buildReceiptRow(
             'Auto Promo Disc',
-            '-Rp ${NumberFormat('#,###').format(order.discounts!.autoPromoDiscount)}',
+            '-${formatPrice(order.discounts!.autoPromoDiscount)}',
           ),
         if (order.discounts!.manualDiscount > 0)
           _buildReceiptRow(
             'Manual Disc',
-            '-Rp ${NumberFormat('#,###').format(order.discounts!.manualDiscount)}',
+            '-${formatPrice(order.discounts!.manualDiscount)}',
           ),
         if (order.discounts!.voucherDiscount > 0)
           _buildReceiptRow(
             'Voucher Disc',
-            '-Rp ${NumberFormat('#,###').format(order.discounts!.voucherDiscount)}',
+            '-${formatPrice(order.discounts!.voucherDiscount)}',
           ),
 
         ...order.taxAndServiceDetails.map(
           (detail) => _buildReceiptRow(
             detail.name!,
-            'Rp ${NumberFormat('#,###').format(detail.amount)}',
+            formatPrice(detail.amount.toInt()),
           ),
         ),
 
         if (order.totalServiceFee > 0)
-          _buildReceiptRow(
-            'Service Fee',
-            'Rp ${NumberFormat('#,###').format(order.totalServiceFee)}',
-          ),
+          _buildReceiptRow('Service Fee', formatPrice(order.totalServiceFee)),
 
         const SizedBox(height: 8),
         _buildDivider(),
@@ -179,7 +166,7 @@ class ReceiptWidget extends ConsumerWidget {
 
         _buildReceiptRow(
           'TOTAL',
-          'Rp ${NumberFormat('#,###').format(order.grandTotal)}',
+          formatRupiah(order.grandTotal),
           isBold: true,
           isTotal: true,
         ),
@@ -190,22 +177,16 @@ class ReceiptWidget extends ConsumerWidget {
 
         // Footer
         const Text(
-          'Thank you for your visit!',
+          'Thank you!',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 8),
-        const Text(
-          'Follow us @labarajacoffee',
-          style: TextStyle(fontSize: 12),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Printed: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}',
-          style: const TextStyle(fontSize: 10, color: Colors.grey),
-          textAlign: TextAlign.center,
-        ),
+        // const SizedBox(height: 16),
+        // Text(
+        //   'Printed: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}',
+        //   style: const TextStyle(fontSize: 10, color: Colors.grey),
+        //   textAlign: TextAlign.center,
+        // ),
       ],
     );
   }
@@ -260,7 +241,7 @@ class ReceiptWidget extends ConsumerWidget {
             SizedBox(
               width: 80,
               child: Text(
-                'Rp ${NumberFormat('#,###').format(item.subtotal)}',
+                formatPrice(item.subtotal),
                 style: const TextStyle(fontSize: 12),
                 textAlign: TextAlign.right,
               ),
@@ -303,6 +284,233 @@ class ReceiptWidget extends ConsumerWidget {
       width: double.infinity,
       child: CustomPaint(painter: DashedLinePainter()),
     );
+  }
+
+  void _showPrintDialog(BuildContext context, WidgetRef ref) {
+    final selectedOrder = ref.read(historyDetailProvider);
+    if (selectedOrder == null) return;
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: const Text(
+            'Pilihan Print Struk',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 8.0,
+            children: [
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  minimumSize: const Size.fromHeight(40),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+                icon: const Icon(Icons.print, color: Colors.blue),
+                label: const Text('Print Customer'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _handlePrintCustomer(context, ref);
+                },
+              ),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  minimumSize: const Size.fromHeight(40),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+                icon: const Icon(Icons.label, color: Colors.green),
+                label: const Text('Print Label'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _handlePrintLabel(context, ref);
+                },
+              ),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  minimumSize: const Size.fromHeight(40),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+                icon: const Icon(Icons.kitchen, color: Colors.orange),
+                label: const Text('Print Kitchen'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _handlePrintKitchen(context, ref);
+                },
+              ),
+              //bar,
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  minimumSize: const Size.fromHeight(40),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+                icon: const Icon(Icons.local_bar, color: Colors.purple),
+                label: const Text('Print Bar'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _handlePrintBar(context, ref);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Batal'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _handlePrintCustomer(BuildContext context, WidgetRef ref) {
+    try {
+      ref.read(isPrintHistory.notifier).state = true;
+      final savedPrinter = ref.read(savedPrintersProvider.notifier);
+      savedPrinter.printToPrinter(
+        orderDetail: ref.read(historyDetailProvider)!,
+        printType: 'customer',
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Error: ${e.toString()}')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      ref.read(isPrintHistory.notifier).state = false;
+    }
+  }
+
+  void _handlePrintLabel(BuildContext context, WidgetRef ref) {
+    try {
+      ref.read(isPrintHistory.notifier).state = true;
+      final savedPrinter = ref.read(savedPrintersProvider.notifier);
+      savedPrinter.printToPrinter(
+        orderDetail: ref.read(historyDetailProvider)!,
+        printType: 'waiter',
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Error: ${e.toString()}')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      ref.read(isPrintHistory.notifier).state = false;
+    }
+    print('Print Label');
+  }
+
+  void _handlePrintKitchen(BuildContext context, WidgetRef ref) {
+    try {
+      ref.read(isPrintHistory.notifier).state = true;
+      final savedPrinter = ref.read(savedPrintersProvider.notifier);
+      savedPrinter.printToPrinter(
+        orderDetail: ref.read(historyDetailProvider)!,
+        printType: 'kitchen',
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Error: ${e.toString()}')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      ref.read(isPrintHistory.notifier).state = false;
+    }
+    print('Print Kitchen');
+    // Implementasi print kitchen
+  }
+
+  void _handlePrintBar(BuildContext context, WidgetRef ref) {
+    try {
+      ref.read(isPrintHistory.notifier).state = true;
+      final savedPrinter = ref.read(savedPrintersProvider.notifier);
+      savedPrinter.printToPrinter(
+        orderDetail: ref.read(historyDetailProvider)!,
+        printType: 'bar',
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Error: ${e.toString()}')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      ref.read(isPrintHistory.notifier).state = false;
+    }
   }
 }
 

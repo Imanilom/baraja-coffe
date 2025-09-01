@@ -34,12 +34,19 @@ class OrderDetailWidget extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          //close,
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.grey),
+            onPressed: () {
+              ref.read(historyDetailProvider.notifier).clearHistoryDetail();
+            },
+          ),
           _buildHeader(selectedOrder),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
           _buildOrderInfo(selectedOrder),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
           _buildItemsList(selectedOrder),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
           _buildPricingDetails(selectedOrder),
         ],
       ),
@@ -99,25 +106,28 @@ class OrderDetailWidget extends ConsumerWidget {
   }
 
   Widget _buildOrderInfo(OrderDetailModel order) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Order Information',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _buildInfoRow('Customer', order.user),
-            _buildInfoRow('Order Type', order.orderType.name),
-            if (order.tableNumber!.isNotEmpty)
-              _buildInfoRow('Table', order.tableNumber!),
-            _buildInfoRow('Payment Method', order.paymentMethod!),
-            _buildInfoRow('Source', order.source),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Order Information',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          _buildInfoRow('Customer', order.user),
+          _buildInfoRow('Order Type', order.orderType.name),
+          if (order.tableNumber!.isNotEmpty)
+            _buildInfoRow('Table', order.tableNumber!),
+          _buildInfoRow('Payment Method', order.paymentMethod!),
+          _buildInfoRow('Source', order.source),
+        ],
       ),
     );
   }
@@ -144,20 +154,23 @@ class OrderDetailWidget extends ConsumerWidget {
   }
 
   Widget _buildItemsList(OrderDetailModel order) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Items (${order.items.length})',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            ...order.items.map((item) => _buildItemCard(item)),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Items (${order.items.length})',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          ...order.items.map((item) => _buildItemCard(item)),
+        ],
       ),
     );
   }
@@ -223,7 +236,7 @@ class OrderDetailWidget extends ConsumerWidget {
               (topping) => Padding(
                 padding: const EdgeInsets.only(left: 8, top: 2),
                 child: Text(
-                  '+ ${topping.name} (+Rp ${NumberFormat('#,###').format(topping.price)})',
+                  '+ ${topping.name} (+ ${formatPrice(topping.price!)})',
                   style: TextStyle(color: Colors.grey[600], fontSize: 11),
                 ),
               ),
@@ -250,21 +263,14 @@ class OrderDetailWidget extends ConsumerWidget {
             ),
           ],
           const SizedBox(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Base Price: Rp ${formatRupiah(item.menuItem.displayPrice())}',
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-              ),
-              Text(
-                'Subtotal: Rp ${NumberFormat('#,###').format(item.subtotal)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-            ],
+          Text(
+            'Base Price: ${formatRupiah(item.menuItem.displayPrice())}',
+            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Subtotal: ${formatRupiah(item.subtotal)}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
           ),
         ],
       ),
@@ -272,29 +278,32 @@ class OrderDetailWidget extends ConsumerWidget {
   }
 
   Widget _buildPricingDetails(OrderDetailModel order) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Pricing Details',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _buildPriceRow('Subtotal', order.totalBeforeDiscount),
-            _buildPriceRow('Tax', order.totalTax),
-            // _buildPriceRow('Discount', -order.discount!),
-            const Divider(),
-            _buildPriceRow(
-              'Grand Total',
-              order.grandTotal,
-              isBold: true,
-              color: Colors.green[700],
-            ),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Pricing Details',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          _buildPriceRow('Subtotal', order.totalBeforeDiscount),
+          _buildPriceRow('Tax', order.totalTax),
+          // _buildPriceRow('Discount', -order.discount!),
+          const Divider(),
+          _buildPriceRow(
+            'Grand Total',
+            order.grandTotal,
+            isBold: true,
+            color: Colors.green[700],
+          ),
+        ],
       ),
     );
   }
@@ -318,7 +327,7 @@ class OrderDetailWidget extends ConsumerWidget {
             ),
           ),
           Text(
-            'Rp ${NumberFormat('#,###').format(amount)}',
+            formatRupiah(amount),
             style: TextStyle(
               color: color ?? Colors.black,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,

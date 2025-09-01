@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
+import 'package:kasirbaraja/utils/format_rupiah.dart';
+import 'package:kasirbaraja/enums/order_type.dart';
 
 class OrderListWidget extends ConsumerWidget {
   final List<OrderDetailModel> orders;
@@ -18,7 +20,7 @@ class OrderListWidget extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           color: Colors.grey[50],
           child: Row(
             children: [
@@ -65,7 +67,7 @@ class OrderListWidget extends ConsumerWidget {
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 4),
                         elevation: isSelected ? 4 : 1,
-                        color: isSelected ? Colors.blue[50] : null,
+                        color: isSelected ? Colors.blue[50] : Colors.white,
                         child: ListTile(
                           leading: Container(
                             width: 48,
@@ -88,7 +90,7 @@ class OrderListWidget extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${order.user} • ${order.orderType}',
+                                '${order.user} • ${OrderTypeExtension.orderTypeToJson(order.orderType)}',
                                 style: TextStyle(color: Colors.grey[600]),
                               ),
                               Text(
@@ -126,7 +128,7 @@ class OrderListWidget extends ConsumerWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Rp ${NumberFormat('#,###').format(order.grandTotal)}',
+                                formatRupiah(order.grandTotal),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: Colors.green,

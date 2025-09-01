@@ -3082,10 +3082,10 @@ export const getCashierOrderHistory = async (req, res) => {
             ...item.menuItem,
             category: item.category ? { id: item.category._id, name: item.category.name } : null,
             subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
+            originalPrice: item.menuItem.price,
+            discountedprice: item.menuItem.discountedPrice ?? item.menuItem.price,
             // _id: item.menuItem._id,
             // name: item.menuItem.name,
-            // originalPrice: item.menuItem.price,
-            // discountedprice: item.menuItem.discountedPrice,
             // description: item.menuItem.description,
             // workstation: item.menuItem.workstation,
             // categories: item.menuItem.category, // renamed
