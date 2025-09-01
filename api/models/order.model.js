@@ -8,7 +8,12 @@ const OrderItemSchema = new mongoose.Schema({
   toppings: [{ name: String, price: Number }],
   notes: { type: String, default: '' },
   isPrinted: { type: Boolean, default: false },
+
+  // ✅ Tambahan untuk outlet
+  outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
+  outletName: { type: String }
 });
+
 
 // Model Order
 const OrderSchema = new mongoose.Schema({
@@ -22,7 +27,7 @@ const OrderSchema = new mongoose.Schema({
     enum: ['Pending', 'Waiting', 'Reserved', 'OnProcess', 'Completed', 'Canceled'],
     default: 'Pending'
   },
-  paymentMethod: {  
+  paymentMethod: {
     type: String,
     enum: ['Cash', 'Card', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],
   },
@@ -34,8 +39,6 @@ const OrderSchema = new mongoose.Schema({
   deliveryAddress: { type: String },
   tableNumber: { type: String },
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
-  outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
-
   // Diskon & Promo
   discounts: {
     autoPromoDiscount: { type: Number, default: 0 },

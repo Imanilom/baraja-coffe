@@ -115,7 +115,9 @@ export const createAppOrder = async (req, res) => {
     // Process items
     const orderItems = [];
     for (const item of items) {
-      const menuItem = await MenuItem.findById(item.productId);
+      const menuItem = await MenuItem.findById(item.productId)
+        .populate('availableAt'); // pastikan di schema MenuItem ada ref ke Outlet
+
       if (!menuItem) {
         return res.status(404).json({
           success: false,
@@ -136,7 +138,7 @@ export const createAppOrder = async (req, res) => {
       const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
       const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
       const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
-
+      console.log('Menu item available at:', menuItem.availableAt?.[0]);
       orderItems.push({
         menuItem: menuItem._id,
         quantity: item.quantity,
@@ -144,6 +146,8 @@ export const createAppOrder = async (req, res) => {
         addons: processedAddons,
         toppings: processedToppings,
         notes: item.notes || '',
+        outletId: menuItem.availableAt?.[0]?._id || null,
+        outletName: menuItem.availableAt?.[0]?.name || null,
         isPrinted: false,
       });
     }
