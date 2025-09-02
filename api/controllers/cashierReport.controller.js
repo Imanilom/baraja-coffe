@@ -225,7 +225,7 @@ export const getOrderDetails = async (req, res) => {
         const [orders, totalCount] = await Promise.all([
             Order.find(filter)
                 .populate('cashierId', 'name email')
-                .populate('outlet', 'name')
+                // .populate('outlet', 'name')
                 .populate('items.menuItem', 'name price mainCategory')
                 .sort({ createdAt: -1 })
                 .skip(skip)

@@ -81,14 +81,6 @@ class _ListMenuState extends ConsumerState<ListMenu> {
             onClose: () => Navigator.pop(context),
           ),
     );
-
-    // notifier.addItemToOrder(
-    //   OrderItemModel(
-    //     menuItem: menuItem,
-    //     selectedToppings: [],
-    //     selectedAddons: selectedAddons,
-    //   ),
-    // );
   }
 
   @override
