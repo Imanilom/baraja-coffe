@@ -14,7 +14,6 @@ const OrderItemSchema = new mongoose.Schema({
   outletName: { type: String }
 });
 
-
 // Model Order
 const OrderSchema = new mongoose.Schema({
   order_id: { type: String, required: true, unique: true },
@@ -39,6 +38,11 @@ const OrderSchema = new mongoose.Schema({
   deliveryAddress: { type: String },
   tableNumber: { type: String },
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
+
+  // ✅ NEW: Open Bill fields
+  isOpenBill: { type: Boolean, default: false },
+  originalReservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
+
   // Diskon & Promo
   discounts: {
     autoPromoDiscount: { type: Number, default: 0 },
@@ -57,6 +61,7 @@ const OrderSchema = new mongoose.Schema({
   }],
   totalTax: { type: Number, default: 0 },
   totalServiceFee: { type: Number, default: 0 },
+  outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
 
   // Total akhir
   totalBeforeDiscount: { type: Number, required: true },
@@ -64,7 +69,10 @@ const OrderSchema = new mongoose.Schema({
   grandTotal: { type: Number, required: true },
 
   // Sumber order
-  source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true }
+  source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true },
+
+  // Reservation reference
+  reservation: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' }
 
 }, { timestamps: true });
 
@@ -75,5 +83,9 @@ OrderSchema.virtual('totalPrice').get(function () {
 
 // Indeks untuk mempercepat pencarian pesanan aktif
 OrderSchema.index({ status: 1, createdAt: -1 });
+
+// ✅ NEW: Index for open bill orders
+OrderSchema.index({ isOpenBill: 1, originalReservationId: 1 });
+OrderSchema.index({ reservation: 1 });
 
 export const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);
