@@ -2,6 +2,116 @@ import mongoose from 'mongoose';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
 import StockMovement from '../models/modul_menu/StockMovement.model.js';
 import Product from '../models/modul_market/Product.model.js';
+const MAX_RETRY_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 100; // 100ms delay antara retry
+
+export const insertInitialStocks = async (req, res) => {
+  try {
+    const { stocks } = req.body;
+
+    if (!stocks || !Array.isArray(stocks)) {
+      return res.status(400).json({ message: "Data stok tidak valid" });
+    }
+
+    let success = false;
+    let lastError;
+
+    for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+      const session = await mongoose.startSession();
+      try {
+        session.startTransaction();
+
+        for (const item of stocks) {
+          const product = await Product.findOne({ name: item.name }).session(session);
+          if (!product) {
+            throw new Error(`Produk ${item.name} tidak ditemukan`);
+          }
+
+          // Cek apakah sudah ada stok untuk kombinasi productId + category
+          const existingStock = await ProductStock.findOne({
+            productId: product._id,
+            category: item.category
+          }).session(session);
+
+          if (existingStock) {
+            // Update stok dan tambahkan movement
+            existingStock.currentStock += item.qty;
+            existingStock.movements.push({
+              quantity: item.qty,
+              type: 'in',
+              referenceId: new mongoose.Types.ObjectId(),
+              notes: 'Stok awal'
+            });
+            await existingStock.save({ session });
+          } else {
+            // Buat dokumen baru
+            const newStock = new ProductStock({
+              productId: product._id,
+              category: item.category,
+              currentStock: item.qty,
+              minStock: 0,
+              movements: [
+                {
+                  quantity: item.qty,
+                  type: 'in',
+                  referenceId: new mongoose.Types.ObjectId(),
+                  notes: 'Stok awal'
+                }
+              ]
+            });
+            await newStock.save({ session });
+          }
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+        success = true;
+        break; // keluar loop retry jika berhasil
+
+      } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        lastError = error;
+
+        if (
+          error.hasErrorLabel?.('TransientTransactionError') ||
+          error.codeName === 'WriteConflict'
+        ) {
+          if (attempt < MAX_RETRY_ATTEMPTS) {
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+            continue;
+          }
+        } else {
+          console.error('Error non-transient:', error);
+          break;
+        }
+      }
+    }
+
+    if (success) {
+      return res.status(201).json({
+        message: 'Stok awal berhasil ditambahkan',
+        data: stocks
+      });
+    } else {
+      console.error('Gagal setelah semua retry:', lastError);
+      return res.status(500).json({
+        message: 'Gagal menambahkan stok awal setelah beberapa percobaan',
+        error: lastError.message
+      });
+    }
+
+  } catch (error) {
+    console.error('Unexpected error:', error);
+    return res.status(500).json({
+      message: 'Terjadi kesalahan internal',
+      error: error.message
+    });
+  }
+};
+
+
+
 
 export const getProductStock = async (req, res) => {
   try {
