@@ -141,11 +141,6 @@ export const createRequest = async (req, res) => {
 // Ambil semua request (hanya untuk role inventory)
 export const getAllRequests = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    if (!user || !['staff', 'inventory', 'admin', 'superadmin'].includes(user.role)) {
-      return res.status(403).json({ message: 'Hanya petugas belanja yang bisa melihat request' });
-    }
-
     const requests = await Request.find().populate({
       path: 'items.productId',
       select: 'name sku category unit'
@@ -197,14 +192,21 @@ export const getAllRequestWithSuppliers = async (req, res) => {
   try {
     // Ambil semua request dan populate produk
     const requests = await Request.find()
-      .populate('items.productId')
+      .populate('items.productId') // populate productId, bisa null
       .lean();
 
-    // Buat mapping produkId -> daftar supplier dari koleksi Product
-    const productIds = requests.flatMap(r => r.items.map(i => i.productId._id));
-    const uniqueProductIds = [...new Set(productIds.map(id => id.toString()))];
+    // Kumpulkan semua productId yang tidak null
+    const productIds = requests
+      .flatMap(r => r.items)
+      .map(item => item.productId?._id) // optional chaining
+      .filter(id => id !== null && id !== undefined); // filter null
 
-    const products = await Product.find({ _id: { $in: uniqueProductIds } }).lean();
+    const uniqueProductIds = [...new Set(productIds)];
+
+    // Ambil produk hanya jika ada ID valid
+    const products = uniqueProductIds.length > 0 
+      ? await Product.find({ _id: { $in: uniqueProductIds } }).lean()
+      : [];
 
     // Buat mapping productId -> suppliers
     const productSupplierMap = {};
@@ -212,12 +214,14 @@ export const getAllRequestWithSuppliers = async (req, res) => {
       productSupplierMap[product._id.toString()] = product.suppliers || [];
     });
 
-    // Tambahkan daftar supplier ke setiap item
+    // Tambahkan supplier ke setiap item, dengan penanganan null
     const enrichedRequests = requests.map(req => ({
       ...req,
       items: req.items.map(item => ({
         ...item,
-        suppliers: productSupplierMap[item.productId?._id?.toString()] || []
+        suppliers: item.productId
+          ? productSupplierMap[item.productId._id?.toString()] || []
+          : []  // Jika tidak ada productId, supplier = []
       }))
     }));
 
