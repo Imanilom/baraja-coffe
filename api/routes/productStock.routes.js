@@ -1,7 +1,9 @@
 import express from 'express';
-import { getProductStock, addStockMovement, getAllStock, getStockMovements, updateMinStock } from '../controllers/ProductStock.controller.js';
+import { insertInitialStocks ,getProductStock, addStockMovement, getAllStock, getStockMovements, updateMinStock } from '../controllers/ProductStock.controller.js';
 import { getMenuStockDetails, updateMenuAvailableStock, updateSingleMenuStock, createRecipe, deleteRecipe, getAllRecipes, getRecipeById, getRecipeByMenuId, updateRecipe} from '../controllers/Recipe.controller.js';
 const router = express.Router();
+
+router.post('/stocks/initial-batch', insertInitialStocks);
 
 router.get('/stock', getProductStock);
 router.post('/stock/movement', addStockMovement);
