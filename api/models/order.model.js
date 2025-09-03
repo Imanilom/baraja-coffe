@@ -61,7 +61,7 @@ const OrderSchema = new mongoose.Schema({
   }],
   totalTax: { type: Number, default: 0 },
   totalServiceFee: { type: Number, default: 0 },
-  outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
+  outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
 
   // Total akhir
   totalBeforeDiscount: { type: Number, required: true },
