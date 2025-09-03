@@ -9,7 +9,7 @@ import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:intl/intl.dart';
+import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 class PrinterService {
   // Tambahkan fungsi helper untuk mengecek apakah ada items untuk workstation tertentu
@@ -102,7 +102,7 @@ class PrinterService {
   }) async {
     final jobs = _createPrintJobs(printType);
 
-    print('dokumen print ${orderDetail.items.toList()}');
+    // print('dokumen print ${orderDetail.items.toList()}');
 
     for (final job in jobs) {
       // if (printers.any((element) => element.connectionType == 'bluetooth')) {
@@ -113,38 +113,39 @@ class PrinterService {
       );
       // }
 
-      if (printers.any((element) => element.connectionType == 'network')) {
-        print('Mencetak $job di printer jaringan...');
-        // final networkPrinters =
-        //     printers
-        //         .where((printer) => printer.connectionType == 'network')
-        //         .toList();
+      // if (printers.any((element) => element.connectionType == 'network')) {
+      //   print('Mencetak $job di printer jaringan...');
+      // final networkPrinters =
+      //     printers
+      //         .where((printer) => printer.connectionType == 'network')
+      //         .toList();
 
-        // for (final networkPrinter in networkPrinters) {
-        //   final socket = await connectNetworkPrinter(networkPrinter);
-        //   if (socket != null) {
-        //     try {
-        //       final bytes = await _generateBytesForJob(
-        //         orderDetail: orderDetail,
-        //         printer: networkPrinter,
-        //         jobType: job,
-        //       );
-        //       socket.add(bytes);
-        //       await socket.flush();
-        //     } catch (e) {
-        //       print('❌ Gagal mencetak $job di ${networkPrinter.name}: $e');
-        //     } finally {
-        //       await disconnectNetworkPrinter(socket);
-        //     }
-        //   }
-        // }
-      }
-      print('Dokumen $job telah dicetak untuk ${orderDetail.orderId}');
+      // for (final networkPrinter in networkPrinters) {
+      //   final socket = await connectNetworkPrinter(networkPrinter);
+      //   if (socket != null) {
+      //     try {
+      //       final bytes = await _generateBytesForJob(
+      //         orderDetail: orderDetail,
+      //         printer: networkPrinter,
+      //         jobType: job,
+      //       );
+      //       socket.add(bytes);
+      //       await socket.flush();
+      //     } catch (e) {
+      //       print('❌ Gagal mencetak $job di ${networkPrinter.name}: $e');
+      //     } finally {
+      //       await disconnectNetworkPrinter(socket);
+      //     }
+      //   }
+      // }
+      // }
+      // print('Dokumen $job telah dicetak untuk ${orderDetail.orderId}');
     }
   }
 
   static List<String> _createPrintJobs(String printType) {
-    switch (printType) {
+    final lowerPrintType = printType.toLowerCase();
+    switch (lowerPrintType) {
       case 'customer':
         return ['customer'];
       case 'kitchen':
@@ -1034,13 +1035,4 @@ class PrinterService {
 
     return bytes;
   }
-}
-
-String formatPrice(int amount) {
-  final formatter = NumberFormat.currency(
-    locale: 'id_ID',
-    symbol: '',
-    decimalDigits: 0,
-  );
-  return formatter.format(amount);
 }

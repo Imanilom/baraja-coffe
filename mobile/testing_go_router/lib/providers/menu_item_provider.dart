@@ -65,21 +65,26 @@ final reservationMenuItemProvider = FutureProvider<List<MenuItemModel>>((
   var searchQuery = ref.watch(searchQueryProvider);
   var category = ref.watch(categoryProvider);
 
-  // 🔹 Filter berdasarkan kategori
-  if (category != 'All') {
-    return menuItems
-        .where((menuItem) => (menuItem.mainCategory)!.contains(category))
-        .toList();
-  }
+  var filteredProducts =
+      category == 'All'
+          ? menuItems
+          : menuItems
+              .where(
+                (menuItem) => (menuItem.mainCategory)!.contains(category),
+              ) // amanin null
+              .toList();
+
   // 🔹 Filter berdasarkan pencarian
   if (searchQuery.isNotEmpty) {
-    return menuItems
-        .where(
-          (menuItem) =>
-              menuItem.name!.toLowerCase().contains(searchQuery.toLowerCase()),
-        )
-        .toList();
+    filteredProducts =
+        filteredProducts
+            .where(
+              (menuItem) => menuItem.name!.toLowerCase().contains(
+                searchQuery.toLowerCase(),
+              ),
+            )
+            .toList();
   }
 
-  return menuItems;
+  return filteredProducts;
 });

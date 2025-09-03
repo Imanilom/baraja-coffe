@@ -19,10 +19,7 @@ class OnlineOrderRepository {
       }
 
       // Batasi hanya 10 data
-      final limitedResponse =
-          response['orders'].length > 10
-              ? response['orders'].sublist(0, 10)
-              : response['orders'];
+      final limitedResponse = response['orders'];
 
       print("Data pending orders yg diambil sebelum limit: $limitedResponse");
       final onlineOrders =

@@ -3,6 +3,17 @@ import { Order } from "../models/order.model.js";
 // import { Outlet } from '../models/Outlet.model.js';
 import moment from 'moment';
 
+const toObjectId = (id) => {
+    if (!id) return null;
+    try {
+        // const trimId = id.trim(); // Hapus spasi di awal/akhir
+        return new mongoose.Types.ObjectId(id);
+    } catch (error) {
+        console.warn(`Invalid ObjectId: ${id}`);
+        return null;
+    }
+};
+
 export const getSalesSummary = async (req, res) => {
     try {
         const {
@@ -24,17 +35,6 @@ export const getSalesSummary = async (req, res) => {
         //     path: 'cashier',
         //     select: '_id name' // Hanya pilih _id dan name dari cashier
         // });
-
-        const toObjectId = (id) => {
-            if (!id) return null;
-            try {
-                // const trimId = id.trim(); // Hapus spasi di awal/akhir
-                return new mongoose.Types.ObjectId(id);
-            } catch (error) {
-                console.warn(`Invalid ObjectId: ${id}`);
-                return null;
-            }
-        };
 
         // Date filter
         if (startDate || endDate) {
@@ -183,7 +183,7 @@ export const getOrderDetails = async (req, res) => {
             startDate,
             endDate,
             cashierId,
-            outlet,
+            outletId,
             paymentMethod,
             orderType,
             page = 1,
@@ -203,8 +203,20 @@ export const getOrderDetails = async (req, res) => {
             }
         }
 
-        if (cashierId) filter.cashierId = cashierId;
-        if (outlet) filter.outlet = outlet;
+        if (cashierId) {
+            const cashierObjectId = toObjectId(cashierId);
+            if (cashierObjectId) {
+                filter.cashierId = cashierObjectId;
+            }
+        }
+
+        if (outletId) {
+            const outletObjectId = toObjectId(outletId);
+            if (outletObjectId) {
+                filter.outlet = outletObjectId;
+            }
+        }
+
         if (paymentMethod) filter.paymentMethod = { $in: paymentMethod.split(',') };
         if (orderType) filter.orderType = { $in: orderType.split(',') };
 
@@ -213,7 +225,7 @@ export const getOrderDetails = async (req, res) => {
         const [orders, totalCount] = await Promise.all([
             Order.find(filter)
                 .populate('cashierId', 'name email')
-                .populate('outlet', 'name')
+                // .populate('outlet', 'name')
                 .populate('items.menuItem', 'name price mainCategory')
                 .sort({ createdAt: -1 })
                 .skip(skip)
@@ -284,8 +296,8 @@ export const getSalesAnalytics = async (req, res) => {
             startDate,
             endDate,
             cashierId,
-            outlet,
-            groupBy = 'hour' // hour, day, week, month
+            outletId,
+            groupBy = 'hour'
         } = req.query;
 
         const filter = { status: 'Completed' };
@@ -301,8 +313,19 @@ export const getSalesAnalytics = async (req, res) => {
             }
         }
 
-        if (cashierId) filter.cashierId = cashierId;
-        if (outlet) filter.outlet = outlet;
+        if (cashierId) {
+            const cashierObjectId = toObjectId(cashierId);
+            if (cashierObjectId) {
+                filter.cashierId = cashierObjectId;
+            }
+        }
+
+        if (outletId) {
+            const outletObjectId = toObjectId(outletId);
+            if (outletObjectId) {
+                filter.outlet = outletObjectId;
+            }
+        }
 
         // Hourly sales chart data
         const hourlySalesPipeline = [
@@ -317,7 +340,7 @@ export const getSalesAnalytics = async (req, res) => {
             { $sort: { '_id': 1 } }
         ];
 
-        // Top selling items
+        // Top selling items - SAFER VERSION using JavaScript calculation
         const topItemsPipeline = [
             { $match: filter },
             { $unwind: '$items' },
@@ -326,7 +349,7 @@ export const getSalesAnalytics = async (req, res) => {
                     _id: '$items.menuItem',
                     totalQuantity: { $sum: '$items.quantity' },
                     totalRevenue: { $sum: '$items.subtotal' },
-                    orderCount: { $sum: 1 }
+                    orders: { $addToSet: '$_id' }
                 }
             },
             {
@@ -366,7 +389,7 @@ export const getSalesAnalytics = async (req, res) => {
             Order.aggregate(dailyTrendPipeline)
         ]);
 
-        // Format hourly sales data (create full 24-hour array)
+        // Format hourly sales data
         const hourlyData = Array.from({ length: 24 }, (_, hour) => {
             const found = hourlySales.find(item => item._id === hour);
             return {
@@ -376,25 +399,33 @@ export const getSalesAnalytics = async (req, res) => {
             };
         });
 
-        const formattedTopItems = topItems.map((item, index) => ({
-            rank: index + 1,
-            menuItem: {
-                id: item.menuItem._id,
-                name: item.menuItem.name,
-                price: item.menuItem.price,
-                category: item.menuItem.mainCategory
-            },
-            totalQuantity: item.totalQuantity,
-            totalRevenue: item.totalRevenue,
-            orderCount: item.orderCount,
-            avgQuantityPerOrder: (item.totalQuantity / item.orderCount).toFixed(1)
-        }));
+        // SAFER: Calculate avgQuantityPerOrder in JavaScript to avoid MongoDB division by zero
+        const formattedTopItems = topItems.map((item, index) => {
+            const orderCount = item.orders ? item.orders.length : 0;
+            const avgQuantityPerOrder = orderCount > 0
+                ? (item.totalQuantity / orderCount).toFixed(1)
+                : '0.0';
+
+            return {
+                rank: index + 1,
+                menuItem: {
+                    id: item.menuItem._id,
+                    name: item.menuItem.name,
+                    price: item.menuItem.price,
+                    category: item.menuItem.mainCategory
+                },
+                totalQuantity: item.totalQuantity,
+                totalRevenue: item.totalRevenue,
+                orderCount: orderCount,
+                avgQuantityPerOrder: avgQuantityPerOrder
+            };
+        });
 
         const formattedDailyTrend = dailyTrend.map(item => ({
             date: `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`,
-            totalSales: item.totalSales,
-            totalOrders: item.totalOrders,
-            avgOrderValue: Math.round(item.avgOrderValue)
+            totalSales: item.totalSales || 0,
+            totalOrders: item.totalOrders || 0,
+            avgOrderValue: Math.round(item.avgOrderValue || 0)
         }));
 
         res.status(200).json({
@@ -415,7 +446,6 @@ export const getSalesAnalytics = async (req, res) => {
         });
     }
 };
-
 /**
  * API untuk Tab Performa - Cashier Performance
  * GET /api/sales-report/performance
@@ -425,7 +455,8 @@ export const getCashierPerformance = async (req, res) => {
         const {
             startDate,
             endDate,
-            outlet
+            cashierId,
+            outletId
         } = req.query;
 
         const filter = { status: 'Completed' };
@@ -441,19 +472,33 @@ export const getCashierPerformance = async (req, res) => {
             }
         }
 
-        if (outlet) filter.outlet = outlet;
+        if (cashierId) {
+            const cashierObjectId = toObjectId(cashierId);
+            if (cashierObjectId) {
+                filter.cashierId = cashierObjectId;
+            }
+        }
 
-        // Cashier performance
-        const cashierPerformancePipeline = [
+        if (outletId) {
+            const outletObjectId = toObjectId(outletId);
+            if (outletObjectId) {
+                filter.outlet = outletObjectId;
+            }
+        }
+
+        console.log('Filter being applied:', JSON.stringify(filter, null, 2));
+
+        // Step 1: Get basic cashier data (NO CALCULATIONS)
+        const basicCashierPipeline = [
             { $match: filter },
             {
                 $group: {
                     _id: '$cashierId',
                     totalTransactions: { $sum: 1 },
                     totalSales: { $sum: '$grandTotal' },
-                    avgOrderValue: { $avg: '$grandTotal' },
                     totalItems: { $sum: { $size: '$items' } },
-                    avgItemsPerOrder: { $avg: { $size: '$items' } }
+                    orderValues: { $push: '$grandTotal' },
+                    itemCounts: { $push: { $size: '$items' } }
                 }
             },
             {
@@ -464,12 +509,12 @@ export const getCashierPerformance = async (req, res) => {
                     as: 'cashier'
                 }
             },
-            { $unwind: '$cashier' },
+            { $unwind: { path: '$cashier', preserveNullAndEmptyArrays: true } },
             { $sort: { totalSales: -1 } }
         ];
 
-        // Daily performance trend
-        const dailyPerformancePipeline = [
+        // Step 2: Get daily performance (NO CALCULATIONS)
+        const basicDailyPipeline = [
             { $match: filter },
             {
                 $group: {
@@ -480,45 +525,68 @@ export const getCashierPerformance = async (req, res) => {
                     },
                     totalSales: { $sum: '$grandTotal' },
                     totalOrders: { $sum: 1 },
-                    totalCashiers: { $addToSet: '$cashierId' }
-                }
-            },
-            {
-                $addFields: {
-                    totalCashiers: { $size: '$totalCashiers' },
-                    avgSalesPerCashier: { $divide: ['$totalSales', { $size: '$totalCashiers' }] }
+                    uniqueCashiers: { $addToSet: '$cashierId' }
                 }
             },
             { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } }
         ];
 
-        const [cashierPerformance, dailyPerformance] = await Promise.all([
-            Order.aggregate(cashierPerformancePipeline),
-            Order.aggregate(dailyPerformancePipeline)
+        console.log('Running aggregation pipelines...');
+
+        const [cashierData, dailyData] = await Promise.all([
+            Order.aggregate(basicCashierPipeline),
+            Order.aggregate(basicDailyPipeline)
         ]);
 
-        const formattedCashierPerformance = cashierPerformance.map(item => ({
-            cashier: {
-                id: item.cashier._id,
-                name: item.cashier.name,
-                email: item.cashier.email
-            },
-            performance: {
-                totalTransactions: item.totalTransactions,
-                totalSales: item.totalSales,
-                avgOrderValue: Math.round(item.avgOrderValue),
-                totalItems: item.totalItems,
-                avgItemsPerOrder: item.avgItemsPerOrder.toFixed(1)
-            }
-        }));
+        console.log('Aggregation completed. Processing results...');
 
-        const formattedDailyPerformance = dailyPerformance.map(item => ({
-            date: `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`,
-            totalSales: item.totalSales,
-            totalOrders: item.totalOrders,
-            totalCashiers: item.totalCashiers,
-            avgSalesPerCashier: Math.round(item.avgSalesPerCashier)
-        }));
+        // ALL CALCULATIONS IN JAVASCRIPT - COMPLETELY SAFE
+        const formattedCashierPerformance = cashierData.map(item => {
+            // Safe calculations
+            const orderValues = Array.isArray(item.orderValues) ? item.orderValues : [];
+            const itemCounts = Array.isArray(item.itemCounts) ? item.itemCounts : [];
+
+            const avgOrderValue = orderValues.length > 0
+                ? orderValues.reduce((sum, val) => sum + (val || 0), 0) / orderValues.length
+                : 0;
+
+            const avgItemsPerOrder = itemCounts.length > 0
+                ? itemCounts.reduce((sum, val) => sum + (val || 0), 0) / itemCounts.length
+                : 0;
+
+            return {
+                cashier: {
+                    id: item._id,
+                    name: item.cashier?.name || 'Unknown Cashier',
+                    email: item.cashier?.email || 'No email'
+                },
+                performance: {
+                    totalTransactions: item.totalTransactions || 0,
+                    totalSales: item.totalSales || 0,
+                    avgOrderValue: Math.round(avgOrderValue),
+                    totalItems: item.totalItems || 0,
+                    avgItemsPerOrder: avgItemsPerOrder.toFixed(1)
+                }
+            };
+        });
+
+        // Format daily performance - SAFE CALCULATION
+        const formattedDailyPerformance = dailyData.map(item => {
+            const cashierCount = Array.isArray(item.uniqueCashiers) ? item.uniqueCashiers.length : 0;
+            const avgSalesPerCashier = (cashierCount > 0 && item.totalSales > 0)
+                ? Math.round(item.totalSales / cashierCount)
+                : 0;
+
+            return {
+                date: `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`,
+                totalSales: item.totalSales || 0,
+                totalOrders: item.totalOrders || 0,
+                totalCashiers: cashierCount,
+                avgSalesPerCashier: avgSalesPerCashier
+            };
+        });
+
+        console.log('Data formatting completed successfully');
 
         res.status(200).json({
             success: true,

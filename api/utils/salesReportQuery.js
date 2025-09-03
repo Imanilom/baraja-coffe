@@ -33,7 +33,7 @@ export const validateSalesReportQuery = [
         .optional()
         .isMongoId()
         .withMessage('cashierId must be a valid MongoDB ObjectId'),
-    query('outlet')
+    query('outletId')
         .optional()
         .isMongoId()
         .withMessage('outlet must be a valid MongoDB ObjectId'),
