@@ -12,8 +12,6 @@ import MovementSideModal from "../../../components/movementSideModal";
 
 const InStockManagement = () => {
     const [selectedMovement, setSelectedMovement] = useState(null);
-    const [inStock, setInStock] = useState([]);
-    const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -21,10 +19,7 @@ const InStockManagement = () => {
         startDate: dayjs(),
         endDate: dayjs()
     });
-    const [hasFiltered, setHasFiltered] = useState(false);
     const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
     const [showModal, setShowModal] = useState(false);

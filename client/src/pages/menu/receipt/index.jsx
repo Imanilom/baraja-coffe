@@ -164,14 +164,14 @@ const ReceiptMenu = () => {
             return false;
         }
 
-        const invalid = combinedIngredients.some(ing =>
-            !ing.productId || !ing.quantity || !ing.unit
-        );
+        // const invalid = combinedIngredients.some(ing =>
+        //     !ing.productId || !ing.quantity || !ing.unit
+        // );
 
-        if (invalid) {
-            alert('Semua bahan harus lengkap (produk, quantity, dan unit)');
-            return false;
-        }
+        // if (invalid) {
+        //     alert('Semua bahan harus lengkap (produk, quantity, dan unit)');
+        //     return false;
+        // }
 
         if (!menuItemStatus.isComplete) {
             alert(`Menu belum lengkap: ${menuItemStatus.missingFields.join(', ')}`);
@@ -339,7 +339,7 @@ const ReceiptMenu = () => {
                                             handleChange(setMainIngredients, mainIngredients, index, "productSku", e.target.value)
                                         }
                                         className="border rounded p-2 text-sm"
-                                        required
+                                        disabled
                                     />
 
                                     <input
@@ -363,7 +363,7 @@ const ReceiptMenu = () => {
                                             handleChange(setMainIngredients, mainIngredients, index, "unit", e.target.value)
                                         }
                                         className="border rounded p-2 text-sm lowercase"
-                                        required
+                                        disabled
                                     />
 
                                     {/* ❌ tidak ada tombol hapus */}
@@ -395,7 +395,6 @@ const ReceiptMenu = () => {
                                         placeholder="Pilih Bahan Baku"
                                         styles={customSelectStyles}
                                         isClearable
-                                        required
                                     />
 
                                     <input
@@ -406,7 +405,7 @@ const ReceiptMenu = () => {
                                             handleChange(setSubIngredients, subIngredients, index, "productSku", e.target.value)
                                         }
                                         className="border rounded p-2 text-sm"
-                                        required
+                                        disabled
                                     />
 
                                     <input
@@ -419,7 +418,6 @@ const ReceiptMenu = () => {
                                         className="border rounded p-2 text-sm"
                                         min="0"
                                         step="0.01"
-                                        required
                                     />
 
                                     <input
@@ -430,7 +428,7 @@ const ReceiptMenu = () => {
                                             handleChange(setSubIngredients, subIngredients, index, "unit", e.target.value)
                                         }
                                         className="border rounded p-2 text-sm lowercase"
-                                        required
+                                        disabled
                                     />
 
                                     <button
@@ -512,7 +510,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "productSku", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
-                                                required
+                                                disabled
                                             />
                                             <input
                                                 type="number"
@@ -534,7 +532,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "unit", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm lowercase"
-                                                required
+                                                disabled
                                             />
                                             <button
                                                 type="button"
@@ -634,7 +632,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "productSku", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
-                                                required
+                                                disabled
                                             />
                                             <input
                                                 type="number"
@@ -656,7 +654,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "unit", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm lowercase"
-                                                required
+                                                disabled
                                             />
                                             <button
                                                 type="button"

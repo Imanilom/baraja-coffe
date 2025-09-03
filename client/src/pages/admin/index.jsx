@@ -45,11 +45,12 @@ const AdminDashboard = () => {
         <Sidebar isSidebarOpen={isSidebarOpen} />
 
         <div
-          className={`transition-all duration-300 w-full custom-scrollbar overflow-auto h-screen ${isSidebarOpen ? "lg:ml-64" : "ml-0"
+          className={`transition-all duration-300 w-full max-w-full box-border overflow-y-auto overflow-x-hidden h-screen ${isSidebarOpen ? "lg:ml-64" : "ml-0"
             }`}
         >
           <Outlet context={{ isSidebarOpen }} />
         </div>
+
       </div>
     </>
   );

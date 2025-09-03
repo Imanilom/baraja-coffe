@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
+import Select from "react-select";
 import { FaPercent, FaTrashAlt } from "react-icons/fa";
 import Datepicker from "react-tailwindcss-datepicker";
 
 const CreateVoucher = ({ onClose, fetchVouchers }) => {
+    const [loading, setLoading] = useState(false); // ⬅️ state baru
     const [formData, setFormData] = useState({
         code: "",
         description: "",
@@ -17,32 +19,28 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
         maxClaims: "",
         printOnReceipt: true, // ⬅️ default value
     });
-    const [outletMode, setOutletMode] = useState("semua"); // 'semua' atau 'per'
-    const [outletQuotas, setOutletQuotas] = useState([{ outlet: "", quota: "" }]);
+    const [outlets, setOutlets] = useState([]);
 
     const [amountType, setAmountType] = useState("rupiah"); // or 'percentage'
 
-    const handleOutletQuotaChange = (index, field, value) => {
-        const updated = [...outletQuotas];
-        updated[index][field] = value;
-        setOutletQuotas(updated);
-    };
-
-    const handleAddOutletQuota = () => {
-        setOutletQuotas([...outletQuotas, { outlet: "", quota: "" }]);
-    };
+    useEffect(() => {
+        const fetchOutlets = async () => {
+            try {
+                const outletResponse = await axios.get("/api/outlet");
+                const outletData = outletResponse.data.data ? outletResponse.data.data : outletResponse.data;
+                setOutlets(outletData);
+            } catch {
+                setOutlets();
+            }
+        }
+        fetchOutlets();
+    }, []);
 
     const handlePrintOnReceipt = (value) => {
         setFormData((prev) => ({
             ...prev,
             printOnReceipt: value,
         }));
-    };
-
-    const handleRemoveOutletQuota = (index) => {
-        const updated = [...outletQuotas];
-        updated.splice(index, 1);
-        setOutletQuotas(updated);
     };
 
     const handleInputChange = (e) => {
@@ -58,9 +56,27 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
     };
 
     const handleSubmit = async (e) => {
+        setLoading(true); // ⬅️ mulai loading
         e.preventDefault();
+        let applicableOutlets = [];
+        applicableOutlets = outlets.map(o => o._id);
+
         try {
-            await axios.post("/api/vouchers", formData);
+            // mapping data agar sesuai dengan backend
+            const payload = {
+                name: formData.name,
+                code: formData.code,
+                description: formData.description,
+                discountAmount: formData.discountAmount,
+                discountType: amountType === "rupiah" ? "fixed" : "percentage", // mapping ke backend
+                validFrom: formData.date?.startDate,
+                validTo: formData.date?.endDate,
+                quota: formData.maxClaims,
+                applicableOutlets,
+                customerType: "all", // kalau belum ada pilihan customer type
+            };
+
+            await axios.post("/api/promotion/voucher-create", payload);
             fetchVouchers();
             onClose();
         } catch (error) {
@@ -91,24 +107,22 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
                     <form onSubmit={handleSubmit}>
                         {/* Kode Voucher */}
                         <div className="mb-4">
-                            <label className="block text-sm font-medium text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Kode Voucher</label>
+                            <label className="block text-sm font-medium text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 uppercase">
+                                Kode Voucher
+                            </label>
                             <input
                                 type="text"
                                 name="code"
                                 placeholder="Contoh: KODEVOUCHER01"
                                 maxLength={25}
-                                className="mt-1 w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#005429]"
-                                onChange={handleInputChange}
+                                className="mt-1 w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#005429] uppercase" // <-- ini untuk styling
+                                onChange={(e) =>
+                                    handleInputChange({
+                                        target: { name: "code", value: e.target.value.toUpperCase() },
+                                    })
+                                }
                                 required
                             />
-                            <div className="flex items-center mt-2 space-x-2">
-                                <input
-                                    type="checkbox"
-                                    name="auto_generated_code"
-                                    className="accent-[#005429] w-4 h-4"
-                                />
-                                <label className="text-sm text-gray-600">Gunakan Kode Unik Sistema</label>
-                            </div>
                         </div>
 
                         {/* Nama Voucher */}
@@ -198,87 +212,16 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Kuota Voucher</label>
 
-                            <div className="flex space-x-2 mt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setOutletMode("semua")}
-                                    className={`px-3 py-1 text-sm rounded ${outletMode === "semua"
-                                        ? "bg-[#005429] text-white"
-                                        : "border border-[#005429] text-[#005429]"
-                                        }`}
-                                >
-                                    Semua Outlet
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setOutletMode("per")}
-                                    className={`px-3 py-1 text-sm rounded ${outletMode === "per"
-                                        ? "bg-[#005429] text-white"
-                                        : "border border-[#005429] text-[#005429]"
-                                        }`}
-                                >
-                                    Per Outlet
-                                </button>
-                            </div>
-
-                            {/* Jika Semua Outlet */}
-                            {outletMode === "semua" && (
-                                <input
-                                    type="number"
-                                    name="maxClaims"
-                                    placeholder="Hanya angka"
-                                    className="mt-2 w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#005429]"
-                                    onChange={handleInputChange}
-                                />
-                            )}
-
-                            {/* Jika Per Outlet */}
-                            {outletMode === "per" && (
-                                <div className="mt-4 space-y-3">
-                                    {outletQuotas.map((item, index) => (
-                                        <div key={index} className="flex space-x-2 items-center">
-                                            <select
-                                                value={item.outlet}
-                                                onChange={(e) => handleOutletQuotaChange(index, "outlet", e.target.value)}
-                                                className="w-1/2 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#005429]"
-                                            >
-                                                <option value="">Pilih Outlet</option>
-                                                <option value="Outlet A">Outlet A</option>
-                                                <option value="Outlet B">Outlet B</option>
-                                                <option value="Outlet C">Outlet C</option>
-                                            </select>
-
-                                            <input
-                                                type="number"
-                                                value={item.quota}
-                                                placeholder="Kuota"
-                                                onChange={(e) => handleOutletQuotaChange(index, "quota", e.target.value)}
-                                                className="w-1/3 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#005429]"
-                                            />
-
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveOutletQuota(index)}
-                                                className="text-red-500 text-xl"
-                                                title="Hapus"
-                                            >
-                                                <FaTrashAlt />
-                                            </button>
-                                        </div>
-                                    ))}
-
-                                    <button
-                                        type="button"
-                                        onClick={handleAddOutletQuota}
-                                        className="mt-2 px-3 py-1 border border-[#005429] text-[#005429] rounded text-sm"
-                                    >
-                                        + Tambah Outlet Lain
-                                    </button>
-                                </div>
-                            )}
+                            <input
+                                type="number"
+                                name="maxClaims"
+                                placeholder=""
+                                className="mt-2 w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#005429]"
+                                onChange={handleInputChange}
+                            />
                         </div>
 
-                        {/* Cetak di Receipt */}
+                        {/* Cetak di Receipt
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Cetak di Receipt</label>
                             <div className="flex space-x-2 mt-2">
@@ -303,11 +246,11 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
                                     Tidak
                                 </button>
                             </div>
-                        </div>
+                        </div> */}
 
 
                         {/* Aksi Button */}
-                        <div className="flex justify-end space-x-3 mt-6">
+                        <div className="fixed bottom-5 right-5 flex justify-end space-x-3 mt-6">
                             <button
                                 type="button"
                                 onClick={onClose}
@@ -319,7 +262,30 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
                                 type="submit"
                                 className="px-4 py-2 bg-[#005429] text-white rounded"
                             >
-                                Simpan
+                                {loading ? (
+                                    <svg
+                                        className="animate-spin h-5 w-5 text-white"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <circle
+                                            className="opacity-25"
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="4"
+                                        />
+                                        <path
+                                            className="opacity-75"
+                                            fill="currentColor"
+                                            d="M4 12a8 8 0 018-8v4l3.5-3.5L12 0v4a8 8 0 000 16v-4l-3.5 3.5L12 24v-4a8 8 0 01-8-8z"
+                                        />
+                                    </svg>
+                                ) : (
+                                    "Simpan"
+                                )}
                             </button>
                         </div>
                     </form>
@@ -330,116 +296,3 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
 };
 
 export default CreateVoucher;
-
-{/* <form onSubmit={handleSubmit} className="p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold">Create Voucher</h2>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="text-gray-500 hover:text-gray-700 text-xl"
-                        >
-                            &times;
-                        </button>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-gray-700">Code</label>
-                            <input
-                                type="text"
-                                name="code"
-                                value={formData.code}
-                                onChange={handleInputChange}
-                                className="w-full border rounded px-3 py-2"
-                                required
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-gray-700">Discount Amount</label>
-                            <input
-                                type="number"
-                                name="discountAmount"
-                                value={formData.discountAmount}
-                                onChange={handleInputChange}
-                                className="w-full border rounded px-3 py-2"
-                                required
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-gray-700">Minimum Order</label>
-                            <input
-                                type="number"
-                                name="minimumOrder"
-                                value={formData.minimumOrder}
-                                onChange={handleInputChange}
-                                className="w-full border rounded px-3 py-2"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-gray-700">Start Date</label>
-                            <input
-                                type="date"
-                                name="startDate"
-                                value={formData.startDate}
-                                onChange={handleInputChange}
-                                className="w-full border rounded px-3 py-2"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-gray-700">End Date</label>
-                            <input
-                                type="date"
-                                name="endDate"
-                                value={formData.endDate}
-                                onChange={handleInputChange}
-                                className="w-full border rounded px-3 py-2"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-gray-700">Max Claims</label>
-                            <input
-                                type="number"
-                                name="maxClaims"
-                                value={formData.maxClaims}
-                                onChange={handleInputChange}
-                                className="w-full border rounded px-3 py-2"
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end space-x-4 mt-6">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="bg-gray-500 text-white px-4 py-2 rounded"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            className="bg-blue-500 text-white px-4 py-2 rounded"
-                        >
-                            Save
-                        </button>
-                    </div>
-                </form> */}
-
-{/* <div className="flex space-x-2 mt-2">
-                            <input
-                                type="date"
-                                name="start_date"
-                                className="w-1/2 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#005429]"
-                            />
-                            <input
-                                type="date"
-                                name="end_date"
-                                className="w-1/2 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#005429]"
-                            />
-                        </div> */}

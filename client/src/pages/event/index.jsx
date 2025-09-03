@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft, FaTicketAlt } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft, FaTicketAlt, FaTrashAlt, FaPencilAlt } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Header from "../admin/header";
@@ -200,41 +200,45 @@ const EventManagement = () => {
             <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
+            <div className="px-3 py-2 flex justify-between items-center border-b gap-2">
                 <div className="flex items-center space-x-2">
                     <FaTicketAlt size={21} className="text-gray-500 inline-block" />
                     <p className="text-[15px] text-gray-500">Event</p>
                 </div>
-                <div className="flex items-center space-x-2">
-                    <button className="text-[#005429] hover:text-white bg-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Ekspor Event</button>
-                    <Link to="/admin/event/create-event" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Event</Link>
+                <div className="flex space-x-2">
+                    <button className="text-[#005429] hover:text-white bg-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">
+                        Ekspor Event
+                    </button>
+                    <Link
+                        to="/admin/event/create-event"
+                        className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                    >
+                        Tambah Event
+                    </Link>
                 </div>
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-
+            <div className="px-3 pb-4 mb-[60px]">
+                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
+                    {/* Tanggal */}
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
-
-                            {/* Overlay untuk menyembunyikan ikon kalender */}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
-                        </div>
+                        <Datepicker
+                            showFooter
+                            showShortcuts
+                            value={value}
+                            onChange={setValue}
+                            displayFormat="DD-MM-YYYY"
+                            inputClassName="w-full text-[13px] border py-2 pr-6 pl-3 rounded cursor-pointer"
+                            popoverDirection="down"
+                        />
                     </div>
 
-                    <div className="col-span-3"></div>
+                    {/* Kosong biar rapih di desktop */}
+                    <div className="hidden lg:block col-span-3"></div>
 
+                    {/* Cari */}
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
@@ -244,19 +248,30 @@ const EventManagement = () => {
                                 placeholder="Cari"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+                                className="text-[13px] border py-2 pl-8 pr-4 rounded w-full"
                             />
                         </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-1">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                    {/* Tombol Filter */}
+                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
+                        <button
+                            onClick={applyFilter}
+                            className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        >
+                            Terapkan
+                        </button>
+                        <button
+                            onClick={resetFilter}
+                            className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded"
+                        >
+                            Reset
+                        </button>
                     </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md">
+                {/* Table Responsive */}
+                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md hidden md:block">
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
@@ -267,50 +282,79 @@ const EventManagement = () => {
                                 <th className="px-4 py-3 font-normal">Lokasi</th>
                                 <th className="px-4 py-3 font-normal text-right">Kapasitas</th>
                                 <th className="px-4 py-3 font-normal text-right">Harga</th>
-                                {/* <th className="px-4 py-3 font-normal">Tanggal</th> */}
+                                <th className="px-4 py-3 font-normal"></th>
                             </tr>
                         </thead>
-                        {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((event) => (
-                                    <tr key={event._id} className="text-left text-sm cursor-pointer hover:bg-slate-50">
-                                        <td className="px-4 py-3">{formatDateTime(event.date)}</td>
-                                        <td className="px-4 py-3">{event.name}</td>
-                                        <td className="px-4 py-3">{event.category}</td>
-                                        <td className="px-4 py-3">{event.organizer && capitalizeWords(event.organizer)}</td>
-                                        <td className="px-4 py-3">{event.location}</td>
-                                        <td className="px-4 py-3 text-right">{event.capacity}</td>
-                                        <td className="px-4 py-3 text-right">{formatCurrency(event.price)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={10}>
-                                        <div className="flex justify-center items-center">
-                                            <div className="text-gray-400">
-                                                <div className="flex justify-center">
-                                                    <FaSearch size={100} />
-                                                </div>
-                                                <p className="uppercase">Data Tidak ditemukan</p>
-                                            </div>
+                        <tbody className="text-sm text-gray-600">
+                            {paginatedData.map((event) => (
+                                <tr
+                                    key={event._id}
+                                    className="hover:bg-slate-50 transition cursor-pointer"
+                                >
+                                    <td className="px-4 py-3 truncate">{formatDateTime(event.date)}</td>
+                                    <td className="px-4 py-3 truncate">{event.name}</td>
+                                    <td className="px-4 py-3 truncate">{event.category}</td>
+                                    <td className="px-4 py-3 truncate">{event.organizer}</td>
+                                    <td className="px-4 py-3 truncate">{event.location}</td>
+                                    <td className="px-4 py-3 text-right">{event.capacity}</td>
+                                    <td className="px-4 py-3 text-right">{formatCurrency(event.price)}</td>
+                                    <td className="px-4 py-3 text-right">
+                                        <div className="flex justify-center space-x-2">
+                                            <Link
+                                                to={`/admin/event/edit-event/${event._id}`}
+                                                className="flex items-center px-3 py-1 text-xs text-white bg-blue-500 hover:bg-blue-600 rounded-md shadow-sm transition"
+                                            >
+                                                <FaPencilAlt className="mr-1" /> Edit
+                                            </Link>
+                                            <button className="flex items-center px-3 py-1 text-xs text-white bg-red-500 hover:bg-red-600 rounded-md shadow-sm transition">
+                                                <FaTrashAlt className="mr-1" /> Hapus
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
-                            </tbody>
-                        )}
-
+                            ))}
+                        </tbody>
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
+                {/* Mobile Card View */}
+                <div className="space-y-3 md:hidden">
+                    {paginatedData.map((event) => (
+                        <div
+                            key={event._id}
+                            className="bg-white p-4 rounded shadow-sm border"
+                        >
+                            <p className="text-sm font-medium text-gray-800">{event.name}</p>
+                            <p className="text-xs text-gray-500">{formatDateTime(event.date)}</p>
+                            <p className="text-xs text-gray-500">{event.location}</p>
+
+                            <div className="flex justify-between items-center mt-3">
+                                <span className="text-sm font-semibold">{formatCurrency(event.price)}</span>
+                                <div className="flex space-x-2">
+                                    <Link
+                                        to={`/admin/event/edit-event/${event._id}`}
+                                        className="px-3 py-1 text-xs text-white bg-blue-500 hover:bg-blue-600 rounded"
+                                    >
+                                        Edit
+                                    </Link>
+                                    <button className="px-3 py-1 text-xs text-white bg-red-500 hover:bg-red-600 rounded">
+                                        Hapus
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Pagination */}
                 {paginatedData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
+                    <div className="flex flex-col md:flex-row justify-between items-center mt-4 gap-3">
                         <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
+                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–
+                            {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari{" "}
+                            {filteredData.length} data
                         </span>
-                        <div className="flex justify-center space-x-2 mt-4">
+                        <div className="flex justify-center space-x-2">
                             <button
                                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                 disabled={currentPage === 1}
@@ -318,14 +362,12 @@ const EventManagement = () => {
                             >
                                 <FaChevronLeft />
                             </button>
-
                             {[...Array(totalPages)].map((_, index) => {
                                 const page = index + 1;
-
                                 if (
                                     page === 1 ||
                                     page === totalPages ||
-                                    (page >= currentPage - 2 && page <= currentPage + 2)
+                                    (page >= currentPage - 1 && page <= currentPage + 1)
                                 ) {
                                     return (
                                         <button
@@ -340,22 +382,8 @@ const EventManagement = () => {
                                         </button>
                                     );
                                 }
-
-                                // Tampilkan "..." jika melompati halaman
-                                if (
-                                    (page === currentPage - 3 && page > 1) ||
-                                    (page === currentPage + 3 && page < totalPages)
-                                ) {
-                                    return (
-                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
-                                            ...
-                                        </span>
-                                    );
-                                }
-
                                 return null;
                             })}
-
                             <button
                                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                 disabled={currentPage === totalPages}
@@ -364,16 +392,16 @@ const EventManagement = () => {
                                 <FaChevronRight />
                             </button>
                         </div>
-
                     </div>
                 )}
             </div>
 
+            {/* Footer bar */}
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <div className="w-full h-[2px] bg-[#005429]"></div>
             </div>
         </div>
+
     );
 };
 

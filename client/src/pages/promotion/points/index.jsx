@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { FaBell, FaChevronRight, FaCut, FaSearch, FaUser } from "react-icons/fa";
 import { Link } from "react-router-dom";
+import Header from "../../admin/header";
 
 const initialForm = { name: "", requiredPoints: 0, description: "" };
 
@@ -82,19 +83,13 @@ export default function PointManagement() {
 
   return (
     <div className="w-full">
-      <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-        <FaBell size={23} className="text-gray-400" />
-        <span className="text-[14px]">Hi Baraja</span>
-        <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-          <FaUser size={30} />
-        </Link>
-      </div>
+      <Header />
 
       {/* Breadcrumb */}
       <div className="px-3 py-3 flex justify-between items-center border-b">
         <div className="flex items-center space-x-2">
           <FaCut size={21} className="text-gray-500 inline-block" />
-          <p className="text-[15px] text-gray-500">Promo</p>
+          <Link to="/admin/promotion" className="text-[15px] text-gray-500">Promo</Link>
           <FaChevronRight size={21} className="text-gray-500 inline-block" />
           <p className="text-[15px] text-gray-500">Poin</p>
         </div>
@@ -211,7 +206,7 @@ export default function PointManagement() {
                   <td className="p-3 text-right">0</td>
                   <td className="p-3 text-right">0</td>
                   <td className="p-3 text-right">0</td>
-                  <td className="p-3 space-x-2">
+                  <td className="p-3 space-x-2 flex justify-end">
                     <button
                       onClick={() => handleEdit(outlet)}
                       className="px-3 py-1 bg-yellow-500 text-white rounded"
