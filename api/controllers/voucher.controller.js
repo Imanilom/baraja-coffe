@@ -4,10 +4,11 @@ import QRCode from 'qrcode';
 // Create a new voucher
 export const createVoucher = async (req, res) => {
     try {
-        const { name, description, discountAmount, discountType, validFrom, validTo, quota, applicableOutlets, customerType, printOnReceipt } = req.body;
+        const { name, code, description, discountAmount, discountType, validFrom, validTo, quota, applicableOutlets, customerType, printOnReceipt } = req.body;
 
         const newVoucher = new Voucher({
             name,
+            code,
             description,
             discountAmount,
             discountType,

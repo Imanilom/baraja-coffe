@@ -7,6 +7,7 @@ import Select from "react-select";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Datepicker from "react-tailwindcss-datepicker";
 import Header from "../../admin/header";
+import ExportInventory from "../exportInventory";
 
 const StockCardManagement = () => {
     const customSelectStyles = {
@@ -44,24 +45,13 @@ const StockCardManagement = () => {
     };
     const location = useLocation();
     const navigate = useNavigate(); // Use the new hook
-    const [stock, setStock] = useState([]);
-    const [category, setCategory] = useState([]);
-    const [status, setStatus] = useState([]);
-    const [tempSelectedCategory, setTempSelectedCategory] = useState("");
-    const [tempSelectedStatus, setTempSelectedStatus] = useState("");
     const [tempSearch, setTempSearch] = useState("");
     const [error, setError] = useState(null);
-
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [outlets, setOutlets] = useState([]);
-    const [search, setSearch] = useState("");
     const [value, setValue] = useState({
         startDate: dayjs(),
         endDate: dayjs()
     });
-    const [hasFiltered, setHasFiltered] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState(null);
 
     const [filteredData, setFilteredData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -70,225 +60,142 @@ const StockCardManagement = () => {
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 10;
-    const selectedMonth = 7; // Agustus
-    const selectedYear = 2025;
 
     const dropdownRef = useRef(null);
 
-    const fetchMenu = async () => {
+    const fetchMenuCapacity = async (value) => {
         try {
-            // const stockResponse = await axios.get('/api/product/stock/all');
-            const productResponse = await axios.get('/api/menu/menu-items');
-            // const stockData = stockResponse.data.data || [];
-            const productData = productResponse.data.data || [];
+            const [recipesRes, stockRes, ordersRes] = await Promise.all([
+                axios.get("/api/product/recipes"),
+                axios.get("/api/product/stock/all"),
+                axios.get("/api/orders") // ambil data order juga
+            ]);
 
-            // const stockWithMovements = await Promise.all(
-            //     stockData.map(async (item) => {
-            //         const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
-            //         const todayMovements = (movementResponse.data.data.movements || []).filter(movement =>
-            //             dayjs(movement.date).isSame(dayjs(), 'day') // hanya hari ini
-            //         );
+            const recipes = recipesRes.data.data ? recipesRes.data.data : recipesRes.data;
+            const stock = stockRes.data.data ? stockRes.data.data : stockRes.data;
+            const orders = ordersRes.data.data ? ordersRes.data.data : ordersRes.data;
 
-            //         return {
-            //             ...item,
-            //             movements: todayMovements
-            //         };
-            //     })
-            // );
+            const startDate = value?.startDate ? dayjs(value.startDate).startOf("day") : null;
+            const endDate = value?.endDate ? dayjs(value.endDate).endOf("day") : null;
 
-            setStock(productData);
-            setFilteredData(productData);
+            const results = [];
+
+            for (const menu of recipes) {
+                let ingredients = menu.baseIngredients.filter(ing => ing.isDefault);
+
+                const stockDetails = ingredients.map(ing => {
+                    const s = stock.find(s => s.productId._id === ing.productId);
+                    if (!s) return null;
+
+                    const stockAwalIn = s.movements
+                        .filter(m => dayjs(m.date).isBefore(startDate) && m.type === "adjustment")
+                        .reduce((sum, m) => sum + m.quantity, 0);
+
+                    const stockAwalOut = s.movements
+                        .filter(m => dayjs(m.date).isBefore(startDate) && m.type === "out")
+                        .reduce((sum, m) => sum + m.quantity, 0);
+
+                    const stockAwal = stockAwalIn - stockAwalOut;
+
+                    const stockMasuk = s.movements
+                        .filter(m => m.type === "adjustment" && dayjs(m.date).isBetween(startDate, endDate, null, '[]'))
+                        .reduce((sum, m) => sum + m.quantity, 0);
+
+                    // Ambil stok keluar dari orders, bukan dari movements lagi
+                    const stockKeluar = orders
+                        .flatMap(o =>
+                            o.items.map(i => ({
+                                ...i,
+                                orderDate: o.createdAt // ambil tanggal order dari parent order
+                            }))
+                        )
+                        .filter(i =>
+                            i.menuItem?._id === menu.menuItemId?._id &&
+                            dayjs(i.orderDate).isBetween(startDate, endDate, null, '[]')
+                        )
+                        .reduce((sum, i) => sum + i.quantity, 0);
+
+                    const stockAkhir = stockAwal + stockMasuk - stockKeluar;
+
+                    return {
+                        ingredient: s.productId.name,
+                        stockAwal,
+                        stockMasuk,
+                        stockAkhir,
+                        capacityFirst: Math.floor(stockAwal / ing.quantity),
+                        capacityIn: Math.floor(stockMasuk / ing.quantity),
+                        capacityOut: stockKeluar,
+                        capacityLast: Math.floor(stockAkhir / ing.quantity)
+                    };
+                }).filter(Boolean);
+
+                results.push({
+                    menu: menu.menuItemId?.name,
+                    stockDetails,
+                    capacityFirst: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityFirst)) : 0,
+                    capacityIn: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityIn)) : 0,
+                    capacityOut: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityOut)) : 0,
+                    capacityLast: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityLast)) : 0,
+                    filterRange: { startDate: startDate?.format("YYYY-MM-DD"), endDate: endDate?.format("YYYY-MM-DD") }
+                });
+            }
+
+            return results;
         } catch (err) {
-            console.error("Error fetching stock or movements:", err);
-            setStock([]);
-            setFilteredData([]);
+            console.error("Error fetching recipes, stock, or orders:", err);
+            return [];
         }
     };
 
-    console.log(stock);
 
-
-
-    const fetchOutlets = async () => {
-        try {
-            const outletsResponse = await axios.get('/api/outlet');
-            const outletsData = Array.isArray(outletsResponse.data)
-                ? outletsResponse.data
-                : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
-                    ? outletsResponse.data.data
-                    : [];
-
-            setOutlets(outletsData);
-        } catch (err) {
-            console.error("Error fetching outlets:", err);
-            setOutlets([]);
-        }
-    };
-
-    const fetchCategories = async () => {
-        try {
-            const categoryResponse = await axios.get('/api/storage/categories');
-            const categoryData = Array.isArray(categoryResponse.data)
-                ? categoryResponse.data
-                : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
-                    ? categoryResponse.data.data
-                    : [];
-
-            setCategory(categoryData);
-        } catch (err) {
-            console.error("Error fetching categories:", err);
-            setCategory([]);
-        }
-    };
-
-    const fetchStatus = () => {
-        setStatus([
-            { _id: "ya", name: "Ya" },
-            { _id: "tidak", name: "Tidak" }
-        ]);
-    };
-
-    const fetchData = async () => {
+    const applyFilter = async () => {
         setLoading(true);
         setError(null);
+
         try {
-            await Promise.all([
-                fetchMenu(),
-                fetchOutlets(),
-                fetchCategories()
+            // Ambil data menu dan kapasitas
+            const [menuRes, capacityRes] = await Promise.all([
+                axios.get("/api/menu/menu-items"),
+                fetchMenuCapacity(value) // value dari datepicker
             ]);
-            fetchStatus();
+
+            const menuItems = menuRes.data.data || [];
+            const capacities = capacityRes || [];
+
+            // Gabungkan menu dengan kapasitas
+            let merged = menuItems.map(menu => {
+                const capacity = capacities.find(c => c.menu === menu.name);
+                return {
+                    ...menu,
+                    capacityFirst: capacity?.capacityFirst ?? 0,   // stok awal
+                    capacityIn: capacity?.capacityIn ?? 0,         // stok masuk
+                    capacityOut: capacity?.capacityOut ?? 0,       // stok keluar
+                    capacityLast: capacity?.capacityLast ?? 0,     // stok akhir
+                    stockDetails: capacity?.stockDetails || [],    // detail tiap ingredient
+                    dateRange: capacity?.filterRange ?? null
+                };
+            });
+
+            // 🔍 Filter berdasarkan tempSearch (misalnya nama menu)
+            if (tempSearch) {
+                merged = merged.filter(menu =>
+                    menu.name.toLowerCase().includes(tempSearch.toLowerCase())
+                );
+            }
+
+            setFilteredData(merged);
         } catch (err) {
-            console.error("General error:", err);
+            console.error("Error applying filter:", err);
             setError("Failed to load data. Please try again later.");
         } finally {
             setLoading(false);
         }
     };
 
-
+    // Gunakan useEffect untuk jalankan saat component mount atau value berubah
     useEffect(() => {
-        fetchData();
-        applyFilter(); // hanya untuk load awal
+        applyFilter();
     }, []);
-
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
-    // Get unique outlet names for the dropdown
-    const uniqueCategory = useMemo(() => {
-        return stock.map(item => item.productId);
-    }, [stock]);
-
-    // Get unique Status names for the dropdown
-    const uniqueStatus = useMemo(() => {
-        return status.map(item => item.name);
-    }, [status]);
-
-    // const applyFilter = () => {
-    //     const filtered = stock.map(item => {
-    //         const movements = item.movements || [];
-
-    //         // Filter by date jika startDate dan endDate tersedia
-    //         const rangeMovements = (value.startDate && value.endDate)
-    //             ? movements.filter(m => {
-    //                 const date = dayjs(m.date || m.createdAt);
-    //                 return date.isSameOrAfter(dayjs(value.startDate), 'day') &&
-    //                     date.isSameOrBefore(dayjs(value.endDate), 'day');
-    //             })
-    //             : movements;
-
-    //         // Movement sebelum tanggal mulai
-    //         const previousMovements = (value.startDate)
-    //             ? movements.filter(m => {
-    //                 const date = dayjs(m.date || m.createdAt);
-    //                 return date.isBefore(dayjs(value.startDate), 'day');
-    //             })
-    //             : [];
-
-    //         const stockInBefore = previousMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
-    //         const stockOutBefore = previousMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
-    //         const adjustmentBefore = previousMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
-
-    //         const firstStock = stockInBefore - stockOutBefore;
-    //         // const firstStock = stockIn - stockOut - adjustmentBefore;
-
-    //         const stockIn = rangeMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
-    //         const stockOut = rangeMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
-    //         const stockAdjustment = rangeMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
-
-    //         const finalStock = firstStock + stockIn - stockOut;
-
-    //         return {
-    //             ...item,
-    //             firstStock,
-    //             stockIn,
-    //             stockOut,
-    //             stockAdjustment,
-    //             finalStock
-    //         };
-    //     });
-
-    //     // Filter by search jika searchTerm tidak kosong
-    //     const finalFiltered = tempSearch
-    //         ? filtered.filter(item =>
-    //             item.productId?.name.toLowerCase().includes(tempSearch.toLowerCase())
-    //         )
-    //         : filtered;
-
-    //     setFilteredData(finalFiltered);
-    // };
-
-
-    // useEffect(() => {
-    //     if (stock.length > 0 && !hasFiltered) {
-    //         applyFilter();
-    //         setHasFiltered(true);
-    //     }
-    // }, [stock, hasFiltered]);
-
-    const applyFilter = () => {
-        // Selalu mulai dari seluruh produk
-        const updatedData = stock.map(item => {
-            // Cek apakah item ini masuk dalam range tanggal
-            const dateMatch = !value.startDate || !value.endDate
-                ? true
-                : (() => {
-                    const itemDate = dayjs(item.date);
-                    return itemDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
-                        itemDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'));
-                })();
-
-            // Cek pencarian
-            const searchMatch = !tempSearch ||
-                item.name?.toLowerCase().includes(tempSearch.toLowerCase()) ||
-                item.sku?.toLowerCase().includes(tempSearch.toLowerCase());
-
-            // Kalau tidak match filter, ubah stok jadi 0 tapi name & category tetap ada
-            if (!dateMatch || !searchMatch) {
-                return {
-                    ...item,
-                    firstStock: 0,
-                    stockIn: 0,
-                    stockOut: 0,
-                    stockAdjustment: 0,
-                    finalStock: 0
-                };
-            }
-
-            return item; // kalau match, biarkan apa adanya
-        });
-
-        // Urutkan dari terbaru
-        const sorted = updatedData.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
-
-        setFilteredData(sorted);
-        setCurrentPage(1);
-    };
-
-
 
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -296,56 +203,8 @@ const StockCardManagement = () => {
         return filteredData.slice(startIndex, endIndex);
     }, [currentPage, filteredData]);
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
-
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    // Filter outlets based on search input
-    // const filteredCategory = useMemo(() => {
-    //     return uniqueCategory.filter(stock =>
-    //         stock.toLowerCase().includes(search.toLowerCase())
-    //     );
-    // }, [search, uniqueCategory]);
-
-    // Filter status based on search input
-    const filteredStatus = useMemo(() => {
-        return uniqueStatus.filter(status =>
-            status.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueStatus]);
-
-    const optionsOutlets = [
-        { value: "", label: "Semua Outlet" },
-        ...filteredOutlets.map((outlet) => ({
-            value: outlet,
-            label: outlet,
-        })),
-    ];
-
-    const handleDelete = async (itemId) => {
-        try {
-            await axios.delete(`/api/menu/menu-items/${itemId}`);
-            setStock(stock.filter(item => item._id !== itemId));
-            setIsModalOpen(false);
-        } catch (error) {
-            console.error("Error deleting item:", error);
-        }
-    };
 
     // Show loading state
     if (loading) {
@@ -375,339 +234,222 @@ const StockCardManagement = () => {
     }
 
     return (
-        <div className="w-full">
+        <div className="min-h-screen flex flex-col">
             {/* Header */}
             <Header />
 
-            <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
-                <div className="flex items-center space-x-2">
-                    <FaBoxes size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Inventori</p>
-                    <FaChevronRight size={22} className="text-[15px] text-gray-500 inline-block" />
-                    <p className="text-[15px] text-[#005429]">Kartu Stok</p>
-                    <FaInfoCircle size={17} className="text-gray-400 inline-block" />
+            {/* Sub Header */}
+            <div className="px-3 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b bg-white space-y-2 sm:space-y-0">
+                <div className="flex items-center space-x-2 text-sm">
+                    <FaBoxes size={18} className="text-gray-500" />
+                    <p className="text-gray-500">Inventori</p>
+                    <FaChevronRight className="text-gray-500" />
+                    <p className="text-[#005429]">Kartu Stok</p>
+                    <FaInfoCircle size={15} className="text-gray-400" />
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex w-full sm:w-auto">
+                    <ExportInventory
+                        isOpen={isModalOpen}
+                        onClose={() => setIsModalOpen(false)}
+                    />
                     <button
-                        onClick={() => console.log('Ekspor')}
-                        className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
+                        onClick={() => setIsModalOpen(true)}
+                        className="w-full sm:w-auto bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
                     >
                         Ekspor
                     </button>
                 </div>
             </div>
 
-            {/* <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 py-4 px-3">
-                <button
-                    className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
-                >
-                    <Link className="flex justify-between items-center p-4">
-                        <div className="flex space-x-4">
-                            <strong className="text-gray-400 ml-2 text-sm">Kartu Produk</strong>
-                        </div>
-                    </Link>
-                </button>
-
-                <div
-                    className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
-                >
-                    <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-                        to={"/admin/inventory/cardoutlet"}>
-                        <div className="flex space-x-4">
-                            <h2 className="text-gray-400 ml-2 text-sm">Kartu Outlet</h2>
-                        </div>
-                    </Link>
-                </div>
-            </div> */}
-
-            <div className="w-full pb-6 mb-[60px]">
-                <div className="px-[15px] pb-[15px]">
-                    <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                        {/* <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
-                            <Select
-                                options={optionsOutlets}
-                                value={
-                                    optionsOutlets.find((option) => option.value === tempSelectedOutlet) ||
-                                    optionsOutlets[0]
-                                }
-                                onChange={(selected) => {
-                                    setTempSelectedOutlet(selected.value);
-                                }}
-                                className="text-sm"
-                                classNamePrefix="react-select"
-                                placeholder="Pilih Outlet"
-                                isSearchable
-                                styles={customSelectStyles}
+            <div className="px-3 pb-4 mb-[60px]">
+                {/* Filter */}
+                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
+                    {/* Date */}
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
+                        <div className="relative text-gray-500">
+                            <Datepicker
+                                showFooter
+                                showShortcuts
+                                value={value}
+                                onChange={setValue}
+                                displayFormat="DD-MM-YYYY"
+                                inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                popoverDirection="down"
                             />
-                        </div> */}
-
-                        <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                            <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
-                                <Datepicker
-                                    showFooter
-                                    showShortcuts
-                                    value={value}
-                                    onChange={setValue}
-                                    displayFormat="DD-MM-YYYY"
-                                    inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                                    popoverDirection="down"
-                                />
-
-                                {/* Overlay untuk menyembunyikan ikon kalender */}
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col col-span-3"></div>
-
-                        {/* <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Kategori</label>
-                            <div className="relative">
-                                {!showInputCategory ? (
-                                    <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInputCategory(true)}>
-                                        {tempSelectedCategory || "Semua Kategori"}
-                                    </button>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                        value={search}
-                                        onChange={(e) => setSearchCategory(e.target.value)}
-                                        autoFocus
-                                        placeholder=""
-                                    />
-                                )}
-                                {showInputCategory && (
-                                    <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                        <li
-                                            onClick={() => {
-                                                setTempSelectedCategory(""); // Kosong berarti semua
-                                                setShowInput(false);
-                                            }}
-                                            className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                        >
-                                            Semua Kategori
-                                        </li>
-                                        {filteredCategory.length > 0 ? (
-                                            filteredCategory.map((category, idx) => (
-                                                <li
-                                                    key={idx}
-                                                    onClick={() => {
-                                                        setTempSelectedCategory(category);
-                                                        setShowInputCategory(false);
-                                                    }}
-                                                    className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                                >
-                                                    {category}
-                                                </li>
-                                            ))
-                                        ) : (
-                                            <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                        )}
-                                    </ul>
-                                )}
-                            </div>
-                        </div> */}
-
-                        <div className="flex flex-col col-span-2">
-                            <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-                            <div className="relative">
-                                <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                                <input
-                                    type="text"
-                                    placeholder="Cari Produk"
-                                    value={tempSearch}
-                                    onChange={(e) => setTempSearch(e.target.value)}
-                                    className="text-[13px] border py-[8px] pl-[30px] pr-[25px] rounded w-full"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end space-x-2 items-end col-span-1">
-                            <button onClick={applyFilter} className="bg-[#005429] border text-white text-[13px] px-[15px] py-[8px] rounded">Terapkan</button>
-                            <button className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded">Reset</button>
                         </div>
                     </div>
 
-                    <div className="w-full mt-4 py-[20px] shadow-md">
-                        <div className="flex justify-between px-[15px]">
-                            <div className="flex space-x-4 text-sm text-gray-500">
-                                <label htmlFor="" className="flex space-x-2">
-                                    <div className="w-5 h-5 bg-red-500/30"></div>
-                                    <p>Stok Sudah Mencapai Batas</p>
-                                </label>
-                                <label htmlFor="" className="flex space-x-2">
-                                    <div className="w-5 h-5 bg-yellow-500/30"></div>
-                                    <p>Stok Hampir Habis</p>
-                                </label>
-                            </div>
-                            {/* <div className="space-x-7">
-                                <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                                    <span>Produk Dijual</span>
-                                    <input type="checkbox" value="" className="sr-only peer" />
-                                    <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                                <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                                    <span>Produk Tidak Dijual</span>
-                                    <input type="checkbox" value="" className="sr-only peer" />
-                                    <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                                <label className="text-gray-400 text-[14px] inline-flex items-center cursor-pointer space-x-2">
-                                    <span>Stok Kosong</span>
-                                    <input type="checkbox" value="" className="sr-only peer" />
-                                    <div className="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                            </div> */}
+                    {/* Spacer */}
+                    <div className="hidden lg:block col-span-3"></div>
+
+                    {/* Search */}
+                    <div className="flex flex-col col-span-2">
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                        <div className="relative">
+                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                placeholder="Cari"
+                                value={tempSearch}
+                                onChange={(e) => setTempSearch(e.target.value)}
+                                className="text-[13px] border py-[8px] pl-[30px] pr-[25px] rounded w-full"
+                            />
                         </div>
                     </div>
-                    <BubbleAlert paginatedData={filteredData} />
-                    {/* Menu Table */}
-                    <div className="w-full mt-4 shadow-md">
-                        <table className="w-full table-auto text-gray-500">
-                            <thead>
-                                <tr className="text-[14px]">
-                                    <th className="p-[15px] font-normal text-left w-2/12">Produk</th>
-                                    <th className="p-[15px] font-normal text-left w-2/12">Kategori</th>
-                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Awal</th>
-                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Masuk</th>
-                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Keluar</th>
-                                    {/* <th className="p-[15px] font-normal text-right">Penjualan</th> */}
-                                    <th className="p-[15px] font-normal text-right w-1/12">Transfer</th>
-                                    {/* <th className="p-[15px] font-normal text-right">Penyesuaian</th> */}
-                                    <th className="p-[15px] font-normal text-right w-1/12">Stok Akhir</th>
-                                    {/* <th className="p-[15px] font-normal text-right">Satuan</th> */}
-                                </tr>
-                            </thead>
-                            {paginatedData.length > 0 ? (
-                                <tbody>
-                                    {paginatedData.map((item) => (
-                                        <tr key={item._id}
-                                            className={`hover:bg-gray-100 text-[14px] ${item.currentStock === 0
-                                                ? 'bg-red-500/30'
-                                                : item.currentStock <= item.minStock
-                                                    ? 'bg-yellow-500/30'
-                                                    : ''
-                                                }`}>
-                                            <td className="p-[15px]">
-                                                <div className="flex items-center">
-                                                    {/* <img
-                                                        src={item.imageURL || "https://via.placeholder.com/100"}
-                                                        alt={item.name}
-                                                        className="w-[35px] h-[35px] object-cover rounded-lg lowercase"
-                                                    /> */}
-                                                    <div className="ml-4">
-                                                        <h3>{item.name}</h3>
-                                                    </div>
-                                                    {/* <div className="ml-4">
-                                                        <h3>{item.productId !== null ? item.productId.name.toLowerCase()
-                                                            .split(' ')
-                                                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                                                            .join(' ') : "-"}</h3>
-                                                    </div> */}
-                                                </div>
-                                            </td>
-                                            <td className="p-[15px]">
-                                                {item.category?.name}
-                                                {/* {item.productId !== null ? item.productId.category : "-"} */}
-                                            </td>
-                                            <td className="p-[15px] text-right">{item.firstStock > 0 ? item.firstStock : 0}</td>
-                                            <td className={`p-[15px] text-right ${item.stockIn > 0 ? 'text-[#005429]' : ''}`}>
-                                                {item.stockIn > 0 ? `+ ${item.stockIn}` : 0}
-                                            </td>
-                                            <td className={`p-[15px] text-right ${item.stockOut > 0 ? 'text-red-500' : ''}`}>
-                                                {item.stockOut > 0 ? `- ${item.stockOut}` : 0}
-                                            </td>
-                                            {/* <td className="p-[15px] text-right">-</td> */}
-                                            <td className="p-[15px] text-right">{item.stockAdjustment > 0 ? item.stockAdjustment : 0}</td>
-                                            {/* <td className="p-[15px] text-right">-</td> */}
-                                            <td className="p-[15px] text-right">{item.finalStock > 0 ? item.finalStock : 0}</td>
-                                            {/* <td className="p-[15px] text-right lowercase">{item.productId !== null ? item.productId.unit : "-"}</td> */}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            ) : (
-                                <tbody>
-                                    <tr className="py-6 text-center w-full h-96">
-                                        <td colSpan={7}>Tidak ada data ditemukan</td>
-                                    </tr>
-                                </tbody>
-                            )}
-                        </table>
+
+                    {/* Buttons */}
+                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
+                        <button
+                            onClick={applyFilter}
+                            className="w-full sm:w-auto bg-[#005429] border text-white text-[13px] px-[15px] py-[8px] rounded"
+                        >
+                            Terapkan
+                        </button>
+                        <button className="w-full sm:w-auto text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded">
+                            Reset
+                        </button>
                     </div>
-
-                    {/* Pagination */}
-                    {paginatedData.length > 0 && (
-                        <div className="flex justify-between items-center mt-4">
-                            <span className="text-sm text-gray-600">
-                                Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                            </span>
-                            <div className="flex justify-center space-x-2 mt-4">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="px-3 py-2 border rounded disabled:opacity-50"
-                                >
-                                    <FaChevronLeft />
-                                </button>
-
-                                {[...Array(totalPages)].map((_, index) => {
-                                    const page = index + 1;
-
-                                    if (
-                                        page === 1 ||
-                                        page === totalPages ||
-                                        (page >= currentPage - 2 && page <= currentPage + 2)
-                                    ) {
-                                        return (
-                                            <button
-                                                key={page}
-                                                onClick={() => setCurrentPage(page)}
-                                                className={`px-3 py-1 rounded border ${currentPage === page
-                                                    ? "bg-[#005429] text-white"
-                                                    : ""
-                                                    }`}
-                                            >
-                                                {page}
-                                            </button>
-                                        );
-                                    }
-
-                                    // Tampilkan "..." jika melompati halaman
-                                    if (
-                                        (page === currentPage - 3 && page > 1) ||
-                                        (page === currentPage + 3 && page < totalPages)
-                                    ) {
-                                        return (
-                                            <span key={`dots-${page}`} className="px-2 text-gray-500">
-                                                ...
-                                            </span>
-                                        );
-                                    }
-
-                                    return null;
-                                })}
-
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="px-3 py-2 border rounded disabled:opacity-50"
-                                >
-                                    <FaChevronRight />
-                                </button>
-                            </div>
-
-                        </div>
-                    )}
                 </div>
+
+                {/* Info Legend */}
+                <div className="w-full mt-4 py-[15px] shadow-md">
+                    <div className="flex flex-col sm:flex-row justify-between px-[15px] space-y-2 sm:space-y-0">
+                        <div className="flex flex-col sm:flex-row sm:space-x-4 text-sm text-gray-500 space-y-2 sm:space-y-0">
+                            <label className="flex space-x-2 items-center">
+                                <div className="w-5 h-5 bg-red-500/30 rounded"></div>
+                                <p>Stok Sudah Mencapai Batas</p>
+                            </label>
+                            <label className="flex space-x-2 items-center">
+                                <div className="w-5 h-5 bg-yellow-500/30 rounded"></div>
+                                <p>Stok Hampir Habis</p>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                {/* <BubbleAlert paginatedData={filteredData} /> */}
+
+                {/* Table */}
+                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
+                    <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
+                        <thead className="bg-slate-50 text-gray-400">
+                            <tr>
+                                <th className="p-3 font-medium text-left w-[20%]">Produk</th>
+                                <th className="p-3 font-medium text-left w-[15%]">Kategori</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Stok Awal</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Stok Masuk</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Stok Keluar</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Stok Akhir</th>
+                            </tr>
+                        </thead>
+                        {paginatedData.length > 0 ? (
+                            <tbody className="text-gray-500 divide-y">
+                                {paginatedData.map((item) => (
+                                    <tr
+                                        key={item._id}
+                                        className={`hover:bg-gray-100 `}
+                                    >
+                                        <td className="p-3 truncate">{item.name}</td>
+                                        <td className="p-3 truncate">{item.category?.name}</td>
+                                        <td className="p-3 text-right">{item.capacityFirst || 0}</td>
+                                        <td
+                                            className={`p-3 text-right ${item.capacityIn > 0 ? "text-[#005429]" : ""
+                                                }`}
+                                        >
+                                            {item.capacityIn > 0 ? `+ ${item.capacityIn}` : 0}
+                                        </td>
+                                        <td
+                                            className={`p-3 text-right ${item.capacityOut > 0 ? "text-red-500" : ""
+                                                }`}
+                                        >
+                                            {item.capacityOut > 0 ? `- ${item.capacityOut}` : 0}
+                                        </td>
+                                        <td className="p-3 text-right">{item.capacityLast || 0}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        ) : (
+                            <tbody>
+                                <tr>
+                                    <td colSpan={7} className="text-center py-16 text-gray-400">
+                                        Tidak ada data ditemukan
+                                    </td>
+                                </tr>
+                            </tbody>
+                        )}
+                    </table>
+                </div>
+
+                {/* Pagination */}
+                {paginatedData.length > 0 && (
+                    <div className="flex flex-col sm:flex-row justify-between items-center mt-4 space-y-2 sm:space-y-0">
+                        <span className="text-sm text-gray-600 text-center sm:text-left">
+                            Menampilkan{" "}
+                            {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
+                            {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari{" "}
+                            {filteredData.length} data
+                        </span>
+                        <div className="flex flex-wrap justify-center sm:justify-end space-x-1">
+                            <button
+                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-2 border rounded disabled:opacity-50"
+                            >
+                                <FaChevronLeft />
+                            </button>
+                            {[...Array(totalPages)].map((_, index) => {
+                                const page = index + 1;
+                                if (
+                                    page === 1 ||
+                                    page === totalPages ||
+                                    (page >= currentPage - 2 && page <= currentPage + 2)
+                                ) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`px-3 py-1 rounded border ${currentPage === page
+                                                ? "bg-[#005429] text-white"
+                                                : "bg-white"
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                }
+                                if (
+                                    (page === currentPage - 3 && page > 1) ||
+                                    (page === currentPage + 3 && page < totalPages)
+                                ) {
+                                    return (
+                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
+                                            ...
+                                        </span>
+                                    );
+                                }
+                                return null;
+                            })}
+                            <button
+                                onClick={() =>
+                                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                                }
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-2 border rounded disabled:opacity-50"
+                            >
+                                <FaChevronRight />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
+            {/* Footer */}
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <div className="w-full h-[2px] bg-[#005429]" />
             </div>
         </div>
+
     );
 };
 

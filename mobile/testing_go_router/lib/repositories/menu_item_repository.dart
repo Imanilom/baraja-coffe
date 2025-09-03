@@ -18,6 +18,11 @@ class MenuItemRepository {
               .map((json) => MenuItemModel.fromJson(json))
               .toList();
 
+      // Urutkan data API berdasarkan nama (abjad)
+      menuItemsList.sort(
+        (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
+      );
+
       if (productBox.isNotEmpty) {
         // Buat map untuk akses cepat data lokal berdasarkan ID
         final localItemsMap = Map<String, MenuItemModel>.fromEntries(
@@ -55,23 +60,32 @@ class MenuItemRepository {
           await productBox.deleteAll(idsToDelete);
         }
 
-        return productBox.values.toList();
+        // Return data yang sudah diurutkan dari Hive
+        final sortedLocalData = productBox.values.toList();
+        sortedLocalData.sort(
+          (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
+        );
+        return sortedLocalData;
       } else {
-        // Jika Hive kosong, simpan semua data
+        // Jika Hive kosong, simpan semua data yang sudah diurutkan
         print("Data menu yang diambil: ${menuItemsResponse['data'].length}");
         await productBox.putAll({
           for (var item in menuItemsList) item.id: item,
         });
-        return menuItemsList;
+        return menuItemsList; // Sudah diurutkan di atas
       }
     } catch (e) {
       print("Gagal mengambil data menu: ${e.toString()}");
 
-      // Fallback: return data lokal jika ada error
+      // Fallback: return data lokal jika ada error (dengan sorting)
       var productBox = Hive.box<MenuItemModel>('menuItemsBox');
       if (productBox.isNotEmpty) {
         print("Menggunakan data lokal karena error");
-        return productBox.values.toList();
+        final localData = productBox.values.toList();
+        localData.sort(
+          (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
+        );
+        return localData;
       }
 
       rethrow;
@@ -81,7 +95,12 @@ class MenuItemRepository {
   //get menu item yang disimpan di Hive
   Future<List<MenuItemModel>> getLocalMenuItems() async {
     var productBox = Hive.box<MenuItemModel>('menuItemsBox');
-    return productBox.values.toList();
+    final localData = productBox.values.toList();
+    // Urutkan data lokal juga berdasarkan abjad
+    localData.sort(
+      (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
+    );
+    return localData;
   }
 
   /// Membandingkan apakah data item telah berubah

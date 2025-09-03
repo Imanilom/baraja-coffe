@@ -2,13 +2,16 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBoxes, FaInfoCircle } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBoxes, FaInfoCircle, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import { get } from "mongoose";
+import Header from "../../admin/header";
+import BubbleAlert from "../stockcard/bubblralert";
 
 
 const ProductionStockManagement = () => {
-    const [attendances, setAttendances] = useState([]);
+    const [productStock, setProductStock] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -28,7 +31,7 @@ const ProductionStockManagement = () => {
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
+    const ITEMS_PER_PAGE = 10;
 
     const dropdownRef = useRef(null);
 
@@ -41,42 +44,87 @@ const ProductionStockManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch attendances and outlets data
-    useEffect(() => {
-        const fetchData = async () => {
+    // Fetch productStock and outlets data
+    const fetchStockData = async () => {
+        try {
             setLoading(true);
-            try {
-                // Fetch attendances data
-                const attendancesResponse = [];
 
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
+            // ambil semua produk dari marketlist
+            const productResponse = await axios.get("/api/marketlist/products");
+            const products = productResponse.data.data || [];
 
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
+            // ambil data stock/all
+            const stockResponse = await axios.get("/api/product/stock/all");
+            const stockData = stockResponse.data.data || [];
 
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
+            // buat map untuk stok biar cepat dicari
+            const stockMap = {};
+            stockData.forEach((s) => {
+                stockMap[s.productId._id] = s;
+            });
 
-                setOutlets(outletsData);
+            // gabungkan product dengan stok + movements
+            const mergedData = await Promise.all(
+                products.map(async (prod) => {
+                    const stockItem = stockMap[prod._id] || null;
 
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setAttendances([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
+                    let movements = [];
+                    if (stockItem) {
+                        try {
+                            const movementResponse = await axios.get(
+                                `/api/product/stock/${stockItem.productId._id}/movements`
+                            );
 
-        fetchData();
+                            movements = movementResponse.data.data.movements || [];
+                        } catch (err) {
+                            console.warn(`No movements for ${prod.name}`);
+                        }
+                    }
+
+                    return {
+                        ...prod, // semua data dari marketlist product
+                        stock: stockItem ? stockItem.stock : 0,
+                        stockData: stockItem || null,
+                        movements, // array movements
+                    };
+                })
+            );
+
+            setProductStock(mergedData);
+            setFilteredData(mergedData);
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching stock:", err);
+            setError("Failed to load stock data.");
+            setProductStock([]);
+            setFilteredData([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // 🔹 Fetch Outlets
+    const fetchOutletsData = async () => {
+        try {
+            const outletsResponse = await axios.get("/api/outlet");
+
+            const outletsData = Array.isArray(outletsResponse.data)
+                ? outletsResponse.data
+                : outletsResponse.data?.data || [];
+
+            setOutlets(outletsData);
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setError("Failed to load outlets data.");
+            setOutlets([]);
+        }
+    };
+
+    // 🔹 Run both on mount
+    useEffect(() => {
+        fetchStockData();
+        fetchOutletsData();
     }, []);
 
     // Get unique outlet names for the dropdown
@@ -94,21 +142,6 @@ const ProductionStockManagement = () => {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
-
-    // Paginate the filtered data
-    const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
-        }
-
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
-        return result;
-    }, [currentPage, filteredData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -137,6 +170,12 @@ const ProductionStockManagement = () => {
         return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     };
 
+    const capitalizeWords = (text) => {
+        return text
+            .toLowerCase()
+            .replace(/\b\w/g, (char) => char.toUpperCase());
+    };
+
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
@@ -149,91 +188,72 @@ const ProductionStockManagement = () => {
 
     // Apply filter function
     const applyFilter = () => {
+        const filtered = productStock.map(item => {
+            const movements = item.movements || [];
 
-        // Make sure attendances is an array before attempting to filter
-        let filtered = ensureArray([...attendances]);
+            // Filter by date jika startDate dan endDate tersedia
+            const rangeMovements = (value.startDate && value.endDate)
+                ? movements.filter(m => {
+                    const date = dayjs(m.date || m.createdAt);
+                    return date.isSameOrAfter(dayjs(value.startDate), 'day') &&
+                        date.isSameOrBefore(dayjs(value.endDate), 'day');
+                })
+                : movements;
 
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
-                try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
+            // Movement sebelum tanggal mulai
+            const previousMovements = (value.startDate)
+                ? movements.filter(m => {
+                    const date = dayjs(m.date || m.createdAt);
+                    return date.isBefore(dayjs(value.startDate), 'day');
+                })
+                : [];
 
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
+            const stockInBefore = previousMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
+            const stockOutBefore = previousMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
+            const adjustmentBefore = previousMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
 
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
+            const firstStock = stockInBefore - stockOutBefore;
+            // const firstStock = stockIn - stockOut - adjustmentBefore;
 
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
+            const stockIn = rangeMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
+            const stockOut = rangeMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
+            const stockAdjustment = rangeMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
 
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
+            const finalStock = firstStock + stockIn - stockOut;
 
-                    if (!matches) {
-                    }
+            return {
+                ...item,
+                firstStock,
+                stockIn,
+                stockOut,
+                stockAdjustment,
+                finalStock
+            };
+        });
 
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
+        // Filter by search jika searchTerm tidak kosong
+        const finalFiltered = tempSearch
+            ? filtered.filter(item =>
+                item.name.toLowerCase().includes(tempSearch.toLowerCase()) ||
+                item.sku.toLowerCase().includes(tempSearch.toLowerCase())
+            )
+            : filtered;
 
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
+        setFilteredData(finalFiltered);
     };
+
+    // Paginate the filtered data
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return filteredData.slice(startIndex, endIndex);
+    }, [currentPage, filteredData]);
+
+    useEffect(() => {
+        if (productStock.length > 0) {
+            applyFilter();
+        }
+    }, [productStock]);
 
     // Reset filters
     const resetFilter = () => {
@@ -245,7 +265,7 @@ const ProductionStockManagement = () => {
             endDate: dayjs(),
         });
         setSearch("");
-        setFilteredData(ensureArray(attendances));
+        setFilteredData(ensureArray(productStock));
         setCurrentPage(1);
     };
 
@@ -308,167 +328,144 @@ const ProductionStockManagement = () => {
     }
 
     return (
-        <div className="">
+        <div className="min-h-screen flex flex-col">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaBoxes size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Inventori</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Produksi Stok</span>
-                    <FaInfoCircle size={17} className="text-gray-400 inline-block" />
+            <div className="px-3 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b bg-white space-y-2 sm:space-y-0">
+                <div className="flex items-center space-x-2 text-sm">
+                    <FaBoxes size={18} className="text-gray-500" />
+                    <p className="text-gray-500">Inventori</p>
+                    <FaChevronRight className="text-gray-500" />
+                    <span className="text-[#005429]">Produk</span>
                 </div>
-                <Link to="/admin/inventory/production-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Produksi Produk</Link>
+                <div className="flex w-full sm:w-auto">
+                    <div
+                        onClick={() => console.log("Ekspor")}
+                        className="w-full sm:w-auto bg-white text-white px-4 py-2 rounded border border-white hover:text-white text-[13px] cursor-default"
+                    >
+                        Ekspor
+                    </div>
+                </div>
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
+            <div className="px-3 pb-4 mb-[60px]">
+                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
 
+                    {/* Tanggal */}
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
-
-                            {/* Overlay untuk menyembunyikan ikon kalender */}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
-                        </div>
+                        <Datepicker
+                            showFooter
+                            showShortcuts
+                            value={value}
+                            onChange={setValue}
+                            displayFormat="DD-MM-YYYY"
+                            inputClassName="w-full text-[13px] border py-2 pr-6 pl-3 rounded cursor-pointer"
+                            popoverDirection="down"
+                        />
                     </div>
 
+                    {/* Spacer */}
+                    <div className="hidden lg:block col-span-3"></div>
+
+                    {/* Cari */}
                     <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">ID Stok</label>
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Cari ID Stok"
+                                placeholder="Cari"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+                                className="text-[13px] border py-2 pl-8 pr-4 rounded w-full"
                             />
                         </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                    {/* Buttons */}
+                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
+                        <button
+                            onClick={applyFilter}
+                            className="bg-[#005429] text-white text-[13px] px-4 py-2 border border-[#005429] rounded"
+                        >
+                            Terapkan
+                        </button>
+                        <button
+                            onClick={resetFilter}
+                            className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-4 py-2 rounded"
+                        >
+                            Reset
+                        </button>
                     </div>
                 </div>
 
+                {/* Legend */}
+                <div className="w-full mt-4 py-[15px] shadow-md">
+                    <div className="flex flex-col sm:flex-row justify-between px-[15px] space-y-2 sm:space-y-0">
+                        <div className="flex flex-col sm:flex-row sm:space-x-4 text-sm text-gray-500 space-y-2 sm:space-y-0">
+                            <label className="flex space-x-2 items-center">
+                                <div className="w-5 h-5 bg-red-500/30 rounded"></div>
+                                <p>Stok Sudah Mencapai Batas</p>
+                            </label>
+                            <label className="flex space-x-2 items-center">
+                                <div className="w-5 h-5 bg-yellow-500/30 rounded"></div>
+                                <p>Stok Hampir Habis</p>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <BubbleAlert paginatedData={filteredData} />
+
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Waktu Submit</th>
-                                <th className="px-4 py-3 font-normal">Tipe Stok</th>
-                                <th className="px-4 py-3 font-normal">ID Stok</th>
-                                <th className="px-4 py-3 font-normal">Outlet</th>
-                                <th className="px-4 py-3 font-normal">Tanggal</th>
+                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
+                    <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
+                        <thead className="text-gray-400 bg-slate-50">
+                            <tr className="text-left">
+                                <th className="px-4 py-3 font-normal w-[20%]">Produk</th>
+                                <th className="px-4 py-3 font-normal w-[12%]">SKU</th>
+                                <th className="px-4 py-3 font-normal w-[15%]">Kategori</th>
+                                <th className="px-4 py-3 font-normal text-right w-[10%]">Stok Masuk</th>
+                                <th className="px-4 py-3 font-normal text-right w-[10%]">Stok Keluar</th>
+                                <th className="px-4 py-3 font-normal text-right w-[10%]">Stok Transfer</th>
+                                <th className="px-4 py-3 font-normal text-right w-[10%]">Stok</th>
+                                <th className="px-4 py-3 font-normal w-[8%]">Unit</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((data, index) => {
-                                    try {
-                                        return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
-                                                    {data.karyawan || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatDate(data.tanggal) || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatTime(data.waktu_masuk) || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatTime(data.waktu_keluar) || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {data.total || []}
-                                                </td>
-                                            </tr>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="5" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
+                            <tbody className="text-gray-500 divide-y">
+                                {paginatedData.map((data) => (
+                                    <tr
+                                        key={data._id}
+                                        className={`hover:bg-gray-100 ${data.stockData?.currentStock <= 0 || data.stockData == null
+                                            ? "bg-red-500/30"
+                                            : data.stockData?.currentStock <= data.stockData?.minStock
+                                                ? "bg-yellow-500/30"
+                                                : ""
+                                            }`}
+                                    >
+                                        <td className="px-4 py-3 truncate">{capitalizeWords(data.name) || "-"}</td>
+                                        <td className="px-4 py-3 truncate">{data.sku || "-"}</td>
+                                        <td className="px-4 py-3 truncate">{data.category || "-"}</td>
+                                        <td className="px-4 py-3 text-right">{data.stockIn || 0}</td>
+                                        <td className="px-4 py-3 text-right">{data.stockOut || 0}</td>
+                                        <td className="px-4 py-3 text-right">{data.stockAdjustment || 0}</td>
+                                        <td className="px-4 py-3 text-right">{data.stockData?.currentStock || 0}</td>
+                                        <td className="px-4 py-3 lowercase">{data.unit || "-"}</td>
+                                    </tr>
+                                ))}
                             </tbody>
                         ) : (
                             <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={10}>
-                                        <div className="flex justify-center items-center">
-                                            <div className="text-gray-400">
-                                                <div className="flex justify-center">
-                                                    <FaSearch size={100} />
-                                                </div>
-                                                <p className="uppercase">Data Tidak ditemukan</p>
-                                            </div>
+                                <tr>
+                                    <td colSpan={8} className="h-64 text-center">
+                                        <div className="flex flex-col justify-center items-center text-gray-400">
+                                            <FaSearch size={80} />
+                                            <p className="uppercase mt-2">Data Tidak ditemukan</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -477,37 +474,78 @@ const ProductionStockManagement = () => {
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
+
+                {/* Pagination */}
                 {paginatedData.length > 0 && (
                     <div className="flex justify-between items-center mt-4">
                         <span className="text-sm text-gray-600">
                             Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
                         </span>
-                        <div className="flex space-x-2">
+                        <div className="flex justify-center space-x-2 mt-4">
                             <button
                                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                 disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 border rounded disabled:opacity-50"
                             >
-                                Sebelumnya
+                                <FaChevronLeft />
                             </button>
+
+                            {[...Array(totalPages)].map((_, index) => {
+                                const page = index + 1;
+
+                                if (
+                                    page === 1 ||
+                                    page === totalPages ||
+                                    (page >= currentPage - 2 && page <= currentPage + 2)
+                                ) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`px-3 py-1 rounded border ${currentPage === page
+                                                ? "bg-[#005429] text-white"
+                                                : ""
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                }
+
+                                // Tampilkan "..." jika melompati halaman
+                                if (
+                                    (page === currentPage - 3 && page > 1) ||
+                                    (page === currentPage + 3 && page < totalPages)
+                                ) {
+                                    return (
+                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
+                                            ...
+                                        </span>
+                                    );
+                                }
+
+                                return null;
+                            })}
+
                             <button
                                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                 disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 border rounded disabled:opacity-50"
                             >
-                                Berikutnya
+                                <FaChevronRight />
                             </button>
                         </div>
+
                     </div>
                 )}
             </div>
 
+            {/* Bottom bar */}
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <div className="w-full h-[2px] bg-[#005429]"></div>
             </div>
         </div>
+
     );
 };
 

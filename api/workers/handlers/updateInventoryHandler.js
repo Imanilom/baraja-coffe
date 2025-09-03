@@ -1,130 +1,96 @@
+import mongoose from 'mongoose';
+import ProductStock from '../../models/modul_menu/ProductStock.model.js';
+import Recipe from '../../models/modul_menu/Recipe.model.js';
+
 /**
- * Update inventory based on order items
+ * Update inventory based on order items with multi-category support
  * @param {Object} data - payload from BullMQ job
  * @param {string} data.orderId - order ID
  * @param {Array} data.items - order items with menuItem references
  * @returns {Object} result including success status
  */
-import mongoose from 'mongoose';
-import ProductStock from '../../models/modul_menu/ProductStock.model.js';
-import StockMovement from '../../models/modul_menu/StockMovement.model.js';
-import Recipe from '../../models/modul_menu/Recipe.model.js';
-
-export async function updateInventoryHandler({ orderId, items }) {
+export async function updateInventoryHandler({ orderId, items, handledBy }) {
   console.log('Processing inventory update for order:', orderId);
 
   const session = await mongoose.startSession();
-  
+
   try {
     session.startTransaction();
 
-    // Get all recipes for these menu items
     const menuItemIds = items.map(item => item.menuItem);
-    const recipes = await Recipe.find({ 
-      menuItemId: { $in: menuItemIds } 
-    }).session(session);
+    const recipes = await Recipe.find({ menuItemId: { $in: menuItemIds } }).session(session);
 
-    // Prepare bulk operations
     const bulkOps = [];
-    
+
+    const processIngredient = (ingredient, itemQty, type, noteSuffix) => {
+      bulkOps.push({
+        updateOne: {
+          filter: { productId: ingredient.productId },
+          update: {
+            $inc: { currentStock: type === 'out' ? -ingredient.quantity * itemQty : ingredient.quantity * itemQty },
+            $push: {
+              movements: {
+                quantity: ingredient.quantity * itemQty,
+                category: ingredient.category,
+                type: type,
+                referenceId: orderId,
+                notes: `${noteSuffix}`,
+                handledBy: handledBy || 'system',
+                date: new Date()
+              }
+            }
+          },
+          upsert: true
+        }
+      });
+    };
+
     for (const item of items) {
       const recipe = recipes.find(r => r.menuItemId.equals(item.menuItem));
       if (!recipe) continue;
 
-      // Process base ingredients
-      for (const ingredient of recipe.baseIngredients) {
-        bulkOps.push({
-          updateOne: {
-            filter: { productId: ingredient.productId },
-            update: {
-              $inc: { currentStock: -ingredient.quantity * item.quantity },
-              $push: {
-                movements: {
-                  quantity: ingredient.quantity * item.quantity,
-                  type: 'out',
-                  referenceId: orderId,
-                  notes: `Order ${orderId} - base ingredient for ${item.quantity}x ${recipe.menuItemId}`
-                }
-              }
-            }
-          }
-        });
+      // Base ingredients
+      for (const ing of recipe.baseIngredients) {
+        processIngredient(ing, item.quantity, 'out', `Order ${orderId} - base ingredient`);
       }
 
-      // Process topping ingredients if item has toppings
-      if (item.toppings && item.toppings.length > 0) {
+      // Toppings
+      if (item.toppings?.length > 0) {
         for (const topping of item.toppings) {
-          const toppingRecipe = recipe.toppingOptions.find(
-            t => t.toppingName === topping.name
-          );
-          
-          if (toppingRecipe) {
-            for (const ingredient of toppingRecipe.ingredients) {
-              bulkOps.push({
-                updateOne: {
-                  filter: { productId: ingredient.productId },
-                  update: {
-                    $inc: { currentStock: -ingredient.quantity * item.quantity },
-                    $push: {
-                      movements: {
-                        quantity: ingredient.quantity * item.quantity,
-                        type: 'out',
-                        referenceId: orderId,
-                        notes: `Order ${orderId} - topping ${topping.name} for ${item.quantity}x ${recipe.menuItemId}`
-                      }
-                    }
-                  }
-                }
-              });
-            }
+          const toppingRecipe = recipe.toppingOptions.find(t => t.toppingName === topping.name);
+          if (!toppingRecipe) continue;
+          for (const ing of toppingRecipe.ingredients) {
+            processIngredient(ing, item.quantity, 'out', `Order ${orderId} - topping ${topping.name}`);
           }
         }
       }
 
-      // Process addon ingredients if item has addons
-      if (item.addons && item.addons.length > 0) {
+      // Addons
+      if (item.addons?.length > 0) {
         for (const addon of item.addons) {
-          const addonRecipe = recipe.addonOptions.find(
-            a => a.addonName === addon.name && a.optionLabel === addon.option
-          );
-          
-          if (addonRecipe) {
-            for (const ingredient of addonRecipe.ingredients) {
-              bulkOps.push({
-                updateOne: {
-                  filter: { productId: ingredient.productId },
-                  update: {
-                    $inc: { currentStock: -ingredient.quantity * item.quantity },
-                    $push: {
-                      movements: {
-                        quantity: ingredient.quantity * item.quantity,
-                        type: 'out',
-                        referenceId: orderId,
-                        notes: `Order ${orderId} - addon ${addon.name}:${addon.option} for ${item.quantity}x ${recipe.menuItemId}`
-                      }
-                    }
-                  }
-                }
-              });
-            }
+          const addonRecipe = recipe.addonOptions.find(a => a.addonName === addon.name && a.optionLabel === addon.option);
+          if (!addonRecipe) continue;
+          for (const ing of addonRecipe.ingredients) {
+            processIngredient(ing, item.quantity, 'out', `Order ${orderId} - addon ${addon.name}:${addon.option}`);
           }
         }
       }
     }
 
-    // Execute all inventory updates in a single bulk operation
     if (bulkOps.length > 0) {
-      const bulkWriteResult = await ProductStock.bulkWrite(bulkOps, { session });
-      console.log(`Inventory updated for order ${orderId}:`, bulkWriteResult);
+      const result = await ProductStock.bulkWrite(bulkOps, { session });
+      console.log(`Inventory updated for order ${orderId}:`, result);
     }
 
     await session.commitTransaction();
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       updated: items.length,
       orderId,
       timestamp: new Date()
     };
+
   } catch (error) {
     await session.abortTransaction();
     console.error('Inventory update failed for order', orderId, ':', error);

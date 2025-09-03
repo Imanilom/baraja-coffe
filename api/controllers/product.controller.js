@@ -1,43 +1,62 @@
 import Product from '../models/modul_market/Product.model.js';
-import Supplier from '../models/modul_market/Supplier.model.js'; // Pastikan model Supplier sudah ada
+import Supplier from '../models/modul_market/Supplier.model.js';
 import mongoose from 'mongoose';
 
-// 1. Tambah Produk Baru
+// Helper: validasi supplier list
+const validateSuppliers = async (suppliers) => {
+  const supplierData = [];
+  const seenIds = new Set();
+
+  for (const sup of suppliers) {
+    if (!mongoose.Types.ObjectId.isValid(sup.supplierId)) {
+      throw new Error(`Supplier ID ${sup.supplierId} tidak valid`);
+    }
+    if (seenIds.has(sup.supplierId.toString())) {
+      throw new Error(`Supplier ID ${sup.supplierId} duplikat`);
+    }
+    seenIds.add(sup.supplierId.toString());
+
+    const supplier = await Supplier.findById(sup.supplierId);
+    if (!supplier) {
+      throw new Error(`Supplier dengan ID ${sup.supplierId} tidak ditemukan`);
+    }
+
+    supplierData.push({
+      supplierId: sup.supplierId,
+      supplierName: supplier.name,
+      price: sup.price || 0,
+      lastPurchaseDate: sup.lastPurchaseDate ? new Date(sup.lastPurchaseDate) : undefined
+    });
+  }
+  return supplierData;
+};
+
+// 1. Tambah Produk
 export const createProduct = async (req, res) => {
   try {
     const productsInput = Array.isArray(req.body) ? req.body : [req.body];
     const productsToInsert = [];
 
     for (const input of productsInput) {
-      const { sku, barcode, name, category, unit, suppliers } = input;
+      const { sku, barcode, name, category, unit, suppliers, minimumrequest, limitperrequest } = input;
 
       if (!sku || !name || !category || !unit) {
         return res.status(400).json({ message: 'SKU, Nama, Kategori, dan Satuan wajib diisi untuk setiap produk.' });
       }
 
-      // Validasi format suppliers jika disediakan
       let supplierData = [];
-      if (suppliers && Array.isArray(suppliers)) {
-        for (const sup of suppliers) {
-          const supplier = await Supplier.findById(sup.supplierId);
-          if (!supplier) {
-            return res.status(400).json({ message: `Supplier dengan ID ${sup.supplierId} tidak ditemukan.` });
-          }
-          supplierData.push({
-            supplierId: sup.supplierId,
-            supplierName: supplier.name,
-            price: sup.price || 0,
-            lastPurchaseDate: sup.lastPurchaseDate ? new Date(sup.lastPurchaseDate) : undefined
-          });
-        }
+      if (suppliers && suppliers.length) {
+        supplierData = await validateSuppliers(suppliers);
       }
 
       productsToInsert.push({
-        sku: sku.toUpperCase(),
-        barcode: barcode ? barcode.trim() : undefined,
+        sku: sku.trim().toUpperCase(),
+        barcode: barcode?.trim() || undefined,
         name: name.trim(),
         category,
         unit: unit.trim(),
+        minimumrequest: minimumrequest ?? 1,
+        limitperrequest: limitperrequest ?? 1,
         suppliers: supplierData
       });
     }
@@ -49,7 +68,7 @@ export const createProduct = async (req, res) => {
     if (error.code === 11000) {
       return res.status(400).json({ message: 'SKU atau Barcode sudah terdaftar pada salah satu produk.' });
     }
-    res.status(500).json({ message: 'Terjadi kesalahan server', error: error.message });
+    res.status(400).json({ message: error.message });
   }
 };
 
@@ -59,95 +78,74 @@ export const getAllProducts = async (req, res) => {
     const products = await Product.find().sort({ createdAt: -1 });
     res.json({ count: products.length, data: products });
   } catch (error) {
-    console.error('Error saat mengambil daftar produk:', error.message);
     res.status(500).json({ message: 'Gagal mengambil data produk', error: error.message });
   }
 };
 
-// 3. Ambil Detail Produk Berdasarkan ID
+// 3. Detail Produk
 export const getProductById = async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'ID produk tidak valid' });
+  }
   try {
     const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({ message: 'Produk tidak ditemukan' });
-    }
+    if (!product) return res.status(404).json({ message: 'Produk tidak ditemukan' });
     res.json({ data: product });
   } catch (error) {
-    console.error('Error saat mengambil detail produk:', error.message);
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: 'ID produk tidak valid' });
-    }
     res.status(500).json({ message: 'Gagal mengambil data produk', error: error.message });
   }
 };
 
 // 4. Update Produk
 export const updateProduct = async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'ID produk tidak valid' });
+  }
+
   try {
-    const { sku, barcode, name, category, unit, suppliers } = req.body;
+    const { sku, barcode, name, category, unit, suppliers, minimumrequest, limitperrequest } = req.body;
 
     const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({ message: 'Produk tidak ditemukan' });
-    }
+    if (!product) return res.status(404).json({ message: 'Produk tidak ditemukan' });
 
-    // Update field biasa
-    product.sku = sku ? sku.toUpperCase() : product.sku;
-    product.barcode = barcode !== undefined ? barcode.trim() : product.barcode;
-    product.name = name ? name.trim() : product.name;
-    product.category = category || product.category;
-    product.unit = unit || product.unit;
+    if (sku) product.sku = sku.trim().toUpperCase();
+    if (barcode !== undefined) product.barcode = barcode?.trim() || undefined;
+    if (name) product.name = name.trim();
+    if (category) product.category = category;
+    if (unit) product.unit = unit.trim();
+    if (minimumrequest !== undefined) product.minimumrequest = minimumrequest;
+    if (limitperrequest !== undefined) product.limitperrequest = limitperrequest;
 
-    // Update suppliers jika ada
-    if (suppliers && Array.isArray(suppliers)) {
-      const updatedSuppliers = [];
-      for (const sup of suppliers) {
-        const supplier = await Supplier.findById(sup.supplierId);
-        if (!supplier) {
-          return res.status(400).json({ message: `Supplier dengan ID ${sup.supplierId} tidak ditemukan.` });
-        }
-
-        updatedSuppliers.push({
-          supplierId: sup.supplierId,
-          supplierName: supplier.name,
-          price: sup.price ?? product.suppliers.find(s => s.supplierId == sup.supplierId)?.price ?? 0,
-          lastPurchaseDate: sup.lastPurchaseDate ? new Date(sup.lastPurchaseDate) : product.suppliers.find(s => s.supplierId == sup.supplierId)?.lastPurchaseDate
-        });
-      }
-      product.suppliers = updatedSuppliers;
+    if (suppliers && suppliers.length) {
+      product.suppliers = await validateSuppliers(suppliers);
     }
 
     const updatedProduct = await product.save();
     res.json({ message: 'Produk berhasil diperbarui', data: updatedProduct });
   } catch (error) {
-    console.error('Error saat memperbarui produk:', error.message);
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: 'ID produk tidak valid' });
-    }
+    console.error('Error saat update produk:', error.message);
     if (error.code === 11000) {
       return res.status(400).json({ message: 'SKU atau Barcode sudah digunakan' });
     }
-    res.status(500).json({ message: 'Gagal memperbarui produk', error: error.message });
+    res.status(400).json({ message: error.message });
   }
 };
 
 // 5. Hapus Produk
 export const deleteProduct = async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'ID produk tidak valid' });
+  }
   try {
     const result = await Product.findByIdAndDelete(req.params.id);
-    if (!result) {
-      return res.status(404).json({ message: 'Produk tidak ditemukan' });
-    }
+    if (!result) return res.status(404).json({ message: 'Produk tidak ditemukan' });
     res.json({ message: 'Produk berhasil dihapus' });
   } catch (error) {
-    console.error('Error saat menghapus produk:', error.message);
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: 'ID produk tidak valid' });
-    }
     res.status(500).json({ message: 'Gagal menghapus produk', error: error.message });
   }
 };
 
+// 6. Pencarian Produk
 export const searchProducts = async (req, res) => {
   const { q } = req.query;
   try {
@@ -159,7 +157,7 @@ export const searchProducts = async (req, res) => {
       ]
     }).limit(10);
 
-    res.json(products);
+    res.json({ count: products.length, data: products });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

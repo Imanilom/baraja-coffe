@@ -656,7 +656,7 @@ const TableForm = () => {
                             type="submit"
                             className="flex items-center px-4 py-2 bg-[#005429] text-white rounded hover:bg-[#004020]"
                         >
-                            <FaSave className="mr-2" /> Simpan
+                            <FaSave className="mr-2" /> Simpannpm
                         </button>
                     </div>
                 </form>

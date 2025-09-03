@@ -42,101 +42,101 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   @override
   Widget build(BuildContext context) {
     final menuItem = widget.orderItem.menuItem;
+    final screenHeight = MediaQuery.of(context).size.height;
 
     return Container(
+      height: screenHeight, // Fixed height for landscape
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
         ),
       ),
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header dengan drag handle
-              _buildHeader(),
-              const SizedBox(height: 24),
+      child: Column(
+        children: [
+          // Header - Compact
+          _buildHeader(),
 
-              // Menu item info
-              _buildMenuItemInfo(menuItem),
-              const SizedBox(height: 24),
+          // Content - Scrollable
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  const SizedBox(height: 16),
+                  // Menu info and quantity in, one row
+                  _buildTopSection(menuItem),
+                  const SizedBox(height: 16),
 
-              // Quantity section
-              _buildQuantitySection(),
-              const SizedBox(height: 24),
+                  // Notes section - compact
+                  _buildNotesSection(),
+                  const SizedBox(height: 16),
 
-              // Notes section
-              _buildNotesSection(),
-              const SizedBox(height: 24),
-
-              // Toppings section
-              if (menuItem.toppings!.isNotEmpty) ...[
-                _buildToppingsSection(menuItem.toppings!),
-                const SizedBox(height: 24),
-              ],
-
-              // Addons section
-              if (menuItem.addons!.isNotEmpty) ...[
-                _buildAddonsSection(menuItem.addons!),
-                const SizedBox(height: 24),
-              ],
-
-              // Action buttons
-              _buildActionButtons(),
-            ],
+                  // Toppings and Addons side by side
+                  _buildToppingsAndAddons(menuItem),
+                ],
+              ),
+            ),
           ),
-        ),
+
+          // Bottom actions
+          _buildActionButtons(),
+        ],
       ),
     );
   }
 
   Widget _buildHeader() {
-    return Column(
-      children: [
-        Container(
-          width: 40,
-          height: 4,
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF4CAF50).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.edit, color: Color(0xFF4CAF50), size: 20),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Column(
+        children: [
+          // Handle bar
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
             ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Edit Order Item',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A1A),
+          ),
+          const SizedBox(height: 12),
+
+          // Title and delete button
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CAF50).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(
+                  Icons.edit,
+                  color: Color(0xFF4CAF50),
+                  size: 16,
                 ),
               ),
-            ),
-            _buildDeleteButton(),
-          ],
-        ),
-      ],
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Edit Item',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+              ),
+              _buildDeleteButton(),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -144,98 +144,142 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.red[50],
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: IconButton(
-        icon: const Icon(Icons.delete_outline),
+        icon: const Icon(Icons.delete_outline, size: 18),
         color: Colors.red[600],
+        padding: const EdgeInsets.all(8),
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
         onPressed: () => _showDeleteConfirmation(),
       ),
     );
   }
 
-  Widget _buildMenuItemInfo(dynamic menuItem) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
+  Widget _buildTopSection(dynamic menuItem) {
+    return Row(
+      children: [
+        // Menu item info
+        Expanded(
+          flex: 3,
+          child: Container(
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey[200]!),
             ),
-            child: const Icon(
-              Icons.restaurant_menu,
-              color: Color(0xFF4CAF50),
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  menuItem.name!,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1A1A),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(
+                    Icons.restaurant_menu,
+                    color: Color(0xFF4CAF50),
+                    size: 18,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  formatRupiah(menuItem.displayPrice()),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        menuItem.name!,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        formatRupiah(menuItem.displayPrice()),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+        const SizedBox(width: 12),
 
-  Widget _buildQuantitySection() {
-    return _buildSection(
-      title: 'Jumlah',
-      icon: Icons.shopping_cart_outlined,
-      child: Row(
-        children: [
-          _buildQuantityButton(
-            icon: Icons.remove,
-            onPressed: quantity > 1 ? () => setState(() => quantity--) : null,
-          ),
-          Container(
-            width: 60,
-            height: 40,
-            alignment: Alignment.center,
-            child: Text(
-              '$quantity',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A1A),
-              ),
+        // Quantity section
+        Expanded(
+          flex: 2,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.shopping_cart_outlined,
+                      size: 16,
+                      color: const Color(0xFF4CAF50),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Jumlah',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildQuantityButton(
+                      icon: Icons.remove,
+                      onPressed:
+                          quantity > 1
+                              ? () => setState(() => quantity--)
+                              : null,
+                    ),
+                    Container(
+                      width: 40,
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$quantity',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    ),
+                    _buildQuantityButton(
+                      icon: Icons.add,
+                      onPressed: () => setState(() => quantity++),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          _buildQuantityButton(
-            icon: Icons.add,
-            onPressed: () => setState(() => quantity++),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -244,13 +288,16 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     required VoidCallback? onPressed,
   }) {
     return Container(
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
         color: onPressed != null ? const Color(0xFF4CAF50) : Colors.grey[200],
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: IconButton(
-        icon: Icon(icon),
+        icon: Icon(icon, size: 14),
         color: onPressed != null ? Colors.white : Colors.grey[400],
+        padding: EdgeInsets.zero,
         onPressed:
             onPressed != null
                 ? () {
@@ -263,49 +310,95 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   }
 
   Widget _buildNotesSection() {
-    return _buildSection(
-      title: 'Catatan',
-      icon: Icons.note_outlined,
-      child: InkWell(
-        onTap: () => _showNoteDialog(),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey[50],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[200]!),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  note.isEmpty ? 'Tambahkan catatan...' : note,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: note.isEmpty ? Colors.grey[500] : Colors.grey[800],
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+    return InkWell(
+      onTap: () => _showNoteDialog(),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.note_outlined, size: 16, color: const Color(0xFF4CAF50)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                note.isEmpty ? 'Tambahkan catatan...' : note,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: note.isEmpty ? Colors.grey[500] : Colors.grey[800],
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              Icon(Icons.edit_outlined, size: 16, color: Colors.grey[600]),
-            ],
-          ),
+            ),
+            Icon(Icons.edit_outlined, size: 14, color: Colors.grey[600]),
+          ],
         ),
       ),
     );
   }
 
+  Widget _buildToppingsAndAddons(dynamic menuItem) {
+    final hasToppings = menuItem.toppings?.isNotEmpty ?? false;
+    final hasAddons = menuItem.addons?.isNotEmpty ?? false;
+
+    if (!hasToppings && !hasAddons) return const SizedBox.shrink();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (hasToppings) ...[
+          Expanded(child: _buildToppingsSection(menuItem.toppings!)),
+          if (hasAddons) const SizedBox(width: 12),
+        ],
+        if (hasAddons) ...[
+          Expanded(child: _buildAddonsSection(menuItem.addons!)),
+        ],
+      ],
+    );
+  }
+
   Widget _buildToppingsSection(List<ToppingModel> toppings) {
-    return _buildSection(
-      title: 'Topping',
-      icon: Icons.add_circle_outline,
-      child: Column(
-        children:
-            toppings.map((topping) => _buildToppingItem(topping)).toList(),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.add_circle_outline,
+              size: 16,
+              color: const Color(0xFF4CAF50),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Topping',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: Column(
+            children:
+                toppings.map((topping) => _buildToppingItem(topping)).toList(),
+          ),
+        ),
+      ],
     );
   }
 
@@ -313,29 +406,47 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     final isSelected = selectedToppings.contains(topping);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
         color:
             isSelected
                 ? const Color(0xFF4CAF50).withOpacity(0.1)
-                : Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
+                : Colors.white,
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isSelected ? const Color(0xFF4CAF50) : Colors.grey[200]!,
+          width: isSelected ? 1.5 : 1,
         ),
       ),
       child: CheckboxListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        dense: true,
         title: Text(
           topping.name!,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
-        subtitle: Text(
-          formatRupiah(topping.price!),
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
+        subtitle:
+            topping.price! > 0
+                ? Text(
+                  '+ ${formatRupiah(topping.price!)}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+                : Text(
+                  'Free',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 10,
+                    color: Colors.green,
+                    backgroundColor: Colors.green[50],
+                  ),
+                ),
         value: isSelected,
         activeColor: const Color(0xFF4CAF50),
+        controlAffinity: ListTileControlAffinity.trailing,
         onChanged: (value) {
           HapticFeedback.lightImpact();
           setState(() {
@@ -351,22 +462,40 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   }
 
   Widget _buildAddonsSection(List<AddonModel> addons) {
-    return _buildSection(
-      title: 'Addon',
-      icon: Icons.extension_outlined,
-      child: Column(
-        children: addons.map((addon) => _buildAddonItem(addon)).toList(),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.extension_outlined,
+              size: 16,
+              color: const Color(0xFF4CAF50),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Addon',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ...addons.map((addon) => _buildAddonItem(addon)),
+      ],
     );
   }
 
   Widget _buildAddonItem(AddonModel addon) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey[200]!),
       ),
       child: Column(
@@ -375,12 +504,12 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
           Text(
             addon.name!,
             style: const TextStyle(
-              fontSize: 16,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               color: Color(0xFF1A1A1A),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
           ...addon.options!.map((option) => _buildAddonOption(addon, option)),
         ],
       ),
@@ -395,23 +524,44 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     final isSelected = selectedAddon.options?.contains(option) ?? false;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
         color:
             isSelected
                 ? const Color(0xFF4CAF50).withOpacity(0.1)
                 : Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isSelected ? const Color(0xFF4CAF50) : Colors.grey[200]!,
+          width: isSelected ? 1.5 : 1,
         ),
       ),
       child: RadioListTile<AddonOptionModel>(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        dense: true,
         title: Text(
           option.label!,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
+        subtitle:
+            option.price! > 0
+                ? Text(
+                  '+ ${formatRupiah(option.price!)}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+                : Text(
+                  'Free',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 10,
+                    color: Colors.green,
+                    backgroundColor: Colors.green[50],
+                  ),
+                ),
         value: option,
         groupValue: selectedAddon.options?.firstOrNull,
         activeColor: const Color(0xFF4CAF50),
@@ -432,88 +582,66 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
     );
   }
 
-  Widget _buildSection({
-    required String title,
-    required IconData icon,
-    required Widget child,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 20, color: const Color(0xFF4CAF50)),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1A1A1A),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        child,
-      ],
-    );
-  }
-
   Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: widget.onClose,
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              side: const BorderSide(color: Color(0xFF4CAF50)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: widget.onClose,
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                side: const BorderSide(color: Color(0xFF4CAF50)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-            ),
-            child: const Text(
-              'Batal',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF4CAF50),
+              child: const Text(
+                'Batal',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF4CAF50),
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              final editedOrderItem = OrderItemModel(
-                menuItem: widget.orderItem.menuItem,
-                quantity: quantity,
-                selectedToppings: selectedToppings,
-                selectedAddons: selectedAddons,
-                notes: note.isEmpty ? null : note,
-              );
-              widget.onEditOrder(editedOrderItem);
-              widget.onClose();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4CAF50),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                final editedOrderItem = OrderItemModel(
+                  menuItem: widget.orderItem.menuItem,
+                  quantity: quantity,
+                  selectedToppings: selectedToppings,
+                  selectedAddons: selectedAddons,
+                  notes: note.isEmpty ? null : note,
+                );
+                widget.onEditOrder(editedOrderItem);
+                widget.onClose();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 2,
               ),
-              elevation: 2,
-            ),
-            child: const Text(
-              'Simpan',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              child: const Text(
+                'Simpan',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -523,32 +651,32 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
       builder:
           (context) => AlertDialog(
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
             ),
             title: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(
                     Icons.delete_outline,
                     color: Colors.red[600],
-                    size: 20,
+                    size: 18,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 const Text(
                   'Hapus Item',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
             content: const Text(
-              'Apakah Anda yakin ingin menghapus item ini dari pesanan?',
-              style: TextStyle(fontSize: 14),
+              'Apakah Anda yakin ingin menghapus item ini?',
+              style: TextStyle(fontSize: 13),
             ),
             actions: [
               TextButton(
@@ -572,7 +700,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                   backgroundColor: Colors.red[600],
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                 ),
                 child: const Text(
@@ -592,30 +720,30 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
       builder:
           (context) => AlertDialog(
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
             ),
             title: const Row(
               children: [
-                Icon(Icons.note_outlined, color: Color(0xFF4CAF50)),
-                SizedBox(width: 12),
+                Icon(Icons.note_outlined, color: Color(0xFF4CAF50), size: 20),
+                SizedBox(width: 8),
                 Text(
                   'Catatan Pesanan',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
             content: TextField(
               controller: controller,
               autofocus: true,
-              maxLines: 3,
+              maxLines: 2,
               maxLength: 200,
               decoration: InputDecoration(
                 hintText: 'Masukkan catatan khusus...',
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                   borderSide: const BorderSide(color: Color(0xFF4CAF50)),
                 ),
               ),
@@ -642,7 +770,7 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
                   backgroundColor: const Color(0xFF4CAF50),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                 ),
                 child: const Text(

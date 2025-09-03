@@ -2,16 +2,16 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft, FaCross } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Modal from './modal';
 import Header from "../../admin/header";
+import MovementSideModal from "../../../components/movementSideModal";
 
 
 const InStockManagement = () => {
-    const [inStock, setInStock] = useState([]);
-    const [outlets, setOutlets] = useState([]);
+    const [selectedMovement, setSelectedMovement] = useState(null);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -19,10 +19,7 @@ const InStockManagement = () => {
         startDate: dayjs(),
         endDate: dayjs()
     });
-    const [hasFiltered, setHasFiltered] = useState(false);
     const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
     const [showModal, setShowModal] = useState(false);
@@ -43,102 +40,109 @@ const InStockManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch inStock and outlets data
-    const fetchStock = async () => {
+    const fetchMenuCapacity = async () => {
         try {
-            const stockResponse = await axios.get('/api/product/stock/all');
-            const stockData = stockResponse.data.data || [];
+            const [recipesRes, stockRes] = await Promise.all([
+                axios.get("/api/product/recipes"),
+                axios.get("/api/product/stock/all")
+            ]);
 
-            const stockWithMovements = await Promise.all(
-                stockData.map(async (item) => {
-                    const movementResponse = await axios.get(`/api/product/stock/${item.productId._id}/movements`);
-                    const movements = movementResponse.data.data.movements || [];
+            const recipes = recipesRes.data.data || recipesRes.data;
+            const stock = stockRes.data.data || stockRes.data;
 
+            const results = [];
+
+            for (const menu of recipes) {
+                let ingredients = menu.baseIngredients.filter(ing => ing.isDefault);
+
+                // Loop per ingredient
+                const movementsPerIngredient = ingredients.map(ing => {
+                    const s = stock.find(st => st.productId._id === ing.productId);
+                    if (!s) return [];
+
+                    return s.movements
+                        .filter(m => m.type === "adjustment")
+                        .map(m => ({
+                            date: dayjs(m.date).format("YYYY-MM-DD"),
+                            capacityIn: Math.floor(m.quantity / ing.quantity)
+                        }));
+                }).flat();
+
+                const uniqueDates = [...new Set(movementsPerIngredient.map(m => m.date))];
+
+                const menuMovements = uniqueDates.map(date => {
+                    const capacities = movementsPerIngredient
+                        .filter(m => m.date === date)
+                        .map(m => m.capacityIn);
+
+                    const menuCapacity = capacities.length ? Math.min(...capacities) : 0;
                     return {
-                        ...item,
-                        movements
+                        menu: menu.menuItemId?.name,
+                        date,
+                        capacityIn: menuCapacity
                     };
-                })
-            );
+                }).filter(m => m.capacityIn > 0);
 
-            setInStock(stockWithMovements);
+                results.push(...menuMovements);
+            }
 
-            // 🔹 Default awal: type "out" & hanya hari ini
-            const defaultMovements = [];
-            stockWithMovements.forEach(stock => {
-                (stock.movements || []).forEach(movement => {
-                    const movementDate = dayjs(movement.date);
-                    if (
-                        movement.type === "in" &&
-                        movementDate.isSame(dayjs(), 'day') // hanya tanggal hari ini
-                    ) {
-                        defaultMovements.push({
-                            ...movement,
-                            product: stock.productId?.name,
-                            unit: stock.productId?.unit
-                        });
-                    }
-                });
-            });
+            // **Sort results by date ascending**
+            results.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-            // Urutkan terbaru
-            const sortedDefault = defaultMovements.sort(
-                (a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf()
-            );
-            setFilteredData(sortedDefault);
-
+            return results;
         } catch (err) {
-            console.error("Error fetching stock or movements:", err);
-            setInStock([]);
-            setFilteredData([]);
+            console.error(err);
+            return [];
         }
     };
 
-
-    const fetchOutlets = async () => {
-        try {
-            const outletsResponse = await axios.get('/api/outlet');
-            const outletsData = Array.isArray(outletsResponse.data)
-                ? outletsResponse.data
-                : (outletsResponse.data && Array.isArray(outletsResponse.data.data))
-                    ? outletsResponse.data.data
-                    : [];
-
-            setOutlets(outletsData);
-        } catch (err) {
-            console.error("Error fetching outlets:", err);
-            setOutlets([]);
-        }
-    };
-
-    // const fetchCategories = async () => {
-    //     try {
-    //         const categoryResponse = await axios.get('/api/storage/categories');
-    //         const categoryData = Array.isArray(categoryResponse.data)
-    //             ? categoryResponse.data
-    //             : (categoryResponse.data && Array.isArray(categoryResponse.data.data))
-    //                 ? categoryResponse.data.data
-    //                 : [];
-
-    //         setCategory(categoryData);
-    //     } catch (err) {
-    //         console.error("Error fetching categories:", err);
-    //         setCategory([]);
-    //     }
-    // };
-
-    const fetchData = async () => {
+    const applyFilter = async () => {
         setLoading(true);
         setError(null);
+
         try {
-            await Promise.all([
-                fetchStock(),
-                fetchOutlets(),
-                // fetchCategories()
+            const [menuRes, capacityRes] = await Promise.all([
+                axios.get("/api/menu/menu-items"),
+                fetchMenuCapacity(value) // fetch kapasitas menu per tanggal
             ]);
-            // fetchStatus();
+
+            const capacities = capacityRes || [];
+
+            // Gabungkan menu hanya yang memiliki capacityIn > 0
+            const merged = [];
+
+            menuRes.data.data.forEach(menu => {
+                // Ambil semua capacities untuk menu ini
+                const menuCapacities = capacities.filter(c => c.menu === menu.name);
+
+                if (menuCapacities.length > 0) {
+                    // Jika ada filter tanggal, filter dulu
+                    const filteredCapacities = menuCapacities.filter(c => {
+                        if (!value?.startDate || !value?.endDate) return true;
+                        return dayjs(c.date).isBetween(
+                            dayjs(value.startDate).startOf("day"),
+                            dayjs(value.endDate).endOf("day"),
+                            null,
+                            '[]'
+                        );
+                    });
+
+                    filteredCapacities.forEach(c => {
+                        merged.push({
+                            ...menu,
+                            capacityIn: c.capacityIn,
+                            date: c.date
+                        });
+                    });
+                }
+            });
+
+            // **Urutkan berdasarkan tanggal ascending**
+            merged.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            setFilteredData(merged);
         } catch (err) {
-            console.error("General error:", err);
+            console.error("Error applying filter:", err);
             setError("Failed to load data. Please try again later.");
         } finally {
             setLoading(false);
@@ -146,14 +150,8 @@ const InStockManagement = () => {
     };
 
     useEffect(() => {
-        fetchData();
-    }, []);
-
-
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
+        fetchMenuCapacity();
+    }, [])
 
     // Handle click outside dropdown to close
     useEffect(() => {
@@ -166,87 +164,19 @@ const InStockManagement = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
-
     const formatDateTime = (datetime) => {
         const date = new Date(datetime);
         const pad = (n) => n.toString().padStart(2, "0");
         return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     };
 
-    const formatDate = (dat) => {
-        const date = new Date(dat);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
-    };
-
-    const formatTime = (time) => {
-        const date = new Date(time);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
 
     const capitalizeWords = (text) => {
         return text
             .toLowerCase()
             .replace(/\b\w/g, (char) => char.toUpperCase());
-    };
-
-    // Apply filter function
-    const applyFilter = () => {
-        const allMovements = [];
-
-        inStock.forEach(stock => {
-            const movements = stock.movements || [];
-
-            const movementsInRange = movements.filter(movement => {
-                const movementDate = dayjs(movement.date);
-                return (
-                    movement.type === "in" && // hanya ambil stok masuk
-                    movementDate.isAfter(dayjs(value.startDate).startOf('day').subtract(1, 'second')) &&
-                    movementDate.isBefore(dayjs(value.endDate).endOf('day').add(1, 'second'))
-                );
-            });
-
-            movementsInRange.forEach(movement => {
-                allMovements.push({
-                    ...movement,
-                    product: stock.productId?.name,
-                    unit: stock.productId?.unit
-                });
-            });
-        });
-
-        // Filter berdasarkan pencarian jika ada
-        const searched = tempSearch
-            ? allMovements.filter(m =>
-                m._id.toLowerCase().includes(tempSearch.toLowerCase()) ||
-                m.product?.toLowerCase().includes(tempSearch.toLowerCase())
-            )
-            : allMovements;
-
-        // Urutkan berdasarkan tanggal terbaru
-        const sorted = searched.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
-
-        setFilteredData(sorted); // ← bikin state baru khusus movement hasil filter
-        setCurrentPage(1);
     };
 
     const paginatedData = useMemo(() => {
@@ -273,37 +203,6 @@ const InStockManagement = () => {
         alert('File berhasil diimpor!');
         setShowModal(false);
     };
-
-    // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-
-            return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
-                "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
-        }));
-        worksheet['!cols'] = columnWidths;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
-    };
-
 
     // Show loading state
     if (loading) {
@@ -333,97 +232,52 @@ const InStockManagement = () => {
     }
 
     return (
-        <div className="">
+        <div className="w-full">
             {/* Header */}
             <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaBoxes size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Inventori</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Stok Masuk</span>
-                    <FaInfoCircle size={17} className="text-gray-400 inline-block" />
+            <div className="px-3 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b space-y-2 sm:space-y-0">
+                <div className="flex items-center space-x-2 text-sm">
+                    <FaBoxes size={18} className="text-gray-500" />
+                    <p className="text-gray-500">Inventori</p>
+                    <FaChevronRight className="text-gray-500" />
+                    <span className="text-[#005429]">Stok Masuk</span>
+                    <FaInfoCircle size={15} className="text-gray-400" />
                 </div>
-                <div className="flex items-center space-x-2">
-                    <button onClick={() => setShowModal(true)} className="text-[#005429] hover:text-white bg-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Impor Stok Masuk</button>
-                    <Link to="/admin/inventory/instock-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Stok Masuk</Link>
+                <div className="flex flex-col sm:flex-row gap-2 w-full py-4 sm:w-auto">
+                    {/* <Link
+                        to="/admin/inventory/instock-create"
+                        className="w-full sm:w-auto bg-[#005429] text-white px-4 py-2 rounded border border-white hover:text-white text-[13px]"
+                    >
+                        Tambah Stok Masuk
+                    </Link> */}
                 </div>
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-8 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    {/* <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Lokasi</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    <li
-                                        onClick={() => {
-                                            setTempSelectedOutlet(""); // Kosong berarti semua
-                                            setShowInput(false);
-                                        }}
-                                        className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                    >
-                                        Semua Outlet
-                                    </li>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div> */}
-
+            <div className="px-3 pb-4 mb-[60px]">
+                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
+                    {/* Date */}
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
+                        <div className="relative text-gray-500">
                             <Datepicker
                                 showFooter
                                 showShortcuts
                                 value={value}
                                 onChange={setValue}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border py-2 pr-6 pl-3 rounded cursor-pointer"
                                 popoverDirection="down"
                             />
-
-                            {/* Overlay untuk menyembunyikan ikon kalender */}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
                         </div>
                     </div>
 
-                    <div className="col-span-3"></div>
+                    {/* Spacer */}
+                    <div className="hidden lg:block col-span-3"></div>
 
+                    {/* Search */}
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
@@ -433,83 +287,87 @@ const InStockManagement = () => {
                                 placeholder="Cari"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+                                className="text-[13px] border py-2 pl-8 pr-4 rounded w-full"
                             />
                         </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-1">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                    {/* Buttons */}
+                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
+                        <button
+                            onClick={applyFilter}
+                            className="bg-[#005429] text-white text-[13px] px-4 py-2 border border-[#005428] rounded"
+                        >
+                            Terapkan
+                        </button>
+                        <button
+                            onClick={resetFilter}
+                            className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-4 py-2 rounded"
+                        >
+                            Reset
+                        </button>
                     </div>
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md">
-                    <table className="min-w-full table-auto">
+                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md mt-4">
+                    <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
                         <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Waktu Submit</th>
-                                <th className="px-4 py-3 font-normal">ID Stok Masuk</th>
-                                <th className="px-4 py-3 font-normal">Produk</th>
-                                <th className="px-4 py-3 font-normal">Unit</th>
-                                <th className="px-4 py-3 font-normal">Qty</th>
-                                <th className="px-4 py-3 font-normal">Keterangan</th>
-                                {/* <th className="px-4 py-3 font-normal">Outlet</th>
-                                <th className="px-4 py-3 font-normal">Tanggal</th> */}
+                            <tr className="text-left">
+                                <th className="px-4 py-3 font-normal w-[20%]">Waktu Submit</th>
+                                <th className="px-4 py-3 font-normal w-[15%]">Menu</th>
+                                <th className="px-4 py-3 font-normal w-[15%]">Kategori</th>
+                                <th className="px-4 py-3 font-normal text-right w-[10%]">Qty</th>
                             </tr>
                         </thead>
+                        {console.log(paginatedData)}
                         {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
+                            <tbody className="text-gray-500 divide-y">
                                 {paginatedData.map((movement) => (
-                                    <tr key={movement._id} className="text-left text-sm cursor-pointer hover:bg-slate-50">
-                                        <td className="px-4 py-3">{formatDateTime(movement.date)}</td>
-                                        <td className="px-4 py-3">{movement._id}</td>
-                                        <td className="px-4 py-3">{movement.product && capitalizeWords(movement.product)}</td>
-                                        <td className="px-4 py-3 lowercase">{movement.unit}</td>
-                                        <td className="px-4 py-3">{movement.quantity}</td>
-                                        <td className="px-4 py-3">{movement.notes || "-"}</td>
+                                    <tr
+                                        key={movement._id}
+                                        className="text-left text-sm cursor-pointer hover:bg-slate-50"
+                                    >
+                                        <td className="px-4 py-3 truncate">{formatDateTime(movement.date)}</td>
+                                        <td className="px-4 py-3 truncate">{movement.name}</td>
+                                        <td className="px-4 py-3 truncate">{movement.category?.name}</td>
+                                        <td className="px-4 py-3 text-right">x{movement.capacityIn}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         ) : (
                             <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={10}>
-                                        <div className="flex justify-center items-center">
-                                            <div className="text-gray-400">
-                                                <div className="flex justify-center">
-                                                    <FaSearch size={100} />
-                                                </div>
-                                                <p className="uppercase">Data Tidak ditemukan</p>
-                                            </div>
+                                <tr>
+                                    <td colSpan={10} className="py-10 text-center">
+                                        <div className="flex justify-center items-center flex-col space-y-2 text-gray-400">
+                                            <FaSearch size={60} />
+                                            <p className="uppercase">Data Tidak ditemukan</p>
                                         </div>
                                     </td>
                                 </tr>
                             </tbody>
                         )}
-
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
+                {/* Pagination */}
                 {paginatedData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
+                    <div className="flex flex-col sm:flex-row justify-between items-center mt-4 space-y-2 sm:space-y-0">
+                        <span className="text-sm text-gray-600 text-center sm:text-left">
+                            Menampilkan {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
+                            {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari{" "}
+                            {filteredData.length} data
                         </span>
-                        <div className="flex justify-center space-x-2 mt-4">
+                        <div className="flex flex-wrap justify-center sm:justify-end space-x-1">
                             <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                                 disabled={currentPage === 1}
                                 className="px-3 py-2 border rounded disabled:opacity-50"
                             >
                                 <FaChevronLeft />
                             </button>
-
                             {[...Array(totalPages)].map((_, index) => {
                                 const page = index + 1;
-
                                 if (
                                     page === 1 ||
                                     page === totalPages ||
@@ -519,17 +377,13 @@ const InStockManagement = () => {
                                         <button
                                             key={page}
                                             onClick={() => setCurrentPage(page)}
-                                            className={`px-3 py-1 rounded border ${currentPage === page
-                                                ? "bg-[#005429] text-white"
-                                                : ""
+                                            className={`px-3 py-1 rounded border ${currentPage === page ? "bg-[#005429] text-white" : ""
                                                 }`}
                                         >
                                             {page}
                                         </button>
                                     );
                                 }
-
-                                // Tampilkan "..." jika melompati halaman
                                 if (
                                     (page === currentPage - 3 && page > 1) ||
                                     (page === currentPage + 3 && page < totalPages)
@@ -540,30 +394,45 @@ const InStockManagement = () => {
                                         </span>
                                     );
                                 }
-
                                 return null;
                             })}
-
                             <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                onClick={() =>
+                                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                                }
                                 disabled={currentPage === totalPages}
                                 className="px-3 py-2 border rounded disabled:opacity-50"
                             >
                                 <FaChevronRight />
                             </button>
                         </div>
-
                     </div>
                 )}
+
+                {/* pakai component side modal */}
+                <MovementSideModal
+                    movement={selectedMovement}
+                    onClose={() => setSelectedMovement(null)}
+                    formatDateTime={formatDateTime}
+                    capitalizeWords={capitalizeWords}
+                />
             </div>
 
+            {/* Footer */}
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <div className="w-full h-[2px] bg-[#005429]" />
             </div>
 
-            <Modal show={showModal} onClose={() => setShowModal(false)} onSubmit={handleSubmit} />
-        </div >
+            {/* Modal */}
+            <Modal
+                show={showModal}
+                onClose={() => setShowModal(false)}
+                onSubmit={handleSubmit}
+            />
+
+
+        </div>
+
     );
 };
 

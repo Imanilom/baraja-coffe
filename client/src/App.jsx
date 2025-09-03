@@ -107,7 +107,7 @@ import CreateStock from "./pages/inventory/in_stock/create";
 import CreateOutStock from "./pages/inventory/out_stock/create";
 import CreateTransferStock from "./pages/inventory/transfer_stock/create";
 import CreateStokOpname from "./pages/inventory/stock_opname/create";
-import CreateProduction from "./pages/inventory/production_stock/create";
+import CreateProduction from "./pages/inventory/production_list/create";
 import CreatePurchaseOrder from "./pages/purchase/purchaseorder/create";
 import ExpenditureListManagement from "./pages/purchase/expenditurelist";
 import CreateShoppingList from "./pages/purchase/shoppinglist/create";
@@ -133,6 +133,14 @@ import UpdateAutoPromo from "./pages/promotion/autopromo/update";
 import ReceiptMenu from "./pages/menu/receipt";
 import AddSubCategory from "./pages/menu/category_sub/create";
 import CreateTable from "./pages/table/tableplan/create";
+import EventManagement from "./pages/event";
+import CreateEvent from "./pages/event/craete";
+import UpdateTableForm from "./pages/table/tableplan/update";
+import ProductionListManagement from "./pages/inventory/production_list";
+import UpdateProduction from "./pages/inventory/production_list/update";
+import UpdateEvent from "./pages/event/update";
+import UpdateVoucher from "./pages/promotion/voucher/update";
+import CurrentStockManagement from "./pages/inventory/current_stock_menu";
 
 
 export default function App() {
@@ -176,7 +184,7 @@ export default function App() {
                 <Route path="table-management/table-update/:id" element={<UpdateTable />} />
                 <Route path="table-plan" element={<TablePlanManagement />} />
                 <Route path="table-plan/create" element={<CreateTable />} />
-                <Route path="table-plan/update/:id" element={<CreateTable />} />
+                <Route path="table-plan/update/:id" element={<UpdateTableForm />} />
                 {/* Purchase */}
 
                 {/* supplier */}
@@ -232,6 +240,7 @@ export default function App() {
 
                 {/* Inventory */}
                 <Route path="inventory/stockcard" element={<StockCardManagement />} />
+                <Route path="inventory/current-stock" element={<CurrentStockManagement />} />
                 <Route path="inventory/cardoutlet" element={<OutletCardManagement />} />
                 <Route path="inventory/in" element={<InStockManagement />} />
                 <Route path="inventory/instock-create" element={<CreateStock />} />
@@ -241,7 +250,9 @@ export default function App() {
                 <Route path="inventory/stockopname-create" element={<CreateStokOpname />} />
                 <Route path="inventory/transfer" element={<TransferStockManagement />} />
                 <Route path="inventory/transfer-stock-create" element={<CreateTransferStock />} />
-                <Route path="inventory/production" element={<ProductionStockManagement />} />
+                <Route path="inventory/production-stock" element={<ProductionStockManagement />} />
+                <Route path="inventory/production-list" element={<ProductionListManagement />} />
+                <Route path="inventory/production-update/:id" element={<UpdateProduction />} />
                 <Route path="inventory/production-create" element={<CreateProduction />} />
 
                 {/* Tax And Service */}
@@ -274,9 +285,15 @@ export default function App() {
                 <Route path="target-sales" element={<TargetSalesManagementPage />} />
                 <Route path="receipt-design" element={<ReceiptDesign />} />
 
+                {/* Event */}
+                <Route path="event" element={<EventManagement />} />
+                <Route path="event/create-event" element={<CreateEvent />} />
+                <Route path="event/edit-event/:id" element={<UpdateEvent />} />
+
                 {/* Voucher */}
                 <Route path="voucher" element={<Vouchermanagement />} />
                 <Route path="voucher-create" element={<CreateVoucher />} />
+                <Route path="voucher-update/:id" element={<UpdateVoucher />} />
 
                 {/* promosi */}
                 <Route path="promotion" element={<Promotionmanagement />} />

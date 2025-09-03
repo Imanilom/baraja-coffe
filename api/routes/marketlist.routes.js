@@ -103,7 +103,7 @@ router.get('/supplier/:id', getSupplierById);
 
 router.patch('/supplier/:id', inventoryAccess, updateSupplier);
 
-router.delete('/supplier/:id',inventoryAccess, deleteSupplier);
+router.delete('/supplier/:id', inventoryAccess, deleteSupplier);
 
 router.post('/supplier/bulk', inventoryAccess, createBulkSuppliers);
 
@@ -113,7 +113,7 @@ router.get('/debts/:id', getDebtById);
 
 router.get('/debts/supplier', getDebtSummaryBySupplier);
 
-router.post('/debts/pay/:id', payDebt); 
+router.post('/debts/pay/:id', payDebt);
 
 router.patch('/debts/:id', updateDebt);
 

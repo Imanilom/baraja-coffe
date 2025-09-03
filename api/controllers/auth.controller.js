@@ -67,7 +67,15 @@ export const signup = async (req, res, next) => {
 
   try {
     const hashedPassword = bcryptjs.hashSync(password, 10);
-    const newUser = new User({ username, email, password: hashedPassword });
+
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      role: "customer",       // opsional kalau defaultnya customer
+      consumerType: "bronze", // opsional biar konsisten kayak googleAuth
+      authType: "local",      // ✅ set default authType
+    });
 
     const savedUser = await newUser.save();
 
@@ -75,26 +83,30 @@ export const signup = async (req, res, next) => {
     const payload = {
       id: savedUser._id,
       username: savedUser.username,
-      email: savedUser.email
+      email: savedUser.email,
     };
 
     // Generate token
-    const token = jwt.sign({ id: payload.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign({ id: payload.id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
 
     // Kirimkan response
     res.status(201).json({
-      message: 'User created successfully',
+      message: "User created successfully",
       user: {
         id: savedUser._id,
         username: savedUser.username,
-        email: savedUser.email
+        email: savedUser.email,
+        authType: savedUser.authType, // ✅ ikut dikembalikan biar konsisten
       },
-      token
+      token,
     });
   } catch (error) {
     next(error);
   }
 };
+
 
 export const signin = async (req, res, next) => {
   try {
@@ -107,7 +119,7 @@ export const signin = async (req, res, next) => {
     let user = null;
     let tokenExpiry = "1h";
 
-    // Login sebagai customer
+    // Customer login
     if (typeof identifier === "string" && identifier.includes("@")) {
       user = await User.findOne({ email: identifier });
       if (!user || user.role !== "customer") {
@@ -115,7 +127,7 @@ export const signin = async (req, res, next) => {
       }
       tokenExpiry = "7d";
     } else {
-      // Login sebagai admin, staff, kasir, dll
+      // Staff / admin login
       user = await User.findOne({ username: identifier }).populate({
         path: "outlet.outletId",
         select: ["name", "admin"],
@@ -124,56 +136,32 @@ export const signin = async (req, res, next) => {
 
       if (
         !user ||
-        !["superadmin", "admin", "marketing", "akuntan", "inventory", "operational", "staff", "cashier junior", "cashier senior"].includes(user.role)
+        ![
+          "superadmin",
+          "admin",
+          "marketing",
+          "akuntan",
+          "inventory",
+          "operational",
+          "staff",
+          "cashier junior",
+          "cashier senior",
+        ].includes(user.role)
       ) {
         return next(errorHandler(403, "Access denied"));
       }
 
       tokenExpiry = "7d";
-
-
-      // Komentar ini bisa diaktifkan kembali jika validasi diperlukan
-      /*
-      const { deviceId, deviceName, location } = req.body;
-      const isDeviceRestricted = !["customer", "superadmin"].includes(user.role);
-      if (isDeviceRestricted) {
-        if (!deviceId || !location) {
-          return next(errorHandler(400, "Device ID dan lokasi wajib diisi"));
-        }
-
-        const outletId = user.outlet?.outletId?._id || user.outlet?.outletId;
-
-        const quota = await DeviceQuota.findOne({ outlet: outletId });
-        const roleQuota = quota?.quotas?.find(q => q.role === user.role);
-        const maxAllowed = roleQuota?.maxDevices || 0;
-
-        const activeDevicesCount = await Device.countDocuments({
-          outlet: outletId,
-          role: user.role,
-          isActive: true
-        });
-
-        if (activeDevicesCount >= maxAllowed) {
-          return next(errorHandler(403, `Kuota perangkat untuk role ${user.role} sudah penuh di outlet ini.`));
-        }
-
-        await Device.findOneAndUpdate(
-          { deviceId, outlet: outletId },
-          {
-            outlet: outletId,
-            role: user.role,
-            deviceName: deviceName || `Perangkat ${user.role}`,
-            location,
-            isActive: true,
-            lastLogin: new Date()
-          },
-          { upsert: true, new: true }
-        );
-      }
-      */
     }
 
     if (!user) return next(errorHandler(404, "User not found"));
+
+    // ✅ Tambahkan default authType kalau belum ada
+    if (!user.authType || user.authType === "") {
+      user.authType = "local";
+      await user.save();
+      console.log("Updated authType to 'local' for user:", user.email || user.username);
+    }
 
     const isValidPassword = bcryptjs.compareSync(password, user.password);
     if (!isValidPassword) return next(errorHandler(401, "Wrong credentials"));
@@ -186,8 +174,7 @@ export const signin = async (req, res, next) => {
 
     const { password: hashedPassword, ...rest } = user._doc;
     let response = { ...rest, token };
-    // console.log('proses login berhasil');
-    // Tambahkan daftar kasir jika user adalah admin
+
     if (user.role === "admin") {
       const cashier = await User.find({
         role: ["cashier junior", "cashier senior"],
@@ -198,11 +185,15 @@ export const signin = async (req, res, next) => {
     res.cookie("access_token", token, {
       httpOnly: true,
       maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
-    }).status(200).json(response);
+    })
+      .status(200)
+      .json(response);
   } catch (error) {
     next(error);
   }
 };
+
+
 
 
 
@@ -215,32 +206,40 @@ export const googleAuth = async (req, res) => {
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
-    // console.log("ID TOKEN YANG DITERIMA:", idToken);
-
-
     const payload = ticket.getPayload();
     const { email, name, picture } = payload;
 
     let user = await User.findOne({ email });
+
     if (!user) {
       user = new User({
         username: name,
         email,
-        password: "-", // Atau set default yang aman
+        password: "-",
         profilePicture: picture,
         role: "customer",
-        consumerType: 'bronze', // <-- Tambahkan ini untuk mastiin
+        consumerType: "bronze",
+        authType: "google",
       });
-      console.log("Creating user:", user);
       await user.save();
+    } else {
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { authType: "google" } }
+      );
+      console.log("Updated authType to 'google' for user:", user.email);
     }
 
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
     const { password, ...userData } = user._doc;
 
     res.status(200).json({ user: userData, token });
   } catch (err) {
+    console.error("Google Auth Error:", err);
     res.status(401).json({ message: "Invalid Google token" });
   }
 };

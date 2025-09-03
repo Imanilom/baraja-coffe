@@ -1,17 +1,49 @@
 import axios from "axios";
-import React, { useState } from "react";
-import { FaPencilAlt, FaTrash } from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
-import ConfirmationModal from "./confirmmodal";
+import React, { useEffect, useState } from "react";
+import { FaPencilAlt, FaTrash, FaTrashAlt } from "react-icons/fa";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import ConfirmationModal from "./confirmmodalDelete";
+import UpdateVoucher from "./update";
+import ConfirmationModalActive from "../confirmationModalActive";
 
-const PromoTable = ({ vouchers, refreshPromos }) => {
-    const [selectedPromos, setSelectedPromos] = useState([]);
+const PromoTable = ({ vouchers, fetchVouchers, refreshPromos }) => {
+    const { id } = useParams();
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [selectedVoucher, setSelectedVoucher] = useState(null);
+    const [newStatus, setNewStatus] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isModalUpdate, setIsModalUpdate] = useState(false);
+    const [voucherToUpdate, setVoucherToUpdate] = useState([]);
     const [itemToDelete, setItemToDelete] = useState(null);
-    const [openDropdown, setOpenDropdown] = useState(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const promosPerPage = 50;
+
+    const fetchUpdateVoucher = async (voucher) => {
+        try {
+            const response = await axios.get(`/api/promotion/vouchers/${voucher._id}`);
+            setVoucherToUpdate(response.data || {});
+        } catch (error) {
+            console.error("Error fetching voucher:", error);
+        }
+    };
+
+    const handleToggleActive = async (id, newStatus) => {
+        try {
+            await axios.put(`/api/promotion/vouchers/${id}`, { isActive: newStatus });
+            fetchVouchers(); // refresh data setelah update
+        } catch (error) {
+            console.error("Gagal update status voucher", error);
+        }
+    };
+
+
+    useEffect(() => {
+        if (id) {
+            fetchUpdateVoucher(id); // ✅ langsung kirim string id
+        }
+    }, [id]);
+
 
     const formatTanggal = (dateString) => {
         const date = new Date(dateString);
@@ -36,29 +68,13 @@ const PromoTable = ({ vouchers, refreshPromos }) => {
 
     const totalPages = Math.ceil(vouchers.length / promosPerPage);
 
-    const isAllSelected =
-        currentVoucher.length > 0 &&
-        currentVoucher.every((p) => selectedPromos.includes(p._id));
-
-    const togglePromo = (id) => {
-        setSelectedPromos((prev) =>
-            prev.includes(id) ? prev.filter((pid) => pid !== id) : [...prev, id]
-        );
-    };
-
-    const toggleAll = () => {
-        if (isAllSelected) {
-            setSelectedPromos((prev) =>
-                prev.filter((id) => !currentPromos.map((p) => p._id).includes(id))
-            );
-        } else {
-            setSelectedPromos((prev) => [
-                ...prev,
-                ...currentPromos
-                    .map((p) => p._id)
-                    .filter((id) => !prev.includes(id)),
-            ]);
-        }
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
     };
 
     const handleDelete = async (promoId) => {
@@ -80,7 +96,7 @@ const PromoTable = ({ vouchers, refreshPromos }) => {
                             <input type="checkbox" checked={isAllSelected} onChange={toggleAll} />
                         </th> */}
                         <th className="px-4 py-3 text-left">Nama Voucher</th>
-                        <th className="px-4 py-3 text-right">Kuota Digunakan</th>
+                        <th className="px-4 py-3 text-right">Kuota</th>
                         <th className="px-4 py-3 text-right">Nilai</th>
                         <th className="px-4 py-3 text-left">Tanggal Berlaku</th>
                     </tr>
@@ -88,63 +104,61 @@ const PromoTable = ({ vouchers, refreshPromos }) => {
                 <tbody>
                     {currentVoucher.map((voucher) => (
                         <tr key={voucher._id} className="">
-                            {/* <td className="px-4 py-3 text-center">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedPromos.includes(promo._id)}
-                                    onChange={() => togglePromo(promo._id)}
-                                />
-                            </td> */}
-                            <td className="px-4 py-3">{voucher.name}</td>
+                            <td className="px-4 py-3 truncate">{voucher.name}</td>
                             <td className="px-4 py-3 text-right">
                                 {voucher.quota}
                             </td>
                             <td className="px-4 py-3 text-right">
-                                {voucher.discountAmount}
-                                {voucher.discountType === "percentage" ? " %" : ""}
+                                {voucher.discountType === "percentage"
+                                    ? `${voucher.discountAmount}%`
+                                    : `${formatCurrency(voucher.discountAmount)}`}
+
                             </td>
-                            <td className="px-4 py-3 text-left">
+                            <td className="px-4 py-3 text-left truncate">
                                 {formatTanggal(voucher.validFrom)} s/d {formatTanggal(voucher.validTo)}
                             </td>
-                            {/* <td className="px-4 py-3 text-center">
-                                <div className="relative text-right">
-                                    <button
-                                        className="px-2 bg-white border border-gray-200 hover:bg-green-800 rounded-sm"
-                                        onClick={() =>
-                                            setOpenDropdown(openDropdown === promo._id ? null : promo._id)
-                                        }
-                                    >
-                                        <span className="text-xl text-gray-200 hover:text-white">•••</span>
-                                    </button>
-                                    {openDropdown === promo._id && (
-                                        <div className="absolute right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[200px] z-10">
-                                            <ul>
-                                                <Link
-                                                    to={`/admin/promo-otomatis-update/${promo._id}`}
-                                                    className="flex items-center space-x-3 px-4 py-4 hover:bg-gray-100"
-                                                >
-                                                    <FaPencilAlt />
-                                                    <span>Edit</span>
-                                                </Link>
-                                                <button
-                                                    onClick={() => {
-                                                        setItemToDelete(promo._id);
-                                                        setIsModalOpen(true);
-                                                    }}
-                                                    className="w-full flex items-center space-x-3 px-4 py-4 hover:bg-gray-100"
-                                                >
-                                                    <FaTrash />
-                                                    <p>Hapus</p>
-                                                </button>
-                                                <li className="flex items-center space-x-3 px-4 py-4 hover:bg-gray-100 cursor-pointer">
-                                                    <span className="w-3 h-3 bg-green-700 rounded-full"></span>
-                                                    <span>Aktifkan</span>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    )}
-                                </div>
-                            </td> */}
+                            <td className="px-4 py-3 flex justify-end items-center space-x-2 truncate">
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={voucher.isActive}
+                                        onChange={() => {
+                                            setSelectedVoucher(voucher);
+                                            setNewStatus(!voucher.isActive);
+                                            setIsConfirmOpen(true);
+                                        }}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-11 h-6 bg-gray-300 peer-checked:bg-green-500 rounded-full transition-colors"></div>
+                                    <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+                                    <span className="ml-3 text-sm font-medium text-gray-700">
+                                        {voucher.isActive ? "Aktif" : "Tidak Aktif"}
+                                    </span>
+                                </label>
+
+
+                                {/* Edit button */}
+                                {/* <button
+                                    onClick={() => {
+                                        fetchUpdateVoucher(voucher);
+                                        setIsModalUpdate(true);
+                                    }}
+                                    aria-label="Edit Voucher"
+                                    className="flex items-center px-3 py-1 text-xs text-white bg-blue-500 hover:bg-blue-600 rounded-md shadow-sm transition"
+                                >
+                                    <FaPencilAlt className="mr-1" /> Edit
+                                </button> */}
+
+                                {/* Delete button */}
+                                {/* <button
+                                    onClick={() => handleDelete(voucher._id)}
+                                    aria-label="Delete Voucher"
+                                    className="flex items-center px-3 py-1 text-xs text-white bg-red-500 hover:bg-red-600 rounded-md shadow-sm transition"
+                                >
+                                    <FaTrashAlt className="mr-1" /> Hapus
+                                </button> */}
+                            </td>
+
                         </tr>
                     ))}
                     {vouchers.length === 0 && (
@@ -189,6 +203,31 @@ const PromoTable = ({ vouchers, refreshPromos }) => {
                 onClose={() => setIsModalOpen(false)}
                 onConfirm={() => handleDelete(itemToDelete)}
             />
+
+            <UpdateVoucher
+                isOpen={isModalUpdate}
+                onClose={() => setIsModalUpdate(false)}
+                fetchVouchers={fetchVouchers}
+                voucherData={voucherToUpdate}  // ✅ sekarang data voucher dikirim
+            />
+
+            <ConfirmationModalActive
+                isOpen={isConfirmOpen}
+                voucher={selectedVoucher}
+                newStatus={newStatus}
+                onClose={() => {
+                    setIsConfirmOpen(false);
+                    setSelectedVoucher(null);
+                    setNewStatus(null);
+                }}
+                onConfirm={async () => {
+                    await handleToggleActive(selectedVoucher._id, newStatus);
+                    setIsConfirmOpen(false);
+                    setSelectedVoucher(null);
+                    setNewStatus(null);
+                }}
+            />
+
         </div>
     );
 };

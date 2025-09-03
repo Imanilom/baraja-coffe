@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { FaTrash } from 'react-icons/fa';
 
-const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
+const ConfirmationModalDelete = ({ isOpen, onClose, onConfirm }) => {
     if (!isOpen) return null;
 
     return (
@@ -19,4 +19,4 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
     );
 };
 
-export default ConfirmationModal;  
+export default ConfirmationModalDelete;  

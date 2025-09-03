@@ -214,56 +214,17 @@ const SupplierManagement = () => {
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-1 items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
 
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Nama Supplier</label>
+                    <div className="flex flex-col">
+                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Search"
+                                placeholder="Cari"
                                 value={tempName}
                                 onChange={(e) => setTempName(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
-                            />
-                        </div>
-                    </div>
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Alamat Supplier</label>
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Search"
-                                value={tempAddress}
-                                onChange={(e) => setTempAddress(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
-                            />
-                        </div>
-                    </div>
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Telepon Supplier</label>
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Search"
-                                value={tempPhone}
-                                onChange={(e) => setTempPhone(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
-                            />
-                        </div>
-                    </div>
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Email Supplier</label>
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Search"
-                                value={tempEmail}
-                                onChange={(e) => setTempEmail(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
@@ -271,72 +232,53 @@ const SupplierManagement = () => {
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Supplier ID</th>
-                                <th className="px-4 py-3 font-normal">Nama Supplier</th>
-                                <th className="px-4 py-3 font-normal">Alamat</th>
-                                <th className="px-4 py-3 font-normal">Telepon</th>
-                                <th className="px-4 py-3 font-normal">Email</th>
-                                <th></th>
+                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
+                    <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
+                        <thead className="text-gray-400 bg-slate-50">
+                            <tr className="text-left">
+                                <th className="px-4 py-3 font-normal w-[10%]">Supplier ID</th>
+                                <th className="px-4 py-3 font-normal w-[30%]">Nama Supplier</th>
+                                <th className="px-4 py-3 font-normal w-[50%]">Alamat</th>
+                                <th className="px-4 py-3 font-normal w-[5%]">Telepon</th>
+                                <th className="px-4 py-3 font-normal w-[5%]">Email</th>
+                                <th className="w-[5%]"></th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
+                            <tbody className="text-gray-400 divide-y">
                                 {paginatedData.map((data, index) => {
                                     try {
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3 truncate">
                                                     {data._id || []}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3 truncate">
                                                     {data.name || []}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3 max-w-[150px] truncate" title={data.address}>
                                                     {data.address || []}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {data.phone || []}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3 max-w-[150px] truncate" title={data.email}>
                                                     {data.email || []}
                                                 </td>
-                                                <td className="p-[15px]">
-                                                    {/* Dropdown Menu */}
-                                                    <div className="relative text-right">
-                                                        <button
-                                                            className="px-2 bg-white border border-gray-200 hover:bg-green-800 rounded-sm"
-                                                            onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
-                                                        >
-                                                            <span className="text-xl text-gray-200 hover:text-white">
-                                                                •••
-                                                            </span>
-                                                        </button>
-                                                        {openDropdown === data._id && (
-                                                            <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
-                                                                <ul className="w-full">
-                                                                    <Link
-                                                                        to={`/admin/purchase/supplier-update/${data._id}`}
-                                                                        className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                                                                    >
-                                                                        <FaPencilAlt size={18} />
-                                                                        <span>Ubah</span>
-                                                                    </Link>
-                                                                    <button className="w-full flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                                                                        onClick={() => {
-                                                                            setItemToDelete(data._id);
-                                                                            setIsModalOpen(true);
-                                                                        }}>
-                                                                        <FaTrash size={18} />
-                                                                        <p>Hapus</p>
-                                                                    </button>
-                                                                </ul>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                <td className="p-[15px] flex space-x-2">
+                                                    <Link
+                                                        to={`/admin/purchase/supplier-update/${data._id}`}
+                                                        className="bg-transparent flex items-center px-2 text-sm cursor-pointer hover:bg-gray-100"
+                                                    >
+                                                        <FaPencilAlt size={18} />
+                                                    </Link>
+                                                    <button className="w-full flex items-center px-2 text-red-500 text-sm cursor-pointer hover:bg-gray-100"
+                                                        onClick={() => {
+                                                            setItemToDelete(data._id);
+                                                            setIsModalOpen(true);
+                                                        }}>
+                                                        <FaTrash size={18} />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         );

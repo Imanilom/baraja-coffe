@@ -4,6 +4,7 @@ import { FaCut, FaBell, FaUser, FaChevronRight, FaSearch } from "react-icons/fa"
 import Datepicker from 'react-tailwindcss-datepicker';
 import axios from "axios";
 import PromoTable from "./promotable";
+import Header from "../../admin/header";
 
 const PromoList = () => {
   const [promos, setPromos] = useState([]);
@@ -102,13 +103,7 @@ const PromoList = () => {
   return (
     <div className="max-w-8xl mx-auto mb-[60px]">
       {/* Header */}
-      <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-        <FaBell size={23} className="text-gray-400" />
-        <span className="text-[14px]">Hi Baraja</span>
-        <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-          <FaUser size={30} />
-        </Link>
-      </div>
+      <Header />
 
       {/* Breadcrumb */}
       <div className="px-3 py-3 flex justify-between items-center border-b">
@@ -121,7 +116,7 @@ const PromoList = () => {
       </div>
       <div className="px-[15px] pt-[15px]">
         <div className="flex justify-between items-center py-[10px] px-[15px]">
-          <h3 className="text-gray-500 font-semibold">3 Promo</h3>
+          <h3 className="text-gray-500 font-semibold">{promos.length} Promo</h3>
           <Link
             to="/admin/promo-khusus-create"
             className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
@@ -132,46 +127,6 @@ const PromoList = () => {
       </div>
       <div className="px-[15px] pb-[15px]">
         <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-2 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-          {/* <input
-            type="date"
-            name="date"
-            value={filters.date}
-            onChange={handleFilterChange}
-            className="p-2 border rounded w-full"
-          /> */}
-          {/* <div className="relative">
-            <label className="text-[13px] mb-1 text-gray-500">Tanggal :</label>
-            <Datepicker
-              showFooter
-              showShortcuts
-              value={filters.date}
-              onChange={handleDateRangeChange}
-              displayFormat="DD-MM-YYYY"
-              inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
-              popoverDirection="down"
-            />
-          </div>
-          <div className="relative">
-            <label className="text-[13px] mb-1 text-gray-500">Outlet :</label>
-            <select
-              name="outlet"
-              value={filters.outlet}
-              onChange={handleFilterChange}
-              className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
-            >
-              <option value="">All Outlets</option>
-              {Array.from(
-                new Set(promos.flatMap((p) => p.outlet.map((o) => o._id)))
-              ).map((outletId, index) => {
-                const outletName = promos.find((p) => p.outlet.some((o) => o._id === outletId))?.outlet.find((o) => o._id === outletId)?.name || "Unknown";
-                return (
-                  <option key={`${outletId}-${index}`} value={outletId}>
-                    {outletName}
-                  </option>
-                );
-              })}
-            </select>
-          </div> */}
           <div className="relative">
             <label className="text-[13px] mb-1 text-gray-500">Cari Promo</label>
             <div className="relative">

@@ -93,9 +93,16 @@ export const updateMenuAvailableStock = async (req, res) => {
         await menuItem.save({ session });
         continue;
       }
+      // 🔑 Filter hanya baseIngredients yang isDefault = true
+      const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
 
-      const totalPortion = await calculateMaxPortions(recipe.baseIngredients);
-      menuItem.availableStock = totalPortion;
+      if (!defaultIngredients.length) {
+        // kalau tidak ada bahan default, stok dianggap 0
+        menuItem.availableStock = 0;
+      } else {
+        const totalPortion = await calculateMaxPortions(defaultIngredients);
+        menuItem.availableStock = totalPortion;
+      }
 
       await menuItem.save({ session });
     }

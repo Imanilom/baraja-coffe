@@ -50,13 +50,14 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       updatedAt: fields[24] as DateTime?,
       payment: fields[25] == null ? null : fields[25] as PaymentModel?,
       paymentStatus: fields[26] == null ? '' : fields[26] as String?,
+      id: fields[27] == null ? null : fields[27] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderDetailModel obj) {
     writer
-      ..writeByte(27)
+      ..writeByte(28)
       ..writeByte(0)
       ..write(obj.orderId)
       ..writeByte(1)
@@ -110,7 +111,9 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..writeByte(25)
       ..write(obj.payment)
       ..writeByte(26)
-      ..write(obj.paymentStatus);
+      ..write(obj.paymentStatus)
+      ..writeByte(27)
+      ..write(obj.id);
   }
 
   @override
@@ -191,6 +194,7 @@ _OrderDetailModel _$OrderDetailModelFromJson(
             json['payment_details'] as Map<String, dynamic>,
           ),
   paymentStatus: json['paymentStatus'] as String? ?? '',
+  id: json['_id'] as String? ?? null,
 );
 
 Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
@@ -222,4 +226,5 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'updatedAt': instance.updatedAt?.toIso8601String(),
       'payment_details': instance.payment,
       'paymentStatus': instance.paymentStatus,
+      '_id': instance.id,
     };

@@ -245,12 +245,12 @@ const Menu = () => {
       {/* Header */}
       <Header />
       {/* Filter Section */}
-      <div className="px-3 py-2 flex justify-between items-center border-b bg-white">
-        <div className="flex items-center space-x-2">
-          <FaShoppingBag size={22} className="text-gray-400 inline-block" />
+      <div className="px-3 py-2 flex flex-wrap justify-between items-center border-b bg-white">
+        <div className="flex items-center space-x-2 mb-2 sm:mb-0">
+          <FaShoppingBag size={20} className="text-gray-400 inline-block" />
           <p className="text-gray-400 inline-block">Produk</p>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => console.log('Ekspor Produk')}
             className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
@@ -267,8 +267,9 @@ const Menu = () => {
         </div>
       </div>
       <div className="px-[15px] pb-[15px]">
-        <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-9 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-          <div className="flex flex-col col-span-2">
+        <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+          {/* Outlet */}
+          <div className="flex flex-col col-span-1">
             <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
             <Select
               options={outletOptions}
@@ -278,7 +279,8 @@ const Menu = () => {
               isSearchable
             />
           </div>
-          <div className="flex flex-col col-span-2">
+          {/* Kategori */}
+          <div className="flex flex-col col-span-1">
             <label className="text-[13px] mb-1 text-gray-500">Kategori</label>
             <Select
               options={categoryOptions}
@@ -288,7 +290,8 @@ const Menu = () => {
               isSearchable
             />
           </div>
-          <div className="flex flex-col col-span-2">
+          {/* Status */}
+          <div className="flex flex-col col-span-1">
             <label className="text-[13px] mb-1 text-gray-500">Status Dijual</label>
             <Select
               options={statusOptions}
@@ -298,19 +301,21 @@ const Menu = () => {
               isSearchable
             />
           </div>
-          <div className="flex flex-col col-span-2">
+          {/* Search */}
+          <div className="flex flex-col col-span-1">
             <label className="text-[13px] mb-1 text-gray-500">Cari</label>
             <input
               type="text"
               placeholder="Produk / SKU / Barkode"
               value={tempSearch}
               onChange={(e) => setTempSearch(e.target.value)}
-              className="text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded"
+              className="text-[13px] border py-[8.2px] pr-[25px] pl-[12px] rounded"
             />
           </div>
-          <div className="flex justify-end space-x-2 items-end col-span-1">
-            <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-            <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+          {/* Action */}
+          <div className="flex justify-end space-x-2 col-span-1 sm:col-span-2 lg:col-span-1">
+            <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[8px] rounded">Terapkan</button>
+            <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[8px] rounded">Reset</button>
           </div>
         </div>
       </div>
@@ -462,7 +467,7 @@ const Menu = () => {
       </div>
 
       {/* Pagination */}
-      <div className="flex justify-end items-center mt-6 gap-2 flex-wrap">
+      <div className="flex justify-end items-center mt-6 gap-2 flex-wrap mb-[60px]">
         <button
           onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
           disabled={currentPage === 1}

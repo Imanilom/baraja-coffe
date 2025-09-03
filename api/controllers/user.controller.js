@@ -3,7 +3,7 @@ import { errorHandler } from '../utils/error.js';
 import bcryptjs from 'bcryptjs';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
-
+import { validationResult } from 'express-validator';
 export const test = (req, res) => {
   res.json({ message: 'API is working!', user: req.user });
 };
@@ -162,6 +162,177 @@ export const getUserProfile = async (req, res) => {
     res.status(401).json({ message: 'Token tidak valid' });
   }
 };
+
+// Start account setting for user (self)
+
+export const updateUserProfile = async (req, res, next) => {
+  try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Data tidak valid',
+        errors: errors.array()
+      });
+    }
+
+    const userId = req.user.id;
+    const { username, email, phone } = req.body;
+
+    // Find current user
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      return next(errorHandler(404, 'User tidak ditemukan'));
+    }
+
+    // Prepare update data
+    const updateData = { username };
+
+    // Only update email if user is not Google user
+    if (currentUser.password !== '-' && email) {
+      // Check if email is already taken by another user
+      const existingUser = await User.findOne({
+        email,
+        _id: { $ne: userId }
+      });
+
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email sudah digunakan oleh pengguna lain'
+        });
+      }
+
+      updateData.email = email;
+    }
+
+    // Add phone if provided
+    if (phone !== undefined) {
+      updateData.phone = phone || '';
+    }
+
+    // Update user
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      updateData,
+      {
+        new: true,
+        runValidators: true
+      }
+    ).select('-password');
+
+    res.status(200).json({
+      success: true,
+      message: 'Profil berhasil diperbarui',
+      data: updatedUser
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email sudah digunakan'
+      });
+    }
+    next(errorHandler(500, error.message));
+  }
+};
+
+// Change password (for Flutter app)
+export const changeUserPassword = async (req, res, next) => {
+  try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Data tidak valid',
+        errors: errors.array()
+      });
+    }
+
+    const userId = req.user.id;
+    const { currentPassword, newPassword } = req.body;
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(errorHandler(404, 'User tidak ditemukan'));
+    }
+
+    // Check if user is Google user
+    if (user.password === '-' || !user.password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password tidak dapat diubah untuk akun Google'
+      });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await bcryptjs.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password lama tidak sesuai'
+      });
+    }
+
+    // Check if new password is different from current password
+    const isSamePassword = await bcryptjs.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password baru harus berbeda dengan password lama'
+      });
+    }
+
+    // Hash new password
+    const hashedNewPassword = bcryptjs.hashSync(newPassword, 10);
+
+    // Update password
+    await User.findByIdAndUpdate(userId, {
+      password: hashedNewPassword
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Password berhasil diubah'
+    });
+  } catch (error) {
+    next(errorHandler(500, error.message));
+  }
+};
+
+// Get user authentication type (for Flutter app)
+export const getUserAuthType = async (req, res) => {
+  try {
+    // diasumsikan middleware auth sudah inject req.user.id
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized: userId tidak ditemukan" });
+    }
+
+    const user = await User.findById(userId).select("authType email username");
+
+    if (!user) {
+      return res.status(404).json({ message: "User tidak ditemukan" });
+    }
+
+    return res.json({
+      success: true,
+      authType: user.authType,
+      email: user.email,
+      username: user.username,
+    });
+
+  } catch (error) {
+    console.error("❌ Error getUserAuthType:", error.message);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// End account setting for user (self)
 
 
 // 1. Membuat Karyawan Baru (Staff/Cashier)

@@ -1,10 +1,44 @@
 import React, { useEffect, useState } from "react";
-import { FaBell, FaUser, FaShoppingBag, FaChevronRight } from 'react-icons/fa';
+import { FaBell, FaUser, FaShoppingBag, FaChevronRight, FaTrash, FaTrashAlt } from 'react-icons/fa';
 import axios from "axios";
 import Select from 'react-select';
 import { Link, useNavigate, useParams } from "react-router-dom";
+import Header from "../../admin/header";
 
 const ReceiptMenu = () => {
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db', // Tailwind border-gray-300
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280', // text-gray-500
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            '&:hover': {
+                borderColor: '#9ca3af', // Tailwind border-gray-400
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500 for typed text
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af', // text-gray-400
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151', // gray-700
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            cursor: 'pointer',
+        }),
+    };
     const { id } = useParams();
     const navigate = useNavigate();
     const [menuName, setMenuName] = useState("");
@@ -41,8 +75,17 @@ const ReceiptMenu = () => {
                 if (existingRecipe) {
                     setExistingRecipeId(existingRecipe._id);
 
-                    // Jika ingin menampilkan resep yang sudah ada di form:
-                    setBaseIngredients(existingRecipe.baseIngredients || []);
+                    const main = (existingRecipe.baseIngredients || []).filter(ing => ing.isDefault);
+                    const sub = (existingRecipe.baseIngredients || []).filter(ing => !ing.isDefault);
+
+                    setMainIngredients(main.length ? main : [
+                        { productId: "", productName: "", productSku: "", quantity: "", unit: "", isDefault: true }
+                    ]);
+
+                    setSubIngredients(sub.length ? sub : [
+                        { productId: "", productName: "", productSku: "", quantity: "", unit: "", isDefault: false }
+                    ]);
+
                     setToppingOptions(existingRecipe.toppingOptions || []);
                     setAddonOptions(existingRecipe.addonOptions || []);
                 }
@@ -68,10 +111,15 @@ const ReceiptMenu = () => {
         });
     };
 
+    const [mainIngredients, setMainIngredients] = useState([
+        { productId: "", productName: "", productSku: "", quantity: "", unit: "", isDefault: true }
+    ]);
+
+    const [subIngredients, setSubIngredients] = useState([
+        { productId: "", productName: "", productSku: "", quantity: "", unit: "", isDefault: false }
+    ]);
+
     const initializeRecipeForm = (menuData) => {
-        setBaseIngredients([
-            { productId: "", productName: "", productSku: "", quantity: "", unit: "" }
-        ]);
 
         const toppings = (menuData.toppings || []).map((t) => ({
             toppingName: t.name,
@@ -109,19 +157,21 @@ const ReceiptMenu = () => {
     };
 
     const validateForm = () => {
-        if (baseIngredients.length === 0) {
-            alert('Harus ada minimal 1 bahan utama');
+        const combinedIngredients = [...mainIngredients, ...subIngredients];
+
+        if (combinedIngredients.length === 0) {
+            alert('Harus ada minimal 1 bahan utama atau tambahan');
             return false;
         }
 
-        const invalidBase = baseIngredients.some(ing =>
-            !ing.productId || !ing.quantity || !ing.unit
-        );
+        // const invalid = combinedIngredients.some(ing =>
+        //     !ing.productId || !ing.quantity || !ing.unit
+        // );
 
-        if (invalidBase) {
-            alert('Semua bahan utama harus lengkap (produk, quantity, dan unit)');
-            return false;
-        }
+        // if (invalid) {
+        //     alert('Semua bahan harus lengkap (produk, quantity, dan unit)');
+        //     return false;
+        // }
 
         if (!menuItemStatus.isComplete) {
             alert(`Menu belum lengkap: ${menuItemStatus.missingFields.join(', ')}`);
@@ -131,6 +181,7 @@ const ReceiptMenu = () => {
         return true;
     };
 
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -138,17 +189,19 @@ const ReceiptMenu = () => {
             return;
         }
 
-        // Prepare the payload with proper structure
+        const combinedIngredients = [...mainIngredients, ...subIngredients];
+
         const payload = {
             menuItemId: id,
-            baseIngredients: baseIngredients
+            baseIngredients: combinedIngredients
                 .filter(item => item.productId && item.quantity && item.unit)
                 .map(item => ({
                     productId: item.productId,
                     productName: item.productName,
                     productSku: item.productSku,
                     quantity: Number(item.quantity),
-                    unit: item.unit
+                    unit: item.unit,
+                    isDefault: item.isDefault || false
                 })),
             toppingOptions: toppingOptions
                 .filter(topping => topping.toppingName && topping.ingredients.length > 0)
@@ -179,29 +232,15 @@ const ReceiptMenu = () => {
                             unit: ing.unit
                         }))
                 }))
-
         };
-
-        console.log("Payload to be sent:", JSON.stringify(payload, null, 2));
 
         try {
             let response;
             if (existingRecipeId) {
-                response = await axios.put(`/api/product/recipes/${existingRecipeId}`, payload, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                });
+                response = await axios.put(`/api/product/recipes/${existingRecipeId}`, payload);
             } else {
-                response = await axios.post(`/api/product/recipes`, payload, {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
+                response = await axios.post(`/api/product/recipes`, payload);
             }
-
-            console.log("Full response:", response);
-            console.log("Response data:", response.data);
 
             if (response.data.success) {
                 alert("Resep berhasil dibuat.");
@@ -211,10 +250,10 @@ const ReceiptMenu = () => {
             }
         } catch (err) {
             console.error("Error details:", err);
-            console.error("Error response:", err.response);
             alert(`Gagal membuat resep: ${err.response?.data?.message || err.message}`);
         }
     };
+
 
     if (loading) {
         return <div className="flex justify-center items-center h-screen">
@@ -240,12 +279,7 @@ const ReceiptMenu = () => {
     return (
         <div className="w-full">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell className="text-2xl text-gray-400" />
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
             <div className="px-3 py-4 flex items-center border-b bg-white">
@@ -270,19 +304,18 @@ const ReceiptMenu = () => {
                     )}
 
                     <form onSubmit={handleSubmit} className="my-[13px] shadow-lg space-y-10 p-6 bg-gray-50 rounded">
-                        {/* Base Ingredients */}
-                        <div>
-                            <h2 className="text-lg font-semibold mb-4">Bahan Menu</h2>
-                            {baseIngredients.map((item, index) => (
-                                <div key={index} className="grid grid-cols-5 gap-4 mb-2 items-center">
 
+                        <div className="mb-6">
+                            <h2 className="text-lg font-semibold mb-4">Main Ingredients</h2>
+                            {mainIngredients.map((item, index) => (
+                                <div key={index} className="grid grid-cols-5 gap-4 mb-2 items-center">
                                     <Select
                                         className="text-sm"
                                         classNamePrefix="react-select"
                                         options={productOptions}
                                         value={productOptions.find(opt => opt.value === item.productName) || null}
                                         onChange={(selected) => {
-                                            const updated = [...baseIngredients];
+                                            const updated = [...mainIngredients];
                                             updated[index] = {
                                                 ...updated[index],
                                                 productId: selected?._id || "",
@@ -290,8 +323,9 @@ const ReceiptMenu = () => {
                                                 productSku: selected?.sku || "",
                                                 unit: selected?.unit || "",
                                             };
-                                            setBaseIngredients(updated);
+                                            setMainIngredients(updated);
                                         }}
+                                        styles={customSelectStyles}
                                         placeholder="Pilih Bahan Baku"
                                         isClearable
                                         required
@@ -302,39 +336,107 @@ const ReceiptMenu = () => {
                                         placeholder="SKU"
                                         value={item.productSku}
                                         onChange={(e) =>
-                                            handleChange(setBaseIngredients, baseIngredients, index, "productSku", e.target.value)
+                                            handleChange(setMainIngredients, mainIngredients, index, "productSku", e.target.value)
                                         }
                                         className="border rounded p-2 text-sm"
-                                        required
+                                        disabled
                                     />
+
                                     <input
                                         type="number"
                                         placeholder="Qty"
                                         value={item.quantity}
                                         onChange={(e) =>
-                                            handleChange(setBaseIngredients, baseIngredients, index, "quantity", e.target.value)
+                                            handleChange(setMainIngredients, mainIngredients, index, "quantity", e.target.value)
                                         }
                                         className="border rounded p-2 text-sm"
                                         min="0"
                                         step="0.01"
                                         required
                                     />
+
                                     <input
                                         type="text"
                                         placeholder="Satuan"
                                         value={item.unit}
                                         onChange={(e) =>
-                                            handleChange(setBaseIngredients, baseIngredients, index, "unit", e.target.value)
+                                            handleChange(setMainIngredients, mainIngredients, index, "unit", e.target.value)
                                         }
                                         className="border rounded p-2 text-sm lowercase"
-                                        required
+                                        disabled
                                     />
+
+                                    {/* ❌ tidak ada tombol hapus */}
+                                </div>
+                            ))}
+                            {/* ❌ tidak ada tombol tambah */}
+                        </div>
+
+                        <div className="mb-6">
+                            <h2 className="text-lg font-semibold mb-4">Sub Ingredients</h2>
+                            {subIngredients.map((item, index) => (
+                                <div key={index} className="grid grid-cols-5 gap-4 mb-2 items-center">
+                                    <Select
+                                        className="text-sm"
+                                        classNamePrefix="react-select"
+                                        options={productOptions}
+                                        value={productOptions.find(opt => opt.value === item.productName) || null}
+                                        onChange={(selected) => {
+                                            const updated = [...subIngredients];
+                                            updated[index] = {
+                                                ...updated[index],
+                                                productId: selected?._id || "",
+                                                productName: selected?.value || "",
+                                                productSku: selected?.sku || "",
+                                                unit: selected?.unit || "",
+                                            };
+                                            setSubIngredients(updated);
+                                        }}
+                                        placeholder="Pilih Bahan Baku"
+                                        styles={customSelectStyles}
+                                        isClearable
+                                    />
+
+                                    <input
+                                        type="text"
+                                        placeholder="SKU"
+                                        value={item.productSku}
+                                        onChange={(e) =>
+                                            handleChange(setSubIngredients, subIngredients, index, "productSku", e.target.value)
+                                        }
+                                        className="border rounded p-2 text-sm"
+                                        disabled
+                                    />
+
+                                    <input
+                                        type="number"
+                                        placeholder="Qty"
+                                        value={item.quantity}
+                                        onChange={(e) =>
+                                            handleChange(setSubIngredients, subIngredients, index, "quantity", e.target.value)
+                                        }
+                                        className="border rounded p-2 text-sm"
+                                        min="0"
+                                        step="0.01"
+                                    />
+
+                                    <input
+                                        type="text"
+                                        placeholder="Satuan"
+                                        value={item.unit}
+                                        onChange={(e) =>
+                                            handleChange(setSubIngredients, subIngredients, index, "unit", e.target.value)
+                                        }
+                                        className="border rounded p-2 text-sm lowercase"
+                                        disabled
+                                    />
+
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            const updated = baseIngredients.filter((_, i) => i !== index);
-                                            setBaseIngredients(updated.length ? updated : [
-                                                { productId: "", productName: "", productSku: "", quantity: "", unit: "" }
+                                            const updated = subIngredients.filter((_, i) => i !== index);
+                                            setSubIngredients(updated.length ? updated : [
+                                                { productId: "", productName: "", productSku: "", quantity: "", unit: "", isDefault: false }
                                             ]);
                                         }}
                                         className="text-red-500 text-sm"
@@ -346,14 +448,14 @@ const ReceiptMenu = () => {
                             <button
                                 type="button"
                                 onClick={() =>
-                                    setBaseIngredients([
-                                        ...baseIngredients,
-                                        { productId: "", productName: "", productSku: "", quantity: "", unit: "" }
+                                    setSubIngredients([
+                                        ...subIngredients,
+                                        { productId: "", productName: "", productSku: "", quantity: "", unit: "", isDefault: false }
                                     ])
                                 }
                                 className="text-blue-600 text-sm mt-2"
                             >
-                                + Tambah Base Ingredient
+                                + Tambah Sub Ingredient
                             </button>
                         </div>
 
@@ -408,7 +510,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "productSku", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
-                                                required
+                                                disabled
                                             />
                                             <input
                                                 type="number"
@@ -430,7 +532,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "unit", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm lowercase"
-                                                required
+                                                disabled
                                             />
                                             <button
                                                 type="button"
@@ -530,7 +632,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "productSku", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm"
-                                                required
+                                                disabled
                                             />
                                             <input
                                                 type="number"
@@ -552,7 +654,7 @@ const ReceiptMenu = () => {
                                                     handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "unit", e.target.value)
                                                 }
                                                 className="border rounded p-2 text-sm lowercase"
-                                                required
+                                                disabled
                                             />
                                             <button
                                                 type="button"
