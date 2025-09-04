@@ -138,6 +138,9 @@ import CreateEvent from "./pages/event/craete";
 import UpdateTableForm from "./pages/table/tableplan/update";
 import ProductionListManagement from "./pages/inventory/production_list";
 import UpdateProduction from "./pages/inventory/production_list/update";
+import UpdateEvent from "./pages/event/update";
+import UpdateVoucher from "./pages/promotion/voucher/update";
+import CurrentStockManagement from "./pages/inventory/current_stock_menu";
 
 
 export default function App() {
@@ -237,6 +240,7 @@ export default function App() {
 
                 {/* Inventory */}
                 <Route path="inventory/stockcard" element={<StockCardManagement />} />
+                <Route path="inventory/current-stock" element={<CurrentStockManagement />} />
                 <Route path="inventory/cardoutlet" element={<OutletCardManagement />} />
                 <Route path="inventory/in" element={<InStockManagement />} />
                 <Route path="inventory/instock-create" element={<CreateStock />} />
@@ -284,10 +288,12 @@ export default function App() {
                 {/* Event */}
                 <Route path="event" element={<EventManagement />} />
                 <Route path="event/create-event" element={<CreateEvent />} />
+                <Route path="event/edit-event/:id" element={<UpdateEvent />} />
 
                 {/* Voucher */}
                 <Route path="voucher" element={<Vouchermanagement />} />
                 <Route path="voucher-create" element={<CreateVoucher />} />
+                <Route path="voucher-update/:id" element={<UpdateVoucher />} />
 
                 {/* promosi */}
                 <Route path="promotion" element={<Promotionmanagement />} />

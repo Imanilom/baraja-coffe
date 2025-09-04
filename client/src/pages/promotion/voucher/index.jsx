@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { FaCut, FaBell, FaUser, FaChevronRight } from "react-icons/fa";
 import CreateVoucher from "./create";
 import PromoTable from "./promotable";
 import DatePicker from "react-tailwindcss-datepicker";
+import Header from "../../admin/header";
 
 const Voucher = () => {
     const [vouchers, setVouchers] = useState([]);
+    const [notification, setNotification] = useState("");
     const [tempSearch, setTempSearch] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("aktif");
@@ -105,15 +107,9 @@ const Voucher = () => {
     }
 
     return (
-        <div className="max-w-8xl mx-auto">
+        <div className="w-full">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
             <div className="px-3 py-3 flex justify-between items-center border-b">
@@ -138,7 +134,8 @@ const Voucher = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-3 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 py-4">
+
                 <button
                     className={`bg-white border-b-2 py-2 hover:border-b-[#005429] ${activeTab === "aktif" ? "border-b-[#005429]" : "border-b-white"
                         }`}
@@ -149,24 +146,6 @@ const Voucher = () => {
                             <h2 className="text-gray-400 ml-2 text-sm">Aktif</h2>
                         </div>
                         <div className="text-sm text-gray-400">({totalAktif})</div>
-                    </div>
-                </button>
-
-                <button
-                    className={`bg-white border-b-2 py-2 hover:border-b-[#005429] ${activeTab === "akan-datang" ? "border-b-[#005429]" : "border-b-white"
-                        }`}
-                    onClick={() => handleTabChange("akan-datang")}
-                >
-                    <div className="flex justify-between items-center border-l border-l-gray-200 p-4">
-                        <div className="flex space-x-4 items-center">
-                            <h2 className="text-gray-400 ml-2 text-sm">Akan Datang</h2>
-                            <span className="relative group">
-                                <div className="absolute z-10 left-1/2 -translate-x-1/2 mt-2 w-[280px] text-justify bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none">
-                                    Opsi Tambahan merupakan produk pelengkap yang dijual bersamaan dengan produk utama. (Contoh: Nasi Goreng memiliki opsi tambahan ekstra telur dan ekstra bakso)
-                                </div>
-                            </span>
-                        </div>
-                        <div className="text-sm text-gray-400">(0)</div>
                     </div>
                 </button>
 
@@ -184,24 +163,8 @@ const Voucher = () => {
                 </button>
             </div>
 
-            {/* Tombol untuk membuat voucher */}
-            {/* <button
-                onClick={() => setIsCreating(true)}
-                className="bg-blue-500 text-white px-4 py-2 rounded mb-4"
-            >
-                Add Voucher
-            </button> */}
-
-            {/* Komponen CreateVoucher */}
-            {/* {isCreating && (
-                <CreateVoucher
-                    fetchVouchers={fetchVouchers}
-                    onClose={() => setIsCreating(false)}
-                />
-            )} */}
-
             <div className="pb-[15px]">
-                <div className="mx-[15px] my-[13px] py-[10px] px-[15px] grid grid-cols-2 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                <div className="mx-[15px] my-[13px] py-[10px] px-[15px] grid grid-cols-1 md:grid-cols-2 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
                     <div className="relative">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal :</label>
                         <DatePicker
@@ -228,17 +191,12 @@ const Voucher = () => {
                 <div className="mt-6">
                     {activeTab === "aktif" && (
                         <div className="py-[10px] px-[15px]">
-                            <PromoTable vouchers={voucherAktif} />
-                        </div>
-                    )}
-                    {activeTab === "akan-datang" && (
-                        <div className="py-[10px] px-[15px]">
-                            <PromoTable vouchers={[]} />
+                            <PromoTable vouchers={voucherAktif} fetchVouchers={fetchVouchers} />
                         </div>
                     )}
                     {activeTab === "tidak-berlaku" && (
                         <div className="py-[10px] px-[15px]">
-                            <PromoTable vouchers={voucherTidakAktif} />
+                            <PromoTable vouchers={voucherTidakAktif} fetchVouchers={fetchVouchers} />
                         </div>
                     )}
                 </div>

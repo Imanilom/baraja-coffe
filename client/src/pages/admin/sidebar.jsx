@@ -53,12 +53,13 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
           name: "Inventori", icon: <FaBoxes />,
           subMenu: [
             { name: "Kartu Stok", path: "/admin/inventory/stockcard" },
+            { name: "Stok Tersedia", path: "/admin/inventory/current-stock" },
             { name: "Stok Masuk", path: "/admin/inventory/in" },
             { name: "Stok Keluar", path: "/admin/inventory/out" },
             // { name: "Transfer Stok", path: "/admin/inventory/transfer" },
             // { name: "Stok Opname", path: "/admin/inventory/stockopname" },
-            { name: "Produk List", path: "/admin/inventory/production-list" },
-            { name: "Produk Stok", path: "/admin/inventory/production-stock" },
+            // { name: "Produk List", path: "/admin/inventory/production-list" },
+            // { name: "Produk Stok", path: "/admin/inventory/production-stock" },
           ]
         },
         {

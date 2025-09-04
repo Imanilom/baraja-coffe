@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import dayjs from "dayjs";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import Select from "react-select";
-import { Link, useNavigate } from "react-router-dom";
-import { FaTimes, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft, FaTicketAlt, FaPlus } from "react-icons/fa";
-import Datepicker from 'react-tailwindcss-datepicker';
+import dayjs from "dayjs";
+import Datepicker from "react-tailwindcss-datepicker";
+import { FaTimes, FaChevronRight, FaTicketAlt, FaPlus } from "react-icons/fa";
 import Header from "../admin/header";
 
-
-const CreateEvent = () => {
+const UpdateEvent = () => {
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
@@ -42,8 +41,10 @@ const CreateEvent = () => {
             cursor: 'pointer',
         }),
     };
-
+    const { id } = useParams();
     const navigate = useNavigate();
+    const [loading, setLoading] = useState(true);
+
     const [form, setForm] = useState({
         name: "",
         description: "",
@@ -58,8 +59,42 @@ const CreateEvent = () => {
         status: "upcoming",
         capacity: "",
         privacy: "public",
-        terms: ""
+        terms: "",
     });
+
+    const [imagePreview, setImagePreview] = useState("");
+
+    // === Fetch data event by id ===
+    useEffect(() => {
+        const fetchDetail = async () => {
+            try {
+                const res = await axios.get(`/api/event/${id}`);
+                const data = res.data.data;
+                setForm({
+                    name: data.name || "",
+                    description: data.description || "",
+                    location: data.location || "",
+                    date: data.date,
+                    price: data.price || "",
+                    organizer: data.organizer || "",
+                    contactEmail: data.contactEmail || "",
+                    imageUrl: data.imageUrl || "",
+                    category: data.category || "",
+                    tags: data.tags ? data.tags.join(", ") : "",
+                    status: data.status || "upcoming",
+                    capacity: data.capacity || "",
+                    privacy: data.privacy || "public",
+                    terms: data.terms || "",
+                });
+                setImagePreview(data.imageUrl || "");
+            } catch (err) {
+                console.error("Gagal load event:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDetail();
+    }, [id]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -67,16 +102,13 @@ const CreateEvent = () => {
     };
 
     const handleDateChange = (newValue) => {
-        // Convert ke ISO string (sesuai API)
         if (newValue && newValue.startDate) {
-            const isoDate = new Date(newValue.startDate).toISOString();
-            setForm(prev => ({ ...prev, date: isoDate }));
-        } else {
-            setForm(prev => ({ ...prev, date: "" }));
+            setForm((prev) => ({
+                ...prev,
+                date: new Date(newValue.startDate).toISOString(),
+            }));
         }
     };
-
-    const [imagePreview, setImagePreview] = useState(form.imageUrl || "");
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -91,53 +123,58 @@ const CreateEvent = () => {
 
     const handleRemoveImage = () => {
         setImagePreview(null);
-        document.getElementById("file-upload").value = ""; // reset input file
+        document.getElementById("file-upload").value = "";
     };
 
     const privacyOptions = [
         { value: "public", label: "Public" },
-        { value: "private", label: "Private" }
+        { value: "private", label: "Private" },
     ];
-
-    const status = [
+    const statusOptions = [
         { value: "upcoming", label: "Upcoming" },
         { value: "ongoing", label: "Ongoing" },
-        { value: "completed", label: "Completed" }
-    ]
+        { value: "completed", label: "Completed" },
+    ];
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Convert tags from string to array
         const payload = {
             ...form,
             price: Number(form.price),
             capacity: Number(form.capacity),
-            tags: form.tags.split(",").map((tag) => tag.trim())
+            tags: form.tags.split(",").map((t) => t.trim()),
+            imageUrl: imagePreview || form.imageUrl,
         };
-        // console.log("Submit data:", payload);
-        axios.post("/api/event", payload);
-        navigate("/admin/event");
+        try {
+            await axios.put(`/api/event/${id}`, payload);
+            alert("Event berhasil diperbarui");
+            navigate("/admin/event");
+        } catch (err) {
+            alert("Update gagal", console.error(err));
+        }
     };
 
+    if (loading) {
+        return <p className="text-center mt-10">Loading...</p>;
+    }
+
     return (
-        <div className="">
+        <div>
             <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaTicketAlt size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Event</p>
-                    <FaChevronRight size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Tambah Event</p>
-                </div>
+            <div className="px-3 py-2 flex items-center border-b">
+                <FaTicketAlt size={21} className="text-gray-500" />
+                <p className="ml-2 text-[15px] text-gray-500">Event</p>
+                <FaChevronRight size={20} className="text-gray-500 mx-2" />
+                <p className="text-[15px] text-gray-500">Update Event</p>
             </div>
+
+            {/* Form sama seperti CreateEvent */}
             <form
                 onSubmit={handleSubmit}
                 className="space-y-8 p-8 max-w-5xl mx-auto mb-[60px]"
             >
-
-                {/* Grid Input */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Nama Event */}
                     <div>
@@ -150,7 +187,6 @@ const CreateEvent = () => {
                             value={form.name}
                             onChange={handleChange}
                             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
-                            placeholder="Masukkan nama event"
                             required
                         />
                     </div>
@@ -166,7 +202,6 @@ const CreateEvent = () => {
                             value={form.location}
                             onChange={handleChange}
                             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
-                            placeholder="Lokasi event"
                             required
                         />
                     </div>
@@ -180,9 +215,7 @@ const CreateEvent = () => {
                             name="description"
                             value={form.description}
                             onChange={handleChange}
-                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm resize-y min-h-[120px]"
-                            placeholder="Ceritakan tentang event ini..."
-                            required
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm min-h-[120px]"
                         />
                     </div>
 
@@ -193,32 +226,17 @@ const CreateEvent = () => {
                         </label>
                         <Datepicker
                             primaryColor="green"
-                            useRange={false}
                             asSingle={true}
+                            useRange={false}
                             value={{
                                 startDate: form.date ? new Date(form.date) : null,
                                 endDate: form.date ? new Date(form.date) : null,
                             }}
                             onChange={handleDateChange}
-                            showShortcuts={false}
-                            displayFormat="DD-MM-YYYY HH:mm"
                             showTimePicker={true}
+                            displayFormat="DD-MM-YYYY HH:mm"
                             inputClassName="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
                         />
-                        {/* <DatePicker
-                            selected={form.date ? new Date(form.date) : null} // selalu Date object
-                            onChange={(date) => setForm(prev => ({
-                                ...prev,
-                                date: date ? date.toISOString() : null // simpan ISO string
-                            }))}
-                            showTimeSelect
-                            timeFormat="HH:mm"
-                            timeIntervals={1}
-                            dateFormat="dd-MM-yyyy HH:mm"
-                            placeholderText="Pilih tanggal & waktu"
-                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400"
-                        /> */}
-
                     </div>
 
                     {/* Harga */}
@@ -232,7 +250,6 @@ const CreateEvent = () => {
                             value={form.price}
                             onChange={handleChange}
                             className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
-                            placeholder="150000"
                         />
                     </div>
 
@@ -266,12 +283,10 @@ const CreateEvent = () => {
                         />
                     </div>
 
-                    {/* Gambar Event */}
+                    {/* Gambar */}
                     <div>
                         <label className="block font-medium mb-2">Gambar</label>
-
-                        <div className="relative w-40 h-40 border-2 border-dashed rounded-lg flex items-center justify-center overflow-hidden cursor-pointer hover:border-blue-500">
-                            {/* Kotak klik */}
+                        <div className="relative w-40 h-40 border-2 border-dashed rounded-lg flex items-center justify-center overflow-hidden">
                             <label
                                 htmlFor="file-upload"
                                 className="w-full h-full flex items-center justify-center cursor-pointer"
@@ -283,25 +298,19 @@ const CreateEvent = () => {
                                         className="object-cover w-full h-full"
                                     />
                                 ) : (
-                                    <span className="text-gray-400 text-center px-2">
-                                        <FaPlus size={48} />
-                                    </span>
+                                    <FaPlus size={36} className="text-gray-400" />
                                 )}
                             </label>
-
-                            {/* Tombol hapus */}
                             {imagePreview && (
                                 <button
                                     type="button"
                                     onClick={handleRemoveImage}
-                                    className="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-70"
+                                    className="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1"
                                 >
                                     <FaTimes size={14} />
                                 </button>
                             )}
                         </div>
-
-                        {/* Input file hidden */}
                         <input
                             id="file-upload"
                             type="file"
@@ -347,10 +356,10 @@ const CreateEvent = () => {
                             Status
                         </label>
                         <Select
-                            options={status}
-                            value={status.find(option => option.value === form.privacy)}
+                            options={statusOptions}
+                            value={statusOptions.find(option => option.value === form.status)} // ⬅️ harusnya form.status
                             onChange={(selected) =>
-                                setForm(prev => ({ ...prev, privacy: selected.value }))
+                                setForm(prev => ({ ...prev, status: selected.value })) // ⬅️ update ke status
                             }
                             classNamePrefix="react-select"
                             styles={customSelectStyles}
@@ -372,7 +381,6 @@ const CreateEvent = () => {
                         />
                     </div>
 
-                    {/* Privasi */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Privasi
@@ -401,9 +409,9 @@ const CreateEvent = () => {
                             placeholder="Tulis syarat & ketentuan..."
                         />
                     </div>
+
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex justify-end gap-3">
                     <Link
                         to="/admin/event"
@@ -413,21 +421,18 @@ const CreateEvent = () => {
                     </Link>
                     <button
                         type="submit"
-                        className="px-5 py-2.5 rounded-lg border bg-[#005429] text-white"
+                        className="px-5 py-2.5 rounded-lg bg-[#005429] text-white"
                     >
-                        Simpan
+                        Update
                     </button>
                 </div>
             </form>
 
-
-
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <div className="w-full h-[2px] bg-[#005429]"></div>
             </div>
         </div>
     );
 };
 
-export default CreateEvent;
+export default UpdateEvent;

@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import ConfirmationModal from "./confirmmodal";
 import ToppingForm from "./varianmodal";
 import AddonForm from "./opsimodal";
+import Header from "../admin/header";
 
 const CreateMenu = () => {
   const [allCategories, setAllCategories] = useState([]);
@@ -255,35 +256,21 @@ const CreateMenu = () => {
 
   return (
     <div className="h-screen">
-      <div className="flex justify-end px-6 items-center py-5 space-x-2 border-b">
-        <FaBell className="text-2xl text-gray-400" />
-        <Link
-          to="/admin/menu"
-          className="text-gray-400 inline-block text-2xl"
-        >
-          <FaUser />
-        </Link>
-
-      </div>
+      <Header />
       <form onSubmit={handleSubmit}>
-        <div className="px-6 py-2 flex justify-between items-center border-b">
-          <div className="flex items-center space-x-2">
+        {/* Header */}
+        <div className="px-4 sm:px-6 py-2 flex flex-wrap justify-between items-center border-b gap-2">
+          <div className="flex items-center space-x-2 text-sm">
             <FaShoppingBag className="text-gray-400 inline-block" />
-            <Link
-              to="/admin/menu"
-              className="text-gray-400 inline-block"
-            >
+            <Link to="/admin/menu" className="text-gray-400 inline-block">
               Menu
             </Link>
             <FaChevronRight className="text-gray-400 inline-block" />
-            <Link
-              to="/admin/menu-create"
-              className="text-gray-400 inline-block"
-            >
+            <Link to="/admin/menu-create" className="text-gray-400 inline-block">
               Tambah Menu
             </Link>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <span
               onClick={() => setIsModalOpen(true)}
               className="block border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
@@ -298,12 +285,13 @@ const CreateMenu = () => {
             </button>
           </div>
         </div>
+
         {/* Modal */}
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded shadow-md text-center space-y-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-2">
+            <div className="bg-white p-6 rounded shadow-md text-center space-y-4 w-full max-w-md">
               <p className="text-lg font-semibold">Yakin ingin membatalkan?</p>
-              <div className="flex justify-center gap-4">
+              <div className="flex justify-center gap-4 flex-wrap">
                 <Link
                   to="/admin/menu"
                   className="px-4 py-2 bg-red-500 text-white rounded"
@@ -320,14 +308,17 @@ const CreateMenu = () => {
             </div>
           </div>
         )}
-        <div className="bg-slate-50 p-6">
-          <div className="grid grid-cols-2 p-12 gap-10 bg-white shadow-md">
-            {/* grid 1 */}
-            <div className="text-[#999999]">
 
-              {/* Name */}
+        {/* Form Container */}
+        <div className="bg-slate-50 p-4 sm:p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 bg-white shadow-md p-4 sm:p-6 md:p-12 rounded-lg">
+            {/* grid 1 */}
+            <div className="text-[#999999] space-y-4">
+              {/* Nama Menu */}
               <div>
-                <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">NAMA MENU</label>
+                <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">
+                  NAMA MENU
+                </label>
                 <input
                   type="text"
                   name="name"
@@ -337,17 +328,26 @@ const CreateMenu = () => {
                 />
               </div>
 
+              {/* Main Kategori */}
               <div>
-                <label className="my-2.5 text-xs block font-medium">MAIN KATEGORI</label>
+                <label className="my-2.5 text-xs block font-medium">
+                  MAIN KATEGORI
+                </label>
                 <Select
                   options={MainCategories.map((cat) => ({
                     label: cat.charAt(0).toUpperCase() + cat.slice(1),
-                    value: cat.toLowerCase()
+                    value: cat.toLowerCase(),
                   }))}
-                  value={MainCategories.find(cat => cat === selectedMainCategory) ? {
-                    label: selectedMainCategory.charAt(0).toUpperCase() + selectedMainCategory.slice(1),
-                    value: selectedMainCategory
-                  } : null}
+                  value={
+                    MainCategories.find((cat) => cat === selectedMainCategory)
+                      ? {
+                        label:
+                          selectedMainCategory.charAt(0).toUpperCase() +
+                          selectedMainCategory.slice(1),
+                        value: selectedMainCategory,
+                      }
+                      : null
+                  }
                   onChange={(selectedOption) => {
                     setSelectedMainCategory(selectedOption.value);
                     setSearchTermMainCategories(selectedOption.value);
@@ -355,11 +355,9 @@ const CreateMenu = () => {
                   styles={customSelectStyles}
                   placeholder="Pilih kategori utama..."
                 />
-
               </div>
 
-              {/* KATEGORI UTAMA */}
-
+              {/* Kategori */}
               <div>
                 <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
                 <Select
@@ -370,7 +368,9 @@ const CreateMenu = () => {
                   value={
                     formData.category
                       ? {
-                        label: categories.find((cat) => cat._id === formData.category)?.name || "",
+                        label:
+                          categories.find((cat) => cat._id === formData.category)
+                            ?.name || "",
                         value: formData.category,
                       }
                       : null
@@ -395,7 +395,9 @@ const CreateMenu = () => {
               {/* Sub Kategori */}
               {subCategories.length > 0 && (
                 <div>
-                  <label className="my-2.5 text-xs block font-medium">SUB KATEGORI</label>
+                  <label className="my-2.5 text-xs block font-medium">
+                    SUB KATEGORI
+                  </label>
                   <Select
                     options={subCategories.map((sub) => ({
                       label: sub.name,
@@ -451,9 +453,11 @@ const CreateMenu = () => {
                 />
               </div>
 
-              {/* stock unit */}
+              {/* Stock Unit */}
               <div>
-                <label className="my-2.5 text-xs block font-medium">SATUAN STOK</label>
+                <label className="my-2.5 text-xs block font-medium">
+                  SATUAN STOK
+                </label>
                 <input
                   type="text"
                   name="stock"
@@ -463,8 +467,7 @@ const CreateMenu = () => {
                 />
               </div>
 
-              {/* Image File Input */}
-
+              {/* Image Input */}
               <div className="flex items-center space-x-4 py-4">
                 {compressedImageURL ? (
                   <img
@@ -481,7 +484,6 @@ const CreateMenu = () => {
                     <span className="text-gray-500 text-xl">+</span>
                   </div>
                 )}
-
                 <input
                   type="file"
                   accept="image/*"
@@ -492,25 +494,30 @@ const CreateMenu = () => {
               </div>
             </div>
 
-            {/* grid 2  */}
-            <div className="text-[14px] text-[#999999] relative">
-              <div className="">
+            {/* grid 2 */}
+            <div className="text-[14px] text-[#999999] space-y-4">
+              <div>
                 <label className="block mb-1 text-sm font-medium">Deskripsi</label>
                 <textarea
                   name="description"
-                  id="description"
                   value={formData.description}
                   onChange={handleInputChange}
                   className="w-full border rounded p-2"
                 />
               </div>
+
               <ToppingForm toppings={toppings} setToppings={setToppings} />
               <AddonForm addons={addons} setAddons={setAddons} />
+
+              {/* Outlet */}
               <div>
                 <label className="block mb-1 text-sm font-medium">Pilih Outlet</label>
                 <div className="grid gap-2">
                   {outlets.map((outlet) => (
-                    <label key={outlet._id} className="inline-flex items-center space-x-2">
+                    <label
+                      key={outlet._id}
+                      className="inline-flex items-center space-x-2"
+                    >
                       <input
                         type="checkbox"
                         value={outlet._id}
@@ -532,11 +539,12 @@ const CreateMenu = () => {
                   ))}
                 </div>
               </div>
-              <div className="flex justify-between">
-                <span>Apakah menu ini berada di dapur?</span>
 
+              {/* Switch */}
+              <div className="flex justify-between items-center">
+                <span>Apakah menu ini berada di dapur?</span>
                 <label className="inline-flex items-center cursor-pointer space-x-3">
-                  <span className="ml-3 text-sm font-medium text-gray-900">
+                  <span className="text-sm font-medium text-gray-900">
                     {isChecked ? "Ya" : "Tidak"}
                   </span>
                   <input
@@ -545,17 +553,14 @@ const CreateMenu = () => {
                     onChange={(e) => setIsChecked(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1
-          peer-checked:bg-[#005429] relative after:content-[''] after:absolute after:top-0.5 
-          after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
-          after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full">
-                  </div>
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1 peer-checked:bg-[#005429] relative after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
                 </label>
               </div>
             </div>
           </div>
         </div>
       </form>
+
 
       {/* Modal Slide */}
       <ConfirmationModal

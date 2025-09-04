@@ -2,14 +2,13 @@ import React, { useEffect, useState, useRef, useMemo } from "react";
 import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaSearch, FaChevronRight, FaInfoCircle, FaBoxes, FaChevronLeft } from 'react-icons/fa';
 import axios from "axios";
 import dayjs from "dayjs";
-import BubbleAlert from './bubblralert'; // sesuaikan path jika perlu
 import Select from "react-select";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Datepicker from "react-tailwindcss-datepicker";
 import Header from "../../admin/header";
 import ExportInventory from "../exportInventory";
 
-const StockCardManagement = () => {
+const CurrentStockManagement = () => {
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
@@ -63,127 +62,42 @@ const StockCardManagement = () => {
 
     const dropdownRef = useRef(null);
 
-    const fetchMenuCapacity = async (value) => {
+    const fetchStockCard = async () => {
+        setLoading(true);
+        setError(null)
         try {
-            const [recipesRes, stockRes, ordersRes] = await Promise.all([
-                axios.get("/api/product/recipes"),
-                axios.get("/api/product/stock/all"),
-                axios.get("/api/orders") // ambil data order juga
-            ]);
-
-            const recipes = recipesRes.data.data ? recipesRes.data.data : recipesRes.data;
-            const stock = stockRes.data.data ? stockRes.data.data : stockRes.data;
-            const orders = ordersRes.data.data ? ordersRes.data.data : ordersRes.data;
-
-            const startDate = value?.startDate ? dayjs(value.startDate).startOf("day") : null;
-            const endDate = value?.endDate ? dayjs(value.endDate).endOf("day") : null;
-
-            const results = [];
-
-            for (const menu of recipes) {
-                let ingredients = menu.baseIngredients.filter(ing => ing.isDefault);
-
-                const stockDetails = ingredients.map(ing => {
-                    const s = stock.find(s => s.productId._id === ing.productId);
-                    if (!s) return null;
-
-                    const stockAwalIn = s.movements
-                        .filter(m => dayjs(m.date).isBefore(startDate) && m.type === "adjustment")
-                        .reduce((sum, m) => sum + m.quantity, 0);
-
-                    const stockAwalOut = s.movements
-                        .filter(m => dayjs(m.date).isBefore(startDate) && m.type === "out")
-                        .reduce((sum, m) => sum + m.quantity, 0);
-
-                    const stockAwal = stockAwalIn - stockAwalOut;
-
-                    const stockMasuk = s.movements
-                        .filter(m => m.type === "adjustment" && dayjs(m.date).isBetween(startDate, endDate, null, '[]'))
-                        .reduce((sum, m) => sum + m.quantity, 0);
-
-                    // Ambil stok keluar dari orders, bukan dari movements lagi
-                    const stockKeluar = orders
-                        .flatMap(o =>
-                            o.items.map(i => ({
-                                ...i,
-                                orderDate: o.createdAt // ambil tanggal order dari parent order
-                            }))
-                        )
-                        .filter(i =>
-                            i.menuItem?._id === menu.menuItemId?._id &&
-                            dayjs(i.orderDate).isBetween(startDate, endDate, null, '[]')
-                        )
-                        .reduce((sum, i) => sum + i.quantity, 0);
-
-                    const stockAkhir = stockAwal + stockMasuk - stockKeluar;
-
-                    return {
-                        ingredient: s.productId.name,
-                        stockAwal,
-                        stockMasuk,
-                        stockAkhir,
-                        capacityFirst: Math.floor(stockAwal / ing.quantity),
-                        capacityIn: Math.floor(stockMasuk / ing.quantity),
-                        capacityOut: stockKeluar,
-                        capacityLast: Math.floor(stockAkhir / ing.quantity)
-                    };
-                }).filter(Boolean);
-
-                results.push({
-                    menu: menu.menuItemId?.name,
-                    stockDetails,
-                    capacityFirst: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityFirst)) : 0,
-                    capacityIn: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityIn)) : 0,
-                    capacityOut: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityOut)) : 0,
-                    capacityLast: stockDetails.length ? Math.min(...stockDetails.map(d => d.capacityLast)) : 0,
-                    filterRange: { startDate: startDate?.format("YYYY-MM-DD"), endDate: endDate?.format("YYYY-MM-DD") }
-                });
-            }
-
-            return results;
-        } catch (err) {
-            console.error("Error fetching recipes, stock, or orders:", err);
-            return [];
+            const response = await axios.get("/api/product/menu-stock");
+            const data = response.data.data ? response.data.data : response;
+            const sortedData = [...data].sort((a, b) =>
+                a.name.localeCompare(b.name)
+            );
+            setFilteredData(sortedData);
+        } catch {
+            console.error("Error fetching stock menu", err);
+            setError("Failed to load data. Please try again later.");
+        } finally {
+            setLoading(false);
         }
-    };
-
+    }
 
     const applyFilter = async () => {
-        setLoading(true);
-        setError(null);
-
         try {
-            // Ambil data menu dan kapasitas
-            const [menuRes, capacityRes] = await Promise.all([
-                axios.get("/api/menu/menu-items"),
-                fetchMenuCapacity(value) // value dari datepicker
-            ]);
+            let filtered = [...filteredData];
 
-            const menuItems = menuRes.data.data || [];
-            const capacities = capacityRes || [];
-
-            // Gabungkan menu dengan kapasitas
-            let merged = menuItems.map(menu => {
-                const capacity = capacities.find(c => c.menu === menu.name);
-                return {
-                    ...menu,
-                    capacityFirst: capacity?.capacityFirst ?? 0,   // stok awal
-                    capacityIn: capacity?.capacityIn ?? 0,         // stok masuk
-                    capacityOut: capacity?.capacityOut ?? 0,       // stok keluar
-                    capacityLast: capacity?.capacityLast ?? 0,     // stok akhir
-                    stockDetails: capacity?.stockDetails || [],    // detail tiap ingredient
-                    dateRange: capacity?.filterRange ?? null
-                };
-            });
-
-            // 🔍 Filter berdasarkan tempSearch (misalnya nama menu)
+            // Search filter
             if (tempSearch) {
-                merged = merged.filter(menu =>
-                    menu.name.toLowerCase().includes(tempSearch.toLowerCase())
+                const searchTerm = tempSearch.toLowerCase();
+                filtered = filtered.filter((data) => {
+                    const menuItem = data.name;
+                    if (!menuItem) return false;
+                    return (
+                        (menuItem || "").toLowerCase().includes(searchTerm)
+                    );
+                }
                 );
             }
 
-            setFilteredData(merged);
+            setFilteredData(filtered);
         } catch (err) {
             console.error("Error applying filter:", err);
             setError("Failed to load data. Please try again later.");
@@ -194,7 +108,7 @@ const StockCardManagement = () => {
 
     // Gunakan useEffect untuk jalankan saat component mount atau value berubah
     useEffect(() => {
-        applyFilter();
+        fetchStockCard();
     }, []);
 
     const paginatedData = useMemo(() => {
@@ -264,26 +178,8 @@ const StockCardManagement = () => {
             <div className="px-3 pb-4 mb-[60px]">
                 {/* Filter */}
                 <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
-                    {/* Date */}
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500">
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Spacer */}
-                    <div className="hidden lg:block col-span-3"></div>
-
                     {/* Search */}
+                    <div className="md:flex md:flex-col md:col-span-6 hidden"></div>
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
@@ -328,19 +224,13 @@ const StockCardManagement = () => {
                     </div>
                 </div>
 
-                {/* <BubbleAlert paginatedData={filteredData} /> */}
-
                 {/* Table */}
                 <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
                     <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
                         <thead className="bg-slate-50 text-gray-400">
                             <tr>
                                 <th className="p-3 font-medium text-left w-[20%]">Produk</th>
-                                <th className="p-3 font-medium text-left w-[15%]">Kategori</th>
-                                <th className="p-3 font-medium text-right w-[10%]">Stok Awal</th>
-                                <th className="p-3 font-medium text-right w-[10%]">Stok Masuk</th>
-                                <th className="p-3 font-medium text-right w-[10%]">Stok Keluar</th>
-                                <th className="p-3 font-medium text-right w-[10%]">Stok Akhir</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Stok</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
@@ -351,21 +241,7 @@ const StockCardManagement = () => {
                                         className={`hover:bg-gray-100 `}
                                     >
                                         <td className="p-3 truncate">{item.name}</td>
-                                        <td className="p-3 truncate">{item.category?.name}</td>
-                                        <td className="p-3 text-right">{item.capacityFirst || 0}</td>
-                                        <td
-                                            className={`p-3 text-right ${item.capacityIn > 0 ? "text-[#005429]" : ""
-                                                }`}
-                                        >
-                                            {item.capacityIn > 0 ? `+ ${item.capacityIn}` : 0}
-                                        </td>
-                                        <td
-                                            className={`p-3 text-right ${item.capacityOut > 0 ? "text-red-500" : ""
-                                                }`}
-                                        >
-                                            {item.capacityOut > 0 ? `- ${item.capacityOut}` : 0}
-                                        </td>
-                                        <td className="p-3 text-right">{item.capacityLast || 0}</td>
+                                        <td className="p-3 text-right truncate">{item.availableStock}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -453,4 +329,4 @@ const StockCardManagement = () => {
     );
 };
 
-export default StockCardManagement;  
+export default CurrentStockManagement;  

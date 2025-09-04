@@ -1637,28 +1637,52 @@ export async function generateOrderId(tableNumber) {
 const confirmOrderHelper = async (orderId) => {
   try {
     // 1. Find order and update status
-    const order = await Order.findOneAndUpdate(
-      { order_id: orderId },
-      { $set: { status: 'Waiting' } },
-      { new: true }
-    ).populate('items.menuItem').populate('outlet').populate('user_id', 'name email phone');
+    let order = await Order.findOne({ order_id: orderId })
+      .populate('items.menuItem')
+      .populate('outlet')
+      .populate('user_id', 'name email phone');
+
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    // 🔧 Hanya update kalau status BUKAN Reserved
+    if (order.status !== 'Reserved') {
+      order.status = 'Waiting';
+      await order.save();
+    }
 
     if (!order) {
       throw new Error('Order not found');
     }
 
     // 2. Update payment status
-    const payment = await Payment.findOneAndUpdate(
-      { order_id: orderId },
-      { $set: { status: 'settlement', paidAt: new Date() } },
-      { new: true }
-    );
+    const payment = await Payment.findOne({ order_id: orderId });
+
+    if (!payment) {
+      throw new Error('Payment not found for this order');
+    }
+
+    // 🔧 Tentukan status pembayaran (DP / Partial / Settlement)
+    let updatedStatus = 'settlement';
+    if (payment?.paymentType === 'Down Payment') {
+      if (payment?.remainingAmount !== 0) {
+        updatedStatus = 'partial';
+      } else {
+        updatedStatus = 'settlement';
+      }
+    }
+
+    // Update payment document
+    payment.status = updatedStatus;
+    payment.paidAt = new Date();
+    await payment.save();
 
     // 🔥 EMIT STATUS UPDATE KE CLIENT
     const statusUpdateData = {
       order_id: orderId,  // Gunakan string order_id
       orderStatus: 'Waiting',
-      paymentStatus: 'settlement',
+      paymentStatus: updatedStatus,
       message: 'Pesanan dikonfirmasi kasir, menunggu kitchen',
       timestamp: new Date(),
       cashier: {
@@ -1674,7 +1698,7 @@ const confirmOrderHelper = async (orderId) => {
     io.to(`order_${orderId}`).emit('order_confirmed', {
       orderId: orderId,
       orderStatus: 'Waiting',
-      paymentStatus: 'settlement',
+      paymentStatus: updatedStatus,
       cashier: statusUpdateData.cashier,
       message: 'Your order is now being prepared',
       timestamp: new Date()
@@ -1699,7 +1723,6 @@ const confirmOrderHelper = async (orderId) => {
         console.log('📱 FCM Notification result:', notificationResult);
       } catch (notificationError) {
         console.error('❌ Failed to send FCM notification:', notificationError);
-        // Continue execution even if notification fails
       }
     }
 
@@ -1720,14 +1743,12 @@ const confirmOrderHelper = async (orderId) => {
         outletId: order.outlet._id
       };
 
-      // Broadcast to all cashiers in that outlet
       try {
         if (typeof broadcastNewOrder === 'function') {
           broadcastNewOrder(order.outlet._id.toString(), orderData);
         }
       } catch (broadcastError) {
         console.error('Failed to broadcast new order:', broadcastError);
-        // Continue execution even if broadcast fails
       }
     }
 
@@ -1742,6 +1763,7 @@ const confirmOrderHelper = async (orderId) => {
     throw error;
   }
 };
+
 
 export const createUnifiedOrder = async (req, res) => {
   try {
@@ -2945,6 +2967,112 @@ export const getAllOrders = async (req, res) => {
 
 
 // Mengambil order yang pending
+// export const getPendingOrders = async (req, res) => {
+//   try {
+//     const { rawOutletId } = req.params;
+//     if (!rawOutletId) {
+//       return res.status(400).json({ message: 'outletId is required' });
+//     }
+
+//     const outletId = rawOutletId.trim(); // 🔧 TRIM SPASI / NEWLINE
+//     const outletObjectId = new mongoose.Types.ObjectId(outletId);
+
+//     // Ambil order pending d  ari outlet tertentu
+//     const pendingOrders = await Order.find({
+//       status: { $in: ['Pending', 'Reserved'] },
+//       outlet: outletObjectId
+//     })
+//       .lean()
+//       .sort({ createdAt: -1 });
+
+
+//     // if (!pendingOrders.length) return res.status(200).json([]);
+//     if (!pendingOrders.length || pendingOrders.length === 0) {
+//       return res.status(200).json({ message: 'No online order found.', orders: pendingOrders });
+//     }
+
+//     const orderIds = pendingOrders.map(order => order.order_id);
+
+//     const payments = await Payment.find({
+//       order_id: { $in: orderIds }
+//     }).lean();
+
+//     // console.log(payments);
+
+//     const paymentStatusMap = new Map();
+//     payments.forEach(payment => {
+//       paymentStatusMap.set(payment.order_id.toString(), payment.status);
+//     });
+
+
+//     const successfulPaymentOrderIds = new Set(
+//       payments.filter(p => p.status === 'Success' || p.status === 'settlement')
+//         .map(p => p.order_id.toString())
+//     );
+
+//     const unpaidOrders = pendingOrders.filter(
+//       order => !successfulPaymentOrderIds.has(order._id.toString())
+//     );
+
+//     const menuItemIds = [
+//       ...new Set(
+//         unpaidOrders.flatMap(order =>
+//           order.items.map(item => item.menuItem?.toString())
+//         ).filter(Boolean)
+//       )
+//     ];
+
+//     const menuItems = await MenuItem.find({ _id: { $in: menuItemIds } }).lean();
+//     const menuItemMap = new Map(menuItems.map(item => [item._id.toString(), item]));
+
+//     const enrichedOrders = unpaidOrders.map(order => {
+//       const updatedItems = order.items.map(item => {
+//         const menuItem = menuItemMap.get(item.menuItem?.toString());
+
+//         const enrichedAddons = (item.addons || []).map(addon => {
+//           const matchedAddon = menuItem?.addons?.find(ma => ma.name === addon.name);
+//           const matchedOption = matchedAddon?.options?.find(opt => opt.price === addon.price);
+//           return {
+//             id: addon._id,
+//             name: addon.name,
+//             options: matchedOption
+//               ? [{ id: matchedOption._id, price: addon.price, label: matchedOption.label }]
+//               : addon.options || [],
+//           };
+//         });
+
+//         return {
+//           menuItem: menuItem ? {
+//             id: menuItem._id,
+//             name: menuItem.name,
+//             originalPrice: menuItem.price
+//           } : null,
+//           selectedToppings: item.toppings || [],
+//           selectedAddons: enrichedAddons,
+//           subtotal: item.subtotal,
+//           quantity: item.quantity,
+//           isPrinted: item.isPrinted,
+//           notes: item.notes,
+//         };
+//       });
+
+//       const paymentStatus = paymentStatusMap.get(order.order_id.toString()) || 'Pending';
+
+//       return {
+//         ...order,
+//         paymentStatus,
+//         items: updatedItems,
+//       };
+//     });
+
+//     // res.status(200).json(enrichedOrders);
+//     res.status(200).json({ orders: enrichedOrders });
+//   } catch (error) {
+//     console.error('Error fetching pending unpaid orders:', error);
+//     res.status(500).json({ message: 'Error fetching pending orders', error });
+//   }
+// };
+
 export const getPendingOrders = async (req, res) => {
   try {
     const { rawOutletId } = req.params;
@@ -2952,16 +3080,17 @@ export const getPendingOrders = async (req, res) => {
       return res.status(400).json({ message: 'outletId is required' });
     }
 
-    const outletId = rawOutletId.trim(); // 🔧 TRIM SPASI / NEWLINE
+    const outletId = rawOutletId.trim();
     const outletObjectId = new mongoose.Types.ObjectId(outletId);
 
-    // Ambil order pending d  ari outlet tertentu
+    // Ambil order pending / reserved dari outlet tertentu
     const pendingOrders = await Order.find({
-      status: 'Pending',
+      status: { $in: ['Pending', 'Reserved'] },
       outlet: outletObjectId
-    }).lean().sort({ createdAt: -1 });
+    })
+      .lean()
+      .sort({ createdAt: -1 });
 
-    // if (!pendingOrders.length) return res.status(200).json([]);
     if (!pendingOrders.length || pendingOrders.length === 0) {
       return res.status(200).json({ message: 'No online order found.', orders: pendingOrders });
     }
@@ -2972,16 +3101,28 @@ export const getPendingOrders = async (req, res) => {
       order_id: { $in: orderIds }
     }).lean();
 
-    // console.log(payments);
-
+    // 🔧 Map payment status dengan logika DP / partial
     const paymentStatusMap = new Map();
     payments.forEach(payment => {
-      paymentStatusMap.set(payment.order_id.toString(), payment.status);
+      let status = payment?.status || 'Unpaid';
+
+      if (payment?.paymentType === 'Down Payment') {
+        if (payment?.status === 'settlement' && payment?.remainingAmount !== 0) {
+          status = 'partial';
+        } else if (payment?.status === 'settlement' && payment?.remainingAmount === 0) {
+          status = 'settlement';
+        }
+      }
+
+      paymentStatusMap.set(payment.order_id.toString(), status);
     });
 
-
     const successfulPaymentOrderIds = new Set(
-      payments.filter(p => p.status === 'Success' || p.status === 'settlement')
+      payments
+        .filter(p =>
+          p.status === 'Success' ||
+          p.status === 'settlement'
+        )
         .map(p => p.order_id.toString())
     );
 
@@ -2991,9 +3132,11 @@ export const getPendingOrders = async (req, res) => {
 
     const menuItemIds = [
       ...new Set(
-        unpaidOrders.flatMap(order =>
-          order.items.map(item => item.menuItem?.toString())
-        ).filter(Boolean)
+        unpaidOrders
+          .flatMap(order =>
+            order.items.map(item => item.menuItem?.toString())
+          )
+          .filter(Boolean)
       )
     ];
 
@@ -3040,13 +3183,13 @@ export const getPendingOrders = async (req, res) => {
       };
     });
 
-    // res.status(200).json(enrichedOrders);
     res.status(200).json({ orders: enrichedOrders });
   } catch (error) {
     console.error('Error fetching pending unpaid orders:', error);
     res.status(500).json({ message: 'Error fetching pending orders', error });
   }
 };
+
 
 // Get User Orders
 export const getUserOrders = async (req, res) => {
@@ -3410,6 +3553,23 @@ export const getOrderById = async (req, res) => {
     console.log("Permata VA Number:", payment?.permata_va_number || 'N/A');
     // const banks = payment?.va_numbers?.map(item => item.bank) || [];
     // console.log("Banks:", banks);
+    const paymentStatus = (() => {
+      if (
+        payment?.status === 'settlement' &&
+        payment?.paymentType === 'Down Payment' &&
+        payment?.remainingAmount !== 0
+      ) {
+        return 'partial';
+      } else if (
+        payment?.status === 'settlement' &&
+        payment?.paymentType === 'Down Payment' &&
+        payment?.remainingAmount == 0
+      ) {
+        return 'settlement'
+      }
+      return payment?.status || 'Unpaid';
+    })();
+
 
 
     const orderData = {
@@ -3423,7 +3583,7 @@ export const getOrderById = async (req, res) => {
       paymentMethod: payment
         ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
         : 'Unknown',
-      paymentStatus: payment?.status || 'Unpaid',
+      paymentStatus: paymentStatus,
       reservation: reservationData
     };
 
