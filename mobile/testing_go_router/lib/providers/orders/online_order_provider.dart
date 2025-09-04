@@ -10,48 +10,58 @@ final onlineOrderRepository = Provider<OnlineOrderRepository>(
   (ref) => OnlineOrderRepository(),
 );
 
-final onlineOrderProvider = FutureProvider.autoDispose<List<OrderDetailModel>>((
-  ref,
-) async {
-  try {
-    final onlineOrderRepo = ref.read(onlineOrderRepository);
-    final user = await HiveService.getUser();
-    final cashier = await HiveService.getCashier();
-    final onlineOrders = await onlineOrderRepo.fetchPendingOrders(
-      user!.outletId!,
-    );
-    print('User outletId and cashierId: ${user.outletId} and ${cashier?.id}');
-    return onlineOrders;
-  } on DioException catch (e) {
-    print('DioException: ${e.message}');
-    throw e.error ?? Exception('Failed to fetch online orders: ${e.message}');
+// final onlineOrderProvider = FutureProvider.autoDispose<List<OrderDetailModel>>((
+//   ref,
+// ) async {
+//   try {
+//     final onlineOrderRepo = ref.read(onlineOrderRepository);
+//     final user = await HiveService.getUser();
+//     final cashier = await HiveService.getCashier();
+//     final onlineOrders = await onlineOrderRepo.fetchPendingOrders(
+//       user!.outletId!,
+//     );
+//     print('User outletId and cashierId: ${user.outletId} and ${cashier?.id}');
+//     return onlineOrders;
+//   } on DioException catch (e) {
+//     print('DioException: ${e.message}');
+//     throw e.error ?? Exception('Failed to fetch online orders: ${e.message}');
+//   }
+// });
+
+class OnlineOrderDetailNotifier extends AsyncNotifier<List<OrderDetailModel>?> {
+  @override
+  Future<List<OrderDetailModel>> build() async {
+    return _fetchPendingOrder();
   }
-});
 
-// final onlineOrderProvider =
-//     StateNotifierProvider<OnlineOrderProvider, List<OrderDetailModel>>(
-//         (ref) => OnlineOrderProvider());
+  Future<List<OrderDetailModel>> _fetchPendingOrder() async {
+    try {
+      final onlineOrderRepo = ref.read(onlineOrderRepository);
+      final user = await HiveService.getUser();
+      final cashier = await HiveService.getCashier();
+      final onlineOrders = await onlineOrderRepo.fetchPendingOrders(
+        user!.outletId!,
+      );
 
-// final class OnlineOrderProvider extends StateNotifier<List<OrderDetailModel>> {
-//   OnlineOrderProvider() : super([]);
+      return onlineOrders;
+    } on DioException catch (e) {
+      throw e.error ?? Exception('Failed to fetch online orders: ${e.message}');
+    }
+  }
 
-//   // Method untuk mengambil data online order
-//   Future<void> getOnlineOrders() async {
-//     try {
-//       final onlineOrders = await OnlineOrderRepository().fetchPendingOrders();
-//       state = onlineOrders;
-//     } catch (e) {
-//       print("Gagal mengambil data online orders: ${e.toString()}");
-//     }
-//   }
+  Future<void> refresh() async {
+    state = const AsyncValue.loading();
+    try {
+      final data = await _fetchPendingOrder();
+      state = AsyncValue.data(data);
+      // state = AsyncValue.guard(data);
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+}
 
-//   // Method untuk menambahkan order detail ke dalam daftar
-//   void addOrderDetail(OrderDetailModel orderDetail) {
-//     state = [...state, orderDetail];
-//   }
-
-//   // Method untuk menghapus order detail dari daftar
-//   void removeOrderDetail(OrderDetailModel orderDetail) {
-//     state = state.where((order) => order != orderDetail).toList();
-//   }
-// }
+final onlineOrderProvider =
+    AsyncNotifierProvider<OnlineOrderDetailNotifier, List<OrderDetailModel>?>(
+      () => OnlineOrderDetailNotifier(),
+    );
