@@ -115,6 +115,7 @@ class OnlineOrderScreen extends ConsumerWidget {
           child: Container(
             decoration: BoxDecoration(
               border: Border(right: BorderSide(color: Colors.grey.shade300)),
+              color: Colors.grey[50],
             ),
             child: Column(
               children: [
@@ -173,56 +174,62 @@ class OnlineOrderScreen extends ConsumerWidget {
         // Right Panel - Order Items
         Expanded(
           flex: 3,
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey.shade300),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(right: BorderSide(color: Colors.grey.shade300)),
+              color: Colors.grey[50],
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.restaurant_menu, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text(
+                        'Order Items',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.restaurant_menu, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Text(
-                      'Order Items',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child:
-                    selectedOrder != null
-                        ? OrderItemsWidget(items: selectedOrder.items)
-                        : const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.shopping_cart_outlined,
-                                size: 64,
-                                color: Colors.grey,
-                              ),
-                              SizedBox(width: 16),
-                              Text(
-                                'No items to display',
-                                style: TextStyle(
-                                  fontSize: 16,
+                Expanded(
+                  child:
+                      selectedOrder != null
+                          ? OrderItemsWidget(items: selectedOrder.items)
+                          : const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.shopping_cart_outlined,
+                                  size: 64,
                                   color: Colors.grey,
                                 ),
-                              ),
-                            ],
+                                SizedBox(width: 16),
+                                Text(
+                                  'No items to display',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ],
