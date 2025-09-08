@@ -1,177 +1,137 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
-import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft } from "react-icons/fa";
-import Datepicker from 'react-tailwindcss-datepicker';
-import * as XLSX from "xlsx";
-import Modal from './modal';
+import { FaChevronRight, FaInfoCircle, FaBoxes, FaChevronLeft, FaSearch } from "react-icons/fa";
+import Datepicker from "react-tailwindcss-datepicker";
+import Modal from "./modal";
 import Header from "../../admin/header";
 import MovementSideModal from "../../../components/movementSideModal";
 
+const ITEMS_PER_PAGE = 10;
 
 const OutStockManagement = () => {
     const [selectedMovement, setSelectedMovement] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [stockOutFromOrder, setStockFromOrder] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [filteredData, setFilteredData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [value, setValue] = useState({
-        startDate: dayjs(),
-        endDate: dayjs()
-    });
-    const [tempSearch, setTempSearch] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
 
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
+    const [dateRange, setDateRange] = useState({ startDate: null, endDate: null });
+    const [tempSearch, setTempSearch] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 10;
 
     const dropdownRef = useRef(null);
 
-    const fetchCategories = async () => {
-        const res = await axios.get("/api/menu/categories");
-        setCategories(res.data.data ? res.data.data : res.data);
-    };
-
-    const fetchStockOutFromOrder = async () => {
-        setLoading(true);
-        try {
-            const response = await axios.get("/api/orders");
-            const productsData = Array.isArray(response.data)
-                ? response.data
-                : response.data?.data ?? [];
-
-            const completedData = productsData.filter(
-                (item) => item.status === "Completed"
-            );
-
-            setStockFromOrder(completedData);
-
-            // ✅ filter hari ini saat pertama kali load
-            const todayStart = dayjs().startOf("day");
-            const todayEnd = dayjs().endOf("day");
-
-            const filtered = completedData.filter((stockOut) => {
-                const stockOutDate = dayjs(stockOut.createdAt);
-                return stockOutDate.isBetween(todayStart, todayEnd, "day", "[]");
-            });
-
-            setFilteredData(filtered);
-            setError(null);
-        } catch (err) {
-            console.error("Error fetching Stock Out:", err);
-            setError("Failed to load Stock Out.");
-            setStockFromOrder([]);
-            setFilteredData([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const capitalizeWords = (text) => {
-        return text
-            .toLowerCase()
-            .replace(/\b\w/g, (char) => char.toUpperCase());
-    };
-
-    const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
-    // Apply filter function
-    const applyFilter = () => {
-        let filtered = [...stockOutFromOrder];
-
-        // Search filter
-        if (tempSearch) {
-            const searchTerm = tempSearch.toLowerCase();
-            filtered = filtered.filter((stockOut) =>
-                stockOut.items?.some((item) => {
-                    const menuItem = item?.menuItem;
-                    if (!menuItem) return false;
-
-                    const categoryName =
-                        categories.find((c) => c._id === menuItem.category)?.name || "";
-
-                    return (
-                        (menuItem.name || "").toLowerCase().includes(searchTerm) ||
-                        categoryName.toLowerCase().includes(searchTerm)
-                    );
-                })
-            );
-        }
-
-        // Date range filter
-        if (value?.startDate && value?.endDate) {
-            filtered = filtered.filter((stockOut) => {
-                if (!stockOut.createdAt) return false;
-
-                const stockOutDate = dayjs(stockOut.createdAt);
-                const startDate = dayjs(value.startDate).startOf("day");
-                const endDate = dayjs(value.endDate).endOf("day");
-
-                return stockOutDate.isBetween(startDate, endDate, "day", "[]");
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // reset ke halaman pertama
-    };
-
-    useEffect(() => {
-        fetchStockOutFromOrder();
-        fetchCategories();
-    }, []);
-
-    const flattenedData = useMemo(() => {
-        return filteredData.flatMap(stockOut =>
-            (stockOut.items || []).map((i, idx) => {
+    /** 🔧 Helper flatten */
+    const flattenData = (orders, cats) => {
+        return orders.flatMap((order) =>
+            (order.items || []).map((item, idx) => {
                 const categoryName =
-                    categories.find(c => c._id === i?.menuItem?.category)?.name || "-";
-
+                    cats.find((c) => c._id === item?.menuItem?.category)?.name || "-";
                 return {
-                    _id: `${stockOut._id}-${idx}`,
-                    createdAt: stockOut.createdAt,
-                    menuName: i?.menuItem?.name,
-                    category: categoryName, // ✅ sudah nama kategori
-                    quantity: i?.quantity,
+                    _id: `${order._id}-${idx}`,
+                    createdAt: order.createdAt,
+                    menuName: item?.menuItem?.name || "",
+                    category: categoryName,
+                    quantity: item?.quantity || 0,
                 };
             })
         );
-    }, [filteredData, categories]);
+    };
 
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(flattenedData.length / ITEMS_PER_PAGE);
+    /** 📥 Fetch data awal */
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [orderRes, catRes] = await Promise.all([
+                    axios.get("/api/orders"),
+                    axios.get("/api/menu/categories"),
+                ]);
 
-    const paginatedData = useMemo(() => {
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        return flattenedData.slice(startIndex, endIndex);
-    }, [currentPage, flattenedData]);
+                const orders = Array.isArray(orderRes.data)
+                    ? orderRes.data
+                    : orderRes.data?.data ?? [];
 
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setValue({
-            startDate: dayjs(),
-            endDate: dayjs(),
-        });
+                const completedOrders = orders.filter((o) => o.status === "Completed");
+
+                const cats = catRes.data.data ? catRes.data.data : catRes.data;
+
+                setStockFromOrder(completedOrders);
+                setCategories(cats);
+                setFilteredData(flattenData(completedOrders, cats));
+                setError(null);
+            } catch (err) {
+                console.error("Error fetching data:", err);
+                setError("Failed to load data.");
+                setStockFromOrder([]);
+                setFilteredData([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    /** 🔍 Apply filter */
+    const applyFilter = () => {
+        let filteredOrders = [...stockOutFromOrder];
+
+        // filter tanggal
+        if (dateRange?.startDate && dateRange?.endDate) {
+            filteredOrders = filteredOrders.filter((order) => {
+                if (!order.createdAt) return false;
+                const orderDate = dayjs(order.createdAt);
+                const start = dayjs(dateRange.startDate).startOf("day");
+                const end = dayjs(dateRange.endDate).endOf("day");
+                return orderDate.isBetween(start, end, "day", "[]");
+            });
+        }
+
+        // flatten ke item
+        let flattened = flattenData(filteredOrders, categories);
+
+        // filter search
+        if (tempSearch) {
+            const searchTerm = tempSearch.toLowerCase();
+            flattened = flattened.filter(
+                (item) =>
+                    item.menuName.toLowerCase().includes(searchTerm) ||
+                    item.category.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        setFilteredData(flattened);
         setCurrentPage(1);
     };
 
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        alert('File berhasil diimpor!');
-        setShowModal(false);
+    /** 🔄 Reset filter */
+    const resetFilter = () => {
+        setTempSearch("");
+        setDateRange({ startDate: null, endDate: null });
+        setFilteredData(flattenData(stockOutFromOrder, categories));
+        setCurrentPage(1);
     };
 
-    // Show loading state
+    /** 📄 Pagination */
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [currentPage, filteredData]);
+
+    /** ⏰ Format tanggal */
+    const formatDateTime = (datetime) => {
+        const date = new Date(datetime);
+        const pad = (n) => n.toString().padStart(2, "0");
+        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(
+            date.getHours()
+        )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    };
+
+    // 🔄 Loading
     if (loading) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -180,7 +140,7 @@ const OutStockManagement = () => {
         );
     }
 
-    // Show error state
+    // ❌ Error
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -199,7 +159,7 @@ const OutStockManagement = () => {
     }
 
     return (
-        <div className="">
+        <div>
             {/* Header */}
             <Header />
 
@@ -212,41 +172,26 @@ const OutStockManagement = () => {
                     <span className="text-[#005429]">Stok Keluar</span>
                     <FaInfoCircle size={15} className="text-gray-400" />
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2 py-4 sm:mt-0">
-                    {/* <button
-                        onClick={() => setShowModal(true)}
-                        className="w-full sm:w-auto bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px]"
-                    >
-                        Impor Stok Keluar
-                    </button> */}
-                    {/* <Link
-                        to="/admin/inventory/outstock-create"
-                        className="w-full sm:w-auto bg-[#005429] text-white px-4 py-2 rounded border border-white hover:text-white text-[13px]"
-                    >
-                        Tambah Stok Keluar
-                    </Link> */}
-                </div>
             </div>
 
             {/* Filters */}
             <div className="px-3 pb-4 mb-[60px]">
                 <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
-
                     {/* Tanggal */}
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
                         <Datepicker
                             showFooter
                             showShortcuts
-                            value={value}
-                            onChange={setValue}
+                            value={dateRange}
+                            onChange={setDateRange}
                             displayFormat="DD-MM-YYYY"
                             inputClassName="w-full text-[13px] border py-2 pr-6 pl-3 rounded cursor-pointer"
                             popoverDirection="down"
                         />
                     </div>
 
-                    {/* Kosong biar rapih di desktop */}
+                    {/* Kosong untuk rapih */}
                     <div className="hidden lg:block col-span-3"></div>
 
                     {/* Cari */}
@@ -294,7 +239,7 @@ const OutStockManagement = () => {
                         </thead>
                         {paginatedData.length > 0 ? (
                             <tbody className="text-gray-500 divide-y">
-                                {paginatedData.map(row => (
+                                {paginatedData.map((row) => (
                                     <tr
                                         key={row._id}
                                         className="text-left text-sm cursor-pointer hover:bg-slate-50"
@@ -325,13 +270,13 @@ const OutStockManagement = () => {
                 {paginatedData.length > 0 && (
                     <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-3">
                         <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–
+                            Menampilkan {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
                             {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari{" "}
                             {filteredData.length} data
                         </span>
                         <div className="flex justify-center gap-2">
                             <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                                 disabled={currentPage === 1}
                                 className="px-3 py-2 border rounded disabled:opacity-50"
                             >
@@ -348,7 +293,8 @@ const OutStockManagement = () => {
                                         <button
                                             key={page}
                                             onClick={() => setCurrentPage(page)}
-                                            className={`px-3 py-1 rounded border ${currentPage === page ? "bg-[#005429] text-white" : ""}`}
+                                            className={`px-3 py-1 rounded border ${currentPage === page ? "bg-[#005429] text-white" : ""
+                                                }`}
                                         >
                                             {page}
                                         </button>
@@ -364,7 +310,7 @@ const OutStockManagement = () => {
                                 return null;
                             })}
                             <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                                 disabled={currentPage === totalPages}
                                 className="px-3 py-2 border rounded disabled:opacity-50"
                             >
@@ -374,12 +320,14 @@ const OutStockManagement = () => {
                     </div>
                 )}
 
-                {/* pakai component side modal */}
+                {/* Side Modal */}
                 <MovementSideModal
                     movement={selectedMovement}
                     onClose={() => setSelectedMovement(null)}
                     formatDateTime={formatDateTime}
-                    capitalizeWords={capitalizeWords}
+                    capitalizeWords={(txt) =>
+                        txt.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+                    }
                 />
             </div>
 
@@ -388,9 +336,8 @@ const OutStockManagement = () => {
                 <div className="w-full h-[2px] bg-[#005429]" />
             </div>
 
-            <Modal show={showModal} onClose={() => setShowModal(false)} onSubmit={handleSubmit} />
+            <Modal show={showModal} onClose={() => setShowModal(false)} onSubmit={() => { }} />
         </div>
-
     );
 };
 

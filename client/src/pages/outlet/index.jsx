@@ -6,6 +6,7 @@ import {
   FaBullseye, FaReceipt, FaSearch, FaPencilAlt,
   FaTrash, FaEllipsisV
 } from "react-icons/fa";
+import Header from "../admin/header";
 
 const OutletManagementPage = () => {
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -74,13 +75,7 @@ const OutletManagementPage = () => {
   return (
     <div className="pb-[100px]">
       {/* Header */}
-      <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-        <FaBell size={23} className="text-gray-400" />
-        <span className="text-[14px]">Hi Baraja</span>
-        <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-          <FaUser size={30} />
-        </Link>
-      </div>
+      <Header />
 
       {/* Breadcrumb */}
       <div className="px-3 py-2 flex justify-between items-center border-b">
