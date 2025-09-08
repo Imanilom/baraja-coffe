@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/screens/orders/order_details/order_detail.dart';
 import 'package:kasirbaraja/screens/orders/widgets/list_menu.dart';
-import 'package:kasirbaraja/screens/orders/widgets/online_order.dart';
+import 'package:kasirbaraja/screens/orders/online_orders/online_order.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/order_history.dart';
 import 'package:kasirbaraja/screens/orders/widgets/saved_order.dart';
 import 'package:kasirbaraja/screens/orders/widgets/reservation_order.dart';
@@ -23,19 +23,19 @@ class OrderScreen extends ConsumerWidget {
             index: currentWidgetIndex,
             children: [
               Container(color: Colors.grey[200], child: ListMenu()),
-              Container(color: Colors.grey[200], child: OnlineOrder()),
-              Container(
-                color: Colors.grey[200],
-                child: Center(child: OrderHistoryScreen()),
-              ),
+              // Container(color: Colors.grey[200], child: OnlineOrderScreen()),
+              // Container(
+              //   color: Colors.grey[200],
+              //   child: Center(child: OrderHistoryScreen()),
+              // ),
               Container(
                 color: Colors.grey[200],
                 child: Center(child: SavedOrder()),
               ),
-              Container(
-                color: Colors.grey[200],
-                child: Center(child: ReservationOrder()),
-              ), // ← tambahkan ini
+              // Container(
+              //   color: Colors.grey[200],
+              //   child: Center(child: ReservationOrder()),
+              // ), // ← tambahkan ini
             ],
           ),
         ),

@@ -540,18 +540,20 @@ class OrderDetail extends ConsumerWidget {
                                         'payment status: ${orderDetail!.paymentStatus}',
                                       );
                                       if (orderDetail.items.isNotEmpty &&
-                                          orderDetail.paymentStatus !=
-                                              'Pending') {
+                                          orderDetail.paymentStatus
+                                                  ?.toLowerCase() !=
+                                              'pending') {
                                         //confirm order
                                         print('order dikonfirmasi bohongan');
-                                        context.push(
-                                          '/payment-method',
-                                          extra: orderDetail,
-                                        );
+                                        // context.push(
+                                        //   '/payment-method',
+                                        //   extra: orderDetail,
+                                        // );
                                         // confirmOrder(ref, orderDetail);
                                       } else if (orderDetail.items.isNotEmpty &&
-                                          orderDetail.paymentStatus ==
-                                              'Pending') {
+                                          orderDetail.paymentStatus
+                                                  ?.toLowerCase() ==
+                                              'pending') {
                                         //lanjut ke metode pembayaran
                                         print('lanjut ke metode pembayaran');
                                         print('order detail: $orderDetail');
@@ -579,7 +581,12 @@ class OrderDetail extends ConsumerWidget {
                                       ),
                                     ),
                                     child: Text(
-                                      orderDetail.paymentStatus == 'Pending'
+                                      orderDetail.paymentStatus
+                                                      ?.toLowerCase() ==
+                                                  'pending' ||
+                                              orderDetail.paymentStatus
+                                                      ?.toLowerCase() ==
+                                                  'partial'
                                           ? 'Lanjut Bayar'
                                           : 'Konfirmasi',
                                     ),
