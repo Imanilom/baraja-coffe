@@ -51,8 +51,9 @@ const CurrentStockManagement = () => {
         endDate: dayjs()
     });
     const [isModalOpen, setIsModalOpen] = useState(false);
-
+    const [originalData, setOriginalData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
+
     const [loading, setLoading] = useState(true);
 
     const queryParams = new URLSearchParams(location.search);
@@ -64,40 +65,35 @@ const CurrentStockManagement = () => {
 
     const fetchStockCard = async () => {
         setLoading(true);
-        setError(null)
+        setError(null);
         try {
             const response = await axios.get("/api/product/menu-stock");
             const data = response.data.data ? response.data.data : response;
             const sortedData = [...data].sort((a, b) =>
                 a.name.localeCompare(b.name)
             );
-            setFilteredData(sortedData);
-        } catch {
+            setOriginalData(sortedData);   // simpan data asli
+            setFilteredData(sortedData);   // default filter sama dengan asli
+        } catch (err) {
             console.error("Error fetching stock menu", err);
             setError("Failed to load data. Please try again later.");
         } finally {
             setLoading(false);
         }
-    }
+    };
 
-    const applyFilter = async () => {
+    const applyFilter = () => {
         try {
-            let filtered = [...filteredData];
-
-            // Search filter
+            let filtered = [...originalData]; // selalu mulai dari data asli
             if (tempSearch) {
                 const searchTerm = tempSearch.toLowerCase();
-                filtered = filtered.filter((data) => {
-                    const menuItem = data.name;
-                    if (!menuItem) return false;
-                    return (
-                        (menuItem || "").toLowerCase().includes(searchTerm)
-                    );
-                }
-                );
+                filtered = filtered.filter((item) => {
+                    const menuItem = item.name;
+                    return menuItem && menuItem.toLowerCase().includes(searchTerm);
+                });
             }
-
             setFilteredData(filtered);
+            setCurrentPage(1); // reset ke page pertama
         } catch (err) {
             console.error("Error applying filter:", err);
             setError("Failed to load data. Please try again later.");
@@ -105,6 +101,7 @@ const CurrentStockManagement = () => {
             setLoading(false);
         }
     };
+
 
     // Gunakan useEffect untuk jalankan saat component mount atau value berubah
     useEffect(() => {
@@ -158,20 +155,20 @@ const CurrentStockManagement = () => {
                     <FaBoxes size={18} className="text-gray-500" />
                     <p className="text-gray-500">Inventori</p>
                     <FaChevronRight className="text-gray-500" />
-                    <p className="text-[#005429]">Kartu Stok</p>
+                    <p className="text-[#005429]">Stok Masuk</p>
                     <FaInfoCircle size={15} className="text-gray-400" />
                 </div>
-                <div className="flex w-full sm:w-auto">
+                <div className="flex w-full sm:w-auto px-4 py-2">
                     <ExportInventory
                         isOpen={isModalOpen}
                         onClose={() => setIsModalOpen(false)}
                     />
-                    <button
+                    {/* <button
                         onClick={() => setIsModalOpen(true)}
                         className="w-full sm:w-auto bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
                     >
                         Ekspor
-                    </button>
+                    </button> */}
                 </div>
             </div>
 
@@ -179,7 +176,7 @@ const CurrentStockManagement = () => {
                 {/* Filter */}
                 <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
                     {/* Search */}
-                    <div className="md:flex md:flex-col md:col-span-6 hidden"></div>
+                    <div className="md:flex md:flex-col md:col-span-5 hidden"></div>
                     <div className="flex flex-col col-span-2">
                         <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
@@ -202,14 +199,21 @@ const CurrentStockManagement = () => {
                         >
                             Terapkan
                         </button>
-                        <button className="w-full sm:w-auto text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded">
+                        <button
+                            onClick={() => {
+                                setTempSearch("");
+                                setFilteredData(originalData); // kembalikan ke data asli
+                                setCurrentPage(1);
+                            }}
+                            className="w-full sm:w-auto text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded"
+                        >
                             Reset
                         </button>
                     </div>
                 </div>
 
                 {/* Info Legend */}
-                <div className="w-full mt-4 py-[15px] shadow-md">
+                {/* <div className="w-full mt-4 py-[15px] shadow-md">
                     <div className="flex flex-col sm:flex-row justify-between px-[15px] space-y-2 sm:space-y-0">
                         <div className="flex flex-col sm:flex-row sm:space-x-4 text-sm text-gray-500 space-y-2 sm:space-y-0">
                             <label className="flex space-x-2 items-center">
@@ -222,7 +226,7 @@ const CurrentStockManagement = () => {
                             </label>
                         </div>
                     </div>
-                </div>
+                </div> */}
 
                 {/* Table */}
                 <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">

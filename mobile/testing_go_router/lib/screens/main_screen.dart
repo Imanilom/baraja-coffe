@@ -12,6 +12,7 @@ import 'package:kasirbaraja/screens/orders/order_screen.dart';
 import 'package:kasirbaraja/screens/reports/sales_report_screen.dart';
 import 'package:kasirbaraja/screens/reservation/reservation_screen.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/order_history.dart';
+import 'package:kasirbaraja/screens/orders/online_orders/online_order.dart';
 
 class MainScreen extends ConsumerWidget {
   const MainScreen({super.key});
@@ -200,16 +201,10 @@ class MainScreen extends ConsumerWidget {
                     ref: ref,
                     icon: Icons.online_prediction,
                     title: 'Online Order',
-                    isSelected:
-                        currentPageIndex == 0 && currentWidgetIndex == 1,
+                    isSelected: currentPageIndex == 3,
                     onTap: () {
-                      if (currentPageIndex != 0) {
-                        ref.read(currentPageIndexProvider.notifier).setIndex(0);
-                      }
-                      if (currentWidgetIndex != 1) {
-                        ref
-                            .read(currentWidgetIndexProvider.notifier)
-                            .setIndex(1);
+                      if (currentPageIndex != 3) {
+                        ref.read(currentPageIndexProvider.notifier).setIndex(3);
                       }
                       Navigator.pop(context);
                     },
@@ -370,6 +365,7 @@ class MainScreen extends ConsumerWidget {
           OrderScreen(),
           ReservationScreen(),
           OrderHistoryScreen(),
+          OnlineOrderScreen(),
           // SalesReportScreen(),
         ],
       ),

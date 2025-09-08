@@ -18,39 +18,31 @@ const locationSchema = new Schema({
   // Location details
   label: {
     type: String,
-    required: true,
     enum: ['Rumah', 'Kantor', 'Outlet', 'Lainnya'],
     default: 'Rumah'
   },
   recipientName: {
-    type: String,
-    required: true
+    type: String
   },
   phoneNumber: {
-    type: String,
-    required: true
+    type: String
   },
   
   // Address details
   address: {
-    type: String,
-    required: true
+    type: String
   },
   province: {
-    type: String,
-    required: true
+    type: String
   },
   city: {
-    type: String,
-    required: true
+    type: String
   },
   district: {
-    type: String,
-    required: true
+    type: String
   },
   postalCode: {
-    type: String,
-    required: true
+    type: String
   },
   details: {
     type: String,
@@ -64,7 +56,6 @@ const locationSchema = new Schema({
     },
     coordinates: {
       type: [Number], // [longitude, latitude]
-      required: true
     }
   },
 

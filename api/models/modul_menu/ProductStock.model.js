@@ -8,7 +8,7 @@ const productStockSchema = new mongoose.Schema({
   movements: [{
     quantity: { type: Number, required: true },
     type: { type: String, enum: ['in','out','adjustment'], required: true },
-    referenceId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    referenceId: { type: mongoose.Schema.Types.ObjectId, default: null }, // misal: orderId, adjustmentId
     notes: String,
     destination: String, // misal: 'Bar Depan Amphi', 'Dapur'
     handledBy: String, // userId atau nama staff

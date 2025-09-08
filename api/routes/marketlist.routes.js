@@ -29,6 +29,7 @@ import {
   getAllProducts,
   getProductById,
   updateProduct,
+  updateProductPrice,
   deleteProduct,
   searchProducts
 } from '../controllers/product.controller.js';
@@ -57,7 +58,7 @@ router.get('/requests', staffAccess, getAllRequests);
 
 router.get('/requests/:id', staffAccess, getRequestById);
 
-router.get('/requests-with-suppliers', staffAccess, getAllRequestWithSuppliers);
+router.get('/requests-with-suppliers', getAllRequestWithSuppliers);
 
 router.post('/approve/:id', staffAccess, approveRequestItems);
 
@@ -92,6 +93,8 @@ router.get('/product', searchProducts);
 router.get('/product/:id', getProductById);
 
 router.patch('/product/:id', inventoryAccess, updateProduct);
+
+router.patch('/product/price/:id', inventoryAccess, updateProductPrice);
 
 router.delete('/product/:id', inventoryAccess, deleteProduct);
 
