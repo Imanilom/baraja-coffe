@@ -124,12 +124,19 @@ export const createAppOrder = async (req, res) => {
 
     // Find voucher if provided
     let voucherId = null;
+
     if (voucherCode) {
-      const voucher = await Voucher.findOne({ code: voucherCode });
+      const voucher = await Voucher.findOneAndUpdate(
+        { code: voucherCode },
+        { $inc: { quota: -1 } },
+        { new: true } // supaya return data terbaru setelah update
+      );
+
       if (voucher) {
         voucherId = voucher._id;
       }
     }
+
 
     // Process items
     const orderItems = [];
