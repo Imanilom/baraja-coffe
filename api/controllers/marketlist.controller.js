@@ -9,14 +9,13 @@ import User from '../models/user.model.js';
 import { getDayName } from '../services/getDay.js';
 import mongoose from 'mongoose';
 
-
 export const createRequest = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const user = await User.findById(req.user._id);
-    if (!user || !['staff', 'admin', 'superadmin'].includes(user.role)) {
+    const user = await User.findById(req.user._id).session(session);
+    if (!user || !['staff','admin','superadmin'].includes(user.role)) {
       await session.abortTransaction();
       return res.status(403).json({ message: 'Akses ditolak' });
     }
@@ -30,14 +29,12 @@ export const createRequest = async (req, res) => {
     const updatedItems = [];
 
     for (const item of items) {
-      const { productId, quantity, unit, productName, productSku, category, notes } = item;
-
-      if (!productId || !quantity || !unit || !productName || !productSku || !category) {
+      const { productId, quantity, notes } = item;
+      if (!productId || !quantity || quantity <= 0) {
         await session.abortTransaction();
-        return res.status(400).json({ message: 'Data item tidak lengkap' });
+        return res.status(400).json({ message: 'Data item tidak lengkap atau quantity <= 0' });
       }
 
-      // Ambil data produk untuk validasi minimumrequest
       const productDoc = await Product.findById(productId).session(session);
       if (!productDoc) {
         await session.abortTransaction();
@@ -47,11 +44,10 @@ export const createRequest = async (req, res) => {
       if (quantity < productDoc.minimumrequest) {
         await session.abortTransaction();
         return res.status(400).json({
-          message: `Permintaan untuk produk "${productDoc.name}" minimal ${productDoc.minimumrequest} ${productDoc.unit}`
+          message: `Permintaan minimal ${productDoc.minimumrequest} ${productDoc.unit}`
         });
       }
 
-      // Cek stok
       let stockDoc = await ProductStock.findOne({ productId }).session(session);
       const availableStock = stockDoc ? stockDoc.currentStock : 0;
 
@@ -63,64 +59,75 @@ export const createRequest = async (req, res) => {
         fulfilledQuantity = quantity;
 
         if (!stockDoc) {
-          await session.abortTransaction();
-          return res.status(400).json({ message: `Produk ${productName} tidak memiliki dokumen stok.` });
+          stockDoc = new ProductStock({ productId, category: department, movements: [] });
         }
 
         stockDoc.movements.push({
           quantity,
           type: 'out',
           referenceId: null,
-          notes: `Permintaan: ${department} - ${user.username}`
+          notes: `Permintaan: ${department} - ${user.username}`,
+          destination: department,
+          handledBy: user.username
         });
-
         await stockDoc.save({ session });
 
       } else if (availableStock > 0 && availableStock < quantity) {
         status = 'partial';
         fulfilledQuantity = availableStock;
 
+        if (!stockDoc) {
+          stockDoc = new ProductStock({ productId, category: department, movements: [] });
+        }
+
         stockDoc.movements.push({
           quantity: availableStock,
           type: 'out',
-          notes: `Partial fulfillment - Permintaan: ${department} - ${user.username}`
+          referenceId: null,
+          notes: `Partial fulfillment - Permintaan: ${department} - ${user.username}`,
+          destination: department,
+          handledBy: user.username
         });
-
         await stockDoc.save({ session });
       }
 
       updatedItems.push({
         productId,
-        productName: productDoc.name, // pastikan dari DB
+        productName: productDoc.name,
         productSku: productDoc.sku,
         category: productDoc.category,
         quantity,
         unit: productDoc.unit,
-        notes,
+        notes: notes || '',
         status,
         fulfilledQuantity
       });
     }
 
-    const newRequest = new Request({
-      department,
-      requester: user.username,
-      items: updatedItems
-    });
-
+    const newRequest = new Request({ department, requester: user.username, items: updatedItems });
     await newRequest.save({ session });
 
-    // Update referenceId di movements
-    for (const item of newRequest.items) {
+    // Setelah request dibuat, baru update stock
+    for (const item of updatedItems) {
       if (item.fulfilledQuantity > 0) {
-        const stockDoc = await ProductStock.findOne({ productId: item.productId }).session(session);
-        const lastMove = stockDoc.movements[stockDoc.movements.length - 1];
-        if (!lastMove.referenceId && lastMove.type === 'out') {
-          lastMove.referenceId = newRequest._id;
+        let stockDoc = await ProductStock.findOne({ productId: item.productId }).session(session);
+        if (!stockDoc) {
+          stockDoc = new ProductStock({ productId: item.productId, category: department, movements: [] });
         }
+
+        stockDoc.movements.push({
+          quantity: item.fulfilledQuantity,
+          type: 'out',
+          referenceId: newRequest._id, // sekarang valid
+          notes: `Permintaan: ${department} - ${user.username}`,
+          destination: department,
+          handledBy: user.username
+        });
+
         await stockDoc.save({ session });
       }
     }
+ 
 
     await session.commitTransaction();
     session.endSession();
@@ -133,7 +140,7 @@ export const createRequest = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    console.error('Error saat membuat request:', error.message);
+    console.error('Error saat membuat request:', error);
     res.status(500).json({ message: error.message || 'Terjadi kesalahan server.' });
   }
 };
@@ -141,11 +148,6 @@ export const createRequest = async (req, res) => {
 // Ambil semua request (hanya untuk role inventory)
 export const getAllRequests = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    if (!user || !['staff', 'inventory', 'admin', 'superadmin'].includes(user.role)) {
-      return res.status(403).json({ message: 'Hanya petugas belanja yang bisa melihat request' });
-    }
-
     const requests = await Request.find().populate({
       path: 'items.productId',
       select: 'name sku category unit'
@@ -195,30 +197,48 @@ export const getRequestById = async (req, res) => {
 
 export const getAllRequestWithSuppliers = async (req, res) => {
   try {
-    // Ambil semua request dan populate produk
+    // Ambil semua request dan populate productId
     const requests = await Request.find()
       .populate('items.productId')
       .lean();
 
-    // Buat mapping produkId -> daftar supplier dari koleksi Product
-    const productIds = requests.flatMap(r => r.items.map(i => i.productId._id));
-    const uniqueProductIds = [...new Set(productIds.map(id => id.toString()))];
+    // Kumpulkan semua productId yang valid
+    const productIds = requests
+      .flatMap(r => r.items)
+      .map(item => item.productId?._id)
+      .filter(id => id !== null && id !== undefined);
 
-    const products = await Product.find({ _id: { $in: uniqueProductIds } }).lean();
+    const uniqueProductIds = [...new Set(productIds)];
 
-    // Buat mapping productId -> suppliers
-    const productSupplierMap = {};
+    // Ambil semua produk yang relevan
+    const products = uniqueProductIds.length > 0 
+      ? await Product.find({ _id: { $in: uniqueProductIds } }).lean()
+      : [];
+
+    // Buat mapping productId -> product
+    const productMap = {};
     products.forEach(product => {
-      productSupplierMap[product._id.toString()] = product.suppliers || [];
+      productMap[product._id.toString()] = product;
     });
 
-    // Tambahkan daftar supplier ke setiap item
+    // Enrich setiap request dan item
     const enrichedRequests = requests.map(req => ({
       ...req,
-      items: req.items.map(item => ({
-        ...item,
-        suppliers: productSupplierMap[item.productId?._id?.toString()] || []
-      }))
+      items: req.items.map(item => {
+        let product;
+        if (item.productId) {
+          product = productMap[item.productId._id?.toString()];
+        } else {
+          // jika productId null, coba cocokkan dengan product berdasarkan SKU/Name
+          product = products.find(p => p.sku === item.productSku || p.name === item.productName);
+        }
+
+        return {
+          ...item,
+          productId: product?._id || item._id, // pastikan ada _id
+          suppliers: product?.suppliers || [], // isi suppliers dari product
+        };
+      })
     }));
 
     res.status(200).json({ success: true, data: enrichedRequests });
@@ -227,6 +247,7 @@ export const getAllRequestWithSuppliers = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 
 // Setujui beberapa item dalam request
 export const approveRequestItems = async (req, res) => {
@@ -347,286 +368,98 @@ export const createMarketList = async (req, res) => {
     const user = await User.findById(req.user._id).session(session);
     if (!user || user.role !== 'inventory') {
       await session.abortTransaction();
-      return res.status(403).json({ success: false, message: 'Hanya petugas belanja yang bisa mencatat belanja' });
+      return res.status(403).json({ message: 'Hanya petugas belanja yang bisa mencatat belanja' });
     }
 
     const { date, items = [], additionalExpenses = [] } = req.body;
-
-    if (!date) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, message: 'Tanggal belanja harus diisi' });
-    }
-
+    if (!date) throw new Error('Tanggal belanja harus diisi');
     if (items.length === 0 && additionalExpenses.length === 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, message: 'Harus ada setidaknya satu item atau pengeluaran tambahan' });
+      throw new Error('Harus ada setidaknya satu item atau pengeluaran tambahan');
     }
 
     const day = new Date(date).toLocaleDateString('id-ID', { weekday: 'long' });
 
     const processedItems = [];
-    const debtsToCreate = [];
     const relatedRequestIds = new Set();
-    let totalCharged = 0;
-    let totalPaid = 0;
 
     for (const item of items) {
-      if (!item.productId || !item.productName || !item.quantityPurchased || 
-          !item.pricePerUnit || !item.supplierName || !item.payment?.method) {
-        await session.abortTransaction();
-        return res.status(400).json({ success: false, message: `Data tidak valid pada item ${item.productName || ''}` });
-      }
-
       const amountCharged = item.quantityPurchased * item.pricePerUnit;
       const amountPaid = item.amountPaid || 0;
-      const remainingBalance = Math.max(0, amountCharged - amountPaid);
-
-      let paymentStatus = 'unpaid';
-      if (amountPaid >= amountCharged) {
-        paymentStatus = 'paid';
-      } else if (amountPaid > 0) {
-        paymentStatus = 'partial';
-      }
-
-      const itemPayment = {
-        method: item.payment.method,
-        status: paymentStatus,
-        amount: amountPaid,
-        bankFrom: item.payment.bankFrom || '',
-        bankTo: item.payment.bankTo || '',
-        recipientName: item.payment.recipientName || '',
-        proofOfPayment: item.payment.proofOfPayment || '',
-        notes: item.payment.notes || '',
-        date: new Date(date)
-      };
 
       processedItems.push({
-        productId: item.productId,
-        productName: item.productName,
-        productSku: item.productSku,
-        category: item.category,
-        unit: item.unit,
-        quantityRequested: item.quantityRequested || 0,
-        quantityPurchased: item.quantityPurchased,
-        pricePerUnit: item.pricePerUnit,
-        supplierId: item.supplierId,
-        supplierName: item.supplierName,
+        ...item,
         amountCharged,
         amountPaid,
-        remainingBalance,
-        payment: itemPayment,
-        department: item.department || '',
-        requestId: item.requestId || null,
-        requestItemId: item.requestItemId || null
+        remainingBalance: Math.max(0, amountCharged - amountPaid)
       });
 
-      totalCharged += amountCharged;
-      totalPaid += amountPaid;
-
-      if (remainingBalance > 0) {
-        debtsToCreate.push({
-          date: new Date(date),
-          supplierId: item.supplierId,
-          supplierName: item.supplierName,
-          productId: item.productId,
-          productName: item.productName,
-          productSku: item.productSku,
-          quantity: item.quantityPurchased,
-          unit: item.unit,
-          pricePerUnit: item.pricePerUnit,
-          amount: remainingBalance,
-          paymentMethod: item.payment.method,
-          marketListId: null,
-          status: 'unpaid',
-          notes: `Pembelian ${item.productName} (${item.productSku}) pada ${date}`,
-          createdBy: user.username
-        });
-      }
-
-      if (item.requestId) {
-        relatedRequestIds.add(item.requestId);
-      }
+      if (item.requestId) relatedRequestIds.add(item.requestId);
     }
-
-    for (const requestId of relatedRequestIds) {
-      const request = await Request.findById(requestId).session(session);
-      if (!request) continue;
-
-      let allItemsFulfilled = true;
-      let anyItemUnavailable = false;
-      let anyItemShort = false;
-      let anyItemExcess = false;
-
-      for (const requestItem of request.items) {
-        const purchasedItems = items.filter(
-          item => item.requestItemId && item.requestItemId === requestItem._id.toString()
-        );
-
-        if (purchasedItems.length > 0) {
-          const totalPurchased = purchasedItems.reduce((sum, item) => sum + item.quantityPurchased, 0);
-          requestItem.fulfilledQuantity = totalPurchased;
-
-          if (totalPurchased === 0) {
-            requestItem.status = 'tidak tersedia';
-            anyItemUnavailable = true;
-          } else if (totalPurchased >= requestItem.quantity) {
-            requestItem.status = totalPurchased > requestItem.quantity ? 'lebih' : 'dibeli';
-            if (totalPurchased > requestItem.quantity) anyItemExcess = true;
-          } else {
-            requestItem.status = 'kurang';
-            anyItemShort = true;
-          }
-        }
-
-        if (requestItem.status !== 'dibeli' && requestItem.status !== 'lebih') {
-          allItemsFulfilled = false;
-        }
-      }
-
-      if (anyItemUnavailable) {
-        request.fulfillmentStatus = 'tidak tersedia';
-      } else if (anyItemShort) {
-        request.fulfillmentStatus = 'kurang';
-      } else if (allItemsFulfilled) {
-        request.fulfillmentStatus = anyItemExcess ? 'lebih' : 'dibeli';
-      } else {
-        request.fulfillmentStatus = 'partial';
-      }
-
-      if (!request.reviewed && items.some(i => i.requestId === requestId.toString())) {
-        request.reviewed = true;
-        request.reviewedBy = user.username;
-        request.reviewedAt = new Date();
-      }
-
-      await request.save({ session });
-    }
-
-    const processedExpenses = additionalExpenses.map(expense => ({
-      name: expense.name,
-      amount: expense.amount,
-      notes: expense.notes || '',
-      payment: {
-        method: expense.payment?.method || 'cash',
-        status: 'paid',
-        amount: expense.amount,
-        notes: expense.notes || '',
-        date: new Date(date)
-      }
-    }));
 
     const marketListDoc = new MarketList({
       date,
       day,
       items: processedItems,
-      additionalExpenses: processedExpenses,
+      additionalExpenses,
       relatedRequests: Array.from(relatedRequestIds),
       createdBy: user.username
     });
 
     const savedMarketList = await marketListDoc.save({ session });
 
-    // Prepare bulk operations for ProductStock updates
+    // Bulk update ProductStock
     const productStockUpdates = [];
 
     for (const item of processedItems) {
-      const { productId, quantityPurchased, department, requestItemId, quantityRequested } = item;
-      if (!productId) continue;
-
-      const productObjectId = new mongoose.Types.ObjectId(productId);
-
-      // Prepare the movement entries
       const movements = [{
-        quantity: quantityPurchased,
+        quantity: item.quantityPurchased,
         type: 'in',
         referenceId: savedMarketList._id,
         notes: `Pembelian oleh ${user.username}`,
         date: new Date(date)
       }];
 
-      const qtyToDepartment = (requestItemId && department) ? (quantityRequested || 0) : 0;
-      if (qtyToDepartment > 0) {
+      if (item.requestItemId && item.department) {
         movements.push({
-          quantity: qtyToDepartment,
+          quantity: item.quantityRequested || 0,
           type: 'adjustment',
           referenceId: savedMarketList._id,
-          notes: `Dikirim ke departemen: ${department}`,
+          notes: `Dikirim ke departemen: ${item.department}`,
+          destination: item.department,
+          handledBy: user.username,
           date: new Date(date)
         });
       }
 
       productStockUpdates.push({
         updateOne: {
-          filter: { productId: productObjectId },
-          update: {
-            $inc: { currentStock: quantityPurchased },
-            $push: { movements: { $each: movements } }
-          },
+          filter: { productId: item.productId, category: item.department },
+          update: { $inc: { currentStock: item.quantityPurchased }, $push: { movements: { $each: movements } } },
           upsert: true
         }
       });
     }
 
-    // Execute all ProductStock updates in bulk
     if (productStockUpdates.length > 0) {
       await ProductStock.bulkWrite(productStockUpdates, { session });
     }
 
-    for (const debt of debtsToCreate) {
-      debt.marketListId = savedMarketList._id;
-      const newDebt = new Debt(debt);
-      await newDebt.save({ session });
-    }
-
-    const cashFlow = new CashFlow({
-      date,
-      day,
-      description: `Belanja harian oleh ${user.username}`,
-      cashOut: totalCharged + processedExpenses.reduce((sum, e) => sum + e.amount, 0),
-      cashIn: 0,
-      balance: 0,
-      relatedMarketList: savedMarketList._id,
-      createdBy: user.username
-    });
-
-    await cashFlow.save({ session });
-
     await session.commitTransaction();
+    session.endSession();
 
     res.status(201).json({
       success: true,
-      data: {
-        marketList: savedMarketList,
-        cashFlow,
-        debtsCreated: debtsToCreate.length,
-        totalCharged,
-        totalPaid
-      }
+      marketList: savedMarketList
     });
 
   } catch (error) {
     await session.abortTransaction();
-    console.error('Error creating market list:', {
-      error: error.message,
-      stack: error.stack,
-      userId: req.user?._id,
-      inputData: req.body
-    });
-
-    let errorMessage = 'Gagal menyimpan data belanja';
-    if (error.code === 11000) {
-      errorMessage = 'Produk sudah memiliki catatan stok. Silakan refresh dan coba lagi.';
-    }
-
-    res.status(500).json({
-      success: false,
-      message: errorMessage,
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  } finally {
     session.endSession();
+    console.error('Error creating market list:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 // Controller untuk mendapatkan semua data debts
 export const getAllDebts = async (req, res) => {
@@ -1123,9 +956,3 @@ export const getMarketListReportByDate = async (req, res, next) => {
     next(err);
   }
 };
-
-
-
-
-
-
