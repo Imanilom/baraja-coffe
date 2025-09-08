@@ -124,12 +124,19 @@ export const createAppOrder = async (req, res) => {
 
     // Find voucher if provided
     let voucherId = null;
+
     if (voucherCode) {
-      const voucher = await Voucher.findOne({ code: voucherCode });
+      const voucher = await Voucher.findOneAndUpdate(
+        { code: voucherCode },
+        { $inc: { quota: -1 } },
+        { new: true } // supaya return data terbaru setelah update
+      );
+
       if (voucher) {
         voucherId = voucher._id;
       }
     }
+
 
     // Process items
     const orderItems = [];
@@ -2956,7 +2963,14 @@ export const getAllOrders = async (req, res) => {
     const orders = await Order.find()
       .populate('items.menuItem')
       .populate('user')
-      .populate('cashierId')
+      .populate({
+        path: 'cashierId',
+        populate: {
+          path: 'outlet.outletId',
+          model: 'Outlet',
+          select: 'name address', // field yang mau ditampilkan
+        },
+      })
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: orders });
