@@ -9,7 +9,6 @@ import User from '../models/user.model.js';
 import { getDayName } from '../services/getDay.js';
 import mongoose from 'mongoose';
 
-
 export const createRequest = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -31,9 +30,9 @@ export const createRequest = async (req, res) => {
 
     for (const item of items) {
       const { productId, quantity, notes } = item;
-      if (!productId || !quantity) {
+      if (!productId || !quantity || quantity <= 0) {
         await session.abortTransaction();
-        return res.status(400).json({ message: 'Data item tidak lengkap' });
+        return res.status(400).json({ message: 'Data item tidak lengkap atau quantity <= 0' });
       }
 
       const productDoc = await Product.findById(productId).session(session);
@@ -58,13 +57,15 @@ export const createRequest = async (req, res) => {
       if (availableStock >= quantity) {
         status = 'dibeli';
         fulfilledQuantity = quantity;
+
         if (!stockDoc) {
           stockDoc = new ProductStock({ productId, category: department, movements: [] });
         }
+
         stockDoc.movements.push({
           quantity,
           type: 'out',
-          referenceId: null, // akan diupdate setelah request dibuat
+          referenceId: null,
           notes: `Permintaan: ${department} - ${user.username}`,
           destination: department,
           handledBy: user.username
@@ -74,6 +75,11 @@ export const createRequest = async (req, res) => {
       } else if (availableStock > 0 && availableStock < quantity) {
         status = 'partial';
         fulfilledQuantity = availableStock;
+
+        if (!stockDoc) {
+          stockDoc = new ProductStock({ productId, category: department, movements: [] });
+        }
+
         stockDoc.movements.push({
           quantity: availableStock,
           type: 'out',
@@ -92,31 +98,36 @@ export const createRequest = async (req, res) => {
         category: productDoc.category,
         quantity,
         unit: productDoc.unit,
-        notes,
+        notes: notes || '',
         status,
         fulfilledQuantity
       });
     }
 
-    const newRequest = new Request({
-      department,
-      requester: user.username,
-      items: updatedItems
-    });
-
+    const newRequest = new Request({ department, requester: user.username, items: updatedItems });
     await newRequest.save({ session });
 
-    // Update referenceId di movements
-    for (const item of newRequest.items) {
+    // Setelah request dibuat, baru update stock
+    for (const item of updatedItems) {
       if (item.fulfilledQuantity > 0) {
-        const stockDoc = await ProductStock.findOne({ productId: item.productId }).session(session);
-        const lastMove = stockDoc.movements[stockDoc.movements.length - 1];
-        if (!lastMove.referenceId && lastMove.type === 'out') {
-          lastMove.referenceId = newRequest._id;
-          await stockDoc.save({ session });
+        let stockDoc = await ProductStock.findOne({ productId: item.productId }).session(session);
+        if (!stockDoc) {
+          stockDoc = new ProductStock({ productId: item.productId, category: department, movements: [] });
         }
+
+        stockDoc.movements.push({
+          quantity: item.fulfilledQuantity,
+          type: 'out',
+          referenceId: newRequest._id, // sekarang valid
+          notes: `Permintaan: ${department} - ${user.username}`,
+          destination: department,
+          handledBy: user.username
+        });
+
+        await stockDoc.save({ session });
       }
     }
+ 
 
     await session.commitTransaction();
     session.endSession();
@@ -186,39 +197,48 @@ export const getRequestById = async (req, res) => {
 
 export const getAllRequestWithSuppliers = async (req, res) => {
   try {
-    // Ambil semua request dan populate produk
+    // Ambil semua request dan populate productId
     const requests = await Request.find()
-      .populate('items.productId') // populate productId, bisa null
+      .populate('items.productId')
       .lean();
 
-    // Kumpulkan semua productId yang tidak null
+    // Kumpulkan semua productId yang valid
     const productIds = requests
       .flatMap(r => r.items)
-      .map(item => item.productId?._id) // optional chaining
-      .filter(id => id !== null && id !== undefined); // filter null
+      .map(item => item.productId?._id)
+      .filter(id => id !== null && id !== undefined);
 
     const uniqueProductIds = [...new Set(productIds)];
 
-    // Ambil produk hanya jika ada ID valid
+    // Ambil semua produk yang relevan
     const products = uniqueProductIds.length > 0 
       ? await Product.find({ _id: { $in: uniqueProductIds } }).lean()
       : [];
 
-    // Buat mapping productId -> suppliers
-    const productSupplierMap = {};
+    // Buat mapping productId -> product
+    const productMap = {};
     products.forEach(product => {
-      productSupplierMap[product._id.toString()] = product.suppliers || [];
+      productMap[product._id.toString()] = product;
     });
 
-    // Tambahkan supplier ke setiap item, dengan penanganan null
+    // Enrich setiap request dan item
     const enrichedRequests = requests.map(req => ({
       ...req,
-      items: req.items.map(item => ({
-        ...item,
-        suppliers: item.productId
-          ? productSupplierMap[item.productId._id?.toString()] || []
-          : []  // Jika tidak ada productId, supplier = []
-      }))
+      items: req.items.map(item => {
+        let product;
+        if (item.productId) {
+          product = productMap[item.productId._id?.toString()];
+        } else {
+          // jika productId null, coba cocokkan dengan product berdasarkan SKU/Name
+          product = products.find(p => p.sku === item.productSku || p.name === item.productName);
+        }
+
+        return {
+          ...item,
+          productId: product?._id || item._id, // pastikan ada _id
+          suppliers: product?.suppliers || [], // isi suppliers dari product
+        };
+      })
     }));
 
     res.status(200).json({ success: true, data: enrichedRequests });
@@ -227,6 +247,7 @@ export const getAllRequestWithSuppliers = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 
 // Setujui beberapa item dalam request
 export const approveRequestItems = async (req, res) => {

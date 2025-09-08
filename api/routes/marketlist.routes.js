@@ -58,7 +58,7 @@ router.get('/requests', staffAccess, getAllRequests);
 
 router.get('/requests/:id', staffAccess, getRequestById);
 
-router.get('/requests-with-suppliers', staffAccess, getAllRequestWithSuppliers);
+router.get('/requests-with-suppliers', getAllRequestWithSuppliers);
 
 router.post('/approve/:id', staffAccess, approveRequestItems);
 
