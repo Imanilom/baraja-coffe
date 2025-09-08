@@ -29,6 +29,7 @@ import {
   getAllProducts,
   getProductById,
   updateProduct,
+  updateProductPrice,
   deleteProduct,
   searchProducts
 } from '../controllers/product.controller.js';
@@ -92,6 +93,8 @@ router.get('/product', searchProducts);
 router.get('/product/:id', getProductById);
 
 router.patch('/product/:id', inventoryAccess, updateProduct);
+
+router.patch('/product/price/:id', inventoryAccess, updateProductPrice);
 
 router.delete('/product/:id', inventoryAccess, deleteProduct);
 
