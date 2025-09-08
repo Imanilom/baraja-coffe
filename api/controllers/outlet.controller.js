@@ -86,38 +86,83 @@ export const getOutletById = async (req, res) => {
 };
 
 // Update outlet
+// Update outlet + location
 export const updateOutlet = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
+    // Handle admin ID
     if (updateData.admin) {
       updateData.admin = new mongoose.Types.ObjectId(updateData.admin);
     }
-    
+
+    // Update Outlet utama
     const updatedOutlet = await Outlet.findByIdAndUpdate(
-      id, 
-      updateData, 
-      { new: true, runValidators: true }
+      id,
+      updateData,
+      { new: true, runValidators: true, session }
     ).populate('admin');
-    
+
     if (!updatedOutlet) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({
         success: false,
-        message: 'Outlet not found'
+        message: 'Outlet not found',
       });
     }
-    
+
+    // Kalau ada data lokasi yang dikirim, update juga
+    if (updateData.locationData) {
+      const locationData = updateData.locationData;
+
+      // Validasi koordinat
+      if (!locationData.coordinates || 
+          !Array.isArray(locationData.coordinates.coordinates) || 
+          locationData.coordinates.coordinates.length !== 2) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid coordinates format. Expected { coordinates: [longitude, latitude] }',
+        });
+      }
+
+      // Update lokasi utama outlet (yang punya field outlet = id)
+      await Location.findOneAndUpdate(
+        { outlet: id, isPrimary: true }, // update lokasi utama
+        {
+          ...locationData,
+          outlet: id,
+          user: null,
+          coordinates: {
+            type: 'Point',
+            coordinates: locationData.coordinates.coordinates,
+          },
+        },
+        { new: true, upsert: true, runValidators: true, session }
+      );
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
     res.status(200).json({
       success: true,
       message: 'Outlet updated successfully',
-      data: updatedOutlet
+      data: updatedOutlet,
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({
       success: false,
       message: 'Failed to update outlet',
-      error: error.message
+      error: error.message,
     });
   }
 };

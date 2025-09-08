@@ -1,513 +1,533 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import Select from "react-select";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
-import { FaChevronRight, FaStoreAlt, FaInfoCircle } from "react-icons/fa";
+import { Link, useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { FaCheck, FaChevronRight, FaMapPin, FaPhone, FaStore } from "react-icons/fa";
+import { get } from "mongoose";
+import { coordinateCityWithProvince, provinceCoordinates } from "../../utils/coordinateCity";
 
-// Fix default marker icon
+// --- Leaflet marker fix (CDN icons) ---
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
     iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
     iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-    shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png"
+    shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-const cityCoordinates = [
-
-    {
-        "id": "3209",
-        "province_id": "32",
-        "city": "KABUPATEN CIREBON",
-        "alt_name": "KABUPATEN CIREBON",
-        "latitude": -6.8,
-        "longitude": 108.56667
-    },
-    {
-        "id": "3274",
-        "province_id": "32",
-        "city": "KOTA CIREBON",
-        "alt_name": "KOTA CIREBON",
-        "latitude": -6.75,
-        "longitude": 108.55
-    },
-];
-
-const sortedCityCoordinates = [...cityCoordinates].sort((a, b) =>
-    a.city.localeCompare(b.city)
-);
-
-
-function MapUpdater({ position }) {
+function MapFlyTo({ position }) {
     const map = useMap();
 
     useEffect(() => {
-        map.setView(position, 13);
+        if (position) {
+            map.flyTo([position.lat, position.lng], 13, {
+                duration: 1.5, // animasi
+            });
+        }
     }, [position, map]);
 
     return null;
 }
 
-function LocationMarker({ position, setPosition }) {
+// --- Small helper components ---
+function ClickToPlaceMarker({ onChange }) {
     useMapEvents({
         click(e) {
-            setPosition(e.latlng);
-        }
+            onChange(e.latlng);
+        },
     });
-    return position ? <Marker position={position} /> : null;
+    return null;
 }
 
-const CreateOutlet = () => {
-    const [outlets, setOutlets] = useState([]);
-    const [tax, setTax] = useState([]);
-    const [isEditing, setIsEditing] = useState(false);
-    // const [formData, setFormData] = useState({
-    //     name: "",
-    //     location: "",
-    //     contactNumber: "",
-    //     latitude: "",
-    //     longitude: "",
-    //     outletPictures: [],  // Store multiple pictures in an array
-    // });
-    const [form, setForm] = useState({
+function Field({ label, required, children }) {
+    return (
+        <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-800">
+                {label}
+                {required && <span className="text-red-500"> *</span>}
+            </label>
+            {children}
+        </div>
+    );
+}
+
+// --- Main Page ---
+export default function CreateOutlet() {
+
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: "#d1d5db",
+            minHeight: "34px",
+            fontSize: "13px",
+            color: "#6b7280",
+            boxShadow: state.isFocused ? "0 0 0 1px #005429" : "none",
+            "&:hover": {
+                borderColor: "#9ca3af",
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: "#6b7280",
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: "#6b7280",
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: "#9ca3af",
+            fontSize: "13px",
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: "13px",
+            color: "#374151",
+            backgroundColor: state.isFocused ? "rgba(0, 84, 41, 0.1)" : "white",
+            cursor: "pointer",
+        }),
+        menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+    };
+    const navigate = useNavigate();
+
+    // Stepper (2 langkah)
+    const [step, setStep] = useState(1); // 1 = Outlet, 2 = Lokasi
+    const [staff, setStaff] = useState([]); // 1 = Outlet, 2 = Lokasi
+
+    // Outlet form (mengikuti model Outlet)
+    const [outlet, setOutlet] = useState({
         name: "",
-        city: "",
         address: "",
-        latitude: "",
-        longitude: "",
+        city: "",
+        location: "",
         contactNumber: "",
-        tax: "",
-        importProduct: "",
-        salesType: "",
-        tableModule: false,
-        // pawoonOrder: false,
-        // pawoonOpen: "",
-        // pawoonClose: ""
+        admin: "", // optional
+        outletPictures: "", // comma separated URLs -> akan diubah ke array saat submit
     });
 
-    const [tempAddress, setTempAddress] = useState(form.address);
+    // Location form (mengikuti model Location + addOutletLocation controller)
+    const [loc, setLoc] = useState({
+        label: "Outlet",
+        recipientName: "", // mis: PIC di outlet
+        phoneNumber: "",
+        address: "",
+        province: "",
+        city: "",
+        district: "",
+        postalCode: "",
+        details: "",
+        isPrimary: true,
+        isActive: true,
+    });
 
-    const [mapPosition, setMapPosition] = useState({ lat: -6.2, lng: 106.8 });
+    // Buat opsi provinsi
+    const provinceOptions = provinceCoordinates.map(p => ({
+        value: p.province,
+        label: p.province,
+        lat: p.lat,
+        lng: p.lng,
+    }));
 
+    // Filter kota sesuai provinsi yang dipilih
+    const cityOptions = useMemo(() => {
+        if (!loc.province) return [];
+        return coordinateCityWithProvince
+            .filter(c => c.province === loc.province)
+            .map(c => ({
+                value: c.city,
+                label: c.city,
+                lat: c.latitude,
+                lng: c.longitude,
+            }));
+    }, [loc.province]);
+
+    const cityOnly = coordinateCityWithProvince.map(c => ({
+        value: c.city,
+        label: c.city,
+    }))
+
+
+    // Map & coordinates (default Jakarta)
+    const [mapPos, setMapPos] = useState({ lat: -6.2, lng: 106.816666 });
+    const [hasMarker, setHasMarker] = useState(false);
+
+    const marker = useMemo(() => (hasMarker ? (
+        <Marker position={[mapPos.lat, mapPos.lng]} />
+    ) : null), [hasMarker, mapPos]);
+
+    // Keep location.address in sync with outlet.address if empty (quality of life)
     useEffect(() => {
-        if (form.city !== "") {
-            const selected = cityCoordinates.find((city) => city.city === form.city);
-            if (selected) {
-                setMapPosition({
-                    lat: selected.latitude,
-                    lng: selected.longitude
-                });
-            }
+        if (!loc.address && outlet.address) {
+            setLoc((p) => ({ ...p, address: outlet.address, city: outlet.city }));
         }
-    }, [form.city]);
+    }, [outlet.address, outlet.city]);
 
-    useEffect(() => {
-        setForm((prevForm) => ({
-            ...prevForm,
-            latitude: mapPosition.lat,
-            longitude: mapPosition.lng,
-        }));
-    }, [mapPosition]);
+    const validateOutlet = () => {
+        if (!outlet.name || !outlet.address || !outlet.city || !outlet.location || !outlet.contactNumber) {
+            return "Nama, Alamat, Kota, Lokasi (deskripsi), dan Nomor Telepon wajib diisi.";
+        }
+        return null;
+    };
 
+    const validateLocation = () => {
+        if (!hasMarker) return "Silakan klik pada peta untuk menaruh pin lokasi.";
+        if (!loc.recipientName || !loc.phoneNumber || !loc.address || !loc.province || !loc.city || !loc.district || !loc.postalCode) {
+            return "Nama penerima, No. Telp, Alamat, Provinsi, Kota, Kecamatan, dan Kode Pos wajib diisi.";
+        }
+        return null;
+    };
 
-    const navigate = useNavigate();
-    const [showImportDropdown, setShowImportDropdown] = useState(false);
-    const [searchImport, setSearchImport] = useState('');
-    const [tempSelectedImport, setTempSelectedImport] = useState('');
-    const importDropdownRef = useRef(null);
-
-    // filter opsi berdasarkan pencarian
-    const filteredImportOptions = outlets.filter((item) =>
-        item.name.toLowerCase().includes(searchImport.toLowerCase())
-    );
-
-    useEffect(() => {
-        fetchOutlets();
-        fetchTax();
-    }, []);
-
-    const fetchOutlets = async () => {
+    const fetchStaff = async () => {
         try {
-            const response = await axios.get("/api/outlet");
-            setOutlets(response.data.data || []);
+            const staffResponse = await axios.get("/api/user/staff");
+            const staffData = staffResponse.data.data ? staffResponse.data.data : staffResponse.data;
+
+            // filter hanya role = admin
+            const adminStaff = staffData.filter(user => user.role === "admin");
+
+            // convert ke format react-select
+            const options = adminStaff.map(user => ({
+                value: user._id,   // ObjectId admin
+                label: user.name,  // Nama user
+            }));
+
+            setStaff(options);
         } catch (error) {
-            console.error("Error fetching outlets:", error);
+            console.error("Error fetching staff:", error);
         }
     };
 
-    const fetchTax = async () => {
-        try {
-            const response = await axios.get("/api/tax-service");
-            setTax(response.data || []);
-        } catch (error) {
-            console.error("Error fetching tax:", error);
-        }
-    }
-
     useEffect(() => {
-        if (!form.address && form.city) {
-            setForm(prev => ({ ...prev, address: prev.city }));
-        }
-    }, [form.city]);
+        fetchStaff();
+    }, []);
 
-    useEffect(() => {
-        setTempAddress(form.address);
-    }, [form.address]);
-
-    const handleSubmit = async (e) => {
+    const handleSubmitAll = async (e) => {
         e.preventDefault();
 
-        try {
-            const newOutlet = { ...form };
-            console.log(newOutlet);
+        // 1) Validasi step-1
+        const err1 = validateOutlet();
+        if (err1) {
+            alert(err1);
+            setStep(1);
+            return;
+        }
 
-            // await axios.post('/api/outlet', newOutlet); // Kirim sebagai array
-            // navigate("/admin/outlet");
+        // 2) Submit Outlet terlebih dahulu
+        try {
+            const pics = (outlet.outletPictures || "")
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+
+            const payloadOutlet = {
+                name: outlet.name,
+                address: outlet.address,
+                city: outlet.city,
+                location: outlet.location,
+                contactNumber: outlet.contactNumber,
+                admin: outlet.admin || null,
+                outletPictures: pics.length ? pics : undefined,
+            };
+
+            const createRes = await axios.post("/api/outlet", payloadOutlet);
+            const outletId = createRes?.data?.data?._id || createRes?.data?._id;
+
+            // Kalau user belum mengisi step-2, arahkan agar melengkapi lokasi
+            const err2 = validateLocation();
+            if (err2) {
+                alert("Outlet berhasil dibuat. Lengkapi data lokasi sekarang.");
+                setStep(2);
+                return;
+            }
+
+            // 3) Submit Location untuk outlet (GeoJSON [lng, lat])
+            const payloadLoc = {
+                label: loc.label || "Outlet",
+                recipientName: loc.recipientName,
+                phoneNumber: loc.phoneNumber,
+                address: loc.address,
+                province: loc.province,
+                city: loc.city,
+                district: loc.district,
+                postalCode: loc.postalCode,
+                details: loc.details,
+                isPrimary: !!loc.isPrimary,
+                isActive: !!loc.isActive,
+                coordinates: {
+                    type: "Point",
+                    coordinates: [Number(mapPos.lng), Number(mapPos.lat)], // IMPORTANT: [lng, lat]
+                },
+            };
+
+            // NOTE: sesuaikan path ini dengan routing server kamu.
+            // Mengacu ke controller addOutletLocation(req.params.id)
+            await axios.post(`/api/outlet/${outletId}/locations`, payloadLoc);
+
+            alert("Outlet & lokasi berhasil dibuat");
+            navigate("/admin/outlet");
         } catch (err) {
-            console.error('Error adding category:', err);
+            console.error(err);
+            alert(err?.response?.data?.message || "Gagal menyimpan data");
         }
     };
 
     return (
-        <div className="">
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="px-3 py-3 flex justify-between items-center border-b">
-                    <div className="flex items-center space-x-2">
-                        <FaStoreAlt className="text-gray-400 inline-block" />
-                        <span
-                            className="text-gray-400 inline-block"
-                        >
-                            Outlet
-                        </span>
-                        <FaChevronRight className="text-gray-400 inline-block" />
-                        <span
-                            className="text-gray-400 inline-block"
-                        >
-                            Tambah Outlet
-                        </span>
+        <div className="min-h-screen bg-gray-50 flex flex-col">
+            {/* Header bar */}
+            <div className="sticky top-0 z-30 bg-white border-b">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-gray-700 text-sm">
+                        <FaStore className="w-4 h-4 text-gray-400" />
+                        <span>Outlet</span>
+                        <FaChevronRight className="w-4 h-4 text-gray-400" />
+                        <span className="font-medium">Tambah Outlet</span>
                     </div>
                 </div>
-                <div className="grid px-3 grid-cols-1 w-full md:w-7/12 gap-4 text-[14px] text-[#999999] pb-[60px]">
-                    <div className="flex items-center">
-                        <label className="w-[140px] block mb-1 text-sm after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Nama Outlet</label>
-                        <input
-                            type="text"
-                            className="flex-1 w-full border rounded px-3 py-2"
-                            value={form.name}
-                            onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        />
+            </div>
+
+            {/* Main content */}
+            <form onSubmit={handleSubmitAll} className="flex-1">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left column: Outlet */}
+                    <div layout className="lg:col-span-2 bg-white rounded-2xl shadow-sm border p-4 sm:p-6">
+                        <h2 className="text-base font-semibold text-gray-800 mb-4">Data Outlet</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Field label="Nama Outlet" required>
+                                <input
+                                    className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    value={outlet.name}
+                                    onChange={(e) => setOutlet({ ...outlet, name: e.target.value })}
+                                />
+                            </Field>
+
+                            <Field label="Nomor Telepon" required>
+                                <div className="flex items-center gap-2">
+                                    <FaPhone className="w-4 h-4 text-gray-400" />
+                                    <input
+                                        className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                        value={outlet.contactNumber}
+                                        onChange={(e) => setOutlet({ ...outlet, contactNumber: e.target.value })}
+                                    />
+                                </div>
+                            </Field>
+
+                            <Field label="Alamat" required>
+                                <input
+                                    className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    value={outlet.address}
+                                    onChange={(e) => setOutlet({ ...outlet, address: e.target.value })}
+                                />
+                            </Field>
+
+                            <Field label="Kota / Kabupaten" required>
+                                <Select
+                                    options={cityOnly}
+                                    value={cityOnly.find(opt => opt.value === outlet.city) || null}
+                                    onChange={(selected) =>
+                                        setOutlet({
+                                            ...outlet,
+                                            city: selected ? selected.value : "",
+                                        })
+                                    }
+                                    placeholder="Pilih Kota/Kabupaten..."
+                                    isClearable
+                                    styles={customSelectStyles}
+                                />
+                            </Field>
+
+
+                            <Field label="Lokasi (deskripsi)" required>
+                                <input
+                                    className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    value={outlet.location}
+                                    onChange={(e) => setOutlet({ ...outlet, location: e.target.value })}
+                                    placeholder="cth: Ruko Emerald Blok B No. 12"
+                                />
+                            </Field>
+
+                            <Field label="Admin (optional)">
+                                <Select
+                                    options={staff}
+                                    value={staff.find(opt => opt.value === outlet.admin) || null}
+                                    onChange={(selected) => setOutlet({ ...outlet, admin: selected ? selected.value : null })}
+                                    placeholder="Pilih Admin..."
+                                    className="text-sm"
+                                    isClearable
+                                    styles={customSelectStyles}
+                                />
+                            </Field>
+
+                            <Field label="Foto Outlet (URL, pisahkan dengan koma)">
+                                <input
+                                    className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    value={outlet.outletPictures}
+                                    onChange={(e) => setOutlet({ ...outlet, outletPictures: e.target.value })}
+                                    placeholder="https://... , https://..."
+                                />
+                            </Field>
+                        </div>
                     </div>
 
-                    <div className="flex items-center">
-                        <label className="w-[140px] block mb-1 text-sm after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Kota / Kabupaten</label>
-                        <select
-                            className="flex-1 w-full border rounded px-3 py-2"
-                            value={form.city}
-                            onChange={(e) => {
-                                const selectedCity = e.target.value;
-                                setForm(prev => ({
-                                    ...prev,
-                                    city: selectedCity,
-                                    address: selectedCity, // 👈 langsung override address juga
-                                }));
-                            }}
-                        >
-                            <option value="">Pilih Kota</option>
-                            {sortedCityCoordinates.map((city) => (
-                                <option key={city.id} value={city.city}>{city.city}</option>
-                            ))}
-                        </select>
+                    {/* Right column: Tips / Summary */}
+                    <div className="bg-white rounded-2xl shadow-sm border p-4 sm:p-6">
+                        <h3 className="text-sm font-semibold text-gray-800 mb-3">Ringkasan</h3>
+                        <ul className="text-sm text-gray-600 space-y-2">
+                            <li><strong>Outlet</strong>: {outlet.name || "-"}</li>
+                            <li><strong>Telepon</strong>: {outlet.contactNumber || "-"}</li>
+                            <li><strong>Kota</strong>: {outlet.city || "-"}</li>
+                            <li><strong>Alamat</strong>: {outlet.address || "-"}</li>
+                        </ul>
+                        <div className="mt-4 text-xs text-gray-500">
+                            Lengkapi lokasi di langkah ke-2 untuk menyimpan pin [lng, lat] sesuai skema GeoJSON.
+                        </div>
                     </div>
 
-                    {form.city !== "" && (
-                        <>
-                            <div className="flex">
-                                <label className="w-[140px] block mb-2 text-sm after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Tandai Lokasi</label>
-                                <div className="flex-1 space-y-3">
-                                    <MapContainer center={mapPosition} zoom={13} className="w-full h-64 rounded" scrollWheelZoom>
-                                        <TileLayer
-                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    {/* Location card spans all columns on large screens */}
+                    <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border p-4 sm:p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2"><FaMapPin className="w-5 h-5" /> Lokasi Outlet</h2>
+                            <div className="text-sm">
+                                Koordinat: <span className="font-mono">{hasMarker ? `${mapPos.lat.toFixed(6)}, ${mapPos.lng.toFixed(6)}` : "-"}</span>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Map */}
+                            <div className="lg:col-span-2 order-2 lg:order-1">
+                                <div className="rounded-2xl overflow-hidden border">
+                                    <MapContainer center={[mapPos.lat, mapPos.lng]} zoom={13} className="h-80 w-full">
+                                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+                                        {/* komponen untuk auto-fly setiap kali mapPos berubah */}
+                                        <MapFlyTo position={mapPos} />
+
+                                        <ClickToPlaceMarker
+                                            onChange={(ll) => {
+                                                setMapPos({ lat: ll.lat, lng: ll.lng });
+                                                setHasMarker(true);
+                                            }}
                                         />
-                                        <MapUpdater position={mapPosition} />
-                                        <LocationMarker position={mapPosition} setPosition={setMapPosition} />
+                                        {marker}
                                     </MapContainer>
-                                    <div className="space-y-6">
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">Klik pada peta untuk menaruh pin. Data akan dikirim sebagai <code>[lng, lat]</code>.</p>
+                            </div>
 
-                                        {/* Alamat Pinpoint */}
-                                        <div className="space-y-1">
-                                            <p className="text-sm font-semibold">Alamat (Berdasarkan pinpoint)</p>
+                            {/* Location form */}
+                            <div className="order-1 lg:order-2">
+                                <div className="grid grid-cols-1 gap-4">
+                                    <Field label="Label Alamat" required>
+                                        <input
+                                            type="text"
+                                            className="w-full border rounded-xl px-3 py-2 text-sm bg-gray-100 cursor-not-allowed"
+                                            value="Outlet"
+                                            disabled
+                                        />
+                                    </Field>
 
-                                            {!isEditing ? (
-                                                <p id="detail-address" className="text-sm">{form.address || form.city}</p>
-                                            ) : (
-                                                <textarea
-                                                    value={form.address}
-                                                    onChange={(e) =>
-                                                        setForm(prev => ({
-                                                            ...prev,
-                                                            address: e.target.value,
-                                                        }))
+                                    <Field label="Nama Penerima" required>
+                                        <input
+                                            className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                            value={loc.recipientName}
+                                            onChange={(e) => setLoc({ ...loc, recipientName: e.target.value })}
+                                            placeholder="Nama PIC"
+                                        />
+                                    </Field>
+
+                                    <Field label="No. Telepon" required>
+                                        <input
+                                            className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                            value={loc.phoneNumber}
+                                            onChange={(e) => setLoc({ ...loc, phoneNumber: e.target.value })}
+                                        />
+                                    </Field>
+
+                                    <Field label="Alamat (Lengkap)" required>
+                                        <textarea
+                                            rows={3}
+                                            className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                            value={loc.address}
+                                            onChange={(e) => setLoc({ ...loc, address: e.target.value })}
+                                        />
+                                    </Field>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <Field label="Provinsi" required>
+                                            <Select
+                                                options={provinceOptions}
+                                                value={provinceOptions.find(opt => opt.value === loc.province) || null}
+                                                onChange={(selected) => {
+                                                    setLoc({ ...loc, province: selected ? selected.value : "", city: "" });
+                                                    if (selected) {
+                                                        setMapPos({ lat: selected.lat, lng: selected.lng });
+                                                        setHasMarker(true);
                                                     }
-
-                                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-0 focus:ring-[#005429] focus:border-[#005429]"
-                                                    rows={3}
-                                                    placeholder="Tulis alamat..."
-                                                />
-                                            )}
-
-                                            <input type="hidden" name="address" value={form.address} />
-                                            <label className="text-red-500 text-xs hidden"></label>
-
-                                            {/* Tombol Edit / Simpan */}
-                                            <div className="text-sm text-blue-600 space-x-2">
-                                                {!isEditing ? (
-                                                    <span
-                                                        onClick={() => setIsEditing(true)}
-                                                        className="cursor-pointer text-[#005429]"
-                                                    >
-                                                        Edit Alamat
-                                                    </span>
-                                                ) : (
-                                                    <span
-                                                        onClick={() => {
-                                                            // setForm((prev) => ({
-                                                            //     ...prev,
-                                                            //     address: tempAddress.trim(), // gunakan hasil edit langsung
-                                                            // }));
-                                                            setIsEditing(false);
-                                                        }}
-                                                        className="cursor-pointer text-[#005429]"
-                                                    >
-                                                        Simpan
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Latitude */}
-                                        <div className="space-y-1">
-                                            <p className="text-sm font-semibold">Latitude (Berdasarkan pinpoint)</p>
-                                            <p id="detail-latitude" className="text-sm">{mapPosition.lat.toFixed(6)}</p>
-                                            <input
-                                                type="hidden"
-                                                name="latitude"
-                                                value={form.latitude}
+                                                }}
+                                                placeholder="Pilih..."
+                                                isClearable
+                                                styles={customSelectStyles}
                                             />
-                                        </div>
-
-                                        {/* Longitude */}
-                                        <div className="space-y-1">
-                                            <p className="text-sm font-semibold">Longitude (Berdasarkan pinpoint)</p>
-                                            <p id="detail-longitude" className="text-sm">{mapPosition.lng.toFixed(6)}</p>
-                                            <input
-                                                type="hidden"
-                                                name="longitude"
-                                                value={form.longitude}
+                                        </Field>
+                                        <Field label="Kota / Kabupaten" required>
+                                            <Select
+                                                options={cityOptions}
+                                                value={cityOptions.find(opt => opt.value === loc.city) || null}
+                                                onChange={(selected) => {
+                                                    setLoc({ ...loc, city: selected ? selected.value : "" });
+                                                    if (selected) {
+                                                        setMapPos({ lat: selected.lat, lng: selected.lng });
+                                                        setHasMarker(true);
+                                                    }
+                                                }}
+                                                placeholder="Pilih..."
+                                                isClearable
+                                                styles={customSelectStyles}
                                             />
-                                        </div>
+                                        </Field>
+                                    </div>
 
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <Field label="Kecamatan" required>
+                                            <input className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={loc.district} onChange={(e) => setLoc({ ...loc, district: e.target.value })} />
+                                        </Field>
+                                        <Field label="Kode Pos" required>
+                                            <input className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={loc.postalCode} onChange={(e) => setLoc({ ...loc, postalCode: e.target.value })} />
+                                        </Field>
+                                    </div>
+
+                                    <Field label="Detail Tambahan">
+                                        <input className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={loc.details} onChange={(e) => setLoc({ ...loc, details: e.target.value })} />
+                                    </Field>
+
+                                    <div className="flex items-center gap-4 text-sm">
+                                        <label className="inline-flex items-center gap-2">
+                                            <input type="checkbox" className="rounded border-gray-300" checked={loc.isPrimary} onChange={(e) => setLoc({ ...loc, isPrimary: e.target.checked })} />
+                                            <span>Jadikan utama</span>
+                                        </label>
+                                        <label className="inline-flex items-center gap-2">
+                                            <input type="checkbox" className="rounded border-gray-300" checked={loc.isActive} onChange={(e) => setLoc({ ...loc, isActive: e.target.checked })} />
+                                            <span>Aktif</span>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
-                        </>
-                    )}
-
-                    <div className="flex items-center">
-                        <label className="w-[140px] block mb-1 text-sm ">Nomor Telepon</label>
-                        <input
-                            type="text"
-                            className="flex-1 w-full border rounded px-3 py-2"
-                            value={form.contactNumber}
-                            onChange={(e) => setForm({ ...form, contactNumber: e.target.value })}
-                        />
-                    </div>
-
-                    <div className="flex items-center">
-                        <label className="w-[140px] block mb-1 text-sm ">Pajak & Service</label>
-                        <select
-                            className="flex-1 w-full border rounded px-3 py-2"
-                            value={form.tax}
-                            onChange={(e) => setForm({ ...form, tax: e.target.value })}
-                        >
-                            <option value="">Tidak Ada Pajak</option>
-                            {tax.filter((t) => t.type === 'tax').map((t) => (
-                                <option key={t._id} value={t._id}>
-                                    {t.name} ({t.percentage != null ? `${t.percentage}%` : `Rp ${t.fixedFee}`})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="flex items-center">
-                        <label className="flex items-center w-[140px] text-[14px] text-[#999999] space-x-2">
-                            <p className="">Impor Produk</p>
-                            <div className="relative group">
-                                <FaInfoCircle className="cursor-help" />
-                                <span className="absolute w-[340px] left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:inline-block bg-white border text-[#999999] text-xs rounded px-2 py-1 z-10 shadow-lg">
-                                    Anda dapat mengimpor seluruh produk dari outlet yang sudah ada.
-                                </span>
-                            </div>
-                        </label>
-
-                        <div className="relative flex-1">
-                            {!showImportDropdown ? (
-                                <button
-                                    type="button"
-                                    className="w-full text-[13px] text-gray-500 border py-2 px-3 rounded text-left relative"
-                                    onClick={() => setShowImportDropdown(true)}
-                                >
-                                    {tempSelectedImport || 'Pilih Import Produk'}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-2 px-3 rounded"
-                                    value={searchImport}
-                                    onChange={(e) => setSearchImport(e.target.value)}
-                                    autoFocus
-                                    placeholder="Cari opsi..."
-                                />
-                            )}
-
-                            {showImportDropdown && (
-                                <ul
-                                    className="absolute z-10 bg-white border mt-1 w-full rounded shadow-md max-h-48 overflow-auto"
-                                    ref={importDropdownRef}
-                                >
-                                    {filteredImportOptions.length > 0 ? (
-                                        filteredImportOptions.map((item, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedImport(item.name);
-                                                    setForm({ ...form, importProduct: item.value });
-                                                    setShowImportDropdown(false);
-                                                    setSearchImport('');
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {item.name}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-
-                    <div className="flex items-center justify-between space-x-2">
-                        <label htmlFor="tableModule" className="text-sm flex items-center space-x-2">
-                            <p>Modul Meja</p>
-                            <div className="relative group">
-                                <FaInfoCircle className="cursor-help" />
-                                <span className="absolute w-[340px] left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:inline-block bg-white border text-[#999999] text-xs rounded px-2 py-1 whitespace-wrap z-10 shadow-lg">
-                                    Anda dapat mengaktifkan modul meja apabila tipe bisnis Anda restoran dan semacamnya.
-                                </span>
-                            </div>
-                        </label>
-                        <div className="flex items-center space-x-2">
-                            <h3>Tidak</h3>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" className="sr-only peer"
-                                    checked={form.tableModule}
-                                    onChange={(e) => setForm({ ...form, tableModule: e.target.checked })} />
-                                <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-4 peer-focus:ring-blue-300 
-                    peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full 
-                    peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 
-                    after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
-                    after:h-5 after:w-5 after:transition-all peer-checked:bg-[#005429]"></div>
-                            </label>
-                        </div>
-                    </div>
-
-                    {/* <div className="flex items-center">
-                        <label className="w-[140px] block mb-1 text-sm ">Tipe Penjualan</label>
-                        <select
-                            className="flex-1 w-full border rounded px-3 py-2"
-                            value={form.salesType}
-                            onChange={(e) => setForm({ ...form, salesType: e.target.value })}
-                        >
-                            <option value="">Pilih</option>
-                            <option value="dine-in">Dine-In</option>
-                            <option value="takeaway">Takeaway</option>
-                            <option value="delivery">Delivery</option>
-                        </select>
-                    </div> */}
-
-                    {/* <div className="flex items-center justify-between space-x-2">
-                        <label htmlFor="pawoonOrder" className="text-sm">Pawoon Order</label>
-                        <div className="flex items-center space-x-2">
-                            <h3 className="text-sm">Tidak</h3>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    className="sr-only peer"
-                                    id="pawoonOrder"
-                                    checked={form.pawoonOrder}
-                                    onChange={(e) => setForm({ ...form, pawoonOrder: e.target.checked })}
-                                />
-                                <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-4 peer-focus:ring-blue-300 
-        peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full 
-        peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 
-        after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
-        after:h-5 after:w-5 after:transition-all peer-checked:bg-[#005429]">
-                                </div>
-                            </label>
-                        </div>
-                    </div> */}
-
-                    {/* Input tetap tampil, tapi disable jika pawoonOrder belum dicentang */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block mb-1 text-sm">Jam Buka</label>
-                            <input
-                                type="time"
-                                className="w-full border rounded px-3 py-2 disabled:bg-gray-100"
-                                value={form.pawoonOpen}
-                                onChange={(e) => setForm({ ...form, pawoonOpen: e.target.value })}
-                                disabled={!form.pawoonOrder}
-                            />
-                        </div>
-                        <div>
-                            <label className="block mb-1 text-sm">Jam Tutup</label>
-                            <input
-                                type="time"
-                                className="w-full border rounded px-3 py-2 disabled:bg-gray-100"
-                                value={form.pawoonClose}
-                                onChange={(e) => setForm({ ...form, pawoonClose: e.target.value })}
-                                disabled={!form.pawoonOrder}
-                            />
                         </div>
                     </div>
                 </div>
 
-                <div className="fixed bottom-0 left-64 right-0 flex justify-between items-center border-t px-3 z-50 bg-white">
-                    <div className="">
-                        <h3 className="block text-[#999999] text-[14px]">Kolom bertanda <b className="text-red-600">*</b> wajib diisi</h3>
-                    </div>
-                    <div className="flex space-x-2 py-2">
-                        <Link
-                            to="/admin/outlet"
-                            className="border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
-                        >
-                            Batal
-                        </Link>
-                        <button
-                            type="submit"
-                            className="bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
-                        >
-                            Simpan
-                        </button>
+                {/* Footer actions */}
+                <div className="sticky bottom-0 z-20 bg-white/80 backdrop-blur border-t">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <p className="text-xs text-gray-500">Kolom bertanda <b className="text-red-600">*</b> wajib diisi. Koordinat disimpan sebagai <code>[lng, lat]</code>.</p>
+                        <div className="flex items-center gap-2">
+                            <Link to="/admin/outlet" className="border border-emerald-700 text-emerald-700 hover:bg-emerald-700 hover:text-white text-sm px-4 py-2 rounded-2xl transition">Batal</Link>
+                            <button type="submit" className="bg-emerald-700 text-white text-sm px-4 py-2 rounded-2xl shadow-sm hover:bg-emerald-800 transition">Simpan</button>
+                        </div>
                     </div>
                 </div>
-            </form >
-        </div >
+            </form>
+        </div>
     );
-};
-
-export default CreateOutlet;
+}

@@ -14,6 +14,7 @@ import ToppingForm from "./varianmodal";
 import AddonForm from "./opsimodal";
 import ConfirmationModal from "./confirmmodal";
 import Select from "react-select";
+import Header from "../admin/header";
 
 const UpdateMenu = () => {
   const customStyles = {
@@ -275,7 +276,7 @@ const UpdateMenu = () => {
 
     try {
       await axios.put(`/api/menu/menu-items/${id}`, payload);
-      navigate("/admin/menu");
+      navigate("/admin/menu", { state: { success: "Menu berhasil diperbarui" } });
     } catch (error) {
       console.error("Error updating menu item:", error);
     }
@@ -291,85 +292,77 @@ const UpdateMenu = () => {
   }
 
   return (
-    <div className="">
-      <div className="flex justify-end px-6 items-center py-5 space-x-2 border-b">
-        <FaBell className="text-2xl text-gray-400" />
-        <Link
-          to="/admin/menu"
-          className="text-gray-400 inline-block text-2xl"
-        >
-          <FaUser />
-        </Link>
+    <div className="min-h-screen">
+      <Header />
 
-      </div>
       <form onSubmit={handleSubmit}>
         <div className="px-6 py-2 flex justify-between items-center border-b">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 text-sm md:text-base">
             <FaShoppingBag className="text-gray-400 inline-block" />
-            <Link
-              to="/admin/menu"
-              className="text-gray-400 inline-block"
-            >
+            <Link to="/admin/menu" className="text-gray-400 inline-block">
               Menu
             </Link>
             <FaChevronRight className="text-gray-400 inline-block" />
-            <span
-              className="text-gray-400 inline-block"
-            >
-              {title}
-            </span>
+            <span className="text-gray-400 inline-block">{title}</span>
           </div>
           <div className="flex space-x-2">
             <span
               onClick={() => setShowModal(true)}
-              className="block border border-[#005429] hover:bg-[#005429] text-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
+              className="block border border-[#005429] hover:bg-[#005429] text-[#005429] hover:text-white text-xs md:text-sm px-3 py-1.5 rounded cursor-pointer"
             >
               Batal
             </span>
             <button
               type="submit"
-              className="block bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
+              className="block bg-[#005429] text-white text-xs md:text-sm px-3 py-1.5 rounded"
             >
               Simpan
             </button>
           </div>
         </div>
+
         {/* Modal */}
         <ConfirmationModal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
           onConfirm={() => navigate("/admin/menu")}
         />
-        <div className="bg-slate-50 p-6">
-          <div className="grid grid-cols-2 p-12 space-x-4 bg-white shadow-md">
-            {/* grid 1 */}
-            <div className="text-gray-500">
 
+        <div className="bg-slate-50 p-4 md:p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white shadow-md rounded-xl p-6">
+            {/* Bagian kiri */}
+            <div className="space-y-4 text-gray-500">
               {/* Name */}
               <div>
-                <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">NAMA MENU</label>
+                <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">
+                  NAMA MENU
+                </label>
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg"
+                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
                   required
                 />
               </div>
 
-              {/* mainCategory */}
+              {/* Main Category */}
               <div>
-                <label className="my-2.5 text-xs block font-medium">MAIN KATEGORI</label>
+                <label className="my-2.5 text-xs block font-medium">
+                  MAIN KATEGORI
+                </label>
                 <Select
                   options={mainCategoryOptions}
                   value={
-                    mainCategoryOptions.find(opt => opt.value === formData.mainCategory) || null
+                    mainCategoryOptions.find(
+                      (opt) => opt.value === formData.mainCategory
+                    ) || null
                   }
                   onChange={(selectedOption) => {
-                    setFormData(prev => ({
+                    setFormData((prev) => ({
                       ...prev,
-                      mainCategory: selectedOption?.value || ""
+                      mainCategory: selectedOption?.value || "",
                     }));
                   }}
                   styles={customStyles}
@@ -378,7 +371,7 @@ const UpdateMenu = () => {
               </div>
 
               {/* Category */}
-              <div className="">
+              <div>
                 <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
                 <Select
                   className="w-full text-sm"
@@ -392,19 +385,24 @@ const UpdateMenu = () => {
                       : null
                   }
                   onChange={(selectedOption) => {
-                    const selectedCategory = categories.find(cat => cat._id === selectedOption?.value);
-                    setFormData(prev => ({
+                    const selectedCategory = categories.find(
+                      (cat) => cat._id === selectedOption?.value
+                    );
+                    setFormData((prev) => ({
                       ...prev,
                       category: selectedCategory,
-                      subCategory: "", // reset subCategory
+                      subCategory: "",
                     }));
                   }}
                   styles={customStyles}
                 />
               </div>
 
-              <div className="mt-4">
-                <label className="my-2.5 text-xs block font-medium">SUB KATEGORI</label>
+              {/* Sub Category */}
+              <div>
+                <label className="my-2.5 text-xs block font-medium">
+                  SUB KATEGORI
+                </label>
                 <Select
                   className="w-full text-sm"
                   options={allCategoryOptions}
@@ -417,8 +415,10 @@ const UpdateMenu = () => {
                       : null
                   }
                   onChange={(selectedOption) => {
-                    const selectedSub = allCategories.find(sub => sub._id === selectedOption?.value);
-                    setFormData(prev => ({
+                    const selectedSub = allCategories.find(
+                      (sub) => sub._id === selectedOption?.value
+                    );
+                    setFormData((prev) => ({
                       ...prev,
                       subCategory: selectedSub,
                     }));
@@ -436,7 +436,7 @@ const UpdateMenu = () => {
                   name="price"
                   value={formData.price}
                   onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg"
+                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
                   required
                 />
               </div>
@@ -449,7 +449,7 @@ const UpdateMenu = () => {
                   name="sku"
                   value={formData.sku}
                   onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg"
+                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
                 />
               </div>
 
@@ -461,30 +461,30 @@ const UpdateMenu = () => {
                   name="barcode"
                   value={formData.barcode}
                   onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg"
+                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
                 />
               </div>
 
-              {/* stock unit */}
+              {/* Stock unit */}
               <div>
-                <label className="my-2.5 text-xs block font-medium">SATUAN STOK</label>
+                <label className="my-2.5 text-xs block font-medium">
+                  SATUAN STOK
+                </label>
                 <input
                   type="text"
                   name="stock"
                   value={formData.stock}
                   onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg"
+                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
                 />
               </div>
 
-              {/* Image File Input */}
-              <div className="flex items-center space-x-4 p-4 w-full max-w-md">
-
-                {/* Form Upload */}
+              {/* Image Upload */}
+              <div className="flex items-center space-x-4 p-4 rounded-lg">
                 <img
                   src={formData.imageURL}
                   alt="Uploaded"
-                  className="h-24 w-24 object-cover rounded mb-2"
+                  className="h-20 w-20 object-cover rounded cursor-pointer"
                   onClick={() => fileRef.current.click()}
                 />
                 <input
@@ -493,34 +493,49 @@ const UpdateMenu = () => {
                   className="hidden"
                   onChange={(e) => setImage(e.target.files[0])}
                 />
-                {imagePercent > 0 && <div>Upload Progress: {imagePercent}%</div>}
-                {imageError && <div className="text-red-500">Image upload failed</div>}
+                {imagePercent > 0 && (
+                  <div className="text-sm text-gray-600">
+                    Upload Progress: {imagePercent}%
+                  </div>
+                )}
+                {imageError && (
+                  <div className="text-red-500 text-sm">Image upload failed</div>
+                )}
               </div>
             </div>
 
-            <div className="text-[14px] text-gray-500">
-              {/* <ToppingForm toppings={formData.toppings} setToppings={setToppings} /> */}
+            {/* Bagian kanan */}
+            <div className="space-y-4 text-sm text-gray-500">
               <ToppingForm
                 toppings={formData.toppings}
                 setToppings={(updatedToppings) =>
                   setFormData((prev) => ({ ...prev, toppings: updatedToppings }))
                 }
               />
+
               <AddonForm
                 addons={formData.addons || []}
-                setAddons={(addons) => setFormData((prev) => ({ ...prev, addons }))}
+                setAddons={(addons) =>
+                  setFormData((prev) => ({ ...prev, addons }))
+                }
               />
 
+              {/* Outlet */}
               <div>
                 <label className="block mb-1 text-sm font-medium">Pilih Outlet</label>
                 <div className="grid gap-2">
                   {outlets.map((outlet) => (
-                    <label key={outlet._id} className="inline-flex items-center space-x-2">
+                    <label
+                      key={outlet._id}
+                      className="inline-flex items-center space-x-2"
+                    >
                       <input
                         type="checkbox"
                         value={outlet._id}
                         checked={formData.availableAt
-                          .map(item => typeof item === 'string' ? item : item._id)
+                          .map((item) =>
+                            typeof item === "string" ? item : item._id
+                          )
                           .includes(outlet._id)}
                         onChange={(e) => {
                           const checked = e.target.checked;
@@ -532,7 +547,7 @@ const UpdateMenu = () => {
                               : prev.availableAt.filter((id) => id !== value),
                           }));
                         }}
-                        className="form-checkbox text-blue-600"
+                        className="form-checkbox text-green-600"
                       />
                       <span>{outlet.name}</span>
                     </label>
@@ -540,11 +555,11 @@ const UpdateMenu = () => {
                 </div>
               </div>
 
-              <div className="flex justify-between">
+              {/* Dapur / Bar toggle */}
+              <div className="flex justify-between items-center">
                 <span>Apakah menu ini berada di dapur?</span>
-
                 <label className="inline-flex items-center cursor-pointer space-x-3">
-                  <span className="ml-3 text-sm font-medium text-gray-900">
+                  <span className="text-sm font-medium text-gray-900">
                     {isChecked ? "Ya" : "Tidak"}
                   </span>
                   <input
@@ -560,11 +575,12 @@ const UpdateMenu = () => {
                     }}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1
-          peer-checked:bg-[#005429] relative after:content-[''] after:absolute after:top-0.5 
-          after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
-          after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full">
-                  </div>
+                  <div
+                    className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1
+                peer-checked:bg-[#005429] relative after:content-[''] after:absolute after:top-0.5 
+                after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full 
+                after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"
+                  ></div>
                 </label>
               </div>
             </div>
@@ -572,156 +588,8 @@ const UpdateMenu = () => {
         </div>
       </form>
     </div>
+
   );
 };
 
 export default UpdateMenu;
-
-
-
-{/* <div className="p-6 bg-slate-50 shadow-lg">
-          <button
-            onClick={() => setIsOptional(!isOptional)}
-            className="w-full flex text-left px-[20px] py-[15px] bg-slate-100 hover:bg-slate-200 transition font-medium items-center space-x-2"
-          >
-            <span>{isOptional ? <FaChevronDown /> : <FaChevronRight />}</span>
-            <span className="text-[14px]">Pengaturan Lanjutan (Opsional)</span>
-          </button>
-
-          {isOptional && (
-            <div className="bg-white px-6 py-4 shadow-lg">
-              <div className="row">
-                <div className="grid grid-cols-3 gap-4 py-[25px] px-[15px] text-[12px]">
-                  <div className="row my-[15px]">
-                    <div className="flex items-center space-x-2">
-                      <h5 className="uppercase my-[10px] font-medium">Jual Di POS</h5>
-                      <FaInfoCircle />
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="pos" value="yes" />
-                        <span>Ya</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="pos" value="no" />
-                        <span>Tidak</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div className="row my-[15px]">
-                    <div className="flex items-center space-x-2">
-                      <h5 className="uppercase my-[10px] font-medium">Jual Di Pawoon Order</h5>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="po" value="yes" />
-                        <span>Ya</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="po" value="no" />
-                        <span>Tidak</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div className="row my-[15px]">
-                    <div className="flex items-center space-x-2">
-                      <h2 className="uppercase my-[10px] font-medium">Jual Di Digital Pawoon</h2>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="digital" value="yes" />
-                        <span>Ya</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="digital" value="no" />
-                        <span>Tidak</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div className="row my-[15px]">
-                    <div className="flex items-center space-x-2">
-                      <h5 className="uppercase my-[10px] font-medium">Kelola Stok</h5>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="stock" value="yes" />
-                        <span>Ya</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="stock" value="no" />
-                        <span>Tidak</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div className="row my-[15px]">
-                    <div className="flex items-center space-x-2">
-                      <h5 className="uppercase my-[10px] font-medium">Penjualan berdasarkan stok</h5>
-                      <FaInfoCircle />
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="pos" value="yes" />
-                        <span>Ya</span>
-                      </label>
-                      <label className="flex items-center space-x-1">
-                        <input type="radio" name="pos" value="no" />
-                        <span>Tidak</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="row w-full my-[15px]">
-                    <div className="flex items-center space-x-2 my-[10px]">
-                      <h5 className="uppercase font-medium text-[12px]">deskripsi produk</h5>
-                      <FaInfoCircle size={12} />
-                    </div>
-                    <textarea name="" id="" className="w-full h-[120px] block border rounded"></textarea>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="row w-full my-[15px]">
-                    <div className="flex items-center space-x-2 my-[10px]">
-                      <h5 className="uppercase font-medium text-[12px]">Pajak</h5>
-                      <FaInfoCircle size={12} />
-                    </div>
-                    <select name="" id="" className="block border w-full p-2 rounded">
-                      <option value="">Mengikuti pajak outlet</option>
-                      <option value="">Tidak ada pajak</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="block w-full my-[15px] border">
-                <div className=" px-[10px] py-[5px] bg-gray-100">
-                  <h5 className="uppercase my-[10px] text-[12px] font-medium">detail produk</h5>
-                </div>
-                <div className="p-[20px]">
-                  <div className="mb-[15px]">
-                    <h3 className="uppercase text-[12px] font-medium my-[10px]">jenis produk</h3>
-                  </div>
-                  <div className="flex space-x-10">
-                    <div className="w-1/2 h-[200px] flex items-center justify-center py-[45px] px-[15px] cursor-pointer rounded border hover:bg-[#005429] hover:text-white active:bg-[#005429] active:text-white group">
-                      <div className="text-center">
-                        <FaGift className="mx-auto mb-2 text-xl text-[#005429] group-hover:text-white group-active:text-white" />
-                        <h4 className="font-semibold text-[14px]">Tunggal</h4>
-                        <p className="text-[13px]">Produk tidak memiliki bahan baku.</p>
-                        <p className="text-[13px]">Contoh: Buah Jeruk</p>
-                      </div>
-                    </div>
-
-                    <div className="w-1/2 h-[200px] flex items-center justify-center py-[45px] px-[15px] cursor-pointer active:bg-[#005429] active:text-white hover:bg-[#005429] hover:text-white bg-[#005429] rounded border text-white">
-                      <div className="text-center">
-                        <FaPizzaSlice className="mx-auto mb-2 text-xl text-white group-hover:text-white group-active:text-white" />
-                        <h4 className="font-semibold text-[14px]">Komposit</h4>
-                        <p className="text-[13px]">Produk memiliki bahan baku.</p>
-                        <p className="text-[13px]">Contoh: Donat, bahan baku: Tepung 100 gr dan Telur 2 butir</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div> */}

@@ -7,6 +7,8 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaChevronLeft } from "
 import Datepicker from 'react-tailwindcss-datepicker';
 import ExportFilter from "../export";
 import Header from "../../../admin/header";
+import { useReactToPrint } from "react-to-print";
+import PdfButton from "../pdfButton";
 
 
 const SalesTransaction = () => {
@@ -67,6 +69,11 @@ const SalesTransaction = () => {
     const ITEMS_PER_PAGE = 10;
 
     const dropdownRef = useRef(null);
+    const receiptRef = useRef();
+    const handlePrint = useReactToPrint({
+        content: () => receiptRef.current,
+        documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
+    });
 
     // Calculate the total subtotal first
     const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
@@ -174,7 +181,7 @@ const SalesTransaction = () => {
     const formatDateTime = (datetime) => {
         const date = new Date(datetime);
         const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     };
 
     // Calculate total pages based on filtered data
@@ -414,7 +421,7 @@ const SalesTransaction = () => {
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Waktu</th>
+                                <th className="px-4 py-3 font-normal">Tanggal</th>
                                 <th className="px-4 py-3 font-normal">Kasir</th>
                                 <th className="px-4 py-3 font-normal">ID Struk</th>
                                 <th className="px-4 py-3 font-normal">Produk</th>
@@ -461,7 +468,7 @@ const SalesTransaction = () => {
                                                     {orderType || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    {total.toLocaleString() || ""}
+                                                    {product.grandTotal.toLocaleString() || ""}
                                                 </td>
                                             </tr>
                                         );
@@ -499,82 +506,117 @@ const SalesTransaction = () => {
                                 onClick={() => setSelectedTrx(null)}
                             ></div>
 
-                            {/* Modal panel */}
-                            <div className={`relative w-full max-w-md bg-gray-300 shadow-slate-200 shadow-md transform transition-transform duration-300 ease-in-out translate-x-0 overflow-y-auto h-screen`}>
-                                <div className="p-3 border-b font-semibold text-lg bg-white text-gray-700 flex justify-between items-center">
-                                    DATA TRANSAKSI PENJUALAN
-                                    <button onClick={() => setSelectedTrx(null)} className="text-gray-400 hover:text-red-500 text-2xl leading-none">
+                            {/* Modal */}
+                            <div className="relative w-full max-w-md bg-white shadow-lg transform transition-transform duration-300 ease-in-out h-screen flex flex-col overflow-hidden">
+                                {/* Header */}
+                                <div className="p-4 flex justify-between items-center font-semibold">
+                                    <h2 className="text-lg font-semibold">Detail Transaksi</h2>
+                                    <button
+                                        onClick={() => setSelectedTrx(null)}
+                                        className="text-xl font-bold hover:text-red-400"
+                                    >
                                         &times;
                                     </button>
                                 </div>
-                                <div className="p-4 ">
-                                    <div className="w-full overflow-hidden">
-                                        <div className="flex">
-                                            {Array.from({ length: 50 }).map((_, i) => (
-                                                <div
-                                                    key={i}
-                                                    className="w-4 h-4 rotate-45 bg-white origin-bottom-left"
-                                                    style={{ marginRight: '4px' }}
-                                                />
-                                            ))}
+
+                                {/* Body */}
+                                <div id="receipt-pdf" ref={receiptRef} className="flex-1 overflow-y-auto p-6 text-sm text-gray-700">
+                                    {/* Brand */}
+                                    <div className="text-center mb-6">
+                                        <img
+                                            src="/images/logo_resi.png"
+                                            alt="Logo"
+                                            className="mx-auto w-1/2"
+                                        />
+                                        <h2 className="mx-auto w-4/5 text-sm font-medium">{selectedTrx.cashierId?.outlet?.[0]?.outletId?.address}</h2>
+                                    </div>
+                                    <div className="text-sm">
+                                    </div>
+
+                                    {/* Info Transaksi */}
+                                    <div className="space-y-1 text-sm mb-6">
+                                        <div className="flex justify-between">
+                                            <span className="font-medium">Kode Struk</span>
+                                            <p>{selectedTrx.order_id}</p>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="font-medium">Tanggal</span>
+                                            <p>{formatDateTime(selectedTrx?.createdAt)}</p>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="font-medium">Kasir</span>
+                                            <p>{selectedTrx.cashierId?.username || "-"}</p>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="font-medium">Pelanggan</span>
+                                            <p>{selectedTrx.user}</p>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="font-medium">No Meja</span>
+                                            <p>{selectedTrx.tableNumber}</p>
                                         </div>
                                     </div>
-                                    <div className="text-center">
-                                        <h3 className="text-lg text-gray-700 bg-white font-medium">Baraja Coffee Indonesia</h3>
+                                    <div className="space-y-1 mb-6">
+                                        <p className="text-center text-base font-semibold text-gray-800 mt-2">{selectedTrx.orderType}</p>
                                     </div>
-                                    <div className="p-6 text-sm text-gray-700 space-y-2 bg-white">
-                                        <p>ID Struk: {selectedTrx.order_id}</p>
-                                        <p>Waktu: {formatDateTime(selectedTrx?.createdAt)}</p>
-                                        <p>
-                                            Outlet: Baraja Coffe Tentara Pelajar
-                                            {/* {selectedTrx.outlet?.[0]?.name || 'No Outlet'} */}
-                                        </p>
-                                        {console.log(selectedTrx)}
-                                        <p>Kasir: {selectedTrx.cashierId?.username || "-"}</p>
-                                        <p>Pelanggan: {selectedTrx.user}</p>
-                                        <p className="text-center text-lg font-medium">{selectedTrx.orderType}</p>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                        <div className="grid grid-cols-3 text-sm">
-                                            {selectedTrx.items?.map((item, index) => (
-                                                <React.Fragment key={index}>
-                                                    <div>{item.menuItem?.name || '-'}</div>
-                                                    <div className="text-center">× {item.quantity}</div>
-                                                    <div className="text-right">{formatCurrency(item.subtotal)}</div>
-                                                </React.Fragment>
-                                            ))}
-                                        </div>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                        <div className="">
-                                            <div className="flex justify-between">
-                                                <p>Total Subtotal</p>
-                                                <p>{formatCurrency(totalSubtotal)}</p>
+
+                                    {/* Items */}
+                                    <div className="border-t border-b border-dashed py-4 space-y-2">
+                                        {selectedTrx.items?.map((item, index) => (
+                                            <div key={index} className="flex justify-between text-sm">
+                                                <div className="flex-1">{item.menuItem?.name || '-'}</div>
+                                                <div className="w-12 text-center">× {item.quantity}</div>
+                                                <div className="w-20 text-right">{formatCurrency(item.subtotal)}</div>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <p>PB1 (10%)</p>
-                                                <p>{formatCurrency(pb1)}</p>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <strong>Total</strong>
-                                                <p>{formatCurrency(finalTotal)}</p>
-                                            </div>
-                                        </div>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
-                                        <div className="">
-                                            <div className="flex justify-between">
-                                                <p>Tunai</p>
-                                                <p>{formatCurrency(finalTotal)}</p>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <p>Kembali</p>
-                                                <p>{formatCurrency(0)}</p>
-                                            </div>
-                                        </div>
-                                        <hr className="my-4 border-t-2 border-dashed border-gray-400 w-full" />
+                                        ))}
                                     </div>
+
+                                    {/* Total Section */}
+                                    <div className="my-2 space-y-2">
+                                        <div className="flex justify-between">
+                                            <span>Sub Total Harga</span>
+                                            <span>{formatCurrency(selectedTrx.totalAfterDiscount)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>{selectedTrx.taxAndServiceDetails?.[0]?.name}</span>
+                                            <span>{formatCurrency(selectedTrx.taxAndServiceDetails?.[0]?.amount)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-base font-bold text-green-700 border-t border-dashed pt-2">
+                                            <span>Total Harga</span>
+                                            <span>{formatCurrency(finalTotal)}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Payment */}
+                                    <div className="border-t border-dashed space-y-2">
+                                        <div className="flex my-2 justify-between">
+                                            <span>Tunai</span>
+                                            <span>{formatCurrency(finalTotal)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Kembali</span>
+                                            <span>{formatCurrency(0)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="p-4 border-t space-y-4 bg-gray-50">
+                                    {/* <button
+                                        onClick={() => handlePrint()}
+                                        className="w-full bg-green-700 hover:bg-green-800 text-white text-sm font-medium py-2.5 rounded-lg shadow"
+                                    >
+                                        Cetak Resi
+                                    </button> */}
+                                    <PdfButton
+                                        targetId="receipt-pdf"
+                                        fileName={`Resi_${selectedTrx?.order_id || "transaksi"}.pdf`}
+                                    />
                                 </div>
                             </div>
                         </div>
                     )}
+
                 </div>
 
                 {/* Pagination Controls */}

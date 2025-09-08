@@ -462,6 +462,38 @@ export const updateMenuItem = async (req, res) => {
   }
 };
 
+//Update menu active
+export const updateMenuActivated = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      isActive
+    } = req.body;
+
+    const updatedItem = await MenuItem.findByIdAndUpdate(
+      id,
+      {
+        isActive
+      },
+      { new: true }
+    )
+
+    res.status(200).json({
+      success: true,
+      message: 'Menu item updated successfully',
+      data: updatedItem
+    });
+
+  } catch (error) {
+    console.error('Error updating menu item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update menu item',
+      error: error.message
+    });
+  }
+};
+
 // Delete menu item
 export const deleteMenuItem = async (req, res) => {
   try {
@@ -687,7 +719,7 @@ export const filterMenuItems = async (req, res) => {
       });
     }
 
-  
+
 
     res.status(200).json({ success: true, data: filtered });
   } catch (error) {

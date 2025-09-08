@@ -6,221 +6,6 @@ import Reservation from '../models/Reservation.model.js';
 
 const router = express.Router();
 
-// AREA CRUD OPERATIONS //
-
-// Create a new area
-router.post('/', async (req, res) => {
-    try {
-        const { area_code, area_name, capacity, description, rentfee, roomSize } = req.body;
-
-        if (!roomSize?.width || !roomSize?.height) {
-            return res.status(400).json({ success: false, message: 'Room size (width & height) is required' });
-        }
-
-        // Check if area code already exists
-        const existingArea = await Area.findOne({ area_code: area_code.toUpperCase() });
-        if (existingArea) {
-            return res.status(400).json({ success: false, message: 'Area code already exists' });
-        }
-
-        const newArea = new Area({
-            area_code: area_code.toUpperCase(),
-            area_name,
-            capacity,
-            description: description || '',
-            rentfee: rentfee || 0,
-            roomSize: {
-                width: roomSize.width,
-                height: roomSize.height,
-                unit: roomSize.unit || 'm'
-            }
-        });
-
-        const savedArea = await newArea.save();
-
-        res.status(201).json({ success: true, message: 'Area created successfully', data: savedArea });
-    } catch (error) {
-        console.error('Error creating area:', error);
-        res.status(500).json({ success: false, message: 'Error creating area', error: error.message });
-    }
-});
-
-
-// Get all areas
-router.get('/', async (req, res) => {
-    try {
-        const { date, time } = req.query;
-        const areas = await Area.find({ is_active: true }).sort({ area_code: 1 });
-
-        // If date & time provided → include availability info
-        if (date && time) {
-            const areasWithAvailability = await Promise.all(
-                areas.map(async (area) => {
-                    const tables = await Table.find({ area_id: area._id, is_active: true });
-
-                    const reservationDate = new Date(date);
-                    const existingReservations = await Reservation.find({
-                        reservation_date: {
-                            $gte: new Date(reservationDate.setHours(0, 0, 0, 0)),
-                            $lt: new Date(reservationDate.setHours(23, 59, 59, 999))
-                        },
-                        reservation_time: time,
-                        area_id: area._id,
-                        status: { $in: ['confirmed', 'pending'] }
-                    });
-
-                    const reservedTableIds = [];
-                    existingReservations.forEach(r => {
-                        r.table_id.forEach(tableId => {
-                            if (!reservedTableIds.includes(tableId.toString())) {
-                                reservedTableIds.push(tableId.toString());
-                            }
-                        });
-                    });
-
-                    const availableTables = tables.filter(t => !reservedTableIds.includes(t._id.toString()));
-                    const totalReservedGuests = existingReservations.reduce((sum, r) => sum + r.guest_count, 0);
-                    const availableCapacity = Math.max(0, area.capacity - totalReservedGuests);
-
-                    return {
-                        ...area.toObject(),
-                        totalTables: tables.length,
-                        availableTables: availableTables.length,
-                        reservedTables: tables.length - availableTables.length,
-                        availableCapacity,
-                        totalReservedGuests,
-                        isFullyBooked: availableTables.length === 0 || availableCapacity <= 0,
-                        tables: tables.map(t => ({
-                            ...t.toObject(),
-                            is_available_for_time: !reservedTableIds.includes(t._id.toString()),
-                            is_reserved: reservedTableIds.includes(t._id.toString())
-                        }))
-                    };
-                })
-            );
-
-            return res.json({ success: true, data: areasWithAvailability });
-        }
-
-        // Default return without reservation check
-        const areasWithTables = await Promise.all(
-            areas.map(async (area) => {
-                const tables = await Table.find({ area_id: area._id, is_active: true });
-                return {
-                    ...area.toObject(),
-                    totalTables: tables.length,
-                    availableTables: tables.filter(t => t.status === 'available').length,
-                    reservedTables: tables.filter(t => t.status !== 'available').length,
-                    availableCapacity: area.capacity,
-                    totalReservedGuests: 0,
-                    isFullyBooked: false,
-                    tables
-                };
-            })
-        );
-
-        res.json({ success: true, data: areasWithTables });
-    } catch (error) {
-        console.error('Error fetching areas:', error);
-        res.status(500).json({ success: false, message: 'Error fetching areas', error: error.message });
-    }
-});
-
-
-// Get single area by ID
-router.get('/:id', async (req, res) => {
-    try {
-        const area = await Area.findById(req.params.id);
-        if (!area || !area.is_active) {
-            return res.status(404).json({ success: false, message: 'Area not found or inactive' });
-        }
-
-        const tables = await Table.find({ area_id: area._id, is_active: true });
-        res.json({ success: true, data: { ...area.toObject(), tables } });
-    } catch (error) {
-        console.error('Error fetching area:', error);
-        res.status(500).json({ success: false, message: 'Error fetching area', error: error.message });
-    }
-});
-
-
-// Update an area
-router.put('/:id', async (req, res) => {
-    try {
-        const { area_code, area_name, capacity, description, rentfee, is_active, roomSize } = req.body;
-
-        if (area_code) {
-            const exists = await Area.findOne({
-                area_code: area_code.toUpperCase(),
-                _id: { $ne: req.params.id }
-            });
-            if (exists) {
-                return res.status(400).json({ success: false, message: 'Area code already exists' });
-            }
-        }
-
-        const updatedArea = await Area.findByIdAndUpdate(
-            req.params.id,
-            {
-                area_code: area_code ? area_code.toUpperCase() : undefined,
-                area_name,
-                capacity,
-                description,
-                rentfee,
-                is_active,
-                roomSize
-            },
-            { new: true, runValidators: true }
-        );
-
-        if (!updatedArea) return res.status(404).json({ success: false, message: 'Area not found' });
-
-        res.json({ success: true, message: 'Area updated successfully', data: updatedArea });
-    } catch (error) {
-        console.error('Error updating area:', error);
-        res.status(500).json({ success: false, message: 'Error updating area', error: error.message });
-    }
-});
-
-
-// Delete (deactivate) an area
-router.delete('/:id', async (req, res) => {
-    try {
-        // Soft delete by setting is_active to false
-        const area = await Area.findByIdAndUpdate(
-            req.params.id,
-            { is_active: false },
-            { new: true }
-        );
-
-        if (!area) {
-            return res.status(404).json({
-                success: false,
-                message: 'Area not found'
-            });
-        }
-
-        // Also deactivate all tables in this area
-        await Table.updateMany(
-            { area_id: area._id },
-            { is_active: false }
-        );
-
-        res.json({
-            success: true,
-            message: 'Area and its tables deactivated successfully',
-            data: area
-        });
-    } catch (error) {
-        console.error('Error deactivating area:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error deactivating area',
-            error: error.message
-        });
-    }
-});
-
 // TABLE CRUD OPERATIONS //
 
 // Create a new table
@@ -257,7 +42,6 @@ router.post('/tables', async (req, res) => {
         res.status(500).json({ success: false, message: 'Error creating table', error: error.message });
     }
 });
-
 
 // Get all tables (with optional area filter)
 router.get('/tables', async (req, res) => {
@@ -482,6 +266,186 @@ router.get('/:id/tables', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error fetching area tables',
+            error: error.message
+        });
+    }
+});
+
+// AREA CRUD OPERATIONS //
+
+// Create a new area
+router.post('/', async (req, res) => {
+    try {
+        const { outlet_id, area_code, area_name, capacity, description, rentfee, roomSize } = req.body;
+
+        if (!outlet_id) {
+            return res.status(400).json({ success: false, message: 'Outlet ID is required' });
+        }
+
+        if (!roomSize?.width || !roomSize?.height) {
+            return res.status(400).json({ success: false, message: 'Room size (width & height) is required' });
+        }
+
+        // Check outlet exists
+        const outlet = await Outlet.findById(outlet_id);
+        if (!outlet) {
+            return res.status(404).json({ success: false, message: 'Outlet not found' });
+        }
+
+        // Check if area code already exists in this outlet
+        const existingArea = await Area.findOne({ 
+            area_code: area_code.toUpperCase(), 
+            outlet_id 
+        });
+        if (existingArea) {
+            return res.status(400).json({ success: false, message: 'Area code already exists in this outlet' });
+        }
+
+        const newArea = new Area({
+            outlet_id,
+            area_code: area_code.toUpperCase(),
+            area_name,
+            capacity,
+            description: description || '',
+            rentfee: rentfee || 0,
+            roomSize: {
+                width: roomSize.width,
+                height: roomSize.height,
+                unit: roomSize.unit || 'm'
+            }
+        });
+
+        const savedArea = await newArea.save();
+
+        res.status(201).json({ success: true, message: 'Area created successfully', data: savedArea });
+    } catch (error) {
+        console.error('Error creating area:', error);
+        res.status(500).json({ success: false, message: 'Error creating area', error: error.message });
+    }
+});
+
+// Get all areas (with optional outlet filter)
+router.get('/', async (req, res) => {
+    try {
+        const { outlet_id } = req.query;
+
+        // Filter by outlet if provided
+        const filter = { is_active: true };
+        if (outlet_id) filter.outlet_id = outlet_id;
+
+        const areas = await Area.find(filter)
+            .populate('outlet_id', 'name address') // tampilkan info outlet
+            .sort({ area_code: 1 })
+            .lean(); // lebih ringan, plain object
+
+        // Jika tidak ada data
+        if (!areas.length) {
+            return res.json({ success: true, data: [] });
+        }
+
+        // Kirim response (sementara tanpa availability check)
+        res.json({ success: true, data: areas });
+
+    } catch (error) {
+        console.error('Error fetching areas:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error fetching areas', 
+            error: error.message 
+        });
+    }
+});
+
+
+// Get single area by ID (with outlet info)
+router.get('/:id', async (req, res) => {
+    try {
+        const area = await Area.findById(req.params.id)
+            .populate('outlet_id', 'name address');
+
+        if (!area || !area.is_active) {
+            return res.status(404).json({ success: false, message: 'Area not found or inactive' });
+        }
+
+        const tables = await Table.find({ area_id: area._id, is_active: true });
+        res.json({ success: true, data: { ...area.toObject(), tables } });
+    } catch (error) {
+        console.error('Error fetching area:', error);
+        res.status(500).json({ success: false, message: 'Error fetching area', error: error.message });
+    }
+});
+
+// Update an area
+router.put('/:id', async (req, res) => {
+    try {
+        const { area_code, area_name, capacity, description, rentfee, is_active, roomSize } = req.body;
+
+        if (area_code) {
+            const exists = await Area.findOne({
+                area_code: area_code.toUpperCase(),
+                _id: { $ne: req.params.id }
+            });
+            if (exists) {
+                return res.status(400).json({ success: false, message: 'Area code already exists' });
+            }
+        }
+
+        const updatedArea = await Area.findByIdAndUpdate(
+            req.params.id,
+            {
+                area_code: area_code ? area_code.toUpperCase() : undefined,
+                area_name,
+                capacity,
+                description,
+                rentfee,
+                is_active,
+                roomSize
+            },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedArea) return res.status(404).json({ success: false, message: 'Area not found' });
+
+        res.json({ success: true, message: 'Area updated successfully', data: updatedArea });
+    } catch (error) {
+        console.error('Error updating area:', error);
+        res.status(500).json({ success: false, message: 'Error updating area', error: error.message });
+    }
+});
+
+// Delete (deactivate) an area
+router.delete('/:id', async (req, res) => {
+    try {
+        // Soft delete by setting is_active to false
+        const area = await Area.findByIdAndUpdate(
+            req.params.id,
+            { is_active: false },
+            { new: true }
+        );
+
+        if (!area) {
+            return res.status(404).json({
+                success: false,
+                message: 'Area not found'
+            });
+        }
+
+        // Also deactivate all tables in this area
+        await Table.updateMany(
+            { area_id: area._id },
+            { is_active: false }
+        );
+
+        res.json({
+            success: true,
+            message: 'Area and its tables deactivated successfully',
+            data: area
+        });
+    } catch (error) {
+        console.error('Error deactivating area:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error deactivating area',
             error: error.message
         });
     }

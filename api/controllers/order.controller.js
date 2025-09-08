@@ -2963,7 +2963,14 @@ export const getAllOrders = async (req, res) => {
     const orders = await Order.find()
       .populate('items.menuItem')
       .populate('user')
-      .populate('cashierId')
+      .populate({
+        path: 'cashierId',
+        populate: {
+          path: 'outlet.outletId',
+          model: 'Outlet',
+          select: 'name address', // field yang mau ditampilkan
+        },
+      })
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: orders });
