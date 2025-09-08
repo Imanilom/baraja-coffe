@@ -8,7 +8,7 @@ import {
     deleteEvent,
     addAttendee,
     removeAttendee,
-    buyTicket
+    // buyTicket
 } from '../controllers/event.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -23,6 +23,6 @@ router.delete('/:id', deleteEvent);
 router.post('/:id/attendees', addAttendee);
 router.delete('/:id/attendees', removeAttendee);
 
-router.put('/ticket', buyTicket)
+// router.put('/ticket', buyTicket)
 
 export default router;
