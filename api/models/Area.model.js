@@ -1,11 +1,6 @@
 import mongoose from 'mongoose';
 
 const areaSchema = new mongoose.Schema({
-    outlet_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Outlet',
-        required: true
-    },
     area_code: {
         type: String,
         required: true,
