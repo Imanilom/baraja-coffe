@@ -2,27 +2,33 @@ import mongoose from 'mongoose';
 
 const productStockSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-  category: { type: String, required: true }, // kategori utama
+  category: { type: String }, // kategori utama
   currentStock: { type: Number, default: 0, min: 0 },
   minStock: { type: Number, default: 0, min: 0 },
+  warehouse: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Warehouse',
+  required: true
+  },
+
   movements: [{
-    quantity: { type: Number, required: true },
-    type: { type: String, enum: ['in','out','adjustment'], required: true },
-    referenceId: { type: mongoose.Schema.Types.ObjectId, default: null }, // misal: orderId, adjustmentId
-    notes: String,
-    destination: String, // misal: 'Bar Depan Amphi', 'Dapur'
-    handledBy: String, // userId atau nama staff
-    date: { type: Date, default: Date.now }
+  quantity: { type: Number, required: true },
+  type: { type: String, enum: ['in','out','adjustment','transfer'], required: true },
+  referenceId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  notes: String,
+  sourceWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },     // untuk out/transfer
+  destinationWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },// untuk in/transfer
+  handledBy: String,
+  date: { type: Date, default: Date.now }
   }]
+
 }, {
   timestamps: true,
   optimisticConcurrency: true,
   versionKey: 'version'
 });
 
-// index unik untuk kombinasi productId + category
-productStockSchema.index({ productId: 1, category: 1 }, { unique: true });
-
+productStockSchema.index({ productId: 1, warehouse: 1 }, { unique: true });
 // Index tambahan
 productStockSchema.index({ 'movements': 1 });
 

@@ -43,6 +43,8 @@ import {
   createBulkSuppliers
 } from '../controllers/supplier.controller.js';
 
+import RequestController from '../controllers/request.controller.js';
+
 import { authMiddleware, verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
@@ -52,17 +54,17 @@ const staffAccess = verifyToken(['staff', 'inventory', 'admin', 'superadmin']);
 const inventoryAccess = verifyToken(['inventory', 'admin', 'superadmin']);
 const allAuthenticated = authMiddleware;
 
-router.post('/request', staffAccess, createRequest);
+router.post('/request', staffAccess, RequestController.createRequest);
 
-router.get('/requests', staffAccess, getAllRequests);
+router.get('/requests', staffAccess, RequestController.getRequests);
 
-router.get('/requests/:id', staffAccess, getRequestById);
+router.get('/requests/:id', staffAccess, RequestController.getRequestDetail);
+
+router.post('/approve/:id', staffAccess, RequestController.approveAndFulfillRequest);
+
+router.post('/reject/:id', staffAccess, RequestController.rejectRequest);
 
 router.get('/requests-with-suppliers', getAllRequestWithSuppliers);
-
-router.post('/approve/:id', staffAccess, approveRequestItems);
-
-router.post('/reject/:id', staffAccess, rejectRequest);
 
 router.get('/pending-requests', staffAccess, getRequests);
 
