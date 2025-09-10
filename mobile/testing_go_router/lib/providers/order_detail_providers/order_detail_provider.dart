@@ -51,7 +51,9 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       state = state!.copyWith(paymentMethod: paymentMethod);
       if (paymentType != null) {
         state = state!.copyWith(
-          payment: PaymentModel(method: paymentType, amount: state!.grandTotal),
+          payment: [
+            PaymentModel(method: paymentType, amount: state!.grandTotal),
+          ],
         );
       }
       print(state);
