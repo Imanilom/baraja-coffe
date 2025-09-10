@@ -6,7 +6,7 @@ import {
   deleteTableLayout,
   getTableStatusByOutlet,
   getAvailableTablesByPeople,
-  updateTableStatus 
+  updateTableStatus
 } from '../controllers/tableLayout.controller.js';
 
 import { verifyToken } from '../utils/verifyUser.js';

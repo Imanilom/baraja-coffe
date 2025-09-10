@@ -45,6 +45,7 @@ const ReceiptMenu = () => {
     const [productList, setProductList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [errors, setErrors] = useState({}); // simpan error per row
     const [menuItemStatus, setMenuItemStatus] = useState({
         isComplete: false,
         missingFields: []
@@ -156,31 +157,41 @@ const ReceiptMenu = () => {
         setter(updated);
     };
 
+    // const validateForm = () => {
+    //     const main = [...mainIngredients];
+
+    //     if (main.length === 0) {
+    //         alert('Harus ada minimal 1 bahan utama atau tambahan');
+    //         return false;
+    //     }
+
+    //     const invalid = main.some(ing =>
+    //         !ing.productId || !ing.quantity || !ing.unit
+    //     );
+
+    //     if (invalid) {
+    //         alert('Semua bahan harus lengkap (produk, quantity, dan unit)');
+    //         return false;
+    //     }
+
+    //     if (!menuItemStatus.isComplete) {
+    //         alert(`Menu belum lengkap: ${menuItemStatus.missingFields.join(', ')}`);
+    //         return false;
+    //     }
+
+    //     return true;
+    // };
+
     const validateForm = () => {
-        const combinedIngredients = [...mainIngredients, ...subIngredients];
-
-        if (combinedIngredients.length === 0) {
-            alert('Harus ada minimal 1 bahan utama atau tambahan');
-            return false;
-        }
-
-        // const invalid = combinedIngredients.some(ing =>
-        //     !ing.productId || !ing.quantity || !ing.unit
-        // );
-
-        // if (invalid) {
-        //     alert('Semua bahan harus lengkap (produk, quantity, dan unit)');
-        //     return false;
-        // }
-
-        if (!menuItemStatus.isComplete) {
-            alert(`Menu belum lengkap: ${menuItemStatus.missingFields.join(', ')}`);
-            return false;
-        }
-
-        return true;
+        const newErrors = {};
+        mainIngredients.forEach((item, idx) => {
+            if (!item.productName) newErrors[`${idx}_productName`] = "Pilih bahan baku";
+            if (!item.quantity || Number(item.quantity) <= 0)
+                newErrors[`${idx}_quantity`] = "Masukkan jumlah yang valid";
+        });
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
-
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -199,7 +210,7 @@ const ReceiptMenu = () => {
                     productId: item.productId,
                     productName: item.productName,
                     productSku: item.productSku,
-                    quantity: Number(item.quantity),
+                    quantity: item.quantity,
                     unit: item.unit,
                     isDefault: item.isDefault || false
                 })),
@@ -213,7 +224,7 @@ const ReceiptMenu = () => {
                             productId: ing.productId,
                             productName: ing.productName,
                             productSku: ing.productSku,
-                            quantity: Number(ing.quantity),
+                            quantity: ing.quantity,
                             unit: ing.unit
                         }))
                 })),
@@ -228,7 +239,7 @@ const ReceiptMenu = () => {
                             productId: ing.productId,
                             productName: ing.productName,
                             productSku: ing.productSku,
-                            quantity: Number(ing.quantity),
+                            quantity: ing.quantity,
                             unit: ing.unit
                         }))
                 }))
@@ -243,8 +254,7 @@ const ReceiptMenu = () => {
             }
 
             if (response.data.success) {
-                alert("Resep berhasil dibuat.");
-                navigate("/admin/menu");
+                navigate("/admin/menu", { state: { success: "Resep berhasil diperbarui" } });
             } else {
                 alert(`Gagal membuat resep: ${response.data.message || 'Unknown error'}`);
             }
@@ -304,76 +314,115 @@ const ReceiptMenu = () => {
                     )}
 
                     <form onSubmit={handleSubmit} className="my-[13px] shadow-lg space-y-10 p-6 bg-gray-50 rounded">
-
                         <div className="mb-6">
-                            <h2 className="text-lg font-semibold mb-4">Main Ingredients</h2>
-                            {mainIngredients.map((item, index) => (
-                                <div key={index} className="grid grid-cols-5 gap-4 mb-2 items-center">
-                                    <Select
-                                        className="text-sm"
-                                        classNamePrefix="react-select"
-                                        options={productOptions}
-                                        value={productOptions.find(opt => opt.value === item.productName) || null}
-                                        onChange={(selected) => {
-                                            const updated = [...mainIngredients];
-                                            updated[index] = {
-                                                ...updated[index],
-                                                productId: selected?._id || "",
-                                                productName: selected?.value || "",
-                                                productSku: selected?.sku || "",
-                                                unit: selected?.unit || "",
-                                            };
-                                            setMainIngredients(updated);
-                                        }}
-                                        styles={customSelectStyles}
-                                        placeholder="Pilih Bahan Baku"
-                                        isClearable
-                                        required
-                                    />
+                            <h2 className="text-lg font-semibold mb-4">Bahan Wajib</h2>
 
+                            {mainIngredients.map((item, index) => (
+                                <div
+                                    key={index}
+                                    className="grid grid-cols-5 gap-4 mb-3 items-start"
+                                >
+                                    {/* Select Bahan */}
+                                    <div>
+                                        <Select
+                                            className="text-sm"
+                                            classNamePrefix="react-select"
+                                            options={productOptions}
+                                            value={
+                                                productOptions.find(
+                                                    (opt) => opt.value === item.productName
+                                                ) || null
+                                            }
+                                            onChange={(selected) => {
+                                                const updated = [...mainIngredients];
+                                                updated[index] = {
+                                                    ...updated[index],
+                                                    productId: selected?._id || "",
+                                                    productName: selected?.value || "",
+                                                    productSku: selected?.sku || "",
+                                                    unit: selected?.unit || "",
+                                                };
+                                                setMainIngredients(updated);
+                                            }}
+                                            styles={customSelectStyles}
+                                            placeholder="Pilih Bahan Baku"
+                                            isClearable
+                                        />
+                                        {errors[`${index}_productName`] && (
+                                            <p className="text-xs text-red-500 mt-1">
+                                                {errors[`${index}_productName`]}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* SKU */}
                                     <input
                                         type="text"
                                         placeholder="SKU"
                                         value={item.productSku}
                                         onChange={(e) =>
-                                            handleChange(setMainIngredients, mainIngredients, index, "productSku", e.target.value)
+                                            handleChange(
+                                                setMainIngredients,
+                                                mainIngredients,
+                                                index,
+                                                "productSku",
+                                                e.target.value
+                                            )
                                         }
                                         className="border rounded p-2 text-sm"
                                         disabled
                                     />
 
-                                    <input
-                                        type="number"
-                                        placeholder="Qty"
-                                        value={item.quantity}
-                                        onChange={(e) =>
-                                            handleChange(setMainIngredients, mainIngredients, index, "quantity", e.target.value)
-                                        }
-                                        className="border rounded p-2 text-sm"
-                                        min="0"
-                                        step="0.01"
-                                        required
-                                    />
+                                    {/* Qty */}
+                                    <div className="">
+                                        <input
+                                            type="number"
+                                            placeholder="Qty"
+                                            value={item.quantity}
+                                            onChange={(e) =>
+                                                handleChange(
+                                                    setMainIngredients,
+                                                    mainIngredients,
+                                                    index,
+                                                    "quantity",
+                                                    e.target.value
+                                                )
+                                            }
+                                            className="border w-full rounded p-2 text-sm"
+                                            min="0"
+                                            step="0.001"
+                                        />
+                                        {errors[`${index}_quantity`] && (
+                                            <p className="text-xs text-red-500 mt-1">
+                                                {errors[`${index}_quantity`]}
+                                            </p>
+                                        )}
+                                    </div>
 
+                                    {/* Unit */}
                                     <input
                                         type="text"
                                         placeholder="Satuan"
                                         value={item.unit}
                                         onChange={(e) =>
-                                            handleChange(setMainIngredients, mainIngredients, index, "unit", e.target.value)
+                                            handleChange(
+                                                setMainIngredients,
+                                                mainIngredients,
+                                                index,
+                                                "unit",
+                                                e.target.value
+                                            )
                                         }
                                         className="border rounded p-2 text-sm lowercase"
                                         disabled
                                     />
-
-                                    {/* ❌ tidak ada tombol hapus */}
                                 </div>
                             ))}
-                            {/* ❌ tidak ada tombol tambah */}
                         </div>
 
+
                         <div className="mb-6">
-                            <h2 className="text-lg font-semibold mb-4">Sub Ingredients</h2>
+                            <h2 className="text-lg font-semibold mb-4">Bahan Tambahan (Opsional)</h2>
                             {subIngredients.map((item, index) => (
                                 <div key={index} className="grid grid-cols-5 gap-4 mb-2 items-center">
                                     <Select
@@ -417,7 +466,7 @@ const ReceiptMenu = () => {
                                         }
                                         className="border rounded p-2 text-sm"
                                         min="0"
-                                        step="0.01"
+                                        step="0.001"
                                     />
 
                                     <input
@@ -476,6 +525,7 @@ const ReceiptMenu = () => {
                                             }}
                                             className="border p-2 rounded text-sm w-full"
                                             required
+                                            disabled
                                         />
                                     </div>
 
@@ -521,7 +571,7 @@ const ReceiptMenu = () => {
                                                 }
                                                 className="border rounded p-2 text-sm"
                                                 min="0"
-                                                step="0.01"
+                                                step="0.001"
                                                 required
                                             />
                                             <input
@@ -586,6 +636,7 @@ const ReceiptMenu = () => {
                                             }}
                                             className="border w-full p-2 rounded text-sm"
                                             required
+                                            disabled
                                         />
                                         <input
                                             type="text"
@@ -598,6 +649,7 @@ const ReceiptMenu = () => {
                                             }}
                                             className="border p-2 rounded text-sm"
                                             required
+                                            disabled
                                         />
 
                                     </div>
@@ -643,7 +695,7 @@ const ReceiptMenu = () => {
                                                 }
                                                 className="border rounded p-2 text-sm"
                                                 min="0"
-                                                step="0.01"
+                                                step="0.001"
                                                 required
                                             />
                                             <input
