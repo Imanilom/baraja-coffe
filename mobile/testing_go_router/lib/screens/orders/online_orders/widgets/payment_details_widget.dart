@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
+import 'package:go_router/go_router.dart';
 
 // Provider untuk menyimpan tagihan yang dipilih
 final selectedPaymentProvider = StateProvider<PaymentModel?>((ref) => null);
@@ -605,23 +606,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
   }
 
   void _navigateToPaymentProcess(BuildContext context, PaymentModel payment) {
-    // TODO: Implementasi navigasi ke halaman proses pembayaran
-    // Contoh:
-    // Navigator.push(
-    //   context,
-    //   MaterialPageRoute(
-    //     builder: (context) => PaymentProcessPage(payment: payment),
-    //   ),
-    // );
-
-    // Untuk sementara tampilkan snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Memproses pembayaran ${_getPaymentTitle(payment)} - ${formatRupiah(payment.amount)}',
-        ),
-        backgroundColor: Colors.orange,
-      ),
-    );
+    // Navigasi ke halaman proses pembayaran dengan membawa data payment
+    GoRouter.of(context).pushNamed('payment-process', extra: payment);
   }
 }

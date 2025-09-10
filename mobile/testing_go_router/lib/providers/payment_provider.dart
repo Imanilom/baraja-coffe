@@ -127,3 +127,134 @@ final paymentMethodsProvider =
         error: (_, __) => <PaymentMethodModel>[],
       );
     });
+
+// Provider untuk menyimpan payment process state
+final paymentProcessProvider =
+    StateNotifierProvider<PaymentProcessNotifier, PaymentProcessState>((ref) {
+      return PaymentProcessNotifier();
+    });
+
+class PaymentProcessState {
+  final PaymentTypeModel? selectedType;
+  final PaymentMethodModel? selectedMethod;
+  final int? amount;
+  final String notes;
+  final bool isProcessing;
+
+  PaymentProcessState({
+    this.selectedType,
+    this.selectedMethod,
+    this.amount,
+    this.notes = '',
+    this.isProcessing = false,
+  });
+
+  PaymentProcessState copyWith({
+    PaymentTypeModel? selectedType,
+    PaymentMethodModel? selectedMethod,
+    int? amount,
+    String? notes,
+    bool? isProcessing,
+  }) {
+    return PaymentProcessState(
+      selectedType: selectedType ?? this.selectedType,
+      selectedMethod: selectedMethod ?? this.selectedMethod,
+      amount: amount ?? this.amount,
+      notes: notes ?? this.notes,
+      isProcessing: isProcessing ?? this.isProcessing,
+    );
+  }
+}
+
+class PaymentProcessNotifier extends StateNotifier<PaymentProcessState> {
+  PaymentProcessNotifier() : super(PaymentProcessState());
+
+  void selectPaymentType(PaymentTypeModel type) {
+    state = state.copyWith(
+      selectedType: type,
+      selectedMethod: null, // Reset method when type changes
+    );
+  }
+
+  void selectPaymentMethod(PaymentMethodModel method) {
+    state = state.copyWith(selectedMethod: method);
+  }
+
+  void setAmount(int amount) {
+    state = state.copyWith(amount: amount);
+  }
+
+  void setNotes(String notes) {
+    state = state.copyWith(notes: notes);
+  }
+
+  void setProcessing(bool isProcessing) {
+    state = state.copyWith(isProcessing: isProcessing);
+  }
+
+  void reset() {
+    state = PaymentProcessState();
+  }
+
+  Future<bool> processPayment() async {
+    try {
+      setProcessing(true);
+
+      // Simulasi API call untuk process payment
+      await Future.delayed(const Duration(seconds: 2));
+
+      // TODO: Implementasi sebenarnya
+      // - Call API endpoint untuk process payment
+      // - Handle response
+      // - Update payment status di database
+
+      setProcessing(false);
+      return true; // Success
+    } catch (e) {
+      setProcessing(false);
+      return false; // Failed
+    }
+  }
+}
+
+// Service untuk payment API calls
+class PaymentService {
+  // Simulasi service method
+  static Future<List<PaymentTypeModel>> fetchPaymentTypes() async {
+    // TODO: Implementasi actual API call
+    // final response = await http.get(Uri.parse('$baseUrl/payment-types'));
+    // return PaymentResponseModel.fromJson(jsonDecode(response.body)).paymentTypes;
+
+    await Future.delayed(const Duration(milliseconds: 500));
+    throw UnimplementedError('Implement actual API call');
+  }
+
+  static Future<Map<String, dynamic>> processPayment({
+    required String paymentId,
+    required String paymentTypeId,
+    required String paymentMethodId,
+    required int amount,
+    String? notes,
+  }) async {
+    // TODO: Implementasi actual API call
+    // final response = await http.post(
+    //   Uri.parse('$baseUrl/process-payment'),
+    //   headers: {'Content-Type': 'application/json'},
+    //   body: jsonEncode({
+    //     'paymentId': paymentId,
+    //     'paymentTypeId': paymentTypeId,
+    //     'paymentMethodId': paymentMethodId,
+    //     'amount': amount,
+    //     'notes': notes,
+    //   }),
+    // );
+    // return jsonDecode(response.body);
+
+    await Future.delayed(const Duration(seconds: 2));
+    return {
+      'success': true,
+      'transactionId': 'TXN${DateTime.now().millisecondsSinceEpoch}',
+      'message': 'Payment processed successfully',
+    };
+  }
+}
