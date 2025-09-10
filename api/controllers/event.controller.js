@@ -1,5 +1,6 @@
 // controllers/eventController.js
 import Event from '../models/Event.model.js';
+import Ticket from '../models/TicketPurchase.model.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 
 // Create new event
@@ -109,3 +110,45 @@ export async function removeAttendee(req, res) {
         res.status(400).json({ success: false, message: err.message });
     }
 }
+
+// export async function buyTicket(req, res) {
+//     try {
+//         const { eventId } = req.params;
+//         const { quantity } = req.body;
+//         const userId = req.user?.id || "123"; // ambil dari auth middleware
+
+//         if (!quantity || quantity < 1) {
+//             return res.status(400).json({ message: "Jumlah tiket harus minimal 1" });
+//         }
+
+//         const event = await Event.findById(eventId);
+//         if (!event) {
+//             return res.status(404).json({ message: "Event tidak ditemukan" });
+//         }
+
+//         if (event.capacity < quantity) {
+//             return res.status(400).json({ message: "Tiket tidak cukup tersedia" });
+//         }
+
+//         // buat tiket baru
+//         const ticket = await Ticket.create({
+//             userId,
+//             eventId,
+//             quantity,
+//             price: event.ticketPrice,
+//             total: event.ticketPrice * quantity,
+//             status: "pending", // bisa berubah "paid" setelah pembayaran
+//         });
+
+//         // update stok tiket
+//         event.capacity -= quantity;
+//         await event.save();
+
+//         return res.status(201).json({
+//             message: "Tiket berhasil dipesan",
+//             ticket,
+//         });
+//     } catch (error) {
+//         return res.status(500).json({ message: "Terjadi kesalahan", error: error.message });
+//     }
+// };

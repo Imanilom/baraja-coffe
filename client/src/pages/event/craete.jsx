@@ -205,19 +205,6 @@ const CreateEvent = () => {
                             showTimePicker={true}
                             inputClassName="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
                         />
-                        {/* <DatePicker
-                            selected={form.date ? new Date(form.date) : null} // selalu Date object
-                            onChange={(date) => setForm(prev => ({
-                                ...prev,
-                                date: date ? date.toISOString() : null // simpan ISO string
-                            }))}
-                            showTimeSelect
-                            timeFormat="HH:mm"
-                            timeIntervals={1}
-                            dateFormat="dd-MM-yyyy HH:mm"
-                            placeholderText="Pilih tanggal & waktu"
-                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400"
-                        /> */}
 
                     </div>
 
@@ -348,14 +335,15 @@ const CreateEvent = () => {
                         </label>
                         <Select
                             options={status}
-                            value={status.find(option => option.value === form.privacy)}
+                            value={status.find(option => option.value === form.status)}
                             onChange={(selected) =>
-                                setForm(prev => ({ ...prev, privacy: selected.value }))
+                                setForm(prev => ({ ...prev, status: selected.value }))
                             }
                             classNamePrefix="react-select"
                             styles={customSelectStyles}
                         />
                     </div>
+
 
                     {/* Kapasitas */}
                     <div>

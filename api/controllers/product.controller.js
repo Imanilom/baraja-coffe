@@ -131,6 +131,69 @@ export const updateProduct = async (req, res) => {
   }
 };
 
+export const updateProductPrice = async (req, res) => {
+  // Validasi ID produk
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: 'ID produk tidak valid' });
+  }
+
+  try {
+    const { supplierId, price } = req.body;
+    
+    // Validasi input
+    if (!supplierId || price === undefined || price === null) {
+      return res.status(400).json({ message: 'supplierId dan price wajib diisi' });
+    }
+
+    if (price < 0) {
+      return res.status(400).json({ message: 'Harga tidak boleh negatif' });
+    }
+
+    // Cari produk
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: 'Produk tidak ditemukan' });
+    }
+
+    // Cari supplier dalam array suppliers
+    const supplierIndex = product.suppliers.findIndex(
+      (s) => s.supplierId.toString() === supplierId.toString()
+    );
+
+    if (supplierIndex === -1) {
+      return res.status(404).json({ message: 'Supplier tidak ditemukan pada produk ini' });
+    }
+
+    // Update harga & tanggal terakhir
+    product.suppliers[supplierIndex].price = Number(price);
+    product.suppliers[supplierIndex].lastPurchaseDate = new Date();
+
+    // Simpan perubahan
+    await product.save();
+
+    res.json({
+      message: 'Harga produk berhasil diperbarui',
+      data: {
+        productId: product._id,
+        productName: product.name,
+        supplierId: product.suppliers[supplierIndex].supplierId,
+        supplierName: product.suppliers[supplierIndex].supplierName,
+        price: product.suppliers[supplierIndex].price,
+        lastPurchaseDate: product.suppliers[supplierIndex].lastPurchaseDate
+      }
+    });
+
+  } catch (error) {
+    console.error('Error saat update harga produk:', error);
+    res.status(500).json({ 
+      message: 'Terjadi kesalahan server', 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
+  }
+};
+
+
+
 // 5. Hapus Produk
 export const deleteProduct = async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {

@@ -4,6 +4,8 @@ import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaPencilAlt, FaTrash, FaRe
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Header from "../admin/header";
+import ConfirmationModalActive from "./confirmationModalAction";
+import MessageAlertMenu from "./messageAlertMenu";
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
   if (!isOpen) return null;
@@ -62,6 +64,9 @@ const Menu = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [category, setCategory] = useState([]);
   const [status, setStatus] = useState([]);
+  const [newStatus, setNewStatus] = useState(null);
+  const [selectedMenu, setSelectedMenu] = useState(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [outlets, setOutlets] = useState([]);
   const [error, setError] = useState(null);
   const [checkedItems, setCheckedItems] = useState([]);
@@ -189,6 +194,28 @@ const Menu = () => {
     }).format(amount);
   };
 
+  const handleUpdate = async (itemId, newStatus) => {
+    setLoading(true); // ⬅️ mulai loading
+    try {
+      setTimeout(async () => {
+        try {
+          await axios.put(`/api/menu/menu-items/activated/${itemId}`, { isActive: newStatus });
+          navigate("/admin/menu", {
+            state: { success: `Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
+          });
+          fetchData();
+        } catch (error) {
+          console.error("Error updating menu:", error);
+        } finally {
+          setLoading(false); // ⬅️ stop loading setelah selesai
+        }
+      }, 2000);
+    } catch (error) {
+      console.error("Gagal update status:", error);
+      alert("Terjadi kesalahan saat update status");
+    }
+  };
+
   const handleDelete = async (itemId) => {
     try {
       await axios.delete(`/api/menu/menu-items/${itemId}`);
@@ -266,6 +293,9 @@ const Menu = () => {
           </Link>
         </div>
       </div>
+
+      <MessageAlertMenu />
+
       <div className="px-[15px] pb-[15px]">
         <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
           {/* Outlet */}
@@ -322,148 +352,150 @@ const Menu = () => {
 
       {/* Menu Table */}
       <div className="w-full mt-4 shadow-md">
-        <table className="w-full table-auto text-gray-500">
-          <thead>
-            <tr className="text-[14px] h-20">
-              <th className="p-[15px] font-normal text-right w-10">
-                <input
-                  type="checkbox"
-                  className="w-[20px] h-[20px] accent-[#005429]"
-                  checked={checkAll}
-                  onChange={(e) => {
-                    const isChecked = e.target.checked;
-                    setCheckAll(isChecked);
-                    setCheckedItems(isChecked ? currentItems.map(item => item.id) : []);
-                  }}
-                />
-              </th>
-              <th className="p-[15px] font-normal text-left">Produk</th>
-              <th className="p-[15px] font-normal text-left">Kategori</th>
-              <th className="p-[15px] font-normal text-right">Harga</th>
-              <th className="p-[15px] font-normal w-20">
-                {checkedItems.length > 0 && (
-                  <button
-                    onClick={handleDeleteSelected}
-                    className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 flex justify-center items-center space-x-2"
-                  >
-                    <p>{checkedItems.length}</p> <FaTrashAlt />
-                  </button>
-                )}</th>
-            </tr>
-          </thead>
-          {currentItems.length > 0 ? (
-            <tbody>
-              {currentItems.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-100 text-[14px]">
-                  <td className="p-[15px] text-right">
-                    <input
-                      type="checkbox"
-                      className="w-[20px] h-[20px] accent-[#005429]"
-                      checked={checkedItems.includes(item.id)}
-                      onChange={(e) => {
-                        const isChecked = e.target.checked;
-                        setCheckedItems(prev => {
-                          const updated = isChecked
-                            ? [...prev, item.id]
-                            : prev.filter(id => id !== item.id);
-                          setCheckAll(updated.length === currentItems.length);
-                          return updated;
-                        });
-                      }}
-                    />
-
-                  </td>
-                  <td className="p-[15px]">
-                    <div className="flex items-center">
-                      <img
-                        src={item.imageUrl || "https://via.placeholder.com/100"}
-                        alt={item.name}
-                        className="w-[35px] h-[35px] object-cover rounded-lg"
+        <div className="overflow-auto">
+          <table className="w-full table-auto text-gray-500">
+            <thead>
+              <tr className="text-[14px] h-20">
+                <th className="p-[15px] font-normal text-right w-10">
+                  <input
+                    type="checkbox"
+                    className="w-[20px] h-[20px] accent-[#005429]"
+                    checked={checkAll}
+                    onChange={(e) => {
+                      const isChecked = e.target.checked;
+                      setCheckAll(isChecked);
+                      setCheckedItems(isChecked ? currentItems.map(item => item.id) : []);
+                    }}
+                  />
+                </th>
+                <th className="p-[15px] font-normal text-left">Produk</th>
+                <th className="p-[15px] font-normal text-left">Kategori</th>
+                <th className="p-[15px] font-normal text-right">Harga</th>
+                <th className="p-[15px] font-normal w-20">
+                  {checkedItems.length > 0 && (
+                    <button
+                      onClick={handleDeleteSelected}
+                      className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 flex justify-center items-center space-x-2"
+                    >
+                      <p>{checkedItems.length}</p> <FaTrashAlt />
+                    </button>
+                  )}</th>
+              </tr>
+            </thead>
+            {currentItems.length > 0 ? (
+              <tbody className="divide-y divide-gray-200 text-[14px]">
+                {currentItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                    {/* Checkbox */}
+                    <td className="p-4 text-center">
+                      <input
+                        type="checkbox"
+                        className="w-5 h-5 accent-[#005429] rounded cursor-pointer"
+                        checked={checkedItems.includes(item.id)}
+                        onChange={(e) => {
+                          const isChecked = e.target.checked;
+                          setCheckedItems((prev) => {
+                            const updated = isChecked
+                              ? [...prev, item.id]
+                              : prev.filter((id) => id !== item.id);
+                            setCheckAll(updated.length === currentItems.length);
+                            return updated;
+                          });
+                        }}
                       />
-                      <div className="ml-4">
-                        <h3>{item.name}</h3>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-[15px]">
-                    {Array.isArray(item.category)
-                      ? item.category.map((category) => category.name).join(", ")
-                      : item.category?.name || "-"}
-                  </td>
-                  <td className="p-[15px] text-right">{formatCurrency(item.originalPrice)}</td>
-                  <td className="p-[15px]">
-                    {/* Dropdown Menu */}
-                    <div className="relative text-right">
-                      <button
-                        className="px-2 bg-white border border-gray-200 hover:bg-green-800 rounded-sm"
-                        onClick={() => setOpenDropdown(openDropdown === item.id ? null : item.id)}
-                      >
-                        <span className="text-xl text-gray-200 hover:text-white">
-                          •••
-                        </span>
-                      </button>
-                      {openDropdown === item.id && (
-                        <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
-                          <ul className="w-full">
-                            {/* <Link
-                                  to={`/admin/manage-stock/${item.id}`}
-                                  className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                                >
-                                  <FaThLarge size={18} />
-                                  <span>Kelola Stok</span>
-                                </Link>
-                                <Link
-                                  to={`/admin/manage-price-and-selling-status/${item.id}`}
-                                  className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                                >
-                                  <FaDollarSign size={18} />
-                                  <span>Kelola Harga & Status Jual</span>
-                                </Link> */}
-                            <Link
-                              to={`/admin/menu-receipt/${item.id}`}
-                              className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100 border-b"
-                            >
-                              <FaReceipt size={18} />
-                              <span>Kelola Resep</span>
-                            </Link>
-                            <Link
-                              to={`/admin/menu-update/${item.id}`}
-                              className="bg-transparent flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                            >
-                              <FaPencilAlt size={18} />
-                              <span>Edit</span>
-                            </Link>
-                            <button
-                              className="w-full flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                              onClick={() => {
-                                setItemToDelete(item.id);
-                                setIsModalOpen(true);
+                    </td>
 
-                              }}>
-                              <FaTrash size={18} />
-                              <span>Hapus</span>
-                            </button>
-                            <button
-                              className="w-full flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
-                              {item.isActive === true ? <FaEyeSlash className="text-red-500" /> : <FaEye className="text-[#005429]" />}
-                              <span>{item.isActive === true ? "Matikan" : "Aktifkan"}</span>
-                            </button>
-                          </ul>
+                    {/* Image + Name */}
+                    <td className="p-4">
+                      <div className="flex items-center">
+                        <img
+                          src={item.imageUrl || "https://via.placeholder.com/100"}
+                          alt={item.name}
+                          className="w-10 h-10 object-cover rounded-lg border border-gray-200"
+                        />
+                        <div className="ml-3">
+                          <p className="font-medium text-gray-800">{item.name}</p>
+                          <p className="text-xs text-gray-500">ID: {item.id}</p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    </td>
+
+                    {/* Category */}
+                    <td className="p-4 text-gray-700">
+                      {Array.isArray(item.category)
+                        ? item.category.map((category) => category.name).join(", ")
+                        : item.category?.name || "-"}
+                    </td>
+
+                    {/* Price */}
+                    <td className="p-4 text-right font-medium text-gray-900">
+                      {formatCurrency(item.originalPrice)}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="p-4">
+                      <div className="flex items-center justify-end space-x-3">
+                        {/* Resep */}
+                        <Link
+                          to={`/admin/menu-receipt/${item.id}`}
+                          className="p-2 rounded-md hover:bg-gray-100 text-gray-600"
+                          title="Kelola Resep"
+                        >
+                          <FaReceipt size={16} />
+                        </Link>
+
+                        {/* Edit */}
+                        <Link
+                          to={`/admin/menu-update/${item.id}`}
+                          className="p-2 rounded-md hover:bg-gray-100 text-blue-600"
+                          title="Edit"
+                        >
+                          <FaPencilAlt size={16} />
+                        </Link>
+
+                        {/* Toggle Aktif / Tidak Aktif */}
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <span
+                            className={`text-xs font-medium ${item.isActive ? "text-green-600" : "text-gray-500"
+                              }`}
+                          >
+                            {item.isActive ? "Aktif" : "Tidak Aktif"}
+                          </span>
+                          <div className="relative inline-flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={item.isActive}
+                              // onChange={() => handleUpdate(item.id, item.isActive)}
+                              onChange={() => {
+                                setSelectedMenu(item);
+                                setNewStatus(!item.isActive);
+                                setIsConfirmOpen(true);
+                              }}
+                              className="sr-only peer"
+                            />
+                            {/* Background toggle */}
+                            <div className="w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors"></div>
+                            {/* Lingkaran slider */}
+                            <div className="absolute left-[2px] top-[2px] w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
+                          </div>
+                        </label>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            ) : (
+              <tbody>
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-gray-500">
+                    Tidak ada data ditemukan
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          ) : (
-            <tbody>
-              <tr className="py-6 text-center w-full h-96">
-                <td colSpan={7}>Tidak ada data ditemukan</td>
-              </tr>
-            </tbody>
-          )}
-        </table>
+              </tbody>
+            )}
+
+          </table>
+        </div>
       </div>
 
       {/* Pagination */}
@@ -533,6 +565,23 @@ const Menu = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConfirm={() => handleDelete(itemToDelete)}
+      />
+
+      <ConfirmationModalActive
+        isOpen={isConfirmOpen}
+        menu={selectedMenu}
+        newStatus={newStatus}
+        onClose={() => {
+          setIsConfirmOpen(false);
+          setSelectedMenu(null);
+          setNewStatus(null);
+        }}
+        onConfirm={async () => {
+          await handleUpdate(selectedMenu.id, newStatus);
+          setIsConfirmOpen(false);
+          setSelectedMenu(null);
+          setNewStatus(null);
+        }}
       />
     </div>
   );

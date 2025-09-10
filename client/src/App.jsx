@@ -141,6 +141,7 @@ import UpdateProduction from "./pages/inventory/production_list/update";
 import UpdateEvent from "./pages/event/update";
 import UpdateVoucher from "./pages/promotion/voucher/update";
 import CurrentStockManagement from "./pages/inventory/current_stock_menu";
+import SoManagement from "./pages/inventory/so";
 
 
 export default function App() {
@@ -240,9 +241,9 @@ export default function App() {
 
                 {/* Inventory */}
                 <Route path="inventory/stockcard" element={<StockCardManagement />} />
-                <Route path="inventory/current-stock" element={<CurrentStockManagement />} />
+                <Route path="inventory/in" element={<CurrentStockManagement />} />
                 <Route path="inventory/cardoutlet" element={<OutletCardManagement />} />
-                <Route path="inventory/in" element={<InStockManagement />} />
+                {/* <Route path="inventory/in" element={<InStockManagement />} /> */}
                 <Route path="inventory/instock-create" element={<CreateStock />} />
                 <Route path="inventory/out" element={<OutStockManagement />} />
                 <Route path="inventory/outstock-create" element={<CreateOutStock />} />
@@ -254,6 +255,7 @@ export default function App() {
                 <Route path="inventory/production-list" element={<ProductionListManagement />} />
                 <Route path="inventory/production-update/:id" element={<UpdateProduction />} />
                 <Route path="inventory/production-create" element={<CreateProduction />} />
+                <Route path="inventory/so" element={<SoManagement />} />
 
                 {/* Tax And Service */}
                 {/* Tax */}

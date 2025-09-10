@@ -39,15 +39,14 @@ export const createAppOrder = async (req, res) => {
       openBillData,      // New field
     } = req.body;
 
-    // Validate required fields
-    if (!items || items.length === 0) {
+    // ✅ Validasi items, kecuali reservasi tanpa open bill
+    if ((!items || items.length === 0) && !(orderType === 'reservation' && !isOpenBill)) {
       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
     }
     if (!isOpenBill && !orderType) {
       return res.status(400).json({ success: false, message: 'Order type is required' });
     }
 
-    console.log('Payment method:', paymentDetails);
     if (!paymentDetails?.method) {
       return res.status(400).json({ success: false, message: 'Payment method is required' });
     }
@@ -61,16 +60,11 @@ export const createAppOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    console.log('User exists:', userExists);
-
     // Handle Open Bill scenario - find existing reservation order
     let existingOrder = null;
     let existingReservation = null;
 
     if (isOpenBill && openBillData) {
-      console.log('Processing Open Bill order:', openBillData);
-
-      // Find the existing reservation
       existingReservation = await Reservation.findById(openBillData.reservationId);
       if (!existingReservation) {
         return res.status(404).json({
@@ -79,12 +73,8 @@ export const createAppOrder = async (req, res) => {
         });
       }
 
-      // Find the existing order associated with this reservation
       if (existingReservation.order_id) {
         existingOrder = await Order.findById(existingReservation.order_id);
-        if (!existingOrder) {
-          console.warn('Reservation has order_id but order not found:', existingReservation.order_id);
-        }
       }
     }
 
@@ -125,79 +115,69 @@ export const createAppOrder = async (req, res) => {
     // Find voucher if provided
     let voucherId = null;
     if (voucherCode) {
-      const voucher = await Voucher.findOne({ code: voucherCode });
+      const voucher = await Voucher.findOneAndUpdate(
+        { code: voucherCode },
+        { $inc: { quota: -1 } },
+        { new: true }
+      );
       if (voucher) {
         voucherId = voucher._id;
       }
     }
 
-    // Process items
+    // Process items (jika ada)
     const orderItems = [];
-    for (const item of items) {
-      const menuItem = await MenuItem.findById(item.productId)
-        .populate('availableAt');
+    if (items && items.length > 0) {
+      for (const item of items) {
+        const menuItem = await MenuItem.findById(item.productId).populate('availableAt');
+        if (!menuItem) {
+          return res.status(404).json({
+            success: false,
+            message: `Menu item not found: ${item.productId}`
+          });
+        }
 
-      if (!menuItem) {
-        return res.status(404).json({
-          success: false,
-          message: `Menu item not found: ${item.productId}`
+        const processedAddons = item.addons?.map(addon => ({
+          name: addon.name,
+          price: addon.price
+        })) || [];
+
+        const processedToppings = item.toppings?.map(topping => ({
+          name: topping.name,
+          price: topping.price
+        })) || [];
+
+        const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
+        const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
+        const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
+
+        orderItems.push({
+          menuItem: menuItem._id,
+          quantity: item.quantity,
+          subtotal: itemSubtotal,
+          addons: processedAddons,
+          toppings: processedToppings,
+          notes: item.notes || '',
+          outletId: menuItem.availableAt?.[0]?._id || null,
+          outletName: menuItem.availableAt?.[0]?.name || null,
+          isPrinted: false,
         });
       }
-
-      const processedAddons = item.addons?.map(addon => ({
-        name: addon.name,
-        price: addon.price
-      })) || [];
-
-      const processedToppings = item.toppings?.map(topping => ({
-        name: topping.name,
-        price: topping.price
-      })) || [];
-
-      const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
-      const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
-      const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
-
-      console.log('Menu item available at:', menuItem.availableAt?.[0]);
-
-      orderItems.push({
-        menuItem: menuItem._id,
-        quantity: item.quantity,
-        subtotal: itemSubtotal,
-        addons: processedAddons,
-        toppings: processedToppings,
-        notes: item.notes || '',
-        outletId: menuItem.availableAt?.[0]?._id || null,
-        outletName: menuItem.availableAt?.[0]?.name || null,
-        isPrinted: false,
-      });
     }
-
-    console.log('Processed order items:', orderItems);
 
     let newOrder;
 
-    // Handle Open Bill - Add items to existing order or create new associated order
+    // ✅ Handle Open Bill
     if (isOpenBill && existingOrder) {
-      console.log('Adding items to existing order:', existingOrder._id);
-
-      // Add new items to existing order
       existingOrder.items.push(...orderItems);
-
-      // Recalculate totals
       const newSubtotal = existingOrder.items.reduce((sum, item) => sum + item.subtotal, 0);
       existingOrder.totalBeforeDiscount = newSubtotal;
-      existingOrder.totalAfterDiscount = newSubtotal; // No discount logic for now
+      existingOrder.totalAfterDiscount = newSubtotal;
       existingOrder.grandTotal = newSubtotal;
-
-      // Save updated order
       await existingOrder.save();
       newOrder = existingOrder;
 
     } else if (isOpenBill && !existingOrder) {
-      console.log('Creating new order for open bill (no existing order found)');
-
-      // Create new order but associate with existing reservation
       newOrder = new Order({
         order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         user_id: userId,
@@ -211,16 +191,12 @@ export const createAppOrder = async (req, res) => {
         tableNumber: openBillData.tableNumbers || tableNumber || '',
         type: 'Indoor',
         voucher: voucherId,
-        outlet: outlet,
+        outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
         totalBeforeDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
         totalAfterDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
         totalTax: 0,
         totalServiceFee: 0,
-        discounts: {
-          autoPromoDiscount: 0,
-          manualDiscount: 0,
-          voucherDiscount: 0
-        },
+        discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
         appliedPromos: [],
         appliedManualPromo: null,
         appliedVoucher: voucherId,
@@ -229,20 +205,22 @@ export const createAppOrder = async (req, res) => {
         promotions: [],
         source: 'App',
         reservation: existingReservation._id,
-        isOpenBill: true, // Mark as open bill order
-        originalReservationId: openBillData.reservationId, // Reference to original reservation
+        isOpenBill: true,
+        originalReservationId: openBillData.reservationId,
       });
-
       await newOrder.save();
 
-      // Update reservation to point to this order if it doesn't have one
       if (!existingReservation.order_id) {
         existingReservation.order_id = newOrder._id;
         await existingReservation.save();
       }
 
     } else {
-      // Normal order creation (not open bill)
+      // ✅ Normal order creation
+      const subtotal = orderItems.length > 0
+        ? orderItems.reduce((sum, item) => sum + item.subtotal, 0)
+        : 100000; // minimal reservasi tanpa menu
+
       newOrder = new Order({
         order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         user_id: userId,
@@ -256,29 +234,23 @@ export const createAppOrder = async (req, res) => {
         tableNumber: tableNumber || '',
         type: 'Indoor',
         voucher: voucherId,
-        outlet: outlet,
-        totalBeforeDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
-        totalAfterDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
+        outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
+        totalBeforeDiscount: subtotal,
+        totalAfterDiscount: subtotal,
         totalTax: 0,
         totalServiceFee: 0,
-        discounts: {
-          autoPromoDiscount: 0,
-          manualDiscount: 0,
-          voucherDiscount: 0
-        },
+        discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
         appliedPromos: [],
         appliedManualPromo: null,
         appliedVoucher: voucherId,
         taxAndServiceDetails: [],
-        grandTotal: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
+        grandTotal: subtotal,
         promotions: [],
         source: 'App',
         reservation: null,
       });
-
       await newOrder.save();
     }
-
     // Handle reservation creation if orderType is reservation AND not open bill
     let reservationRecord = null;
     if (orderType === 'reservation' && !isOpenBill) {
@@ -2956,7 +2928,14 @@ export const getAllOrders = async (req, res) => {
     const orders = await Order.find()
       .populate('items.menuItem')
       .populate('user')
-      .populate('cashierId')
+      .populate({
+        path: 'cashierId',
+        populate: {
+          path: 'outlet.outletId',
+          model: 'Outlet',
+          select: 'name address', // field yang mau ditampilkan
+        },
+      })
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: orders });
