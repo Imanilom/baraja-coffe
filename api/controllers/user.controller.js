@@ -4,6 +4,7 @@ import bcryptjs from 'bcryptjs';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import { validationResult } from 'express-validator';
+import bcrypt from 'bcryptjs/dist/bcrypt.js';
 export const test = (req, res) => {
   res.json({ message: 'API is working!', user: req.user });
 };

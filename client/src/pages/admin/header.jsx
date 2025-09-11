@@ -3,12 +3,18 @@ import { Link } from "react-router-dom";
 
 export default function Header() {
     return (
-        <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-            <FaBell size={23} className="text-gray-400" />
-            <span className="text-[14px]">Hi Baraja</span>
-            <Link to="/profile" className="text-gray-400 inline-block text-2xl">
-                <FaUser size={30} />
-            </Link>
-        </div>
+        <header className="flex justify-between items-center px-6 py-4 bg-white shadow-sm">
+            <h1 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                {/* <FaIdBadge className="text-[#005429]" />
+                            Manajemen Karyawan */}
+            </h1>
+            <div className="flex items-center space-x-4">
+                <FaBell size={20} className="text-gray-400" />
+                <span className="text-sm text-gray-600">Hi, Baraja</span>
+                <Link to="/profile">
+                    <FaUser size={22} className="text-gray-500" />
+                </Link>
+            </div>
+        </header>
     )
 }

@@ -20,7 +20,7 @@ import {
 import { authMiddleware, verifyToken } from '../utils/verifyUser.js';
 
 const staffAccess = verifyToken(['staff']);
-const adminAccess = verifyToken(['admin', 'superadmin']);
+const adminAccess = verifyToken(['admin', 'superadmin', 'hrd']);
 
 const router = express.Router();
 

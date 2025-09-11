@@ -1,4 +1,5 @@
 import User from '../models/user.model.js';
+import Role from "../models/Role.model.js";
 import bcryptjs from 'bcryptjs';
 import { errorHandler } from '../utils/error.js';
 import jwt from 'jsonwebtoken';
@@ -66,39 +67,47 @@ export const signup = async (req, res, next) => {
   const { username, email, password } = req.body;
 
   try {
+    if (!username || !email || !password) {
+      return next(errorHandler(400, "Username, email, and password are required"));
+    }
+
+    // Hash password
     const hashedPassword = bcryptjs.hashSync(password, 10);
 
+    // Cari role default = customer
+    const customerRole = await Role.findOne({ name: "customer" });
+    if (!customerRole) {
+      return next(errorHandler(500, "Default role 'customer' not found. Please seed roles first."));
+    }
+
+    // Buat user baru
     const newUser = new User({
       username,
       email,
       password: hashedPassword,
-      role: "customer",       // opsional kalau defaultnya customer
-      consumerType: "bronze", // opsional biar konsisten kayak googleAuth
-      authType: "local",      // ✅ set default authType
+      role: customerRole._id,  // 🔑 pakai ObjectId dari role
+      authType: "local",       // set default authType
+      loyaltyPoints: 0,
     });
 
     const savedUser = await newUser.save();
 
-    // Buat payload untuk token
-    const payload = {
-      id: savedUser._id,
-      username: savedUser.username,
-      email: savedUser.email,
-    };
+    // Buat token
+    const token = jwt.sign(
+      { id: savedUser._id, role: customerRole.name },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-    // Generate token
-    const token = jwt.sign({ id: payload.id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
-
-    // Kirimkan response
+    // Kirim response
     res.status(201).json({
       message: "User created successfully",
       user: {
         id: savedUser._id,
         username: savedUser.username,
         email: savedUser.email,
-        authType: savedUser.authType, // ✅ ikut dikembalikan biar konsisten
+        role: customerRole.name,   // ✅ tampilkan nama role, bukan ObjectId
+        authType: savedUser.authType,
       },
       token,
     });
@@ -119,35 +128,38 @@ export const signin = async (req, res, next) => {
     let user = null;
     let tokenExpiry = "1h";
 
-    // Customer login
+    // Customer login pakai email
     if (typeof identifier === "string" && identifier.includes("@")) {
-      user = await User.findOne({ email: identifier });
-      if (!user || user.role !== "customer") {
+      user = await User.findOne({ email: identifier }).populate("role");
+      if (!user || user.role.name !== "customer") {
         return next(errorHandler(403, "Access denied"));
       }
       tokenExpiry = "7d";
     } else {
-      // Staff / admin login
-      user = await User.findOne({ username: identifier }).populate({
-        path: "outlet.outletId",
-        select: ["name", "admin"],
-        populate: { path: "admin", select: "name" },
-      });
+      // Staff / Admin login pakai username
+      user = await User.findOne({ username: identifier })
+        .populate("role")
+        .populate({
+          path: "outlet.outletId",
+          select: ["name", "admin"],
+          populate: { path: "admin", select: "name" },
+        });
 
-      if (
-        !user ||
-        ![
-          "superadmin",
-          "admin",
-          "marketing",
-          "akuntan",
-          "inventory",
-          "operational",
-          "staff",
-          "cashier junior",
-          "cashier senior",
-        ].includes(user.role)
-      ) {
+      const allowedRoles = [
+        "superadmin",
+        "admin",
+        "marketing",
+        "akuntan",
+        "inventory",
+        "operational",
+        "qc",
+        "hrd",
+        "staff",
+        "cashier junior",
+        "cashier senior",
+      ];
+
+      if (!user || !allowedRoles.includes(user.role.name)) {
         return next(errorHandler(403, "Access denied"));
       }
 
@@ -166,36 +178,48 @@ export const signin = async (req, res, next) => {
     const isValidPassword = bcryptjs.compareSync(password, user.password);
     if (!isValidPassword) return next(errorHandler(401, "Wrong credentials"));
 
+    // ✅ Simpan role.name, bukan ObjectId
     const token = jwt.sign(
-      { id: user._id, role: user.role, cashierType: user.cashierType },
+      {
+        id: user._id,
+        role: user.role.name,
+        cashierType: user.cashierType,
+      },
       process.env.JWT_SECRET,
       { expiresIn: tokenExpiry }
     );
 
     const { password: hashedPassword, ...rest } = user._doc;
-    let response = { ...rest, token };
+    let response = { ...rest, role: user.role.name, token };
 
-    if (user.role === "admin") {
-      const cashier = await User.find({
-        role: ["cashier junior", "cashier senior"],
-      }).populate("outlet.outletId", "admin");
-      response.cashiers = cashier;
+    // Jika admin, ambil daftar cashier
+    if (user.role.name === "admin") {
+      const cashierRoles = await Role.find({
+        name: { $in: ["cashier junior", "cashier senior"] },
+      });
+      const cashierRoleIds = cashierRoles.map(r => r._id);
+
+      const cashiers = await User.find({ role: { $in: cashierRoleIds } })
+        .populate("role")
+        .populate("outlet.outletId", "admin");
+
+      response.cashiers = cashiers.map(c => ({
+        ...c._doc,
+        role: c.role.name,
+      }));
     }
 
-    res.cookie("access_token", token, {
-      httpOnly: true,
-      maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
-    })
+    res
+      .cookie("access_token", token, {
+        httpOnly: true,
+        maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+      })
       .status(200)
       .json(response);
   } catch (error) {
     next(error);
   }
 };
-
-
-
-
 
 export const googleAuth = async (req, res) => {
   const { idToken } = req.body;
@@ -209,40 +233,56 @@ export const googleAuth = async (req, res) => {
     const payload = ticket.getPayload();
     const { email, name, picture } = payload;
 
-    let user = await User.findOne({ email });
+    // Cari role default "customer"
+    const customerRole = await Role.findOne({ name: "customer" });
+    if (!customerRole) {
+      return res
+        .status(500)
+        .json({ message: "Default role 'customer' not found. Please seed roles first." });
+    }
+
+    let user = await User.findOne({ email }).populate("role");
 
     if (!user) {
       user = new User({
         username: name,
         email,
-        password: "-",
+        password: "-", // karena Google login
         profilePicture: picture,
-        role: "customer",
-        consumerType: "bronze",
+        role: customerRole._id,  // 🔑 simpan ObjectId
         authType: "google",
       });
       await user.save();
     } else {
-      await User.updateOne(
-        { _id: user._id },
-        { $set: { authType: "google" } }
-      );
+      // update authType jika user sudah ada
+      user.authType = "google";
+      await user.save();
       console.log("Updated authType to 'google' for user:", user.email);
     }
 
+    // Buat token (simpan role.name supaya gampang dipakai frontend)
+    const token = jwt.sign(
+      { id: user._id, role: user.role?.name || customerRole.name },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
-
+    // Buat response user (hilangkan password)
     const { password, ...userData } = user._doc;
 
-    res.status(200).json({ user: userData, token });
+    res.status(200).json({
+      user: {
+        ...userData,
+        role: user.role?.name || customerRole.name,
+      },
+      token,
+    });
   } catch (err) {
     console.error("Google Auth Error:", err);
     res.status(401).json({ message: "Invalid Google token" });
   }
 };
+
 
 export const signout = (req, res) => {
   res.clearCookie('access_token').status(200).json('Signout success!');

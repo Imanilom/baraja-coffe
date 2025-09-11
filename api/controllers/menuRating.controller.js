@@ -52,7 +52,7 @@ export class MenuRatingController {
 
             console.log('Rating created successfully:', populatedRating);
 
-            res.status(201).json({
+            return res.status(201).json({
                 success: true,
                 message: 'Rating created successfully',
                 data: populatedRating
@@ -60,12 +60,22 @@ export class MenuRatingController {
 
         } catch (error) {
             console.error('Error creating rating:', error);
-            res.status(500).json({
+
+            // Handle duplicate key (index unik schema)
+            if (error.code === 11000) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Duplicate rating: You have already rated this menu item for this order'
+                });
+            }
+
+            return res.status(500).json({
                 success: false,
                 message: error.message || 'Internal server error'
             });
         }
     }
+
 
     // READ - Mendapatkan semua rating untuk menu tertentu
     static async getMenuRatings(req, res) {
@@ -198,8 +208,22 @@ export class MenuRatingController {
     static async getCustomerRating(req, res) {
         try {
             const { menuItemId, orderId } = req.params;
-            const order = await Order.findOne({ order_id: orderId });
-            const _id = order._id;
+            let order;
+
+            // Cek apakah orderId adalah ObjectId yang valid
+            if (mongoose.Types.ObjectId.isValid(orderId)) {
+                order = await Order.findById(orderId).lean();
+            } else {
+                order = await Order.findOne({ order_id: orderId }).lean();
+            }
+
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
             const customerId = order.user_id;
 
             const rating = await MenuRating.findOne({
@@ -229,6 +253,9 @@ export class MenuRatingController {
             });
         }
     }
+
+
+
 
     // UPDATE - Update rating (hanya untuk customer yang membuat rating)
     static async updateRating(req, res) {

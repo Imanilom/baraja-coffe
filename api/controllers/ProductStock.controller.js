@@ -22,32 +22,41 @@ export const insertInitialStocks = async (req, res) => {
         session.startTransaction();
 
         for (const item of stocks) {
+          if (!item.warehouseId) {
+            throw new Error(`WarehouseId wajib diisi untuk produk ${item.name}`);
+          }
+
           const product = await Product.findOne({ name: item.name }).session(session);
           if (!product) {
             throw new Error(`Produk ${item.name} tidak ditemukan`);
           }
 
-          // Cek apakah sudah ada stok untuk kombinasi productId + category
+          // cek apakah stok sudah ada berdasarkan kombinasi productId + category + warehouse
           const existingStock = await ProductStock.findOne({
             productId: product._id,
-            category: item.category
+            category: item.category,
+            warehouse: item.warehouseId
           }).session(session);
 
           if (existingStock) {
-            // Update stok dan tambahkan movement
+            // Update stok & tambah movement
             existingStock.currentStock += item.qty;
             existingStock.movements.push({
               quantity: item.qty,
               type: 'in',
               referenceId: new mongoose.Types.ObjectId(),
-              notes: 'Stok awal'
+              notes: 'Stok awal',
+              destinationWarehouse: item.warehouseId,
+              handledBy: req.user?.username || "system",
+              date: new Date()
             });
             await existingStock.save({ session });
           } else {
-            // Buat dokumen baru
+            // Buat stok baru
             const newStock = new ProductStock({
               productId: product._id,
               category: item.category,
+              warehouse: item.warehouseId,
               currentStock: item.qty,
               minStock: 0,
               movements: [
@@ -55,7 +64,10 @@ export const insertInitialStocks = async (req, res) => {
                   quantity: item.qty,
                   type: 'in',
                   referenceId: new mongoose.Types.ObjectId(),
-                  notes: 'Stok awal'
+                  notes: 'Stok awal',
+                  destinationWarehouse: item.warehouseId,
+                  handledBy: req.user?.username || "system",
+                  date: new Date()
                 }
               ]
             });
@@ -66,7 +78,7 @@ export const insertInitialStocks = async (req, res) => {
         await session.commitTransaction();
         session.endSession();
         success = true;
-        break; // keluar loop retry jika berhasil
+        break;
 
       } catch (error) {
         await session.abortTransaction();
@@ -109,9 +121,6 @@ export const insertInitialStocks = async (req, res) => {
     });
   }
 };
-
-
-
 
 export const getProductStock = async (req, res) => {
   try {

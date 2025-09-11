@@ -4,12 +4,9 @@ import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
-import { useSelector } from "react-redux";
 
 
-const EmployeeManagement = () => {
-
-    const { currentUser } = useSelector((state) => state.user);
+const RoleManagement = () => {
     const [attendances, setAttendances] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
@@ -40,17 +37,13 @@ const EmployeeManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    console.log(currentUser)
-
     // Fetch attendances and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
                 // Fetch attendances data
-                const employeeResponse = await axios.get("/api/user/staff", {
-                    headers: { Authorization: `Bearer ${currentUser.token}` },
-                });
+                const employeeResponse = await axios.get("/api/user");
                 const employeeData = employeeResponse.data || [];
 
                 setAttendances(employeeData);
@@ -451,4 +444,4 @@ const EmployeeManagement = () => {
     );
 };
 
-export default EmployeeManagement;
+export default RoleManagement;

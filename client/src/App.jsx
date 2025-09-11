@@ -142,6 +142,11 @@ import UpdateEvent from "./pages/event/update";
 import UpdateVoucher from "./pages/promotion/voucher/update";
 import CurrentStockManagement from "./pages/inventory/current_stock_menu";
 import SoManagement from "./pages/inventory/so";
+import AccessMenu from "./pages/access";
+import UserManagement from "./pages/access/user";
+import RoleManagement from "./pages/access/role";
+import CreateUser from "./pages/access/user/create";
+import UpdateUser from "./pages/access/user/update";
 
 
 export default function App() {
@@ -159,7 +164,7 @@ export default function App() {
             <Route path="/sign-up" element={<SignUp />} />
 
             {/* Halaman Admin dengan Sidebar */}
-            <Route element={<PrivateRoute allowedRoles={["admin", "superadmin"]} />}>
+            <Route element={<PrivateRoute allowedRoles={["admin", "superadmin", "qc", "inventory", "hrd", "operational", "marketing", "akuntan"]} />}>
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<Dashboard />} />
@@ -330,6 +335,12 @@ export default function App() {
                 <Route path="commission" element={<Commission />} />
                 <Route path="commission-create" element={<CreateCommission />} />
 
+                {/* Access */}
+                <Route path="access-settings" element={<AccessMenu />} />
+                <Route path="access-settings/role" element={<RoleManagement />} />
+                <Route path="access-settings/user" element={<UserManagement />} />
+                <Route path="access-settings/user-create" element={<CreateUser />} />
+                <Route path="access-settings/user-update/:id" element={<UpdateUser />} />
               </Route>
             </Route>
 

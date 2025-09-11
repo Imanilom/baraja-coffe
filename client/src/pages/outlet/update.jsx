@@ -226,12 +226,13 @@ export default function UpdateOutlet() {
     const handleUpdateAll = async (e) => {
         e.preventDefault();
         try {
-            // Update outlet
+            // Ambil foto
             const pics = (outlet.outletPictures || "")
                 .split(",")
                 .map(s => s.trim())
                 .filter(Boolean);
 
+            // Payload utama outlet
             const payloadOutlet = {
                 name: outlet.name,
                 address: outlet.address,
@@ -241,11 +242,10 @@ export default function UpdateOutlet() {
                 admin: outlet.admin || null,
                 outletPictures: pics.length ? pics : undefined,
             };
-            await axios.put(`/api/outlet/${id}`, payloadOutlet);
 
-            // Update lokasi (jika ada ID)
-            if (loc._id) {
-                const payloadLoc = {
+            // Jika ada lokasi, masukkan sebagai locationData
+            if (loc && Object.keys(loc).length > 0) {
+                payloadOutlet.locationData = {
                     label: loc.label || "Outlet",
                     recipientName: loc.recipientName,
                     phoneNumber: loc.phoneNumber,
@@ -262,8 +262,12 @@ export default function UpdateOutlet() {
                         coordinates: [Number(mapPos.lng), Number(mapPos.lat)],
                     },
                 };
-                await axios.put(`/api/outlet/${id}/locations/${loc._id}`, payloadLoc);
             }
+
+            console.log(payloadOutlet);
+
+            // Kirim hanya sekali
+            await axios.put(`/api/outlet/${id}`, payloadOutlet);
 
             alert("Data outlet berhasil diperbarui");
             navigate("/admin/outlet");

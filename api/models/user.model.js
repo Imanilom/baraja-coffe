@@ -7,7 +7,9 @@ const UserSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: true,
+    required: function () {
+      return this.role === "customer"; // hanya wajib kalau role = customer
+    },
     unique: true
   },
   phone: {
@@ -15,7 +17,7 @@ const UserSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: false, // atau minimal: true, validate: v => v.length > 0
+    required: false,
     default: '-'
   },
   address: {
@@ -26,24 +28,27 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: 'https://img.freepik.com/premium-vector/man-avatar-profile-picture-vector-illustration_268834-538.jpg',
   },
+
+  // 🔑 Role jadi referensi
   role: {
-    type: String,
-    enum: ['admin', 'customer', 'waiter', 'kitchen', 'cashier junior', 'cashier senior', 'akuntan', 'inventory', 'marketing', 'operational'],
-    required: true,
-    default: 'customer',
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Role',
+    required: true
   },
+
   cashierType: {
     type: String,
     enum: [null, 'bar-1-amphi', 'bar-2-amphi', 'bar-3-amphi', 'bar-tp', 'bar-dp', 'drive-thru'],
-    required: function () { return this.role === 'cashier junior' || this.role === 'cashier senior'; },
+    required: false,
     default: null
   },
+
   outlet: [
     {
       outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet', required: false },
     }
   ],
-  // outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' }, // Kasir & Staff harus terkait dengan outlet
+
   claimedVouchers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' }],
   loyaltyPoints: { type: Number, required: true, default: 0 },
   loyaltyLevel: {
@@ -63,10 +68,7 @@ const UserSchema = new mongoose.Schema({
     default: "local",
   },
 
-
-
 }, { timestamps: true });
-
 
 const User = mongoose.model('User', UserSchema);
 
