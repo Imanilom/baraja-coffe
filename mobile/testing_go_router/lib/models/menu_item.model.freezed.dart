@@ -27,7 +27,7 @@ mixin _$MenuItemModel {
 @HiveField(12) int? get averageRating;// Tambahkan field baru
 @HiveField(13) int? get reviewCount;// Tambahkan field baru
 @HiveField(14) bool? get isAvailable;// Tambahkan field baru
-@HiveField(15) String? get workstation;
+@HiveField(15) String? get workstation;@HiveField(16)@JsonKey(name: 'availableStock') int? get stock;
 /// Create a copy of MenuItemModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -40,16 +40,16 @@ $MenuItemModelCopyWith<MenuItemModel> get copyWith => _$MenuItemModelCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MenuItemModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.originalPrice, originalPrice) || other.originalPrice == originalPrice)&&(identical(other.discountedPrice, discountedPrice) || other.discountedPrice == discountedPrice)&&(identical(other.description, description) || other.description == description)&&(identical(other.mainCategory, mainCategory) || other.mainCategory == mainCategory)&&(identical(other.subCategory, subCategory) || other.subCategory == subCategory)&&(identical(other.imageURL, imageURL) || other.imageURL == imageURL)&&const DeepCollectionEquality().equals(other.toppings, toppings)&&const DeepCollectionEquality().equals(other.addons, addons)&&(identical(other.discountPercentage, discountPercentage) || other.discountPercentage == discountPercentage)&&(identical(other.averageRating, averageRating) || other.averageRating == averageRating)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.isAvailable, isAvailable) || other.isAvailable == isAvailable)&&(identical(other.workstation, workstation) || other.workstation == workstation));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MenuItemModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.originalPrice, originalPrice) || other.originalPrice == originalPrice)&&(identical(other.discountedPrice, discountedPrice) || other.discountedPrice == discountedPrice)&&(identical(other.description, description) || other.description == description)&&(identical(other.mainCategory, mainCategory) || other.mainCategory == mainCategory)&&(identical(other.subCategory, subCategory) || other.subCategory == subCategory)&&(identical(other.imageURL, imageURL) || other.imageURL == imageURL)&&const DeepCollectionEquality().equals(other.toppings, toppings)&&const DeepCollectionEquality().equals(other.addons, addons)&&(identical(other.discountPercentage, discountPercentage) || other.discountPercentage == discountPercentage)&&(identical(other.averageRating, averageRating) || other.averageRating == averageRating)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.isAvailable, isAvailable) || other.isAvailable == isAvailable)&&(identical(other.workstation, workstation) || other.workstation == workstation)&&(identical(other.stock, stock) || other.stock == stock));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,originalPrice,discountedPrice,description,mainCategory,subCategory,imageURL,const DeepCollectionEquality().hash(toppings),const DeepCollectionEquality().hash(addons),discountPercentage,averageRating,reviewCount,isAvailable,workstation);
+int get hashCode => Object.hash(runtimeType,id,name,originalPrice,discountedPrice,description,mainCategory,subCategory,imageURL,const DeepCollectionEquality().hash(toppings),const DeepCollectionEquality().hash(addons),discountPercentage,averageRating,reviewCount,isAvailable,workstation,stock);
 
 @override
 String toString() {
-  return 'MenuItemModel(id: $id, name: $name, originalPrice: $originalPrice, discountedPrice: $discountedPrice, description: $description, mainCategory: $mainCategory, subCategory: $subCategory, imageURL: $imageURL, toppings: $toppings, addons: $addons, discountPercentage: $discountPercentage, averageRating: $averageRating, reviewCount: $reviewCount, isAvailable: $isAvailable, workstation: $workstation)';
+  return 'MenuItemModel(id: $id, name: $name, originalPrice: $originalPrice, discountedPrice: $discountedPrice, description: $description, mainCategory: $mainCategory, subCategory: $subCategory, imageURL: $imageURL, toppings: $toppings, addons: $addons, discountPercentage: $discountPercentage, averageRating: $averageRating, reviewCount: $reviewCount, isAvailable: $isAvailable, workstation: $workstation, stock: $stock)';
 }
 
 
@@ -60,7 +60,7 @@ abstract mixin class $MenuItemModelCopyWith<$Res>  {
   factory $MenuItemModelCopyWith(MenuItemModel value, $Res Function(MenuItemModel) _then) = _$MenuItemModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(1) String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? mainCategory,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable,@HiveField(15) String? workstation
+@HiveField(1) String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? mainCategory,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable,@HiveField(15) String? workstation,@HiveField(16)@JsonKey(name: 'availableStock') int? stock
 });
 
 
@@ -77,7 +77,7 @@ class _$MenuItemModelCopyWithImpl<$Res>
 
 /// Create a copy of MenuItemModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = freezed,Object? originalPrice = freezed,Object? discountedPrice = freezed,Object? description = freezed,Object? mainCategory = freezed,Object? subCategory = freezed,Object? imageURL = freezed,Object? toppings = freezed,Object? addons = freezed,Object? discountPercentage = freezed,Object? averageRating = freezed,Object? reviewCount = freezed,Object? isAvailable = freezed,Object? workstation = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = freezed,Object? originalPrice = freezed,Object? discountedPrice = freezed,Object? description = freezed,Object? mainCategory = freezed,Object? subCategory = freezed,Object? imageURL = freezed,Object? toppings = freezed,Object? addons = freezed,Object? discountPercentage = freezed,Object? averageRating = freezed,Object? reviewCount = freezed,Object? isAvailable = freezed,Object? workstation = freezed,Object? stock = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -94,7 +94,8 @@ as int?,averageRating: freezed == averageRating ? _self.averageRating : averageR
 as int?,reviewCount: freezed == reviewCount ? _self.reviewCount : reviewCount // ignore: cast_nullable_to_non_nullable
 as int?,isAvailable: freezed == isAvailable ? _self.isAvailable : isAvailable // ignore: cast_nullable_to_non_nullable
 as bool?,workstation: freezed == workstation ? _self.workstation : workstation // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,stock: freezed == stock ? _self.stock : stock // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -105,7 +106,7 @@ as String?,
 @JsonSerializable()
 
 class _MenuItemModel extends MenuItemModel {
-   _MenuItemModel({@HiveField(1) required this.id, @HiveField(2) this.name = "", @HiveField(3) this.originalPrice = 0, @HiveField(4) this.discountedPrice = 0, @HiveField(5) this.description = "", @HiveField(6) this.mainCategory = "", @HiveField(7) this.subCategory = "", @HiveField(8)@JsonKey(name: 'imageUrl') this.imageURL = "", @HiveField(9) final  List<ToppingModel>? toppings = const [], @HiveField(10) final  List<AddonModel>? addons = const [], @HiveField(11) this.discountPercentage = 0, @HiveField(12) this.averageRating = 0, @HiveField(13) this.reviewCount = 0, @HiveField(14) this.isAvailable = true, @HiveField(15) this.workstation = ""}): _toppings = toppings,_addons = addons,super._();
+   _MenuItemModel({@HiveField(1) required this.id, @HiveField(2) this.name = "", @HiveField(3) this.originalPrice = 0, @HiveField(4) this.discountedPrice = 0, @HiveField(5) this.description = "", @HiveField(6) this.mainCategory = "", @HiveField(7) this.subCategory = "", @HiveField(8)@JsonKey(name: 'imageUrl') this.imageURL = "", @HiveField(9) final  List<ToppingModel>? toppings = const [], @HiveField(10) final  List<AddonModel>? addons = const [], @HiveField(11) this.discountPercentage = 0, @HiveField(12) this.averageRating = 0, @HiveField(13) this.reviewCount = 0, @HiveField(14) this.isAvailable = true, @HiveField(15) this.workstation = "", @HiveField(16)@JsonKey(name: 'availableStock') this.stock = 0}): _toppings = toppings,_addons = addons,super._();
   factory _MenuItemModel.fromJson(Map<String, dynamic> json) => _$MenuItemModelFromJson(json);
 
 @override@HiveField(1) final  String id;
@@ -151,6 +152,7 @@ class _MenuItemModel extends MenuItemModel {
 @override@JsonKey()@HiveField(14) final  bool? isAvailable;
 // Tambahkan field baru
 @override@JsonKey()@HiveField(15) final  String? workstation;
+@override@HiveField(16)@JsonKey(name: 'availableStock') final  int? stock;
 
 /// Create a copy of MenuItemModel
 /// with the given fields replaced by the non-null parameter values.
@@ -165,16 +167,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MenuItemModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.originalPrice, originalPrice) || other.originalPrice == originalPrice)&&(identical(other.discountedPrice, discountedPrice) || other.discountedPrice == discountedPrice)&&(identical(other.description, description) || other.description == description)&&(identical(other.mainCategory, mainCategory) || other.mainCategory == mainCategory)&&(identical(other.subCategory, subCategory) || other.subCategory == subCategory)&&(identical(other.imageURL, imageURL) || other.imageURL == imageURL)&&const DeepCollectionEquality().equals(other._toppings, _toppings)&&const DeepCollectionEquality().equals(other._addons, _addons)&&(identical(other.discountPercentage, discountPercentage) || other.discountPercentage == discountPercentage)&&(identical(other.averageRating, averageRating) || other.averageRating == averageRating)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.isAvailable, isAvailable) || other.isAvailable == isAvailable)&&(identical(other.workstation, workstation) || other.workstation == workstation));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MenuItemModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.originalPrice, originalPrice) || other.originalPrice == originalPrice)&&(identical(other.discountedPrice, discountedPrice) || other.discountedPrice == discountedPrice)&&(identical(other.description, description) || other.description == description)&&(identical(other.mainCategory, mainCategory) || other.mainCategory == mainCategory)&&(identical(other.subCategory, subCategory) || other.subCategory == subCategory)&&(identical(other.imageURL, imageURL) || other.imageURL == imageURL)&&const DeepCollectionEquality().equals(other._toppings, _toppings)&&const DeepCollectionEquality().equals(other._addons, _addons)&&(identical(other.discountPercentage, discountPercentage) || other.discountPercentage == discountPercentage)&&(identical(other.averageRating, averageRating) || other.averageRating == averageRating)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.isAvailable, isAvailable) || other.isAvailable == isAvailable)&&(identical(other.workstation, workstation) || other.workstation == workstation)&&(identical(other.stock, stock) || other.stock == stock));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,originalPrice,discountedPrice,description,mainCategory,subCategory,imageURL,const DeepCollectionEquality().hash(_toppings),const DeepCollectionEquality().hash(_addons),discountPercentage,averageRating,reviewCount,isAvailable,workstation);
+int get hashCode => Object.hash(runtimeType,id,name,originalPrice,discountedPrice,description,mainCategory,subCategory,imageURL,const DeepCollectionEquality().hash(_toppings),const DeepCollectionEquality().hash(_addons),discountPercentage,averageRating,reviewCount,isAvailable,workstation,stock);
 
 @override
 String toString() {
-  return 'MenuItemModel(id: $id, name: $name, originalPrice: $originalPrice, discountedPrice: $discountedPrice, description: $description, mainCategory: $mainCategory, subCategory: $subCategory, imageURL: $imageURL, toppings: $toppings, addons: $addons, discountPercentage: $discountPercentage, averageRating: $averageRating, reviewCount: $reviewCount, isAvailable: $isAvailable, workstation: $workstation)';
+  return 'MenuItemModel(id: $id, name: $name, originalPrice: $originalPrice, discountedPrice: $discountedPrice, description: $description, mainCategory: $mainCategory, subCategory: $subCategory, imageURL: $imageURL, toppings: $toppings, addons: $addons, discountPercentage: $discountPercentage, averageRating: $averageRating, reviewCount: $reviewCount, isAvailable: $isAvailable, workstation: $workstation, stock: $stock)';
 }
 
 
@@ -185,7 +187,7 @@ abstract mixin class _$MenuItemModelCopyWith<$Res> implements $MenuItemModelCopy
   factory _$MenuItemModelCopyWith(_MenuItemModel value, $Res Function(_MenuItemModel) _then) = __$MenuItemModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(1) String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? mainCategory,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable,@HiveField(15) String? workstation
+@HiveField(1) String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? mainCategory,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable,@HiveField(15) String? workstation,@HiveField(16)@JsonKey(name: 'availableStock') int? stock
 });
 
 
@@ -202,7 +204,7 @@ class __$MenuItemModelCopyWithImpl<$Res>
 
 /// Create a copy of MenuItemModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = freezed,Object? originalPrice = freezed,Object? discountedPrice = freezed,Object? description = freezed,Object? mainCategory = freezed,Object? subCategory = freezed,Object? imageURL = freezed,Object? toppings = freezed,Object? addons = freezed,Object? discountPercentage = freezed,Object? averageRating = freezed,Object? reviewCount = freezed,Object? isAvailable = freezed,Object? workstation = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = freezed,Object? originalPrice = freezed,Object? discountedPrice = freezed,Object? description = freezed,Object? mainCategory = freezed,Object? subCategory = freezed,Object? imageURL = freezed,Object? toppings = freezed,Object? addons = freezed,Object? discountPercentage = freezed,Object? averageRating = freezed,Object? reviewCount = freezed,Object? isAvailable = freezed,Object? workstation = freezed,Object? stock = freezed,}) {
   return _then(_MenuItemModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -219,7 +221,8 @@ as int?,averageRating: freezed == averageRating ? _self.averageRating : averageR
 as int?,reviewCount: freezed == reviewCount ? _self.reviewCount : reviewCount // ignore: cast_nullable_to_non_nullable
 as int?,isAvailable: freezed == isAvailable ? _self.isAvailable : isAvailable // ignore: cast_nullable_to_non_nullable
 as bool?,workstation: freezed == workstation ? _self.workstation : workstation // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,stock: freezed == stock ? _self.stock : stock // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 

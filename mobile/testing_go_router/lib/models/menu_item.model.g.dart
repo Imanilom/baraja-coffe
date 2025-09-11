@@ -35,13 +35,14 @@ class MenuItemModelAdapter extends TypeAdapter<MenuItemModel> {
       reviewCount: fields[13] == null ? 0 : (fields[13] as num?)?.toInt(),
       isAvailable: fields[14] == null ? true : fields[14] as bool?,
       workstation: fields[15] == null ? '' : fields[15] as String?,
+      stock: fields[16] == null ? 0 : (fields[16] as num?)?.toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, MenuItemModel obj) {
     writer
-      ..writeByte(15)
+      ..writeByte(16)
       ..writeByte(1)
       ..write(obj.id)
       ..writeByte(2)
@@ -71,7 +72,9 @@ class MenuItemModelAdapter extends TypeAdapter<MenuItemModel> {
       ..writeByte(14)
       ..write(obj.isAvailable)
       ..writeByte(15)
-      ..write(obj.workstation);
+      ..write(obj.workstation)
+      ..writeByte(16)
+      ..write(obj.stock);
   }
 
   @override
@@ -114,6 +117,7 @@ _MenuItemModel _$MenuItemModelFromJson(Map<String, dynamic> json) =>
       reviewCount: (json['reviewCount'] as num?)?.toInt() ?? 0,
       isAvailable: json['isAvailable'] as bool? ?? true,
       workstation: json['workstation'] as String? ?? "",
+      stock: (json['availableStock'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$MenuItemModelToJson(_MenuItemModel instance) =>
@@ -133,4 +137,5 @@ Map<String, dynamic> _$MenuItemModelToJson(_MenuItemModel instance) =>
       'reviewCount': instance.reviewCount,
       'isAvailable': instance.isAvailable,
       'workstation': instance.workstation,
+      'availableStock': instance.stock,
     };
