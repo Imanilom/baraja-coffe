@@ -28,6 +28,7 @@ import favoriteRoutes from './routes/favorite.routes.js';
 import deviceRoutes from './routes/device.routes.js';
 import voucherRoutes from './routes/voucher.routes.js';
 import warehouseRoutes from './routes/warehouse.routes.js';
+import roleRoutes from './routes/role.route.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
@@ -128,6 +129,7 @@ app.use('/api/ticket', TicketRoutes);
 app.use('/api/accounting', AccountingRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/warehouses', warehouseRoutes);
+app.use('/api/roles', roleRoutes);
 // app.post('/api/midtrans/webhook', (req, res) => {
 //   res.status(200).send('OK');
 // });
