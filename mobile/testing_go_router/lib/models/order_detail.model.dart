@@ -83,7 +83,7 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(25)
     @JsonKey(name: 'payment_details')
     @Default(null)
-    PaymentModel? payment,
+    List<PaymentModel>? payment,
     @HiveField(26) @Default('') String? paymentStatus,
     @HiveField(27) @Default(null) @JsonKey(name: '_id') String? id,
   }) = _OrderDetailModel;

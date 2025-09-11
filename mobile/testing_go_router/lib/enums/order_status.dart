@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 enum OrderStatus {
   pending,
   waiting,
@@ -49,4 +51,24 @@ extension OrderStatusExtension on OrderStatus {
 
   //to json
   static String orderStatusToJson(OrderStatus status) => status.value;
+
+  //get status color
+  static Color getStatusColor(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return Colors.orange;
+      case OrderStatus.waiting:
+        return Colors.blue;
+      case OrderStatus.reserved:
+        return Colors.purple;
+      case OrderStatus.onProcess:
+        return Colors.amber;
+      case OrderStatus.completed:
+        return Colors.green;
+      case OrderStatus.canceled:
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
 }

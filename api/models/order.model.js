@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
 
 const OrderItemSchema = new mongoose.Schema({
-  menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem', required: true },
-  quantity: { type: Number, required: true, min: 1 },
-  subtotal: { type: Number, required: true, min: 0 },
+  menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem', },
+  quantity: { type: Number, min: 1 },
+  subtotal: { type: Number, min: 0 },
   addons: [{ name: String, price: Number }],
   toppings: [{ name: String, price: Number }],
   notes: { type: String, default: '' },
@@ -11,7 +11,10 @@ const OrderItemSchema = new mongoose.Schema({
 
   // ✅ Tambahan untuk outlet
   outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
-  outletName: { type: String }
+  outletName: { type: String },
+
+  // ✅ Tambahan untuk paymnet
+  payment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null }
 });
 
 // Model Order

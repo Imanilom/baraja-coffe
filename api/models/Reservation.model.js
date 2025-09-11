@@ -50,14 +50,14 @@ const reservationSchema = new mongoose.Schema({
     check_out_time: {
         type: Date,
         default: null
-    },      
+    },
     notes: {
         type: String,
         default: ''
     },
     equipment: [{
         type: String,
-        default: [] 
+        default: []
     }]
 }, {
     timestamps: true

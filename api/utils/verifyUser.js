@@ -2,16 +2,20 @@ import jwt from "jsonwebtoken";
 import { errorHandler } from './error.js';
 import User from "../models/user.model.js";
 
-export const verifyToken = (roles) => {
+/**
+ * Verifikasi token & role
+ * @param {Array} allowedRoles - daftar role.name yang diizinkan
+ */
+export const verifyToken = (allowedRoles = []) => {
   return async (req, res, next) => {
     let token = null;
 
-    // Ambil token dari Authorization header jika ada
+    // Ambil token dari Authorization header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       token = req.headers.authorization.split(' ')[1];
     }
 
-    // Jika tidak ada di header, ambil dari cookies
+    // Jika tidak ada di header, cek cookies
     if (!token && req.cookies.access_token) {
       token = req.cookies.access_token;
     }
@@ -22,7 +26,7 @@ export const verifyToken = (roles) => {
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id);
+      const user = await User.findById(decoded.id).populate("role");
 
       if (!user) {
         return next(errorHandler(403, 'Invalid token!'));
@@ -30,8 +34,14 @@ export const verifyToken = (roles) => {
 
       req.user = user;
 
-      if (!roles.includes(user.role)) {
-        return res.status(403).json({ error: "Forbidden" });
+      // Kalau tidak ada role yg dibatasi → lewati
+      if (allowedRoles.length === 0) {
+        return next();
+      }
+
+      // Cek apakah role user masuk ke daftar role yg diizinkan
+      if (!allowedRoles.includes(user.role.name)) {
+        return res.status(403).json({ error: "Forbidden: Insufficient role" });
       }
 
       next();
@@ -41,6 +51,31 @@ export const verifyToken = (roles) => {
   };
 };
 
+/**
+ * Middleware untuk cek permission (berdasarkan role.permissions)
+ */
+export const authorizePermission = (requiredPermissions = []) => {
+  return (req, res, next) => {
+    if (!req.user || !req.user.role) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { role } = req.user;
+
+    // Superadmin bypass semua
+    if (role.name === "superadmin") {
+      return next();
+    }
+
+    const hasAccess = requiredPermissions.every(p => role.permissions.includes(p));
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Forbidden: Insufficient permissions" });
+    }
+
+    next();
+  };
+};
 
 
 export const googleToken = (req, res, next) => {

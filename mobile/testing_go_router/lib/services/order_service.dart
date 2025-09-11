@@ -37,7 +37,7 @@ class OrderService {
           data: createChargeRequest(
             response.data['orderId'],
             orderDetail.grandTotal,
-            orderDetail.payment!.method.toString(),
+            orderDetail.paymentMethod!,
           ),
           options: Options(
             headers: {

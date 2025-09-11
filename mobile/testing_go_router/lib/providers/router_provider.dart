@@ -1,4 +1,5 @@
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
 import 'package:kasirbaraja/screens/auth/login_cashier_screen.dart';
@@ -14,6 +15,7 @@ import 'package:kasirbaraja/screens/settings/setting_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/detail_printer_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/scan_network_printer_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/scan_printer_screen.dart';
+import 'package:kasirbaraja/screens/orders/online_orders/widgets/payment_process_screen.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/boarding/splash_screen.dart';
@@ -279,6 +281,39 @@ final routerProvider = Provider<GoRouter>((ref) {
                 );
               },
             ),
+      ),
+      GoRoute(
+        name: 'payment-process',
+        path: '/payment-process',
+        pageBuilder: (context, state) {
+          // Ambil PaymentModel dari state.extra
+          final PaymentModel payment = state.extra as PaymentModel;
+
+          return CustomTransitionPage(
+            arguments: state.extra,
+            child: PaymentProcessScreen(
+              payment: payment,
+            ), // Pass payment parameter
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              const begin = Offset(1.0, 0.0);
+              const end = Offset.zero;
+              const curve = Curves.ease;
+              final tween = Tween(
+                begin: begin,
+                end: end,
+              ).chain(CurveTween(curve: curve));
+              return SlideTransition(
+                position: animation.drive(tween),
+                child: child,
+              );
+            },
+          );
+        },
       ),
       GoRoute(
         path: '/payment-success',

@@ -48,7 +48,10 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       source: fields[22] == null ? 'Cashier' : fields[22] as String,
       createdAt: fields[23] as DateTime?,
       updatedAt: fields[24] as DateTime?,
-      payment: fields[25] == null ? null : fields[25] as PaymentModel?,
+      payment:
+          fields[25] == null
+              ? null
+              : (fields[25] as List?)?.cast<PaymentModel>(),
       paymentStatus: fields[26] == null ? '' : fields[26] as String?,
       id: fields[27] == null ? null : fields[27] as String?,
     );
@@ -188,11 +191,10 @@ _OrderDetailModel _$OrderDetailModelFromJson(
           ? null
           : DateTime.parse(json['updatedAt'] as String),
   payment:
-      json['payment_details'] == null
-          ? null
-          : PaymentModel.fromJson(
-            json['payment_details'] as Map<String, dynamic>,
-          ),
+      (json['payment_details'] as List<dynamic>?)
+          ?.map((e) => PaymentModel.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      null,
   paymentStatus: json['paymentStatus'] as String? ?? '',
   id: json['_id'] as String? ?? null,
 );

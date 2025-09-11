@@ -2,7 +2,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import Voucher from '../models/voucher.model.js'; // Import model Voucher Anda
-import VoucherUsage from '../models/VoucherUsage.js'; // Import model VoucherUsage
 
 const router = express.Router();
 
@@ -171,111 +170,6 @@ router.post('/validate', async (req, res) => {
         res.status(500).json({
             isValid: false,
             message: 'Error validating voucher',
-            error: error.message
-        });
-    }
-});
-
-// POST /api/vouchers/apply - Apply voucher (untuk tracking penggunaan)
-router.post('/apply', async (req, res) => {
-    try {
-        const { code, orderAmount, orderId, outletId, customerId } = req.body;
-
-        if (!code || !orderId || orderAmount === undefined) {
-            return res.status(400).json({
-                success: false,
-                message: 'Code, order ID, and order amount are required'
-            });
-        }
-
-        // Validasi voucher terlebih dahulu
-        const voucher = await Voucher.findOne({
-            code: code.toUpperCase(),
-            isActive: true
-        });
-
-        if (!voucher) {
-            return res.status(404).json({
-                success: false,
-                message: 'Voucher not found or inactive'
-            });
-        }
-
-        // Cek apakah voucher sudah digunakan untuk order ini
-        const existingUsage = await VoucherUsage.findOne({
-            voucherId: voucher._id,
-            orderId: orderId
-        });
-
-        if (existingUsage) {
-            return res.status(400).json({
-                success: false,
-                message: 'Voucher already applied to this order'
-            });
-        }
-
-        // Validasi kuota
-        if (voucher.quota <= 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'Voucher quota has been exhausted'
-            });
-        }
-
-        // Hitung discount amount
-        let discountAmount = 0;
-
-        if (voucher.discountType === 'percentage') {
-            const percentageValue = voucher.discountAmount / 100;
-            const calculatedDiscount = orderAmount * percentageValue;
-            discountAmount = Math.min(calculatedDiscount, voucher.discountAmount);
-        } else {
-            discountAmount = voucher.discountAmount;
-        }
-
-        // Mulai transaction untuk memastikan data consistency
-        const session = await mongoose.startSession();
-        session.startTransaction();
-
-        try {
-            // Kurangi kuota voucher
-            await Voucher.findByIdAndUpdate(
-                voucher._id,
-                { $inc: { quota: -1 } },
-                { session }
-            );
-
-            // Catat penggunaan voucher
-            await VoucherUsage.create([{
-                voucherId: voucher._id,
-                orderId: orderId,
-                customerId: customerId,
-                outletId: outletId,
-                discountAmount: discountAmount,
-                orderAmount: orderAmount,
-                usedAt: new Date()
-            }], { session });
-
-            await session.commitTransaction();
-
-            res.json({
-                success: true,
-                message: 'Voucher applied successfully',
-                discountAmount: discountAmount
-            });
-
-        } catch (error) {
-            await session.abortTransaction();
-            throw error;
-        } finally {
-            session.endSession();
-        }
-
-    } catch (error) {
-        console.error('Error applying voucher:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error applying voucher',
             error: error.message
         });
     }

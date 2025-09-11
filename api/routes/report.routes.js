@@ -10,6 +10,8 @@ import {
     exportToCSV,
     getCashiersList
 } from '../controllers/cashierReport.controller.js'
+
+import stockOpnameController from '../controllers/stockopname.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { validateSalesReportQuery } from '../utils/salesReportQuery.js';
 
@@ -31,5 +33,23 @@ router.get('/sales/analytics', getSalesAnalytics);
 router.get('/sales/performance', getCashierPerformance);
 router.get('/sales/export-to-cvs', exportToCSV);
 router.get('/sales/cashier-list', getCashiersList);
+
+// Daily stock opname
+router.get('/stock-opname/daily', stockOpnameController.getDailyStockOpname);
+
+// monthly stock opname
+router.get('/stock-opname/monthly', stockOpnameController.getMonthlyStockOpname);
+
+// Profit & Loss report  
+router.get('/profit-loss', stockOpnameController.generateProfitLossReport);
+
+// Balance sheet
+router.get('/balance-sheet', stockOpnameController.generateBalanceSheet);
+
+// Stock movement report
+router.get('/stock-movement', stockOpnameController.generateStockMovementReport);
+
+// Inventory aging report
+router.get('/inventory-aging', stockOpnameController.generateInventoryAgingReport);
 
 export default router;
