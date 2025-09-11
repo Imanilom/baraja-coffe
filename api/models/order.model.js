@@ -11,7 +11,10 @@ const OrderItemSchema = new mongoose.Schema({
 
   // ✅ Tambahan untuk outlet
   outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
-  outletName: { type: String }
+  outletName: { type: String },
+
+  // ✅ Tambahan untuk paymnet
+  payment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null }
 });
 
 // Model Order

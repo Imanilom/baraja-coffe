@@ -7,6 +7,7 @@ import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/utils/payment_status_utils.dart';
+import 'package:kasirbaraja/screens/orders/online_orders/widgets/payment_details_widget.dart';
 
 class OrderListWidget extends ConsumerWidget {
   final List<OrderDetailModel> orders;
@@ -113,6 +114,7 @@ class OrderListWidget extends ConsumerWidget {
             ref
                 .read(onlineOrderDetailProvider.notifier)
                 .savedOnlineOrderDetail(order);
+            ref.read(selectedPaymentProvider.notifier).state = null;
           },
           borderRadius: BorderRadius.circular(16),
           splashColor: Colors.blue.withOpacity(0.1),
