@@ -114,6 +114,8 @@ export const createAppOrder = async (req, res) => {
 
     // Find voucher if provided
     let voucherId = null;
+    let voucherAmount = 0;
+    let discountType = null;
     if (voucherCode) {
       const voucher = await Voucher.findOneAndUpdate(
         { code: voucherCode },
@@ -122,8 +124,12 @@ export const createAppOrder = async (req, res) => {
       );
       if (voucher) {
         voucherId = voucher._id;
+        voucherAmount = voucher.discountAmount;
+        discountType = voucher.discountType;
       }
     }
+
+
 
     // Process items (jika ada)
     const orderItems = [];
@@ -165,6 +171,14 @@ export const createAppOrder = async (req, res) => {
       }
     }
 
+    let totalAfterDiscount = 0;
+
+    if (discountType == 'percentage') {
+      totalAfterDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0) - (orderItems.reduce((sum, item) => sum + item.subtotal, 0) * (voucherAmount / 100));
+    } else if (discountType == 'fixed') {
+      totalAfterDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0) - voucherAmount;
+    }
+
     let newOrder;
 
     // ✅ Handle Open Bill
@@ -193,7 +207,7 @@ export const createAppOrder = async (req, res) => {
         voucher: voucherId,
         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
         totalBeforeDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
-        totalAfterDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
+        totalAfterDiscount: totalAfterDiscount,
         totalTax: 0,
         totalServiceFee: 0,
         discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
@@ -201,7 +215,7 @@ export const createAppOrder = async (req, res) => {
         appliedManualPromo: null,
         appliedVoucher: voucherId,
         taxAndServiceDetails: [],
-        grandTotal: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
+        grandTotal: totalAfterDiscount,
         promotions: [],
         source: 'App',
         reservation: existingReservation._id,
@@ -236,7 +250,7 @@ export const createAppOrder = async (req, res) => {
         voucher: voucherId,
         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
         totalBeforeDiscount: subtotal,
-        totalAfterDiscount: subtotal,
+        totalAfterDiscount: totalAfterDiscount,
         totalTax: 0,
         totalServiceFee: 0,
         discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
@@ -244,7 +258,7 @@ export const createAppOrder = async (req, res) => {
         appliedManualPromo: null,
         appliedVoucher: voucherId,
         taxAndServiceDetails: [],
-        grandTotal: subtotal,
+        grandTotal: totalAfterDiscount,
         promotions: [],
         source: 'App',
         reservation: null,
