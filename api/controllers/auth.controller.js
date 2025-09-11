@@ -139,6 +139,8 @@ export const signin = async (req, res, next) => {
         ![
           "superadmin",
           "admin",
+          "qc",
+          "hrd",
           "marketing",
           "akuntan",
           "inventory",
@@ -192,10 +194,6 @@ export const signin = async (req, res, next) => {
     next(error);
   }
 };
-
-
-
-
 
 export const googleAuth = async (req, res) => {
   const { idToken } = req.body;

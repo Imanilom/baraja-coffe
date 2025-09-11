@@ -30,6 +30,7 @@ import {
     CartesianGrid,
 } from "recharts";
 import DashboardModal from "./modal";
+import Header from "../admin/header";
 
 const formatRupiah = (amount) => {
     return new Intl.NumberFormat('id-ID', {
@@ -53,6 +54,7 @@ const Dashboard = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [active2Index, set2ActiveIndex] = useState(0);
     const [productSales, setProductSales] = useState([]);
+    const [categories, setCategory] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const handleSave = (selectedWidgets) => {
@@ -99,6 +101,11 @@ const Dashboard = () => {
                         outletsResponse.data.data : [];
 
                 setOutlets(outletsData);
+
+                const categoryResponse = await axios.get('/api/menu/categories');
+                const categoryData = categoryResponse.data.data ? categoryResponse.data.data : categoryResponse.data;
+
+                setCategory(categoryData);
                 setError(null);
             } catch (err) {
                 console.error("Error fetching data:", err);
@@ -106,6 +113,7 @@ const Dashboard = () => {
                 // Set empty arrays as fallback
                 setProductSales([]);
                 setOutlets([]);
+                setCategory([]);
                 setFilteredData([]);
             } finally {
                 setLoading(false);
@@ -171,7 +179,7 @@ const Dashboard = () => {
         }
 
         setFilteredData(filtered);
-    }, [filters, productSales]);
+    }, [filters, productSales, categories]);
 
     const groupProducts = (data) => {
         const grouped = {};
@@ -180,7 +188,8 @@ const Dashboard = () => {
             if (!item) return;
 
             const productName = item.menuItem?.name || "Unknown";
-            const category = item.menuItem?.category || "Uncategorized";
+            const categoryObj = categories.find(cat => cat._id === item.menuItem?.category);
+            const category = categoryObj ? categoryObj.name : "Uncategorized";
             const sku = item.menuItem?.sku || "-";
             const quantity = Number(item?.quantity) || 0;
             const subtotal = Number(item?.subtotal) || 0;
@@ -604,13 +613,7 @@ const Dashboard = () => {
     return (
         <div className="max-w-8xl mx-auto">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
@@ -780,7 +783,8 @@ const Dashboard = () => {
                                             return (
                                                 <tr key={i} className="hover:bg-gray-50 text-gray-500">
                                                     <td className="p-[15px]">{item.productName}</td>
-                                                    <td className="p-[15px]">{Array.isArray(item.category) ? item.category.join(', ') : 'N/A'}</td>
+                                                    <td className="p-[15px]">{item.category ? item.category : 'N/A'}</td>
+                                                    {/* <td className="p-[15px]">{Array.isArray(item.category) ? item.category.join(', ') : 'N/A'}</td> */}
                                                     <td className="p-[15px] text-right">{item.quantity}</td>
                                                     <td className="p-[15px] text-right">{formatRupiah(item.subtotal)}</td>
                                                     <td className="p-[15px] text-right">{formatRupiah(item.discount)}</td>

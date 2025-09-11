@@ -7,7 +7,9 @@ const UserSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: true,
+    required: function () {
+      return this.role === "customer"; // hanya wajib kalau role = customer
+    },
     unique: true
   },
   phone: {
@@ -28,7 +30,7 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'customer', 'waiter', 'kitchen', 'cashier junior', 'cashier senior', 'akuntan', 'inventory', 'marketing', 'operational'],
+    enum: ['superadmin', 'admin', 'customer', 'waiter', 'kitchen', 'cashier junior', 'cashier senior', 'akuntan', 'inventory', 'marketing', 'operational', 'qc', 'hrd'],
     required: true,
     default: 'customer',
   },

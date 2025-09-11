@@ -5,6 +5,7 @@ import axios from "axios";
 import Select from "react-select";
 import Header from "../../admin/header";
 import Datepicker from "react-tailwindcss-datepicker";
+import BundlingForm from "./bundlingform";
 
 const CreateAutoPromo = () => {
   const navigate = useNavigate();
@@ -136,7 +137,7 @@ const CreateAutoPromo = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
+    // if (!validate()) return;
 
     const payload = {
       name: formData.name,
@@ -152,13 +153,14 @@ const CreateAutoPromo = () => {
     };
 
     try {
-      const response = await axios.post("/api/promotion/autopromo-create", payload);
-      if (response.data.success) {
-        alert("Promo berhasil dibuat!");
-        navigate("/admin/promo-otomatis");
-      } else {
-        alert("Gagal membuat promo. Cek kembali data Anda.");
-      }
+      console.log(payload);
+      // const response = await axios.post("/api/promotion/autopromo-create", payload);
+      // if (response.data.success) {
+      //   alert("Promo berhasil dibuat!");
+      //   navigate("/admin/promo-otomatis");
+      // } else {
+      //   alert("Gagal membuat promo. Cek kembali data Anda.");
+      // }
     } catch (err) {
       console.error(err);
       alert("Terjadi kesalahan saat membuat promo.");
@@ -312,69 +314,52 @@ const CreateAutoPromo = () => {
 
           {formData.promoType === "bundling" && (
             <>
-              <fieldset className="space-y-3">
-                <legend className="block text-sm font-medium text-gray-700">Produk Bundling</legend>
-                {(formData.conditions.bundleProducts || []).map((b, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
-                    <Select
-                      value={products.map(p => ({ value: p.id, label: p.name })).find(opt => opt.value === b.product) || null}
-                      onChange={selected => {
-                        const newBundles = [...formData.conditions.bundleProducts];
-                        newBundles[idx].product = selected.value;
-                        setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, bundleProducts: newBundles } }));
-                      }}
-                      options={products.map(p => ({ value: p.id, label: p.name }))}
-                      styles={customSelectStyles}
-                    />
-                    <input
-                      type="number"
-                      placeholder="Qty"
-                      value={b.quantity || ""}
-                      onChange={e => {
-                        const newBundles = [...formData.conditions.bundleProducts];
-                        newBundles[idx].quantity = e.target.value;
-                        setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, bundleProducts: newBundles } }));
-                      }}
-                      className={`px-2 py-1 border rounded-md ${errors[`bundleQty_${idx}`] ? "border-red-500" : "border-gray-300"
-                        }`}
-                    />
-                    {errors[`bundleProduct_${idx}`] && <p className="text-red-500 text-sm">{errors[`bundleProduct_${idx}`]}</p>}
-                    {errors[`bundleQty_${idx}`] && <p className="text-red-500 text-sm">{errors[`bundleQty_${idx}`]}</p>}
-                  </div>
-                ))}
-                <button type="button" onClick={() => {
-                  const newBundles = [...(formData.conditions.bundleProducts || []), { product: "", quantity: "" }];
-                  setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, bundleProducts: newBundles } }));
-                }} className="text-sm text-[#005429]">Tambah Produk</button>
-                {errors.bundleProducts && <p className="text-red-500 text-sm">{errors.bundleProducts}</p>}
-              </fieldset>
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Harga Bundel</label>
-                <input
-                  type="number"
-                  name="bundlePrice"
-                  value={formData.bundlePrice || ""}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-1 ${errors.bundlePrice ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-[#005429]"
-                    }`}
-                />
-                {errors.bundlePrice && <p className="text-red-500 text-sm">{errors.bundlePrice}</p>}
-              </div>
+              <BundlingForm
+                products={products}
+                formData={formData}
+                setFormData={setFormData}
+              />
             </>
           )}
+
 
           {/* Outlet */}
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">Outlet</label>
-            <Select
-              name="outlet"
-              value={outlets.map(o => ({ value: o._id, label: o.name })).find(o => o.value === formData.outlet) || null}
-              options={outlets.map(o => ({ value: o._id, label: o.name }))}
-              onChange={selected => setFormData(prev => ({ ...prev, outlet: selected ? selected.value : "" }))}
-              styles={customSelectStyles}
-            />
-            {errors.outlet && <p className="text-red-500 text-sm">{errors.outlet}</p>}
+
+            <div className="space-y-2 border rounded-md p-2 max-h-48 overflow-y-auto">
+              {outlets.map((o) => (
+                <label key={o._id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={formData.outlet?.includes(o._id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        // tambahkan outlet ke array
+                        setFormData((prev) => ({
+                          ...prev,
+                          outlet: [...(prev.outlet || []), o._id],
+                        }));
+                      } else {
+                        // hapus outlet dari array
+                        setFormData((prev) => ({
+                          ...prev,
+                          outlet: (prev.outlet || []).filter((id) => id !== o._id),
+                        }));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-[#005429] focus:ring-[#005429]"
+                  />
+                  {o.name}
+                </label>
+              ))}
+            </div>
+
+            {errors.outlet && (
+              <p className="text-red-500 text-sm">{errors.outlet}</p>
+            )}
           </div>
+
 
           {/* Valid Dates */}
           <div className="space-y-1">
