@@ -2,28 +2,36 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { FaCheckCircle, FaTimesCircle, FaExclamationTriangle, FaInfoCircle } from "react-icons/fa";
 
-const MessageAlertMenu = () => {
+const MessageAlert = ({ type = "success", message = "" }) => {
     const location = useLocation();
     const [alert, setAlert] = useState({
-        type: "success",
-        message: location.state?.success || "",
+        type,
+        message: location.state?.success || message,
         visible: false,
     });
 
+    // Hapus state dari history biar gak muncul lagi saat refresh
     useEffect(() => {
         if (location.state?.success) {
-            // hapus state supaya refresh tidak munculkan pesan lagi
             window.history.replaceState({}, document.title);
         }
     }, [location.state]);
 
+    // Jika message dari props berubah
+    useEffect(() => {
+        if (message) {
+            setAlert({ type, message, visible: true });
+        }
+    }, [message, type]);
+
+    // Jika ada pesan, atur timer auto-close
     useEffect(() => {
         if (alert.message) {
             setAlert((prev) => ({ ...prev, visible: true }));
 
             const timer = setTimeout(() => {
                 setAlert((prev) => ({ ...prev, visible: false }));
-                setTimeout(() => setAlert((prev) => ({ ...prev, message: "" })), 300); // hapus setelah animasi selesai
+                setTimeout(() => setAlert((prev) => ({ ...prev, message: "" })), 300);
             }, 5000);
 
             return () => clearTimeout(timer);
@@ -63,4 +71,4 @@ const MessageAlertMenu = () => {
     );
 };
 
-export default MessageAlertMenu;
+export default MessageAlert;

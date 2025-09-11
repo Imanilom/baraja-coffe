@@ -7,7 +7,9 @@ const UserSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: true,
+    required: function () {
+      return this.role === "customer"; // hanya wajib kalau role = customer
+    },
     unique: true
   },
   phone: {

@@ -152,6 +152,8 @@ export const signin = async (req, res, next) => {
         "akuntan",
         "inventory",
         "operational",
+        "qc",
+        "hrd",
         "staff",
         "cashier junior",
         "cashier senior",

@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 export const createOutlet = async (req, res) => {
   try {
     const { name, address, city, location, contactNumber, admin, outletPictures } = req.body;
-    
+
     const newOutlet = new Outlet({
       name,
       address,
@@ -18,7 +18,7 @@ export const createOutlet = async (req, res) => {
     });
 
     const savedOutlet = await newOutlet.save();
-    
+
     res.status(201).json({
       success: true,
       message: 'Outlet created successfully',
@@ -38,13 +38,13 @@ export const getAllOutlets = async (req, res) => {
   try {
     const { isActive } = req.query;
     let query = {};
-    
+
     if (isActive !== undefined) {
       query.isActive = isActive === 'true';
     }
-    
+
     const outlets = await Outlet.find(query).populate('admin');
-    
+
     res.status(200).json({
       success: true,
       data: outlets
@@ -62,16 +62,16 @@ export const getAllOutlets = async (req, res) => {
 export const getOutletById = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const outlet = await Outlet.findById(id).populate('admin');
-    
+
     if (!outlet) {
       return res.status(404).json({
         success: false,
         message: 'Outlet not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: outlet
@@ -121,9 +121,9 @@ export const updateOutlet = async (req, res) => {
       const locationData = updateData.locationData;
 
       // Validasi koordinat
-      if (!locationData.coordinates || 
-          !Array.isArray(locationData.coordinates.coordinates) || 
-          locationData.coordinates.coordinates.length !== 2) {
+      if (!locationData.coordinates ||
+        !Array.isArray(locationData.coordinates.coordinates) ||
+        locationData.coordinates.coordinates.length !== 2) {
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({
@@ -138,7 +138,7 @@ export const updateOutlet = async (req, res) => {
         {
           ...locationData,
           outlet: id,
-          user: null,
+          // user: null,
           coordinates: {
             type: 'Point',
             coordinates: locationData.coordinates.coordinates,
@@ -171,19 +171,19 @@ export const updateOutlet = async (req, res) => {
 export const toggleOutletStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const outlet = await Outlet.findById(id);
-    
+
     if (!outlet) {
       return res.status(404).json({
         success: false,
         message: 'Outlet not found'
       });
     }
-    
+
     outlet.isActive = !outlet.isActive;
     await outlet.save();
-    
+
     res.status(200).json({
       success: true,
       message: `Outlet ${outlet.isActive ? 'activated' : 'deactivated'} successfully`,
@@ -202,19 +202,19 @@ export const toggleOutletStatus = async (req, res) => {
 export const deleteOutlet = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const deletedOutlet = await Outlet.findByIdAndDelete(id);
-    
+
     if (!deletedOutlet) {
       return res.status(404).json({
         success: false,
         message: 'Outlet not found'
       });
     }
-    
+
     // Also delete all associated locations
     await Location.deleteMany({ outlet: id });
-    
+
     res.status(200).json({
       success: true,
       message: 'Outlet deleted successfully'
@@ -233,19 +233,19 @@ export const getOutletLocations = async (req, res) => {
   try {
     const { id } = req.params;
     const { isActive, isPrimary } = req.query;
-    
+
     let query = { outlet: id };
-    
+
     if (isActive !== undefined) {
       query.isActive = isActive === 'true';
     }
-    
+
     if (isPrimary !== undefined) {
       query.isPrimary = isPrimary === 'true';
     }
-    
+
     const locations = await Location.find(query);
-    
+
     res.status(200).json({
       success: true,
       data: locations
@@ -264,16 +264,16 @@ export const addOutletLocation = async (req, res) => {
   try {
     const { id } = req.params;
     const locationData = req.body;
-    
+
     // Validate that coordinates are provided and in correct format
-    if (!locationData.coordinates || !Array.isArray(locationData.coordinates.coordinates) || 
-        locationData.coordinates.coordinates.length !== 2) {
+    if (!locationData.coordinates || !Array.isArray(locationData.coordinates.coordinates) ||
+      locationData.coordinates.coordinates.length !== 2) {
       return res.status(400).json({
         success: false,
         message: 'Invalid coordinates format. Expected { coordinates: [longitude, latitude] }'
       });
     }
-    
+
     const newLocation = new Location({
       ...locationData,
       outlet: id,
@@ -283,9 +283,9 @@ export const addOutletLocation = async (req, res) => {
         coordinates: locationData.coordinates.coordinates
       }
     });
-    
+
     const savedLocation = await newLocation.save();
-    
+
     res.status(201).json({
       success: true,
       message: 'Location added to outlet successfully',
@@ -304,14 +304,14 @@ export const addOutletLocation = async (req, res) => {
 export const getNearbyOutlets = async (req, res) => {
   try {
     const { longitude, latitude, maxDistance = 5000 } = req.query;
-    
+
     if (!longitude || !latitude) {
       return res.status(400).json({
         success: false,
         message: 'Longitude and latitude are required'
       });
     }
-    
+
     const outletsWithLocations = await Location.aggregate([
       {
         $geoNear: {
@@ -356,7 +356,7 @@ export const getNearbyOutlets = async (req, res) => {
         }
       }
     ]);
-    
+
     res.status(200).json({
       success: true,
       data: outletsWithLocations

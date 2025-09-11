@@ -5,7 +5,7 @@ import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Header from "../admin/header";
 import ConfirmationModalActive from "./confirmationModalAction";
-import MessageAlertMenu from "./messageAlertMenu";
+import MessageAlertMenu from "../../components/messageAlert";
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
   if (!isOpen) return null;

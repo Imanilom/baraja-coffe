@@ -40,8 +40,8 @@ export default function SignIn() {
       }
 
       dispatch(signInSuccess(data));
-      if (data.role === 'admin' || data.role === 'superadmin') {
-        navigate('/admin/menu');
+      if (data.role !== 'customer') {
+        navigate('/admin/dashboard');
       } else {
         navigate('/');
       }
