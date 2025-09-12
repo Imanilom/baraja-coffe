@@ -1,6 +1,7 @@
 // controllers/marketlistController.js
 import MarketList from '../models/modul_market/MarketList.model.js';
 import Request from '../models/modul_market/Request.model.js';
+import Warehouse from '../models/modul_market/Warehouse.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
 import CashFlow from '../models/modul_market/CashFlow.model.js';
@@ -159,19 +160,29 @@ export const getAllRequestWithSuppliers = async (req, res) => {
   try {
     // Ambil semua request dan populate productId
     const requests = await Request.find()
-      .populate('items.productId')
+      .populate('purchaseItems.productId')
+      .populate('transferItems.productId')
       .lean();
 
-    // Kumpulkan semua productId yang valid
-    const productIds = requests
-      .flatMap(r => r.items)
-      .map(item => item.productId?._id)
-      .filter(id => id !== null && id !== undefined);
+    // Gabungkan semua items (transfer + purchase)
+    const enrichedRequests = requests.map(req => {
+      const items = [...req.transferItems, ...req.purchaseItems];
 
-    const uniqueProductIds = [...new Set(productIds)];
+      // Kumpulkan semua productId yang valid
+      const productIds = items
+        .map(item => item.productId?._id)
+        .filter(id => id !== null && id !== undefined);
+
+      return { ...req, items, productIds };
+    });
+
+    // Ambil semua productId unik
+    const uniqueProductIds = [
+      ...new Set(enrichedRequests.flatMap(r => r.productIds))
+    ];
 
     // Ambil semua produk yang relevan
-    const products = uniqueProductIds.length > 0 
+    const products = uniqueProductIds.length > 0
       ? await Product.find({ _id: { $in: uniqueProductIds } }).lean()
       : [];
 
@@ -181,32 +192,32 @@ export const getAllRequestWithSuppliers = async (req, res) => {
       productMap[product._id.toString()] = product;
     });
 
-    // Enrich setiap request dan item
-    const enrichedRequests = requests.map(req => ({
+    // Enrich setiap request dan item dengan suppliers
+    const finalRequests = enrichedRequests.map(req => ({
       ...req,
       items: req.items.map(item => {
         let product;
         if (item.productId) {
           product = productMap[item.productId._id?.toString()];
         } else {
-          // jika productId null, coba cocokkan dengan product berdasarkan SKU/Name
           product = products.find(p => p.sku === item.productSku || p.name === item.productName);
         }
 
         return {
           ...item,
-          productId: product?._id || item._id, // pastikan ada _id
-          suppliers: product?.suppliers || [], // isi suppliers dari product
+          productId: product?._id || item._id,
+          suppliers: product?.suppliers || [],
         };
       })
     }));
 
-    res.status(200).json({ success: true, data: enrichedRequests });
+    res.status(200).json({ success: true, data: finalRequests });
   } catch (error) {
     console.error('Failed to get request list:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 
 // Setujui beberapa item dalam request
 export const approveRequestItems = async (req, res) => {
@@ -324,12 +335,11 @@ export const createMarketList = async (req, res) => {
   session.startTransaction();
 
   try {
-    const user = await User.findById(req.user._id).session(session);
-    if (!user || user.role !== "inventory") {
-      await session.abortTransaction();
-      return res
-        .status(403)
-        .json({ message: "Hanya petugas belanja yang bisa mencatat belanja" });
+    const user = await User.findById(req.user._id).populate('role');
+    if (!user) return res.status(403).json({ message: 'Akses ditolak' });
+
+    if (!user.role.permissions.includes('manage_inventory')) {
+      return res.status(403).json({ message: 'Tidak memiliki izin untuk melakukan operasi ini' });
     }
 
     const { date, items = [], additionalExpenses = [] } = req.body;
@@ -340,14 +350,32 @@ export const createMarketList = async (req, res) => {
 
     const day = new Date(date).toLocaleDateString("id-ID", { weekday: "long" });
 
+    // Validasi warehouse
+    const warehouseIds = [...new Set(items.map(item => item.warehouse).filter(Boolean))];
+    const existingWarehouses = await Warehouse.find({
+      _id: { $in: warehouseIds }
+    }).session(session);
+
+    if (existingWarehouses.length !== warehouseIds.length) {
+      throw new Error("Satu atau lebih warehouse tidak valid");
+    }
+
     const processedItems = [];
     const relatedRequestIds = new Set();
     let totalCharged = 0;
     let totalPaid = 0;
 
     for (const item of items) {
+      if (!item.warehouse) {
+        throw new Error(`Warehouse wajib diisi untuk produk ${item.productName}`);
+      }
+
       const amountCharged = item.quantityPurchased * item.pricePerUnit;
       const amountPaid = item.amountPaid || 0;
+
+      if (amountPaid > amountCharged) {
+        throw new Error(`Jumlah dibayar tidak boleh lebih besar dari jumlah yang dibebankan untuk produk ${item.productName}`);
+      }
 
       processedItems.push({
         ...item,
@@ -362,7 +390,6 @@ export const createMarketList = async (req, res) => {
       if (item.requestId) relatedRequestIds.add(item.requestId);
     }
 
-    // Simpan dokumen MarketList
     const marketListDoc = new MarketList({
       date,
       day,
@@ -374,16 +401,9 @@ export const createMarketList = async (req, res) => {
 
     const savedMarketList = await marketListDoc.save({ session });
 
-    // -----------------------------
-    // 1. Update stok barang
-    // -----------------------------
+    // Update stok produk
     const productStockUpdates = [];
-
     for (const item of processedItems) {
-      if (!item.warehouse) {
-        throw new Error(`Warehouse wajib diisi untuk produk ${item.productName}`);
-      }
-
       const purchaseMovement = {
         quantity: item.quantityPurchased,
         type: "in",
@@ -400,83 +420,56 @@ export const createMarketList = async (req, res) => {
           update: {
             $inc: { currentStock: item.quantityPurchased },
             $push: { movements: purchaseMovement },
-            $setOnInsert: { category: item.category },
+            $setOnInsert: {
+              category: item.category,
+              productName: item.productName,
+              productSku: item.productSku
+            },
           },
           upsert: true,
         },
       });
 
-      // Jika ada transfer ke warehouse lain
-      if (
-        item.requestItemId &&
-        item.destinationWarehouse &&
-        item.destinationWarehouse !== item.warehouse
-      ) {
-        const transferQuantity = item.quantityRequested || 0;
+      // Jika item ini untuk memenuhi request, update request item
+      if (item.requestId && item.requestItemId) {
+        const request = await Request.findById(item.requestId).session(session);
+        if (!request) continue;
 
-        const outMovement = {
-          quantity: transferQuantity,
-          type: "transfer",
-          referenceId: savedMarketList._id,
-          notes: `Transfer ke ${item.destinationWarehouse} untuk request`,
-          sourceWarehouse: item.warehouse,
-          destinationWarehouse: item.destinationWarehouse,
-          handledBy: user.username,
-          date: new Date(date),
-        };
+        // Cari di transferItems atau purchaseItems
+        let targetArray = null;
+        let itemToUpdate = null;
 
-        const inMovement = {
-          quantity: transferQuantity,
-          type: "transfer",
-          referenceId: savedMarketList._id,
-          notes: `Transfer dari ${item.warehouse} untuk request`,
-          sourceWarehouse: item.warehouse,
-          destinationWarehouse: item.destinationWarehouse,
-          handledBy: user.username,
-          date: new Date(date),
-        };
+        if (request.transferItems.id(item.requestItemId)) {
+          targetArray = 'transferItems';
+          itemToUpdate = request.transferItems.id(item.requestItemId);
+        } else if (request.purchaseItems.id(item.requestItemId)) {
+          targetArray = 'purchaseItems';
+          itemToUpdate = request.purchaseItems.id(item.requestItemId);
+        }
 
-        productStockUpdates.push({
-          updateOne: {
-            filter: { productId: item.productId, warehouse: item.warehouse },
-            update: {
-              $inc: { currentStock: -transferQuantity },
-              $push: { movements: outMovement },
-            },
-          },
-        });
+        if (itemToUpdate) {
+          // Tambahkan fulfilled quantity
+          const newFulfilled = itemToUpdate.fulfilledQuantity + item.quantityPurchased;
+          const finalFulfilled = Math.min(newFulfilled, itemToUpdate.quantity); // jangan melebihi permintaan
 
-        productStockUpdates.push({
-          updateOne: {
-            filter: {
-              productId: item.productId,
-              warehouse: item.destinationWarehouse,
-            },
-            update: {
-              $inc: { currentStock: transferQuantity },
-              $push: { movements: inMovement },
-              $setOnInsert: { category: item.category },
-            },
-            upsert: true,
-          },
-        });
+          itemToUpdate.fulfilledQuantity = finalFulfilled;
+          itemToUpdate.processedAt = new Date(date);
+          itemToUpdate.processedBy = user.username;
 
-        await Request.updateOne(
-          {
-            _id: item.requestId,
-            "items._id": item.requestItemId,
-          },
-          {
-            $set: {
-              "items.$.status":
-                transferQuantity >= item.quantityRequested ? "dibeli" : "kurang",
-              "items.$.fulfilledQuantity": transferQuantity,
-              "items.$.processedAt": new Date(date),
-              "items.$.processedBy": user.username,
-            },
-          },
-          { session }
-        );
+          if (finalFulfilled >= itemToUpdate.quantity) {
+            itemToUpdate.status = "fulfilled";
+          } else {
+            itemToUpdate.status = "partial";
+          }
+
+          // Update fulfillmentStatus request
+          const allItems = [...request.transferItems, ...request.purchaseItems];
+          const isFullyFulfilled = allItems.every(i => i.fulfilledQuantity >= i.quantity);
+          const hasPartial = allItems.some(i => i.fulfilledQuantity > 0);
+
+          request.fulfillmentStatus = isFullyFulfilled ? "fulfilled" : hasPartial ? "partial" : "pending";
+          await request.save({ session });
+        }
       }
     }
 
@@ -484,162 +477,41 @@ export const createMarketList = async (req, res) => {
       await ProductStock.bulkWrite(productStockUpdates, { session });
     }
 
-    // -----------------------------
-    // 2. Update request status
-    // -----------------------------
+    // Update status request overall (jika belum fully fulfilled)
     for (const requestId of relatedRequestIds) {
       const request = await Request.findById(requestId).session(session);
-      if (request) {
-        const totalRequested = request.items.reduce(
-          (sum, item) => sum + item.quantity,
-          0
-        );
-        const totalFulfilled = request.items.reduce(
-          (sum, item) => sum + (item.fulfilledQuantity || 0),
-          0
-        );
+      if (!request) continue;
 
-        let fulfillmentStatus = "pending";
-        if (totalFulfilled === 0) {
-          fulfillmentStatus = "pending";
-        } else if (totalFulfilled >= totalRequested) {
-          fulfillmentStatus = "dibeli";
-        } else {
-          fulfillmentStatus = "partial";
-        }
+      const allItems = [...request.transferItems, ...request.purchaseItems];
+      const isFullyFulfilled = allItems.every(i => i.fulfilledQuantity >= i.quantity);
+      const hasPartial = allItems.some(i => i.fulfilledQuantity > 0);
 
-        await Request.updateOne(
-          { _id: requestId },
-          {
-            $set: {
-              fulfillmentStatus,
-              fulfilledItems: request.items.filter(
-                (item) => (item.fulfilledQuantity || 0) > 0
-              ).length,
-            },
-          },
-          { session }
-        );
-      }
+      request.fulfillmentStatus = isFullyFulfilled ? "fulfilled" : hasPartial ? "partial" : "pending";
+      await request.save({ session });
     }
 
-    // -----------------------------
-    // 3. Cashflow & Debt Handling (PERBAIKAN)
-    // -----------------------------
-    const lastBalance = await getLastBalance();
+    // Catat cashflow & hutang (opsional, sesuai kebutuhan)
+    const lastBalance = await getLastBalance(); // ← pastikan fungsi ini ada
     let newBalance = lastBalance;
 
-    // Jika tidak ada saldo (lastBalance = 0)
-    if (lastBalance === 0) {
-      // Semua transaksi masuk ke hutang
-      if (totalPaid > 0) {
-        // Catat cashflow sebagai pengeluaran dari kas (defisit)
-        const cashflow = new CashFlow({
-          date,
-          day,
-          description: `Belanja harian - Kas tidak mencukupi (kurang ${totalPaid})`,
-          cashOut: totalPaid,
-          balance: -totalPaid, // Saldo menjadi negatif menunjukkan defisit
-          destination: "Supplier",
-          relatedMarketList: savedMarketList._id,
-          createdBy: user.username,
-        });
-        await cashflow.save({ session });
-        newBalance = -totalPaid;
-      }
-
-      // Semua item masuk ke debt
-      for (const item of processedItems) {
-        const debt = new Debt({
-          date,
-          supplierId: item.supplierId || null,
-          supplierName: item.supplierName || "Unknown Supplier",
-          productId: item.productId,
-          productName: item.productName,
-          productSku: item.productSku,
-          quantity: item.quantityPurchased,
-          unit: item.unit,
-          pricePerUnit: item.pricePerUnit,
-          amount: item.amountCharged,
-          paidAmount: 0, // Tidak ada yang dibayar dari kas
-          paymentMethod: item.paymentMethod || "cash",
-          marketListId: savedMarketList._id,
-          status: 'unpaid',
-          notes: `Hutang belanja - kas tidak tersedia (tanggal ${date})`,
-          createdBy: user.username,
-        });
-
-        await debt.save({ session });
-      }
-
-    } else if (lastBalance >= totalPaid) {
-      // Saldo cukup untuk pembayaran
-      newBalance = lastBalance - totalPaid;
-
+    if (totalPaid > 0) {
       const cashflow = new CashFlow({
         date,
         day,
-        description: `Belanja harian`,
+        description: `Belanja harian - ${savedMarketList._id}`,
         cashOut: totalPaid,
-        balance: newBalance,
+        balance: lastBalance - totalPaid,
         destination: "Supplier",
         relatedMarketList: savedMarketList._id,
         createdBy: user.username,
       });
       await cashflow.save({ session });
+      newBalance = lastBalance - totalPaid;
+    }
 
-      // Yang tidak dibayar langsung masuk ke debt
-      for (const item of processedItems) {
-        const unpaidAmount = item.amountCharged - item.amountPaid;
-        if (unpaidAmount > 0) {
-          const debt = new Debt({
-            date,
-            supplierId: item.supplierId || null,
-            supplierName: item.supplierName || "Unknown Supplier",
-            productId: item.productId,
-            productName: item.productName,
-            productSku: item.productSku,
-            quantity: item.quantityPurchased,
-            unit: item.unit,
-            pricePerUnit: item.pricePerUnit,
-            amount: item.amountCharged,
-            paidAmount: item.amountPaid,
-            paymentMethod: item.paymentMethod || "cash",
-            marketListId: savedMarketList._id,
-            status: item.amountPaid > 0 ? 'partial' : 'unpaid',
-            notes: `Sisa hutang dari belanja tanggal ${date}`,
-            createdBy: user.username,
-          });
-
-          await debt.save({ session });
-        }
-      }
-
-    } else {
-      // Saldo ada tapi tidak mencukupi
-      const remainingPayment = totalPaid - lastBalance;
-
-      // Habiskan saldo yang ada
-      const cashflow = new CashFlow({
-        date,
-        day,
-        description: `Belanja harian - Kas hanya ${lastBalance} (kurang ${remainingPayment})`,
-        cashOut: lastBalance,
-        balance: 0,
-        destination: "Supplier",
-        relatedMarketList: savedMarketList._id,
-        createdBy: user.username,
-      });
-      await cashflow.save({ session });
-
-      newBalance = 0;
-
-      // Buat debt untuk semua item dengan pembayaran proporsional dari kas
-      const cashRatio = lastBalance / totalPaid; // Rasio kas yang tersedia
-
-      for (const item of processedItems) {
-        const paidFromCash = Math.floor(item.amountPaid * cashRatio);
-        
+    for (const item of processedItems) {
+      const unpaidAmount = item.amountCharged - item.amountPaid;
+      if (unpaidAmount > 0) {
         const debt = new Debt({
           date,
           supplierId: item.supplierId || null,
@@ -650,15 +522,14 @@ export const createMarketList = async (req, res) => {
           quantity: item.quantityPurchased,
           unit: item.unit,
           pricePerUnit: item.pricePerUnit,
-          amount: item.amountCharged,
-          paidAmount: paidFromCash,
+          amount: unpaidAmount,
+          paidAmount: item.amountPaid,
           paymentMethod: item.paymentMethod || "cash",
           marketListId: savedMarketList._id,
-          status: paidFromCash > 0 ? 'partial' : 'unpaid',
-          notes: `Hutang belanja - kas tidak mencukupi (tanggal ${date})`,
+          status: item.amountPaid > 0 ? 'partial' : 'unpaid',
+          notes: `Hutang belanja - ${date}`,
           createdBy: user.username,
         });
-
         await debt.save({ session });
       }
     }
@@ -672,7 +543,7 @@ export const createMarketList = async (req, res) => {
       cashBalance: newBalance,
       totalCharged,
       totalPaid,
-      message: "Belanja berhasil disimpan, stok diperbarui, kas & hutang dicatat",
+      message: "Belanja berhasil disimpan. Stok masuk, dan request otomatis terpenuhi jika ada referensi.",
     });
   } catch (error) {
     await session.abortTransaction();
