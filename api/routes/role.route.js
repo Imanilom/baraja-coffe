@@ -13,7 +13,7 @@ const router = express.Router();
 // hanya superadmin & admin yang bisa kelola role
 const roleAccess = verifyToken(["superadmin", "admin"]);
 
-router.post("/", roleAccess, createRole);
+router.post("/", createRole);
 router.get("/", roleAccess, getRoles);
 router.get("/:id", roleAccess, getRoleById);
 router.put("/:id", roleAccess, updateRole);

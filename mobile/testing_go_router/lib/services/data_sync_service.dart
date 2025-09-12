@@ -61,6 +61,16 @@ class DataSyncService {
       );
       await MenuItemRepository().getMenuItem();
 
+      currentStep++;
+      onProgress(
+        DataSyncProgress(
+          currentStep: currentStep,
+          totalSteps: totalSteps,
+          currentTask: 'Downloading stock...',
+        ),
+      );
+      await MenuItemRepository().getMenuItemStock();
+
       // Step 2: Sync Tax and Service
       currentStep++;
       onProgress(

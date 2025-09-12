@@ -18,4 +18,19 @@ class MenuItemService {
       throw ApiResponseHandler.handleError(e);
     }
   }
+
+  //get menu item stock
+  Future<Map<String, dynamic>> fetchMenuItemStock() async {
+    try {
+      final response = await _dio.get(
+        '/api/product/menu-stock',
+        options: Options(headers: {'ngrok-skip-browser-warning': true}),
+        // queryParameters: {'limit': '500'},
+      );
+
+      return response.data;
+    } on DioException catch (e) {
+      throw ApiResponseHandler.handleError(e);
+    }
+  }
 }

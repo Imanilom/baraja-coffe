@@ -92,6 +92,39 @@ class MenuItemRepository {
     }
   }
 
+  //get menu item stock
+  Future<Map<String, dynamic>> getMenuItemStock() async {
+    try {
+      final stockResponse = await _menuItemService.fetchMenuItemStock();
+
+      print("Data stock yg diambil: ${stockResponse['data'].length}");
+      // masukan kedalam data menu item
+      var productBox = Hive.box<MenuItemModel>('menuItemsBox');
+      if (productBox.isNotEmpty) {
+        // input data api stock ke dalam hive menu item sesuai ID menu item
+        final stockData = stockResponse['data'] as List;
+        for (var stockItem in stockData) {
+          final menuItemId = stockItem['_id'].toString();
+          final availableStock = stockItem['availableStock'] ?? 0;
+
+          final localItem = productBox.get(menuItemId);
+          if (localItem != null) {
+            final updatedItem = localItem.copyWith(stock: availableStock);
+            await productBox.put(menuItemId, updatedItem);
+            print(
+              "Mengupdate stock item: ${localItem.name}, Stock: $availableStock",
+            );
+          }
+        }
+      }
+
+      return stockResponse;
+    } catch (e) {
+      print("Gagal mengambil data stock: ${e.toString()}");
+      rethrow;
+    }
+  }
+
   //get menu item yang disimpan di Hive
   Future<List<MenuItemModel>> getLocalMenuItems() async {
     var productBox = Hive.box<MenuItemModel>('menuItemsBox');

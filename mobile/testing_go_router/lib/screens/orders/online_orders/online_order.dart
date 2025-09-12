@@ -61,8 +61,11 @@ class OnlineOrderScreen extends ConsumerWidget {
                   ),
                   child: ordersAsync.when(
                     data:
-                        (orders) =>
-                            _buildStatisticsRow(orders?.length ?? 0, ref),
+                        (orders) => _buildStatisticsRow(
+                          context,
+                          orders?.length ?? 0,
+                          ref,
+                        ),
                     loading: () => _buildStatisticsLoadingSkeleton(),
                     error: (_, __) => const SizedBox(),
                   ),
@@ -172,7 +175,11 @@ class OnlineOrderScreen extends ConsumerWidget {
 
 // Helper Methods (add these as static methods in your class or as separate functions)
 
-Widget _buildStatisticsRow(int orderCount, WidgetRef ref) {
+Widget _buildStatisticsRow(
+  BuildContext context,
+  int orderCount,
+  WidgetRef ref,
+) {
   return Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
@@ -225,7 +232,7 @@ Widget _buildStatisticsRow(int orderCount, WidgetRef ref) {
         // Divider
         Container(width: 1, height: 40, color: Colors.blue.withOpacity(0.2)),
 
-        // Scan Qr code button
+        // Scan Qr code button,
         Padding(
           padding: const EdgeInsets.only(left: 16),
           child: IconButton(
@@ -242,11 +249,15 @@ Widget _buildStatisticsRow(int orderCount, WidgetRef ref) {
               color: Colors.blue.shade600,
             ),
             onPressed: () {
-              // Implement QR code scanning functionality here
-              // showDialog(
-              //   context: context,
-              //   builder: (context) => const QRScannerDialog(),
-              // );
+              showDialog(
+                context: context,
+                builder:
+                    (context) => QRScannerOverlay(
+                      onScanned: (scannedData) {
+                        _handleScannedData(context, ref, scannedData);
+                      },
+                    ),
+              );
             },
             tooltip: 'Scan QR Code',
           ),
@@ -271,6 +282,57 @@ Widget _buildStatisticsRow(int orderCount, WidgetRef ref) {
           ),
         ),
       ],
+    ),
+  );
+}
+
+void _handleScannedData(
+  BuildContext context,
+  WidgetRef ref,
+  String scannedData,
+) {
+  try {
+    final orderId = scannedData.trim();
+
+    final currentOrders = ref.read(onlineOrderProvider).value;
+    if (currentOrders != null) {
+      final foundOrder =
+          currentOrders.where((order) => order.orderId == orderId).firstOrNull;
+
+      if (foundOrder != null) {
+        ref.read(onlineOrderDetailProvider.notifier).clearOnlineOrderDetail();
+        ref
+            .read(onlineOrderDetailProvider.notifier)
+            .savedOnlineOrderDetail(foundOrder);
+
+        _showSuccessSnackBar(context, 'Order ditemukan: $orderId');
+      } else {
+        _showErrorSnackBar(context, 'Order dengan ID $orderId tidak ditemukan');
+      }
+    } else {
+      _showErrorSnackBar(context, 'Data order tidak tersedia');
+    }
+  } catch (e) {
+    _showErrorSnackBar(context, 'Gagal memproses data QR: $e');
+  }
+}
+
+void _showSuccessSnackBar(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: Colors.green,
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
+
+void _showErrorSnackBar(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: Colors.red,
+      behavior: SnackBarBehavior.floating,
     ),
   );
 }

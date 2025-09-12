@@ -151,7 +151,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
         Expanded(
           flex: 4,
           child: Container(
-            color: Colors.grey.shade200,
+            color: Colors.grey.shade50,
             child: Column(
               children: [
                 // Search Bar
