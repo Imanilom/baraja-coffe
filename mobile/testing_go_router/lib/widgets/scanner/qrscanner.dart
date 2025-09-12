@@ -12,9 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class QRScannerOverlay extends ConsumerStatefulWidget {
   final Function(String) onScanned;
-  final VoidCallback? onClose;
 
-  const QRScannerOverlay({super.key, required this.onScanned, this.onClose});
+  const QRScannerOverlay({super.key, required this.onScanned});
 
   @override
   ConsumerState<QRScannerOverlay> createState() => _QRScannerOverlayState();
@@ -61,7 +60,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
                 children: [
                   // Close button
                   IconButton(
-                    onPressed: widget.onClose,
+                    onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(
                       Icons.close,
                       color: Colors.white,
@@ -516,6 +515,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
             ),
             ElevatedButton(
               onPressed: () {
+                Navigator.of(context).pop();
                 Navigator.of(context).pop();
                 // widget.onClose();
               },

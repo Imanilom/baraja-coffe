@@ -46,11 +46,11 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
                   onScanned: (scannedData) {
                     _handleScannedData(context, ref, scannedData);
                   },
-                  onClose: () {
-                    setState(() {
-                      _showQRScanner = false;
-                    });
-                  },
+                  // onClose: () {
+                  //   setState(() {
+                  //     _showQRScanner = false;
+                  //   });
+                  // },
                 ),
               ),
             ),
