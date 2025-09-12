@@ -170,14 +170,16 @@ export const createAppOrder = async (req, res) => {
         });
       }
     }
+    let subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+    let totalAfterDiscount = subtotal;
 
-    let totalAfterDiscount = 0;
-
-    if (discountType == 'percentage') {
-      totalAfterDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0) - (orderItems.reduce((sum, item) => sum + item.subtotal, 0) * (voucherAmount / 100));
-    } else if (discountType == 'fixed') {
-      totalAfterDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0) - voucherAmount;
+    if (discountType === 'percentage') {
+      totalAfterDiscount = subtotal - (subtotal * (voucherAmount / 100));
+    } else if (discountType === 'fixed') {
+      totalAfterDiscount = subtotal - voucherAmount;
+      if (totalAfterDiscount < 0) totalAfterDiscount = 0; // biar tidak minus
     }
+
 
     let newOrder;
 
@@ -2474,73 +2476,82 @@ export const charge = async (req, res) => {
       }
 
       // Check if payment already exists for this order
+      // const existingPayment = await Payment.findOne({ order_id: order_id });
+      // if (existingPayment) {
+      //   console.log('Payment already exists for order:', order_id);
+
+      //   // Generate QR code data using order._id only
+      //   const qrData = {
+      //     order_id: order._id.toString(),
+      //   };
+
+      //   const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
+
+      //   return res.status(200).json({
+      //     order_id: existingPayment.order_id,
+      //     transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
+      //     method: existingPayment.method,
+      //     status: existingPayment.status,
+      //     paymentType: existingPayment.paymentType,
+      //     amount: existingPayment.amount,
+      //     remainingAmount: existingPayment.remainingAmount,
+      //     discount: 0,
+      //     fraud_status: "accept",
+      //     transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
+      //     expiry_time: existingPayment.expiry_time || null,
+      //     settlement_time: existingPayment.settlement_time || null,
+      //     va_numbers: existingPayment.va_numbers || [],
+      //     permata_va_number: existingPayment.permata_va_number || null,
+      //     bill_key: existingPayment.bill_key || null,
+      //     biller_code: existingPayment.biller_code || null,
+      //     pdf_url: existingPayment.pdf_url || null,
+      //     currency: existingPayment.currency || "IDR",
+      //     merchant_id: existingPayment.merchant_id || "G711879663",
+      //     signature_key: existingPayment.signature_key || null,
+      //     actions: [
+      //       {
+      //         name: "generate-qr-code",
+      //         method: "GET",
+      //         url: qrCodeBase64,
+      //       }
+      //     ],
+      //     raw_response: existingPayment.raw_response || {
+      //       status_code: "201",
+      //       status_message: "Cash transaction is created",
+      //       transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
+      //       order_id: existingPayment.order_id,
+      //       merchant_id: "G711879663",
+      //       gross_amount: existingPayment.amount.toString() + ".00",
+      //       currency: "IDR",
+      //       payment_type: "cash",
+      //       transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
+      //       transaction_status: existingPayment.status,
+      //       fraud_status: "accept",
+      //       actions: [
+      //         {
+      //           name: "generate-qr-code",
+      //           method: "GET",
+      //           url: qrCodeBase64,
+      //         }
+      //       ],
+      //       acquirer: "cash",
+      //       qr_string: JSON.stringify(qrData),
+      //       expiry_time: existingPayment.expiry_time || null
+      //     },
+      //     createdAt: existingPayment.createdAt,
+      //     updatedAt: existingPayment.updatedAt,
+      //     __v: 0
+      //   });
+      // }
       const existingPayment = await Payment.findOne({ order_id: order_id });
+
+      let isDuplicate = false;
       if (existingPayment) {
-        console.log('Payment already exists for order:', order_id);
-
-        // Generate QR code data using order._id only
-        const qrData = {
-          order_id: order._id.toString(),
-        };
-
-        const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
-
-        return res.status(200).json({
-          order_id: existingPayment.order_id,
-          transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
-          method: existingPayment.method,
-          status: existingPayment.status,
-          paymentType: existingPayment.paymentType,
-          amount: existingPayment.amount,
-          remainingAmount: existingPayment.remainingAmount,
-          discount: 0,
-          fraud_status: "accept",
-          transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
-          expiry_time: existingPayment.expiry_time || null,
-          settlement_time: existingPayment.settlement_time || null,
-          va_numbers: existingPayment.va_numbers || [],
-          permata_va_number: existingPayment.permata_va_number || null,
-          bill_key: existingPayment.bill_key || null,
-          biller_code: existingPayment.biller_code || null,
-          pdf_url: existingPayment.pdf_url || null,
-          currency: existingPayment.currency || "IDR",
-          merchant_id: existingPayment.merchant_id || "G711879663",
-          signature_key: existingPayment.signature_key || null,
-          actions: [
-            {
-              name: "generate-qr-code",
-              method: "GET",
-              url: qrCodeBase64,
-            }
-          ],
-          raw_response: existingPayment.raw_response || {
-            status_code: "201",
-            status_message: "Cash transaction is created",
-            transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
-            order_id: existingPayment.order_id,
-            merchant_id: "G711879663",
-            gross_amount: existingPayment.amount.toString() + ".00",
-            currency: "IDR",
-            payment_type: "cash",
-            transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
-            transaction_status: existingPayment.status,
-            fraud_status: "accept",
-            actions: [
-              {
-                name: "generate-qr-code",
-                method: "GET",
-                url: qrCodeBase64,
-              }
-            ],
-            acquirer: "cash",
-            qr_string: JSON.stringify(qrData),
-            expiry_time: existingPayment.expiry_time || null
-          },
-          createdAt: existingPayment.createdAt,
-          updatedAt: existingPayment.updatedAt,
-          __v: 0
-        });
+        console.log('⚠️ Duplicate charge detected for order:', order_id);
+        isDuplicate = true;
       }
+
+      console.log('Order found with ID:', order._id, 'isDuplicate:', isDuplicate);
 
       // Log reservation payment details if present
       if (is_down_payment !== undefined) {
@@ -2605,7 +2616,7 @@ export const charge = async (req, res) => {
         actions: actions,
         acquirer: "cash",
         qr_string: JSON.stringify(qrData),
-        expiry_time: expiryTime
+        expiry_time: expiryTime,
       };
 
       // Create payment with actions and raw_response
@@ -2664,7 +2675,8 @@ export const charge = async (req, res) => {
         raw_response: rawResponse,
         createdAt: savedPayment.createdAt,
         updatedAt: savedPayment.updatedAt,
-        __v: 0
+        __v: 0,
+        isDuplicate,
       });
     } else {
       // Handle payment lainnya (bank_transfer, gopay, qris, dll)
@@ -2802,6 +2814,7 @@ export const charge = async (req, res) => {
         remainingAmount: remainingAmount,
         is_down_payment: is_down_payment || false,
         down_payment_amount: is_down_payment === true ? down_payment_amount : null,
+        isDuplicate,
       };
 
       return res.status(200).json(enhancedResponse);
