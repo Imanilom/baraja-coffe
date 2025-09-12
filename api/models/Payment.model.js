@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const PaymentSchema = new mongoose.Schema({
   // Basic payment info
   order_id: { type: String, ref: 'Order', required: true },
+  payment_code: { type: String },
   transaction_id: { type: String },
   method: { type: String, required: true },
   status: { type: String, default: 'pending' },
@@ -31,7 +32,7 @@ const PaymentSchema = new mongoose.Schema({
   biller_code: { type: String },
   pdf_url: { type: String },
   currency: { type: String, default: "IDR" },
-  merchant_id: { type: String },  
+  merchant_id: { type: String },
   signature_key: { type: String },
 
   // NEW: Store GoPay/QRIS actions
