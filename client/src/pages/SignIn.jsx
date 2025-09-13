@@ -30,51 +30,123 @@ export default function SignIn() {
         body: JSON.stringify(formData),
       });
       const data = await res.json();
-      if (data.success === false) {
-        dispatch(signInFailure(data));
-        return;
+
+      // 🔥 Logging response sebelum dipakai
+      console.log("Response status:", res.status);
+      console.log("Full response JSON:", data);
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Sign-in failed');
       }
+
       dispatch(signInSuccess(data));
-      navigate('/');
-    } catch (error) {
-      dispatch(signInFailure(error));
+      if (data.role !== 'customer') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/');
+      }
+    } catch (err) {
+      dispatch(signInFailure({ message: err.message }));
     }
   };
+
   return (
-    <div className='p-3 max-w-lg mx-auto'>
-      <h1 className='text-3xl text-center font-semibold my-7'>Sign In</h1>
-      <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-        <input
-          type='email'
-          placeholder='Email'
-          id='email'
-          className='bg-slate-100 p-3 rounded-lg'
-          onChange={handleChange}
-        />
-        <input
-          type='password'
-          placeholder='Password'
-          id='password'
-          className='bg-slate-100 p-3 rounded-lg'
-          onChange={handleChange}
-        />
-        <button
-          disabled={loading}
-          className='bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80'
-        >
-          {loading ? 'Loading...' : 'Sign In'}
-        </button>
-        <OAuth />
-      </form>
-      <div className='flex gap-2 mt-5'>
-        <p>Dont Have an account?</p>
-        <Link to='/sign-up'>
-          <span className='text-blue-500'>Sign up</span>
-        </Link>
+    <div className="min-h-screen bg-[#005429] flex items-center justify-center px-4">
+      <div className="w-full max-w-md sm:max-w-sm md:max-w-md lg:max-w-lg px-6 bg-white shadow-xl border border-army/20 transform transition-all py-10 rounded-xl">
+
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <img
+            src="/images/baraja.png"
+            alt="Logo"
+            className="w-32 mx-auto md:w-40 lg:w-48"
+          />
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <label
+              htmlFor="identifier"
+              className="block text-sm font-medium text-army/80"
+            >
+              Username or Email
+            </label>
+            <input
+              type="text"
+              id="identifier"
+              onChange={handleChange}
+              className="w-full px-4 py-2 rounded-lg bg-beige border border-army/30 
+                     focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
+              placeholder="Your username or email"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-army/80"
+            >
+              Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              onChange={handleChange}
+              className="w-full px-4 py-2 rounded-lg bg-beige border border-army/30 
+                     focus:outline-none focus:ring-2 focus:ring-army/50 transition-all"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button
+            disabled={loading}
+            type="submit"
+            className="w-full bg-army text-army py-2 rounded-lg uppercase font-semibold tracking-wider 
+                   hover:bg-army-dark hover:text-white transition-all 
+                   disabled:opacity-80 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+          >
+            {loading ? "Signing In..." : "Sign In"}
+          </button>
+        </form>
+
+        {/* Divider */}
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-army/20"></span>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-beige px-2 text-army/70">Or continue with</span>
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-center">
+            <OAuth />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <p className="mt-6 text-center text-sm text-army/80">
+          Don't have an account?{" "}
+          <Link
+            to="/sign-up"
+            className="font-medium text-army hover:text-army-dark hover:underline transition-colors"
+          >
+            Create account
+          </Link>
+        </p>
+
+        {/* Error message */}
+        {error && (
+          <div className="mt-5 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-center text-sm">
+            {typeof error === "object"
+              ? error.message || "Something went wrong!"
+              : error}
+          </div>
+        )}
       </div>
-      <p className='text-red-700 mt-5'>
-        {error ? error.message || 'Something went wrong!' : ''}
-      </p>
     </div>
+
   );
 }
