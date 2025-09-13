@@ -1762,7 +1762,6 @@ export const createUnifiedOrder = async (req, res) => {
     const existingOrder = await Order.findOne({ order_id: order_id });
     if (existingOrder) {
       console.log('Order already exists in the database, confirming order...');
-
       try {
         const result = await confirmOrderHelper(order_id);
 
@@ -4197,5 +4196,191 @@ export const cashierCharge = async (req, res) => {
       message: 'Payment failed',
       error: error.message || error.toString()
     });
+  }
+};
+
+export const confirmOrderViaCashier = async (req, res) => {
+  try {
+    const { order_id, source, cashier_id } = req.body;
+
+    // Validasi input
+    if (!order_id || !cashier_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID and Cashier ID is required'
+      });
+    }
+
+    // Temukan order berdasarkan order_id
+    const order = await Order.findOne({ order_id })
+      .populate('items.menuItem')
+      .populate('user_id', 'name email')
+      .populate('cashierId', 'name');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Validasi status order saat ini
+    console.log(order.status);
+    if (order.status !== 'Pending' && order.status !== 'Reserved') {
+      return res.status(400).json({
+        success: false,
+        message: `Order cannot be confirmed. Current status: ${order.status}`
+      });
+    }
+
+    // Cek status pembayaran
+    const payment = await Payment.findOne({ order_id });
+
+    if (!payment) {
+      return res.status(400).json({
+        success: false,
+        message: 'No payment record found for this order'
+      });
+    }
+
+    // Validasi apakah pembayaran sudah lunas
+    // const isFullyPaid = await checkPaymentStatus(order_id, order.grandTotal);
+
+    // if (!isFullyPaid) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Order cannot be confirmed. Payment is not completed',
+    //     payment_status: payment.status,
+    //     amount_paid: payment.amount,
+    //     amount_due: order.grandTotal - payment.amount
+    //   });
+    // }
+
+    //find cashier
+    const cashier = await User.findOne({ _id: cashier_id });
+    console.log(cashier);
+
+    // Update status order menjadi "Waiting"
+    order.cashierId = cashier._id
+    // order.status = 'Waiting';
+    // order.source = source || order.source; // Update source jika diberikan
+    await order.save();
+
+    const statusUpdateData = {
+      order_id: order_id,  // Gunakan string order_id
+      orderStatus: 'Waiting',
+      paymentStatus: 'Settlement',
+      message: 'Pesanan dikonfirmasi kasir, menunggu kitchen',
+      timestamp: new Date(),
+      cashier: {
+        id: cashier._id,  // Ganti dengan ID kasir yang sebenarnya
+        name: cashier.username, // Ganti dengan nama kasir yang sebenarnya
+      }
+    };
+
+    // Emit ke room spesifik untuk order tracking
+    io.to(`order_${order_id}`).emit('order_status_update', statusUpdateData);
+
+    // Emit event khusus untuk konfirmasi kasir
+    io.to(`order_${order_id}`).emit('order_confirmed', {
+      orderId: order_id,
+      orderStatus: 'Waiting',
+      paymentStatus: "Settlement",
+      cashier: statusUpdateData.cashier,
+      message: 'Your order is now being prepared',
+      timestamp: new Date()
+    });
+
+    console.log(`🔔 Emitted order status update to room: order_${order_id}`, statusUpdateData);
+
+    // 3. Send FCM notification to customer
+    console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
+    if (order.user && order.user_id._id) {
+      try {
+        const orderData = {
+          orderId: order.order_id,
+          cashier: statusUpdateData.cashier
+        };
+
+        const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
+          order.user_id._id.toString(),
+          orderData
+        );
+
+        console.log('📱 FCM Notification result:', notificationResult);
+      } catch (notificationError) {
+        console.error('❌ Failed to send FCM notification:', notificationError);
+      }
+    }
+
+    // 4. Send notification to cashier dashboard if order is from Web/App
+    if (order.source === 'Web' || order.source === 'App') {
+      const orderData = {
+        orderId: order.order_id,
+        source: order.source,
+        orderType: order.orderType,
+        tableNumber: order.tableNumber || null,
+        items: order.items.map(item => ({
+          name: item.menuItem?.name || 'Unknown Item',
+          quantity: item.quantity
+        })),
+        createdAt: order.createdAt,
+        paymentMethod: order.paymentMethod,
+        totalAmount: order.grandTotal,
+        outletId: order.outlet._id
+      };
+
+      try {
+        if (typeof broadcastNewOrder === 'function') {
+          broadcastNewOrder(order.outlet._id.toString(), orderData);
+        }
+      } catch (broadcastError) {
+        console.error('Failed to broadcast new order:', broadcastError);
+      }
+    }
+
+    console.log('order berhasil di update');
+
+    // Response sukses to cashier
+    res.status(200).json({
+      success: true,
+      message: 'Order confirmed successfully',
+      data: {
+        order_id: order.order_id,
+        status: order.status,
+        grandTotal: order.grandTotal,
+        payment_status: payment.status
+      }
+    });
+
+  } catch (error) {
+    console.error('Confirm order error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+const checkPaymentStatus = async (order_id, grandTotal) => {
+  try {
+    // Cari semua pembayaran untuk order ini
+    const payments = await Payment.find({ order_id });
+
+    if (payments.length === 0) {
+      return false;
+    }
+
+    // Hitung total amount yang sudah dibayar
+    const paidAmount = payments
+      .filter(p => p.status === 'settlement' || p.status === 'paid')
+      .reduce((total, payment) => total + payment.amount, 0);
+
+    // Bandingkan dengan grand total order
+    return paidAmount >= grandTotal;
+  } catch (error) {
+    console.error('Error checking payment status:', error);
+    return false;
   }
 };

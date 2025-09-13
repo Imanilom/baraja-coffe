@@ -33,7 +33,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
         orders?.payment
             ?.where(
               (payment) =>
-                  payment.status?.toLowerCase() == 'paid' ||
+                  payment.status?.toLowerCase() == 'settlement' ||
                   payment.status?.toLowerCase() == 'success',
             )
             .toList() ??
@@ -114,6 +114,49 @@ class PaymentDetailsWidget extends ConsumerWidget {
             ),
           ),
         ),
+        // Tombol Confirmation jika semua tagihan sudah dibayar
+        if (pendingPayments.isEmpty && paidPayments.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.2),
+                  spreadRadius: 1,
+                  blurRadius: 5,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey[300],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      'Confirmation',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
 
         // Tombol Lanjut Bayar
         if (pendingPayments.isNotEmpty)
@@ -334,31 +377,34 @@ class PaymentDetailsWidget extends ConsumerWidget {
                       ),
                     ),
 
-                    // Selection indicator
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: isSelected ? primaryColor : Colors.transparent,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color:
+                    // Selection indicator,
+                    isPending
+                        ? AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color:
+                                isSelected ? primaryColor : Colors.transparent,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color:
+                                  isSelected
+                                      ? primaryColor
+                                      : Colors.grey.withOpacity(0.4),
+                              width: 2,
+                            ),
+                          ),
+                          child:
                               isSelected
-                                  ? primaryColor
-                                  : Colors.grey.withOpacity(0.4),
-                          width: 2,
-                        ),
-                      ),
-                      child:
-                          isSelected
-                              ? const Icon(
-                                Icons.check_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              )
-                              : null,
-                    ),
+                                  ? const Icon(
+                                    Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 16,
+                                  )
+                                  : null,
+                        )
+                        : const SizedBox.shrink(),
                   ],
                 ),
 

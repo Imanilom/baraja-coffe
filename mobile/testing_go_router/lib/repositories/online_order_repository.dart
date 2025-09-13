@@ -42,6 +42,20 @@ class OnlineOrderRepository {
     }
   }
 
+  Future<void> confirmPaidOrder(
+    WidgetRef ref,
+    String? orderId,
+    String source,
+  ) async {
+    try {
+      final result = await _orderService.confirmPaidOrder(ref, orderId, source);
+      print('Order berhasil dikonfirmasi: $result');
+    } catch (e) {
+      print('Gagal konfirmasi order: ${e.toString()}');
+      rethrow;
+    }
+  }
+
   Future<void> confirmOrder(WidgetRef ref, OrderDetailModel orderDetail) async {
     try {
       final result = await _orderService.confirmPendingOrder(ref, orderDetail);

@@ -81,6 +81,39 @@ class OrderService {
     }
   }
 
+  Future<Map<String, dynamic>> confirmPaidOrder(
+    WidgetRef ref,
+    String? orderId,
+    String source,
+  ) async {
+    final box = Hive.box('userBox');
+    final cashierId = box.get('cashier').id;
+
+    try {
+      if (orderId == null || cashierId == null) {
+        throw Exception("orderId atau cashierId tidak boleh null");
+      }
+      Response response = await _dio.post(
+        '/api/order/cashier/confirm-order',
+        data: {'order_id': orderId, 'cashier_id': cashierId, 'source': source},
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        ),
+      );
+
+      print('response confirm order: ${response.data}');
+
+      return response.data;
+    } on DioException catch (e) {
+      print('error fetch order detail: ${e.response?.data}');
+      throw ApiResponseHandler.handleError(e);
+    }
+  }
+
   Future<Map<String, dynamic>> confirmPendingOrder(
     WidgetRef ref,
     OrderDetailModel orderDetail,
