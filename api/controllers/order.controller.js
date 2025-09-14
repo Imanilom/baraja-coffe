@@ -1905,6 +1905,14 @@ const generatePaymentCode = () => {
   return `${dd}${mm}${yyyy}${HH}${MM}${SS}`;
 };
 
+function generateTransactionId() {
+  const chars = '0123456789abcdef';
+  const sections = [8, 4, 4, 4, 12];
+  return sections.map(len =>
+    Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  ).join('-');
+}
+
 export const charge = async (req, res) => {
   try {
     const {
@@ -2143,15 +2151,6 @@ export const charge = async (req, res) => {
     });
   }
 };
-
-// ✅ TAMBAHAN: Helper function untuk generate transaction ID
-function generateTransactionId() {
-  const chars = '0123456789abcdef';
-  const sections = [8, 4, 4, 4, 12];
-  return sections.map(len =>
-    Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-  ).join('-');
-}
 
 // ✅ TAMBAHAN: Controller untuk cek status pembayaran
 export const getPaymentStatus = async (req, res) => {
@@ -3592,7 +3591,7 @@ export const getOrderById = async (req, res) => {
 
     // ✅ TAMBAHAN: Payment details untuk down payment
     const paymentDetails = {
-      totalAmount: payment?.totalAmount || order.total || 0,
+      totalAmount: payment?.totalAmount || order.grandTotal || 0,
       paidAmount: payment?.amount || 0,
       remainingAmount: payment?.remainingAmount || 0,
       paymentType: payment?.paymentType || 'Full',
@@ -3601,7 +3600,9 @@ export const getOrderById = async (req, res) => {
       method: payment
         ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
         : 'Unknown',
-      status: paymentStatus
+      status: paymentStatus,
+      totalBeforeDiscount: order.totalBeforeDiscount || 0,
+      totalAfterDiscount: order.totalAfterDiscount || 0,
     };
 
     // Build orderData
@@ -3611,7 +3612,7 @@ export const getOrderById = async (req, res) => {
       orderNumber: generateOrderNumber(order.order_id || order._id),
       orderDate: formatDate(order.createdAt),
       items: formattedItems,
-      total: payment?.totalAmount || payment?.amount || 0, // ✅ Update: gunakan totalAmount jika ada
+      total: payment?.totalAmount || order?.grandTotal || payment?.amount || 0, // ✅ Update: gunakan totalAmount jika ada
       orderStatus: order.status,
       paymentMethod: paymentDetails.method,
       paymentStatus,

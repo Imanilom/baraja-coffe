@@ -19,7 +19,7 @@ const PaymentSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
 
   // ✅ TAMBAHAN: Total amount keseluruhan order (untuk tracking)
-  totalAmount: { type: Number },
+  // totalAmount: { type: Number },
 
   remainingAmount: { type: Number, default: 0 },
 
