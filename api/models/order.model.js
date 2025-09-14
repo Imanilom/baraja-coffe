@@ -40,6 +40,7 @@ const OrderSchema = new mongoose.Schema({
   },
   deliveryAddress: { type: String },
   tableNumber: { type: String },
+  pickupTime: { type: String },
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
 
   // ✅ NEW: Open Bill fields

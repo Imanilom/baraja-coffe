@@ -78,7 +78,7 @@ export const createAppOrder = async (req, res) => {
       }
     }
 
-    // Format orderType
+    // ✅ Format orderType
     let formattedOrderType = '';
     switch (orderType) {
       case 'dineIn':
@@ -99,6 +99,10 @@ export const createAppOrder = async (req, res) => {
           return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
         }
         break;
+      case 'takeAway':
+        formattedOrderType = 'Take Away';
+        // ✅ Tidak perlu validasi tambahan
+        break;
       case 'reservation':
         formattedOrderType = 'Reservation';
         if (!reservationData && !isOpenBill) {
@@ -111,6 +115,26 @@ export const createAppOrder = async (req, res) => {
       default:
         return res.status(400).json({ success: false, message: 'Invalid order type' });
     }
+
+    // Handle pickup time
+    let parsedPickupTime = null;
+    if (orderType === 'pickup') {
+      if (!pickupTime) {
+        return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
+      }
+
+      // Convert "HH:mm" -> Date
+      const [hours, minutes] = pickupTime.split(':').map(Number);
+      const now = new Date();
+      parsedPickupTime = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        hours,
+        minutes
+      );
+    }
+
 
     // Find voucher if provided
     let voucherId = null;
@@ -188,16 +212,11 @@ export const createAppOrder = async (req, res) => {
 
     // ✅ Handle Open Bill
     if (isOpenBill && existingOrder) {
-      // Tambahkan items baru
       existingOrder.items.push(...orderItems);
 
-      // Hitung subtotal hanya untuk items baru
       const newItemsTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
-
-      // Update total (ditambah, bukan di-replace)
       existingOrder.totalBeforeDiscount += newItemsTotal;
 
-      // Hitung ulang diskon berdasarkan total yang baru
       let updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount;
       if (discountType === 'percentage') {
         updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount - (existingOrder.totalBeforeDiscount * (voucherAmount / 100));
@@ -263,6 +282,7 @@ export const createAppOrder = async (req, res) => {
         orderType: formattedOrderType,
         deliveryAddress: deliveryAddress || '',
         tableNumber: tableNumber || '',
+        pickupTime: parsedPickupTime,
         type: 'Indoor',
         voucher: voucherId,
         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
@@ -283,7 +303,7 @@ export const createAppOrder = async (req, res) => {
       await newOrder.save();
     }
 
-    // Handle reservation creation if orderType is reservation AND not open bill
+    // ✅ Reservation creation
     let reservationRecord = null;
     if (orderType === 'reservation' && !isOpenBill) {
       try {
@@ -337,7 +357,7 @@ export const createAppOrder = async (req, res) => {
       }
     }
 
-    // Prepare response data
+    // ✅ Response
     const responseData = {
       success: true,
       message: isOpenBill ?
@@ -386,6 +406,7 @@ export const createAppOrder = async (req, res) => {
       orderType: newOrder.orderType,
       deliveryAddress: newOrder.deliveryAddress,
       tableNumber: newOrder.tableNumber,
+      pickupTime: newOrder.pickupTime,
       type: newOrder.type,
       paymentMethod: newOrder.paymentMethod || "Cash",
       totalPrice: newOrder.totalBeforeDiscount,
@@ -398,7 +419,7 @@ export const createAppOrder = async (req, res) => {
       isOpenBill: isOpenBill || false
     };
 
-    // Emit ke aplikasi kasir dengan informasi tambahan untuk open bill
+    // Emit ke aplikasi kasir
     if (isOpenBill) {
       io.to('cashier_room').emit('open_bill_order', {
         mappedOrders,
@@ -420,320 +441,6 @@ export const createAppOrder = async (req, res) => {
   }
 };
 
-// export const createAppOrder = async (req, res) => {
-//   try {
-//     const {
-//       items,
-//       orderType,
-//       tableNumber,
-//       deliveryAddress,
-//       pickupTime,
-//       paymentDetails,
-//       voucherCode,
-//       userId,
-//       outlet,
-//       reservationData,
-//       reservationType,
-//     } = req.body;
-
-//     // Validate required fields
-//     if (!items || items.length === 0) {
-//       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
-//     }
-//     if (!orderType) {
-//       return res.status(400).json({ success: false, message: 'Order type is required' });
-//     }
-//     console.log('Payment method:', paymentDetails);
-//     if (!paymentDetails?.method) {
-//       return res.status(400).json({ success: false, message: 'Payment method is required' });
-//     }
-//     if (!userId) {
-//       return res.status(400).json({ success: false, message: 'User ID is required' });
-//     }
-
-//     // Verify user exists
-//     const userExists = await User.findById(userId);
-//     if (!userExists) {
-//       return res.status(404).json({ success: false, message: 'User not found' });
-//     }
-
-//     console.log('User exists:', userExists);
-
-//     // Format orderType
-//     let formattedOrderType = '';
-//     switch (orderType) {
-//       case 'dineIn':
-//         formattedOrderType = 'Dine-In';
-//         if (!tableNumber) {
-//           return res.status(400).json({ success: false, message: 'Table number is required for dine-in orders' });
-//         }
-//         break;
-//       case 'delivery':
-//         formattedOrderType = 'Delivery';
-//         if (!deliveryAddress) {
-//           return res.status(400).json({ success: false, message: 'Delivery address is required for delivery orders' });
-//         }
-//         break;
-//       case 'pickup':
-//         formattedOrderType = 'Pickup';
-//         if (!pickupTime) {
-//           return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
-//         }
-//         break;
-//       case 'reservation':
-//         formattedOrderType = 'Reservation';
-//         if (!reservationData) {
-//           return res.status(400).json({ success: false, message: 'Reservation data is required for reservation orders' });
-//         }
-//         if (!reservationData.reservationTime) {
-//           return res.status(400).json({ success: false, message: 'Reservation time is required for reservation orders' });
-//         }
-//         if (!reservationData.guestCount) {
-//           return res.status(400).json({ success: false, message: 'Guest count is required for reservation orders' });
-//         }
-//         if (!reservationData.areaIds) {
-//           return res.status(400).json({ success: false, message: 'Area ID is required for reservation orders' });
-//         }
-//         if (!reservationData.tableIds) {
-//           return res.status(400).json({ success: false, message: 'Table ID is required for reservation orders' });
-//         }
-//         break;
-//       default:
-//         return res.status(400).json({ success: false, message: 'Invalid order type' });
-//     }
-
-//     // Find voucher if provided
-//     let voucherId = null;
-//     if (voucherCode) {
-//       const voucher = await Voucher.findOne({ code: voucherCode });
-//       if (voucher) {
-//         voucherId = voucher._id;
-//       }
-//     }
-
-//     // Process items
-//     const orderItems = [];
-//     for (const item of items) {
-//       const menuItem = await MenuItem.findById(item.productId)
-//         .populate('availableAt'); // pastikan di schema MenuItem ada ref ke Outlet
-
-//       if (!menuItem) {
-//         return res.status(404).json({
-//           success: false,
-//           message: `Menu item not found: ${item.productId}`
-//         });
-//       }
-
-//       const processedAddons = item.addons?.map(addon => ({
-//         name: addon.name,
-//         price: addon.price
-//       })) || [];
-
-//       const processedToppings = item.toppings?.map(topping => ({
-//         name: topping.name,
-//         price: topping.price
-//       })) || [];
-
-//       const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
-//       const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
-//       const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
-//       console.log('Menu item available at:', menuItem.availableAt?.[0]);
-//       orderItems.push({
-//         menuItem: menuItem._id,
-//         quantity: item.quantity,
-//         subtotal: itemSubtotal,
-//         addons: processedAddons,
-//         toppings: processedToppings,
-//         notes: item.notes || '',
-//         outletId: menuItem.availableAt?.[0]?._id || null,
-//         outletName: menuItem.availableAt?.[0]?.name || null,
-//         isPrinted: false,
-//       });
-//     }
-
-//     console.log('Processed order items:', orderItems);
-
-//     // Create new order
-//     const newOrder = new Order({
-//       order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-//       user_id: userId,
-//       user: userExists.username || 'Guest',
-//       cashier: null,
-//       items: orderItems,
-//       status: orderType === 'reservation' ? 'Reserved' : 'Pending',
-//       paymentMethod: paymentDetails.method,
-//       orderType: formattedOrderType,
-//       deliveryAddress: deliveryAddress || '',
-//       tableNumber: tableNumber || '',
-//       type: 'Indoor',
-//       voucher: voucherId,
-//       outlet: outlet,
-//       totalBeforeDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
-//       totalAfterDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0), // No discount applied yet
-//       totalTax: 0, // Assuming no tax for now
-//       totalServiceFee: 0, // Assuming no service fee for now
-//       discounts: {
-//         autoPromoDiscount: 0,
-//         manualDiscount: 0,
-//         voucherDiscount: 0
-//       },
-//       appliedPromos: [], // Will be filled with auto promos if any
-//       appliedManualPromo: null, // Will be filled if manual promo is applied
-//       appliedVoucher: voucherId, // Will be filled if voucher is applied
-//       taxAndServiceDetails: [], // Will be filled if tax or service fee is applied
-//       grandTotal: orderItems.reduce((sum, item) => sum + item.subtotal, 0), // Initial grand total
-//       promotions: [],
-//       source: 'App',
-//       reservation: null, // Will be set after reservation is created
-//     });
-
-//     await newOrder.save();
-
-//     // Handle reservation creation if orderType is reservation
-//     let reservationRecord = null;
-//     if (orderType === 'reservation') {
-//       try {
-//         // Parse reservation date from Indonesian format or use provided date
-//         let parsedReservationDate;
-
-//         if (reservationData.reservationDate) {
-//           // If reservationDate is provided, try to parse it
-//           if (typeof reservationData.reservationDate === 'string') {
-//             // Check if it's in Indonesian format
-//             if (reservationData.reservationDate.includes('Agustus') ||
-//               reservationData.reservationDate.includes('Januari') ||
-//               reservationData.reservationDate.includes('Februari') ||
-//               reservationData.reservationDate.includes('Maret') ||
-//               reservationData.reservationDate.includes('April') ||
-//               reservationData.reservationDate.includes('Mei') ||
-//               reservationData.reservationDate.includes('Juni') ||
-//               reservationData.reservationDate.includes('Juli') ||
-//               reservationData.reservationDate.includes('September') ||
-//               reservationData.reservationDate.includes('Oktober') ||
-//               reservationData.reservationDate.includes('November') ||
-//               reservationData.reservationDate.includes('Desember')) {
-
-//               // Convert Indonesian date to standard format
-//               parsedReservationDate = parseIndonesianDate(reservationData.reservationDate);
-//             } else {
-//               // Try to parse as standard date format
-//               parsedReservationDate = new Date(reservationData.reservationDate);
-//             }
-//           } else {
-//             parsedReservationDate = new Date(reservationData.reservationDate);
-//           }
-//         } else {
-//           // Use current date if no date is provided
-//           parsedReservationDate = new Date();
-//         }
-
-//         // Validate the parsed date
-//         if (isNaN(parsedReservationDate.getTime())) {
-//           return res.status(400).json({
-//             success: false,
-//             message: 'Invalid reservation date format. Please use YYYY-MM-DD or standard date format.'
-//           });
-//         }
-
-//         // Create reservation record
-//         reservationRecord = new Reservation({
-//           reservation_date: parsedReservationDate,
-//           reservation_time: reservationData.reservationTime,
-//           area_id: reservationData.areaIds,
-//           table_id: reservationData.tableIds,
-//           guest_count: reservationData.guestCount,
-//           order_id: newOrder._id,
-//           status: 'pending',
-//           reservation_type: reservationType || 'nonBlocking', // Default to non-blocking
-//           notes: reservationData.notes || ''
-//         });
-
-//         await reservationRecord.save();
-
-//         // Update order with reservation reference
-//         newOrder.reservation = reservationRecord._id;
-//         await newOrder.save();
-
-//         console.log('Reservation created:', reservationRecord);
-//       } catch (reservationError) {
-//         console.error('Error creating reservation:', reservationError);
-//         // If reservation creation fails, we might want to rollback the order
-//         // or handle this error gracefully
-//         await Order.findByIdAndDelete(newOrder._id);
-//         return res.status(500).json({
-//           success: false,
-//           message: 'Error creating reservation',
-//           error: reservationError.message
-//         });
-//       }
-//     }
-
-//     // Prepare response data
-//     const responseData = {
-//       success: true,
-//       message: `${orderType === 'reservation' ? 'Reservation' : 'Order'} created successfully`,
-//       order: newOrder
-//     };
-
-//     // Add reservation data to response if it's a reservation order
-//     if (reservationRecord) {
-//       responseData.reservation = reservationRecord;
-//     }
-
-//     // Mapping data sesuai kebutuhan frontend
-//     const mappedOrders = {
-//       _id: newOrder._id,
-//       userId: newOrder.user_id, // renamed
-//       customerName: newOrder.user, // renamed
-//       cashierId: newOrder.cashier, // renamed
-//       items: newOrder.items.map(item => ({
-//         _id: item._id,
-//         quantity: item.quantity,
-//         subtotal: item.subtotal,
-//         isPrinted: item.isPrinted,
-//         menuItem: {
-//           ...item.menuItem,
-//           categories: item.menuItem.category, // renamed
-//         },
-//         selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
-//           name: addon.name,
-//           _id: addon._id,
-//           options: [{
-//             id: addon._id, // assuming _id as id for options
-//             label: addon.label || addon.name, // fallback
-//             price: addon.price
-//           }]
-//         })) : [],
-//         selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
-//           id: topping._id || topping.id, // fallback if structure changes
-//           name: topping.name,
-//           price: topping.price
-//         })) : []
-//       })),
-//       status: newOrder.status,
-//       orderType: newOrder.orderType,
-//       deliveryAddress: newOrder.deliveryAddress,
-//       tableNumber: newOrder.tableNumber,
-//       type: newOrder.type,
-//       paymentMethod: newOrder.paymentMethod || "Cash", // default value
-//       totalPrice: newOrder.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
-//       voucher: newOrder.voucher || null,
-//       outlet: newOrder.outlet || null,
-//       promotions: newOrder.promotions || [],
-//       createdAt: newOrder.createdAt,
-//       updatedAt: newOrder.updatedAt,
-//       __v: newOrder.__v
-//     };
-
-//     // Emit ke aplikasi kasir untuk menampilkan newOrder baru
-//     io.to('cashier_room').emit('new_order', { mappedOrders });
-//     res.status(201).json(responseData);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ success: false, message: 'Error creating order', error: error.message });
-//   }
-// };
-
 // Helper function to parse Indonesian date format
 function parseIndonesianDate(dateString) {
   const monthMap = {
@@ -742,290 +449,19 @@ function parseIndonesianDate(dateString) {
     'September': '09', 'Oktober': '10', 'November': '11', 'Desember': '12'
   };
 
-  // Pattern: "08 Agustus 2025" or "8 Agustus 2025"
   const parts = dateString.trim().split(' ');
   if (parts.length === 3) {
     const day = parts[0].padStart(2, '0');
     const month = monthMap[parts[1]];
     const year = parts[2];
-
     if (month) {
-      // Return in YYYY-MM-DD format
       return new Date(`${year}-${month}-${day}`);
     }
   }
-
-  // If parsing fails, try as regular date
   return new Date(dateString);
 }
 
-// export const createAppOrder = async (req, res) => {
-//   try {
-//     const {
-//       items,
-//       orderType,
-//       tableNumber,
-//       deliveryAddress,
-//       pickupTime,
-//       paymentDetails,
-//       voucherCode,
-//       userId,
-//       outlet,
-//       reservationData,
-//       reservationType,
-//     } = req.body;
 
-//     // Validate required fields
-//     if (!items || items.length === 0) {
-//       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
-//     }
-//     if (!orderType) {
-//       return res.status(400).json({ success: false, message: 'Order type is required' });
-//     }
-//     console.log('Payment method:', paymentDetails);
-//     if (!paymentDetails?.method) {
-//       return res.status(400).json({ success: false, message: 'Payment method is required' });
-//     }
-//     if (!userId) {
-//       return res.status(400).json({ success: false, message: 'User ID is required' });
-//     }
-
-//     // Verify user exists
-//     const userExists = await User.findById(userId);
-//     if (!userExists) {
-//       return res.status(404).json({ success: false, message: 'User not found' });
-//     }
-
-//     console.log('User exists:', userExists);
-
-//     // Format orderType
-//     let formattedOrderType = '';
-//     switch (orderType) {
-//       case 'dineIn':
-//         formattedOrderType = 'Dine-In';
-//         if (!tableNumber) {
-//           return res.status(400).json({ success: false, message: 'Table number is required for dine-in orders' });
-//         }
-//         break;
-//       case 'delivery':
-//         formattedOrderType = 'Delivery';
-//         if (!deliveryAddress) {
-//           return res.status(400).json({ success: false, message: 'Delivery address is required for delivery orders' });
-//         }
-//         break;
-//       case 'pickup':
-//         formattedOrderType = 'Pickup';
-//         if (!pickupTime) {
-//           return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
-//         }
-//         break;
-//       case 'reservation':
-//         formattedOrderType = 'Reservation';
-//         if (!reservationData) {
-//           return res.status(400).json({ success: false, message: 'Reservation data is required for reservation orders' });
-//         }
-//         if (!reservationData.reservationTime) {
-//           return res.status(400).json({ success: false, message: 'Reservation time is required for reservation orders' });
-//         }
-//         if (!reservationData.guestCount) {
-//           return res.status(400).json({ success: false, message: 'Guest count is required for reservation orders' });
-//         }
-//         if (!reservationData.areaIds) {
-//           return res.status(400).json({ success: false, message: 'Area ID is required for reservation orders' });
-//         }
-//         if (!reservationData.tableIds) {
-//           return res.status(400).json({ success: false, message: 'Area code is required for reservation orders' });
-//         }
-//         break;
-//       default:
-//         return res.status(400).json({ success: false, message: 'Invalid order type' });
-//     }
-
-//     // Find voucher if provided
-//     let voucherId = null;
-//     if (voucherCode) {
-//       const voucher = await Voucher.findOne({ code: voucherCode });
-//       if (voucher) {
-//         voucherId = voucher._id;
-//       }
-//     }
-
-//     // Process items
-//     const orderItems = [];
-//     for (const item of items) {
-//       const menuItem = await MenuItem.findById(item.productId);
-//       if (!menuItem) {
-//         return res.status(404).json({
-//           success: false,
-//           message: `Menu item not found: ${item.productId}`
-//         });
-//       }
-
-//       const processedAddons = item.addons?.map(addon => ({
-//         name: addon.name,
-//         price: addon.price
-//       })) || [];
-
-//       const processedToppings = item.toppings?.map(topping => ({
-//         name: topping.name,
-//         price: topping.price
-//       })) || [];
-
-//       const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
-//       const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
-//       const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
-
-//       orderItems.push({
-//         menuItem: menuItem._id,
-//         quantity: item.quantity,
-//         subtotal: itemSubtotal,
-//         addons: processedAddons,
-//         toppings: processedToppings,
-//         notes: item.notes || '',
-//         isPrinted: false,
-//       });
-//     }
-
-//     console.log('Processed order items:', orderItems);
-
-//     // Create new order
-//     const newOrder = new Order({
-//       order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-//       user_id: userId,
-//       user: userExists.username || 'Guest',
-//       cashier: null,
-//       items: orderItems,
-//       status: orderType === 'reservation' ? 'Reserved' : 'Pending',
-//       paymentMethod: paymentDetails.method,
-//       orderType: formattedOrderType,
-//       deliveryAddress: deliveryAddress || '',
-//       tableNumber: tableNumber || '',
-//       type: 'Indoor',
-//       voucher: voucherId,
-//       outlet: outlet,
-//       totalBeforeDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0),
-//       totalAfterDiscount: orderItems.reduce((sum, item) => sum + item.subtotal, 0), // No discount applied yet
-//       totalTax: 0, // Assuming no tax for now
-//       totalServiceFee: 0, // Assuming no service fee for now
-//       discounts: {
-//         autoPromoDiscount: 0,
-//         manualDiscount: 0,
-//         voucherDiscount: 0
-//       },
-//       appliedPromos: [], // Will be filled with auto promos if any
-//       appliedManualPromo: null, // Will be filled if manual promo is applied
-//       appliedVoucher: voucherId, // Will be filled if voucher is applied
-//       taxAndServiceDetails: [], // Will be filled if tax or service fee is applied
-//       grandTotal: orderItems.reduce((sum, item) => sum + item.subtotal, 0), // Initial grand total
-//       promotions: [],
-//       source: 'App',
-//       reservation: null, // Will be set after reservation is created
-//     });
-
-//     await newOrder.save();
-
-//     // Handle reservation creation if orderType is reservation
-//     let reservationRecord = null;
-//     if (orderType === 'reservation') {
-//       try {
-//         // Create reservation record
-//         reservationRecord = new Reservation({
-//           reservation_date: reservationData.reservationDate || new Date().toISOString().split('T')[0],
-//           reservation_time: reservationData.reservationTime,
-//           area_id: reservationData.areaIds,
-//           table_id: reservationData.tableIds,
-//           guest_count: reservationData.guestCount,
-//           order_id: newOrder._id,
-//           status: 'pending',
-//           reservation_type: reservationType || 'nonBlocking', // Default to non-blocking
-//           notes: reservationData.notes || ''
-//         });
-
-//         await reservationRecord.save();
-
-//         // Update order with reservation reference
-//         newOrder.reservation = reservationRecord._id;
-//         await newOrder.save();
-
-//         console.log('Reservation created:', reservationRecord);
-//       } catch (reservationError) {
-//         console.error('Error creating reservation:', reservationError);
-//         // If reservation creation fails, we might want to rollback the order
-//         // or handle this error gracefully
-//         await Order.findByIdAndDelete(newOrder._id);
-//         return res.status(500).json({
-//           success: false,
-//           message: 'Error creating reservation',
-//           error: reservationError.message
-//         });
-//       }
-//     }
-
-//     // Prepare response data
-//     const responseData = {
-//       success: true,
-//       message: `${orderType === 'reservation' ? 'Reservation' : 'Order'} created successfully`,
-//       order: newOrder
-//     };
-
-//     // Add reservation data to response if it's a reservation order
-//     if (reservationRecord) {
-//       responseData.reservation = reservationRecord;
-//     }
-
-//     // Mapping data sesuai kebutuhan frontend
-//     const mappedOrders = {
-//       _id: newOrder._id,
-//       userId: newOrder.user_id, // renamed
-//       customerName: newOrder.user, // renamed
-//       cashierId: newOrder.cashier, // renamed
-//       items: newOrder.items.map(item => ({
-//         _id: item._id,
-//         quantity: item.quantity,
-//         subtotal: item.subtotal,
-//         isPrinted: item.isPrinted,
-//         menuItem: {
-//           ...item.menuItem,
-//           categories: item.menuItem.category, // renamed
-//         },
-//         selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
-//           name: addon.name,
-//           _id: addon._id,
-//           options: [{
-//             id: addon._id, // assuming _id as id for options
-//             label: addon.label || addon.name, // fallback
-//             price: addon.price
-//           }]
-//         })) : [],
-//         selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
-//           id: topping._id || topping.id, // fallback if structure changes
-//           name: topping.name,
-//           price: topping.price
-//         })) : []
-//       })),
-//       status: newOrder.status,
-//       orderType: newOrder.orderType,
-//       deliveryAddress: newOrder.deliveryAddress,
-//       tableNumber: newOrder.tableNumber,
-//       type: newOrder.type,
-//       paymentMethod: newOrder.paymentMethod || "Cash", // default value
-//       totalPrice: newOrder.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
-//       voucher: newOrder.voucher || null,
-//       outlet: newOrder.outlet || null,
-//       promotions: newOrder.promotions || [],
-//       createdAt: newOrder.createdAt,
-//       updatedAt: newOrder.updatedAt,
-//       __v: newOrder.__v
-//     };
-
-//     // Emit ke aplikasi kasir untuk menampilkan newOrder baru
-//     io.to('cashier_room').emit('new_order', { mappedOrders });
-//     res.status(201).json(responseData);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ success: false, message: 'Error creating order', error: error.message });
-//   }
-// };
 
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
@@ -3480,18 +2916,16 @@ export const getOrderById = async (req, res) => {
     }
     console.log('Fetching order with ID:', orderId);
 
-    // Mencari pesanan berdasarkan ID
-    const order = await Order.findById(orderId)
-      .populate('items.menuItem');
+    // Cari pesanan
+    const order = await Order.findById(orderId).populate('items.menuItem');
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
 
-    // console.log('Order:', order);
-
-    console.log('Order ID:', order);
-
-
+    // Cari pembayaran
     const payment = await Payment.findOne({ order_id: order.order_id });
 
-    // Mencari reservasi berdasarkan order_id
+    // Cari reservasi
     const reservation = await Reservation.findOne({ order_id: orderId })
       .populate('area_id')
       .populate('table_id');
@@ -3499,17 +2933,6 @@ export const getOrderById = async (req, res) => {
     console.log('Payment:', payment);
     console.log('Order:', orderId);
     console.log('Reservation:', reservation);
-
-    // Verify user exists
-    // const userExists = await User.findById(order.user_id);
-    // if (!userExists) {
-    //   return res.status(404).json({ success: false, message: 'User not found' });
-    // }
-
-    // console.log('User:', userExists);
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found.' });
-    }
 
     // Format tanggal
     const formatDate = (date) => {
@@ -3524,7 +2947,6 @@ export const getOrderById = async (req, res) => {
       return new Intl.DateTimeFormat('id-ID', options).format(new Date(date));
     };
 
-    // Format tanggal untuk reservasi (tanpa jam)
     const formatReservationDate = (dateString) => {
       const options = {
         day: 'numeric',
@@ -3535,6 +2957,7 @@ export const getOrderById = async (req, res) => {
       return new Intl.DateTimeFormat('id-ID', options).format(new Date(dateString));
     };
 
+    // Format items
     const formattedItems = order.items.map(item => {
       const basePrice = item.price || item.menuItem?.price || 0;
       const quantity = item.quantity || 1;
@@ -3543,7 +2966,7 @@ export const getOrderById = async (req, res) => {
         menuItemId: item.menuItem?._id || item.menuItem || item._id,
         name: item.menuItem?.name || item.name || 'Unknown Item',
         price: basePrice,
-        quantity: quantity,
+        quantity,
         addons: item.addons || [],
         toppings: item.toppings || [],
         notes: item.notes,
@@ -3552,18 +2975,16 @@ export const getOrderById = async (req, res) => {
       };
     });
 
-    // Generate order number dari order_id atau _id
+    // Generate order number
     const generateOrderNumber = (orderId) => {
       if (typeof orderId === 'string' && orderId.includes('ORD-')) {
-        // Extract number dari format ORD-2024-001234
         const parts = orderId.split('-');
         return parts.length > 2 ? `#${parts[parts.length - 1]}` : `#${orderId.slice(-4)}`;
       }
-      // Jika menggunakan MongoDB ObjectId, ambil 4 digit terakhir
       return `#${orderId.toString().slice(-4)}`;
     };
 
-    // Prepare reservation data jika ada
+    // Reservation data
     let reservationData = null;
     if (reservation) {
       reservationData = {
@@ -3579,7 +3000,6 @@ export const getOrderById = async (req, res) => {
           _id: reservation.area_id?._id,
           name: reservation.area_id?.area_name || 'Unknown Area'
         },
-        // PERBAIKAN: Pastikan tables di-map dengan benar
         tables: Array.isArray(reservation.table_id) ? reservation.table_id.map(table => ({
           _id: table._id.toString(),
           tableNumber: table.table_number || 'Unknown Table',
@@ -3589,14 +3009,16 @@ export const getOrderById = async (req, res) => {
           isActive: table.is_active
         })) : []
       };
-
-      // DEBUGGING: Log tables secara detail
-      console.log('Tables detail:', JSON.stringify(reservationData.tables, null, 2));
     }
+    console.log("orderType:", order.orderType);
+    console.log('Tables detail:', JSON.stringify(reservationData?.tables || [], null, 2));
+    console.log("Dine In Data:", order.orderType === 'Dine-In' ? { tableNumber: order.tableNumber } : 'N/A');
+    console.log("Pickup Data:", order.orderType === 'Pickup' ? { pickupTime: order.pickupTime } : 'N/A');
+    console.log("Delivery Data:", order.orderType === 'Delivery' ? { deliveryAddress: order.deliveryAddress } : 'N/A');
+    console.log("Take Away Data:", order.orderType === 'Take Away' ? { note: "Take Away order" } : 'N/A');
 
-    console.log("Permata VA Number:", payment?.permata_va_number || 'N/A');
-    // const banks = payment?.va_numbers?.map(item => item.bank) || [];
-    // console.log("Banks:", banks);
+
+    // Payment status logic
     const paymentStatus = (() => {
       if (
         payment?.status === 'settlement' &&
@@ -3609,13 +3031,12 @@ export const getOrderById = async (req, res) => {
         payment?.paymentType === 'Down Payment' &&
         payment?.remainingAmount == 0
       ) {
-        return 'settlement'
+        return 'settlement';
       }
       return payment?.status || 'Unpaid';
     })();
 
-
-
+    // Build orderData
     const orderData = {
       _id: order._id.toString(),
       orderId: order.order_id || order._id.toString(),
@@ -3627,19 +3048,35 @@ export const getOrderById = async (req, res) => {
       paymentMethod: payment
         ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
         : 'Unknown',
-      paymentStatus: paymentStatus,
-      reservation: reservationData
+      paymentStatus,
+      reservation: reservationData,
+
+      // 🔹 Tambahan data untuk frontend
+      dineInData: order.orderType === 'Dine-In' ? {
+        tableNumber: order.tableNumber,
+      } : null,
+
+      pickupData: order.orderType === 'Pickup' ? {
+        pickupTime: order.pickupTime,
+      } : null,
+
+      takeAwayData: order.orderType === 'Take Away' ? {
+        note: "Take Away order",
+      } : null,
+
+      deliveryData: order.orderType === 'Delivery' ? {
+        deliveryAddress: order.deliveryAddress,
+      } : null,
     };
 
-    // DEBUGGING: Log order data dengan format yang lebih readable
     console.log('Order Data:', JSON.stringify(orderData, null, 2));
-
     res.status(200).json({ orderData });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
+
 
 export const getPendingPaymentOrders = async (req, res) => {
   try {
