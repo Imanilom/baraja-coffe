@@ -34,6 +34,7 @@ abstract class MenuItemModel with _$MenuItemModel {
     @HiveField(13) @Default(0) int? reviewCount, // Tambahkan field baru
     @HiveField(14) @Default(true) bool? isAvailable, // Tambahkan field baru
     @HiveField(15) @Default("") String? workstation,
+    @HiveField(16) @Default(0) @JsonKey(name: 'availableStock') int? stock,
   }) = _MenuItemModel;
 
   MenuItemModel._();

@@ -3,6 +3,8 @@ import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
 
 export const midtransWebhook = async (req, res) => {
+  let requestId = Math.random().toString(36).substr(2, 9);
+
   try {
     const notificationJson = req.body;
     const {
@@ -12,7 +14,7 @@ export const midtransWebhook = async (req, res) => {
       payment_type
     } = notificationJson;
 
-    console.log('📥 Received Midtrans notification:', {
+    console.log(`[WEBHOOK ${requestId}] Received Midtrans notification:`, {
       order_id,
       transaction_status,
       fraud_status,
@@ -22,56 +24,102 @@ export const midtransWebhook = async (req, res) => {
 
     // Validate critical fields
     if (!order_id || !transaction_status) {
-      console.warn('⚠️ Invalid notification: Missing required fields');
+      console.warn(`[WEBHOOK ${requestId}] Invalid notification: Missing required fields`);
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Update or create payment record
+    // Retry mechanism untuk menunggu payment record
+    let existingPayment = null;
+    let retryCount = 0;
+    const maxRetries = 5;
+    const retryDelay = 2000; // 2 seconds
+
+    while (retryCount < maxRetries) {
+      existingPayment = await Payment.findOne({ payment_code: order_id });
+
+      if (existingPayment) {
+        console.log(`[WEBHOOK ${requestId}] Payment record found for payment_code ${order_id} after ${retryCount} retries`);
+        break;
+      }
+
+      console.log(`[WEBHOOK ${requestId}] Payment record not found for payment_code ${order_id}, retry ${retryCount + 1}/${maxRetries}`);
+      retryCount++;
+
+      if (retryCount < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+
+    if (!existingPayment) {
+      console.warn(`[WEBHOOK ${requestId}] Payment record still not found for payment_code ${order_id} after ${maxRetries} retries. Webhook will be deferred.`);
+      return res.status(200).json({
+        status: 'deferred',
+        message: 'Payment record not found after retries, will be processed when payment is created'
+      });
+    }
+
+    console.log(`[WEBHOOK ${requestId}] Processing webhook for existing payment:`, existingPayment._id);
+
+    // Update payment record
     const paymentData = {
       status: transaction_status,
-      fraudStatus: fraud_status,
-      paymentType: payment_type,
+      fraud_status: fraud_status,
       paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : null,
       updatedAt: new Date()
     };
 
     const updatedPayment = await Payment.findOneAndUpdate(
-      { order_id: order_id },
+      { payment_code: order_id },
       paymentData,
-      { upsert: true, new: true, runValidators: true }
+      { new: true, runValidators: true } // Tidak ada upsert: true
     );
 
-    console.log(`💰 Payment record updated for order ${order_id}`);
+    if (!updatedPayment) {
+      console.error(`[WEBHOOK ${requestId}] Failed to update payment for order ${order_id}`);
+      return res.status(404).json({ message: 'Payment record not found' });
+    }
 
-    // Find related order using STRING order_id (bukan ObjectId)
-    const order = await Order.findOne({ order_id: order_id })
+    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for order ${order_id}`);
+
+    // Update raw_response untuk konsistensi
+    if (updatedPayment.raw_response) {
+      updatedPayment.raw_response.transaction_status = transaction_status;
+      updatedPayment.raw_response.fraud_status = fraud_status;
+      updatedPayment.markModified('raw_response');
+      await updatedPayment.save();
+      console.log(`[WEBHOOK ${requestId}] Raw response updated`);
+    }
+
+    // Find related order using STRING order_id
+    const order = await Order.findOne({ order_id: updatedPayment.order_id })
       .populate('user_id', 'name email phone')
       .populate('cashierId', 'name');
 
     if (!order) {
-      console.warn(`⚠️ Order with ID ${order_id} not found`);
+      console.warn(`[WEBHOOK ${requestId}] Order with ID ${order_id} not found`);
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    console.log(`🧾 Order ${order_id} found. Source: ${order.source}`);
+    console.log(`[WEBHOOK ${requestId}] Order ${order_id} found. Source: ${order.source}`);
 
     // Handle transaction status
     switch (transaction_status) {
       case 'capture':
       case 'settlement':
         if (fraud_status === 'accept') {
-          order.status = 'Pending'; // Ready to process
-          order.paymentStatus = 'Paid';
-          await order.save();
+          // order.status = 'Pending'; // Ready to process
+          // order.paymentStatus = 'Paid';
+          // await order.save();
 
-          console.log(`✅ Order ${order_id} marked as paid`);
+          // console.log(`[WEBHOOK ${requestId}] Order ${order_id} marked as paid`);
 
-          // ✅ PERBAIKAN 1: Emit dengan order_id STRING (bukan ObjectId)
+          // Emit payment update ke frontend
           const paymentUpdateData = {
-            order_id: order_id,  // <- Gunakan string order_id
+            order_id: updatedPayment.order_id,
             status: order.status,
             paymentStatus: order.paymentStatus,
             transaction_status,
+            fraud_status,
             timestamp: new Date()
           };
 
@@ -79,24 +127,26 @@ export const midtransWebhook = async (req, res) => {
           io.to(`order_${order_id}`).emit('payment_status_update', paymentUpdateData);
           io.to(`order_${order_id}`).emit('order_status_update', paymentUpdateData);
 
-          console.log(`🔔 Emitted updates to room: order_${order_id}`);
+          console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${order_id}`);
 
           // Broadcast to cashier
           const mappedOrder = mapOrderForFrontend(order);
           io.to('cashier_room').emit('new_order', mappedOrder);
+          console.log(`[WEBHOOK ${requestId}] Broadcasted order to cashier room`);
+
         } else if (fraud_status === 'challenge') {
-          order.status = 'Pending';
-          order.paymentStatus = 'Challenge';
-          await order.save();
+          // order.status = 'Pending';
+          // order.paymentStatus = 'Challenge';
+          // await order.save();
 
-          console.log(`⚠️ Order ${order_id} payment challenged`);
+          console.log(`[WEBHOOK ${requestId}] Order ${order_id} payment challenged`);
 
-          // Emit challenge status
           const challengeData = {
-            order_id: order_id,
+            order_id: updatedPayment.order_id,
             status: order.status,
             paymentStatus: order.paymentStatus,
             transaction_status,
+            fraud_status,
             timestamp: new Date()
           };
 
@@ -112,14 +162,14 @@ export const midtransWebhook = async (req, res) => {
         order.paymentStatus = 'Failed';
         await order.save();
 
-        console.log(`❌ Order ${order_id} payment failed: ${transaction_status}`);
+        console.log(`[WEBHOOK ${requestId}] Order ${order_id} payment failed: ${transaction_status}`);
 
-        // Emit failed status
         const failedData = {
-          order_id: order_id,
+          order_id: updatedPayment.order_id,
           status: order.status,
           paymentStatus: order.paymentStatus,
           transaction_status,
+          fraud_status,
           timestamp: new Date()
         };
 
@@ -128,18 +178,18 @@ export const midtransWebhook = async (req, res) => {
         break;
 
       case 'pending':
-        order.status = 'Pending';
-        order.paymentStatus = 'Pending';
-        await order.save();
+        // order.status = 'Reserved';
+        // order.paymentStatus = 'Pending';
+        // await order.save();
 
-        console.log(`ℹ️ Order ${order_id} is still pending`);
+        console.log(`[WEBHOOK ${requestId}] Order ${order_id} is still pending`);
 
-        // Emit pending status
         const pendingData = {
-          order_id: order_id,
+          order_id: updatedPayment.order_id,
           status: order.status,
           paymentStatus: order.paymentStatus,
           transaction_status,
+          fraud_status,
           timestamp: new Date()
         };
 
@@ -148,13 +198,14 @@ export const midtransWebhook = async (req, res) => {
         break;
 
       default:
-        console.warn(`⚠️ Unhandled transaction status: ${transaction_status}`);
+        console.warn(`[WEBHOOK ${requestId}] Unhandled transaction status: ${transaction_status}`);
     }
 
+    console.log(`[WEBHOOK ${requestId}] Webhook processed successfully`);
     res.status(200).json({ status: 'ok' });
 
   } catch (error) {
-    console.error('❌ Webhook processing error:', {
+    console.error(`[WEBHOOK ${requestId}] Webhook processing error:`, {
       error: error.message,
       stack: error.stack,
       timestamp: new Date().toISOString()
@@ -167,11 +218,11 @@ export const midtransWebhook = async (req, res) => {
   }
 };
 
-// 🔧 Helper: map order to frontend-safe format
+// Helper: map order to frontend-safe format
 function mapOrderForFrontend(order) {
   return {
     _id: order._id,
-    orderId: order.order_id,  // ✅ Konsisten dengan string
+    orderId: order.order_id,  // Konsisten dengan string
     userId: order.user_id?._id || order.user_id,
     customerName: order.user_id?.name || order.user,
     customerPhone: order.user_id?.phone || order.phoneNumber,

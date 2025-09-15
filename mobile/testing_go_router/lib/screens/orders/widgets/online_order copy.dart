@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
-import 'package:kasirbaraja/models/try/activity_model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
-import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
-import 'package:kasirbaraja/services/order_history_service.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
@@ -46,11 +43,11 @@ class _OnlineOrderState extends ConsumerState<OnlineOrder> {
                   onScanned: (scannedData) {
                     _handleScannedData(context, ref, scannedData);
                   },
-                  onClose: () {
-                    setState(() {
-                      _showQRScanner = false;
-                    });
-                  },
+                  // onClose: () {
+                  //   setState(() {
+                  //     _showQRScanner = false;
+                  //   });
+                  // },
                 ),
               ),
             ),
