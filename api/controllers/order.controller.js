@@ -4270,7 +4270,7 @@ export const confirmOrderViaCashier = async (req, res) => {
 
     // Update status order menjadi "Waiting"
     order.cashierId = cashier._id
-    // order.status = 'Waiting';
+    order.status = 'Waiting';
     // order.source = source || order.source; // Update source jika diberikan
     await order.save();
 

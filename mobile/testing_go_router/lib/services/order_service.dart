@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
+import 'package:kasirbaraja/models/online_order/confirm_order.model.dart';
 
 class OrderService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
@@ -81,21 +82,24 @@ class OrderService {
     }
   }
 
-  Future<Map<String, dynamic>> confirmPaidOrder(
+  Future<ConfirmOrderResponse> confirmPaidOrder(
     WidgetRef ref,
-    String? orderId,
-    String source,
+    ConfirmOrderRequest request,
   ) async {
     final box = Hive.box('userBox');
     final cashierId = box.get('cashier').id;
 
     try {
-      if (orderId == null || cashierId == null) {
+      if (cashierId == null) {
         throw Exception("orderId atau cashierId tidak boleh null");
       }
       Response response = await _dio.post(
         '/api/order/cashier/confirm-order',
-        data: {'order_id': orderId, 'cashier_id': cashierId, 'source': source},
+        data: {
+          'order_id': request.orderId,
+          'cashier_id': cashierId,
+          'source': request.source,
+        },
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -106,8 +110,11 @@ class OrderService {
       );
 
       print('response confirm order: ${response.data}');
-
-      return response.data;
+      if (response.statusCode == 200) {
+        return ConfirmOrderResponse.fromJson(response.data);
+      } else {
+        throw Exception('Failed to confirm order: ${response.statusCode}');
+      }
     } on DioException catch (e) {
       print('error fetch order detail: ${e.response?.data}');
       throw ApiResponseHandler.handleError(e);

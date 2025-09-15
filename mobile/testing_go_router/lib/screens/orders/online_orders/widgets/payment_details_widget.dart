@@ -5,9 +5,11 @@ import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:go_router/go_router.dart';
+import 'buttons/confirm_order_button.dart';
 
 // Provider untuk menyimpan tagihan yang dipilih
 final selectedPaymentProvider = StateProvider<PaymentModel?>((ref) => null);
+final isProcessingConfirmProvider = StateProvider<bool>((ref) => false);
 
 class PaymentDetailsWidget extends ConsumerWidget {
   const PaymentDetailsWidget({super.key});
@@ -16,6 +18,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final orders = ref.watch(onlineOrderDetailProvider);
     final selectedPayment = ref.watch(selectedPaymentProvider);
+    final isProcessingConfirm = ref.watch(isProcessingConfirmProvider);
 
     // Filter hanya tagihan yang belum dibayar (status pending/unpaid)
     final List<PaymentModel> pendingPayments =
@@ -115,7 +118,9 @@ class PaymentDetailsWidget extends ConsumerWidget {
           ),
         ),
         // Tombol Confirmation jika semua tagihan sudah dibayar
-        if (pendingPayments.isEmpty && paidPayments.isNotEmpty)
+        if (pendingPayments.isEmpty &&
+            paidPayments.isNotEmpty &&
+            paidPayments.any((p) => p.status?.toLowerCase() == 'settlement'))
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -135,24 +140,56 @@ class PaymentDetailsWidget extends ConsumerWidget {
                 SizedBox(
                   width: double.infinity,
                   height: 48,
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey[300],
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      'Confirmation',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  child: ConfirmOrderButton(
+                    orderId: orders!.orderId ?? '',
+                    cashierId: '',
+                    source: orders.source,
                   ),
+                  // child: ElevatedButton(
+                  //   onPressed:
+                  //       isProcessingConfirm
+                  //           ? null
+                  //           : () => _confirmOrder(context, ref),
+                  //   style: ElevatedButton.styleFrom(
+                  //     backgroundColor:
+                  //         isProcessingConfirm ? Colors.grey : Colors.orange,
+                  //     foregroundColor: Colors.white,
+                  //     disabledBackgroundColor: Colors.grey[300],
+                  //     shape: RoundedRectangleBorder(
+                  //       borderRadius: BorderRadius.circular(8),
+                  //     ),
+                  //   ),
+                  //   child:
+                  //       isProcessingConfirm
+                  //           ? Row(
+                  //             mainAxisAlignment: MainAxisAlignment.center,
+                  //             children: const [
+                  //               SizedBox(
+                  //                 width: 20,
+                  //                 height: 20,
+                  //                 child: CircularProgressIndicator(
+                  //                   color: Colors.white,
+                  //                   strokeWidth: 2,
+                  //                 ),
+                  //               ),
+                  //               SizedBox(width: 4),
+                  //               Text(
+                  //                 'Processing...',
+                  //                 style: TextStyle(
+                  //                   fontSize: 14,
+                  //                   fontWeight: FontWeight.bold,
+                  //                 ),
+                  //               ),
+                  //             ],
+                  //           )
+                  //           : const Text(
+                  //             'Confirm',
+                  //             style: TextStyle(
+                  //               fontSize: 16,
+                  //               fontWeight: FontWeight.bold,
+                  //             ),
+                  //           ),
+                  // ),
                 ),
               ],
             ),
@@ -599,6 +636,77 @@ class PaymentDetailsWidget extends ConsumerWidget {
       }
     }
     return 'Tagihan Pembayaran';
+  }
+
+  void _confirmOrder(BuildContext context, WidgetRef ref) {
+    // Tampilkan dialog konfirmasi
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Order'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text('Anda akan mengonfirmasi order ini.'),
+              SizedBox(height: 8),
+              Text(
+                'Apakah Anda yakin ingin melanjutkan?',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _processConfirmOrder(context, ref);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Ya, Lanjutkan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _processConfirmOrder(BuildContext context, WidgetRef ref) async {
+    try {
+      ref.read(isProcessingConfirmProvider.notifier).state = true;
+      // await ref.read(onlineOrderDetailProvider.notifier).confirmOrder(ref);
+
+      //delay
+      await Future.delayed(const Duration(seconds: 5));
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order berhasil dikonfirmasi!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal konfirmasi order: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      ref.read(isProcessingConfirmProvider.notifier).state = false;
+    }
   }
 
   void _processPayment(BuildContext context, PaymentModel payment) {
