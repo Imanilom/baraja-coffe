@@ -4,10 +4,12 @@ import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
-
+import Header from "../../admin/header";
+import MessageAlert from "../../../components/messageAlert";
+import dayjs from "dayjs";
 
 const RoleManagement = () => {
-    const [attendances, setAttendances] = useState([]);
+    const [roles, setRole] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -20,6 +22,7 @@ const RoleManagement = () => {
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
     const [openDropdown, setOpenDropdown] = useState([]);
+    const [alertMsg, setAlertMsg] = useState("");
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -37,17 +40,17 @@ const RoleManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch attendances and outlets data
+    // Fetch roles and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch attendances data
-                const employeeResponse = await axios.get("/api/user");
-                const employeeData = employeeResponse.data || [];
+                // Fetch roles data
+                const roleResponse = await axios.get("/api/roles");
+                const roleData = roleResponse.data.data ? roleResponse.data.data : roleResponse.data;
 
-                setAttendances(employeeData);
-                setFilteredData(employeeData); // Initialize filtered data with all attendances
+                setRole(roleData);
+                setFilteredData(roleData); // Initialize filtered data with all roles
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -65,7 +68,7 @@ const RoleManagement = () => {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
                 // Set empty arrays as fallback
-                setAttendances([]);
+                setRole([]);
                 setFilteredData([]);
                 setOutlets([]);
             } finally {
@@ -205,115 +208,43 @@ const RoleManagement = () => {
     return (
         <div className="">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
+
+            <MessageAlert message={alertMsg} type="success" />
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
                     <FaIdBadge size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Karyawan</p>
+                    <Link
+                        to="/admin/access-settings"
+                        className="text-[15px] text-gray-500"
+                    >
+                        Access
+                    </Link>
+                    <FaChevronRight
+                        size={18}
+                        className="text-gray-500 inline-block"
+                    />
+                    <p className="text-[15px] text-gray-500">Role</p>
                 </div>
-                <Link to="/admin/employee-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
+                <Link to="/admin/access-settings/role-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
             </div>
 
             {/* Filters */}
             <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-9 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Jenis</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Tipe"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col col-span-3">
+                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-1 md:grid-cols-3 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+                    <div className="hidden md:block"></div>
+                    <div className="hidden md:block"></div>
+                    <div className="flex flex-col">
                         <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Nama / Email"
+                                placeholder="Cari..."
                                 value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
+                                // onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
@@ -325,9 +256,9 @@ const RoleManagement = () => {
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Nama</th>
-                                <th className="px-4 py-3 font-normal">Jenis</th>
-                                <th className="px-4 py-3 font-normal">Outlet</th>
+                                <th className="px-4 py-3 font-normal">Nama Role</th>
+                                <th className="px-4 py-3 font-normal">Deskripsi</th>
+                                <th className="px-4 py-3 font-normal">Aktif</th>
                                 <th className="px-4 py-3 font-normal"></th>
                             </tr>
                         </thead>
@@ -338,60 +269,44 @@ const RoleManagement = () => {
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
                                                 <td className="px-4 py-3">
-                                                    {data.username || []}
+                                                    {data.name || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.role || []}
+                                                    {data.description || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.outlet[0]?.outletId?.name || '-'}
+                                                    {data.createdAt ? dayjs(data.createdAt).format("DD-MM-YYYY") : "-"}
                                                 </td>
-                                                <td className="px-4 py-3">
-
-                                                    {/* Dropdown Menu */}
-                                                    <div className="relative text-right">
-                                                        <button
-                                                            className="px-2 bg-white border border-gray-200 hover:bg-green-800 rounded-sm"
-                                                            onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
+                                                <td className="flex px-4 py-3 justify-end">
+                                                    <div className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer  text-blue-500">
+                                                        <FaPencilAlt size={18} />
+                                                        <Link
+                                                            to={`/admin/access-settings/role-update/${data._id}`}
+                                                            className="block bg-transparent"
                                                         >
-                                                            <span className="text-xl text-gray-200 hover:text-white">
-                                                                •••
-                                                            </span>
+                                                            Edit
+                                                        </Link>
+                                                    </div>
+                                                    <div className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer  text-red-500">
+                                                        <FaTrash size={18} />
+                                                        <button
+                                                        // onClick={() => {
+                                                        //     setItemToDelete(data._id);
+                                                        //     setIsModalOpen(true);
+                                                        // }}
+                                                        >
+                                                            Delete
                                                         </button>
-                                                        {openDropdown === data._id && (
-                                                            <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
-                                                                <ul className="w-full">
-                                                                    <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
-                                                                        <FaPencilAlt size={18} />
-                                                                        <Link
-                                                                            to={`/admin/menu-update/${data._id}`}
-                                                                            className="block bg-transparent"
-                                                                        >
-                                                                            Edit
-                                                                        </Link>
-                                                                    </li>
-                                                                    <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
-                                                                        <FaTrash size={18} />
-                                                                        <button onClick={() => {
-                                                                            setItemToDelete(data._id);
-                                                                            setIsModalOpen(true);
-                                                                        }}>
-                                                                            Delete
-                                                                        </button>
-                                                                    </li>
-                                                                </ul>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
                                         );
                                     } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, attendances);
+                                        console.error(`Error rendering product ${index}:`, err, roles);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
                                                 <td colSpan="4" className="px-4 py-3 text-red-500">
-                                                    Error rendering attendances
+                                                    Error rendering roles
                                                 </td>
                                             </tr>
                                         );

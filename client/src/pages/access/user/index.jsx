@@ -161,10 +161,13 @@ const UserManagement = () => {
                                     Nama
                                 </th>
                                 <th className="px-6 py-3 text-left font-semibold">
-                                    Email
+                                    Status
                                 </th>
                                 <th className="px-6 py-3 text-left font-semibold">
                                     Role
+                                </th>
+                                <th className="px-6 py-3 text-left font-semibold">
+                                    Email
                                 </th>
                                 <th className="px-6 py-3 text-left font-semibold">
                                     Outlet
@@ -181,11 +184,13 @@ const UserManagement = () => {
                                         key={data._id}
                                         className="hover:bg-gray-50 transition-colors"
                                     >
+                                        {console.log(data)}
                                         <td className="px-6 py-3">{data.username}</td>
-                                        <td className="px-6 py-3">{data.email}</td>
-                                        <td className="px-6 py-3 capitalize">
-                                            {data.role}
+                                        <td className="px-6 py-3">{data.username}</td>
+                                        <td className="px-6 py-3">
+                                            {data.role?.name}
                                         </td>
+                                        <td className="px-6 py-3">{data.email}</td>
                                         <td className="px-6 py-3">
                                             {data.outlet?.[0]?.outletId?.name || "-"}
                                         </td>

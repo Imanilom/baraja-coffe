@@ -147,6 +147,11 @@ import UserManagement from "./pages/access/user";
 import RoleManagement from "./pages/access/role";
 import CreateUser from "./pages/access/user/create";
 import UpdateUser from "./pages/access/user/update";
+import CreateRole from "./pages/access/role/create";
+import UpdateRole from "./pages/access/role/update";
+import DepartementTable from "./pages/access/departement";
+import CreateDepartemen from "./pages/access/departement/create";
+import UpdateDepartemen from "./pages/access/departement/update";
 
 
 export default function App() {
@@ -246,7 +251,7 @@ export default function App() {
 
                 {/* Inventory */}
                 <Route path="inventory/stockcard" element={<StockCardManagement />} />
-                <Route path="inventory/in" element={<CurrentStockManagement />} />
+                <Route path="inventori/stok-masuk" element={<CurrentStockManagement />} />
                 <Route path="inventory/cardoutlet" element={<OutletCardManagement />} />
                 {/* <Route path="inventory/in" element={<InStockManagement />} /> */}
                 <Route path="inventory/instock-create" element={<CreateStock />} />
@@ -338,9 +343,15 @@ export default function App() {
                 {/* Access */}
                 <Route path="access-settings" element={<AccessMenu />} />
                 <Route path="access-settings/role" element={<RoleManagement />} />
+                <Route path="access-settings/role-create" element={<CreateRole />} />
+                <Route path="access-settings/role-update/:id" element={<UpdateRole />} />
                 <Route path="access-settings/user" element={<UserManagement />} />
                 <Route path="access-settings/user-create" element={<CreateUser />} />
                 <Route path="access-settings/user-update/:id" element={<UpdateUser />} />
+
+                <Route path="access-settings/departement" element={<DepartementTable />} />
+                <Route path="access-settings/departemen-create" element={<CreateDepartemen />} />
+                <Route path="access-settings/departemen-update/:id" element={<UpdateDepartemen />} />
               </Route>
             </Route>
 

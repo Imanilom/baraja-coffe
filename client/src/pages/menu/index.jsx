@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
 import Select from "react-select";
-import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaPencilAlt, FaTrash, FaReceipt, FaTrashAlt, FaChevronRight, FaChevronLeft, FaEyeSlash, FaEye } from 'react-icons/fa';
+import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaPencilAlt, FaTrash, FaReceipt, FaTrashAlt, FaChevronRight, FaChevronLeft, FaEyeSlash, FaEye, FaPlus, FaDownload } from 'react-icons/fa';
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Header from "../admin/header";
 import ConfirmationModalActive from "./confirmationModalAction";
 import MessageAlertMenu from "../../components/messageAlert";
+import CategoryTabs from "./filters/categorytabs";
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
   if (!isOpen) return null;
@@ -78,7 +79,6 @@ const Menu = () => {
 
   // State sementara (input filter)
   const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-  const [tempSelectedCategory, setTempSelectedCategory] = useState("");
   const [tempSelectedStatus, setTempSelectedStatus] = useState("");
   const [tempSearch, setTempSearch] = useState("");
 
@@ -125,31 +125,12 @@ const Menu = () => {
     fetchData();
   }, []);
 
-  // Apply Filter
-  const applyFilter = () => {
-    setSelectedOutlet(tempSelectedOutlet);
-    setSelectedCategory(tempSelectedCategory);
-    setSelectedStatus(tempSelectedStatus);
-    setSearchQuery(tempSearch);
+  useEffect(() => {
     setCurrentPage(1);
-  };
-
-  // Reset Filter
-  const resetFilter = () => {
-    setTempSelectedOutlet("");
-    setTempSelectedCategory("");
-    setTempSelectedStatus("");
-    setTempSearch("");
-
-    setSelectedOutlet("");
-    setSelectedCategory("");
-    setSelectedStatus("");
-    setSearchQuery("");
-    setCurrentPage(1);
-  };
+  }, [selectedOutlet, selectedCategory, selectedStatus, searchQuery]);
 
   const outletOptions = [
-    { value: '', label: 'Semua Outlet' },
+    { value: '', label: 'Outlet' },
     ...outlets.map(outlet => ({ value: outlet.name, label: outlet.name }))
   ];
 
@@ -159,7 +140,7 @@ const Menu = () => {
   ];
 
   const statusOptions = [
-    { value: '', label: 'Semua Status' },
+    { value: '', label: 'Status' },
     { value: true, label: 'Aktif' },
     { value: false, label: 'Tidak Aktif' },
   ];
@@ -272,7 +253,7 @@ const Menu = () => {
       {/* Header */}
       <Header />
       {/* Filter Section */}
-      <div className="px-3 py-2 flex flex-wrap justify-between items-center border-b bg-white">
+      {/* <div className="px-3 py-2 flex flex-wrap justify-between items-center border-b bg-white">
         <div className="flex items-center space-x-2 mb-2 sm:mb-0">
           <FaShoppingBag size={20} className="text-gray-400 inline-block" />
           <p className="text-gray-400 inline-block">Produk</p>
@@ -292,13 +273,34 @@ const Menu = () => {
             Tambah Produk
           </Link>
         </div>
+      </div> */}
+
+      <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+        <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+          Menu
+        </h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => console.log('Ekspor Produk')}
+            className="flex items-center gap-2 bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
+          >
+            <FaDownload /> Ekspor
+          </button>
+
+          <Link
+            to="/admin/menu-create"
+            className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
+          >
+            <FaPlus /> Tambah
+          </Link>
+        </div>
       </div>
 
       <MessageAlertMenu />
 
-      <div className="px-[15px] pb-[15px]">
+      {/* <div className="px-[15px] pb-[15px]">
         <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-          {/* Outlet */}
+
           <div className="flex flex-col col-span-1">
             <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
             <Select
@@ -309,18 +311,7 @@ const Menu = () => {
               isSearchable
             />
           </div>
-          {/* Kategori */}
-          <div className="flex flex-col col-span-1">
-            <label className="text-[13px] mb-1 text-gray-500">Kategori</label>
-            <Select
-              options={categoryOptions}
-              value={categoryOptions.find(option => option.value === tempSelectedCategory) || categoryOptions[0]}
-              onChange={(selected) => setTempSelectedCategory(selected.value)}
-              styles={customStyles}
-              isSearchable
-            />
-          </div>
-          {/* Status */}
+
           <div className="flex flex-col col-span-1">
             <label className="text-[13px] mb-1 text-gray-500">Status Dijual</label>
             <Select
@@ -331,7 +322,7 @@ const Menu = () => {
               isSearchable
             />
           </div>
-          {/* Search */}
+
           <div className="flex flex-col col-span-1">
             <label className="text-[13px] mb-1 text-gray-500">Cari</label>
             <input
@@ -342,24 +333,74 @@ const Menu = () => {
               className="text-[13px] border py-[8.2px] pr-[25px] pl-[12px] rounded"
             />
           </div>
-          {/* Action */}
-          <div className="flex justify-end space-x-2 col-span-1 sm:col-span-2 lg:col-span-1">
-            <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[8px] rounded">Terapkan</button>
-            <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[8px] rounded">Reset</button>
+        </div>
+      </div> */}
+
+      <div className="px-[15px]">
+        <CategoryTabs
+          categoryOptions={categoryOptions}
+          selectedCategory={selectedCategory}
+          setSelectedCategory={setSelectedCategory}
+        />
+
+        <div className="flex items-center justify-between gap-3 py-3">
+          {/* Search */}
+          <div className="flex items-center flex-1 max-w-sm border rounded-lg px-3 py-2 bg-white shadow-sm">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 text-gray-400 mr-2"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1110.5 3a7.5 7.5 0 016.15 13.65z"
+              />
+            </svg>
+            <input
+              type="text"
+              placeholder="Cari ..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 text-sm border-none focus:ring-0 outline-none"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+
+            <Select
+              options={outletOptions}
+              value={outletOptions.find(option => option.value === selectedOutlet) || outletOptions[0]}
+              onChange={(selected) => setSelectedOutlet(selected.value)}
+              styles={customStyles}
+              isSearchable
+            />
+
+            <Select
+              options={statusOptions}
+              value={statusOptions.find(option => option.value === selectedStatus) || statusOptions[0]}
+              onChange={(selected) => setSelectedStatus(selected.value)}
+              styles={customStyles}
+              isSearchable
+            />
           </div>
         </div>
       </div>
 
       {/* Menu Table */}
-      <div className="w-full mt-4 shadow-md">
-        <div className="overflow-auto">
+      <div className="w-full">
+        <div className="overflow-auto border rounded-lg mx-[15px]">
           <table className="w-full table-auto text-gray-500">
             <thead>
-              <tr className="text-[14px] h-20">
-                <th className="p-[15px] font-normal text-right w-10">
+              <tr className="text-sm border-b">
+                <th className="p-3 font-normal text-center w-10">
                   <input
                     type="checkbox"
-                    className="w-[20px] h-[20px] accent-[#005429]"
+                    className="w-5 h-5 accent-[#005429]"
                     checked={checkAll}
                     onChange={(e) => {
                       const isChecked = e.target.checked;
@@ -368,10 +409,11 @@ const Menu = () => {
                     }}
                   />
                 </th>
-                <th className="p-[15px] font-normal text-left">Produk</th>
-                <th className="p-[15px] font-normal text-left">Kategori</th>
-                <th className="p-[15px] font-normal text-right">Harga</th>
-                <th className="p-[15px] font-normal w-20">
+                <th className="py-[15px] font-normal text-left">Produk</th>
+                <th className="py-[15px] font-normal text-left">Kategori</th>
+                <th className="py-[15px] font-normal text-left">Status</th>
+                <th className="py-[15px] font-normal text-right">Harga</th>
+                <th className="py-[15px] font-normal w-20">
                   {checkedItems.length > 0 && (
                     <button
                       onClick={handleDeleteSelected}
@@ -383,11 +425,11 @@ const Menu = () => {
               </tr>
             </thead>
             {currentItems.length > 0 ? (
-              <tbody className="divide-y divide-gray-200 text-[14px]">
+              <tbody className="divide-y divide-gray-200 text-sm">
                 {currentItems.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                     {/* Checkbox */}
-                    <td className="p-4 text-center">
+                    <td className="p-3 text-center">
                       <input
                         type="checkbox"
                         className="w-5 h-5 accent-[#005429] rounded cursor-pointer"
@@ -406,7 +448,7 @@ const Menu = () => {
                     </td>
 
                     {/* Image + Name */}
-                    <td className="p-4">
+                    <td className="py-2 w-2/6">
                       <div className="flex items-center">
                         <img
                           src={item.imageUrl || "https://via.placeholder.com/100"}
@@ -421,19 +463,48 @@ const Menu = () => {
                     </td>
 
                     {/* Category */}
-                    <td className="p-4 text-gray-700">
+                    <td className="py-2 text-gray-700 w-1/6">
                       {Array.isArray(item.category)
                         ? item.category.map((category) => category.name).join(", ")
                         : item.category?.name || "-"}
                     </td>
 
+                    <td className="py-2 text-gray-700 w-1/6">
+                      {/* Toggle Aktif / Tidak Aktif */}
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <span
+                          className={`text-xs font-medium ${item.isActive ? "text-green-900" : "text-gray-500"
+                            }`}
+                        >
+                          {item.isActive ? "Aktif" : "Tidak Aktif"}
+                        </span>
+                        <div className="relative inline-flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={item.isActive}
+                            // onChange={() => handleUpdate(item.id, item.isActive)}
+                            onChange={() => {
+                              setSelectedMenu(item);
+                              setNewStatus(!item.isActive);
+                              setIsConfirmOpen(true);
+                            }}
+                            className="sr-only peer"
+                          />
+                          {/* Background toggle */}
+                          <div className="w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-900 transition-colors"></div>
+                          {/* Lingkaran slider */}
+                          <div className="absolute left-[2px] top-[2px] w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
+                        </div>
+                      </label>
+                    </td>
+
                     {/* Price */}
-                    <td className="p-4 text-right font-medium text-gray-900">
+                    <td className="py-2 text-right font-medium text-gray-900 w-1/6">
                       {formatCurrency(item.originalPrice)}
                     </td>
 
                     {/* Actions */}
-                    <td className="p-4">
+                    <td className="py-2 w-1/6">
                       <div className="flex items-center justify-end space-x-3">
                         {/* Resep */}
                         <Link
@@ -447,38 +518,11 @@ const Menu = () => {
                         {/* Edit */}
                         <Link
                           to={`/admin/menu-update/${item.id}`}
-                          className="p-2 rounded-md hover:bg-gray-100 text-blue-600"
+                          className="p-2 rounded-md hover:bg-gray-100 text-green-900"
                           title="Edit"
                         >
                           <FaPencilAlt size={16} />
                         </Link>
-
-                        {/* Toggle Aktif / Tidak Aktif */}
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <span
-                            className={`text-xs font-medium ${item.isActive ? "text-green-600" : "text-gray-500"
-                              }`}
-                          >
-                            {item.isActive ? "Aktif" : "Tidak Aktif"}
-                          </span>
-                          <div className="relative inline-flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={item.isActive}
-                              // onChange={() => handleUpdate(item.id, item.isActive)}
-                              onChange={() => {
-                                setSelectedMenu(item);
-                                setNewStatus(!item.isActive);
-                                setIsConfirmOpen(true);
-                              }}
-                              className="sr-only peer"
-                            />
-                            {/* Background toggle */}
-                            <div className="w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors"></div>
-                            {/* Lingkaran slider */}
-                            <div className="absolute left-[2px] top-[2px] w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
-                          </div>
-                        </label>
                       </div>
                     </td>
                   </tr>
@@ -499,11 +543,11 @@ const Menu = () => {
       </div>
 
       {/* Pagination */}
-      <div className="flex justify-end items-center mt-6 gap-2 flex-wrap mb-[60px]">
+      <div className="flex justify-end mx-3 items-center mt-6 gap-2 flex-wrap">
         <button
           onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
           disabled={currentPage === 1}
-          className="px-3 py-2 bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-2 py-2 bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
         >
 
           <FaChevronLeft />
@@ -554,7 +598,7 @@ const Menu = () => {
             )
           }
           disabled={currentPage >= Math.ceil(menuItems.length / itemsPerPage)}
-          className="px-3 py-2 bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-2 py-2 bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <FaChevronRight />
         </button>

@@ -5,8 +5,11 @@ import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "../../redux/user/userSlice";
 import { jwtDecode } from "jwt-decode";
+import { FaHome, FaShoppingCart, FaCog, FaUser } from "react-icons/fa";
 
 const AdminDashboard = () => {
+
+  const [isOpen, setIsOpen] = useState(true);
   const { currentUser } = useSelector((state) => state.user);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -56,20 +59,17 @@ const AdminDashboard = () => {
         `}
       </style>
 
-      {/* Tombol Toggle di luar sidebar */}
-      <button
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className={`fixed top-0 z-40 bg-gray-800 text-white p-2 rounded-r-full transition-all duration-300
-          ${isSidebarOpen ? "left-64" : "left-0"}`}
-      >
-        {isSidebarOpen ? <FaChevronLeft /> : <FaChevronRight />}
-      </button>
-
       <div className="flex">
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className={`fixed top-10 z-50 bg-green-900 text-white p-2 rounded-full transition-all duration-300 ${isSidebarOpen ? "left-60" : "left-12"}`}
+        >
+          {isSidebarOpen ? <FaChevronLeft /> : <FaChevronRight />}
+        </button>
         <Sidebar isSidebarOpen={isSidebarOpen} />
 
         <div
-          className={`transition-all duration-300 w-full max-w-full box-border overflow-y-auto overflow-x-hidden h-screen ${isSidebarOpen ? "lg:ml-64" : "ml-0"
+          className={`transition-all duration-300 w-full max-w-full box-border overflow-y-auto overflow-x-hidden h-screen ${isSidebarOpen ? "lg:ml-64" : "ml-16"
             }`}
         >
           <Outlet context={{ isSidebarOpen }} />
