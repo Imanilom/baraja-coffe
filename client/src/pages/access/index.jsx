@@ -13,12 +13,14 @@ import {
     FaWallet,
     FaRegCreditCard,
     FaUsers,
+    FaHome,
 } from "react-icons/fa";
 import Header from "../admin/header";
 
 const menuItems = [
     { to: "/admin/access-settings/role", label: "Role Manajemen", icon: <FaBook size={24} /> },
     { to: "/admin/access-settings/user", label: "User Manajemen", icon: <FaUsers size={24} /> },
+    { to: "/admin/access-settings/departement", label: "Departemen Manajemen", icon: <FaHome size={24} /> },
 ];
 
 const AccessMenu = () => {

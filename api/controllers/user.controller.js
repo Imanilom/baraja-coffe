@@ -20,7 +20,8 @@ export const listStaff = async (req, res, next) => {
 
     const staff = await User.find(query)
       .select('-password')
-      .populate('outlet.outletId', 'name address'); // Populasi outlet
+      .populate('outlet.outletId', 'name address') // Populasi outlet
+      .populate('role', 'name'); // Populasi role
 
     res.status(200).json(staff);
   } catch (error) {
@@ -35,7 +36,7 @@ export const updateUser = async (req, res, next) => {
     if (!user) return next(errorHandler(404, 'User not found'));
 
     // Otorisasi: Hanya pemilik akun atau admin yang bisa mengupdate
-    if (req.user.id !== req.params.id && req.user.role !== 'admin') {
+    if (req.user.id !== req.params.id && req.user.role !== 'admin' && req.user.role !== 'superadmin') {
       return next(errorHandler(401, 'Unauthorized'));
     }
 
@@ -55,7 +56,7 @@ export const updateUser = async (req, res, next) => {
     if (req.body.password) updateFields.password = req.body.password;
 
     // Hanya Admin yang bisa mengubah field berikut:
-    if (req.user.role === 'admin') {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin') {
       if (req.body.role) updateFields.role = req.body.role;
       if (req.body.cashierType) updateFields.cashierType = req.body.cashierType;
 
