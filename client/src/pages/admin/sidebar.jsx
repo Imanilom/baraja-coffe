@@ -1,261 +1,4 @@
-// import { useState } from "react";
-// import { Link, useLocation } from "react-router-dom";
-// import {
-//   FaPoll,
-//   FaClipboardList,
-//   FaShoppingBag,
-//   FaBoxes,
-//   FaReceipt,
-//   FaUserCircle,
-//   FaChevronDown,
-//   FaChevronLeft,
-//   FaCut,
-//   FaStoreAlt,
-//   FaUserFriends,
-//   FaIdBadge,
-//   FaTabletAlt,
-//   FaHandshake,
-//   FaTh,
-//   FaDollarSign,
-//   FaChevronRight,
-//   FaTicketAlt,
-// } from "react-icons/fa";
-
-// const useActiveRoute = () => {
-//   const location = useLocation();
-//   return location.pathname;
-// };
-
-// const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
-//   const [openMenus, setOpenMenus] = useState({});
-//   const activeRoute = useActiveRoute();
-//   const menuItems = [
-//     {
-//       section: "",
-//       items: [
-//         { name: "Dashboard", path: "/admin/dashboard", icon: <FaPoll /> },
-//         {
-//           name: "Laporan",
-//           icon: <FaClipboardList />,
-//           subMenu: [
-//             { name: "Laporan Penjualan", path: "/admin/sales-menu" },
-//             { name: "Laporan Operasional", path: "/admin/operational-menu" },
-//             { name: "Laporan Laba & Rugi", path: "/admin/profit-menu" },
-//           ]
-//         },
-//       ]
-//     },
-//     {
-//       section: "Produk",
-//       items: [
-//         { name: "Produk", path: "/admin/menu", icon: <FaShoppingBag /> },
-//         {
-//           name: "Inventori", icon: <FaBoxes />,
-//           subMenu: [
-//             // { name: "Kartu Stok", path: "/admin/inventory/stockcard" },
-//             // { name: "Stok Tersedia", path: "/admin/inventory/current-stock" },
-//             { name: "Stok Masuk", path: "/admin/inventory/in" },
-//             { name: "Stok Keluar", path: "/admin/inventory/out" },
-//             { name: "Stock Opname", path: "/admin/inventory/so" },
-//             // { name: "Transfer Stok", path: "/admin/inventory/transfer" },
-//             // { name: "Stok Opname", path: "/admin/inventory/stockopname" },
-//             // { name: "Produk List", path: "/admin/inventory/production-list" },
-//             // { name: "Produk Stok", path: "/admin/inventory/production-stock" },
-//           ]
-//         },
-//         {
-//           name: "Pembelian", icon: <FaReceipt />,
-//           subMenu: [
-//             { name: "Supplier", path: "/admin/purchase/supplier" },
-//             { name: "Purchase Order", path: "/admin/purchase/purchase-order" },
-//             { name: "Daftar Belanja", path: "/admin/purchase/shopping-list" },
-//             { name: "Daftar Pengeluaran", path: "/admin/purchase/expenditure-list" },
-//           ]
-//         },
-//       ],
-//     },
-//     {
-//       section: "Bisnis",
-//       items: [
-//         { name: "Outlet", path: "/admin/outlet", icon: <FaStoreAlt /> },
-//         { name: "Event", path: "/admin/event", icon: <FaTicketAlt /> },
-//         { name: "Karyawan", path: "/admin/employee", icon: <FaIdBadge /> },
-//         { name: "Pelanggan", path: "/admin/customer", icon: <FaUserFriends /> },
-//         {
-//           name: "Pengaturan Meja", icon: <FaUserCircle />,
-//           subMenu: [
-//             { name: "Atur Meja", path: "/admin/table-management" },
-//             { name: "Denah Meja", path: "/admin/table-plan" }
-//           ]
-//         },
-//         { name: "Perangkat", path: "/admin/billing/device", icon: <FaTabletAlt /> },
-//         { name: "Promo", path: "/admin/promotion", icon: <FaCut /> },
-//         { name: "Komisi", path: "/admin/commission", icon: <FaHandshake /> },
-//       ],
-//     },
-//     {
-//       section: "Pengaturan",
-//       items: [
-//         // { name: "User Management", path: "/admin/user", icon: <FaUsers /> },
-//         { name: "Akun", path: "/profile", icon: <FaUserCircle /> },
-//         { name: "Aplikasi", path: "/profile", icon: <FaTh /> },
-//         { name: "Billing", path: "/profile", icon: <FaDollarSign /> },
-//         { name: "Setting Access", path: "/admin/access-settings", icon: <FaDollarSign /> },
-//       ],
-//     },
-//   ];
-
-//   const toggleMenu = (menuName) => {
-//     setOpenMenus((prev) => ({
-//       ...prev,
-//       [menuName]: !prev[menuName],
-//     }));
-//   };
-
-//   return (
-//     <>
-//       <div className={`${isSidebarOpen ? "bg-black absolute w-full h-screen opacity-50 z-30 lg:hidden" : "w-0 overflow-hidden"}`}>
-
-//       </div>
-//       <div className={`h-screen bg-gray-800 text-white fixed top-0 left-0 flex flex-col transition-all duration-300 z-40
-//     ${isSidebarOpen ? "w-64" : "w-0 overflow-hidden"}`}>
-//         <style>
-//           {`
-//         .custom-scrollbar {
-//           scrollbar-gutter: stable;
-//         }
-
-//         .custom-scrollbar::-webkit-scrollbar {
-//           width: 8px;
-//         }
-
-//         .custom-scrollbar::-webkit-scrollbar-track {
-//           background: transparent;
-//         }
-
-//         .custom-scrollbar::-webkit-scrollbar-thumb {
-//           background-color: white;
-//           border-radius: 10px;
-//         }
-
-//         .custom-scrollbar::-webkit-scrollbar-button {
-//           display: none;
-//         }
-//       `}
-//         </style>
-
-//         {/* Sticky Header */}
-//         <div className="px-4 pt-4 pb-2 shrink-0">
-//           <div className="text-center mb-4">
-//             <img
-//               src="/images/baraja white.png"
-//               alt="Logo"
-//               className="mx-auto max-w-xs w-full"
-//             />
-//           </div>
-//         </div>
-
-//         <hr className="mx-6" />
-
-//         {/* Scrollable Menu */}
-//         <div className="relative flex-1">
-//           <div className="absolute inset-0 overflow-y-hidden hover:overflow-y-auto custom-scrollbar">
-//             <ul className="transition-all duration-300 ease-in-out">
-//               {menuItems.map((section, idx) => (
-//                 <div key={idx} className="mb-4">
-//                   <h3 className="px-4 text-sm text-gray-400 uppercase tracking-wider font-semibold mb-2">
-//                     {section.section}
-//                   </h3>
-//                   <ul>
-//                     {section.items.map((item, index) => {
-//                       const hasActiveSubRoute = item.subMenu?.some((sub) =>
-//                         activeRoute.startsWith(sub.path)
-//                       );
-//                       const isSubMenuOpen =
-//                         openMenus[item.name] !== undefined
-//                           ? openMenus[item.name]
-//                           : hasActiveSubRoute;
-
-//                       const isActive = activeRoute.startsWith(item.path);
-
-//                       return (
-//                         <li key={index}>
-//                           {item.subMenu ? (
-//                             <>
-//                               <button
-//                                 type="button"
-//                                 onClick={() => toggleMenu(item.name)}
-//                                 className={`group relative w-full flex items-center justify-between py-3 px-4 overflow-hidden font-semibold transition-all ${isSubMenuOpen ? "bg-gray-700 text-white" : "text-gray-300"
-//                                   }`}
-//                               >
-//                                 <div className="flex items-center gap-2 relative z-10 group-hover:text-white transition-all">
-//                                   {item.icon}
-//                                   <span>{item.name}</span>
-//                                 </div>
-//                                 <div className="relative z-10">
-//                                   {isSubMenuOpen ? (
-//                                     <FaChevronDown className="transition-transform" />
-//                                   ) : (
-//                                     <FaChevronLeft className="transition-transform" />
-//                                   )}
-//                                 </div>
-//                                 <span className="absolute left-0 top-0 h-full w-0 bg-gray-700 group-hover:w-full transition-all duration-300 ease-out z-0" />
-//                               </button>
-
-//                               {isSubMenuOpen && (
-//                                 <ul className="bg-gray-900">
-//                                   {Array.isArray(item.subMenu) &&
-//                                     item.subMenu.map((subItem, subIndex) => {
-//                                       const isSubActive = activeRoute.startsWith(subItem.path);
-//                                       return (
-//                                         <li key={subIndex}>
-//                                           <Link
-//                                             to={subItem.path}
-//                                             className={`group relative block py-2 px-4 overflow-hidden transition-all ${isSubActive ? "bg-gray-700 text-white" : "text-gray-300"
-//                                               }`}
-//                                           >
-//                                             <div className="flex items-center gap-2 relative z-10 group-hover:text-white">
-//                                               <span className="w-[20px] inline-block" />
-//                                               <span>{subItem.name}</span>
-//                                             </div>
-//                                             <span className="absolute left-0 top-0 h-full w-0 bg-gray-700 group-hover:w-full transition-all duration-300 ease-out z-0" />
-//                                           </Link>
-//                                         </li>
-//                                       );
-//                                     })}
-//                                 </ul>
-//                               )}
-//                             </>
-//                           ) : (
-//                             <Link
-//                               to={item.path}
-//                               className={`group relative block py-3 px-4 overflow-hidden transition-all ${isActive ? "bg-gray-700 text-white" : "text-gray-300"
-//                                 }`}
-//                             >
-//                               <div className="flex items-center gap-2 relative z-10 group-hover:text-white">
-//                                 {item.icon}
-//                                 <span>{item.name}</span>
-//                               </div>
-//                               <span className="absolute left-0 top-0 h-full w-0 bg-gray-700 group-hover:w-full transition-all duration-300 ease-out z-0" />
-//                             </Link>
-//                           )}
-//                         </li>
-//                       );
-//                     })}
-//                   </ul>
-//                 </div>
-//               ))}
-//             </ul>
-//           </div>
-//         </div>
-//       </div >
-//     </>
-//   );
-// };
-
-// export default Sidebar;
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   FaPoll,
@@ -274,8 +17,13 @@ import {
   FaCut,
   FaTicketAlt,
   FaDollarSign,
+  FaSignOutAlt,
+  FaMoon,
 } from "react-icons/fa";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+
+import { signOut } from '../../redux/user/userSlice';
+import axios from "axios";
 
 const useActiveRoute = () => {
   const location = useLocation();
@@ -283,21 +31,66 @@ const useActiveRoute = () => {
 };
 
 const Sidebar = ({ isSidebarOpen }) => {
+  const dispatch = useDispatch();
+  const [warehouse, setWarehouses] = useState([]);
+  const [loading, setLoading] = useState([]);
   const { currentUser } = useSelector((state) => state.user);
   const [openMenus, setOpenMenus] = useState({});
   const activeRoute = useActiveRoute();
 
+  const fetchWarehouses = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get("/api/warehouses", {
+        params: {
+          limit: 10,
+        }
+      });
+
+      setWarehouses(res.data.data);
+    } catch (error) {
+      console.error("Error fetching warehouses:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWarehouses();
+  }, []);
+
   // ===============================
   // 🔑 Role yang aktif (ambil dari localStorage / API / hardcode dulu)
   // ===============================
-  // const currentRole = "akuntan"; // ganti sesuai role aktif (superadmin, marketing, operasional, akuntan, hrd, qc, inventory)
-  const currentRole = currentUser.role; // ganti sesuai role aktif (superadmin, marketing, operasional, akuntan, hrd, qc, inventory)
+
+  const myWarehouses = warehouse.filter((wh) =>
+    wh.admin && (typeof wh.admin === "object"
+      ? wh.admin._id === currentUser._id
+      : wh.admin === currentUser._id)
+  );
+
+  const currentRole =
+    myWarehouses[0]?.admin?._id === currentUser._id
+      ? currentUser.role
+      : null || currentUser.role === "admin" ? currentUser.role
+        : null || currentUser.role === "superadmin" ? currentUser.role
+          : null;
+
 
   // ===============================
   // 🔑 Role -> Menu Mapping
   // ===============================
   const roleMenus = {
-    superadmin: ["Dashboard", "Laporan", "Laporan Penjualan", "Produk", "Inventori", "Pembelian", "Outlet", "Event", "Karyawan", "Pelanggan", "Pengaturan Meja", "Perangkat", "Promo", "Komisi", "Akun", "Setting Access", "Laporan Penjualan", "Laporan Operasional", "Laporan Laba & Rugi",
+    superadmin: ["Dashboard", "Laporan", "Laporan Penjualan", "Menu", "Inventori", "Pembelian", "Outlet", "Event", "Karyawan", "Pelanggan", "Pengaturan Meja", "Perangkat", "Promo", "Komisi", "Akun", "Setting Access", "Laporan Penjualan", "Laporan Operasional", "Laporan Laba & Rugi",
+      "Stok Masuk",
+      "Stok Keluar",
+      "Stock Opname",
+      "Supplier",
+      "Purchase Order",
+      "Daftar Belanja",
+      "Daftar Pengeluaran",
+      "Atur Meja", "Denah Meja"],
+    admin: ["Dashboard", "Laporan", "Laporan Penjualan", "Menu", "Inventori", "Pembelian", "Outlet", "Event", "Karyawan", "Pelanggan", "Pengaturan Meja", "Perangkat", "Promo", "Komisi", "Akun", "Setting Access", "Laporan Penjualan", "Laporan Operasional", "Laporan Laba & Rugi",
       "Stok Masuk",
       "Stok Keluar",
       "Stock Opname",
@@ -307,10 +100,10 @@ const Sidebar = ({ isSidebarOpen }) => {
       "Daftar Pengeluaran",
       "Atur Meja", "Denah Meja"],
     marketing: ["Dashboard", "Event", "Pelanggan", "Promo"],
-    operational: ["Dashboard", "Laporan Operasional", "Outlet", "Pengaturan Meja", "Atur Meja", "Denah Meja", "Perangkat"],
+    operasional: ["Dashboard", "Laporan Operasional", "Outlet", "Pengaturan Meja", "Atur Meja", "Denah Meja", "Perangkat"],
     akuntan: ["Dashboard", "Laporan Penjualan", "Laporan Laba & Rugi", "Komisi"],
     hrd: ["Dashboard", "Karyawan", "Akun", "Setting Access"],
-    qc: ["Dashboard", "Produk", "Event"],
+    qc: ["Dashboard", "Menu", "Event"],
     inventory: ["Dashboard", "Inventori", "Stok Masuk", "Stok Keluar", "Stock Opname", "Pembelian", "Supplier", "Purchase Order", "Daftar Belanja", "Daftar Pengeluaran"],
   };
 
@@ -336,12 +129,12 @@ const Sidebar = ({ isSidebarOpen }) => {
     {
       section: "Produk",
       items: [
-        { name: "Produk", path: "/admin/menu", icon: <FaShoppingBag /> },
+        { name: "Menu", path: "/admin/menu", icon: <FaShoppingBag /> },
         {
           name: "Inventori",
           icon: <FaBoxes />,
           subMenu: [
-            { name: "Stok Masuk", path: "/admin/inventory/in" },
+            { name: "Stok Masuk", path: "/admin/inventori/stok-masuk" },
             { name: "Stok Keluar", path: "/admin/inventory/out" },
             { name: "Stock Opname", path: "/admin/inventory/so" },
           ],
@@ -382,7 +175,7 @@ const Sidebar = ({ isSidebarOpen }) => {
       section: "Pengaturan",
       items: [
         { name: "Akun", path: "/profile", icon: <FaUserCircle /> },
-        { name: "Setting Access", path: "/admin/access-settings", icon: <FaDollarSign /> },
+        { name: "Setting Access", path: "/admin/access-settings", icon: <FaUserCircle /> },
       ],
     },
   ];
@@ -414,82 +207,144 @@ const Sidebar = ({ isSidebarOpen }) => {
     }));
   };
 
+  const handleSignOut = async () => {
+    try {
+      await fetch('/api/auth/signout');
+      dispatch(signOut());
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   return (
     <div
-      className={`h-screen bg-gray-800 text-white fixed top-0 left-0 flex flex-col transition-all duration-300 z-40
-      ${isSidebarOpen ? "w-64" : "w-0 overflow-hidden"}`}
+      className={`h-screen bg-white text-green-900 fixed top-0 left-0 flex flex-col transition-all duration-300 z-40 shadow-lg ${isSidebarOpen ? "w-64" : "w-16"}`}
     >
-      <div className="px-4 pt-4 pb-2 shrink-0">
-        <div className="text-center mb-4">
-          <img src="/images/baraja white.png" alt="Logo" className="mx-auto max-w-xs w-full" />
-        </div>
+      {/* Logo */}
+      <div className="px-4 pt-6 pb-4 shrink-0 flex justify-center">
+        <img
+          src="/images/baraja.png"
+          alt="Logo"
+          className={`${isSidebarOpen ? "w-28" : "w-8"} object-contain`}
+        />
       </div>
-      <hr className="mx-6" />
 
-      <div className="relative flex-1">
-        <div className="absolute inset-0 overflow-y-hidden hover:overflow-y-auto custom-scrollbar">
-          <ul className="transition-all duration-300 ease-in-out">
-            {filteredMenuItems.map((section, idx) => (
-              <div key={idx} className="mb-4">
-                <h3 className="px-4 text-sm text-gray-400 uppercase tracking-wider font-semibold mb-2">
-                  {section.section}
-                </h3>
-                <ul>
-                  {section.items.map((item, index) => {
-                    const hasActiveSubRoute = item.subMenu?.some((sub) => activeRoute.startsWith(sub.path));
-                    const isSubMenuOpen = openMenus[item.name] ?? hasActiveSubRoute;
-                    const isActive = activeRoute.startsWith(item.path);
+      {/* Menu */}
+      <div className="flex-1 overflow-y-auto px-2 custom-scrollbar">
+        <ul className="space-y-8">
+          {filteredMenuItems.map((section, idx) => (
+            <div key={idx} className="space-y-2">
+              {/* Section title */}
+              <h3 className="px-2 text-xs text-gray-400 uppercase tracking-wider font-semibold">
+                {isSidebarOpen ? section.section : section.section[0]}
+              </h3>
 
-                    return (
-                      <li key={index}>
-                        {item.subMenu ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => toggleMenu(item.name)}
-                              className={`group relative w-full flex items-center justify-between py-3 px-4 font-semibold transition-all ${isSubMenuOpen ? "bg-gray-700 text-white" : "text-gray-300"}`}
-                            >
-                              <div className="flex items-center gap-2">
-                                {item.icon}
-                                <span>{item.name}</span>
-                              </div>
-                              {isSubMenuOpen ? <FaChevronDown /> : <FaChevronLeft />}
-                            </button>
+              {/* Items */}
+              <ul className="space-y-1">
+                {section.items.map((item, index) => {
+                  const hasActiveSubRoute = item.subMenu?.some((sub) =>
+                    activeRoute.startsWith(sub.path)
+                  );
+                  const isSubMenuOpen = openMenus[item.name] ?? hasActiveSubRoute;
+                  const isActive = activeRoute.startsWith(item.path);
 
-                            {isSubMenuOpen && (
-                              <ul className="bg-gray-900">
-                                {item.subMenu.map((subItem, subIndex) => {
-                                  const isSubActive = activeRoute.startsWith(subItem.path);
-                                  return (
-                                    <li key={subIndex}>
-                                      <Link
-                                        to={subItem.path}
-                                        className={`block py-2 px-4 ${isSubActive ? "bg-gray-700 text-white" : "text-gray-300"}`}
-                                      >
-                                        <span className="ml-6">{subItem.name}</span>
-                                      </Link>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            )}
-                          </>
-                        ) : (
-                          <Link
-                            to={item.path}
-                            className={`block py-3 px-4 ${isActive ? "bg-gray-700 text-white" : "text-gray-300"}`}
+                  return (
+                    <li key={index}>
+                      {item.subMenu ? (
+                        <>
+                          {/* Parent with submenu */}
+                          <button
+                            type="button"
+                            onClick={() => toggleMenu(item.name)}
+                            className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg font-medium transition
+                            ${isSubMenuOpen
+                                ? "bg-green-100 text-green-900 font-semibold"
+                                : "text-green-900 hover:bg-green-50"
+                              }`}
                           >
-                            <div className="flex items-center gap-2">{item.icon}<span>{item.name}</span></div>
-                          </Link>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </ul>
+                            <div className="flex items-center gap-2">
+                              {item.icon}
+                              {isSidebarOpen && <span>{item.name}</span>}
+                            </div>
+                            {isSidebarOpen &&
+                              (isSubMenuOpen ? <FaChevronDown /> : <FaChevronLeft />)}
+                          </button>
+
+                          {/* Submenu */}
+                          {isSubMenuOpen && isSidebarOpen && (
+                            <ul className="ml-3 border-l border-gray-200 space-y-1">
+                              {item.subMenu.map((subItem, subIndex) => {
+                                const isSubActive = activeRoute.startsWith(
+                                  subItem.path
+                                );
+                                return (
+                                  <li key={subIndex}>
+                                    <Link
+                                      to={subItem.path}
+                                      className={`block py-2 px-5 rounded-lg text-sm transition
+                                      ${isSubActive
+                                          ? "bg-green-100 text-green-900 font-semibold"
+                                          : "text-green-900 hover:bg-green-50"
+                                        }`}
+                                    >
+                                      {subItem.name}
+                                    </Link>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </>
+                      ) : (
+                        // Normal menu
+                        <Link
+                          to={item.path}
+                          className={`block py-2.5 px-3 rounded-lg transition font-medium
+                          ${isActive
+                              ? "bg-green-100 text-green-900 font-semibold"
+                              : "text-green-900 hover:bg-green-50"
+                            }`}
+                        >
+                          <div className="flex items-center gap-2 justify-start">
+                            {item.icon}
+                            {isSidebarOpen && <span>{item.name}</span>}
+                          </div>
+                        </Link>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </ul>
+      </div>
+
+      {/* Footer User Info */}
+      <div className="border-t border-gray-200 p-3">
+        <div className="flex items-center gap-3 mb-3 justify-start">
+          <img
+            src="https://static.vecteezy.com/system/resources/previews/009/292/244/non_2x/default-avatar-icon-of-social-media-user-vector.jpg"
+            alt="User Avatar"
+            className="w-10 h-10 rounded-full border border-gray-300"
+          />
+          {isSidebarOpen && (
+            <div className="text-sm">
+              <p className="font-semibold text-green-900">{currentUser.username}</p>
+              <p className="text-gray-400 text-xs capitalize">
+                {currentUser.role}
+              </p>
+            </div>
+          )}
         </div>
+
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-2 w-full py-2 px-3 rounded-lg text-green-900 hover:bg-green-50 transition justify-center md:justify-start"
+        >
+          <FaSignOutAlt className="text-green-900" />
+          {isSidebarOpen && <span className="font-medium">Log out</span>}
+        </button>
       </div>
     </div>
   );

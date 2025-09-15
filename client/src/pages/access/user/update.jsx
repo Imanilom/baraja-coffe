@@ -13,6 +13,40 @@ import { useSelector } from "react-redux";
 import Header from "../../admin/header";
 
 const UpdateUser = () => {
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: "#d1d5db",
+            minHeight: "34px",
+            fontSize: "13px",
+            color: "#6b7280",
+            boxShadow: state.isFocused ? "0 0 0 1px #005429" : "none",
+            "&:hover": {
+                borderColor: "#9ca3af",
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: "#6b7280",
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: "#6b7280",
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: "#9ca3af",
+            fontSize: "13px",
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: "13px",
+            color: "#374151",
+            backgroundColor: state.isFocused ? "rgba(0, 84, 41, 0.1)" : "white",
+            cursor: "pointer",
+        }),
+        menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+    };
     const { currentUser } = useSelector((state) => state.user);
     const { id } = useParams(); // ambil id user dari route
     const navigate = useNavigate();
@@ -23,6 +57,7 @@ const UpdateUser = () => {
     const [search, setSearch] = useState("");
     const [selectedOutlets, setSelectedOutlets] = useState([]);
     const [employeeType, setEmployeeType] = useState(""); // role
+    const [roleOptions, setRoleOptions] = useState([]);
     const [name, setName] = useState("");
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
@@ -31,21 +66,21 @@ const UpdateUser = () => {
     const [formErrors, setFormErrors] = useState({});
     const [submitAction, setSubmitAction] = useState("stay");
 
-    const roleOptions = [
-        { value: "superadmin", label: "Super Admin" },
-        { value: "admin", label: "Admin" },
-        { value: "customer", label: "Customer" },
-        { value: "waiter", label: "Waiter" },
-        { value: "kitchen", label: "Kitchen" },
-        { value: "cashier_junior", label: "Cashier Junior" },
-        { value: "cashier_senior", label: "Cashier Senior" },
-        { value: "akuntan", label: "Akuntan" },
-        { value: "inventory", label: "Inventory" },
-        { value: "marketing", label: "Marketing" },
-        { value: "operational", label: "Operational" },
-        { value: "qc", label: "Qc" },
-        { value: "hrd", label: "HRD" },
-    ];
+    const fetchRoles = async () => {
+        setLoading(true);
+        try {
+            const res = await axios.get("/api/roles");
+            const formatted = res.data.map((role) => ({
+                value: role._id,      // gunakan _id sebagai value
+                label: role.name,     // tampilkan name sebagai label
+            }));
+            setRoleOptions(formatted);
+        } catch (err) {
+            console.error("Failed to fetch roles:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Fetch data user by ID
     const fetchUser = async () => {
@@ -82,6 +117,7 @@ const UpdateUser = () => {
     useEffect(() => {
         fetchUser();
         fetchOutlets();
+        fetchRoles();
     }, [id]);
 
     const filteredOutlets = outlets.filter((o) =>
@@ -111,18 +147,25 @@ const UpdateUser = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!validateForm()) return;
+        // if (!validateForm()) return;
 
         try {
-            await axios.put(`/api/user/update/${id}`, {
-                name,
-                username,
-                email,
-                phone,
-                password: password || undefined, // kosong = tidak update password
-                role: employeeType,
-                outlets: selectedOutlets,
-            });
+            await axios.put(
+                `/api/user/update/${id}`,
+                {
+                    name,
+                    username,
+                    email,
+                    phone,
+                    password: password || undefined, // kosong = tidak update password
+                    role: employeeType,
+                    outlets: selectedOutlets,
+                },
+                {
+                    headers: { Authorization: `Bearer ${currentUser.token}` },
+                }
+            );
+
 
             if (submitAction === "exit") {
                 navigate("/admin/access-settings/user", {
@@ -271,6 +314,7 @@ const UpdateUser = () => {
                                 value={roleOptions.find((opt) => opt.value === employeeType)}
                                 onChange={(opt) => setEmployeeType(opt.value)}
                                 placeholder="Pilih role karyawan..."
+                                styles={customSelectStyles}
                             />
                             {formErrors.employeeType && (
                                 <p className="text-xs text-red-500 mt-1">

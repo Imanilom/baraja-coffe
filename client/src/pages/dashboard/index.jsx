@@ -1,36 +1,27 @@
 import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
 import Datepicker from 'react-tailwindcss-datepicker';
 import {
-    FaBell,
-    FaUser,
     FaPoll,
     FaChartBar,
     FaShoppingCart,
-    FaArrowRight,
-    FaInfo,
-    FaChevronDown,
-    FaWallet,
-    FaArrowDown,
-    FaArrowUp,
-    FaCheckSquare
+    FaSearch,
+    FaBell,
+    FaPlus,
 } from "react-icons/fa";
-
-import {
-    AreaChart,
-    Area,
-    PieChart,
-    Pie,
-    Sector,
-    XAxis,
-    YAxis,
-    Tooltip,
-    ResponsiveContainer,
-    CartesianGrid,
-} from "recharts";
 import DashboardModal from "./modal";
 import Header from "../admin/header";
+import SalesChart from "./charts/saleschart";
+import TopProductChart from "./charts/topproductchart";
+import TopCategoryChart from "./charts/topcategorychart";
+import TopProductTable from "./table/topproducttable";
+import PaymentMethod from "./table/paymentmethod";
+import CardItem from "./cardItem/carditem";
+import FoodChart from "./charts/foodchart";
+import DrinkChart from "./charts/drinkchart";
+import { useSelector } from "react-redux";
+import TotalOrder from "./charts/totalorder";
+import { Link } from "react-router-dom";
 
 const formatRupiah = (amount) => {
     return new Intl.NumberFormat('id-ID', {
@@ -50,21 +41,15 @@ const getTodayRange = () => {
 
 
 const Dashboard = () => {
-    const [activeIndex, setActiveIndex] = useState(0);
+    const { currentUser } = useSelector((state) => state.user);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [active2Index, set2ActiveIndex] = useState(0);
     const [productSales, setProductSales] = useState([]);
     const [categories, setCategory] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const handleSave = (selectedWidgets) => {
-        console.log("Widgets terpilih:", selectedWidgets);
         setIsModalOpen(false);
     };
-
-    const [currentPage, setCurrentPage] = useState(1);
-    const [isCreating, setIsCreating] = useState(false);
-    const itemsPerPage = 5;
 
     const [filters, setFilters] = useState({
         date: getTodayRange(),
@@ -123,14 +108,6 @@ const Dashboard = () => {
         fetchData();
     }, []);
 
-    const handlePieEnter = (_, index) => {
-        setActiveIndex(index);
-    };
-
-    const handle2PieEnter = (_, index) => {
-        set2ActiveIndex(index);
-    };
-
     // Handle filter changes
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
@@ -188,6 +165,7 @@ const Dashboard = () => {
             if (!item) return;
 
             const productName = item.menuItem?.name || "Unknown";
+            const mainCategory = item.menuItem?.mainCategory || "Unknown";
             const categoryObj = categories.find(cat => cat._id === item.menuItem?.category);
             const category = categoryObj ? categoryObj.name : "Uncategorized";
             const sku = item.menuItem?.sku || "-";
@@ -198,6 +176,7 @@ const Dashboard = () => {
             if (!grouped[productName]) {
                 grouped[productName] = {
                     productName,
+                    mainCategory,
                     category,
                     sku,
                     quantity: 0,
@@ -213,7 +192,8 @@ const Dashboard = () => {
             grouped[productName].total += subtotal + discount;
         });
 
-        return Object.values(grouped);
+        const g = Object.values(grouped);
+        return g;
     };
 
     // Hitung range sebelumnya (banding)
@@ -293,18 +273,18 @@ const Dashboard = () => {
 
     const cardsData = [
         {
-            title: "PENJUALAN",
-            icon: <FaShoppingCart size={40} className="text-gray-500" />,
+            title: "Penjualan",
+            icon: <FaShoppingCart size={21} />,
             percentage: penjualanComp.percentage,
             amount: penjualanComp.amount,
             isPositive: penjualanComp.isPositive,
-            average: formatRupiah((todayData.penjualan + yesterdayData.penjualan) / 2),
+            average: formatRupiah(todayData.penjualan / todayData.transaksi),
             value: formatRupiah(todayData.penjualan),
             route: "/admin/transaction-sales",
         },
         {
-            title: "TRANSAKSI",
-            icon: <FaChartBar size={40} className="text-gray-500" />,
+            title: "Transaksi",
+            icon: <FaChartBar size={21} />,
             percentage: transaksiComp.percentage,
             amount: transaksiComp.amount,
             isPositive: transaksiComp.isPositive,
@@ -313,8 +293,8 @@ const Dashboard = () => {
             route: "/admin/daily-sales",
         },
         {
-            title: "LABA KOTOR",
-            icon: <FaChartBar size={40} className="text-gray-500" />,
+            title: "Laba Kotor",
+            icon: <FaChartBar size={21} />,
             percentage: labaKotorComp.percentage,
             amount: labaKotorComp.amount,
             isPositive: labaKotorComp.isPositive,
@@ -323,6 +303,38 @@ const Dashboard = () => {
             route: "/admin/daily-profit",
         },
     ];
+
+    // Filter hanya makanan
+    const foodData = useMemo(() => {
+        return groupedCurrent.filter((item) => item.mainCategory === "makanan");
+    }, [groupedCurrent]);
+
+    // Filter hanya minuman
+    const drinkData = useMemo(() => {
+        return groupedCurrent.filter((item) => item.mainCategory === "minuman");
+    }, [groupedCurrent]);
+
+    // Mapping ke data sales makanan (ambil 5 tertinggi)
+    const foodSales = useMemo(() => {
+        return foodData
+            .sort((a, b) => b.subtotal - a.subtotal) // urut dari terbesar ke kecil
+            .slice(0, 5) // ambil top 5
+            .map((item) => ({
+                name: item.productName,
+                value: item.subtotal,
+            }));
+    }, [foodData]);
+
+    // Mapping ke data sales minuman (ambil 5 tertinggi)
+    const drinkSales = useMemo(() => {
+        return drinkData
+            .sort((a, b) => b.subtotal - a.subtotal)
+            .slice(0, 5)
+            .map((item) => ({
+                name: item.productName,
+                value: item.subtotal,
+            }));
+    }, [drinkData]);
 
     // Hitung persentase perubahan dan beda nilai
     function calculateComparison(today, yesterday) {
@@ -343,49 +355,9 @@ const Dashboard = () => {
         };
     }
 
-    const CardItem = ({ title, icon, percentage, amount, average, value, route, isPositive }) => (
-        <Link className="w-full bg-white border py-[25px] px-[30px] cursor-pointer" to={route}>
-            <div className="flex flex-col justify-between h-full">
-                <div>
-                    <div className="flex items-center justify-between">
-                        <span className="text-[14px] font-semibold text-gray-500">{title}</span>
-                        {icon}
-                    </div>
-
-                    <p className={`text-sm mt-2 flex items-center space-x-1 ${isPositive ? "text-green-600" : "text-red-600"}`}>
-                        {isPositive ? <FaArrowUp /> : <FaArrowDown />}
-                        <span>
-                            {percentage} (
-                            {title === "TRANSAKSI" ? amount : formatRupiah(amount)}
-                            ) Dibanding Kemarin
-                        </span>
-                    </p>
-
-                    <div className="flex justify-between mt-4 text-sm text-gray-600">
-                        <div>
-                            {title === "PENJUALAN" && (
-                                <>
-                                    <p>Rata-rata</p>
-                                    <p className="font-medium text-gray-500">{average}</p>
-                                </>
-                            )}
-                        </div>
-                        <div className="text-right text-[20px]">
-                            <p>{value}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-end space-x-2 text-gray-500 mt-[13px] pt-[20px] border-t-[1px]">
-                    <span>Selengkapnya</span>
-                    <FaArrowRight />
-                </div>
-            </div>
-        </Link>
-    );
-
     const dataSales = groupedCurrent.map((item) => ({
         name: item.productName,
+        category: item.mainCategory,
         value: item.subtotal, // ganti '120000' dengan nilai aktual, misalnya 'item.total'
     }));
 
@@ -409,121 +381,6 @@ const Dashboard = () => {
         name: item.name,
         value: item.value, // ganti '120000' dengan nilai aktual, misalnya 'item.total'
     }));
-
-    const renderActiveShape = (props) => {
-        const {
-            cx, cy, innerRadius, outerRadius,
-            startAngle, endAngle, fill, payload, value,
-        } = props;
-
-        const RADIAN = Math.PI / 180;
-
-        const arcRadius = innerRadius - 5;
-        const start = {
-            x: cx + arcRadius * Math.cos(-startAngle * RADIAN),
-            y: cy + arcRadius * Math.sin(-startAngle * RADIAN),
-        };
-        const end = {
-            x: cx + arcRadius * Math.cos(-endAngle * RADIAN),
-            y: cy + arcRadius * Math.sin(-endAngle * RADIAN),
-        };
-
-        const arcPath = `
-        M ${start.x} ${start.y}
-        A ${arcRadius} ${arcRadius} 0 ${endAngle - startAngle > 180 ? 1 : 0} 0 ${end.x} ${end.y}
-    `;
-
-        return (
-            <g>
-                {/* Label */}
-                <text x={cx} y={cy - 10} textAnchor="middle" fill="#333" fontSize={14} fontWeight="bold">
-                    {payload.name}
-                </text>
-                <text x={cx} y={cy + 10} textAnchor="middle" fill="#333" fontSize={12}>
-                    Rp{value.toLocaleString()}
-                </text>
-
-                {/* Sektor aktif dengan scale */}
-                <g>
-                    <Sector
-                        cx={cx}
-                        cy={cy}
-                        innerRadius={innerRadius}
-                        outerRadius={outerRadius}
-                        startAngle={startAngle}
-                        endAngle={endAngle}
-                        fill={fill}
-                    />
-                </g>
-
-                {/* Garis melingkar */}
-                <path
-                    d={arcPath}
-                    stroke="#333"
-                    strokeWidth={2}
-                    fill="none"
-                />
-            </g>
-        );
-    };
-
-    const render2ActiveShape = (props) => {
-        const {
-            cx, cy, innerRadius, outerRadius,
-            startAngle, endAngle, fill, payload, value,
-        } = props;
-
-        const RADIAN = Math.PI / 180;
-
-        const arcRadius = innerRadius - 5;
-        const start = {
-            x: cx + arcRadius * Math.cos(-startAngle * RADIAN),
-            y: cy + arcRadius * Math.sin(-startAngle * RADIAN),
-        };
-        const end = {
-            x: cx + arcRadius * Math.cos(-endAngle * RADIAN),
-            y: cy + arcRadius * Math.sin(-endAngle * RADIAN),
-        };
-
-        const arcPath = `
-        M ${start.x} ${start.y}
-        A ${arcRadius} ${arcRadius} 0 ${endAngle - startAngle > 180 ? 1 : 0} 0 ${end.x} ${end.y}
-    `;
-
-        return (
-            <g>
-                {/* Label */}
-                <text x={cx} y={cy - 10} textAnchor="middle" fill="#333" fontSize={14} fontWeight="bold">
-                    {payload.name}
-                </text>
-                <text x={cx} y={cy + 10} textAnchor="middle" fill="#333" fontSize={12}>
-                    {value.toLocaleString()}
-                </text>
-
-                {/* Sektor aktif dengan scale */}
-                <g>
-                    <Sector
-                        cx={cx}
-                        cy={cy}
-                        innerRadius={innerRadius}
-                        outerRadius={outerRadius}
-                        startAngle={startAngle}
-                        endAngle={endAngle}
-                        fill={fill}
-                    />
-                </g>
-
-                {/* Garis melingkar */}
-                <path
-                    d={arcPath}
-                    stroke="#333"
-                    strokeWidth={2}
-                    fill="none"
-                />
-            </g>
-        );
-    };
-
 
     const groupedByHour = useMemo(() => {
         const grouped = {};
@@ -611,247 +468,102 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="max-w-8xl mx-auto">
+        <div className="min-h-screen bg-green-50">
             {/* Header */}
             <Header />
 
-            {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaPoll size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Dashboard</p>
-                </div>
-                {/* <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
-                >
-                    Atur Dashboard
-                </button> */}
-            </div>
-            <DashboardModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onSubmit={handleSave}
-            />
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                {/* Filters */}
-                <div className="">
-                    <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-2 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                        <div className="relative">
-                            <label className="text-[13px] mb-1 text-gray-500">Outlet :</label>
-                            <select
-                                name="outlet"
-                                value={filters.outlet}
-                                onChange={handleFilterChange}
-                                className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
-                            >
-                                <option value="">Semua Outlet</option>
-                                {outlets.map((outlet) => (
-                                    <option key={outlet._id} value={outlet._id}>
-                                        {outlet.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="relative">
-                            <label className="text-[13px] mb-1 text-gray-500">Tanggal :</label>
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={filters.date}
-                                onChange={handleDateRangeChange}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
+            {/* Main */}
+            <main className="grid grid-cols-1 lg:grid-cols-4 gap-6 p-6">
+                {/* Left Section */}
+                <div className="lg:col-span-3 space-y-6">
+
+                    {/* Filters */}
+                    <div className="">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                            <div className="relative">
+                                <select
+                                    name="outlet"
+                                    value={filters.outlet}
+                                    onChange={handleFilterChange}
+                                    className="w-full text-sm md:text-base text-gray-600 border py-2 pr-8 pl-3 appearance-none focus:ring-2 focus:ring-[#005429] focus:outline-none rounded-lg shadow-sm"
+                                >
+                                    <option value="">Semua Outlet</option>
+                                    {outlets.map((outlet) => (
+                                        <option key={outlet._id} value={outlet._id}>
+                                            {outlet.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="relative">
+                                <Datepicker
+                                    showFooter
+                                    showShortcuts
+                                    value={filters.date}
+                                    onChange={handleDateRangeChange}
+                                    displayFormat="DD-MM-YYYY"
+                                    inputClassName="w-full text-sm md:text-base border py-2 pr-8 pl-3 rounded cursor-pointer focus:ring-2 focus:ring-[#005429] focus:outline-none rounded-lg shadow-sm"
+                                    popoverDirection="down"
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
+                    {/* Welcome */}
+                    <div className="bg-white p-4 rounded-lg shadow">
+                        <h2 className="text-lg font-semibold">Selamat Datang, <span className="capitalize">{currentUser.username}</span></h2>
+                        <p className="text-sm text-gray-500">Baraja Coffee</p>
+                    </div>
 
-                <div className="bg-white">
-                    <div className="flex justify-evenly mt-6 space-x-10 w-full">
-                        {cardsData.map((card, index) => (
-                            <CardItem key={index} {...card} />
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {cardsData.map((card, i) => (
+                            <CardItem key={i} {...card} />
                         ))}
                     </div>
 
-                    <div className="py-[25px] px-[30px] w-full h-[535px] mt-6 border">
-                        <div className="flex justify-between items-center py-[10px]">
-                            <span className="text-[14px] font-semibold text-gray-500">GRAFIK PENJUALAN</span>
-                            <FaChevronDown className="text-lg font-semibold text-gray-500" />
-                        </div>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={groupedByHour} margin={{ top: 10, right: 20, left: 20, bottom: 50 }}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="time" />
-                                <YAxis tickFormatter={(value) => formatRupiah(value)}
-                                    tick={{ fontSize: 12 }}
-                                />
-                                <Tooltip formatter={(value) => `Rp${value.toLocaleString('id-ID')}`} />
-                                <Area type="monotone" dataKey="subtotal" stroke="#005429" fill="#005400" strokeWidth={2} />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                    {/* Chart */}
+                    <SalesChart data={groupedByHour} />
+
+                    {/* Recent Orders */}
+                    <TopProductTable data={groupedCurrent} />
+                </div>
+
+                {/* Right Sidebar */}
+                <div className="space-y-6">
+                    {/* New Menu Button */}
+                    <div className="bg-white px-4 py-2 rounded-lg shadow-sm flex justify-between items-center">
+                        <h3 className="font-semibold">Menu</h3>
+                        <Link to="/admin/menu-create" className="flex items-center gap-1 px-3 py-1 bg-green-900 text-white text-sm rounded">
+                            <FaPlus /> Buat
+                        </Link>
                     </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div className="w-full h-96 max-w-3xl mx-auto">
-                        <div className="flex space-x-2 items-center">
-                            <span className="text-[14px] font-semibold text-gray-500">PENJUALAN PRODUK DENGAN NOMINAL TERTINGGI</span>
-                            <span className="p-1 rounded-full border text-gray-500"><FaInfo size={10} /></span>
-                        </div>
-                        {dataSales && dataSales.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        activeIndex={activeIndex}
-                                        activeShape={renderActiveShape}
-                                        data={dataSales}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={80}
-                                        fill="#005429"
-                                        dataKey="value"
-                                        onMouseEnter={handlePieEnter}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="flex justify-center items-center space-x-2 h-full">
-                                <FaCheckSquare size={20} className="text-[#005429]" />
-                                <span className="text-gray-500">Tidak ada data</span>
-                            </div>
-                        )}
-                    </div>
-                    <div className="w-full h-96 max-w-3xl mx-auto">
-                        <div className="flex space-x-2 items-center">
-                            <span className="text-[14px] font-semibold text-gray-500">PENJUALAN KATEGORI TERTINGGI</span>
-                            <span className="p-1 rounded-full border text-gray-500"><FaInfo size={10} /></span>
-                        </div>
-                        {dataCategory && dataCategory.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        activeIndex={active2Index}
-                                        activeShape={render2ActiveShape}
-                                        data={dataCategory}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={80}
-                                        fill="#005429"
-                                        dataKey="value"
-                                        onMouseEnter={handle2PieEnter}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="flex justify-center items-center h-full space-x-2">
-                                <FaCheckSquare size={20} className="text-[#005429]" />
-                                <span className="text-gray-500">Tidak ada data</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                    {/* Today Performance */}
+                    {/* <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <h3 className="font-semibold mb-2">Today Performance</h3>
+                        <p className="text-lg font-bold">$360</p>
+                        <p className="text-sm text-gray-500">Today Revenue</p>
+                    </div> */}
 
-                <div className="mt-4">
-                    <Link to="/admin/product-sales">
-                        <div className="w-full py-[25px] px-[30px] border">
-                            <div className="flex justify-between">
-                                <div className="flex space-x-2 items-center">
-                                    <span className="text-[14px] font-semibold text-gray-500">PENJUALAN PRODUK TERTINGGI</span>
-                                    <span className="p-1 rounded-full border text-gray-500"><FaInfo size={10} /></span>
-                                </div>
-                                <FaChevronDown className="text-lg font-semibold text-gray-500" />
-                            </div>
-                            <table className="min-w-full text-[14px] shadow-slate-200 shadow-md">
-                                <thead className="text-gray-500">
-                                    <tr>
-                                        <th className="py-[21px] px-[15px] font-normal text-left">Nama Produk</th>
-                                        <th className="py-[21px] px-[15px] font-normal text-left">Kategori</th>
-                                        <th className="py-[21px] px-[15px] font-normal text-right">Terjual</th>
-                                        <th className="py-[21px] px-[15px] font-normal text-right">Penjualan Kotor</th>
-                                        <th className="py-[21px] px-[15px] font-normal text-right">Diskon Produk</th>
-                                        <th className="py-[21px] px-[15px] font-normal text-right">Total</th>
-                                    </tr>
-                                </thead>
-                                {groupedCurrent.length > 0 ? (
+                    {/* Live Orders */}
+                    {/* <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <h3 className="font-semibold mb-3">Live Orders</h3>
+                        <ul className="space-y-2 text-sm text-gray-600">
+                            <li>Paistudio purchased 1x Choco Chuco Coffee</li>
+                            <li>Today at 12:30</li>
+                        </ul>
+                    </div> */}
 
-                                    <tbody>
-                                        {groupedCurrent.map((item, i) => {
-                                            return (
-                                                <tr key={i} className="hover:bg-gray-50 text-gray-500">
-                                                    <td className="p-[15px]">{item.productName}</td>
-                                                    <td className="p-[15px]">{item.category ? item.category : 'N/A'}</td>
-                                                    {/* <td className="p-[15px]">{Array.isArray(item.category) ? item.category.join(', ') : 'N/A'}</td> */}
-                                                    <td className="p-[15px] text-right">{item.quantity}</td>
-                                                    <td className="p-[15px] text-right">{formatRupiah(item.subtotal)}</td>
-                                                    <td className="p-[15px] text-right">{formatRupiah(item.discount)}</td>
-                                                    <td className="p-[15px] text-right font-semibold">{formatRupiah(item.total)}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                ) : (
-                                    <tbody>
-                                        <tr className="py-6 text-center w-full h-96 text-gray-500">
-                                            <td colSpan={6}>TIDAK ADA PENJUALAN HARI INI</td>
-                                        </tr>
-                                    </tbody>
-                                )}
-                            </table>
-                            <div className="flex justify-end items-center space-x-2 border-t mt-[20px] pt-[20px] text-gray-500">
-                                <span>Selengkapnya</span>
-                                <FaArrowRight />
-                            </div>
-                        </div>
-                    </Link>
-                </div>
+                    {/* Top Selling Items */}
+                    <TotalOrder data={dataSales} />
+                    <FoodChart data={foodSales} />
+                    <DrinkChart data={drinkSales} />
+                    <PaymentMethod data={groupedPaymnet} />
 
-                <div className="grid grid-cols-2 mt-4">
-                    <Link className="h-[400px] bg-white border py-[25px] px-[30px] flex flex-col justify-between cursor-pointer" to="/admin/payment-method-sales">
-                        <div className="flex items-center justify-between">
-                            <div className="flex space-x-2 items-center">
-                                <h2 className="text-[14px] font-semibold text-gray-500">METODE PEMBAYARAN</h2>
-                                <span className="p-1 rounded-full border text-gray-500"><FaInfo size={10} /></span>
-                            </div>
-                            <FaWallet size={40} className="text-gray-500" />
-                        </div>
-                        <div className="mt-4 text-sm text-gray-600 h-full">
-                            {groupedPaymnet.length > 0 ? (
-                                <div className="">
-                                    {groupedPaymnet.map((item, i) => {
-                                        return (
-                                            <div className="flex justify-between" key={i}>
-                                                <span className="p-[15px]">{item.paymentMethod}</span>
-                                                <span className="p-[15px]">{formatRupiah(item.subtotal)}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="flex justify-center items-center h-full space-x-2">
-                                    <FaCheckSquare size={20} className="text-[#005429]" />
-                                    <span className="text-gray-500">Tidak ada data</span>
-                                </div>
-                            )}
-                        </div>
-                        <div className="justify-end flex items-center space-x-2 text-gray-500">
-                            <span className="">
-                                Selengkapnya
-                            </span>
-                            <FaArrowRight />
-                        </div>
-                    </Link>
                 </div>
-            </div>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
-            </div>
+            </main>
         </div>
+
     );
 };
 

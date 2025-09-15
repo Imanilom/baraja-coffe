@@ -1,18 +1,27 @@
-import { FaBell, FaUser } from "react-icons/fa";
+import { FaBell, FaPoll, FaSearch } from "react-icons/fa";
+import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 
 export default function Header() {
+    const { currentUser } = useSelector((state) => state.user);
     return (
-        <header className="flex justify-between items-center px-6 py-4 bg-white shadow-sm">
-            <h1 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-                {/* <FaIdBadge className="text-[#005429]" />
-                            Manajemen Karyawan */}
-            </h1>
-            <div className="flex items-center space-x-4">
-                <FaBell size={20} className="text-gray-400" />
-                <span className="text-sm text-gray-600">Hi, Baraja</span>
+        <header className="flex justify-end items-center px-6 py-3 border-b bg-white">
+            <div className="flex items-center gap-3">
+                <div className="relative">
+                    <FaSearch className="absolute top-3 left-3 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Search..."
+                        className="pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring"
+                    />
+                </div>
+                <FaBell className="text-gray-500 cursor-pointer" />
                 <Link to="/profile">
-                    <FaUser size={22} className="text-gray-500" />
+                    <img
+                        src={`https://ui-avatars.com/api/?name=${currentUser.username}`}
+                        alt="Profile"
+                        className="w-8 h-8 rounded-full border"
+                    />
                 </Link>
             </div>
         </header>
