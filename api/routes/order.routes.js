@@ -25,6 +25,7 @@ import {
   confirmOrderViaCashier,
   getPaymentStatus,
   createFinalPayment,
+  processPaymentCashier,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
@@ -96,5 +97,7 @@ router.get('/testsocket', testSocket);
 router.post('/cashierCharge', cashierCharge);
 
 router.post('/order/cashier/confirm-order', confirmOrderViaCashier);
+
+router.post('/order/cashier/process-payment', processPaymentCashier);
 
 export default router;

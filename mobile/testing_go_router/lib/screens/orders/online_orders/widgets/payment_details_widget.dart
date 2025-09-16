@@ -26,7 +26,8 @@ class PaymentDetailsWidget extends ConsumerWidget {
             ?.where(
               (payment) =>
                   payment.status?.toLowerCase() == 'pending' ||
-                  payment.status?.toLowerCase() == 'unpaid',
+                  payment.status?.toLowerCase() == 'settlement' &&
+                      payment.remainingAmount != 0,
             )
             .toList() ??
         [];
@@ -36,8 +37,8 @@ class PaymentDetailsWidget extends ConsumerWidget {
         orders?.payment
             ?.where(
               (payment) =>
-                  payment.status?.toLowerCase() == 'settlement' ||
-                  payment.status?.toLowerCase() == 'success',
+                  payment.status?.toLowerCase() == 'settlement' &&
+                  payment.remainingAmount == 0,
             )
             .toList() ??
         [];
@@ -120,7 +121,8 @@ class PaymentDetailsWidget extends ConsumerWidget {
         // Tombol Confirmation jika semua tagihan sudah dibayar
         if (pendingPayments.isEmpty &&
             paidPayments.isNotEmpty &&
-            paidPayments.any((p) => p.status?.toLowerCase() == 'settlement'))
+            paidPayments.any((p) => p.status?.toLowerCase() == 'settlement') &&
+            paidPayments.any((p) => p.remainingAmount == 0))
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -447,6 +449,33 @@ class PaymentDetailsWidget extends ConsumerWidget {
 
                 const SizedBox(height: 20),
 
+                //downpayment amount from amount,
+                if (payment.paymentType != null &&
+                    payment.paymentType!.toLowerCase() == 'down payment' &&
+                    payment.remainingAmount != 0) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green),
+                    ),
+                    child: Text(
+                      'Jumlah DP: ${formatRupiah(payment.amount)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+
                 // Amount Section
                 Container(
                   width: double.infinity,
@@ -468,7 +497,11 @@ class PaymentDetailsWidget extends ConsumerWidget {
                         ),
                       ),
                       Text(
-                        formatRupiah(payment.amount),
+                        formatRupiah(
+                          payment.remainingAmount == 0
+                              ? payment.amount
+                              : payment.remainingAmount,
+                        ),
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,

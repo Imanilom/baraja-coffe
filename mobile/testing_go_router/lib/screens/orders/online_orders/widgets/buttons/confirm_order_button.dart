@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/online_order/confirm_order.model.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
+import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 
 class ConfirmOrderButton extends ConsumerStatefulWidget {
   final String orderId;
@@ -55,6 +56,7 @@ class _ConfirmOrderButtonState extends ConsumerState<ConfirmOrderButton> {
         ref.read(onlineOrderDetailProvider.notifier).clearOnlineOrderDetail();
         // refresh daftar pesanan
         ref.read(onlineOrderProvider.notifier).refresh();
+        ref.read(orderHistoryProvider.notifier).refreshHistory();
       } else if (next.error != null) {
         // Tampilkan snackbar error
         ScaffoldMessenger.of(context).showSnackBar(

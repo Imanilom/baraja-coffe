@@ -4442,17 +4442,17 @@ export const confirmOrderViaCashier = async (req, res) => {
     }
 
     // Validasi apakah pembayaran sudah lunas
-    // const isFullyPaid = await checkPaymentStatus(order_id, order.grandTotal);
+    const isFullyPaid = await checkPaymentStatus(order_id, order.grandTotal);
 
-    // if (!isFullyPaid) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'Order cannot be confirmed. Payment is not completed',
-    //     payment_status: payment.status,
-    //     amount_paid: payment.amount,
-    //     amount_due: order.grandTotal - payment.amount
-    //   });
-    // }
+    if (!isFullyPaid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order cannot be confirmed. Payment is not completed',
+        payment_status: payment.status,
+        amount_paid: payment.amount,
+        amount_due: order.grandTotal - payment.amount
+      });
+    }
 
     //find cashier
     const cashier = await User.findOne({ _id: cashier_id });
@@ -4580,5 +4580,120 @@ const checkPaymentStatus = async (order_id, grandTotal) => {
   } catch (error) {
     console.error('Error checking payment status:', error);
     return false;
+  }
+};
+
+// proceess payment via cashier
+export const processPaymentCashier = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { order_id, selected_payment_id, payment_method } = req.body;
+
+    // Validasi input
+    if (!order_id || !selected_payment_id || !Array.isArray(selected_payment_id)) {
+      await session.abortTransaction();
+      session.endSession();
+
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID and selected payment IDs array are required'
+      });
+    }
+
+    // Cari order berdasarkan order_id
+    const order = await Order.findOne({ order_id }).session(session);
+    if (!order) {
+      await session.abortTransaction();
+      session.endSession();
+
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Cari semua payment yang dipilih
+    const payments = await Payment.find({
+      _id: { $in: selected_payment_id },
+      order_id: order_id
+    }).session(session);
+
+    if (payments.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
+
+      return res.status(404).json({
+        success: false,
+        message: 'No valid payments found for this order'
+      });
+    }
+
+    // Proses setiap payment
+    for (const payment of payments) {
+      // Jika paymentType adalah "Down Payment", pindahkan remainingAmount ke amount
+      if (payment.paymentType === 'Down Payment') {
+        payment.amount += payment.remainingAmount;
+        payment.remainingAmount = 0;
+      }
+
+      // Update status payment menjadi settlement
+      payment.status = 'settlement';
+      payment.method = payment_method;
+      payment.paidAt = new Date();
+
+      await payment.save({ session });
+    }
+
+    // Cek apakah semua payment untuk order ini sudah settlement dan remainingAmount 0
+    const allPayments = await Payment.find({ order_id }).session(session);
+    const isFullyPaid = allPayments.every(p =>
+      (p.status === 'settlement' || p.status === 'paid') && p.remainingAmount === 0
+    );
+
+    // Update status order jika semua pembayaran sudah lunas
+    if (isFullyPaid) {
+      if (order.orderType === 'Reservation') {
+        order.status = 'Finished';
+      } else {
+        order.status = 'Waiting';
+      }
+
+      await order.save({ session });
+    }
+
+    // Commit transaksi
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment processed successfully',
+      data: {
+        order_id: order.order_id,
+        order_status: order.status,
+        is_fully_paid: isFullyPaid,
+        processed_payments: payments.map(p => ({
+          payment_id: p._id,
+          payment_type: p.paymentType,
+          amount: p.amount,
+          remaining_amount: p.remainingAmount,
+          status: p.status
+        }))
+      }
+    });
+
+  } catch (error) {
+    // Rollback transaksi jika terjadi error
+    await session.abortTransaction();
+    session.endSession();
+
+    console.error('Process payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
 };
