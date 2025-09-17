@@ -55,6 +55,7 @@ const CreateUser = () => {
     const [selectedOutlets, setSelectedOutlets] = useState([]);
     const [employeeType, setEmployeeType] = useState(""); // role
     const [name, setName] = useState("");
+    const [roleOptions, setRoleOptions] = useState([]);
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [phone, setPhone] = useState("");
@@ -65,20 +66,22 @@ const CreateUser = () => {
     const [alertMsg, setAlertMsg] = useState("");
     const navigate = useNavigate();
 
-    const roleOptions = [
-        { value: "admin", label: "Admin" },
-        { value: "customer", label: "Customer" },
-        { value: "waiter", label: "Waiter" },
-        { value: "kitchen", label: "Kitchen" },
-        { value: "cashier_junior", label: "Cashier Junior" },
-        { value: "cashier_senior", label: "Cashier Senior" },
-        { value: "akuntan", label: "Akuntan" },
-        { value: "inventory", label: "Inventory" },
-        { value: "marketing", label: "Marketing" },
-        { value: "operational", label: "Operational" },
-        { value: "qc", label: "Qc" },
-        { value: "hrd", label: "HRD" },
-    ];
+
+    const fetchRoles = async () => {
+        setLoading(true);
+        try {
+            const res = await axios.get("/api/roles");
+            const formatted = res.data.map((role) => ({
+                value: role._id,      // gunakan _id sebagai value
+                label: role.name,     // tampilkan name sebagai label
+            }));
+            setRoleOptions(formatted);
+        } catch (err) {
+            console.error("Failed to fetch roles:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Fetch outlet list
     const fetchData = async () => {
@@ -317,7 +320,6 @@ const CreateUser = () => {
                                     value={roleOptions.find((opt) => opt.value === employeeType)}
                                     onChange={(opt) => setEmployeeType(opt.value)}
                                     placeholder="Pilih role karyawan..."
-                                    className="text-sm"
                                     styles={customSelectStyles}
                                 />
                                 {formErrors.employeeType && (

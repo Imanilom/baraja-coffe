@@ -19,6 +19,7 @@ import {
   FaDollarSign,
   FaSignOutAlt,
   FaMoon,
+  FaClock,
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -89,7 +90,7 @@ const Sidebar = ({ isSidebarOpen }) => {
       "Purchase Order",
       "Daftar Belanja",
       "Daftar Pengeluaran",
-      "Atur Meja", "Denah Meja"],
+      "Atur Meja", "Denah Meja", "Logs"],
     admin: ["Dashboard", "Laporan", "Laporan Penjualan", "Menu", "Inventori", "Pembelian", "Outlet", "Event", "Karyawan", "Pelanggan", "Pengaturan Meja", "Perangkat", "Promo", "Komisi", "Akun", "Setting Access", "Laporan Penjualan", "Laporan Operasional", "Laporan Laba & Rugi",
       "Stok Masuk",
       "Stok Keluar",
@@ -98,7 +99,7 @@ const Sidebar = ({ isSidebarOpen }) => {
       "Purchase Order",
       "Daftar Belanja",
       "Daftar Pengeluaran",
-      "Atur Meja", "Denah Meja"],
+      "Atur Meja", "Denah Meja", "Logs"],
     marketing: ["Dashboard", "Event", "Pelanggan", "Promo"],
     operasional: ["Dashboard", "Laporan Operasional", "Outlet", "Pengaturan Meja", "Atur Meja", "Denah Meja", "Perangkat"],
     akuntan: ["Dashboard", "Laporan Penjualan", "Laporan Laba & Rugi", "Komisi"],
@@ -176,6 +177,7 @@ const Sidebar = ({ isSidebarOpen }) => {
       items: [
         { name: "Akun", path: "/profile", icon: <FaUserCircle /> },
         { name: "Setting Access", path: "/admin/access-settings", icon: <FaUserCircle /> },
+        { name: "Logs", path: "/admin/logs", icon: <FaClock /> },
       ],
     },
   ];
@@ -218,7 +220,7 @@ const Sidebar = ({ isSidebarOpen }) => {
 
   return (
     <div
-      className={`h-screen bg-white text-green-900 fixed top-0 left-0 flex flex-col transition-all duration-300 z-40 shadow-lg ${isSidebarOpen ? "w-64" : "w-16"}`}
+      className={`h-screen bg-white text-green-900 fixed top-0 left-0 flex flex-col transition-all duration-300 z-40 shadow-lg ${isSidebarOpen ? "w-72" : "w-16"}`}
     >
       {/* Logo */}
       <div className="px-4 pt-6 pb-4 shrink-0 flex justify-center">

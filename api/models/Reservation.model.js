@@ -6,7 +6,7 @@ const reservationSchema = new mongoose.Schema({
         unique: true
     },
     reservation_date: {
-        type: Date, // ✅ UBAH: String → Date
+        type: Date,
         required: true
     },
     reservation_time: {
@@ -55,10 +55,22 @@ const reservationSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    serving_food: {
+        type: Boolean,
+    },
     equipment: [{
         type: String,
         default: []
-    }]
+    }],
+    food_serving_option: {
+        type: String,
+        enum: ['immediate', 'scheduled'],
+        default: 'immediate'
+    },
+    food_serving_time: {
+        type: Date,
+        default: null // Diisi jika food_serving_option = 'scheduled'
+    }
 }, {
     timestamps: true
 });

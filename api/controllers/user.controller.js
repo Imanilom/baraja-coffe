@@ -54,6 +54,7 @@ export const updateUser = async (req, res, next) => {
     if (req.body.phone) updateFields.phone = req.body.phone;
     if (req.body.profilePicture) updateFields.profilePicture = req.body.profilePicture;
     if (req.body.password) updateFields.password = req.body.password;
+    if ("isActive" in req.body) updateFields.isActive = req.body.isActive;
 
     // Hanya Admin yang bisa mengubah field berikut:
     if (req.user.role === 'admin' || req.user.role === 'superadmin') {
