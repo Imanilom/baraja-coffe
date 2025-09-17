@@ -1,19 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaPlus } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Header from "../../admin/header";
 import MessageAlert from "../../../components/messageAlert";
-import dayjs from "dayjs";
+import RoleTable from "./table";
 
 const RoleManagement = () => {
-    const [roles, setRole] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
 
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
@@ -39,45 +36,6 @@ const RoleManagement = () => {
 
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
-
-    // Fetch roles and outlets data
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch roles data
-                const roleResponse = await axios.get("/api/roles");
-                const roleData = roleResponse.data.data ? roleResponse.data.data : roleResponse.data;
-
-                setRole(roleData);
-                setFilteredData(roleData); // Initialize filtered data with all roles
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setRole([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, []);
 
     // Get unique outlet names for the dropdown
     const uniqueOutlets = useMemo(() => {
@@ -177,34 +135,6 @@ const RoleManagement = () => {
         XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
     };
 
-
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
-
-    // Show error state
-    if (error) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="text-red-500 text-center">
-                    <p className="text-xl font-semibold mb-2">Error</p>
-                    <p>{error}</p>
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
-                    >
-                        Refresh
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="">
             {/* Header */}
@@ -213,148 +143,27 @@ const RoleManagement = () => {
             <MessageAlert message={alertMsg} type="success" />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaIdBadge size={21} className="text-gray-500 inline-block" />
-                    <Link
-                        to="/admin/access-settings"
-                        className="text-[15px] text-gray-500"
-                    >
-                        Access
-                    </Link>
+            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <Link to="/admin/access-settings">Akses</Link>
                     <FaChevronRight
                         size={18}
-                        className="text-gray-500 inline-block"
+                        className="text-green-900 inline-block"
                     />
-                    <p className="text-[15px] text-gray-500">Role</p>
+                    Role
+                </h1>
+                <div className="flex items-center gap-3">
+                    <Link
+                        to="/admin/access-settings/role-create"
+                        className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
+                    >
+                        <FaPlus /> Tambah
+                    </Link>
                 </div>
-                <Link to="/admin/access-settings/role-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-1 md:grid-cols-3 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="hidden md:block"></div>
-                    <div className="hidden md:block"></div>
-                    <div className="flex flex-col">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Cari..."
-                                value={tempSearch}
-                                // onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Table */}
-                <div className="rounded shadow-slate-200 shadow-md">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Nama Role</th>
-                                <th className="px-4 py-3 font-normal">Deskripsi</th>
-                                <th className="px-4 py-3 font-normal">Aktif</th>
-                                <th className="px-4 py-3 font-normal"></th>
-                            </tr>
-                        </thead>
-                        {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-[#999999]">
-                                {paginatedData.map((data, index) => {
-                                    try {
-                                        return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
-                                                    {data.name || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.description || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.createdAt ? dayjs(data.createdAt).format("DD-MM-YYYY") : "-"}
-                                                </td>
-                                                <td className="flex px-4 py-3 justify-end">
-                                                    <div className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer  text-blue-500">
-                                                        <FaPencilAlt size={18} />
-                                                        <Link
-                                                            to={`/admin/access-settings/role-update/${data._id}`}
-                                                            className="block bg-transparent"
-                                                        >
-                                                            Edit
-                                                        </Link>
-                                                    </div>
-                                                    <div className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer  text-red-500">
-                                                        <FaTrash size={18} />
-                                                        <button
-                                                        // onClick={() => {
-                                                        //     setItemToDelete(data._id);
-                                                        //     setIsModalOpen(true);
-                                                        // }}
-                                                        >
-                                                            Delete
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, roles);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="4" className="px-4 py-3 text-red-500">
-                                                    Error rendering roles
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={4}>Tidak ada data ditemukan</td>
-                                </tr>
-                            </tbody>
-                        )}
-                    </table>
-                </div>
-
-                {/* Pagination Controls */}
-                {paginatedData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                        </span>
-                        {totalPages > 1 && (
-                            <div className="flex space-x-2">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Sebelumnya
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Berikutnya
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
-            </div>
+            <RoleTable />
         </div>
     );
 };

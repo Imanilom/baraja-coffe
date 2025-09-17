@@ -61,7 +61,11 @@ export default function SignIn() {
 
       dispatch(signInSuccess(data));
       if (w || data.role === 'superadmin' || data.role === 'admin') {
-        navigate('/admin/dashboard');
+        if (data.isActive === true) {
+          navigate('/admin/dashboard');
+        } else {
+          dispatch(signInFailure({ message: "User tidak aktif!" }))
+        }
       } else {
         dispatch(signInFailure({ message: "User tidak memiliki Hak Akses!" }))
       }
