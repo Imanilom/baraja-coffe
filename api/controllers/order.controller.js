@@ -232,8 +232,10 @@ export const createAppOrder = async (req, res) => {
       newOrder = existingOrder;
     }
     else if (isOpenBill && !existingOrder) {
+      // Gunakan generateOrderId untuk order_id
+      const generatedOrderId = await generateOrderId(openBillData.tableNumbers || tableNumber || '');
       newOrder = new Order({
-        order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        order_id: generatedOrderId,
         user_id: userId,
         user: userExists.username || 'Guest',
         cashier: null,
@@ -271,8 +273,10 @@ export const createAppOrder = async (req, res) => {
 
     } else {
       // ✅ Normal order creation
+      // Gunakan generateOrderId untuk order_id
+      const generatedOrderId = await generateOrderId(tableNumber || '');
       newOrder = new Order({
-        order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        order_id: generatedOrderId,
         user_id: userId,
         user: userExists.username || 'Guest',
         cashier: null,
@@ -460,8 +464,6 @@ function parseIndonesianDate(dateString) {
   }
   return new Date(dateString);
 }
-
-
 
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
@@ -947,17 +949,26 @@ export const checkout = async (req, res) => {
 
 // Fungsi untuk generate order ID dengan sequence harian per tableNumber
 export async function generateOrderId(tableNumber) {
-  // Dapatkan tanggal sekarang dalam format YYYYMMDD
+  // Dapatkan tanggal sekarang
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   const dateStr = `${year}${month}${day}`; // misal "20250605"
 
-  // Kunci sequence unik per tableNumber dan tanggal
-  const key = `order_seq_${tableNumber}_${dateStr}`;
+  // Jika tidak ada tableNumber, gunakan hari dan tanggal
+  let tableOrDayCode = tableNumber;
+  if (!tableNumber) {
+    const days = ['MD', 'TU', 'WD', 'TH', 'FR', 'ST', 'SN'];
+    // getDay: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const dayCode = days[now.getDay()];
+    tableOrDayCode = `${dayCode}${day}`;
+  }
 
-  // Atomic increment dengan upsert dan reset setiap hari (jika document tidak ada, dibuat dengan seq=1)
+  // Kunci sequence unik per tableOrDayCode dan tanggal
+  const key = `order_seq_${tableOrDayCode}_${dateStr}`;
+
+  // Atomic increment dengan upsert dan reset setiap hari
   const result = await db.collection('counters').findOneAndUpdate(
     { _id: key },
     { $inc: { seq: 1 } },
@@ -966,11 +977,8 @@ export async function generateOrderId(tableNumber) {
 
   const seq = result.value.seq;
 
-  // Format orderId sesuai yang kamu mau:
-  // ORD-{day}{tableNumber}-{personNumber}
-  // day = tanggal 2 digit (dd)
-  // personNumber = seq 3 digit padStart
-  return `ORD-${day}${tableNumber}-${String(seq).padStart(3, '0')}`;
+  // Format orderId
+  return `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
 }
 
 // Helper function untuk confirm order
