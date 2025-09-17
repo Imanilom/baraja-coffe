@@ -120,7 +120,7 @@ export const insertInitialStocks = async (req, res) => {
       error: error.message
     });
   }
-};
+}
 
 export const getProductStock = async (req, res) => {
   try {

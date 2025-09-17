@@ -29,6 +29,7 @@ import deviceRoutes from './routes/device.routes.js';
 import voucherRoutes from './routes/voucher.routes.js';
 import warehouseRoutes from './routes/warehouse.routes.js';
 import roleRoutes from './routes/role.route.js';
+import LogRoutes from './routes/log.routes.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
@@ -44,7 +45,6 @@ import TicketRoutes from './routes/ticket.routes.js';
 import AccountingRoutes from './routes/accounting.routes.js';
 import socketHandler from './socket/index.js';
 import { midtransWebhook } from './controllers/webhookController.js';
-
 
 dotenv.config();
 
@@ -130,6 +130,7 @@ app.use('/api/accounting', AccountingRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/roles', roleRoutes);
+app.use('/api/logs', LogRoutes);
 // app.post('/api/midtrans/webhook', (req, res) => {
 //   res.status(200).send('OK');
 // });
