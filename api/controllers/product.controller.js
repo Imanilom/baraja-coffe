@@ -1,5 +1,6 @@
 import Product from '../models/modul_market/Product.model.js';
 import Supplier from '../models/modul_market/Supplier.model.js';
+import { logActivity } from '../helpers/logActivity.js';
 import mongoose from 'mongoose';
 
 // Helper: validasi supplier list
@@ -62,6 +63,20 @@ export const createProduct = async (req, res) => {
     }
 
     const savedProducts = await Product.insertMany(productsToInsert, { ordered: false });
+
+    // === LOGGING ===
+    for (const product of savedProducts) {
+      await logActivity.create({
+        user: req.user?._id,
+        identifier: req.user?.email || req.user?.username,
+        action: 'CREATE',
+        module: 'Product',
+        description: `Membuat produk baru: ${product.name} (SKU: ${product.sku})`,
+        timestamp: new Date(),
+        req,
+      });
+    }
+
     res.status(201).json({ message: 'Produk berhasil dibuat', data: savedProducts });
   } catch (error) {
     console.error('Error saat membuat produk:', error.message);
@@ -69,6 +84,16 @@ export const createProduct = async (req, res) => {
       return res.status(400).json({ message: 'SKU atau Barcode sudah terdaftar pada salah satu produk.' });
     }
     res.status(400).json({ message: error.message });
+        await logActivity.create({
+        user: req.user?._id,
+        identifier: req.user?.email || req.user?.username,
+        action: 'CREATE',
+        module: 'Product',
+        description: `Membuat produk baru: ${product.name} (SKU: ${product.sku})`,
+        timestamp: new Date(),
+        status: 'FAILED',
+        req,
+      });
   }
 };
 
@@ -121,6 +146,17 @@ export const updateProduct = async (req, res) => {
     }
 
     const updatedProduct = await product.save();
+
+    // === LOGGING ===
+    await logActivity.create({
+      user: req.user?._id,
+      action: 'UPDATE',
+      module: 'Product',
+      description: `Mengupdate produk: ${updatedProduct.name} (SKU: ${updatedProduct.sku})`,
+      timestamp: new Date(),
+      req,
+    });
+
     res.json({ message: 'Produk berhasil diperbarui', data: updatedProduct });
   } catch (error) {
     console.error('Error saat update produk:', error.message);
@@ -128,19 +164,27 @@ export const updateProduct = async (req, res) => {
       return res.status(400).json({ message: 'SKU atau Barcode sudah digunakan' });
     }
     res.status(400).json({ message: error.message });
+    await logActivity.create({
+      user: req.user?._id,
+      action: 'UPDATE',
+      module: 'Product',
+      description: `(Gagal Update)`,
+      timestamp: new Date(),
+      status: 'FAILED',
+      req,
+    });
   }
 };
 
+// 3. Update Product Price
 export const updateProductPrice = async (req, res) => {
-  // Validasi ID produk
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
     return res.status(400).json({ message: 'ID produk tidak valid' });
   }
 
   try {
     const { supplierId, price } = req.body;
-    
-    // Validasi input
+
     if (!supplierId || price === undefined || price === null) {
       return res.status(400).json({ message: 'supplierId dan price wajib diisi' });
     }
@@ -149,13 +193,11 @@ export const updateProductPrice = async (req, res) => {
       return res.status(400).json({ message: 'Harga tidak boleh negatif' });
     }
 
-    // Cari produk
     const product = await Product.findById(req.params.id);
     if (!product) {
       return res.status(404).json({ message: 'Produk tidak ditemukan' });
     }
 
-    // Cari supplier dalam array suppliers
     const supplierIndex = product.suppliers.findIndex(
       (s) => s.supplierId.toString() === supplierId.toString()
     );
@@ -164,12 +206,20 @@ export const updateProductPrice = async (req, res) => {
       return res.status(404).json({ message: 'Supplier tidak ditemukan pada produk ini' });
     }
 
-    // Update harga & tanggal terakhir
     product.suppliers[supplierIndex].price = Number(price);
     product.suppliers[supplierIndex].lastPurchaseDate = new Date();
 
-    // Simpan perubahan
     await product.save();
+
+    // === LOGGING ===
+    await logActivity.create({
+      user: req.user?._id,
+      action: 'UPDATE',
+      module: 'Product',
+      description: `Update harga produk ${product.name} (SKU: ${product.sku}) supplier ${product.suppliers[supplierIndex].supplierName} menjadi Rp${price}`,
+      timestamp: new Date(),
+      req,
+    });
 
     res.json({
       message: 'Harga produk berhasil diperbarui',
@@ -185,16 +235,23 @@ export const updateProductPrice = async (req, res) => {
 
   } catch (error) {
     console.error('Error saat update harga produk:', error);
-    res.status(500).json({ 
-      message: 'Terjadi kesalahan server', 
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    res.status(500).json({
+      message: 'Terjadi kesalahan server',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+    await logActivity.create({
+      user: req.user?._id,
+      action: 'UPDATE',
+      module: 'Product',
+      description: `gagal update harga`,
+      timestamp: new Date(),
+      req,
     });
   }
 };
 
 
-
-// 5. Hapus Produk
+// 4. Delete Product
 export const deleteProduct = async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
     return res.status(400).json({ message: 'ID produk tidak valid' });
@@ -202,11 +259,32 @@ export const deleteProduct = async (req, res) => {
   try {
     const result = await Product.findByIdAndDelete(req.params.id);
     if (!result) return res.status(404).json({ message: 'Produk tidak ditemukan' });
+
+    // === LOGGING ===
+    await logActivity.create({
+      user: req.user?._id,
+      action: 'DELETE',
+      module: 'Product',
+      description: `Menghapus produk: ${result.name} (SKU: ${result.sku})`,
+      timestamp: new Date(),
+      req,
+    });
+
     res.json({ message: 'Produk berhasil dihapus' });
   } catch (error) {
     res.status(500).json({ message: 'Gagal menghapus produk', error: error.message });
+    await logActivity.create({
+      user: req.user?._id,
+      action: 'DELETE',
+      module: 'Product',
+      description: `Menghapus produk: ${result.name} (SKU: ${result.sku})`,
+      timestamp: new Date(),
+      status: 'FAILED',
+      req,
+    });
   }
 };
+
 
 // 6. Pencarian Produk
 export const searchProducts = async (req, res) => {

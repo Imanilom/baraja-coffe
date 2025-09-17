@@ -1,5 +1,6 @@
 import { MenuItem } from '../models/MenuItem.model.js';
 import Category from '../models/Category.model.js';
+import { logActivity } from '../helpers/logActivity.js';
 import mongoose from 'mongoose';
 
 // Controller untuk menambahkan menu item ke dalam kategori
@@ -7,20 +8,16 @@ export const assignMenuItemsToCategory = async (req, res) => {
   try {
     const { categoryNames, menuItems } = req.body;
 
-    // Validasi input
     if (!Array.isArray(categoryNames) || categoryNames.length === 0 || !Array.isArray(menuItems) || menuItems.length === 0) {
       return res.status(400).json({ success: false, message: 'Invalid input data' });
     }
 
-    // Pastikan semua ID menu valid
     const invalidMenuIds = menuItems.filter(id => !mongoose.Types.ObjectId.isValid(id));
     if (invalidMenuIds.length > 0) {
       return res.status(400).json({ success: false, message: 'Some menu item IDs are invalid', invalidMenuIds });
     }
 
-    // Ambil semua menu item berdasarkan ID
     const existingMenuItems = await MenuItem.find({ _id: { $in: menuItems } });
-
     if (existingMenuItems.length !== menuItems.length) {
       const missingMenuIds = menuItems.filter(
         id => !existingMenuItems.map(item => item._id.toString()).includes(id)
@@ -28,7 +25,6 @@ export const assignMenuItemsToCategory = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Some menu items not found', missingMenuIds });
     }
 
-    // Cari ID kategori berdasarkan nama kategori
     const categories = await Category.find({ name: { $in: categoryNames } });
     if (categories.length !== categoryNames.length) {
       const missingCategories = categoryNames.filter(
@@ -37,29 +33,46 @@ export const assignMenuItemsToCategory = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Some categories not found', missingCategories });
     }
 
-    // Dapatkan array nama kategori
     const categoryNamesToAdd = categories.map(cat => cat.name);
 
-    // Perbarui setiap menu item dengan menambahkan/menggabungkan nama kategori
     await Promise.all(
       existingMenuItems.map(async (menuItem) => {
-        // Hapus semua elemen yang bukan string dari array category
         const cleanedCategories = menuItem.category.filter(cat => typeof cat === 'string');
-
-        // Tambahkan nama kategori baru jika belum ada
         const updatedCategories = [...cleanedCategories, ...categoryNamesToAdd].filter((v, i, a) => a.indexOf(v) === i);
-
-        menuItem.category = updatedCategories; // Setel ulang array category
+        menuItem.category = updatedCategories;
         await menuItem.save();
       })
     );
 
+    // ✅ Log assign
+    await logActivity({
+      userId: req.user._id,
+      identifier: req.user.email || req.user.username,
+      action: "UPDATE",
+      module: "MenuItem",
+      description: `Assign kategori [${categoryNames.join(', ')}] ke ${menuItems.length} menu item`,
+      metadata: { categoryNames, menuItems },
+      req,
+    });
+
     res.status(200).json({ success: true, message: 'Menu items assigned to categories successfully' });
   } catch (error) {
     console.error('Error assigning menu items to category:', error);
+
+    await logActivity({
+      userId: req.user?._id,
+      identifier: req.user?.email || req.user?.username,
+      action: "UPDATE",
+      module: "MenuItem",
+      description: `Gagal assign menu items ke kategori`,
+      status: "FAILED",
+      req,
+    });
+
     res.status(500).json({ success: false, message: 'Failed to assign menu items to category', error: error.message });
   }
 };
+
 
 // Controller untuk mengambil daftar kategori
 export const getCategories = async (req, res) => {
@@ -81,7 +94,6 @@ export const getCategories = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch categories', error: error.message });
   }
 };
-
 
 
 // Controller untuk memfilter menu berdasarkan kategori
@@ -111,12 +123,10 @@ export const createCategory = async (req, res) => {
   try {
     const { name, description, type, parentCategory } = req.body;
 
-    // Validasi wajib
     if (!name || !type) {
       return res.status(400).json({ error: 'Nama dan tipe kategori harus diisi.' });
     }
 
-    // Optional: Validasi parentCategory jika disertakan
     if (parentCategory) {
       const parentExists = await Category.findById(parentCategory);
       if (!parentExists) {
@@ -129,15 +139,38 @@ export const createCategory = async (req, res) => {
       description,
       type,
       parentCategory,
-      lastUpdatedBy: req.user?._id // asumsi user ada di req
+      lastUpdatedBy: req.user?._id,
     });
 
     await newCategory.save();
+
+    // ✅ Log create
+    await logActivity({
+      userId: req.user._id,
+      identifier: req.user.email || req.user.username,
+      action: "CREATE",
+      module: "Category",
+      description: `Membuat kategori baru: ${newCategory.name}`,
+      metadata: { categoryId: newCategory._id },
+      req,
+    });
+
     res.status(201).json(newCategory);
   } catch (err) {
+    await logActivity({
+      userId: req.user?._id,
+      identifier: req.user?.email || req.user?.username,
+      action: "CREATE",
+      module: "Category",
+      description: `Gagal membuat kategori: ${req.body?.name}`,
+      status: "FAILED",
+      req,
+    });
+
     res.status(400).json({ error: 'Gagal membuat kategori.', details: err.message });
   }
 };
+
 
 // ✅ GET: Semua kategori (dengan populate parent & child)
 export const getAllCategories = async (req, res) => {
@@ -195,17 +228,47 @@ export const updateCategory = async (req, res) => {
         type,
         parentCategory,
         lastUpdated: Date.now(),
-        lastUpdatedBy: req.user?._id
+        lastUpdatedBy: req.user?._id,
       },
       { new: true, runValidators: true }
     );
 
     if (!updated) {
+      await logActivity({
+        userId: req.user._id,
+        identifier: req.user.email || req.user.username,
+        action: "UPDATE",
+        module: "Category",
+        description: `Update gagal: kategori tidak ditemukan (ID: ${req.params.id})`,
+        status: "FAILED",
+        req,
+      });
       return res.status(404).json({ error: 'Kategori tidak ditemukan.' });
     }
 
+    // ✅ Log update
+    await logActivity({
+      userId: req.user._id,
+      identifier: req.user.email || req.user.username,
+      action: "UPDATE",
+      module: "Category",
+      description: `Update kategori: ${updated.name}`,
+      metadata: { categoryId: updated._id },
+      req,
+    });
+
     res.status(200).json(updated);
   } catch (err) {
+    await logActivity({
+      userId: req.user?._id,
+      identifier: req.user?.email || req.user?.username,
+      action: "UPDATE",
+      module: "Category",
+      description: `Gagal update kategori (ID: ${req.params.id})`,
+      status: "FAILED",
+      req,
+    });
+
     res.status(400).json({ error: 'Gagal mengupdate kategori.', details: err.message });
   }
 };
@@ -216,11 +279,41 @@ export const deleteCategory = async (req, res) => {
     const deleted = await Category.findByIdAndDelete(req.params.id);
 
     if (!deleted) {
+      await logActivity({
+        userId: req.user._id,
+        identifier: req.user.email || req.user.username,
+        action: "DELETE",
+        module: "Category",
+        description: `Delete gagal: kategori tidak ditemukan (ID: ${req.params.id})`,
+        status: "FAILED",
+        req,
+      });
       return res.status(404).json({ error: 'Kategori tidak ditemukan.' });
     }
 
+    // ✅ Log delete
+    await logActivity({
+      userId: req.user._id,
+      identifier: req.user.email || req.user.username,
+      action: "DELETE",
+      module: "Category",
+      description: `Menghapus kategori: ${deleted.name}`,
+      metadata: { categoryId: deleted._id },
+      req,
+    });
+
     res.status(200).json({ message: 'Kategori berhasil dihapus.' });
   } catch (err) {
+    await logActivity({
+      userId: req.user?._id,
+      identifier: req.user?.email || req.user?.username,
+      action: "DELETE",
+      module: "Category",
+      description: `Gagal menghapus kategori (ID: ${req.params.id})`,
+      status: "FAILED",
+      req,
+    });
+
     res.status(500).json({ error: 'Gagal menghapus kategori.', details: err.message });
   }
 };
