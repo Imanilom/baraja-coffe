@@ -2142,18 +2142,16 @@ export const charge = async (req, res) => {
         status: 'settlement' // HANYA yang sudah dibayar
       });
 
-      if (settledDownPayment && settledDownPayment.remainingAmount > 0) {
+      if (settledDownPayment) {
         paymentType = 'Final Payment';
-        amount = settledDownPayment.remainingAmount;
-        totalAmount = settledDownPayment.totalAmount || settledDownPayment.amount + amount;
+        amount = gross_amount; // Gunakan amount yang dikirim user
+        totalAmount = settledDownPayment.amount + gross_amount; // DP amount + final payment amount
         remainingAmount = 0;
 
-        if (gross_amount !== settledDownPayment.remainingAmount) {
-          return res.status(400).json({
-            success: false,
-            message: `Amount harus ${settledDownPayment.remainingAmount} untuk melunasi`
-          });
-        }
+        console.log("Creating final payment:");
+        console.log("Down payment amount:", settledDownPayment.amount);
+        console.log("Final payment amount:", gross_amount);
+        console.log("Total amount:", totalAmount);
 
         // Final payment → selalu link ke DP utama
         relatedPaymentId = settledDownPayment._id;
@@ -3916,7 +3914,7 @@ export const getOrderById = async (req, res) => {
     const paymentDetails = {
       totalAmount: totalAmountRemaining?.amount || payment?.totalAmount || order.grandTotal || 0,
       paidAmount: payment?.amount || 0,
-      remainingAmount: totalAmountRemaining?.amount || payment?.remainingAmount || 0,
+      remainingAmount: totalAmountRemaining?.totalAmount || payment?.remainingAmount || 0,
       paymentType: payment?.paymentType || 'Full',
       isDownPayment: payment?.paymentType === 'Down Payment',
       downPaymentPaid: payment?.paymentType === 'Down Payment' && payment?.status === 'settlement',
