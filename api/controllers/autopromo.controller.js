@@ -1,14 +1,14 @@
 import AutoPromo from '../models/AutoPromo.model.js';
+import { logActivity } from '../helpers/logActivity.js';
 
+// =============================
 // Get all automatic promos
+// =============================
 export const getAutoPromos = async (req, res) => {
   try {
-    // Ambil semua auto promos
     const promos = await AutoPromo.find();
-
     const now = new Date();
 
-    // Cek dan update status isActive jika sudah expired
     const expiredIds = promos
       .filter(promo => promo.isActive && promo.validTo < now)
       .map(promo => promo._id);
@@ -20,7 +20,6 @@ export const getAutoPromos = async (req, res) => {
       );
     }
 
-    // Ambil ulang data dengan populate setelah update
     const autoPromos = await AutoPromo.find()
       .populate('outlet', 'name _id')
       .populate('conditions.buyProduct', 'name _id')
@@ -41,11 +40,13 @@ export const getAutoPromos = async (req, res) => {
   }
 };
 
-
-// Get a single automatic promo by ID
+// =============================
+// Get promo by ID
+// =============================
 export const getAutoPromoById = async (req, res) => {
   try {
-    const autoPromo = await AutoPromo.findById(req.params.id).populate('outlet conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
+    const autoPromo = await AutoPromo.findById(req.params.id)
+      .populate('outlet conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
     if (!autoPromo) return res.status(404).json({ message: 'Promo not found' });
     res.status(200).json(autoPromo);
   } catch (error) {
@@ -53,7 +54,9 @@ export const getAutoPromoById = async (req, res) => {
   }
 };
 
-// Create a new automatic promo
+// =============================
+// Create promo + LOG
+// =============================
 export const createAutoPromo = async (req, res) => {
   const { name, promoType, conditions, discount, bundlePrice, outlet, consumerType, validFrom, validTo, isActive } = req.body;
   const createdBy = req.user._id;
@@ -78,31 +81,133 @@ export const createAutoPromo = async (req, res) => {
     });
 
     await autoPromo.save();
+
+    // ✅ Log create
+    await logActivity({
+      userId: req.user._id,
+      identifier: req.user.email || req.user.username,
+      action: "CREATE",
+      module: "AutoPromo",
+      description: `Membuat promo baru: ${autoPromo.name}`,
+      metadata: { promoId: autoPromo._id },
+      req,
+    });
+
     res.status(201).json(autoPromo);
   } catch (error) {
     console.error("Error saving promo:", error.message);
+
+    // ✅ Log gagal create
+    await logActivity({
+      userId: req.user?._id,
+      identifier: req.user?.email || req.user?.username,
+      action: "CREATE",
+      module: "AutoPromo",
+      description: `Gagal membuat promo: ${name}`,
+      status: "FAILED",
+      req,
+    });
+
     res.status(400).json({ message: error.message });
   }
 };
 
-// Update an existing automatic promo
+// =============================
+// Update promo + LOG
+// =============================
 export const updateAutoPromo = async (req, res) => {
   try {
-    const autoPromo = await AutoPromo.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('outlet conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
-    if (!autoPromo) return res.status(404).json({ message: 'Promo not found' });
+    const autoPromo = await AutoPromo.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    ).populate('outlet conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
+
+    if (!autoPromo) {
+      await logActivity({
+        userId: req.user._id,
+        identifier: req.user.email || req.user.username,
+        action: "UPDATE",
+        module: "AutoPromo",
+        description: `Update gagal: promo tidak ditemukan (ID: ${req.params.id})`,
+        status: "FAILED",
+        req,
+      });
+      return res.status(404).json({ message: 'Promo not found' });
+    }
+
+    // ✅ Log update sukses
+    await logActivity({
+      userId: req.user._id,
+      identifier: req.user.email || req.user.username,
+      action: "UPDATE",
+      module: "AutoPromo",
+      description: `Update promo: ${autoPromo.name}`,
+      metadata: { promoId: autoPromo._id },
+      req,
+    });
+
     res.status(200).json(autoPromo);
   } catch (error) {
+    // ✅ Log gagal update
+    await logActivity({
+      userId: req.user?._id,
+      identifier: req.user?.email || req.user?.username,
+      action: "UPDATE",
+      module: "AutoPromo",
+      description: `Gagal update promo (ID: ${req.params.id})`,
+      status: "FAILED",
+      req,
+    });
+
     res.status(400).json({ message: error.message });
   }
 };
 
-// Delete an automatic promo
+// =============================
+// Delete promo + LOG
+// =============================
 export const deleteAutoPromo = async (req, res) => {
   try {
     const autoPromo = await AutoPromo.findByIdAndDelete(req.params.id);
-    if (!autoPromo) return res.status(404).json({ message: 'Promo not found' });
+
+    if (!autoPromo) {
+      await logActivity({
+        userId: req.user._id,
+        identifier: req.user.email || req.user.username,
+        action: "DELETE",
+        module: "AutoPromo",
+        description: `Delete gagal: promo tidak ditemukan (ID: ${req.params.id})`,
+        status: "FAILED",
+        req,
+      });
+      return res.status(404).json({ message: 'Promo not found' });
+    }
+
+    // ✅ Log delete sukses
+    await logActivity({
+      userId: req.user._id,
+      identifier: req.user.email || req.user.username,
+      action: "DELETE",
+      module: "AutoPromo",
+      description: `Menghapus promo: ${autoPromo.name}`,
+      metadata: { promoId: autoPromo._id },
+      req,
+    });
+
     res.status(200).json({ message: 'Promo deleted successfully' });
   } catch (error) {
+    // ✅ Log gagal delete
+    await logActivity({
+      userId: req.user?._id,
+      identifier: req.user?.email || req.user?.username,
+      action: "DELETE",
+      module: "AutoPromo",
+      description: `Gagal menghapus promo (ID: ${req.params.id})`,
+      status: "FAILED",
+      req,
+    });
+
     res.status(500).json({ message: error.message });
   }
 };

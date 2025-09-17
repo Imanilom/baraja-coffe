@@ -148,19 +148,19 @@ const UpdateUser = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         // if (!validateForm()) return;
+        const payload = {
+            name,
+            username,
+            email,
+            phone,
+            password: password || undefined, // kosong = tidak update password
+            role: employeeType,
+            outlets: selectedOutlets
+        }
 
         try {
             await axios.put(
-                `/api/user/update/${id}`,
-                {
-                    name,
-                    username,
-                    email,
-                    phone,
-                    password: password || undefined, // kosong = tidak update password
-                    role: employeeType,
-                    outlets: selectedOutlets,
-                },
+                `/api/user/update/${id}`, payload,
                 {
                     headers: { Authorization: `Bearer ${currentUser.token}` },
                 }

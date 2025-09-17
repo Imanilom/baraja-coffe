@@ -10,6 +10,7 @@ import { verifyToken } from '../utils/verifyUser.js';
 import { Outlet } from '../models/Outlet.model.js';
 import { OAuth2Client } from "google-auth-library";
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+import { logActivity } from '../helpers/logActivity.js';
 
 // Initialize Firebase Admin
 // admin.initializeApp({
@@ -122,6 +123,14 @@ export const signin = async (req, res, next) => {
     const { identifier, password } = req.body;
 
     if (!identifier || !password) {
+      await logActivity({
+        identifier,
+        action: "LOGIN",
+        module: "Authentication",
+        description: "Login gagal: identifier/password kosong",
+        status: "FAILED",
+        req,
+      });
       return next(errorHandler(400, "Identifier and password are required"));
     }
 
@@ -132,6 +141,14 @@ export const signin = async (req, res, next) => {
     if (typeof identifier === "string" && identifier.includes("@")) {
       user = await User.findOne({ email: identifier }).populate("role");
       if (!user || user.role.name !== "customer") {
+        await logActivity({
+          identifier,
+          action: "LOGIN",
+          module: "Authentication",
+          description: "Login gagal: bukan customer",
+          status: "FAILED",
+          req,
+        });
         return next(errorHandler(403, "Access denied"));
       }
       tokenExpiry = "7d";
@@ -160,13 +177,31 @@ export const signin = async (req, res, next) => {
       ];
 
       if (!user || !allowedRoles.includes(user.role.name)) {
+        await logActivity({
+          identifier,
+          action: "LOGIN",
+          module: "Authentication",
+          description: "Login gagal: role tidak diizinkan",
+          status: "FAILED",
+          req,
+        });
         return next(errorHandler(403, "Access denied"));
       }
 
       tokenExpiry = "7d";
     }
 
-    if (!user) return next(errorHandler(404, "User not found"));
+    if (!user) {
+      await logActivity({
+        identifier,
+        action: "LOGIN",
+        module: "Authentication",
+        description: "Login gagal: user tidak ditemukan",
+        status: "FAILED",
+        req,
+      });
+      return next(errorHandler(404, "User not found"));
+    }
 
     // ✅ Tambahkan default authType kalau belum ada
     if (!user.authType || user.authType === "") {
@@ -176,7 +211,18 @@ export const signin = async (req, res, next) => {
     }
 
     const isValidPassword = bcryptjs.compareSync(password, user.password);
-    if (!isValidPassword) return next(errorHandler(401, "Wrong credentials"));
+    if (!isValidPassword) {
+      await logActivity({
+        userId: user._id,
+        identifier,
+        action: "LOGIN",
+        module: "Authentication",
+        description: "Login gagal: password salah",
+        status: "FAILED",
+        req,
+      });
+      return next(errorHandler(401, "Wrong credentials"));
+    }
 
     // ✅ Simpan role.name, bukan ObjectId
     const token = jwt.sign(
@@ -197,22 +243,36 @@ export const signin = async (req, res, next) => {
       const cashierRoles = await Role.find({
         name: { $in: ["cashier junior", "cashier senior"] },
       });
-      const cashierRoleIds = cashierRoles.map(r => r._id);
+      const cashierRoleIds = cashierRoles.map((r) => r._id);
 
       const cashiers = await User.find({ role: { $in: cashierRoleIds } })
         .populate("role")
         .populate("outlet.outletId", "admin");
 
-      response.cashiers = cashiers.map(c => ({
+      response.cashiers = cashiers.map((c) => ({
         ...c._doc,
         role: c.role.name,
       }));
     }
 
+    // ✅ Catat log sukses
+    await logActivity({
+      userId: user._id,
+      identifier,
+      action: "LOGIN",
+      module: "Authentication",
+      description: "Login berhasil",
+      status: "SUCCESS",
+      req,
+    });
+
     res
       .cookie("access_token", token, {
         httpOnly: true,
-        maxAge: tokenExpiry === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+        maxAge:
+          tokenExpiry === "7d"
+            ? 7 * 24 * 60 * 60 * 1000
+            : 24 * 60 * 60 * 1000,
       })
       .status(200)
       .json(response);
@@ -220,6 +280,7 @@ export const signin = async (req, res, next) => {
     next(error);
   }
 };
+
 
 export const googleAuth = async (req, res) => {
   const { idToken } = req.body;
@@ -284,8 +345,22 @@ export const googleAuth = async (req, res) => {
 };
 
 
-export const signout = (req, res) => {
-  res.clearCookie('access_token').status(200).json('Signout success!');
+export const signout = async (req, res) => {
+  try {
+    await logActivity({
+      userId: req.user?.id,
+      identifier: req.user?.email || req.user?.username,
+      action: "LOGOUT",
+      module: "Authentication",
+      description: "User logout",
+      status: "SUCCESS",
+      req,
+    });
+  } catch (err) {
+    console.error("Log error:", err.message);
+  }
+
+  res.clearCookie("access_token").status(200).json("Signout success!");
 };
 
 
