@@ -2392,14 +2392,9 @@ export const getPaymentStatus = async (req, res) => {
 
 export const createFinalPayment = async (req, res) => {
   try {
-    const { payment_type, order_id, gross_amount } = req.body;
+    const { payment_type, order_id } = req.body;
 
-    console.log('=== CREATE FINAL PAYMENT ===');
-    console.log('Request body:', req.body);
-    console.log('Order ID:', order_id);
-    console.log('Payment Type:', payment_type);
-
-    // VALIDASI: Sementara hanya cash yang diizinkan
+    // VALIDASI: sementara hanya cash yang diizinkan
     if (payment_type !== 'cash') {
       return res.status(400).json({
         success: false,
@@ -2408,12 +2403,7 @@ export const createFinalPayment = async (req, res) => {
     }
 
     // 1. Cari order
-    const order = await Order.findOne({
-      $or: [
-        { order_id: order_id }
-      ]
-    });
-
+    const order = await Order.findOne({ order_id: order_id });
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -2442,31 +2432,26 @@ export const createFinalPayment = async (req, res) => {
       });
     }
 
-    // update firstPayment
-    // await Payment.findOneAndUpdate(
-    //   {
-    //     order_id: order.order_id,
-    //     relatedPaymentId: null, // khusus yang belum ada relasi
-    //     status: { $in: ['pending', 'settlement'] }
-    //   },
-    //   { $set: { remainingAmount: 0 } }, // update field
-    //   { new: true } // return data terbaru setelah update
-    // );
+    // ✅ Hitung final payment amount = DP + Remaining
+    const finalPaymentAmount = downPayment.totalAmount + downPayment.remainingAmount;
+    console.log('Final Payment Amount (DP + Remaining):', finalPaymentAmount);
 
-
-    // 3. Cek apakah sudah ada Final Payment pending
-    const relatedFinalPayment = await Payment.findOneAndUpdate(
-      {
-        order_id: order.order_id,
-        paymentType: 'Full',
-        relatedPaymentId: { $ne: null },
-        status: { $in: ['pending', 'settlement'] }
-      },
-      { $set: { paymentType: 'Final Payment' } }, // update paymentType
-      { new: true } // supaya return data terbaru setelah update
-    );
+    // 3. Cek apakah sudah ada Final Payment pending/settlement
+    let relatedFinalPayment = await Payment.findOne({
+      order_id: order.order_id,
+      paymentType: 'Final Payment',
+      relatedPaymentId: { $ne: null },
+      status: { $in: ['pending', 'settlement'] }
+    });
 
     if (relatedFinalPayment) {
+      // ✅ Sinkronkan raw_response.gross_amount dengan totalAmount
+      if (relatedFinalPayment.raw_response) {
+        relatedFinalPayment.raw_response.gross_amount =
+          relatedFinalPayment.totalAmount.toString() + ".00";
+        await relatedFinalPayment.save();
+      }
+
       if (relatedFinalPayment.status === 'settlement') {
         return res.status(400).json({
           success: false,
@@ -2486,7 +2471,7 @@ export const createFinalPayment = async (req, res) => {
             transaction_id: relatedFinalPayment.transaction_id,
             transaction_status: relatedFinalPayment.status,
             order_id: relatedFinalPayment.order_id,
-            gross_amount: relatedFinalPayment.amount.toString() + ".00",
+            gross_amount: relatedFinalPayment.totalAmount.toString() + ".00", // ✅ konsisten
             payment_type: 'cash',
             transaction_time: relatedFinalPayment.transaction_time,
             expiry_time: relatedFinalPayment.expiry_time,
@@ -2500,7 +2485,7 @@ export const createFinalPayment = async (req, res) => {
     // 4. Generate payment data untuk cash
     const transactionId = generateTransactionId();
     const payment_code = generatePaymentCode();
-    const finalPaymentAmount = downPayment.remainingAmount;
+
     const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
     const expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
 
@@ -2525,11 +2510,11 @@ export const createFinalPayment = async (req, res) => {
       order_id: order.order_id,
       payment_code: payment_code,
       amount: finalPaymentAmount,
-      totalAmount: downPayment.totalAmount,
+      totalAmount: finalPaymentAmount,
       method: 'cash',
       status: 'pending',
       paymentType: 'Final Payment',
-      remainingAmount: 0, // Setelah final payment, sisa = 0
+      remainingAmount: 0,
       relatedPaymentId: downPayment._id,
       transaction_time: currentTime,
       expiry_time: expiryTime,
@@ -2539,16 +2524,16 @@ export const createFinalPayment = async (req, res) => {
         transaction_id: transactionId,
         status: 'pending',
         payment_type: 'cash',
-        gross_amount: finalPaymentAmount.toString() + ".00"
+        gross_amount: finalPaymentAmount.toString() + ".00" // ✅ selalu pakai totalAmount
       }
     });
 
     await finalPayment.save();
 
     console.log('Final payment created:', finalPayment._id);
-    console.log('Final payment amount:', finalPaymentAmount);
+    console.log('Final payment amount saved:', finalPaymentAmount);
 
-    // 7. Response format yang konsisten dengan sendOrder untuk cash
+    // 7. Response format konsisten
     const responseData = {
       transaction_id: transactionId,
       transaction_status: 'pending',
@@ -2574,6 +2559,8 @@ export const createFinalPayment = async (req, res) => {
     });
   }
 };
+
+
 
 // Update webhook handler untuk handle Final Payment
 export const handlePaymentWebhook = async (req, res) => {
