@@ -39,6 +39,8 @@ export const createAppOrder = async (req, res) => {
       openBillData,      // New field
     } = req.body;
 
+
+    console.log('Received createAppOrder request:', req.body);
     // ✅ Validasi items, kecuali reservasi tanpa open bill
     if ((!items || items.length === 0) && !(orderType === 'reservation' && !isOpenBill)) {
       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
@@ -1943,84 +1945,35 @@ export const charge = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    // === Cari pembayaran terakhir ===
-    const lastPayment = await Payment.findOne({ order_id }).sort({ createdAt: -1 });
-    let relatedPaymentId = lastPayment ? lastPayment._id : null;
-
-    // === Tentukan payment type ===
-    let paymentType, amount, remainingAmount, totalAmount;
-
-    if (is_down_payment === true) {
-      paymentType = 'Down Payment';
-      amount = down_payment_amount || gross_amount;
-      totalAmount = total_order_amount || gross_amount;
-      remainingAmount = totalAmount - amount;
-    } else {
-      const existingDownPayment = await Payment.findOne({
-        order_id: order_id,
-        paymentType: 'Down Payment',
-        status: 'pending'
-      });
-
-      if (existingDownPayment && existingDownPayment.remainingAmount > 0) {
-        paymentType = 'Final Payment';
-        amount = existingDownPayment.remainingAmount;
-        totalAmount = existingDownPayment.totalAmount || existingDownPayment.amount + amount;
-        remainingAmount = 0;
-
-        if (gross_amount !== existingDownPayment.remainingAmount) {
-          return res.status(400).json({
-            success: false,
-            message: `Amount harus ${existingDownPayment.remainingAmount} untuk melunasi`
-          });
-        }
-
-        // Final payment → selalu link ke DP utama
-        relatedPaymentId = existingDownPayment._id;
-      } else if (existingDownPayment) {
-        paymentType = 'Final Payment';
-        amount = gross_amount;
-        totalAmount = gross_amount;
-        remainingAmount = 0;
-      } else {
-        paymentType = 'Full';
-        amount = gross_amount;
-        totalAmount = gross_amount;
-        remainingAmount = 0;
-      }
-    }
-
-    // === Cek apakah ada pembayaran existing yang perlu diupdate ===
-    const existingPayment = await Payment.findOne({
+    // === Cek apakah ada down payment yang masih pending ===
+    const existingDownPayment = await Payment.findOne({
       order_id: order_id,
-      relatedPaymentId: { $ne: null },
-      status: { $in: ['pending', 'expire'] } // hanya update yang belum settlement
+      paymentType: 'Down Payment',
+      status: { $in: ['pending', 'expire'] } // belum dibayar
     }).sort({ createdAt: -1 });
 
-    const firstPayment = await Payment.findOne({
-      order_id: order_id,
-      relatedPaymentId: null, // khusus yang belum ada relasi
-      status: { $in: ['settlement', 'expire'] }
-    }).sort({ createdAt: -1 });
+    // === PERBAIKAN: Jika ada down payment pending, SELALU update (tidak perlu cek is_down_payment) ===
+    if (existingDownPayment) {
+      // Tambahkan ke total amount dulu
+      const newTotalAmount = existingDownPayment.totalAmount + (total_order_amount || gross_amount);
 
+      // Hitung proporsi amount dan remaining amount (50:50 dari total)
+      const newDownPaymentAmount = newTotalAmount / 2;
+      const newRemainingAmount = newTotalAmount - newDownPaymentAmount;
 
-    if (existingPayment) {
-      // Jumlahkan amount dan totalAmount lama dengan yang baru
-      const newAmount = existingPayment.amount + amount;
-      const newTotalAmount = newAmount + firstPayment.remainingAmount; // Tambahkan selisih total baru
+      console.log("Updating existing down payment:");
+      console.log("Previous total amount:", existingDownPayment.totalAmount);
+      console.log("Added total amount:", total_order_amount || gross_amount);
+      console.log("New total amount:", newTotalAmount);
+      console.log("New down payment amount (50%):", newDownPaymentAmount);
+      console.log("New remaining amount (50%):", newRemainingAmount);
 
-      console.log("ini existingPayment:", existingPayment);
-      console.log("ini firstPayment:", firstPayment);
-      console.log("ini newAmount:", newAmount);
-      console.log("ini newTotalAmount:", newTotalAmount);
-      // const newRemainingAmount = newTotalAmount - newAmount;
-
-      // Update pembayaran existing
-      const transactionId = payment_type === 'cash' ? generateTransactionId() : null;
-      const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      const expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
-
+      // === Update untuk CASH ===
       if (payment_type === 'cash') {
+        const transactionId = generateTransactionId();
+        const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
         const qrData = { order_id: order._id.toString() };
         const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
 
@@ -2031,12 +1984,12 @@ export const charge = async (req, res) => {
         }];
 
         const rawResponse = {
-          status_code: "201",
-          status_message: `Cash ${paymentType.toLowerCase()} transaction is updated`,
+          status_code: "200",
+          status_message: "Down payment amount updated successfully",
           transaction_id: transactionId,
           payment_code: payment_code,
           order_id: order_id,
-          gross_amount: newAmount.toString() + ".00",
+          gross_amount: newDownPaymentAmount.toString() + ".00",
           currency: "IDR",
           payment_type: "cash",
           transaction_time: currentTime,
@@ -2048,22 +2001,21 @@ export const charge = async (req, res) => {
           expiry_time: expiryTime,
         };
 
-        // Update existing payment dengan amount yang dijumlahkan
+        // Update existing down payment
         await Payment.updateOne(
-          { _id: existingPayment._id },
+          { _id: existingDownPayment._id },
           {
             $set: {
               transaction_id: transactionId,
               payment_code: payment_code,
-              amount: newAmount,
+              amount: newDownPaymentAmount,
               totalAmount: newTotalAmount,
+              remainingAmount: newRemainingAmount,
               method: payment_type,
               status: 'pending',
               fraud_status: 'accept',
               transaction_time: currentTime,
               expiry_time: expiryTime,
-              settlement_time: null,
-              paymentType: paymentType,
               actions: actions,
               raw_response: rawResponse,
               updatedAt: new Date()
@@ -2071,32 +2023,37 @@ export const charge = async (req, res) => {
           }
         );
 
-        const updatedPayment = await Payment.findById(existingPayment._id);
+        const updatedPayment = await Payment.findById(existingDownPayment._id);
 
         return res.status(200).json({
           ...rawResponse,
-          paymentType,
+          paymentType: 'Down Payment',
           totalAmount: newTotalAmount,
-          is_down_payment: is_down_payment || false,
-          relatedPaymentId,
+          remainingAmount: newRemainingAmount,
+          is_down_payment: true,
+          relatedPaymentId: null,
           createdAt: updatedPayment.createdAt,
           updatedAt: updatedPayment.updatedAt,
           isUpdated: true,
-          previousAmount: existingPayment.amount,
-          addedAmount: amount,
-          newAmount: newAmount
+          previousAmount: existingDownPayment.amount,
+          previousTotalAmount: existingDownPayment.totalAmount,
+          addedTotalAmount: total_order_amount || gross_amount,
+          newAmount: newDownPaymentAmount,
+          newTotalAmount: newTotalAmount,
+          message: "Down payment updated with 50:50 split due to additional order items"
         });
 
       } else {
-        // Non-cash payment update
+        // === Update untuk NON-CASH ===
         let chargeParams = {
           payment_type: payment_type,
           transaction_details: {
-            gross_amount: parseInt(newAmount),
+            gross_amount: parseInt(newDownPaymentAmount),
             order_id: payment_code,
           },
         };
 
+        // Setup payment method specific params
         if (payment_type === 'bank_transfer') {
           if (!bank_transfer?.bank) {
             return res.status(400).json({ success: false, message: 'Bank is required' });
@@ -2114,15 +2071,16 @@ export const charge = async (req, res) => {
 
         const response = await coreApi.charge(chargeParams);
 
-        // Update existing payment dengan amount yang dijumlahkan
+        // Update existing down payment
         await Payment.updateOne(
-          { _id: existingPayment._id },
+          { _id: existingDownPayment._id },
           {
             $set: {
               transaction_id: response.transaction_id,
               payment_code: payment_code,
-              amount: newAmount,
+              amount: newDownPaymentAmount,
               totalAmount: newTotalAmount,
+              remainingAmount: newRemainingAmount,
               method: payment_type,
               status: response.transaction_status || 'pending',
               fraud_status: response.fraud_status,
@@ -2138,7 +2096,6 @@ export const charge = async (req, res) => {
               merchant_id: response.merchant_id || null,
               signature_key: response.signature_key || null,
               actions: response.actions || [],
-              paymentType: paymentType,
               raw_response: response,
               updatedAt: new Date()
             }
@@ -2147,28 +2104,69 @@ export const charge = async (req, res) => {
 
         return res.status(200).json({
           ...response,
-          paymentType,
+          paymentType: 'Down Payment',
           totalAmount: newTotalAmount,
-          is_down_payment: is_down_payment || false,
-          relatedPaymentId,
-          down_payment_amount: is_down_payment ? down_payment_amount : null,
+          remainingAmount: newRemainingAmount,
+          is_down_payment: true,
+          relatedPaymentId: null,
           isUpdated: true,
-          previousAmount: existingPayment.amount,
-          addedAmount: amount,
-          newAmount: newAmount
+          previousAmount: existingDownPayment.amount,
+          previousTotalAmount: existingDownPayment.totalAmount,
+          addedTotalAmount: total_order_amount || gross_amount,
+          newAmount: newDownPaymentAmount,
+          newTotalAmount: newTotalAmount,
+          message: "Down payment updated with 50:50 split due to additional order items"
         });
       }
     }
 
-    // === Jika tidak ada yang perlu diupdate, lanjutkan dengan logika create baru ===
+    // === Lanjutkan dengan logika create baru HANYA jika tidak ada existing down payment pending ===
 
-    // === Jika ada pembayaran sebelumnya, akumulasikan amount ===
-    if (relatedPaymentId) {
-      const prevPayment = await Payment.findById(relatedPaymentId);
-      if (prevPayment) {
-        amount = prevPayment.amount + amount;
+    // === Cari pembayaran terakhir ===
+    const lastPayment = await Payment.findOne({ order_id }).sort({ createdAt: -1 });
+    let relatedPaymentId = lastPayment ? lastPayment._id : null;
+
+    // === Tentukan payment type ===
+    let paymentType, amount, remainingAmount, totalAmount;
+
+    if (is_down_payment === true) {
+      paymentType = 'Down Payment';
+      amount = down_payment_amount || gross_amount;
+      totalAmount = total_order_amount || gross_amount;
+      remainingAmount = totalAmount - amount;
+    } else {
+      // Cek untuk final payment logic - HANYA yang sudah settlement
+      const settledDownPayment = await Payment.findOne({
+        order_id: order_id,
+        paymentType: 'Down Payment',
+        status: 'settlement' // HANYA yang sudah dibayar
+      });
+
+      if (settledDownPayment && settledDownPayment.remainingAmount > 0) {
+        paymentType = 'Final Payment';
+        amount = settledDownPayment.remainingAmount;
+        totalAmount = settledDownPayment.totalAmount || settledDownPayment.amount + amount;
+        remainingAmount = 0;
+
+        if (gross_amount !== settledDownPayment.remainingAmount) {
+          return res.status(400).json({
+            success: false,
+            message: `Amount harus ${settledDownPayment.remainingAmount} untuk melunasi`
+          });
+        }
+
+        // Final payment → selalu link ke DP utama
+        relatedPaymentId = settledDownPayment._id;
+      } else {
+        // Jika tidak ada settled down payment, berarti full payment
+        paymentType = 'Full';
+        amount = gross_amount;
+        totalAmount = gross_amount;
+        remainingAmount = 0;
       }
     }
+
+    // === Sisanya sama seperti kode sebelumnya untuk create payment baru ===
 
     // === CASE 1: CASH ===
     if (payment_type === 'cash') {
@@ -2329,6 +2327,7 @@ export const charge = async (req, res) => {
     });
   }
 };
+
 // ✅ TAMBAHAN: Controller untuk cek status pembayaran
 export const getPaymentStatus = async (req, res) => {
   try {
@@ -2444,6 +2443,18 @@ export const createFinalPayment = async (req, res) => {
         message: 'Pesanan sudah lunas sepenuhnya'
       });
     }
+
+    // update firstPayment
+    // await Payment.findOneAndUpdate(
+    //   {
+    //     order_id: order.order_id,
+    //     relatedPaymentId: null, // khusus yang belum ada relasi
+    //     status: { $in: ['pending', 'settlement'] }
+    //   },
+    //   { $set: { remainingAmount: 0 } }, // update field
+    //   { new: true } // return data terbaru setelah update
+    // );
+
 
     // 3. Cek apakah sudah ada Final Payment pending
     const relatedFinalPayment = await Payment.findOneAndUpdate(
@@ -3420,6 +3431,77 @@ export const getUserOrders = async (req, res) => {
 };
 
 // Get History User orders
+// export const getUserOrderHistory = async (req, res) => {
+//   try {
+//     const userId = req.params.userId;
+//     if (!userId) {
+//       return res.status(400).json({ message: 'User ID is required.' });
+//     }
+
+//     // Mencari semua pesanan dengan field "user_id" yang sesuai dengan ID user
+//     const orderHistorys = await Order.find({ user_id: userId })
+//       .populate('items.menuItem')
+//       .select('_id order_id user_id items status grandTotal') // Pilih hanya field yang diperlukan
+//       .lean();
+
+//     console.log('Fetching order history for user:', orderHistorys);
+
+//     if (!orderHistorys || orderHistorys.length === 0) {
+//       return res.status(404).json({ message: 'No order history found for this user.' });
+//     }
+
+//     // Mengambil semua order_id untuk mencari payment status
+//     const orderIds = orderHistorys.map(order => order.order_id); // Use string-based order_id
+//     const payments = await Payment.find({ order_id: { $in: orderIds } });
+
+//     // Membuat mapping payment berdasarkan order_id untuk akses yang lebih cepat
+//     const paymentMap = {};
+//     payments.forEach(payment => {
+//       paymentMap[payment.order_id] = payment.status;
+//     });
+
+
+
+//     // Mapping data untuk mengcustom response
+//     const customOrderHistory = orderHistorys.map(order => ({
+//       _id: order._id,
+//       order_id: order.order_id,
+//       user_id: order.user_id,
+//       items: order.items.map(item => ({
+//         _id: item._id,
+//         menuItem: {
+//           _id: item.menuItem._id,
+//           name: item.menuItem.name,
+//           price: item.menuItem.price,
+//           category: item.menuItem.category,
+//           imageURL: item.menuItem.imageURL
+//         },
+//         quantity: item.quantity,
+//         subtotal: item.subtotal,
+//         addons: item.addons,
+//         toppings: item.toppings
+//       })),
+//       status: order.status,
+//       paymentStatus: paymentMap[order.order_id] || null,
+//       grandTotal: order.grandTotal,
+//     }));
+//     console.log('Payment map:', paymentMap);
+//     console.log('Custom order history:', customOrderHistory);
+
+
+//     res.status(200).json({
+//       success: true,
+//       count: customOrderHistory.length,
+//       orderHistory: customOrderHistory
+//     });
+//   } catch (error) {
+//     console.error('Error fetching user order history:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal server error.'
+//     });
+//   }
+// };
 export const getUserOrderHistory = async (req, res) => {
   try {
     const userId = req.params.userId;
@@ -3427,50 +3509,81 @@ export const getUserOrderHistory = async (req, res) => {
       return res.status(400).json({ message: 'User ID is required.' });
     }
 
-    // Mencari semua pesanan dengan field "user_id" yang sesuai dengan ID user
+    // Cari semua order user
     const orderHistorys = await Order.find({ user_id: userId })
       .populate('items.menuItem')
-      .select('_id order_id user_id items status')
+      .select('_id order_id user_id items status grandTotal')
       .lean();
-
-    console.log('Fetching order history for user:', orderHistorys);
 
     if (!orderHistorys || orderHistorys.length === 0) {
       return res.status(404).json({ message: 'No order history found for this user.' });
     }
 
-    // Mengambil semua order_id untuk mencari payment status
-    const orderIds = orderHistorys.map(order => order.order_id); // Use string-based order_id
-    const payments = await Payment.find({ order_id: { $in: orderIds } });
+    // Ambil semua order_id untuk cari payment
+    const orderIds = orderHistorys.map(order => order.order_id);
+    const payments = await Payment.find({ order_id: { $in: orderIds } }).lean();
 
-    // Membuat mapping payment berdasarkan order_id untuk akses yang lebih cepat
+    // Grouping payment berdasarkan order_id
     const paymentMap = {};
     payments.forEach(payment => {
-      paymentMap[payment.order_id] = payment.status;
+      if (!paymentMap[payment.order_id]) {
+        paymentMap[payment.order_id] = [];
+      }
+      paymentMap[payment.order_id].push(payment);
     });
 
-    // Mapping data untuk mengcustom response
-    const customOrderHistory = orderHistorys.map(order => ({
-      _id: order._id,
-      order_id: order.order_id,
-      user_id: order.user_id,
-      items: order.items.map(item => ({
-        _id: item._id,
-        menuItem: {
-          _id: item.menuItem._id,
-          name: item.menuItem.name,
-          price: item.menuItem.price,
-          category: item.menuItem.category,
-          imageURL: item.menuItem.imageURL
-        },
-        quantity: item.quantity,
-        subtotal: item.subtotal,
-        addons: item.addons,
-        toppings: item.toppings
-      })),
-      status: order.status,
-      paymentStatus: paymentMap[order.order_id] || null,
-    }));
+    // Mapping data untuk response
+    const customOrderHistory = orderHistorys.map(order => {
+      const relatedPayments = paymentMap[order.order_id] || [];
+
+      // Tentukan payment status berdasarkan aturan
+      let paymentStatus = 'Unpaid';
+      for (const p of relatedPayments) {
+        if (
+          p.status === 'settlement' &&
+          p.paymentType === 'Down Payment' &&
+          p.remainingAmount > 0
+        ) {
+          paymentStatus = 'partial';
+          break;
+        } else if (
+          p.status === 'settlement' &&
+          p.paymentType === 'Down Payment' &&
+          p.remainingAmount === 0
+        ) {
+          paymentStatus = 'settlement';
+          break;
+        } else if (p.status === 'settlement') {
+          paymentStatus = 'settlement';
+          break;
+        } else if (p.status === 'pending') {
+          paymentStatus = 'pending';
+        }
+      }
+
+      return {
+        _id: order._id,
+        order_id: order.order_id,
+        user_id: order.user_id,
+        items: order.items.map(item => ({
+          _id: item._id,
+          menuItem: {
+            _id: item.menuItem._id,
+            name: item.menuItem.name,
+            price: item.menuItem.price,
+            category: item.menuItem.category,
+            imageURL: item.menuItem.imageURL
+          },
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+          addons: item.addons,
+          toppings: item.toppings
+        })),
+        status: order.status,
+        paymentStatus,
+        grandTotal: order.grandTotal
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -3485,6 +3598,26 @@ export const getUserOrderHistory = async (req, res) => {
     });
   }
 };
+
+
+// const paymentStatus = (() => {
+//   if (
+//     payment?.status === 'settlement' &&
+//     payment?.paymentType === 'Down Payment' &&
+//     payment?.remainingAmount !== 0
+//   ) {
+//     return 'partial';
+//   } else if (
+//     payment?.status === 'settlement' &&
+//     payment?.paymentType === 'Down Payment' &&
+//     payment?.remainingAmount == 0
+//   ) {
+//     return 'settlement';
+//   }
+//   return payment?.status || 'Unpaid';
+// })();
+
+
 
 export const getCashierOrderById = async (req, res) => {
   try {
@@ -3751,7 +3884,7 @@ export const getOrderById = async (req, res) => {
     console.log("Pickup Data:", order.orderType === 'Pickup' ? { pickupTime: order.pickupTime } : 'N/A');
     console.log("Delivery Data:", order.orderType === 'Delivery' ? { deliveryAddress: order.deliveryAddress } : 'N/A');
     console.log("Take Away Data:", order.orderType === 'Take Away' ? { note: "Take Away order" } : 'N/A');
-
+    console.log("Ini adalah data order di getORderById:", order)
     // Payment status logic
     const paymentStatus = (() => {
       if (
@@ -3791,8 +3924,6 @@ export const getOrderById = async (req, res) => {
         ? (payment?.permata_va_number || payment?.va_numbers?.[0]?.bank || payment?.method || 'Unknown').toUpperCase()
         : 'Unknown',
       status: paymentStatus,
-      totalBeforeDiscount: order.totalBeforeDiscount || 0,
-      totalAfterDiscount: order.totalAfterDiscount || 0,
     };
 
     // Build orderData
@@ -3802,10 +3933,13 @@ export const getOrderById = async (req, res) => {
       orderNumber: generateOrderNumber(order.order_id || order._id),
       orderDate: formatDate(order.createdAt),
       items: formattedItems,
-      total: totalAmountRemaining?.totalAmount || payment?.totalAmount || order?.grandTotal || payment?.amount || 0, // ✅ Update: gunakan totalAmount jika ada
+      // total: totalAmountRemaining?.totalAmount || payment?.totalAmount || order?.grandTotal || payment?.amount || 0, // ✅ Update: gunakan totalAmount jika ada
       orderStatus: order.status,
       paymentMethod: paymentDetails.method,
       paymentStatus,
+      totalBeforeDiscount: order.totalBeforeDiscount || 0,
+      totalAfterDiscount: order.totalAfterDiscount || 0,
+      grandTotal: order.grandTotal || 0,
 
       // ✅ TAMBAHAN: Detail pembayaran yang lebih lengkap
       paymentDetails: paymentDetails,
