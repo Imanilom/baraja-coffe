@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { FaChevronLeft, FaChevronRight, FaPencilAlt, FaSearch, FaTrash } from "react-icons/fa";
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
+import RoleTableSkeleton from "./skeleton";
 
 export default function RoleTable() {
     const [roles, setRole] = useState([]);
@@ -40,24 +41,6 @@ export default function RoleTable() {
     useEffect(() => {
         fetchData();
     }, []);
-
-    // Toggle checkbox semua
-    const handleSelectAll = (e) => {
-        if (e.target.checked) {
-            setSelectedItems(paginatedData.map((d) => d._id));
-        } else {
-            setSelectedItems([]);
-        }
-    };
-
-    // Toggle checkbox per row
-    const handleSelectItem = (id) => {
-        if (selectedItems.includes(id)) {
-            setSelectedItems((prev) => prev.filter((item) => item !== id));
-        } else {
-            setSelectedItems((prev) => [...prev, id]);
-        }
-    };
 
     // Apply filter
     const filteredData = roles.filter((role) => {
@@ -103,13 +86,7 @@ export default function RoleTable() {
     };
 
     // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
+    if (loading) return <RoleTableSkeleton />;
 
     // Show error state
     if (error) {

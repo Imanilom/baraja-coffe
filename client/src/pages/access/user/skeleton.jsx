@@ -1,6 +1,6 @@
 export default function UserTableSkeleton() {
     return (
-        <div className="animate-pulse">
+        <div className="animate-pulse px-6">
             {/* 🔹 Filter/Search Bar Skeleton */}
             <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
                 <div className="flex gap-3 w-full md:w-auto">
