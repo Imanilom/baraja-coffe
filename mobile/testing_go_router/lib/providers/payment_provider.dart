@@ -3,7 +3,10 @@ import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/repositories/payment_type_repository.dart';
+import 'package:kasirbaraja/models/payments/process_payment_request.dart';
+import 'package:kasirbaraja/services/order_service.dart';
 
 final paymentProvider = StateNotifierProvider<PaymentNotifier, PaymentState>((
   ref,
@@ -131,7 +134,7 @@ final paymentMethodsProvider =
 // Provider untuk menyimpan payment process state
 final paymentProcessProvider =
     StateNotifierProvider<PaymentProcessNotifier, PaymentProcessState>((ref) {
-      return PaymentProcessNotifier();
+      return PaymentProcessNotifier(ref);
     });
 
 class PaymentProcessState {
@@ -167,7 +170,8 @@ class PaymentProcessState {
 }
 
 class PaymentProcessNotifier extends StateNotifier<PaymentProcessState> {
-  PaymentProcessNotifier() : super(PaymentProcessState());
+  final Ref ref;
+  PaymentProcessNotifier(this.ref) : super(PaymentProcessState());
 
   void selectPaymentType(PaymentTypeModel type) {
     state = state.copyWith(
@@ -196,17 +200,15 @@ class PaymentProcessNotifier extends StateNotifier<PaymentProcessState> {
     state = PaymentProcessState();
   }
 
-  Future<bool> processPayment() async {
+  Future<bool> processPayment(
+    WidgetRef ref,
+    ProcessPaymentRequest request,
+  ) async {
     try {
       setProcessing(true);
 
-      // Simulasi API call untuk process payment
-      await Future.delayed(const Duration(seconds: 2));
-
-      // TODO: Implementasi sebenarnya
-      // - Call API endpoint untuk process payment
-      // - Handle response
-      // - Update payment status di database
+      final apiService = ref.read(onlineOrderService);
+      final response = await apiService.processPaymentOrder(request);
 
       setProcessing(false);
       return true; // Success
