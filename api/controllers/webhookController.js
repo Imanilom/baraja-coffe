@@ -7,9 +7,9 @@ export const midtransWebhook = async (req, res) => {
 
   try {
     const notificationJson = req.body;
-    const {
+    let {
       transaction_status,
-      order_id,
+      order_id, // awalnya ini payment_code dari Midtrans
       fraud_status,
       payment_type
     } = notificationJson;
@@ -38,29 +38,35 @@ export const midtransWebhook = async (req, res) => {
       existingPayment = await Payment.findOne({ payment_code: order_id });
 
       if (existingPayment) {
-        console.log(`[WEBHOOK ${requestId}] Payment record found for payment_code ${order_id} after ${retryCount} retries`);
+        console.log(
+          `[WEBHOOK ${requestId}] Payment record found for payment_code ${order_id} after ${retryCount} retries`
+        );
+
+        // timpa order_id dengan order_id internal dari payment record
+        order_id = existingPayment.order_id;
+
+        console.log(`[WEBHOOK ${requestId}] Overriding order_id with value from Payment record: ${order_id}`);
         break;
       }
 
-      console.log(`[WEBHOOK ${requestId}] Payment record not found for payment_code ${order_id}, retry ${retryCount + 1}/${maxRetries}`);
+      console.log(
+        `[WEBHOOK ${requestId}] Payment record not found for payment_code ${order_id}, retry ${retryCount + 1}/${maxRetries}`
+      );
       retryCount++;
 
       if (retryCount < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
       }
     }
 
     if (!existingPayment) {
-      console.warn(`[WEBHOOK ${requestId}] Payment record still not found for payment_code ${order_id} after ${maxRetries} retries. Webhook will be deferred.`);
-      return res.status(200).json({
-        status: 'deferred',
-        message: 'Payment record not found after retries, will be processed when payment is created'
-      });
+      console.error(`[WEBHOOK ${requestId}] Payment record not found after retries`);
+      return res.status(404).json({ message: 'Payment record not found' });
     }
 
     console.log(`[WEBHOOK ${requestId}] Processing webhook for existing payment:`, existingPayment._id);
 
-    // Update payment record
+    // Update payment record (gunakan payment_code dari existingPayment)
     const paymentData = {
       status: transaction_status,
       fraud_status: fraud_status,
@@ -68,18 +74,20 @@ export const midtransWebhook = async (req, res) => {
       updatedAt: new Date()
     };
 
+    // Update payment record by internal order_id
     const updatedPayment = await Payment.findOneAndUpdate(
-      { payment_code: order_id },
+      { order_id }, // pakai order_id yang sudah ditimpa
       paymentData,
-      { new: true, runValidators: true } // Tidak ada upsert: true
+      { new: true, runValidators: true }
     );
 
+
     if (!updatedPayment) {
-      console.error(`[WEBHOOK ${requestId}] Failed to update payment for order ${order_id}`);
+      console.error(`[WEBHOOK ${requestId}] Failed to update payment for payment_code ${existingPayment.payment_code}`);
       return res.status(404).json({ message: 'Payment record not found' });
     }
 
-    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for order ${order_id}`);
+    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for payment_code ${existingPayment.payment_code}`);
 
     // Update raw_response untuk konsistensi
     if (updatedPayment.raw_response) {
@@ -90,8 +98,8 @@ export const midtransWebhook = async (req, res) => {
       console.log(`[WEBHOOK ${requestId}] Raw response updated`);
     }
 
-    // Find related order using STRING order_id
-    const order = await Order.findOne({ order_id: updatedPayment.order_id })
+    // Find related order pakai order_id yang sudah benar
+    const order = await Order.findOne({ order_id })
       .populate('user_id', 'name email phone')
       .populate('cashierId', 'name');
 
@@ -107,15 +115,8 @@ export const midtransWebhook = async (req, res) => {
       case 'capture':
       case 'settlement':
         if (fraud_status === 'accept') {
-          // order.status = 'Pending'; // Ready to process
-          // order.paymentStatus = 'Paid';
-          // await order.save();
-
-          // console.log(`[WEBHOOK ${requestId}] Order ${order_id} marked as paid`);
-
-          // Emit payment update ke frontend
           const paymentUpdateData = {
-            order_id: updatedPayment.order_id,
+            order_id,
             status: order.status,
             paymentStatus: order.paymentStatus,
             transaction_status,
@@ -123,26 +124,17 @@ export const midtransWebhook = async (req, res) => {
             timestamp: new Date()
           };
 
-          // Emit ke room spesifik menggunakan order_id string
           io.to(`order_${order_id}`).emit('payment_status_update', paymentUpdateData);
           io.to(`order_${order_id}`).emit('order_status_update', paymentUpdateData);
 
           console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${order_id}`);
 
-          // Broadcast to cashier
           const mappedOrder = mapOrderForFrontend(order);
           io.to('cashier_room').emit('new_order', mappedOrder);
           console.log(`[WEBHOOK ${requestId}] Broadcasted order to cashier room`);
-
         } else if (fraud_status === 'challenge') {
-          // order.status = 'Pending';
-          // order.paymentStatus = 'Challenge';
-          // await order.save();
-
-          console.log(`[WEBHOOK ${requestId}] Order ${order_id} payment challenged`);
-
           const challengeData = {
-            order_id: updatedPayment.order_id,
+            order_id,
             status: order.status,
             paymentStatus: order.paymentStatus,
             transaction_status,
@@ -152,6 +144,8 @@ export const midtransWebhook = async (req, res) => {
 
           io.to(`order_${order_id}`).emit('payment_status_update', challengeData);
           io.to(`order_${order_id}`).emit('order_status_update', challengeData);
+
+          console.log(`[WEBHOOK ${requestId}] Order ${order_id} payment challenged`);
         }
         break;
 
@@ -165,7 +159,7 @@ export const midtransWebhook = async (req, res) => {
         console.log(`[WEBHOOK ${requestId}] Order ${order_id} payment failed: ${transaction_status}`);
 
         const failedData = {
-          order_id: updatedPayment.order_id,
+          order_id,
           status: order.status,
           paymentStatus: order.paymentStatus,
           transaction_status,
@@ -178,14 +172,8 @@ export const midtransWebhook = async (req, res) => {
         break;
 
       case 'pending':
-        // order.status = 'Reserved';
-        // order.paymentStatus = 'Pending';
-        // await order.save();
-
-        console.log(`[WEBHOOK ${requestId}] Order ${order_id} is still pending`);
-
         const pendingData = {
-          order_id: updatedPayment.order_id,
+          order_id,
           status: order.status,
           paymentStatus: order.paymentStatus,
           transaction_status,
@@ -195,6 +183,8 @@ export const midtransWebhook = async (req, res) => {
 
         io.to(`order_${order_id}`).emit('payment_status_update', pendingData);
         io.to(`order_${order_id}`).emit('order_status_update', pendingData);
+
+        console.log(`[WEBHOOK ${requestId}] Order ${order_id} is still pending`);
         break;
 
       default:
@@ -218,11 +208,11 @@ export const midtransWebhook = async (req, res) => {
   }
 };
 
-// Helper: map order to frontend-safe format
+// Helper
 function mapOrderForFrontend(order) {
   return {
     _id: order._id,
-    orderId: order.order_id,  // Konsisten dengan string
+    orderId: order.order_id,
     userId: order.user_id?._id || order.user_id,
     customerName: order.user_id?.name || order.user,
     customerPhone: order.user_id?.phone || order.phoneNumber,
