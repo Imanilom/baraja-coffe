@@ -2,7 +2,7 @@ export default function socketHandler(io) {
     io.on('connection', (socket) => {
         console.log('Client connected:', socket.id);
 
-        // Ping to keep connection alive (reduced frequency)
+        // Ping to keep connection alive
         const pingInterval = setInterval(() => {
             socket.emit('ping', {
                 message: 'Keep alive',
@@ -10,7 +10,7 @@ export default function socketHandler(io) {
             });
         }, 30000);
 
-        // Join room for specific order (for customer app)
+        // 🔹 Join room for specific order (pakai orderId)
         socket.on('join_order_room', (orderId, callback) => {
             console.log(`Client ${socket.id} joining order room: order_${orderId}`);
             socket.join(`order_${orderId}`);
@@ -21,12 +21,12 @@ export default function socketHandler(io) {
             console.log(`Client joined room: order_${orderId}`);
         });
 
-        // Join cashier room (for cashier app)
+        // 🔹 Join cashier room
         socket.on('join_cashier_room', (payload, callback) => {
             console.log(`Client ${socket.id} joining cashier room`);
             socket.join('cashier_room');
 
-            // Also join outlet-specific room if outletId provided
+            // Join outlet-specific room kalau ada outletId
             if (payload && payload.outletId) {
                 const outletRoom = `cashiers_${payload.outletId}`;
                 socket.join(outletRoom);
@@ -41,7 +41,7 @@ export default function socketHandler(io) {
             }
         });
 
-        // Join kitchen room (for kitchen display)
+        // 🔹 Join kitchen room
         socket.on('join_kitchen_room', (outletId, callback) => {
             const kitchenRoom = outletId ? `kitchen_${outletId}` : 'kitchen_room';
             socket.join(kitchenRoom);
@@ -52,11 +52,11 @@ export default function socketHandler(io) {
             console.log(`Kitchen client joined room: ${kitchenRoom}`);
         });
 
-        // Handle order status updates from cashier
+        // 🔹 Handle order status updates dari kasir
         socket.on('update_order_status', (data) => {
             const { orderId, status, cashierId, cashierName } = data;
 
-            // Broadcast to customer app
+            // Broadcast ke customer app
             socket.to(`order_${orderId}`).emit('order_status_update', {
                 order_id: orderId,
                 status,
@@ -64,7 +64,7 @@ export default function socketHandler(io) {
                 timestamp: new Date()
             });
 
-            // Broadcast to other cashiers
+            // Broadcast ke kasir lain
             socket.to('cashier_room').emit('order_updated', {
                 orderId,
                 status,
@@ -75,11 +75,11 @@ export default function socketHandler(io) {
             console.log(`Order status updated: ${orderId} -> ${status}`);
         });
 
-        // Handle kitchen order completion
+        // 🔹 Handle kitchen order completion
         socket.on('kitchen_order_complete', (data) => {
             const { orderId, completedItems } = data;
 
-            // Notify cashier room
+            // Notify cashier
             socket.to('cashier_room').emit('kitchen_update', {
                 orderId,
                 completedItems,
@@ -97,20 +97,24 @@ export default function socketHandler(io) {
             console.log(`Kitchen completed order: ${orderId}`);
         });
 
-        // Leave specific room
+        // 🔹 Leave specific room
         socket.on('leave_room', (roomName) => {
             socket.leave(roomName);
             console.log(`Client ${socket.id} left room: ${roomName}`);
         });
 
-        // Handle disconnect
+        // 🔹 Disconnect
         socket.on('disconnect', () => {
             console.log('Client disconnected:', socket.id);
             clearInterval(pingInterval);
         });
     });
 
-    // Helper function to broadcast new orders to cashiers
+    // ==============================
+    // ✅ Helper functions (pakai orderId)
+    // ==============================
+
+    // Broadcast new orders ke kasir
     const broadcastNewOrder = (outletId, orderData) => {
         const roomName = `cashiers_${outletId}`;
         io.to(roomName).emit('new_order', {
@@ -119,7 +123,7 @@ export default function socketHandler(io) {
             timestamp: new Date()
         });
 
-        // Also emit to general cashier room as fallback
+        // Juga ke general cashier room
         io.to('cashier_room').emit('new_order', {
             event: 'new_order',
             data: orderData,
@@ -129,16 +133,16 @@ export default function socketHandler(io) {
         console.log(`Broadcast new order to rooms: ${roomName}, cashier_room`);
     };
 
-    // Helper function to broadcast order status changes
+    // Broadcast order status change
     const broadcastOrderStatusChange = (orderId, statusData) => {
-        // To customer app
+        // To customer
         io.to(`order_${orderId}`).emit('order_status_update', {
             order_id: orderId,
             ...statusData,
             timestamp: new Date()
         });
 
-        // To cashier room
+        // To cashier
         io.to('cashier_room').emit('order_status_changed', {
             orderId,
             ...statusData,
@@ -148,7 +152,7 @@ export default function socketHandler(io) {
         console.log(`Broadcast status change for order: ${orderId}`);
     };
 
-    // Helper function to broadcast payment updates
+    // Broadcast payment updates
     const broadcastPaymentUpdate = (orderId, paymentData) => {
         io.to(`order_${orderId}`).emit('payment_status_update', {
             order_id: orderId,
@@ -163,6 +167,6 @@ export default function socketHandler(io) {
         broadcastNewOrder,
         broadcastOrderStatusChange,
         broadcastPaymentUpdate,
-        io // Return io instance for direct access if needed
+        io // return io instance kalau butuh langsung
     };
 }
