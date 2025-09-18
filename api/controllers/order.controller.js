@@ -3515,7 +3515,7 @@ export const getUserOrderHistory = async (req, res) => {
       const relatedPayments = paymentMap[order.order_id] || [];
 
       // Tentukan payment status berdasarkan aturan
-      let paymentStatus = 'Unpaid';
+      let paymentStatus = 'expire';
       for (const p of relatedPayments) {
         if (
           p.status === 'settlement' &&
