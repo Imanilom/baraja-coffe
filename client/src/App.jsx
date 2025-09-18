@@ -152,6 +152,8 @@ import UpdateRole from "./pages/access/role/update";
 import DepartementTable from "./pages/access/departement";
 import CreateDepartemen from "./pages/access/departement/create";
 import UpdateDepartemen from "./pages/access/departement/update";
+import ActivityLogTable from "./pages/activity_logs";
+import UpdateTax from "./pages/tax/update_tax";
 
 
 export default function App() {
@@ -270,6 +272,7 @@ export default function App() {
                 {/* Tax And Service */}
                 {/* Tax */}
                 <Route path="tax-create" element={<CreateTax />} />
+                <Route path="tax-update/:id" element={<UpdateTax />} />
                 <Route path="tax-and-service/:id/manage-to-outlet" element={<CreateManageOutlet />} />
 
                 {/* Service */}
@@ -352,6 +355,9 @@ export default function App() {
                 <Route path="access-settings/departement" element={<DepartementTable />} />
                 <Route path="access-settings/departemen-create" element={<CreateDepartemen />} />
                 <Route path="access-settings/departemen-update/:id" element={<UpdateDepartemen />} />
+
+                {/* Logs */}
+                <Route path="logs" element={<ActivityLogTable />} />
               </Route>
             </Route>
 

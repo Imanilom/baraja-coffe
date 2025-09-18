@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/models/online_order/confirm_order.model.dart';
 import 'package:kasirbaraja/services/order_service.dart';
+import 'package:kasirbaraja/models/payments/process_payment_request.dart';
 
 // Provider untuk SavedOrderDetailProvider
 final onlineOrderRepository = Provider<OnlineOrderRepository>(
@@ -105,3 +106,114 @@ final orderConfirmationProvider =
     ) {
       return OrderConfirmationNotifier(ref);
     });
+
+final processPaymentProvider =
+    StateNotifierProvider<ProcessPaymentNotifier, ProcessPaymentState>((ref) {
+      return ProcessPaymentNotifier(ref);
+    });
+
+class ProcessPaymentState {
+  final bool isLoading;
+  final ProcessPaymentResponse? response;
+  final String? error;
+
+  ProcessPaymentState({this.isLoading = false, this.response, this.error});
+
+  ProcessPaymentState copyWith({
+    bool? isLoading,
+    ProcessPaymentResponse? response,
+    String? error,
+  }) {
+    return ProcessPaymentState(
+      isLoading: isLoading ?? this.isLoading,
+      response: response ?? this.response,
+      error: error ?? this.error,
+    );
+  }
+}
+
+class ProcessPaymentNotifier extends StateNotifier<ProcessPaymentState> {
+  final Ref ref;
+  ProcessPaymentNotifier(this.ref) : super(ProcessPaymentState());
+
+  Future<void> processPayment(
+    WidgetRef ref,
+    ProcessPaymentRequest request,
+  ) async {
+    state = ProcessPaymentState(isLoading: true);
+
+    try {
+      final apiService = ref.read(onlineOrderService);
+      final response = await apiService.processPaymentOrder(request);
+
+      state = ProcessPaymentState(response: response);
+    } catch (e) {
+      state = ProcessPaymentState(error: e.toString());
+    }
+  }
+
+  void resetState() {
+    state = ProcessPaymentState();
+  }
+}
+
+final processPaymentRequestProvider = StateNotifierProvider<
+  ProcessPaymentRequestNotifier,
+  ProcessPaymentRequest?
+>((ref) {
+  return ProcessPaymentRequestNotifier();
+});
+
+class ProcessPaymentRequestNotifier
+    extends StateNotifier<ProcessPaymentRequest?> {
+  ProcessPaymentRequestNotifier() : super(null);
+
+  void initialState(String orderId) {
+    state = ProcessPaymentRequest(
+      orderId: orderId,
+      selectedPaymentId: [],
+      paymentType: '',
+      paymentMethod: '',
+    );
+  }
+
+  void selectedPayment(String orderId, String paymentId) {
+    if (state == null) {
+      initialState(orderId);
+    }
+    //cek order id yang sama
+    if (state!.orderId != orderId) {
+      initialState(orderId);
+    }
+    state = state!.copyWith(
+      selectedPaymentId: [...state!.selectedPaymentId!, paymentId],
+    );
+    print('Payment selected $paymentId');
+  }
+
+  void selectedPaymentType(String orderId, String paymentType) {
+    if (state == null) {
+      initialState(orderId);
+    }
+    //cek order id yang sama
+    if (state!.orderId != orderId) {
+      initialState(orderId);
+    }
+    state = state!.copyWith(paymentType: paymentType);
+  }
+
+  void selectedPaymentMethod(String orderId, String paymentMethod) {
+    if (state == null) {
+      initialState(orderId);
+    }
+    //cek order id yang sama
+    if (state!.orderId != orderId) {
+      initialState(orderId);
+    }
+    state = state!.copyWith(paymentMethod: paymentMethod);
+  }
+
+  void resetState() {
+    state = null;
+  }
+}

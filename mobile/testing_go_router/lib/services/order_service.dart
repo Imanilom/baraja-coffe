@@ -10,6 +10,7 @@ import 'package:kasirbaraja/configs/app_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/models/online_order/confirm_order.model.dart';
+import 'package:kasirbaraja/models/payments/process_payment_request.dart';
 
 class OrderService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
@@ -114,6 +115,33 @@ class OrderService {
         return ConfirmOrderResponse.fromJson(response.data);
       } else {
         throw Exception('Failed to confirm order: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      print('error fetch order detail: ${e.response?.data}');
+      throw ApiResponseHandler.handleError(e);
+    }
+  }
+
+  Future<ProcessPaymentResponse> processPaymentOrder(
+    ProcessPaymentRequest request,
+  ) async {
+    try {
+      Response response = await _dio.post(
+        '/api/order/cashier/process-payment',
+        data: request.toJson(),
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        return ProcessPaymentResponse.fromJson(response.data);
+      } else {
+        throw Exception('Failed to process payment: ${response.statusCode}');
       }
     } on DioException catch (e) {
       print('error fetch order detail: ${e.response?.data}');

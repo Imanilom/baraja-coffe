@@ -62,14 +62,14 @@ const AdminDashboard = () => {
       <div className="flex">
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className={`fixed top-10 z-50 bg-green-900 text-white p-2 rounded-full transition-all duration-300 ${isSidebarOpen ? "left-60" : "left-12"}`}
+          className={`fixed top-10 z-50 bg-green-900 text-white p-2 rounded-full transition-all duration-300 ${isSidebarOpen ? "left-[17rem]" : "left-12"}`}
         >
           {isSidebarOpen ? <FaChevronLeft /> : <FaChevronRight />}
         </button>
         <Sidebar isSidebarOpen={isSidebarOpen} />
 
         <div
-          className={`transition-all duration-300 w-full max-w-full box-border overflow-y-auto overflow-x-hidden h-screen ${isSidebarOpen ? "lg:ml-64" : "ml-16"
+          className={`transition-all duration-300 w-full max-w-full box-border overflow-y-auto overflow-x-hidden h-screen ${isSidebarOpen ? "lg:ml-72" : "ml-16"
             }`}
         >
           <Outlet context={{ isSidebarOpen }} />

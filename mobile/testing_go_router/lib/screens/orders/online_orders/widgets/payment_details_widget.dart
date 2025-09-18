@@ -6,6 +6,7 @@ import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:go_router/go_router.dart';
 import 'buttons/confirm_order_button.dart';
+import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 
 // Provider untuk menyimpan tagihan yang dipilih
 final selectedPaymentProvider = StateProvider<PaymentModel?>((ref) => null);
@@ -26,8 +27,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
             ?.where(
               (payment) =>
                   payment.status?.toLowerCase() == 'pending' ||
-                  payment.status?.toLowerCase() == 'settlement' &&
-                      payment.remainingAmount != 0,
+                  payment.status?.toLowerCase() == 'settlement',
             )
             .toList() ??
         [];
@@ -35,11 +35,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
     // Tagihan yang sudah dibayar untuk ditampilkan sebagai history
     final List<PaymentModel> paidPayments =
         orders?.payment
-            ?.where(
-              (payment) =>
-                  payment.status?.toLowerCase() == 'settlement' &&
-                  payment.remainingAmount == 0,
-            )
+            ?.where((payment) => payment.status?.toLowerCase() == 'settlement')
             .toList() ??
         [];
 
@@ -84,10 +80,16 @@ class PaymentDetailsWidget extends ConsumerWidget {
                       isSelected:
                           selectedPayment?.transactionId ==
                           payment.transactionId,
-                      onTap:
-                          () =>
-                              ref.read(selectedPaymentProvider.notifier).state =
-                                  payment,
+                      onTap: () {
+                        ref.read(selectedPaymentProvider.notifier).state =
+                            payment;
+                        ref
+                            .read(processPaymentRequestProvider.notifier)
+                            .selectedPayment(
+                              payment.orderId!,
+                              payment.transactionId!,
+                            );
+                      },
                       isPending: true,
                     ),
                   ),

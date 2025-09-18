@@ -6,6 +6,7 @@ import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 
 class PaymentProcessScreen extends ConsumerStatefulWidget {
   final PaymentModel payment;
@@ -22,10 +23,22 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
   final TextEditingController _notesController = TextEditingController();
   int _currentStep = 0;
 
+  // 👉 helper responsif
+  bool get _isLandscape {
+    final mq = MediaQuery.of(context);
+    return mq.orientation == Orientation.landscape;
+  }
+
+  bool get _isTablet {
+    final mq = MediaQuery.of(context);
+    return mq.size.shortestSide >= 500; // patokan tablet umum
+  }
+
+  bool get _isLandscapeTablet => _isLandscape && _isTablet;
+
   @override
   void initState() {
     super.initState();
-    // Initialize amount with payment amount
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref
           .read(paymentProcessProvider.notifier)
@@ -37,46 +50,412 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
   void dispose() {
     _pageController.dispose();
     _notesController.dispose();
-    // Reset provider state when leaving
-    // ref.read(paymentProcessProvider.notifier).reset();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final paymentTypesAsync = ref.watch(paymentTypesProvider);
-    final processState = ref.watch(paymentProcessProvider);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: _buildAppBar(),
+      // 👉 Bedakan layout landscape-tablet vs lainnya
       body: paymentTypesAsync.when(
         data:
-            (paymentTypes) => Column(
-              children: [
-                _buildProgressIndicator(),
-                Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    onPageChanged: (index) {
-                      setState(() {
-                        _currentStep = index;
-                      });
-                    },
-                    children: [
-                      _buildPaymentTypeSelection(paymentTypes),
-                      _buildPaymentMethodSelection(),
-                      _buildPaymentConfirmation(),
-                    ],
-                  ),
+            (paymentTypes) =>
+                _isLandscapeTablet
+                    ? _buildLandscapeLayout(paymentTypes) // 👉 baru
+                    : _buildPortraitLayout(
+                      paymentTypes,
+                    ), // 👉 layout lama dipertahankan
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => _buildErrorState(error),
+      ),
+      // 👉 sembunyikan bottom nav di landscape tablet (diganti panel kanan)
+      bottomNavigationBar: _isLandscapeTablet ? null : _buildBottomNavigation(),
+    );
+  }
+
+  // =========
+  // LANDSCAPE TABLET LAYOUT (BARU)
+  // =========
+  Widget _buildLandscapeLayout(List<PaymentTypeModel> paymentTypes) {
+    final processState = ref.watch(paymentProcessProvider);
+
+    return Row(
+      children: [
+        // 👉 Stepper vertikal dengan NavigationRail
+        _buildStepRail(),
+        const VerticalDivider(width: 1),
+        // 👉 Konten utama (PageView)
+        Expanded(
+          flex: 4,
+          child: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
+            onPageChanged: (index) => setState(() => _currentStep = index),
+            children: [
+              _buildPaymentTypeSelection(paymentTypes),
+              _buildPaymentMethodSelection(),
+              _buildPaymentConfirmation(),
+            ],
+          ),
+        ),
+        // 👉 Panel ringkasan + tombol aksi di kanan (sticky)
+        const VerticalDivider(width: 1),
+        SizedBox(
+          width: 360,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _buildRightSummaryPanel(processState),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepRail() {
+    return NavigationRail(
+      selectedIndex: _currentStep,
+      extended: true, // label-nya kebaca di tablet
+      leading: Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: _amountChip(), // badge total di rail
+      ),
+      onDestinationSelected: (i) {
+        setState(() => _currentStep = i);
+        _pageController.jumpToPage(i);
+      },
+      destinations: [
+        NavigationRailDestination(
+          icon: Icon(Icons.category_outlined),
+          selectedIcon: Icon(Icons.category_rounded),
+          label: Text('Pilih Tipe'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.payment_outlined),
+          selectedIcon: Icon(Icons.payment_rounded),
+          label: Text('Pilih Metode'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.check_circle_outline),
+          selectedIcon: Icon(Icons.check_circle_rounded),
+          label: Text('Konfirmasi'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRightSummaryPanel(PaymentProcessState processState) {
+    final amount = processState.amount ?? widget.payment.amount;
+    final request = ref.watch(processPaymentRequestProvider);
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
                 ),
-                _buildBottomNavigation(),
               ],
             ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => _buildErrorState(error),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Request',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _kv('OrderId', request!.orderId),
+                const SizedBox(height: 4),
+                _kv(
+                  'Metode',
+                  request.selectedPaymentId!.map((id) => id).join(', '),
+                ),
+                const SizedBox(height: 4),
+                _kv('Tipe Pembayaran', request.paymentType!),
+                const Divider(height: 24),
+                _kv('metode Pembayaran', request.paymentMethod!),
+                const Divider(height: 24),
+              ],
+            ),
+          ),
+          // ringkas tapi informatif
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Ringkasan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _kv('Tagihan', _getPaymentTitle(widget.payment)),
+                const SizedBox(height: 4),
+                _kv(
+                  'Metode',
+                  [
+                    processState.selectedType?.name,
+                    processState.selectedMethod?.name,
+                  ].where((e) => (e ?? '').isNotEmpty).join(' - '),
+                ),
+                const SizedBox(height: 4),
+                _kv(
+                  'Tipe Pembayaran',
+                  processState.selectedMethod?.isDigital == true
+                      ? 'Digital'
+                      : 'Manual',
+                ),
+                const Divider(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    Text(
+                      formatRupiah(amount),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // catatan singkat (opsional)
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Catatan',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _notesController,
+                      expands: true,
+                      maxLines: null,
+                      minLines: null,
+                      decoration: InputDecoration(
+                        hintText: 'Tambahkan catatan…',
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Colors.orange,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      onChanged:
+                          (v) => ref
+                              .read(paymentProcessProvider.notifier)
+                              .setNotes(v),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Tombol aksi vertikal (ganti bottom bar)
+          Row(
+            children: [
+              if (_currentStep > 0)
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed:
+                        ref.read(paymentProcessProvider).isProcessing
+                            ? null
+                            : () {
+                              _pageController.previousPage(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: const BorderSide(color: Colors.orange),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Kembali',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ),
+                ),
+              if (_currentStep > 0) const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed:
+                      _getNextButtonEnabled() &&
+                              !ref.read(paymentProcessProvider).isProcessing
+                          ? _handleNextButton
+                          : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child:
+                      ref.watch(paymentProcessProvider).isProcessing
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                          : Text(
+                            _getNextButtonText(),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _kv(String k, String v) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(k, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+      const SizedBox(width: 8),
+      Flexible(
+        child: Text(
+          v,
+          textAlign: TextAlign.end,
+          style: const TextStyle(
+            fontSize: 13,
+            color: Colors.black87,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _amountChip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.only(left: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.orange, Colors.orange.shade600],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        formatRupiah(widget.payment.amount),
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
+
+  // =========
+  // PORTRAIT / DEFAULT LAYOUT (lama, sedikit penyesuaian)
+  // =========
+  Widget _buildPortraitLayout(List<PaymentTypeModel> paymentTypes) {
+    return Column(
+      children: [
+        _buildProgressIndicator(),
+        Expanded(
+          child: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
+            onPageChanged: (index) => setState(() => _currentStep = index),
+            children: [
+              _buildPaymentTypeSelection(paymentTypes),
+              _buildPaymentMethodSelection(),
+              _buildPaymentConfirmation(),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -116,9 +495,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () {
-              ref.invalidate(paymentTypesProvider);
-            },
+            onPressed: () => ref.invalidate(paymentTypesProvider),
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Coba Lagi'),
             style: ElevatedButton.styleFrom(
@@ -162,28 +539,17 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
         ],
       ),
       actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.orange, Colors.orange.shade600],
-            ),
-            borderRadius: BorderRadius.circular(12),
+        // 👉 tetap tampilkan chip total di AppBar (portrait)
+        if (!_isLandscapeTablet)
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: _amountChip(),
           ),
-          child: Text(
-            formatRupiah(widget.payment.amount),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
-        ),
       ],
     );
   }
 
+  // Progress (hanya dipakai portrait)
   Widget _buildProgressIndicator() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -266,8 +632,30 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
     );
   }
 
+  // =========
+  // CONTENT
+  // =========
   Widget _buildPaymentTypeSelection(List<PaymentTypeModel> paymentTypes) {
     final processState = ref.watch(paymentProcessProvider);
+
+    // 👉 grid adaptif untuk tablet landscape
+    final mq = MediaQuery.of(context);
+    final width = mq.size.width;
+    int cross;
+    if (_isLandscapeTablet) {
+      // gunakan lebar area tengah (kurangi rail+panel)
+      if (width >= 1400) {
+        cross = 4;
+      } else if (width >= 1100) {
+        cross = 3;
+      } else {
+        cross = 2;
+      }
+    } else {
+      cross = 2;
+    }
+
+    final aspect = _isLandscapeTablet ? 1.4 : 1.1;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -291,9 +679,9 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 1.1,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: cross,
+              childAspectRatio: aspect,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
             ),
@@ -301,7 +689,6 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             itemBuilder: (context, index) {
               final type = paymentTypes[index];
               final isSelected = processState.selectedType?.id == type.id;
-
               return _buildPaymentTypeCard(type, isSelected);
             },
           ),
@@ -423,6 +810,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
       return const Center(child: Text('Pilih tipe pembayaran terlebih dahulu'));
     }
 
+    // 👉 list tetap, cukup pakai ruang luas di landscape
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -449,7 +837,6 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             itemBuilder: (context, index) {
               final method = processState.selectedType!.paymentMethods[index];
               final isSelected = processState.selectedMethod?.id == method.id;
-
               return _buildPaymentMethodCard(method, isSelected);
             },
           ),
@@ -608,8 +995,6 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 24),
-
-          // Payment Summary Card
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -646,11 +1031,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  height: 1,
-                  color: Colors.orange.withOpacity(0.2),
-                ),
+                Container(height: 1, color: Colors.orange.withOpacity(0.2)),
                 const SizedBox(height: 16),
                 _buildSummaryRow('Tagihan', _getPaymentTitle(widget.payment)),
                 const SizedBox(height: 8),
@@ -668,10 +1049,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
               ],
             ),
           ),
-
           const SizedBox(height: 24),
-
-          // Notes Section
           const Text(
             'Catatan (Opsional)',
             style: TextStyle(
@@ -729,6 +1107,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
     );
   }
 
+  // Bottom nav hanya untuk portrait
   Widget _buildBottomNavigation() {
     final processState = ref.watch(paymentProcessProvider);
 
@@ -821,7 +1200,6 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
 
   bool _getNextButtonEnabled() {
     final processState = ref.read(paymentProcessProvider);
-
     switch (_currentStep) {
       case 0:
         return processState.selectedType != null;
@@ -860,24 +1238,19 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
   }
 
   void _processPayment() async {
-    // Show loading dialog
     _showProcessingDialog();
-
     try {
-      // Process payment using provider
-      final success =
-          await ref.read(paymentProcessProvider.notifier).processPayment();
-
-      // Close loading dialog
+      final requestData = ref.watch(processPaymentRequestProvider);
+      final success = await ref
+          .read(paymentProcessProvider.notifier)
+          .processPayment(ref, requestData!);
       if (mounted) Navigator.pop(context);
-
       if (success) {
         _showSuccessDialog();
       } else {
         _showErrorDialog();
       }
-    } catch (e) {
-      // Close loading dialog
+    } catch (_) {
       if (mounted) Navigator.pop(context);
       _showErrorDialog();
     }
@@ -1035,10 +1408,8 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(context); // Close success dialog
-                    Navigator.pop(context); // Go back to previous screen
-
-                    // Show snackbar
+                    Navigator.pop(context);
+                    Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
