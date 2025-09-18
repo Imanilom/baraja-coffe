@@ -39,6 +39,10 @@ export const createAppOrder = async (req, res) => {
       openBillData,      // New field
     } = req.body;
 
+    if (orderType === 'reservation') {
+      isOpenBill = true;
+    }
+
 
     console.log('Received createAppOrder request:', req.body);
     // ✅ Validasi items, kecuali reservasi tanpa open bill
