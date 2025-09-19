@@ -114,7 +114,7 @@ app.use('/api/promotion', promotionRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/outlet', outletRoutes);
-app.use('/api/workstation', posRoutes);
+app.use('/api/workstation', posRoutes); 
 app.use('/api/report', reportRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/table-layout', tableLayoutRoutes);
