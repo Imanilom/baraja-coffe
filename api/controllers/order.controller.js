@@ -39,6 +39,10 @@ export const createAppOrder = async (req, res) => {
       openBillData,      // New field
     } = req.body;
 
+    // if (orderType === 'reservation') {
+    //   isOpenBill = true;
+    // }
+
 
     console.log('Received createAppOrder request:', req.body);
     // ✅ Validasi items, kecuali reservasi tanpa open bill
@@ -2326,69 +2330,58 @@ export const charge = async (req, res) => {
   }
 };
 
-// ✅ TAMBAHAN: Controller untuk cek status pembayaran
+
 export const getPaymentStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
+    console.log('Fetching payment status for orderId:', orderId);
+    let relatedOrder = await Order.findOne({ order_id: orderId });
+    if (relatedOrder.orderType != "Reservation") {
+      let payment = await Payment.findOne({
+        order_id: orderId,
+        status: { $in: ['pending', 'settlement'] }
+      });
 
-    const payments = await Payment.find({ order_id: orderId })
-      .sort({ createdAt: 1 });
+      console.log('Payment found:', payment);
 
-    if (payments.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No payments found for this order'
+      if (!payment) {
+        return res.status(404).json({
+          success: false,
+          message: 'No pending or settlement payment found for this order'
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Payment status fetched successfully',
+        data: payment
+      });
+    } else {
+      let relatedFinalPayment = await Payment.findOne({
+        order_id: orderId,
+        paymentType: 'Final Payment',
+        relatedPaymentId: { $ne: null },
+        status: { $in: ['pending', 'settlement'] }
+      });
+
+      console.log('Related final payment:', relatedFinalPayment);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Payment status fetched successfully',
+        data: relatedFinalPayment
       });
     }
-
-    const downPayment = payments.find(p => p.paymentType === 'Down Payment');
-    const finalPayment = payments.find(p => p.paymentType === 'Final Payment');
-    const fullPayment = payments.find(p => p.paymentType === 'Full');
-
-    const totalPaid = payments
-      .filter(p => p.status === 'settlement')
-      .reduce((sum, p) => sum + p.amount, 0);
-
-    const totalAmount = downPayment?.totalAmount || fullPayment?.totalAmount || 0;
-    const remainingAmount = Math.max(0, totalAmount - totalPaid);
-    const isFullyPaid = remainingAmount === 0;
-
-    const paymentSummary = {
-      totalAmount,
-      totalPaid,
-      remainingAmount,
-      isFullyPaid,
-      paymentType: downPayment ? 'Multiple' : 'Single',
-      payments: payments.map(p => ({
-        id: p._id,
-        type: p.paymentType,
-        method: p.method,
-        amount: p.amount,
-        status: p.status,
-        transaction_id: p.transaction_id,
-        created_at: p.createdAt
-      }))
-    };
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        downPayment,
-        finalPayment,
-        fullPayment,
-        paymentSummary
-      }
-    });
-
   } catch (error) {
-    console.error('Error getting payment status:', error);
+    console.error('Get payment status error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to get payment status',
-      error: error.message
+      error: error.message || error
     });
   }
 };
+
 
 export const createFinalPayment = async (req, res) => {
   try {
@@ -3543,7 +3536,7 @@ export const getUserOrderHistory = async (req, res) => {
       const relatedPayments = paymentMap[order.order_id] || [];
 
       // Tentukan payment status berdasarkan aturan
-      let paymentStatus = 'Unpaid';
+      let paymentStatus = 'expire';
       for (const p of relatedPayments) {
         if (
           p.status === 'settlement' &&

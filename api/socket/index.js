@@ -3,6 +3,7 @@ export default function socketHandler(io) {
         console.log('Client connected:', socket.id);
 
         // Ping to keep connection alive
+        // Ping to keep connection alive
         const pingInterval = setInterval(() => {
             socket.emit('ping', {
                 message: 'Keep alive',
@@ -10,7 +11,7 @@ export default function socketHandler(io) {
             });
         }, 30000);
 
-        // Join room for specific order (for customer app)
+        // 🔹 Join room for specific order (pakai orderId)
         socket.on('join_order_room', (orderId, callback) => {
             const roomName = `order_${orderId}`;
             socket.join(roomName);
@@ -21,7 +22,7 @@ export default function socketHandler(io) {
             }
         });
 
-        // Join cashier room (for cashier app)
+        // 🔹 Join cashier room
         socket.on('join_cashier_room', (payload, callback) => {
             socket.join('cashier_room');
             console.log(`Client ${socket.id} joined cashier_room`);
@@ -40,7 +41,7 @@ export default function socketHandler(io) {
             }
         });
 
-        // Join kitchen room (for kitchen display)
+        // 🔹 Join kitchen room
         socket.on('join_kitchen_room', (outletId, callback) => {
             const kitchenRoom = outletId ? `kitchen_${outletId}` : 'kitchen_room';
             socket.join(kitchenRoom);
@@ -185,3 +186,4 @@ export default function socketHandler(io) {
         io
     };
 }
+
