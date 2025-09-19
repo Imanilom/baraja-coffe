@@ -45,7 +45,7 @@ const OrderSchema = new mongoose.Schema({
 
   // ✅ NEW: Open Bill fields
   isOpenBill: {
-    type: strung,
+    type: String,
     default: 'false',
     enum: ['true', 'false']
   },
