@@ -3021,27 +3021,48 @@ export const getKitchenOrder = async (req, res) => {
 
 export const updateKitchenOrderStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { status } = req.body;
+  const { status, kitchenId, kitchenName } = req.body; // tambahkan data kitchen user
 
   console.log('Updating kitchen order status for orderId:', orderId, 'to status:', status);
   if (!orderId || !status) {
     return res.status(400).json({ success: false, message: 'orderId and status are required' });
   }
+
   try {
     const order = await Order.findOneAndUpdate(
       { order_id: orderId },
       { $set: { status: status } },
       { new: true }
     ).populate('items.menuItem');
+
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
+
+    // 🔥 EMIT SOCKET EVENTS
+    const updateData = {
+      orderId,
+      status,
+      kitchen: { id: kitchenId, name: kitchenName },
+      timestamp: new Date()
+    };
+
+    // Emit ke room customer agar tahu progres order
+    io.to(`order_${orderId}`).emit('order_status_update', updateData);
+
+    // Emit ke cashier agar kasir tahu kitchen update status
+    io.to('cashier_room').emit('kitchen_order_updated', updateData);
+
+    // Emit ke kitchen room juga kalau perlu broadcast antar kitchen
+    io.to('kitchen_room').emit('kitchen_order_updated', updateData);
+
     res.status(200).json({ success: true, data: order });
   } catch (error) {
     console.error('Error updating kitchen order status:', error);
     res.status(500).json({ success: false, message: 'Failed to update kitchen order status' });
   }
-}
+};
+
 
 // ! End Kitchen sections
 
