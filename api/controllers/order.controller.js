@@ -3008,7 +3008,7 @@ export const getKitchenOrder = async (req, res) => {
       .sort({ createdAt: -1 }) // ✅ urutkan dari terbaru
       .lean();
 
-    console.log('ini adalah orders di getKitchenOrder', orders);
+    // console.log('ini adalah orders di getKitchenOrder', orders);
 
     res.status(200).json({ success: true, data: orders });
   } catch (error) {
@@ -3040,11 +3040,12 @@ export const updateKitchenOrderStatus = async (req, res) => {
 
     // 🔥 EMIT SOCKET EVENTS
     const updateData = {
-      orderId,
-      status,
+      order_id: orderId,   // ubah ke snake_case
+      orderStatus: status, // pakai orderStatus, bukan status
       kitchen: { id: kitchenId, name: kitchenName },
       timestamp: new Date()
     };
+
 
     // Emit ke room customer agar tahu progres order
     io.to(`order_${orderId}`).emit('order_status_update', updateData);
