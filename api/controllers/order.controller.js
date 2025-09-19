@@ -3001,24 +3001,22 @@ export const paymentNotification = async (req, res) => {
 // ! Start Kitchen sections
 export const getKitchenOrder = async (req, res) => {
   try {
-    const orders = await Order.find()
+    const orders = await Order.find({
+      status: { $in: ['Waiting', 'OnProcess', 'Completed'] }, // ✅ ambil beberapa status
+    })
       .populate('items.menuItem')
+      .sort({ createdAt: -1 }) // ✅ urutkan dari terbaru
       .lean();
 
+    console.log('ini adalah orders di getKitchenOrder', orders);
 
-    // Filter hanya orders yang memiliki setidaknya 1 item dengan workstation 'kitchen'
-    const kitchenOrders = orders.filter(order =>
-      order.items.some(item =>
-        item.menuItem && item.menuItem.workstation === 'kitchen'
-      )
-    );
-
-    res.status(200).json({ success: true, data: kitchenOrders });
+    res.status(200).json({ success: true, data: orders });
   } catch (error) {
     console.error('Error fetching kitchen orders:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch kitchen orders' });
   }
-}
+};
+
 
 export const updateKitchenOrderStatus = async (req, res) => {
   const { orderId } = req.params;
