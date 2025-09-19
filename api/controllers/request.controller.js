@@ -452,37 +452,47 @@ async approveAndFulfillRequest(req, res) {
       }
     }
 
-  // Get request detail
-  async getRequestDetail(req, res) {
-    try {
-      const { requestId } = req.params;
-      const user = await User.findById(req.user._id);
+// Get request detail
 
-      const request = await Request.findById(requestId)
-        .populate('items.productId', 'name sku category unit minimumrequest');
+async getRequestDetail(req, res) {
+  try {
+    const { requestId } = req.params;
 
-      if (!request) {
-        return res.status(404).json({ message: 'Request tidak ditemukan' });
-      }
-
-      // Staff hanya bisa lihat request sendiri
-      if (user.role === 'staff' && request.requester !== user.username) {
-        return res.status(403).json({ message: 'Akses ditolak' });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: request
-      });
-
-    } catch (error) {
-      console.error('Error getting request detail:', error);
-      res.status(500).json({ 
-        success: false,
-        message: error.message || 'Terjadi kesalahan server.' 
-      });
+    // Cek validitas ObjectId
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+      return res.status(400).json({ message: 'Invalid Request ID' });
     }
+
+    const user = await User.findById(req.user._id);
+    const request = await Request.findById(requestId)
+      .populate({
+        path: 'purchaseItems.productId',
+        select: 'name sku category unit'
+      })
+      .populate('requestedWarehouse', 'name code');
+
+
+    if (!request) {
+      return res.status(404).json({ message: 'Request tidak ditemukan' });
+    }
+
+    if (user.role === 'staff' && request.requester !== user.username) {
+      return res.status(403).json({ message: 'Akses ditolak' });
+    }
+
+    res.status(200).json({ success: true, data: request });
+
+  } catch (error) {
+    console.error('Error getting request detail:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message || 'Terjadi kesalahan server.' 
+    });
   }
+}
+
+
+
 }
 
 export default new RequestController();

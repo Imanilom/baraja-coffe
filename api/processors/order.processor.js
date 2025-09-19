@@ -1,10 +1,12 @@
 import { orderQueue } from '../queues/order.queue.js';
 import { processOrderItems } from '../services/order.service.js';
 import Order from '../models/order.model.js';
-import User from '../models/user.model.js'; // jika perlu
+import User from '../models/user.model.js';
 import LoyaltyLevel from '../models/LoyaltyLevel.model.js';
 import mongoose from 'mongoose';
-import { io } from '../socket.js'; // pastikan ini diimport jika pakai socket
+import socketHandler, { io } from '../socket/index.js'; // pastikan export io & handler
+
+const { broadcastNewOrder } = socketHandler(io);
 
 orderQueue.process(async (job) => {
   const session = await mongoose.startSession();
@@ -12,7 +14,7 @@ orderQueue.process(async (job) => {
 
   try {
     const { data } = job;
-    const {
+    let {
       source,
       socketId,
       userId,
@@ -32,34 +34,27 @@ orderQueue.process(async (job) => {
 
     if (!items || !outlet) throw new Error('Invalid order data');
 
-    // Buat order ID unik: ORD-31E03-003
+    // --- Generate Order ID ---
     const today = new Date();
     const day = String(today.getDate()).padStart(2, '0');
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
     const endOfDay = new Date(today.setHours(23, 59, 59, 999));
 
-    // Kalau tidak ada di request, ambil dari user
     if (!customerType && userId && mongoose.Types.ObjectId.isValid(userId)) {
       const user = await User.findById(userId).select('consumerType').lean();
       customerType = user?.consumerType || 'guest';
     }
+    if (!customerType) customerType = 'guest';
 
-    // Kalau masih kosong, set default
-    if (!customerType) {
-      customerType = 'guest';
-    }
-    
     const orderCount = await Order.countDocuments({
       tableNumber,
       createdAt: { $gte: startOfDay, $lte: endOfDay }
     });
 
-    
-
     const personNumber = String(orderCount + 1).padStart(3, '0');
     const formattedOrderId = `ORD-${day}${tableNumber}-${personNumber}`;
 
-    // Proses pesanan (include tax, service, promo, dll)
+    // --- Proses order ---
     const {
       orderItems,
       totalBeforeDiscount,
@@ -72,9 +67,11 @@ orderQueue.process(async (job) => {
       totalTax,
       totalServiceFee,
       grandTotal
-    } = await processOrderItems({ items, outletId: outlet, orderType, voucherCode, customerType }, session);
+    } = await processOrderItems(
+      { items, outletId: outlet, orderType, voucherCode, customerType },
+      session
+    );
 
-    // Simpan ke database
     const newOrder = new Order({
       order_id: formattedOrderId,
       user: userName || (await User.findById(userId))?.name || 'Guest',
@@ -104,19 +101,14 @@ orderQueue.process(async (job) => {
 
     await newOrder.save({ session });
 
-      // 🎯 Loyalty Points & Level
+    // --- Loyalty Points ---
     if (userId && mongoose.Types.ObjectId.isValid(userId)) {
       const user = await User.findById(userId).populate('loyaltyLevel').session(session);
       if (user && user.loyaltyLevel) {
         const { pointsPerCurrency, currencyUnit } = user.loyaltyLevel;
-
-        // Hitung poin tambahan
         const earnedPoints = Math.floor(grandTotal / currencyUnit) * pointsPerCurrency;
-
-        // Tambahkan poin
         user.loyaltyPoints += earnedPoints;
 
-        // Cek kenaikan level
         const nextLevel = await LoyaltyLevel.findOne({
           requiredPoints: { $gt: user.loyaltyLevel.requiredPoints }
         }).sort({ requiredPoints: 1 });
@@ -125,18 +117,19 @@ orderQueue.process(async (job) => {
           user.loyaltyLevel = nextLevel._id;
           user.loyaltyPoints += nextLevel.levelUpBonusPoints || 0;
         }
-
         await user.save({ session });
       }
     }
 
     await session.commitTransaction();
 
+    // --- Emit ke pemesan (kalau ada socketId) ---
     if (socketId) {
-      io.to(socketId).emit('orderCreated', newOrder);
+      io.to(socketId).emit('order_created', newOrder);
     }
 
-    io.emit('newOrder', newOrder);
+    // --- Broadcast ke cashier & kitchen ---
+    broadcastNewOrder(outlet, newOrder);
 
     return {
       success: true,

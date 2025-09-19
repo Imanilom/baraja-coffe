@@ -58,11 +58,11 @@ router.post('/request', staffAccess, RequestController.createRequest);
 
 router.get('/requests', staffAccess, RequestController.getRequests);
 
-router.get('/requests/:id', staffAccess, RequestController.getRequestDetail);
+router.get('/requests/:requestId', staffAccess, RequestController.getRequestDetail);
 
-router.post('/approve/:id', staffAccess, RequestController.approveAndFulfillRequest);
+router.post('/approve/:requestId', staffAccess, RequestController.approveAndFulfillRequest);
 
-router.post('/reject/:id', staffAccess, RequestController.rejectRequest);
+router.post('/reject/:requestId', staffAccess, RequestController.rejectRequest);
 
 router.get('/requests-with-suppliers', getAllRequestWithSuppliers);
 
