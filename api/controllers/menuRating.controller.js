@@ -229,7 +229,7 @@ export class MenuRatingController {
             const rating = await MenuRating.findOne({
                 menuItemId,
                 customerId,
-                orderId: _id
+                orderId: order._id
             })
 
 
