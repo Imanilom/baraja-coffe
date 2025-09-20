@@ -23,7 +23,7 @@ const queueEvents = new QueueEvents('orderQueue');
 
 export const createAppOrder = async (req, res) => {
   try {
-    const {
+    let {
       items,
       orderType,
       tableNumber,
@@ -35,9 +35,14 @@ export const createAppOrder = async (req, res) => {
       outlet,
       reservationData,
       reservationType,
-      isOpenBill,        // New field
-      openBillData,      // New field
+      isOpenBill,
+      openBillData,
     } = req.body;
+
+    if (orderType === 'reservation') {
+      isOpenBill = "true"; // ✅ aman
+    }
+
 
     // if (orderType === 'reservation') {
     //   isOpenBill = true;
@@ -267,7 +272,7 @@ export const createAppOrder = async (req, res) => {
         promotions: [],
         source: 'App',
         reservation: existingReservation._id,
-        isOpenBill: true,
+        isOpenBill: "true",
         originalReservationId: openBillData.reservationId,
       });
       await newOrder.save();
@@ -2343,49 +2348,90 @@ export const getPaymentStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
     console.log('Fetching payment status for orderId:', orderId);
-    let relatedOrder = await Order.findOne({ order_id: orderId });
-    if (relatedOrder.orderType != "Reservation") {
-      let payment = await Payment.findOne({
+
+    const relatedOrder = await Order.findOne({ order_id: orderId });
+    if (!relatedOrder) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found',
+      });
+    }
+
+    // Ambil semua payment terkait order
+    const relatedPayments = await Payment.find({ order_id: orderId });
+    console.log('Related order:', relatedOrder);
+    console.log('Related payments:', relatedPayments);
+
+    // Case 1: Bukan Reservation → cari payment pending/settlement
+    if (relatedOrder.orderType !== "Reservation") {
+      const payment = await Payment.findOne({
         order_id: orderId,
         status: { $in: ['pending', 'settlement'] }
       });
 
-      console.log('Payment found:', payment);
-
       if (!payment) {
         return res.status(404).json({
           success: false,
-          message: 'No pending or settlement payment found for this order'
+          message: 'No pending or settlement payment found for this order',
         });
       }
 
       return res.status(200).json({
         success: true,
         message: 'Payment status fetched successfully',
-        data: payment
+        data: payment,
       });
-    } else {
-      let relatedFinalPayment = await Payment.findOne({
+    }
+
+    // Case 2: Reservation → cek apakah masih ada payment pending
+    if (relatedOrder.orderType === "Reservation") {
+      const pendingPayment = relatedPayments.find(p => p.status === "pending");
+
+      if (pendingPayment) {
+        return res.status(200).json({
+          success: true,
+          message: 'Pending payment found for reservation order',
+          data: pendingPayment,
+        });
+      }
+
+      const settledPayment = relatedPayments.find(p => p.status === "settlement");
+      if (settledPayment) {
+        return res.status(200).json({
+          success: true,
+          message: 'Settlement payment found for reservation order',
+          data: settledPayment,
+        });
+      }
+
+      // Case 3: Final Payment (jika tidak ada pending/settlement biasa)
+      const relatedFinalPayment = await Payment.findOne({
         order_id: orderId,
         paymentType: 'Final Payment',
         relatedPaymentId: { $ne: null },
         status: { $in: ['pending', 'settlement'] }
       });
 
-      console.log('Related final payment:', relatedFinalPayment);
+      if (!relatedFinalPayment) {
+        return res.status(404).json({
+          success: false,
+          message: 'No valid payment found for this reservation order',
+        });
+      }
 
       return res.status(200).json({
         success: true,
-        message: 'Payment status fetched successfully',
-        data: relatedFinalPayment
+        message: 'Final payment status fetched successfully',
+        data: relatedFinalPayment,
       });
     }
+
   } catch (error) {
     console.error('Get payment status error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to get payment status',
-      error: error.message || error
+      error: error.message || error,
     });
   }
 };
@@ -3530,8 +3576,8 @@ export const getUserOrderHistory = async (req, res) => {
     // Cari semua order user
     const orderHistorys = await Order.find({ user_id: userId })
       .populate('items.menuItem')
-      .select('_id order_id user_id items status grandTotal')
       .lean();
+
 
     if (!orderHistorys || orderHistorys.length === 0) {
       return res.status(404).json({ message: 'No order history found for this user.' });
