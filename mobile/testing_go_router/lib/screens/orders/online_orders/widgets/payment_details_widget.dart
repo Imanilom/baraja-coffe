@@ -26,8 +26,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
         orders?.payment
             ?.where(
               (payment) =>
-                  payment.status?.toLowerCase() == 'pending' ||
-                  payment.status?.toLowerCase() == 'settlement',
+                  payment.status?.toLowerCase() == 'pending',
             )
             .toList() ??
         [];

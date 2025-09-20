@@ -7,12 +7,14 @@ class PaymentState {
   selectedPaymentMethod; // New: Selected payment method
   final int? selectedCashAmount; // For cash payments
   final int totalAmount;
+  final int? selectedDownPayment;
 
   PaymentState({
     this.selectedPaymentType,
     this.selectedPaymentMethod,
     this.selectedCashAmount,
     required this.totalAmount,
+    this.selectedDownPayment,
   });
 
   PaymentState copyWith({
@@ -20,9 +22,11 @@ class PaymentState {
     PaymentMethodModel? selectedPaymentMethod,
     int? selectedCashAmount,
     int? totalAmount,
+    int? selectedDownPayment,
     bool clearPaymentType = false,
     bool clearPaymentMethod = false,
     bool clearCashAmount = false,
+    bool clearDownPayment = false,
   }) {
     return PaymentState(
       selectedPaymentType:
@@ -37,6 +41,10 @@ class PaymentState {
           clearCashAmount
               ? null
               : selectedCashAmount ?? this.selectedCashAmount,
+      selectedDownPayment:
+          clearDownPayment
+              ? null
+              : selectedDownPayment ?? this.selectedDownPayment,
       totalAmount: totalAmount ?? this.totalAmount,
     );
   }

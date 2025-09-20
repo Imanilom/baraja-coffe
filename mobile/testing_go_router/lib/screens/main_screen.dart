@@ -210,19 +210,19 @@ class MainScreen extends ConsumerWidget {
                     },
                     count: _getOnlineOrderCount(ref),
                   ),
-                  _buildDrawerItem(
-                    context: context,
-                    ref: ref,
-                    icon: Icons.event_seat,
-                    title: 'Reserve Order',
-                    isSelected: currentPageIndex == 1,
-                    onTap: () {
-                      if (currentPageIndex != 1) {
-                        ref.read(currentPageIndexProvider.notifier).setIndex(1);
-                      }
-                      Navigator.pop(context);
-                    },
-                  ),
+                  // _buildDrawerItem(
+                  //   context: context,
+                  //   ref: ref,
+                  //   icon: Icons.event_seat,
+                  //   title: 'Reserve Order',
+                  //   isSelected: currentPageIndex == 1,
+                  //   onTap: () {
+                  //     if (currentPageIndex != 1) {
+                  //       ref.read(currentPageIndexProvider.notifier).setIndex(1);
+                  //     }
+                  //     Navigator.pop(context);
+                  //   },
+                  // ),
                   _buildDrawerItem(
                     context: context,
                     ref: ref,

@@ -152,247 +152,202 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
   Widget _buildRightSummaryPanel(PaymentProcessState processState) {
     final amount = processState.amount ?? widget.payment.amount;
     final request = ref.watch(processPaymentRequestProvider);
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Request',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _kv('OrderId', request!.orderId),
-                const SizedBox(height: 4),
-                _kv(
-                  'Metode',
-                  request.selectedPaymentId!.map((id) => id).join(', '),
-                ),
-                const SizedBox(height: 4),
-                _kv('Tipe Pembayaran', request.paymentType!),
-                const Divider(height: 24),
-                _kv('metode Pembayaran', request.paymentMethod!),
-                const Divider(height: 24),
-              ],
-            ),
-          ),
-          // ringkas tapi informatif
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Ringkasan',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _kv('Tagihan', _getPaymentTitle(widget.payment)),
-                const SizedBox(height: 4),
-                _kv(
-                  'Metode',
-                  [
-                    processState.selectedType?.name,
-                    processState.selectedMethod?.name,
-                  ].where((e) => (e ?? '').isNotEmpty).join(' - '),
-                ),
-                const SizedBox(height: 4),
-                _kv(
-                  'Tipe Pembayaran',
-                  processState.selectedMethod?.isDigital == true
-                      ? 'Digital'
-                      : 'Manual',
-                ),
-                const Divider(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Total',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade800,
-                      ),
-                    ),
-                    Text(
-                      formatRupiah(amount),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.orange,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // catatan singkat (opsional)
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ringkas tapi informatif
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 8,
+                offset: Offset(0, 2),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Catatan',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _notesController,
-                      expands: true,
-                      maxLines: null,
-                      minLines: null,
-                      decoration: InputDecoration(
-                        hintText: 'Tambahkan catatan…',
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Colors.orange,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      onChanged:
-                          (v) => ref
-                              .read(paymentProcessProvider.notifier)
-                              .setNotes(v),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            ],
           ),
-          const SizedBox(height: 12),
-          // Tombol aksi vertikal (ganti bottom bar)
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_currentStep > 0)
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed:
-                        ref.read(paymentProcessProvider).isProcessing
-                            ? null
-                            : () {
-                              _pageController.previousPage(
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              );
-                            },
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: const BorderSide(color: Colors.orange),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Kembali',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.orange,
-                      ),
+              const Text(
+                'Ringkasan',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _kv('Tagihan', _getPaymentTitle(widget.payment)),
+              const SizedBox(height: 4),
+              _kv(
+                'Metode',
+                [
+                  processState.selectedType?.name,
+                  processState.selectedMethod?.name,
+                ].where((e) => (e ?? '').isNotEmpty).join(' - '),
+              ),
+              const SizedBox(height: 4),
+              _kv(
+                'Tipe Pembayaran',
+                processState.selectedMethod?.isDigital == true
+                    ? 'Digital'
+                    : 'Manual',
+              ),
+              const Divider(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
+                  ),
+                  Text(
+                    formatRupiah(amount),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.orange,
                     ),
                   ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // catatan singkat (opsional)
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
                 ),
-              if (_currentStep > 0) const SizedBox(width: 12),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Catatan',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _notesController,
+                    expands: true,
+                    maxLines: null,
+                    minLines: null,
+                    decoration: InputDecoration(
+                      hintText: 'Tambahkan catatan…',
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Colors.orange,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                    onChanged:
+                        (v) => ref
+                            .read(paymentProcessProvider.notifier)
+                            .setNotes(v),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Tombol aksi vertikal (ganti bottom bar)
+        Row(
+          children: [
+            if (_currentStep > 0)
               Expanded(
-                child: ElevatedButton(
+                child: OutlinedButton(
                   onPressed:
-                      _getNextButtonEnabled() &&
-                              !ref.read(paymentProcessProvider).isProcessing
-                          ? _handleNextButton
-                          : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.grey.shade300,
+                      ref.read(paymentProcessProvider).isProcessing
+                          ? null
+                          : () {
+                            _pageController.previousPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                  style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: Colors.orange),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child:
-                      ref.watch(paymentProcessProvider).isProcessing
-                          ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
-                          )
-                          : Text(
-                            _getNextButtonText(),
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
+                  child: const Text(
+                    'Kembali',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.orange,
+                    ),
+                  ),
                 ),
               ),
-            ],
-          ),
-        ],
-      ),
+            if (_currentStep > 0) const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed:
+                    _getNextButtonEnabled() &&
+                            !ref.read(paymentProcessProvider).isProcessing
+                        ? _handleNextButton
+                        : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child:
+                    ref.watch(paymentProcessProvider).isProcessing
+                        ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                        : Text(
+                          _getNextButtonText(),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -723,6 +678,9 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
         child: InkWell(
           onTap: () {
             ref.read(paymentProcessProvider.notifier).selectPaymentType(type);
+            ref
+                .read(processPaymentRequestProvider.notifier)
+                .selectedPaymentType(null, type.name);
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -874,6 +832,9 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             ref
                 .read(paymentProcessProvider.notifier)
                 .selectPaymentMethod(method);
+            ref
+                .read(processPaymentRequestProvider.notifier)
+                .selectedPaymentMethod(null, method.name);
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -1241,9 +1202,14 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
     _showProcessingDialog();
     try {
       final requestData = ref.watch(processPaymentRequestProvider);
+      print('req data: $requestData');
       final success = await ref
           .read(paymentProcessProvider.notifier)
           .processPayment(ref, requestData!);
+      // final success = true;
+      //delay
+      await Future.delayed(const Duration(seconds: 3));
+
       if (mounted) Navigator.pop(context);
       if (success) {
         _showSuccessDialog();

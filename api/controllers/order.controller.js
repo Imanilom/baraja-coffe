@@ -4568,7 +4568,11 @@ export const confirmOrderViaCashier = async (req, res) => {
 
     // Update status order menjadi "Waiting"
     order.cashierId = cashier._id
-    order.status = 'Waiting';
+    if (order.orderType === 'Reservation') {
+      order.status = 'Completed';
+    } else {
+      order.status = 'Waiting';
+    }
     // order.source = source || order.source; // Update source jika diberikan
     await order.save();
 
@@ -4710,6 +4714,20 @@ export const processPaymentCashier = async (req, res) => {
       });
     }
 
+    // Filter hanya ID yang valid + konversi ke ObjectId
+    // const validObjectIds = selected_payment_id
+    //   .filter((id) => typeof id === 'string')
+    //   .map((id) => new mongoose.Types.ObjectId(id));
+
+    // if (validObjectIds.length === 0) {
+    //   await session.abortTransaction();
+    //   session.endSession();
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Semua selected_payment_id tidak valid sebagai ObjectId',
+    //   });
+    // }
+
     // Cari order berdasarkan order_id
     const order = await Order.findOne({ order_id }).session(session);
     if (!order) {
@@ -4724,7 +4742,7 @@ export const processPaymentCashier = async (req, res) => {
 
     // Cari semua payment yang dipilih
     const payments = await Payment.find({
-      _id: { $in: selected_payment_id },
+      transaction_id: { $in: selected_payment_id },
       order_id: order_id
     }).session(session);
 
@@ -4752,7 +4770,9 @@ export const processPaymentCashier = async (req, res) => {
       payment.paidAt = new Date();
 
       await payment.save({ session });
+      console.log(payment);
     }
+
 
     // Cek apakah semua payment untuk order ini sudah settlement dan remainingAmount 0
     const allPayments = await Payment.find({ order_id }).session(session);
@@ -4763,7 +4783,7 @@ export const processPaymentCashier = async (req, res) => {
     // Update status order jika semua pembayaran sudah lunas
     if (isFullyPaid) {
       if (order.orderType === 'Reservation') {
-        order.status = 'Finished';
+        order.status = 'Completed';
       } else {
         order.status = 'Waiting';
       }

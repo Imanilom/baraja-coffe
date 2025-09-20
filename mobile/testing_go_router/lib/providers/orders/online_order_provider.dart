@@ -191,25 +191,25 @@ class ProcessPaymentRequestNotifier
     print('Payment selected $paymentId');
   }
 
-  void selectedPaymentType(String orderId, String paymentType) {
-    if (state == null) {
-      initialState(orderId);
-    }
-    //cek order id yang sama
-    if (state!.orderId != orderId) {
-      initialState(orderId);
-    }
+  void selectedPaymentType(String? orderId, String paymentType) {
+    // if (state == null) {
+    //   initialState(orderId);
+    // }
+    // //cek order id yang sama
+    // if (state!.orderId != orderId) {
+    //   initialState(orderId);
+    // }
     state = state!.copyWith(paymentType: paymentType);
   }
 
-  void selectedPaymentMethod(String orderId, String paymentMethod) {
-    if (state == null) {
-      initialState(orderId);
-    }
-    //cek order id yang sama
-    if (state!.orderId != orderId) {
-      initialState(orderId);
-    }
+  void selectedPaymentMethod(String? orderId, String paymentMethod) {
+    // if (state == null) {
+    //   initialState(orderId);
+    // }
+    // //cek order id yang sama
+    // if (state!.orderId != orderId) {
+    //   initialState(orderId);
+    // }
     state = state!.copyWith(paymentMethod: paymentMethod);
   }
 
