@@ -4733,7 +4733,7 @@ export const processPaymentCashier = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { order_id, selected_payment_id, payment_method } = req.body;
+    const { order_id, selected_payment_id, payment_method, cashier_id } = req.body;
 
     // Validasi input
     if (!order_id || !selected_payment_id || !Array.isArray(selected_payment_id)) {
@@ -4811,8 +4811,9 @@ export const processPaymentCashier = async (req, res) => {
     const isFullyPaid = allPayments.every(p =>
       (p.status === 'settlement' || p.status === 'paid') && p.remainingAmount === 0
     );
-
+    const cashier = await User.findOne({ _id: cashier_id });
     // Update status order jika semua pembayaran sudah lunas
+    order.cashierId = cashier._id
     if (isFullyPaid) {
       if (order.orderType === 'Reservation') {
         order.status = 'Completed';

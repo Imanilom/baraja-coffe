@@ -171,10 +171,18 @@ class ProcessPaymentRequestNotifier
   void initialState(String orderId) {
     state = ProcessPaymentRequest(
       orderId: orderId,
+      cashierId: '',
       selectedPaymentId: [],
       paymentType: '',
       paymentMethod: '',
     );
+  }
+
+  void addCashierId(String cashierId) {
+    if (state == null) {
+      initialState('');
+    }
+    state = state!.copyWith(cashierId: cashierId);
   }
 
   void selectedPayment(String orderId, String paymentId) {

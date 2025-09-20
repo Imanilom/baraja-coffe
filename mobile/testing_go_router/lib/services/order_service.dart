@@ -125,6 +125,7 @@ class OrderService {
   Future<ProcessPaymentResponse> processPaymentOrder(
     ProcessPaymentRequest request,
   ) async {
+    print('process payment request: ${request.toJson()}');
     try {
       Response response = await _dio.post(
         '/api/order/cashier/process-payment',

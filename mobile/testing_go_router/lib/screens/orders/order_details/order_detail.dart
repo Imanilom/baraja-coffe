@@ -420,7 +420,7 @@ class OrderDetail extends ConsumerWidget {
                     ),
                     // Tax (assuming 10%)
                     _OrderSummaryRow(
-                      label: 'Tax 10%',
+                      label: 'Tax',
                       value: formatRupiah(orderDetail.totalTax.toInt().round()),
                     ),
                     const Divider(),

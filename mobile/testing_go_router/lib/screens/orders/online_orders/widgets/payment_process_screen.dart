@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
@@ -684,72 +686,97 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16), // Reduced padding
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors:
-                          isSelected
-                              ? [Colors.orange, Colors.orange.shade600]
-                              : [Colors.grey.shade200, Colors.grey.shade300],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    _getPaymentTypeIcon(type.id),
-                    size: 32,
-                    color: isSelected ? Colors.white : Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  type.name,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.orange : Colors.black87,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${type.paymentMethods.length} metode',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                if (isSelected) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                // Icon container with flexible sizing
+                Flexible(
+                  flex: 2,
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      maxWidth: 64,
+                      minHeight: 40,
+                      maxHeight: 64,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.orange,
-                      borderRadius: BorderRadius.circular(8),
+                      gradient: LinearGradient(
+                        colors:
+                            isSelected
+                                ? [Colors.orange, Colors.orange.shade600]
+                                : [Colors.grey.shade200, Colors.grey.shade300],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.check_rounded,
-                          size: 12,
-                          color: Colors.white,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Dipilih',
-                          style: TextStyle(
+                    child: Icon(
+                      _getPaymentTypeIcon(type.id),
+                      size: 28, // Fixed icon size
+                      color: isSelected ? Colors.white : Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12), // Reduced spacing
+                // Payment type name with overflow handling
+                Flexible(
+                  flex: 1,
+                  child: Text(
+                    type.name,
+                    style: TextStyle(
+                      fontSize: 14, // Reduced font size
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.orange : Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2, // Allow maximum 2 lines
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // Methods count
+                Text(
+                  '${type.paymentMethods.length} metode',
+                  style: TextStyle(
+                    fontSize: 11, // Reduced font size
+                    color: Colors.grey.shade600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+
+                // Selected indicator with conditional display
+                if (isSelected) ...[
+                  const SizedBox(height: 8), // Reduced spacing
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_rounded,
+                            size: 10,
                             color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
                           ),
-                        ),
-                      ],
+                          SizedBox(width: 3),
+                          Text(
+                            'Dipilih',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -1201,6 +1228,11 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
   void _processPayment() async {
     _showProcessingDialog();
     try {
+      final box = Hive.box('userBox');
+      final cashier = box.get('cashier') as CashierModel?;
+      ref
+          .read(processPaymentRequestProvider.notifier)
+          .addCashierId(cashier!.id!);
       final requestData = ref.watch(processPaymentRequestProvider);
       print('req data: $requestData');
       final success = await ref

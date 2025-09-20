@@ -1,12 +1,14 @@
 // models/payment/process_payment_request.dart
 class ProcessPaymentRequest {
   final String orderId;
+  final String? cashierId;
   final List<String>? selectedPaymentId;
   final String? paymentType;
   final String? paymentMethod;
 
   ProcessPaymentRequest({
     required this.orderId,
+    this.cashierId,
     this.selectedPaymentId,
     this.paymentType,
     this.paymentMethod,
@@ -15,6 +17,7 @@ class ProcessPaymentRequest {
   Map<String, dynamic> toJson() {
     return {
       'order_id': orderId,
+      'cashier_id': cashierId ?? '',
       'selected_payment_id': selectedPaymentId ?? [],
       'payment_type': paymentType ?? '',
       'payment_method': paymentMethod ?? '',
@@ -24,12 +27,14 @@ class ProcessPaymentRequest {
   //copyWith
   ProcessPaymentRequest copyWith({
     String? orderId,
+    String? cashierId,
     List<String>? selectedPaymentId,
     String? paymentType,
     String? paymentMethod,
   }) {
     return ProcessPaymentRequest(
       orderId: orderId ?? this.orderId,
+      cashierId: cashierId ?? this.cashierId,
       selectedPaymentId: selectedPaymentId ?? this.selectedPaymentId,
       paymentType: paymentType ?? this.paymentType,
       paymentMethod: paymentMethod ?? this.paymentMethod,
