@@ -4824,8 +4824,18 @@ export const processPaymentCashier = async (req, res) => {
       (p.status === 'settlement' || p.status === 'paid') && p.remainingAmount === 0
     );
     const cashier = await User.findOne({ _id: cashier_id });
+    if (!cashier) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({
+        success: false,
+        message: 'Cashier not found'
+      });
+    }
     // Update status order jika semua pembayaran sudah lunas
-    order.cashierId = cashier._id
+    order.cashierId = cashier._id;
+    await order.save({ session });   
+    
     if (isFullyPaid) {
       if (order.orderType === 'Reservation') {
         order.status = 'Completed';
