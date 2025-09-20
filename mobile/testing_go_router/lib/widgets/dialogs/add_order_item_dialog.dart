@@ -930,9 +930,9 @@ class AddOrderItemDialogState extends State<AddOrderItemDialog> {
     print('Product quantity: $quantity');
 
     for (var addonId in addonOptionQuantities.keys) {
-      print('Addon $addonId:');
+      print('kuota Addon $addonId:');
       addonOptionQuantities[addonId]!.forEach((optionId, qty) {
-        print('  Option $optionId: $qty');
+        print('kuota Option $optionId: $qty');
       });
     }
 
@@ -995,6 +995,8 @@ class AddOrderItemDialogState extends State<AddOrderItemDialog> {
       unitDistributions.add({'toppings': unitToppings, 'addons': unitAddons});
     }
 
+    print('Unit distributions: $unitDistributions');
+
     // Group similar combinations
     final Map<String, OrderItemModel> groupedItems = {};
 
@@ -1033,9 +1035,11 @@ class AddOrderItemDialogState extends State<AddOrderItemDialog> {
         );
         print('  Created new item with quantity 1');
       }
+      print('Current grouped items: $groupedItems');
     }
 
     print('Final grouped items: ${groupedItems.length}');
+    print('list of grouped items: ${groupedItems.values}');
 
     // Add each grouped item to the order
     for (var orderItem in groupedItems.values) {

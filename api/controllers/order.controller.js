@@ -4657,7 +4657,8 @@ export const confirmOrderViaCashier = async (req, res) => {
     console.log(cashier);
 
     // Update status order menjadi "Waiting"
-    order.cashierId = cashier._id
+    order.cashierId = cashier._id;
+    // await order.save({ session });
     if (order.orderType === 'Reservation') {
       order.status = 'Completed';
     } else {
@@ -4880,8 +4881,8 @@ export const processPaymentCashier = async (req, res) => {
     }
     // Update status order jika semua pembayaran sudah lunas
     order.cashierId = cashier._id;
-    await order.save({ session });   
-    
+    await order.save({ session });
+
     if (isFullyPaid) {
       if (order.orderType === 'Reservation') {
         order.status = 'Completed';
