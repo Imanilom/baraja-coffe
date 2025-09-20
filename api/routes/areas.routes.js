@@ -3,7 +3,7 @@ import express from 'express';
 import Area from '../models/Area.model.js';
 import Table from '../models/Table.model.js';
 import Reservation from '../models/Reservation.model.js';
-
+import mongoose from 'mongoose';
 const router = express.Router();
 
 // TABLE CRUD OPERATIONS //
@@ -46,16 +46,89 @@ router.post('/tables', async (req, res) => {
 // Get all tables (with optional area filter)
 router.get('/tables', async (req, res) => {
     try {
-        const { area_id, status } = req.query;
-        const query = { is_active: true };
-
-        if (area_id) query.area_id = area_id;
-        if (status) query.status = status;
-
-        const tables = await Table.find(query)
-            .sort({ table_number: 1 })
-            .populate('area_id', 'area_code area_name');
-
+        const { area_id, status, outlet_id } = req.query;
+        // Validate that outlet_id is provided
+        if (!outlet_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'outlet_id is required'
+            });
+        }
+        // Build the aggregation pipeline
+        const pipeline = [
+            // Stage 1: Filter by active tables first (optional, for performance)
+            {
+                $match: {
+                    is_active: true
+                }
+            },
+            // Stage 2: Lookup (join) with areas collection to get area details including outlet_id
+            {
+                $lookup: {
+                    from: 'areas',           // Nama koleksi 'areas' di MongoDB
+                    localField: 'area_id',   // Field di koleksi 'tables'
+                    foreignField: '_id',     // Field di koleksi 'areas'
+                    as: 'area_info'          // Nama field baru yang akan dibuat
+                }
+            },
+            // Stage 3: Unwind the array (since lookup returns an array)
+            {
+                $unwind: "$area_info"
+            },
+            // Stage 4: Match by outlet_id (and other optional filters)
+            {
+                $match: {
+                    "area_info.outlet_id": new mongoose.Types.ObjectId(outlet_id) // <-- Filter by outlet_id here
+                }
+            }
+        ];
+        // Add optional filters
+        if (area_id) {
+            pipeline.push({
+                $match: {
+                    area_id: new mongoose.Types.ObjectId(area_id)
+                }
+            });
+        }
+        if (status) {
+            pipeline.push({
+                $match: {
+                    status: status
+                }
+            });
+        }
+        // Stage: Sort
+        pipeline.push({
+            $sort: { table_number: 1 }
+        });
+        // Stage: Optionally project only needed fields and flatten area data
+        pipeline.push({
+            $project: {
+                _id: 1,
+                table_number: 1,
+                seats: 1,
+                capacity: "$seats", // Alias for consistency if frontend expects 'capacity'
+                table_type: 1,
+                is_available: 1,
+                is_active: 1,
+                status: 1,
+                position: 1,
+                shape: 1,
+                updatedAt: 1,
+                created_at: 1,
+                updated_at: 1,
+                // Flatten area info into the main document
+                area_id: {
+                    _id: "$area_info._id",
+                    area_code: "$area_info.area_code",
+                    area_name: "$area_info.area_name"
+                    // Tambahkan field lain dari area jika diperlukan, misalnya:
+                    // outlet_id: "$area_info.outlet_id" // Opsional, jika ingin dikirim ke frontend
+                }
+            }
+        });
+        // Execute the aggregation
+        const tables = await Table.aggregate(pipeline);
         res.json({
             success: true,
             data: tables

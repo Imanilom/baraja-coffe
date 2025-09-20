@@ -33,6 +33,11 @@ const areaSchema = new mongoose.Schema({
     is_active: {
         type: Boolean,
         default: true
+    },
+    outlet_id: {  
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Outlet',
+        required: true
     }
 }, {
     timestamps: true

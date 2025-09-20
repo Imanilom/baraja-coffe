@@ -39,6 +39,10 @@ export const createAppOrder = async (req, res) => {
       openBillData,      // New field
     } = req.body;
 
+    // if (orderType === 'reservation') {
+    //   isOpenBill = true;
+    // }
+
 
     console.log('Received createAppOrder request:', req.body);
     // ✅ Validasi items, kecuali reservasi tanpa open bill
@@ -234,8 +238,10 @@ export const createAppOrder = async (req, res) => {
       newOrder = existingOrder;
     }
     else if (isOpenBill && !existingOrder) {
+      // Gunakan generateOrderId untuk order_id
+      const generatedOrderId = await generateOrderId(openBillData.tableNumbers || tableNumber || '');
       newOrder = new Order({
-        order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        order_id: generatedOrderId,
         user_id: userId,
         user: userExists.username || 'Guest',
         cashier: null,
@@ -273,8 +279,10 @@ export const createAppOrder = async (req, res) => {
 
     } else {
       // ✅ Normal order creation
+      // Gunakan generateOrderId untuk order_id
+      const generatedOrderId = await generateOrderId(tableNumber || '');
       newOrder = new Order({
-        order_id: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        order_id: generatedOrderId,
         user_id: userId,
         user: userExists.username || 'Guest',
         cashier: null,
@@ -462,8 +470,6 @@ function parseIndonesianDate(dateString) {
   }
   return new Date(dateString);
 }
-
-
 
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
@@ -949,17 +955,26 @@ export const checkout = async (req, res) => {
 
 // Fungsi untuk generate order ID dengan sequence harian per tableNumber
 export async function generateOrderId(tableNumber) {
-  // Dapatkan tanggal sekarang dalam format YYYYMMDD
+  // Dapatkan tanggal sekarang
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   const dateStr = `${year}${month}${day}`; // misal "20250605"
 
-  // Kunci sequence unik per tableNumber dan tanggal
-  const key = `order_seq_${tableNumber}_${dateStr}`;
+  // Jika tidak ada tableNumber, gunakan hari dan tanggal
+  let tableOrDayCode = tableNumber;
+  if (!tableNumber) {
+    const days = ['MD', 'TU', 'WD', 'TH', 'FR', 'ST', 'SN'];
+    // getDay: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const dayCode = days[now.getDay()];
+    tableOrDayCode = `${dayCode}${day}`;
+  }
 
-  // Atomic increment dengan upsert dan reset setiap hari (jika document tidak ada, dibuat dengan seq=1)
+  // Kunci sequence unik per tableOrDayCode dan tanggal
+  const key = `order_seq_${tableOrDayCode}_${dateStr}`;
+
+  // Atomic increment dengan upsert dan reset setiap hari
   const result = await db.collection('counters').findOneAndUpdate(
     { _id: key },
     { $inc: { seq: 1 } },
@@ -968,11 +983,8 @@ export async function generateOrderId(tableNumber) {
 
   const seq = result.value.seq;
 
-  // Format orderId sesuai yang kamu mau:
-  // ORD-{day}{tableNumber}-{personNumber}
-  // day = tanggal 2 digit (dd)
-  // personNumber = seq 3 digit padStart
-  return `ORD-${day}${tableNumber}-${String(seq).padStart(3, '0')}`;
+  // Format orderId
+  return `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
 }
 
 // Helper function untuk confirm order
@@ -2989,48 +3001,68 @@ export const paymentNotification = async (req, res) => {
 // ! Start Kitchen sections
 export const getKitchenOrder = async (req, res) => {
   try {
-    const orders = await Order.find()
+    const orders = await Order.find({
+      status: { $in: ['Waiting', 'OnProcess', 'Completed'] }, // ✅ ambil beberapa status
+    })
       .populate('items.menuItem')
+      .sort({ createdAt: -1 }) // ✅ urutkan dari terbaru
       .lean();
 
+    // console.log('ini adalah orders di getKitchenOrder', orders);
 
-    // Filter hanya orders yang memiliki setidaknya 1 item dengan workstation 'kitchen'
-    const kitchenOrders = orders.filter(order =>
-      order.items.some(item =>
-        item.menuItem && item.menuItem.workstation === 'kitchen'
-      )
-    );
-
-    res.status(200).json({ success: true, data: kitchenOrders });
+    res.status(200).json({ success: true, data: orders });
   } catch (error) {
     console.error('Error fetching kitchen orders:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch kitchen orders' });
   }
-}
+};
+
 
 export const updateKitchenOrderStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { status } = req.body;
+  const { status, kitchenId, kitchenName } = req.body; // tambahkan data kitchen user
 
   console.log('Updating kitchen order status for orderId:', orderId, 'to status:', status);
   if (!orderId || !status) {
     return res.status(400).json({ success: false, message: 'orderId and status are required' });
   }
+
   try {
     const order = await Order.findOneAndUpdate(
       { order_id: orderId },
       { $set: { status: status } },
       { new: true }
     ).populate('items.menuItem');
+
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
+
+    // 🔥 EMIT SOCKET EVENTS
+    const updateData = {
+      order_id: orderId,   // ubah ke snake_case
+      orderStatus: status, // pakai orderStatus, bukan status
+      kitchen: { id: kitchenId, name: kitchenName },
+      timestamp: new Date()
+    };
+
+
+    // Emit ke room customer agar tahu progres order
+    io.to(`order_${orderId}`).emit('order_status_update', updateData);
+
+    // Emit ke cashier agar kasir tahu kitchen update status
+    io.to('cashier_room').emit('kitchen_order_updated', updateData);
+
+    // Emit ke kitchen room juga kalau perlu broadcast antar kitchen
+    io.to('kitchen_room').emit('kitchen_order_updated', updateData);
+
     res.status(200).json({ success: true, data: order });
   } catch (error) {
     console.error('Error updating kitchen order status:', error);
     res.status(500).json({ success: false, message: 'Failed to update kitchen order status' });
   }
-}
+};
+
 
 // ! End Kitchen sections
 
@@ -3511,7 +3543,7 @@ export const getUserOrderHistory = async (req, res) => {
       const relatedPayments = paymentMap[order.order_id] || [];
 
       // Tentukan payment status berdasarkan aturan
-      let paymentStatus = 'Unpaid';
+      let paymentStatus = 'expire';
       for (const p of relatedPayments) {
         if (
           p.status === 'settlement' &&

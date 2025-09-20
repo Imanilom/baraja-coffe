@@ -44,7 +44,12 @@ const OrderSchema = new mongoose.Schema({
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
 
   // ✅ NEW: Open Bill fields
-  isOpenBill: { type: Boolean, default: false },
+  isOpenBill: {
+    type: String,
+    default: 'false',
+    enum: ['true', 'false']
+  },
+
   originalReservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
 
   // Diskon & Promo
