@@ -23,7 +23,7 @@ const queueEvents = new QueueEvents('orderQueue');
 
 export const createAppOrder = async (req, res) => {
   try {
-    const {
+    let {
       items,
       orderType,
       tableNumber,
@@ -35,9 +35,14 @@ export const createAppOrder = async (req, res) => {
       outlet,
       reservationData,
       reservationType,
-      isOpenBill,        // New field
-      openBillData,      // New field
+      isOpenBill,
+      openBillData,
     } = req.body;
+
+    if (orderType === 'reservation') {
+      isOpenBill = "true"; // ✅ aman
+    }
+
 
     // if (orderType === 'reservation') {
     //   isOpenBill = true;
@@ -267,7 +272,7 @@ export const createAppOrder = async (req, res) => {
         promotions: [],
         source: 'App',
         reservation: existingReservation._id,
-        isOpenBill: true,
+        isOpenBill: "true",
         originalReservationId: openBillData.reservationId,
       });
       await newOrder.save();
