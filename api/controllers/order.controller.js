@@ -3001,14 +3001,25 @@ export const paymentNotification = async (req, res) => {
 // ! Start Kitchen sections
 export const getKitchenOrder = async (req, res) => {
   try {
+    const now = new Date();
+    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+
+    // ✅ Update semua order yg masih Waiting & lebih tua dari 15 menit
+    await Order.updateMany(
+      {
+        status: 'Waiting',
+        createdAt: { $lt: fifteenMinutesAgo },
+      },
+      { $set: { status: 'Cancelled' } }
+    );
+
+    // ✅ Ambil data order terbaru
     const orders = await Order.find({
-      status: { $in: ['Waiting', 'OnProcess', 'Completed'] }, // ✅ ambil beberapa status
+      status: { $in: ['Waiting', 'OnProcess', 'Completed', 'Cancelled'] }, // tambahin Cancelled biar kelihatan juga
     })
       .populate('items.menuItem')
-      .sort({ createdAt: -1 }) // ✅ urutkan dari terbaru
+      .sort({ createdAt: -1 })
       .lean();
-
-    // console.log('ini adalah orders di getKitchenOrder', orders);
 
     res.status(200).json({ success: true, data: orders });
   } catch (error) {
@@ -3016,6 +3027,7 @@ export const getKitchenOrder = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch kitchen orders' });
   }
 };
+
 
 
 export const updateKitchenOrderStatus = async (req, res) => {
