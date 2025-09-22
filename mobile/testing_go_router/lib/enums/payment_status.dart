@@ -1,4 +1,4 @@
-enum PaymentStatus { pending, settlement, paid }
+enum PaymentStatus { pending, settlement, partial }
 
 enum PaymentTypes { fullPayment, downPayment }
 
@@ -9,8 +9,8 @@ extension PaymentStatusExtension on PaymentStatus {
         return 'pending';
       case PaymentStatus.settlement:
         return 'settlement';
-      case PaymentStatus.paid:
-        return 'paid';
+      case PaymentStatus.partial:
+        return 'partial';
       default:
         return 'pending';
     }
@@ -23,11 +23,9 @@ extension PaymentStatusExtension on PaymentStatus {
       case 'pending':
         return PaymentStatus.pending;
       case 'settlement':
-      case 'settled':
         return PaymentStatus.settlement;
-      case 'paid':
-      case 'success':
-        return PaymentStatus.paid;
+      case 'partial':
+        return PaymentStatus.partial;
       default:
         return PaymentStatus.pending;
     }

@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 
 class PaymentHelper {
@@ -52,5 +53,31 @@ class PaymentHelper {
     }
 
     return state.selectedPaymentMethod != null;
+  }
+
+  static int roundToThousand(int value) {
+    if (value <= 0) return 0;
+    final r = (value / 1000).round() * 1000;
+    return r;
+  }
+
+  /// Minimal DP = max(10% total, Rp50.000), dibulatkan ke ribuan terdekat.
+  static int minDownPayment(int total) {
+    final tenPercent = (total * 0.10).round();
+    return roundToThousand(max(50000, tenPercent));
+  }
+
+  /// Saran DP: 10%, 30%, 50% dari total (dibulatkan 1.000an),
+  /// disaring agar unik & 0 < dp <= total.
+  static List<int> getDownPaymentSuggestions(int total) {
+    final candidates =
+        <int>{
+            minDownPayment(total),
+            roundToThousand((total * 0.30).round()),
+            roundToThousand((total * 0.50).round()),
+            total, // untuk "lunas sekarang"
+          }.where((v) => v > 0 && v <= total).toList()
+          ..sort();
+    return candidates;
   }
 }

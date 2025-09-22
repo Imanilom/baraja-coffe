@@ -55,6 +55,16 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     );
   }
 
+  void clearOnBack() {
+    state = state.copyWith(
+      clearPaymentType: true,
+      clearPaymentMethod: true,
+      clearCashAmount: true,
+      clearDownPayment: true,
+      isDownPayment: false,
+    );
+  }
+
   // Reset to initial state with new total
   void resetWithNewTotal(int totalAmount) {
     state = PaymentState(totalAmount: totalAmount);
@@ -81,6 +91,60 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
         'paymentMethodId': state.selectedPaymentMethod!.id,
       };
     }
+  }
+
+  // 🔽 set mode full/DP (sinkron dengan ChoiceChip kamu)
+  void setSettlementMode(bool isDownPayment) {
+    state = state.copyWith(isDownPayment: isDownPayment);
+  }
+
+  // 🔽 set nominal DP
+  void selectDownPayment(int amount) {
+    state = state.copyWith(selectedDownPayment: amount);
+  }
+
+  // 🔽 bersihkan DP
+  void clearDownPayment() {
+    state = state.copyWith(selectedDownPayment: null);
+  }
+
+  // ⬇️ Hitung info pembayaran (full vs DP)
+  // total = grand total order
+  Map<String, dynamic> getPaymentInfoComputed(int total) {
+    final isDP = state.isDownPayment;
+    final int harusDibayarSekarang =
+        isDP ? (state.selectedDownPayment ?? 0) : total;
+
+    // uang yang diserahkan (hanya relevan untuk cash)
+    final bayarCash =
+        state.selectedPaymentType?.id == 'cash'
+            ? (state.selectedCashAmount ?? 0)
+            : harusDibayarSekarang;
+
+    final change =
+        (bayarCash - harusDibayarSekarang) > 0
+            ? (bayarCash - harusDibayarSekarang)
+            : 0;
+
+    final outstanding =
+        (total - harusDibayarSekarang) > 0 ? (total - harusDibayarSekarang) : 0;
+
+    return {
+      'type':
+          state
+              .selectedPaymentType
+              ?.id, // cash / ewallet / debit / banktransfer
+      'method':
+          state
+              .selectedPaymentMethod
+              ?.id, // id metode spesifik (mis. OVO/QRIS/BRI)
+      'amount': harusDibayarSekarang, // yang dianggap "dibayar sekarang"
+      'tendered': bayarCash, // uang tunai yang diserahkan (kalau cash)
+      'change': change,
+      'isDownPayment': isDP,
+      'downPayment': isDP ? harusDibayarSekarang : 0, // nominal DP
+      'outstanding': outstanding, // sisa tagihan
+    };
   }
 }
 

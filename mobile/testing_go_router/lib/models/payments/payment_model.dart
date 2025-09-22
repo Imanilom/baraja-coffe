@@ -3,11 +3,11 @@ import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 
 class PaymentState {
   final PaymentTypeModel? selectedPaymentType; // New: Selected payment type
-  final PaymentMethodModel?
-  selectedPaymentMethod; // New: Selected payment method
+  final PaymentMethodModel? selectedPaymentMethod;
   final int? selectedCashAmount; // For cash payments
   final int totalAmount;
   final int? selectedDownPayment;
+  final bool isDownPayment;
 
   PaymentState({
     this.selectedPaymentType,
@@ -15,6 +15,7 @@ class PaymentState {
     this.selectedCashAmount,
     required this.totalAmount,
     this.selectedDownPayment,
+    this.isDownPayment = false,
   });
 
   PaymentState copyWith({
@@ -27,6 +28,7 @@ class PaymentState {
     bool clearPaymentMethod = false,
     bool clearCashAmount = false,
     bool clearDownPayment = false,
+    bool isDownPayment = false,
   }) {
     return PaymentState(
       selectedPaymentType:
@@ -46,6 +48,7 @@ class PaymentState {
               ? null
               : selectedDownPayment ?? this.selectedDownPayment,
       totalAmount: totalAmount ?? this.totalAmount,
+      isDownPayment: isDownPayment,
     );
   }
 

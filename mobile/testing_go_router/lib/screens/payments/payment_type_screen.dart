@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/enums/payment_status.dart';
 import 'package:kasirbaraja/helper/payment_helper.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
@@ -46,6 +47,16 @@ class PaymentMethodScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            //clear selection di payment provider
+            context.pop();
+            notifier.clearOnBack();
+            ref.read(choosePaymentTypesProvider.notifier).state =
+                PaymentTypes.fullPayment;
+          },
+        ),
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
@@ -91,10 +102,12 @@ class PaymentMethodScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTotalCard(int total) {
+  Widget _buildTotalCard(int total, PaymentState state) {
+    final isDP = state.isDownPayment;
+    final dp = isDP ? (state.selectedDownPayment ?? 0) : 0;
+    final remaining = (total - dp).clamp(0, total);
+
     return Container(
-      // ✅ PERBAIKAN: Tambahkan constraints untuk mencegah overflow
-      constraints: const BoxConstraints(maxWidth: 200),
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -127,6 +140,56 @@ class PaymentMethodScreen extends ConsumerWidget {
               color: Color(0xFF2E7D4F),
             ),
           ),
+          if (isDP) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Down Payment',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                border: Border.all(color: Colors.blue),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Text(
+                formatRupiah(dp),
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.blue[600],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Sisa Tagihan',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              formatRupiah(remaining),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+          ],
+          SizedBox(height: 8),
+          //state,
+          Text('payment type: ${state.selectedPaymentType?.name ?? '-'}'),
+          Text('payment method: ${state.selectedPaymentMethod?.name ?? '-'}'),
+          Text('cash amount: ${state.selectedCashAmount}'),
+          Text('total amount: ${state.totalAmount}'),
+          Text('down payment: ${state.selectedDownPayment}'),
+          Text('is down payment: ${state.isDownPayment}'),
         ],
       ),
     );
@@ -143,87 +206,116 @@ class PaymentMethodScreen extends ConsumerWidget {
   ) {
     final choosePaymentType = ref.watch(choosePaymentTypesProvider);
 
-    return Column(
+    return Row(
       children: [
-        // ✅ PERBAIKAN: Gunakan Flexible untuk layout yang lebih aman
-        Flexible(
-          flex: 2,
-          child: Row(
-            children: [
-              // Total Amount Card
-              _buildTotalCard(total.toInt()),
-
-              _buildSettlementTypes(ref),
-              // if payment types full payment show payment types,
-              if (choosePaymentType == PaymentTypes.fullPayment)
-                Expanded(
-                  child: _buildPaymentTypes(paymentTypes, state, notifier),
-                ),
-
-              // if payment types down payment show cash options
-              if (choosePaymentType == PaymentTypes.downPayment)
-                //menampilkan textfield untuk menentukan nominal downpayment
-                Expanded(child: _buildDownPayment(state, notifier)),
-            ],
-          ),
-        ),
-        // Payment Methods Content
+        Expanded(flex: 2, child: _buildTotalCard(total.toInt(), state)),
         Expanded(
-          flex: 3,
-          child: Container(
-            width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                if (state.selectedPaymentType != null) ...[
-                  Expanded(
-                    child: _buildPaymentMethodsSection(state, notifier, total),
-                  ),
-                ] else ...[
-                  const Expanded(child: _EmptyStateWidget()),
-                ],
+          flex: 5,
+          child: Column(
+            children: [
+              Flexible(
+                child: Row(
+                  children: [
+                    _buildSettlementTypes(ref),
+                    // if payment types full payment show payment types,
+                    if (choosePaymentType == PaymentTypes.fullPayment)
+                      Expanded(
+                        child: _buildPaymentTypes(
+                          paymentTypes,
+                          state,
+                          notifier,
+                        ),
+                      ),
 
-                // Continue Button
-                if (_canProceedToPayment(state))
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: _buildContinueButton(context, ref, orderdetail),
+                    // if payment types down payment show cash options
+                    if (choosePaymentType == PaymentTypes.downPayment)
+                      //menampilkan textfield untuk menentukan nominal downpayment
+                      Expanded(
+                        child: _buildDownPayment(total, state, notifier),
+                      ),
+                  ],
+                ),
+              ),
+              // Payment Methods Content
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-              ],
-            ),
+                  child: Column(
+                    children: [
+                      if (state.selectedPaymentType != null) ...[
+                        Expanded(
+                          child: _buildPaymentMethodsSection(
+                            state,
+                            notifier,
+                            total,
+                          ),
+                        ),
+                      ] else ...[
+                        const Expanded(child: _EmptyStateWidget()),
+                      ],
+
+                      // Continue Button
+                      if (_canProceedToPayment(state, total))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: _buildContinueButton(
+                            context,
+                            ref,
+                            orderdetail,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildDownPayment(PaymentState state, PaymentNotifier notifier) {
-    final downPaymentController = TextEditingController(
-      text: state.selectedDownPayment?.toString() ?? '',
-    );
+  Widget _buildDownPayment(
+    int total,
+    PaymentState state,
+    PaymentNotifier notifier,
+  ) {
+    final minDP = PaymentHelper.minDownPayment(total);
+    final suggestions = PaymentHelper.getDownPaymentSuggestions(total);
+    final current = state.selectedDownPayment ?? minDP;
+
+    String format(int v) => formatRupiah(v);
+
+    void applyDP(int raw) {
+      int clamped = raw;
+      if (clamped < minDP) clamped = minDP;
+      if (clamped > total) clamped = total;
+      notifier.selectDownPayment(PaymentHelper.roundToThousand(clamped));
+    }
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      constraints: const BoxConstraints(maxWidth: 300),
+      constraints: const BoxConstraints(maxWidth: 360),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
             child: Text(
-              'Nominal Down Payment',
+              'Nominal Down Payment (Min: ${format(minDP)})',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -231,25 +323,48 @@ class PaymentMethodScreen extends ConsumerWidget {
               ),
             ),
           ),
-          TextField(
-            controller: downPaymentController,
+          TextFormField(
+            key: ValueKey(
+              'dp-field-$current',
+            ), // biar initialValue refresh saat state berubah
+            initialValue: current > 0 ? current.toString() : '',
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               hintText: 'Masukkan nominal DP',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey.shade300),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: const BorderSide(color: Color(0xFF2E7D4F)),
               ),
-              prefixIcon: const Icon(Icons.money, color: Color(0xFF2E7D4F)),
+              prefixIcon: const Icon(Icons.payments, color: Color(0xFF2E7D4F)),
+              helperText:
+                  'Sisa: ${format((total - (state.selectedDownPayment ?? 0)).clamp(0, total))}',
             ),
             onChanged: (value) {
-              // final parsedValue = int.tryParse(value) ?? 0;
-              // notifier.selectDownPayment(parsedValue);
+              final digitsOnly = value.replaceAll(RegExp(r'[^0-9]'), '');
+              final parsed = int.tryParse(digitsOnly) ?? 0;
+              applyDP(parsed);
             },
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children:
+                suggestions.map((s) {
+                  final selected = s == current;
+                  return ChoiceChip(
+                    label: Text(format(s)),
+                    selected: selected,
+                    onSelected: (_) => applyDP(s),
+                    selectedColor: const Color(0xFF2E7D4F),
+                    labelStyle: TextStyle(
+                      color: selected ? Colors.white : Colors.black87,
+                    ),
+                  );
+                }).toList(),
           ),
         ],
       ),
@@ -259,6 +374,7 @@ class PaymentMethodScreen extends ConsumerWidget {
   Widget _buildSettlementTypes(WidgetRef ref) {
     final paymentType = ref.watch(choosePaymentTypesProvider);
     final notifier = ref.read(choosePaymentTypesProvider.notifier);
+    final paymentNotifier = ref.read(paymentProvider.notifier);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -269,7 +385,7 @@ class PaymentMethodScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
             child: Text(
-              'Tipe Pembayaran',
+              'Tipe Pelunasan',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -286,6 +402,8 @@ class PaymentMethodScreen extends ConsumerWidget {
                 onSelected: (selected) {
                   if (selected) {
                     notifier.state = PaymentTypes.fullPayment;
+                    paymentNotifier.setSettlementMode(false);
+                    paymentNotifier.clearDownPayment();
                   }
                 },
                 selectedColor: const Color(0xFF2E7D4F),
@@ -306,6 +424,7 @@ class PaymentMethodScreen extends ConsumerWidget {
                 onSelected: (selected) {
                   if (selected) {
                     notifier.state = PaymentTypes.downPayment;
+                    paymentNotifier.setSettlementMode(true);
                   }
                 },
                 selectedColor: const Color(0xFF2E7D4F),
@@ -484,7 +603,11 @@ class PaymentMethodScreen extends ConsumerWidget {
     PaymentNotifier notifier,
     PaymentState state,
   ) {
-    final cashSuggestions = _getCashSuggestions(total);
+    final basis =
+        state.isDownPayment
+            ? (state.selectedDownPayment ?? PaymentHelper.minDownPayment(total))
+            : total;
+    final cashSuggestions = _getCashSuggestions(basis);
 
     // ✅ PERBAIKAN: Gunakan LayoutBuilder untuk responsive grid
     return LayoutBuilder(
@@ -644,13 +767,26 @@ class PaymentMethodScreen extends ConsumerWidget {
     );
   }
 
-  bool _canProceedToPayment(PaymentState state) {
+  bool _canProceedToPayment(PaymentState state, int total) {
     if (state.selectedPaymentType == null) return false;
 
-    if (state.selectedPaymentType!.id == 'cash') {
-      return state.selectedCashAmount != null;
+    if (!state.isDownPayment) {
+      // FULL
+      if (state.selectedPaymentType!.id == 'cash') {
+        return state.selectedCashAmount != null &&
+            state.selectedCashAmount! >= total;
+      }
+      return state.selectedPaymentMethod != null;
     }
 
+    // DP
+    final dp = state.selectedDownPayment ?? 0;
+    if (dp <= 0) return false;
+
+    if (state.selectedPaymentType!.id == 'cash') {
+      return state.selectedCashAmount != null &&
+          state.selectedCashAmount! >= dp;
+    }
     return state.selectedPaymentMethod != null;
   }
 
@@ -679,23 +815,75 @@ class PaymentMethodScreen extends ConsumerWidget {
       return;
     }
 
-    // Update payment method based on selection
-    final paymentInfo = state.getPaymentInfo();
-    final paymentMethod = paymentInfo['type'] as String;
-    final paymentType = paymentInfo['method'] as String;
+    final total = orderDetail.grandTotal.toInt();
+
+    // Ambil komputasi final dari Notifier (sesuai saran sebelumnya)
+    final info = ref
+        .read(paymentProvider.notifier)
+        .getPaymentInfoComputed(total);
+    final isDP = info['isDownPayment'] == true;
+    final amountNow = info['amount'] as int; // dibayar sekarang (full/DP)
+    final tendered =
+        info['tendered']
+            as int; // uang diserahkan (cash) / sama dg amount utk non-cash
+    final change = info['change'] as int;
+    final outstanding = info['outstanding'] as int;
+    final typeId =
+        (info['type'] as String?) ?? ''; // cash/ewallet/debit/banktransfer
+
+    // Tentukan status enum -> string
+    final statusEnum =
+        (isDP || amountNow < total)
+            ? PaymentStatus.partial
+            : PaymentStatus.settlement;
+    final statusStr = PaymentStatusExtension.paymentStatusToJson(statusEnum);
+
+    // Nama metode untuk layar sukses
+    final paymentMethodName =
+        typeId == 'cash' ? 'Tunai' : (state.selectedPaymentMethod?.name ?? '');
+
+    // Siapkan entry payment_details
+    // ⚠️ Sesuaikan field PaymentModel di proyekmu jika namanya berbeda.
+    // final PaymentModel paymentEntry = PaymentModel(
+    //   type: typeId,
+    //   methodId: state.selectedPaymentMethod?.id, // ex: 'qris'
+    //   methodName: state.selectedPaymentMethod?.name,
+    //   amount: amountNow,
+    //   tendered: tendered,
+    //   change: change,
+    //   isDownPayment: isDP,
+    //   remainingAmount: outstanding,
+    //   createdAt: DateTime.now(),
+    // );
+
+    // Gabungkan dengan payment_details lama (kalau ada)
+    // final List<PaymentModel> newPaymentList = [
+    //   ...(orderDetail.payment ?? <PaymentModel>[]),
+    //   paymentEntry,
+    // ];
+
+    // final paymentData = PaymentState(
+    //   selectedPaymentType: state.selectedPaymentType,
+    //   selectedPaymentMethod: state.selectedPaymentMethod,
+    //   selectedCashAmount: state.selectedCashAmount,
+    //   totalAmount: orderDetail.grandTotal.toInt(),
+    //   selectedDownPayment: state.selectedDownPayment,
+    //   isDownPayment: state.isDownPayment,
+    // );
+
+    final updatedOrder = orderDetail.copyWith(
+      paymentMethod: typeId, // untuk ringkasannya (id tipe)
+      paymentStatus: statusStr, // detail transaksi pembayaran saat ini
+    );
 
     if (orderDetail.source == 'App') {
-      onlineOrderDetailNotifier.savedOnlineOrderDetail(
-        orderDetail.copyWith(
-          paymentMethod: paymentMethod,
-          paymentStatus: paymentType,
-        ),
-      );
+      onlineOrderDetailNotifier.savedOnlineOrderDetail(updatedOrder);
     } else {
-      orderDetailNotifier.updatePaymentMethod(paymentMethod, paymentType);
+      // Jika ada method spesifik, silakan pakai itu; jika tidak, set langsung detailnya
+      // orderDetailNotifier.setOrderDetail(updatedOrder);
     }
 
-    // Show loading
+    // Loading
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -703,67 +891,37 @@ class PaymentMethodScreen extends ConsumerWidget {
     );
 
     try {
-      if (orderDetail.source == 'App') {
-        final success = await onlineOrderDetailNotifier.submitOnlineOrder();
-        if (context.mounted) Navigator.pop(context);
+      final success =
+          orderDetail.source == 'App'
+              ? await onlineOrderDetailNotifier.submitOnlineOrder()
+              : await orderDetailNotifier.submitOrder();
 
-        if (success && context.mounted) {
-          ref.invalidate(orderHistoryProvider);
-
-          context.goNamed(
-            'payment-success',
-            extra: {
-              'orderDetail': orderDetail,
-              'payment_method':
-                  paymentInfo['type'] == 'cash'
-                      ? 'Tunai'
-                      : state.selectedPaymentMethod?.name ?? '',
-              'amount': paymentInfo['amount'],
-              'change': paymentInfo['change'],
-            },
-          );
-        } else if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pembayaran gagal!'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } else {
-        print('Submitting create order...');
-        final success = await orderDetailNotifier.submitOrder();
-        // Hide loading
-        if (context.mounted) Navigator.pop(context);
-
-        if (success && context.mounted) {
-          ref.invalidate(orderHistoryProvider);
-
-          context.goNamed(
-            'payment-success',
-            extra: {
-              'orderDetail': orderDetail,
-              'payment_method':
-                  paymentInfo['type'] == 'cash'
-                      ? 'Tunai'
-                      : state.selectedPaymentMethod?.name ?? '',
-              'amount': paymentInfo['amount'],
-              'change': paymentInfo['change'],
-            },
-          );
-        } else if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pembayaran gagal!'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      // Hide loading
       if (context.mounted) Navigator.pop(context);
 
+      if (success && context.mounted) {
+        ref.invalidate(orderHistoryProvider);
+
+        context.goNamed(
+          'payment-success',
+          extra: {
+            'orderDetail': updatedOrder,
+            'payment_method': paymentMethodName,
+            'amount': amountNow,
+            'change': change,
+            'outstanding': outstanding,
+            'is_down_payment': isDP,
+          },
+        );
+      } else if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pembayaran gagal!'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
