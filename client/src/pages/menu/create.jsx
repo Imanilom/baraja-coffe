@@ -259,18 +259,19 @@ const CreateMenu = () => {
       <Header />
       <form onSubmit={handleSubmit}>
         {/* Header */}
-        <div className="px-4 sm:px-6 py-2 flex flex-wrap justify-between items-center border-b gap-2">
-          <div className="flex items-center space-x-2 text-sm">
-            <FaShoppingBag className="text-gray-400 inline-block" />
-            <Link to="/admin/menu" className="text-gray-400 inline-block">
+
+        <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+          <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+            <FaShoppingBag />
+            <Link to="/admin/menu">
               Menu
             </Link>
-            <FaChevronRight className="text-gray-400 inline-block" />
-            <Link to="/admin/menu-create" className="text-gray-400 inline-block">
+            <FaChevronRight />
+            <span>
               Tambah Menu
-            </Link>
-          </div>
-          <div className="flex flex-wrap gap-2">
+            </span>
+          </h1>
+          <div className="flex items-center gap-3">
             <span
               onClick={() => setIsModalOpen(true)}
               className="block border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
@@ -313,7 +314,7 @@ const CreateMenu = () => {
         <div className="bg-slate-50 p-4 sm:p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 bg-white shadow-md p-4 sm:p-6 md:p-12 rounded-lg">
             {/* grid 1 */}
-            <div className="text-[#999999] space-y-4">
+            <div className="text-green-900 space-y-4">
               {/* Nama Menu */}
               <div>
                 <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">
@@ -430,7 +431,7 @@ const CreateMenu = () => {
               </div>
 
               {/* SKU */}
-              <div>
+              {/* <div>
                 <label className="my-2.5 text-xs block font-medium">SKU</label>
                 <input
                   type="text"
@@ -439,10 +440,10 @@ const CreateMenu = () => {
                   onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg"
                 />
-              </div>
+              </div> */}
 
               {/* Barcode */}
-              <div>
+              {/* <div>
                 <label className="my-2.5 text-xs block font-medium">BARCODE</label>
                 <input
                   type="text"
@@ -451,10 +452,10 @@ const CreateMenu = () => {
                   onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg"
                 />
-              </div>
+              </div> */}
 
               {/* Stock Unit */}
-              <div>
+              {/* <div>
                 <label className="my-2.5 text-xs block font-medium">
                   SATUAN STOK
                 </label>
@@ -465,7 +466,7 @@ const CreateMenu = () => {
                   onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg"
                 />
-              </div>
+              </div> */}
 
               {/* Image Input */}
               <div className="flex items-center space-x-4 py-4">
@@ -492,19 +493,20 @@ const CreateMenu = () => {
                   onChange={handleImageChange}
                 />
               </div>
-            </div>
 
-            {/* grid 2 */}
-            <div className="text-[14px] text-[#999999] space-y-4">
               <div>
-                <label className="block mb-1 text-sm font-medium">Deskripsi</label>
+                <label className="block mb-2.5 text-xs font-medium uppercase">Deskripsi</label>
                 <textarea
                   name="description"
                   value={formData.description}
                   onChange={handleInputChange}
-                  className="w-full border rounded p-2"
+                  className="w-full border rounded p-2 h-36"
                 />
               </div>
+            </div>
+
+            {/* grid 2 */}
+            <div className="text-[14px] text-green-900 space-y-4">
 
               <ToppingForm toppings={toppings} setToppings={setToppings} />
               <AddonForm addons={addons} setAddons={setAddons} />

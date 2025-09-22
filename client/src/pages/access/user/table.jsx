@@ -248,7 +248,7 @@ export default function UserTable({ currentUser, customSelectStyles }) {
                                     Email address
                                 </th>
                                 <th className="px-6 py-3 text-left font-semibold w-2/12">Teams</th>
-                                <th className="px-6 py-3 text-right font-semibold w-1/12">Actions</th>
+                                <th className="px-6 py-3 text-right font-semibold w-1/12"></th>
                             </tr>
                         </thead>
                         <tbody>

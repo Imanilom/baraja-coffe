@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import Header from "../../../admin/header";
 
 const ProductSales = () => {
     const [products, setProducts] = useState([]);
@@ -91,6 +92,7 @@ const ProductSales = () => {
         filteredData.forEach(product => {
             const item = product?.items?.[0];
             if (!item) return;
+            { console.log(item) }
 
             const productName = item.menuItem?.name || 'Unknown';
             const category = item.menuItem?.category || 'Uncategorized';
@@ -344,13 +346,7 @@ const ProductSales = () => {
     return (
         <div className="h-screen">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">

@@ -154,6 +154,9 @@ import CreateDepartemen from "./pages/access/departement/create";
 import UpdateDepartemen from "./pages/access/departement/update";
 import ActivityLogTable from "./pages/activity_logs";
 import UpdateTax from "./pages/tax/update_tax";
+import BarMenu from "./pages/access/barmenu";
+import CreateSidebarMenu from "./pages/access/barmenu/create";
+import UpdateSidebarMenu from "./pages/access/barmenu/update";
 
 
 export default function App() {
@@ -253,7 +256,7 @@ export default function App() {
 
                 {/* Inventory */}
                 <Route path="inventory/stockcard" element={<StockCardManagement />} />
-                <Route path="inventori/stok-masuk" element={<CurrentStockManagement />} />
+                <Route path="inventory/in" element={<CurrentStockManagement />} />
                 <Route path="inventory/cardoutlet" element={<OutletCardManagement />} />
                 {/* <Route path="inventory/in" element={<InStockManagement />} /> */}
                 <Route path="inventory/instock-create" element={<CreateStock />} />
@@ -345,16 +348,26 @@ export default function App() {
 
                 {/* Access */}
                 <Route path="access-settings" element={<AccessMenu />} />
+
+                {/* Role */}
                 <Route path="access-settings/role" element={<RoleManagement />} />
                 <Route path="access-settings/role-create" element={<CreateRole />} />
                 <Route path="access-settings/role-update/:id" element={<UpdateRole />} />
+
+                {/* User */}
                 <Route path="access-settings/user" element={<UserManagement />} />
                 <Route path="access-settings/user-create" element={<CreateUser />} />
                 <Route path="access-settings/user-update/:id" element={<UpdateUser />} />
 
+                {/* Department */}
                 <Route path="access-settings/departement" element={<DepartementTable />} />
                 <Route path="access-settings/departemen-create" element={<CreateDepartemen />} />
                 <Route path="access-settings/departemen-update/:id" element={<UpdateDepartemen />} />
+
+                {/* Sidebar */}
+                <Route path="access-settings/bar-menu" element={<BarMenu />} />
+                <Route path="access-settings/bar-menu/create-bar-menu" element={<CreateSidebarMenu />} />
+                <Route path="access-settings/bar-menu/update-bar-menu/:id" element={<UpdateSidebarMenu />} />
 
                 {/* Logs */}
                 <Route path="logs" element={<ActivityLogTable />} />

@@ -292,14 +292,14 @@ const ReceiptMenu = () => {
             <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-4 flex items-center border-b bg-white">
-                <div className="flex items-center space-x-2 text-gray-400">
+            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     <FaShoppingBag size={21} />
                     <Link to="/admin/menu">Produk</Link>
                     <FaChevronRight />
                     <p>{menuName}</p>
                     <FaChevronRight />
-                    <span>Kelola Resep</span>
+                    <span>Resep</span>
                 </div>
             </div>
 

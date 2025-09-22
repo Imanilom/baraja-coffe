@@ -206,9 +206,9 @@ const EventManagement = () => {
                     <p className="text-[15px] text-gray-500">Event</p>
                 </div>
                 <div className="flex space-x-2">
-                    <button className="text-[#005429] hover:text-white bg-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">
+                    {/* <button className="text-[#005429] hover:text-white bg-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[7px] rounded">
                         Ekspor Event
-                    </button>
+                    </button> */}
                     <Link
                         to="/admin/event/create-event"
                         className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"

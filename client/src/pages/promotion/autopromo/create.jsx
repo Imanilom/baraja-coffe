@@ -154,13 +154,13 @@ const CreateAutoPromo = () => {
 
     try {
       console.log(payload);
-      // const response = await axios.post("/api/promotion/autopromo-create", payload);
-      // if (response.data.success) {
-      //   alert("Promo berhasil dibuat!");
-      //   navigate("/admin/promo-otomatis");
-      // } else {
-      //   alert("Gagal membuat promo. Cek kembali data Anda.");
-      // }
+      const response = await axios.post("/api/promotion/autopromo-create", payload);
+      if (response.data.success) {
+        alert("Promo berhasil dibuat!");
+        navigate("/admin/promo-otomatis");
+      } else {
+        alert("Gagal membuat promo. Cek kembali data Anda.");
+      }
     } catch (err) {
       console.error(err);
       alert("Terjadi kesalahan saat membuat promo.");
@@ -187,15 +187,14 @@ const CreateAutoPromo = () => {
     <div className="max-w-full">
       <Header />
 
-      <div className="px-3 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b space-y-2 sm:space-y-0">
-        <div className="flex items-center space-x-2 text-sm text-gray-500 w-full sm:w-auto whitespace-nowrap">
-          <FaCut size={18} />
-          <p>Promo</p>
+      <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+        <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+          <Link to="/admin/promotion">Promo</Link>
           <FaChevronRight />
           <span>Promo Otomatis</span>
           <FaChevronRight />
           <span>Tambah Promo</span>
-        </div>
+        </h1>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -327,7 +326,7 @@ const CreateAutoPromo = () => {
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">Outlet</label>
 
-            <div className="space-y-2 border rounded-md p-2 max-h-48 overflow-y-auto">
+            <div className="space-y-2 p-2 max-h-48 overflow-y-auto">
               {outlets.map((o) => (
                 <label key={o._id} className="flex items-center gap-2 text-sm">
                   <input

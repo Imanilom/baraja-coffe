@@ -2,9 +2,44 @@ import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaBell, FaUser, FaTag, FaStoreAlt, FaBullseye, FaReceipt, FaSearch, FaPencilAlt, FaTrash, FaPlusCircle } from "react-icons/fa";
+import { FaClipboardList, FaBell, FaUser, FaTag, FaStoreAlt, FaBullseye, FaReceipt, FaSearch, FaPencilAlt, FaTrash, FaPlusCircle, FaPlus } from "react-icons/fa";
+import Header from "../admin/header";
+import Select from "react-select";
 
 const TaxManagementPage = () => {
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db', // Tailwind border-gray-300
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280', // text-gray-500
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            '&:hover': {
+                borderColor: '#9ca3af', // Tailwind border-gray-400
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500 for typed text
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af', // text-gray-400
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151', // gray-700
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            cursor: 'pointer',
+        }),
+    };
     const [openDropdown, setOpenDropdown] = useState(null);
     const [outlets, setOutlets] = useState([]);
     const [data, setData] = useState([]);
@@ -61,6 +96,27 @@ const TaxManagementPage = () => {
         }
     };
 
+    const outletOptions = [
+        { value: "", label: "Semua Outlet" },
+        outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ];
+
+    const typeOptions = [
+        { value: "", label: "Semua Type" },
+        { value: "tax", label: "Pajak" },
+        { value: "service", label: "Layanan" },
+    ];
+
+    const handleChange = (selected, actionMeta) => {
+        setFilteredData((prev) => ({
+            ...prev,
+            [actionMeta.name]: selected.value,
+        }));
+    };
+
     const paginatedData = useMemo(() => {
 
         // Ensure filteredData is an array before calling slice
@@ -78,118 +134,50 @@ const TaxManagementPage = () => {
     return (
         <div className="overflow-y-auto pb-[100px]">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Pajak & Service Charge</p>
-                </div>
+            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    Pajak & Service Charge
+                </h1>
                 <div className="flex space-x-2">
-                    <Link to="/admin/service-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Service Charge</Link>
-                    <Link to="/admin/tax-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah Pajak</Link>
+                    <Link to="/admin/service-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2"><FaPlus />Tambah Service</Link>
+                    <Link to="/admin/tax-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2"><FaPlus />Tambah Pajak</Link>
                 </div>
             </div>
 
-            <div className="px-[15px] mt-[15px]">
-                <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-4">
-                    <button
-                        className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
-                        onClick={() => handleTabChange("menu")}
-                    >
-                        <Link className="flex justify-between items-center p-4"
-                            to={"/admin/outlet"}>
-                            <div className="flex space-x-4">
-                                <FaStoreAlt size={24} className="text-gray-400" />
-                                <h2 className="text-gray-400 ml-2 text-sm">Outlet</h2>
-                            </div>
-                            <div className="text-sm text-gray-400">
-                                ({outlets.length})
-                            </div>
-                        </Link>
-                    </button>
-
-                    <div
-                        className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
-                    >
-                        <Link className="flex justify-between items-center border-l border-l-gray-200 p-4">
-                            <div className="flex space-x-4">
-                                <FaClipboardList size={24} className="text-gray-400" />
-                                <h2 className="text-gray-400 ml-2 text-sm">Pajak & Service</h2>
-                            </div>
-                            <div className="text-sm text-gray-400">
-
-                            </div>
-                        </Link>
-                    </div>
-
-                    <div
-                        className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
-                    >
-                        <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-                            to="/admin/target-sales">
-                            <div className="flex space-x-4">
-                                <FaBullseye size={24} className="text-gray-400" />
-                                <h2 className="text-gray-400 ml-2 text-sm">Target Penjualan</h2>
-                            </div>
-                            <div className="text-sm text-gray-400">
-
-                            </div>
-                        </Link>
-                    </div>
-
-                    <div
-                        className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
-                    >
-                        <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-                            to="/admin/receipt-design">
-                            <div className="flex space-x-4">
-                                <FaReceipt size={24} className="text-gray-400" />
-                                <h2 className="text-gray-400 ml-2 text-sm">Desain Struk</h2>
-                            </div>
-                        </Link>
-                    </div>
+            <div className="px-[15px] flex justify-between">
+                <div className="relative pb-[10px] w-1/4">
+                    <Select
+                        name="outlet"
+                        value={
+                            outlets
+                                .map((p) => ({ value: p._id, label: p.name }))
+                                .find((o) => o.value === filteredData.outlet) || null
+                        }
+                        options={outlets.map((p) => ({ value: p._id, label: p.name }))}
+                        isSearchable
+                        placeholder="Pilih Outlet"
+                        styles={customSelectStyles}
+                        onChange={(selectedOption) =>
+                            setFilteredData((prev) => ({
+                                ...prev,
+                                outlet: selectedOption ? selectedOption.value : "",
+                            }))
+                        }
+                    />
                 </div>
-            </div>
-            <div className="px-[15px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-2 gap-[10px] items-end bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="relative pb-[10px]">
-                        <label className="block text-[13px] mb-1 text-gray-500 py-[7px]">Outlet</label>
-                        <select
-                            name="outlet"
-                            value=""
-                            className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
-                        >
-                            <option value="">Semua Outlet</option>
-                            {outlets.map((outlet) => (
-                                <option key={outlet._id} value={outlet._id}>
-                                    {outlet.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="relative pb-[10px]">
-                        <label className="block text-[13px] mb-1 text-gray-500 py-[7px]">Tipe</label>
-                        <select
-                            name="type"
-                            value=""
-                            className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
-                        >
-                            <option value="">Semua Type</option>
-                            {data.map((d) => (
-                                <option key={d._id} value={d._id}>
-                                    {d.type}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                <div className="relative pb-[10px] w-1/4">
+                    <Select
+                        name="type"
+                        value={typeOptions.find((opt) => opt.value === filteredData.type) || typeOptions[0]}
+                        onChange={handleChange}
+                        options={typeOptions}
+                        styles={customSelectStyles}
+                        placeholder="Pilih Type"
+                        isSearchable
+                    />
                 </div>
             </div>
 

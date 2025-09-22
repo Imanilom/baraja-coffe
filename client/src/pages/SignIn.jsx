@@ -53,14 +53,19 @@ export default function SignIn() {
       console.log("Response status:", res.status);
       console.log("Full response JSON:", data);
 
-      const w = warehouse.find((w) => w.admin._id === data._id)
+      // deklarasi di luar
+      let w = null;
+
+      if (warehouse && Array.isArray(warehouse)) {
+        w = warehouse.find((w) => w.admin._id === data._id);
+      }
 
       if (!res.ok) {
         throw new Error(data.message || 'Sign-in failed');
       }
 
       dispatch(signInSuccess(data));
-      if (w || data.role === 'superadmin' || data.role === 'admin') {
+      if (w || data.role === 'superadmin' || data.role === 'admin' || data.role === 'akuntan') {
         if (data.isActive === true) {
           navigate('/admin/dashboard');
         } else {

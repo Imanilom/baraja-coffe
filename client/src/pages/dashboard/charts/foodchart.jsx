@@ -12,7 +12,7 @@ export default function FoodChart({ data }) {
                 <h3 className="font-semibold">Penjualan Makanan Teratas</h3>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow w-full">
+            <div className="bg-white p-4 rounded-lg shadow w-full border-t-4 border-green-900">
 
                 {/* Data */}
                 {data && data.length > 0 ? (

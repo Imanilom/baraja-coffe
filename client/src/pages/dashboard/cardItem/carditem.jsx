@@ -50,7 +50,7 @@ const CardItem = ({ title, icon, percentage, amount, isPositive, average, value,
             </Link> */}
             <Link
                 to={route}
-                className="w-full bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition cursor-pointer"
+                className="w-full bg-white border-t-4 border-green-900 rounded-xl p-5 shadow hover:shadow-md transition cursor-pointer"
             >
                 <div className="flex flex-col space-y-3">
                     <div className="flex items-center space-x-2">

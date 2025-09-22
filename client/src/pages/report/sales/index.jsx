@@ -140,7 +140,7 @@ const SalesMenu = () => {
                     </Link>
 
                     {/* Penjualan Per Kategori */}
-                    <Link
+                    {/* <Link
                         to="/admin/digital-payment"
                         className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
                     >
@@ -148,7 +148,7 @@ const SalesMenu = () => {
                             <FaRegCreditCard className='' size={24} />
                             <h2 className="font-semibold">Metode Pembayaran Digital</h2>
                         </div>
-                    </Link>
+                    </Link> */}
 
                     {/* Penjualan Per Kategori */}
                     <Link
