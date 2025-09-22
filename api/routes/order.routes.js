@@ -1,7 +1,6 @@
 import express from 'express';
 import {
   createOrder,
-  checkout,
   paymentNotification,
   confirmOrder,
   getPendingOrders,
@@ -34,9 +33,6 @@ const router = express.Router();
 
 // Route untuk membuat order dan pembayaran
 router.post('/order', createOrder);
-
-
-router.post("/checkout", checkout);
 
 router.post("/unified-order", createUnifiedOrder);
 // TODO: Start route untuk melakukan charge from aplication

@@ -31,7 +31,7 @@ const RequestSchema = new mongoose.Schema({
   fulfillmentStatus: { 
     type: String, 
     default: 'pending', 
-    enum: ['pending', 'partial', 'fulfilled'] // status pemenuhan oleh gudang
+    enum: ['pending', 'partial', 'fulfilled', 'excess'] // status pemenuhan oleh gudang
   },
   processedBy: String,
   processedAt: Date,

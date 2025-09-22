@@ -5,6 +5,7 @@ import Product from '../models/modul_market/Product.model.js';
 import ProductStock from '../models//modul_menu/ProductStock.model.js';
 import Request from '../models/modul_market/Request.model.js';
 import Warehouse from '../models//modul_market/Warehouse.model.js';
+import MarketList from '../models/modul_market/MarketList.model.js';
 
 class RequestController {
   
@@ -132,7 +133,7 @@ async approveAndFulfillRequest(req, res) {
       throw new Error("Tidak memiliki izin untuk approve request");
     }
 
-    const { requestId, items, notes } = req.body; // items berisi array dengan itemId dan actualQuantity
+    const { requestId, items, notes } = req.body;
     const request = await Request.findById(requestId).session(session);
 
     if (!request) throw new Error("Request tidak ditemukan");
@@ -146,12 +147,10 @@ async approveAndFulfillRequest(req, res) {
 
     // --- PROCESS TRANSFER ITEMS ---
     for (const item of request.transferItems || []) {
-      // Cari adjustment untuk item ini dari input
       const adjustment = items.find(adj => adj.itemId === item._id.toString());
       const actualQuantity = adjustment ? adjustment.actualQuantity : item.quantity;
       
       const sourceWarehouseId = item.sourceWarehouse;
-
       if (!sourceWarehouseId) {
         throw new Error(`Source warehouse tidak ditemukan untuk item ${item.productName}`);
       }
@@ -169,7 +168,6 @@ async approveAndFulfillRequest(req, res) {
         throw new Error(`Stok tidak cukup di gudang asal (${sourceStock.currentStock} < ${actualQuantity}) untuk ${item.productName}`);
       }
 
-      // Movement OUT dari gudang asal dengan quantity actual
       const outMovement = {
         quantity: actualQuantity,
         type: "out",
@@ -185,7 +183,6 @@ async approveAndFulfillRequest(req, res) {
       sourceStock.movements.push(outMovement);
       await sourceStock.save({ session });
 
-      // Movement IN ke gudang tujuan
       let destStock = await ProductStock.findOne({
         productId: item.productId,
         warehouse: destWarehouseId
@@ -218,13 +215,11 @@ async approveAndFulfillRequest(req, res) {
       destStock.movements.push(inMovement);
       await destStock.save({ session });
 
-      // Update status item dengan quantity actual
       item.status = "fulfilled";
-      item.fulfilledQuantity = actualQuantity;
+      item.fulfilledQuantity = actualQuantity; // <-- INI SUDAH BENAR
       item.processedAt = new Date();
       item.processedBy = user.username;
       
-      // Tambah catatan jika ada penyesuaian
       if (actualQuantity !== item.quantity) {
         const adjustmentType = actualQuantity > item.quantity ? "lebih" : "kurang";
         const difference = Math.abs(actualQuantity - item.quantity);
@@ -234,7 +229,6 @@ async approveAndFulfillRequest(req, res) {
 
     // --- PROCESS PURCHASE ITEMS ---
     for (const item of request.purchaseItems || []) {
-      // Cari adjustment untuk item ini dari input
       const adjustment = items.find(adj => adj.itemId === item._id.toString());
       const actualQuantity = adjustment ? adjustment.actualQuantity : item.quantity;
       
@@ -243,7 +237,6 @@ async approveAndFulfillRequest(req, res) {
         throw new Error(`Source warehouse tidak ditemukan untuk item ${item.productName}`);
       }
 
-      // Cari stok di gudang sumber (pusat)
       const sourceStock = await ProductStock.findOne({
         productId: item.productId,
         warehouse: sourceWarehouseId
@@ -257,7 +250,6 @@ async approveAndFulfillRequest(req, res) {
         throw new Error(`Stok tidak cukup di gudang pusat (${sourceStock.currentStock} < ${actualQuantity}) untuk ${item.productName}`);
       }
 
-      // Movement OUT dari gudang pusat dengan quantity actual
       const outMovement = {
         quantity: actualQuantity,
         type: "out",
@@ -273,14 +265,12 @@ async approveAndFulfillRequest(req, res) {
       sourceStock.movements.push(outMovement);
       await sourceStock.save({ session });
 
-      // Movement IN ke gudang tujuan (dapur)
       let destStock = await ProductStock.findOne({
         productId: item.productId,
         warehouse: destWarehouseId
       }).session(session);
 
       if (!destStock) {
-        // Buat data stok baru jika belum ada
         destStock = new ProductStock({
           productId: item.productId,
           category: item.category,
@@ -308,18 +298,62 @@ async approveAndFulfillRequest(req, res) {
       destStock.movements.push(inMovement);
       await destStock.save({ session });
 
-      // Update status item dengan quantity actual
       item.status = "fulfilled";
-      item.fulfilledQuantity = actualQuantity;
+      item.fulfilledQuantity = actualQuantity; // <-- INI SUDAH BENAR
       item.processedAt = new Date();
       item.processedBy = user.username;
       
-      // Tambah catatan jika ada penyesuaian
       if (actualQuantity !== item.quantity) {
         const adjustmentType = actualQuantity > item.quantity ? "lebih" : "kurang";
         const difference = Math.abs(actualQuantity - item.quantity);
         item.adjustmentNotes = `Quantity disesuaikan: ${adjustmentType} ${difference} dari yang diminta`;
       }
+
+      // --- SOLUSI UTAMA: UPDATE/CARI & UPDATE PURCHASE DOCUMENT ---
+      // Cari dokumen Purchase yang terkait dengan request ini
+      let purchase = await MarketList.findOne({
+        'items.productId': item.productId,
+        relatedRequests: request._id
+      }).session(session);
+
+      if (purchase) {
+        // Jika Purchase sudah ada, update quantityPurchased untuk item ini
+        const purchaseItem = purchase.items.find(pi => pi.productId.toString() === item.productId.toString());
+        if (purchaseItem) {
+          purchaseItem.quantityPurchased = actualQuantity;
+          // Opsional: Hitung ulang amountCharged jika perlu
+          // purchaseItem.amountCharged = purchaseItem.quantityPurchased * purchaseItem.pricePerUnit;
+        }
+        await purchase.save({ session });
+      } else {
+        // Jika belum ada, buat dokumen Purchase baru
+        // Catatan: Anda mungkin perlu menyesuaikan field lain seperti pricePerUnit, supplierName, dll.
+        // Untuk contoh ini, kita asumsikan data dasar sudah ada.
+        const newPurchaseItem = {
+          productId: item.productId,
+          productName: item.productName,
+          productSku: item.productSku,
+          category: item.category,
+          unit: item.unit,
+          quantityRequested: item.quantity,
+          quantityPurchased: actualQuantity, // <-- Gunakan actualQuantity di sini
+          // pricePerUnit: 0, // Anda perlu logika untuk mendapatkan harga
+          // supplierName: '', // Anda perlu logika untuk mendapatkan supplier
+          // amountCharged: 0, // amountCharged = quantityPurchased * pricePerUnit
+          // payment: { ... }
+        };
+
+        const newPurchase = new Purchase({
+          date: new Date(),
+          day: new Date().toLocaleDateString('id-ID', { weekday: 'long' }),
+          items: [newPurchaseItem],
+          relatedRequests: [request._id],
+          createdBy: user.username
+        });
+
+        await newPurchase.save({ session });
+      }
+      // --- AKHIR SOLUSI ---
     }
 
     // --- UPDATE REQUEST OVERALL ---
@@ -327,7 +361,6 @@ async approveAndFulfillRequest(req, res) {
     const totalRequested = allItems.reduce((sum, item) => sum + item.quantity, 0);
     const totalFulfilled = allItems.reduce((sum, item) => sum + (item.fulfilledQuantity || 0), 0);
     
-    // Tentukan fulfillment status berdasarkan perbandingan total
     let fulfillmentStatus = "pending";
     if (totalFulfilled >= totalRequested) {
       fulfillmentStatus = totalFulfilled > totalRequested ? "excess" : "fulfilled";
@@ -341,7 +374,6 @@ async approveAndFulfillRequest(req, res) {
     request.processedAt = new Date();
     request.notes = notes || "";
     
-    // Tambah summary penyesuaian
     const adjustedItems = allItems.filter(item => item.fulfilledQuantity !== item.quantity);
     if (adjustedItems.length > 0) {
       const adjustmentSummary = adjustedItems.map(item => 
@@ -353,7 +385,6 @@ async approveAndFulfillRequest(req, res) {
     await request.save({ session });
     await session.commitTransaction();
 
-    // Buat response message yang informatif
     let message = "Request berhasil di-approve dan stok berhasil dipindahkan.";
     if (fulfillmentStatus === "excess") {
       message += " Beberapa item diterima lebih dari yang diminta.";

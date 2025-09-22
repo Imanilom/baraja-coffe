@@ -72,7 +72,7 @@ export async function createOrderHandler({ orderId, orderData, source }) {
 
     // Enqueue inventory update after successful transaction
     const queueResult = await enqueueInventoryUpdate(orderResult);
-    console.log('Order and inventory queue processed:', queueResult);
+    
 
     return {
       ...queueResult,
