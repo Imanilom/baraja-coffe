@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FaTrashAlt } from "react-icons/fa";
+import { FaPlus, FaTrashAlt } from "react-icons/fa";
 
 const AddonForm = ({ addons, setAddons }) => {
     const [localAddons, setLocalAddons] = useState([
@@ -71,10 +71,30 @@ const AddonForm = ({ addons, setAddons }) => {
 
     return (
         <div className="space-y-5">
-            <label className="block font-semibold text-gray-700 text-sm">Addon</label>
+            <div className="flex justify-between items-center">
+                <label className="block font-semibold text-green-900 text-xs uppercase">Addon</label>
+                <div className="flex items-center justify-end gap-3">
+                    <button
+                        type="button"
+                        onClick={addAddonGroup}
+                        className="inline-flex items-center px-4 py-2 rounded-md bg-green-900 text-white text-sm font-medium gap-2"
+                    >
+                        <FaPlus /> Tambah Addon
+                    </button>
+                    {localAddons.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={removeAllAddons}
+                            className="inline-flex items-center px-4 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+                        >
+                            Hapus Semua
+                        </button>
+                    )}
+                </div>
+            </div>
 
             {localAddons.map((addon, addonIndex) => (
-                <div key={addonIndex} className="border rounded-xl p-5 shadow-sm bg-white space-y-4">
+                <div key={addonIndex} className="rounded-xl shadow-sm bg-white space-y-4">
                     {/* Header Addon */}
                     <div>
                         <input
@@ -136,18 +156,18 @@ const AddonForm = ({ addons, setAddons }) => {
                             </div>
                         ))}
                     </div>
+                    <div className="flex justify-between items-center">
 
-                    {/* Tambah Opsi */}
-                    <button
-                        type="button"
-                        onClick={() => addOption(addonIndex)}
-                        className="mt-2 inline-flex items-center text-sm px-3 py-1.5 rounded-md bg-blue-50 text-[#005429] hover:bg-blue-100"
-                    >
-                        + Tambah
-                    </button>
+                        {/* Tambah Opsi */}
+                        <button
+                            type="button"
+                            onClick={() => addOption(addonIndex)}
+                            className="mt-2 inline-flex items-center text-sm px-3 py-1.5 rounded-md bg-green-900 text-white gap-2"
+                        >
+                            <FaPlus /> Tambah
+                        </button>
 
-                    {/* Hapus Addon */}
-                    <div className="flex justify-end">
+                        {/* Hapus Addon */}
                         <button
                             type="button"
                             onClick={() => removeAddonGroup(addonIndex)}
@@ -158,26 +178,6 @@ const AddonForm = ({ addons, setAddons }) => {
                     </div>
                 </div>
             ))}
-
-            {/* Action bawah */}
-            <div className="flex items-center gap-3">
-                <button
-                    type="button"
-                    onClick={addAddonGroup}
-                    className="inline-flex items-center px-4 py-2 rounded-md bg-[#005429] text-white text-sm font-medium hover:bg-green-700"
-                >
-                    + Tambah Addon
-                </button>
-                {localAddons.length > 0 && (
-                    <button
-                        type="button"
-                        onClick={removeAllAddons}
-                        className="inline-flex items-center px-4 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700"
-                    >
-                        Hapus Semua
-                    </button>
-                )}
-            </div>
         </div>
 
     );

@@ -3,7 +3,7 @@ import axios from "axios";
 import dayjs from "dayjs";
 import Select from "react-select";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBoxes, FaInfoCircle, FaChevronLeft, FaPencilAlt } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaBoxes, FaInfoCircle, FaChevronLeft, FaPencilAlt, FaPlus } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import { get } from "mongoose";
@@ -340,18 +340,18 @@ const ProductionListManagement = () => {
             <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b bg-white space-y-2 sm:space-y-0">
-                <div className="flex items-center space-x-2 text-sm">
-                    <FaBoxes size={18} className="text-gray-500" />
-                    <p className="text-gray-500">Inventori</p>
-                    <FaChevronRight className="text-gray-500" />
-                    <span className="text-[#005429]">Produk</span>
-                </div>
+            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <Link to="/admin/promotion">Inventori</Link>
+                    <FaChevronRight />
+                    <span className="text-[#005429]">Limit Permintaan</span>
+                </h1>
+
                 <Link
                     to="/admin/inventory/production-create"
-                    className="w-full sm:w-auto bg-[#005429] text-white px-4 py-2 rounded border border-[#005429] text-[13px]"
+                    className="w-full sm:w-auto bg-[#005429] flex items-center gap-2 text-white px-4 py-2 rounded border border-[#005429] text-[13px]"
                 >
-                    Produksi Produk
+                    <FaPlus /> Tambah
                 </Link>
             </div>
 
@@ -359,10 +359,27 @@ const ProductionListManagement = () => {
 
             {/* Filters */}
             <div className="px-3 pb-4 mb-[60px]">
-                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
-                    {/* Supplier */}
+                <div className="my-3 py-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded">
+
+                    {/* Cari */}
                     <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Supplier</label>
+                        <div className="relative">
+                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                placeholder="Cari"
+                                value={tempSearch}
+                                onChange={(e) => setTempSearch(e.target.value)}
+                                className="text-[13px] border py-2 pl-8 pr-4 rounded w-full"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Kosong biar rapih di desktop */}
+                    <div className="hidden lg:block col-span-5"></div>
+
+                    {/* Supplier */}
+                    <div className="flex flex-col">
                         <Select
                             className="text-sm"
                             classNamePrefix="select"
@@ -377,40 +394,6 @@ const ProductionListManagement = () => {
                             onChange={(selected) => setTempSelectedSupplier(selected.value)}
                             styles={customSelectStyles}
                         />
-                    </div>
-
-                    {/* Kosong biar rapih di desktop */}
-                    <div className="hidden lg:block col-span-3"></div>
-
-                    {/* Cari */}
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-                        <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Cari"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-2 pl-8 pr-4 rounded w-full"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Buttons */}
-                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
-                        <button
-                            onClick={applyFilter}
-                            className="bg-[#005429] text-white text-[13px] px-4 py-2 border border-[#005429] rounded"
-                        >
-                            Terapkan
-                        </button>
-                        <button
-                            onClick={resetFilter}
-                            className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-4 py-2 rounded"
-                        >
-                            Reset
-                        </button>
                     </div>
                 </div>
 
@@ -536,11 +519,6 @@ const ProductionListManagement = () => {
                         </div>
                     </div>
                 )}
-            </div>
-
-            {/* Bottom bar */}
-            <div className="bg-white w-full h-12 fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]" />
             </div>
         </div>
 

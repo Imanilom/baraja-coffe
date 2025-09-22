@@ -8,11 +8,11 @@ const SidebarMenuSchema = new mongoose.Schema({
   },
   icon: {
     type: String,
-    required: true
+    // required: true
   },
   path: {
     type: String,
-    required: true
+    // required: true
   },
   requiredPermissions: [
     {
@@ -68,14 +68,14 @@ const SidebarMenuSchema = new mongoose.Schema({
       default: 'primary'
     }
   }
-}, { 
+}, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
 // Virtual untuk mengecek apakah menu ini memiliki children
-SidebarMenuSchema.virtual('hasChildren').get(function() {
+SidebarMenuSchema.virtual('hasChildren').get(function () {
   return this.children && this.children.length > 0;
 });
 
@@ -84,20 +84,20 @@ SidebarMenuSchema.index({ order: 1, isActive: 1 });
 SidebarMenuSchema.index({ parentId: 1 });
 
 // Static method untuk mendapatkan menu berdasarkan permissions user
-SidebarMenuSchema.statics.getMenuByPermissions = async function(userPermissions) {
+SidebarMenuSchema.statics.getMenuByPermissions = async function (userPermissions) {
   try {
     // Ambil semua menu yang aktif dan urutkan berdasarkan order
-    const menus = await this.find({ 
+    const menus = await this.find({
       isActive: true,
-      parentId: null 
+      parentId: null
     })
-    .populate({
-      path: 'children',
-      match: { isActive: true },
-      options: { sort: { order: 1 } }
-    })
-    .sort({ order: 1 })
-    .lean();
+      .populate({
+        path: 'children',
+        match: { isActive: true },
+        options: { sort: { order: 1 } }
+      })
+      .sort({ order: 1 })
+      .lean();
 
     // Filter menu berdasarkan permissions
     const filteredMenus = menus.filter(menu => {
@@ -105,9 +105,9 @@ SidebarMenuSchema.statics.getMenuByPermissions = async function(userPermissions)
       if (!menu.requiredPermissions || menu.requiredPermissions.length === 0) {
         return true;
       }
-      
+
       // Cek apakah user memiliki salah satu permission yang dibutuhkan
-      return menu.requiredPermissions.some(permission => 
+      return menu.requiredPermissions.some(permission =>
         userPermissions.includes(permission)
       );
     }).map(menu => {
@@ -117,7 +117,7 @@ SidebarMenuSchema.statics.getMenuByPermissions = async function(userPermissions)
           if (!child.requiredPermissions || child.requiredPermissions.length === 0) {
             return true;
           }
-          return child.requiredPermissions.some(permission => 
+          return child.requiredPermissions.some(permission =>
             userPermissions.includes(permission)
           );
         });
@@ -132,10 +132,10 @@ SidebarMenuSchema.statics.getMenuByPermissions = async function(userPermissions)
 };
 
 // Method untuk mengecek apakah user dapat mengakses menu tertentu
-SidebarMenuSchema.statics.canAccessMenu = async function(menuId, userPermissions) {
+SidebarMenuSchema.statics.canAccessMenu = async function (menuId, userPermissions) {
   try {
     const menu = await this.findById(menuId);
-    
+
     if (!menu || !menu.isActive) {
       return false;
     }
@@ -146,7 +146,7 @@ SidebarMenuSchema.statics.canAccessMenu = async function(menuId, userPermissions
     }
 
     // Cek apakah user memiliki permission yang dibutuhkan
-    return menu.requiredPermissions.some(permission => 
+    return menu.requiredPermissions.some(permission =>
       userPermissions.includes(permission)
     );
   } catch (error) {

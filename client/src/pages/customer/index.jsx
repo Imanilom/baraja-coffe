@@ -42,27 +42,13 @@ const CustomerManagement = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch customer data
-                // const customerResponse = [
-                //     { _id: "1", name: "Rilo", type: "Silver", telepon: "0812344" }
-                // ];
-
-                const customerResponse = await axios.get(`/api/user`);
-                const customer = customerResponse.data;
+                const customerResponse = await axios.get(`/api/user/staff`);
+                const customer = customerResponse.data.filter(
+                    (user) => user.role?.name === "customer"
+                );
 
                 setCustomer(customer);
                 setFilteredData(customer); // Initialize filtered data with all customer
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
 
                 setError(null);
             } catch (err) {
@@ -71,7 +57,6 @@ const CustomerManagement = () => {
                 // Set empty arrays as fallback
                 setCustomer([]);
                 setFilteredData([]);
-                setOutlets([]);
             } finally {
                 setLoading(false);
             }
@@ -209,7 +194,7 @@ const CustomerManagement = () => {
                     <p className="text-[15px] text-gray-500">Pelanggan</p>
                 </div>
                 <div className="flex space-x-2">
-                    <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Impor</button>
+                    {/* <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Impor</button> */}
                     <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
                     <Link to="/admin/customer-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
                 </div>

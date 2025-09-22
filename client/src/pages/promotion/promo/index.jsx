@@ -1,12 +1,46 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FaCut, FaBell, FaUser, FaChevronRight, FaSearch } from "react-icons/fa";
+import { FaCut, FaBell, FaUser, FaChevronRight, FaSearch, FaPlus } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import axios from "axios";
 import PromoTable from "./promotable";
 import Header from "../../admin/header";
+import Select from "react-select";
 
 const PromoList = () => {
+  const customSelectStyles = {
+    control: (provided, state) => ({
+      ...provided,
+      borderColor: '#d1d5db', // Tailwind border-gray-300
+      minHeight: '34px',
+      fontSize: '13px',
+      color: '#6b7280', // text-gray-500
+      boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+      '&:hover': {
+        borderColor: '#9ca3af', // Tailwind border-gray-400
+      },
+    }),
+    singleValue: (provided) => ({
+      ...provided,
+      color: '#6b7280', // text-gray-500
+    }),
+    input: (provided) => ({
+      ...provided,
+      color: '#6b7280', // text-gray-500 for typed text
+    }),
+    placeholder: (provided) => ({
+      ...provided,
+      color: '#9ca3af', // text-gray-400
+      fontSize: '13px',
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      fontSize: '13px',
+      color: '#374151', // gray-700
+      backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+      cursor: 'pointer',
+    }),
+  };
   const [promos, setPromos] = useState([]);
   const [tempSearch, setTempSearch] = useState("");
   const [filteredPromos, setFilteredPromos] = useState([]);
@@ -73,6 +107,11 @@ const PromoList = () => {
     setFilteredPromos(filtered);
   }, [filters, promos]);
 
+  const statusOptions = [
+    { value: "true", label: "Aktif" },
+    { value: "false", label: "Tidak Aktif" },
+  ];
+
   // Show loading state
   if (loading) {
     return (
@@ -106,62 +145,48 @@ const PromoList = () => {
       <Header />
 
       {/* Breadcrumb */}
-      <div className="px-3 py-3 flex justify-between items-center border-b">
-        <div className="flex items-center space-x-2">
-          <FaCut size={21} className="text-gray-500 inline-block" />
-          <Link to="/admin/promotion" className="text-[15px] text-gray-500">Promo</Link>
-          <FaChevronRight className="text-[15px] text-gray-500" />
-          <Link to="/admin/promo-khusus" className="text-[15px] text-gray-500">Promo Khusus</Link>
-        </div>
+      <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+        <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+          <Link to="/admin/promotion">Promo</Link>
+          <FaChevronRight />
+          <Link to="/admin/promo-khusus">Promo Khusus</Link>
+        </h1>
+        <Link
+          to="/admin/promo-khusus-create"
+          className="flex items-center bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded gap-2"
+        >
+          <FaPlus />Tambah
+        </Link>
       </div>
-      <div className="px-[15px] pt-[15px]">
-        <div className="flex justify-between items-center py-[10px] px-[15px]">
-          <h3 className="text-gray-500 font-semibold">{promos.length} Promo</h3>
-          <Link
-            to="/admin/promo-khusus-create"
-            className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
-          >
-            Tambah Promo
-          </Link>
+      <div className="flex items-center justify-between gap-3 py-3 px-4">
+        <div className="relative">
+          <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Promo"
+            value={tempSearch}
+            onChange={(e) => setTempSearch(e.target.value)}
+            className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+          />
         </div>
-      </div>
-      <div className="px-[15px] pb-[15px]">
-        <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-2 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-          <div className="relative">
-            <label className="text-[13px] mb-1 text-gray-500">Cari Promo</label>
-            <div className="relative">
-              <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Promo"
-                value={tempSearch}
-                onChange={(e) => setTempSearch(e.target.value)}
-                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
-              />
-            </div>
-          </div>
-          <div className="relative">
-            <label className="text-[13px] mb-1 text-gray-500">Status :</label>
-            <select
-              name="isActive"
-              value={filters.isActive}
-              onChange={handleFilterChange}
-              className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
-            >
-              <option value="">All Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
-          </div>
+        <div className="relative">
+          <Select
+            name="isActive"
+            value={statusOptions.find((opt) => opt.value === filters.isActive)}
+            onChange={(selected) =>
+              handleFilterChange({
+                target: { name: "isActive", value: selected.value },
+              })
+            }
+            options={statusOptions}
+            placeholder="All Status"
+            styles={customSelectStyles}
+            isSearchable={false}
+          />
         </div>
       </div>
       <div className="py-[10px] px-[15px]">
         <PromoTable filteredPromos={filteredPromos} refreshPromos={fetchPromos} />
-      </div>
-
-      <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-        <div className="w-full h-[2px] bg-[#005429]">
-        </div>
       </div>
     </div>
   );

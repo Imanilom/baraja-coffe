@@ -86,40 +86,43 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
 
     return (
         <div className="w-full mx-auto">
-            <div className="w-full overflow-x-auto">
-                <table className="min-w-full text-[14px] text-[#555] bg-white shadow-md text-sm">
-                    <thead className="border-b bg-gray-50">
+            <div className="bg-white shadow rounded-lg overflow-x-auto">
+                <table className="min-w-full text-sm text-gray-700">
+                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                         <tr>
-                            <th className="px-4 py-3 text-left w-[25%]">Nama Promo</th>
-                            <th className="px-4 py-3 text-left w-[20%]">Tanggal Berlaku</th>
-                            <th className="px-4 py-3 w-[10%]"></th>
+                            <th className="px-6 py-3 text-left font-semibold w-3/12">Nama Promo</th>
+                            <th className="px-6 py-3 text-left font-semibold w-3/12">Tanggal Berlaku</th>
+                            <th className="px-6 py-3 text-left font-semibold w-2/12">Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {currentPromos.map((promo) => (
-                            <tr key={promo._id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 truncate w-[25%]">{promo.name}</td>
-                                <td className="px-4 py-3 truncate w-[20%]">
-                                    {formatTanggal(promo.validFrom)} s/d {formatTanggal(promo.validTo)}
-                                </td>
-                                <td className="px-4 py-3 text-right w-[10%] truncate">
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={promo.isActive}
-                                            onChange={() => {
+                        {currentPromos.length > 0 ? (
+                            currentPromos.map((promo) => (
+                                <tr key={promo._id} className="hover:bg-gray-50 transition-colors">
+                                    {/* Nama Promo */}
+                                    <td className="px-6 py-3 truncate">{promo.name}</td>
+
+                                    {/* Tanggal */}
+                                    <td className="px-6 py-3 truncate">
+                                        {formatTanggal(promo.validFrom)} s/d {formatTanggal(promo.validTo)}
+                                    </td>
+
+                                    {/* Status Toggle */}
+                                    <td className="px-6 py-3">
+                                        <span
+                                            onClick={() => {
                                                 setSelectedAutoPromo(promo);
                                                 setNewStatus(!promo.isActive);
                                                 setIsConfirmOpen(true);
                                             }}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-11 h-6 bg-gray-300 peer-checked:bg-green-500 rounded-full transition-colors"></div>
-                                        <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
-                                        <span className="ml-3 text-sm font-medium text-gray-700">
+                                            className={`px-2 py-1 text-xs rounded-full cursor-pointer ${promo.isActive
+                                                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                                : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                                                }`}
+                                        >
                                             {promo.isActive ? "Aktif" : "Tidak Aktif"}
                                         </span>
-                                    </label>
+                                    </td>
                                     {/* <div className="relative inline-block">
                                         <Link
                                             to={`/admin/promo-otomatis-update/${promo._id}`}
@@ -139,13 +142,12 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
                                             <span>Hapus</span>
                                         </button>
                                     </div> */}
-                                </td>
-                            </tr>
-                        ))}
-                        {filteredPromos.length === 0 && (
+                                </tr>
+                            ))
+                        ) : (
                             <tr>
-                                <td colSpan="5" className="text-center py-6 text-gray-500">
-                                    Tidak ada promo ditemukan.
+                                <td colSpan={3} className="text-center py-8 text-gray-500 text-sm">
+                                    Tidak ada promo ditemukan
                                 </td>
                             </tr>
                         )}
@@ -153,39 +155,39 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
                 </table>
             </div>
 
-            {/* Paginate */}
-            {totalPages > 0 && (
-                <div className="flex justify-between items-center mt-4 px-2 text-sm text-gray-700">
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
+                    <button
+                        onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+                    >
+                        Sebelumnya
+                    </button>
+
                     <span>
                         Menampilkan {indexOfFirst + 1}–{Math.min(indexOfLast, filteredPromos.length)} dari {filteredPromos.length} data
                     </span>
-                    {totalPages > 1 && (
-                        <div className="space-x-2">
-                            <button
-                                className="px-3 py-1 border rounded disabled:opacity-50"
-                                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                                disabled={currentPage === 1}
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                className="px-3 py-1 border rounded disabled:opacity-50"
-                                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
-                    )}
+
+                    <button
+                        onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+                    >
+                        Berikutnya
+                    </button>
                 </div>
             )}
 
+            {/* Modal Hapus */}
             <ConfirmationModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onConfirm={() => handleDelete(itemToDelete)}
             />
 
+            {/* Modal Toggle Aktif */}
             <ConfirmationModalActive
                 isOpen={isConfirmOpen}
                 voucher={selectedAutoPromo}
@@ -203,6 +205,7 @@ const PromoTable = ({ filteredPromos, refreshPromos }) => {
                 }}
             />
         </div>
+
     );
 };
 

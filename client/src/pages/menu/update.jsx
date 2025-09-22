@@ -23,7 +23,7 @@ const UpdateMenu = () => {
       borderColor: '#d1d5db', // Tailwind border-gray-300
       minHeight: '34px',
       fontSize: '14px',
-      color: '#6b7280', // text-gray-500
+      color: '#6b7280', // text-green-900
       boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
       '&:hover': {
         borderColor: '#9ca3af', // Tailwind border-gray-400
@@ -31,11 +31,11 @@ const UpdateMenu = () => {
     }),
     singleValue: (provided) => ({
       ...provided,
-      color: '#6b7280', // text-gray-500
+      color: '#6b7280', // text-green-900
     }),
     input: (provided) => ({
       ...provided,
-      color: '#6b7280', // text-gray-500 for typed text
+      color: '#6b7280', // text-green-900 for typed text
     }),
     placeholder: (provided) => ({
       ...provided,
@@ -296,25 +296,26 @@ const UpdateMenu = () => {
       <Header />
 
       <form onSubmit={handleSubmit}>
-        <div className="px-6 py-2 flex justify-between items-center border-b">
-          <div className="flex items-center space-x-2 text-sm md:text-base">
-            <FaShoppingBag className="text-gray-400 inline-block" />
-            <Link to="/admin/menu" className="text-gray-400 inline-block">
+
+        <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+          <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+            <FaShoppingBag />
+            <Link to="/admin/menu">
               Menu
             </Link>
-            <FaChevronRight className="text-gray-400 inline-block" />
-            <span className="text-gray-400 inline-block">{title}</span>
-          </div>
-          <div className="flex space-x-2">
+            <FaChevronRight />
+            <span>{title}</span>
+          </h1>
+          <div className="flex items-center gap-3">
             <span
               onClick={() => setShowModal(true)}
-              className="block border border-[#005429] hover:bg-[#005429] text-[#005429] hover:text-white text-xs md:text-sm px-3 py-1.5 rounded cursor-pointer"
+              className="block border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
             >
               Batal
             </span>
             <button
               type="submit"
-              className="block bg-[#005429] text-white text-xs md:text-sm px-3 py-1.5 rounded"
+              className="block bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
             >
               Simpan
             </button>
@@ -331,7 +332,7 @@ const UpdateMenu = () => {
         <div className="bg-slate-50 p-4 md:p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white shadow-md rounded-xl p-6">
             {/* Bagian kiri */}
-            <div className="space-y-4 text-gray-500">
+            <div className="space-y-4 text-green-900">
               {/* Name */}
               <div>
                 <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">
@@ -442,7 +443,7 @@ const UpdateMenu = () => {
               </div>
 
               {/* SKU */}
-              <div>
+              {/* <div>
                 <label className="my-2.5 text-xs block font-medium">SKU</label>
                 <input
                   type="text"
@@ -451,10 +452,10 @@ const UpdateMenu = () => {
                   onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
                 />
-              </div>
+              </div> */}
 
               {/* Barcode */}
-              <div>
+              {/* <div>
                 <label className="my-2.5 text-xs block font-medium">BARCODE</label>
                 <input
                   type="text"
@@ -463,10 +464,10 @@ const UpdateMenu = () => {
                   onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
                 />
-              </div>
+              </div> */}
 
               {/* Stock unit */}
-              <div>
+              {/* <div>
                 <label className="my-2.5 text-xs block font-medium">
                   SATUAN STOK
                 </label>
@@ -477,7 +478,7 @@ const UpdateMenu = () => {
                   onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
                 />
-              </div>
+              </div> */}
 
               {/* Image Upload */}
               <div className="flex items-center space-x-4 p-4 rounded-lg">
@@ -502,10 +503,20 @@ const UpdateMenu = () => {
                   <div className="text-red-500 text-sm">Image upload failed</div>
                 )}
               </div>
+
+              <div>
+                <label className="block mb-2.5 text-xs font-medium uppercase">Deskripsi</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  className="w-full border rounded p-2 h-36"
+                />
+              </div>
             </div>
 
             {/* Bagian kanan */}
-            <div className="space-y-4 text-sm text-gray-500">
+            <div className="space-y-4 text-sm text-green-900">
               <ToppingForm
                 toppings={formData.toppings}
                 setToppings={(updatedToppings) =>

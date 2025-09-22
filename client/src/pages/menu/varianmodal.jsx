@@ -1,5 +1,5 @@
 import React from "react";
-import { FaTrashAlt } from "react-icons/fa";
+import { FaPlus, FaTrashAlt } from "react-icons/fa";
 
 const ToppingForm = ({ toppings, setToppings }) => {
     const handleChange = (index, field, value) => {
@@ -21,7 +21,7 @@ const ToppingForm = ({ toppings, setToppings }) => {
     return (
         <div>
             <label className="text-xs block font-medium after:content-[''] after:text-red-500 after:text-lg after:ml-1 uppercase">Topping</label>
-            <div className="p-4 overflow-y-auto grow">
+            <div className="py-4 overflow-y-auto grow">
                 {toppings.map((item, index) => (
                     <div key={index} className="grid grid-cols-12 gap-2 items-start mb-4">
 
@@ -65,9 +65,9 @@ const ToppingForm = ({ toppings, setToppings }) => {
                     <button
                         type="button"
                         onClick={handleAddRow}
-                        className="mt-2 inline-flex items-center text-sm px-3 py-1.5 rounded-md bg-blue-50 text-[#005429] hover:bg-blue-100"
+                        className="mt-2 inline-flex items-center text-sm px-3 py-1.5 rounded-md bg-green-900 text-white gap-2"
                     >
-                        + Tambah
+                        <FaPlus /> Tambah
                     </button>
                 </div>
             </div>

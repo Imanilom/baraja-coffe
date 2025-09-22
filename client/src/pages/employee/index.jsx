@@ -40,8 +40,6 @@ const EmployeeManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    console.log(currentUser)
-
     // Fetch attendances and outlets data
     useEffect(() => {
         const fetchData = async () => {
@@ -51,10 +49,18 @@ const EmployeeManagement = () => {
                 const employeeResponse = await axios.get("/api/user/staff", {
                     headers: { Authorization: `Bearer ${currentUser.token}` },
                 });
-                const employeeData = employeeResponse.data || [];
+
+                // handle kalau backend return object { data: [] } atau langsung array
+                const rawData = Array.isArray(employeeResponse.data)
+                    ? employeeResponse.data
+                    : employeeResponse.data.data || [];
+
+                // filter yang bukan customer
+                const employeeData = rawData.filter(emp => emp.role?.name !== "customer");
 
                 setAttendances(employeeData);
-                setFilteredData(employeeData); // Initialize filtered data with all attendances
+                setFilteredData(employeeData);
+                // Initialize filtered data with all attendances
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -348,10 +354,30 @@ const EmployeeManagement = () => {
                                                     {data.username || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.role || []}
+                                                    {data.role?.name || []}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {data.outlet[0]?.outletId?.name || '-'}
+                                                    <div className="flex gap-2 flex-wrap">
+                                                        {data.outlet && data.outlet.length > 0 ? (
+                                                            <div className="flex gap-2 flex-wrap">
+                                                                {data.outlet.slice(0, 3).map((o, i) => (
+                                                                    <span
+                                                                        key={i}
+                                                                        className="px-2 py-1 text-xs rounded-md bg-blue-50 text-blue-600"
+                                                                    >
+                                                                        {o.outletId?.name}
+                                                                    </span>
+                                                                ))}
+                                                                {data.outlet.length > 3 && (
+                                                                    <span className="px-2 py-1 text-xs rounded-md bg-gray-100 text-gray-600">
+                                                                        +{data.outlet.length - 3}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            "-"
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3">
 

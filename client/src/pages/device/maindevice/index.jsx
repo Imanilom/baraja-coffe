@@ -318,7 +318,7 @@ const DeviceManagement = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 py-4">
+                {/* <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 py-4">
                     <button
                         className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
                         onClick={() => handleTabChange("menu")}
@@ -348,7 +348,7 @@ const DeviceManagement = () => {
                             </div>
                         </Link>
                     </div>
-                </div>
+                </div> */}
 
                 {/* Table */}
                 <div className="rounded shadow-slate-200 shadow-md">

@@ -339,7 +339,7 @@ const SoManagement = () => {
                     <FaBoxes size={18} className="text-gray-500" />
                     <p className="text-gray-500">Inventori</p>
                     <FaChevronRight className="text-gray-500" />
-                    <span className="text-[#005429]">Stock Opname</span>
+                    <span className="text-[#005429]">Stok Gudang</span>
                 </div>
                 <div className="flex w-full sm:w-auto">
                     <div

@@ -61,6 +61,21 @@ const CreateProduction = () => {
         { value: "perlengkapan", label: "Perlengkapan" },
     ];
 
+    const fetchMenu = async () => {
+        try {
+            const menuResponse = await axios.get('/api/marketlist/supplier');
+            const menuData = menuResponse.data.data ? menuResponse.data.data : menuResponse.data;
+
+            setSupplier(menuData.map((menu) => ({
+                value: menu._id,
+                label: menu.name,
+            })));
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setOutlets([]);
+        }
+    };
+
     const fetchSupplier = async () => {
         try {
             const supplierResponse = await axios.get('/api/marketlist/supplier');
@@ -78,6 +93,7 @@ const CreateProduction = () => {
 
     useEffect(() => {
         fetchSupplier();
+        fetchMenu();
     }, []);
 
     const handleChange = (e) => {

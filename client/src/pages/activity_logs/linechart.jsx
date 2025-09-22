@@ -1,94 +1,4 @@
-// import React, { useEffect, useState } from "react";
-// import {
-//     LineChart,
-//     Line,
-//     XAxis,
-//     YAxis,
-//     CartesianGrid,
-//     Tooltip,
-//     ResponsiveContainer,
-// } from "recharts";
-
-// const ActivityLineChart = () => {
-//     const [logs, setLogs] = useState([]);
-
-//     const fetchLogs = async () => {
-//         try {
-//             const res = await fetch("/api/logs");
-//             const data = await res.json();
-//             if (data.success) {
-//                 setLogs(data.data || []);
-//             }
-//         } catch (error) {
-//             console.error("Error fetching logs:", error);
-//         } finally {
-//             setLoading(false);
-//         }
-//     };
-
-//     useEffect(() => {
-//         fetchLogs();
-//     }, []);
-
-//     // Data chart login
-//     const loginData = logs
-//         .filter((item) => item.action === "LOGIN")
-//         .map((item) => ({
-//             time: new Date(item.createdAt).toLocaleTimeString("id-ID", {
-//                 hour: "2-digit",
-//                 minute: "2-digit",
-//             }),
-//             count: 1,
-//         }));
-
-//     // Data chart logout
-//     const logoutData = logs
-//         .filter((item) => item.action === "LOGOUT")
-//         .map((item) => ({
-//             time: new Date(item.createdAt).toLocaleTimeString("id-ID", {
-//                 hour: "2-digit",
-//                 minute: "2-digit",
-//             }),
-//             count: 1,
-//         }));
-
-//     return (
-//         <div className="p-6">
-
-//             {/* Chart Login */}
-//             <h2 className="text-lg font-bold mb-4">Login Activity</h2>
-//             <div className="w-full h-64 mb-10">
-//                 <ResponsiveContainer>
-//                     <LineChart data={loginData}>
-//                         <CartesianGrid strokeDasharray="3 3" />
-//                         <XAxis dataKey="time" />
-//                         <YAxis allowDecimals={false} />
-//                         <Tooltip />
-//                         <Line type="monotone" dataKey="count" stroke="#4CAF50" />
-//                     </LineChart>
-//                 </ResponsiveContainer>
-//             </div>
-
-//             {/* Chart Logout */}
-//             <h2 className="text-lg font-bold mb-4">Logout Activity</h2>
-//             <div className="w-full h-64">
-//                 <ResponsiveContainer>
-//                     <LineChart data={logoutData}>
-//                         <CartesianGrid strokeDasharray="3 3" />
-//                         <XAxis dataKey="time" />
-//                         <YAxis allowDecimals={false} />
-//                         <Tooltip />
-//                         <Line type="monotone" dataKey="count" stroke="#F44336" />
-//                     </LineChart>
-//                 </ResponsiveContainer>
-//             </div>
-//         </div>
-//     );
-// };
-
-// export default ActivityLineChart;
-
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
     LineChart,
     Line,
@@ -100,42 +10,7 @@ import {
     Legend,
 } from "recharts";
 
-const ActivityLineChart = () => {
-    const [logs, setLogs] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    const fetchLogs = async () => {
-        try {
-            let page = 1;
-            let allLogs = [];
-            let hasMore = true;
-
-            while (hasMore) {
-                const res = await fetch(`/api/logs?page=${page}&limit=10`);
-                const data = await res.json();
-
-                if (data.success) {
-                    allLogs = [...allLogs, ...data.data];
-                    page++;
-                    hasMore = page <= data.pagination.totalPages;
-                } else {
-                    hasMore = false;
-                }
-            }
-
-            setLogs(allLogs);
-        } catch (error) {
-            console.error("Error fetching logs:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-
-    useEffect(() => {
-        fetchLogs();
-    }, []);
-
+const ActivityLineChart = ({ logs = [], loading = false }) => {
     // === Buat semua jam dari 00:00 sampai 23:00 ===
     const hours = Array.from({ length: 24 }, (_, i) =>
         `${String(i).padStart(2, "0")}:00`
@@ -163,7 +38,7 @@ const ActivityLineChart = () => {
         return acc;
     }, []);
 
-    // Gabungkan semua jam dengan data supaya tetap ada walau kosong
+    // Gabungkan semua jam supaya tetap muncul meskipun kosong
     const combinedData = hours.map((h) => {
         const found = hourlyData.find((d) => d.time === h);
         return found || { time: h, login: 0, logout: 0 };

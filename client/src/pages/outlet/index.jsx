@@ -4,7 +4,8 @@ import { useNavigate, Link } from "react-router-dom";
 import {
   FaClipboardList, FaBell, FaUser, FaStoreAlt,
   FaBullseye, FaReceipt, FaSearch, FaPencilAlt,
-  FaTrash, FaEllipsisV
+  FaTrash, FaEllipsisV,
+  FaPlus
 } from "react-icons/fa";
 import Header from "../admin/header";
 
@@ -78,99 +79,42 @@ const OutletManagementPage = () => {
       <Header />
 
       {/* Breadcrumb */}
-      <div className="px-3 py-2 flex justify-between items-center border-b">
-        <div className="flex items-center space-x-2">
-          <FaStoreAlt size={21} className="text-gray-500" />
-          <p className="text-[15px] text-gray-500">Outlet</p>
-        </div>
+      <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+        <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+          Outlet
+        </h1>
         <button
           onClick={() => navigate("/admin/outlet-create")}
-          className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+          className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
         >
-          Tambah Outlet
+          <FaPlus /> Tambah
         </button>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="px-[15px]">
-        <div className="grid grid-cols-4 sm:grid-cols-2 md:grid-cols-4 py-4">
-          <div className="bg-white border-b-2 border-b-[#005429]">
-            <div className="flex justify-between items-center p-4">
-              <div className="flex space-x-4">
-                <FaStoreAlt size={24} className="text-gray-400" />
-                <h2 className="text-gray-400 text-sm">Outlet</h2>
-              </div>
-              <div className="text-sm text-gray-400">
-                ({outlets.length})
-              </div>
-            </div>
-          </div>
-
-          <Link
-            to="/admin/tax-and-service"
-            className="bg-white border-b-2 border-b-white hover:border-b-[#005429] border-l border-l-gray-200"
-          >
-            <div className="flex justify-between items-center p-4">
-              <div className="flex space-x-4">
-                <FaClipboardList size={24} className="text-gray-400" />
-                <h2 className="text-gray-400 text-sm">Pajak & Service</h2>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            to="/admin/target-sales"
-            className="bg-white border-b-2 border-b-white hover:border-b-[#005429] border-l border-l-gray-200"
-          >
-            <div className="flex justify-between items-center p-4">
-              <div className="flex space-x-4">
-                <FaBullseye size={24} className="text-gray-400" />
-                <h2 className="text-gray-400 text-sm">Target Penjualan</h2>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            to="/admin/receipt-design"
-            className="bg-white border-b-2 border-b-white hover:border-b-[#005429] border-l border-l-gray-200"
-          >
-            <div className="flex justify-between items-center p-4">
-              <div className="flex space-x-4">
-                <FaReceipt size={24} className="text-gray-400" />
-                <h2 className="text-gray-400 text-sm">Desain Struk</h2>
-              </div>
-            </div>
-          </Link>
-        </div>
       </div>
 
       {/* Search Bar */}
       <div className="px-[15px]">
-        <div className="my-[13px] py-[10px] px-[15px] rounded bg-slate-50 shadow-md">
-          <div className="flex flex-col">
-            <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-            <div className="relative">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Outlet / Kota"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-full"
-              />
-            </div>
+        <div className="flex flex-col">
+          <div className="relative">
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Outlet / Kota"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-1/4"
+            />
           </div>
         </div>
       </div>
 
       {/* Outlet Table */}
       <div className="p-4">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm text-left text-gray-500 shadow-lg">
-            <thead className="text-[14px]">
+        <div className="overflow-x-auto shadow rounded">
+          <table className="min-w-full text-sm text-left text-gray-500">
+            <thead className="text-[14px] border-b">
               <tr>
                 <th className="px-[15px] py-[21px] font-normal">Outlet</th>
                 <th className="px-[15px] py-[21px] font-normal">Kota</th>
@@ -260,10 +204,6 @@ const OutletManagementPage = () => {
         </div>
       )}
 
-      {/* Footer */}
-      <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-        <div className="w-full h-[2px] bg-[#005429]"></div>
-      </div>
     </div>
   );
 };

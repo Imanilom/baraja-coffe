@@ -75,7 +75,8 @@ const Sidebar = ({ isSidebarOpen }) => {
       ? currentUser.role
       : null || currentUser.role === "admin" ? currentUser.role
         : null || currentUser.role === "superadmin" ? currentUser.role
-          : null;
+          : null || currentUser.role === "akuntan" ? currentUser.role
+            : null;
 
 
   // ===============================
@@ -85,27 +86,27 @@ const Sidebar = ({ isSidebarOpen }) => {
     superadmin: ["Dashboard", "Laporan", "Laporan Penjualan", "Menu", "Inventori", "Pembelian", "Outlet", "Event", "Karyawan", "Pelanggan", "Pengaturan Meja", "Perangkat", "Promo", "Komisi", "Akun", "Setting Access", "Laporan Penjualan", "Laporan Operasional", "Laporan Laba & Rugi",
       "Stok Masuk",
       "Stok Keluar",
-      "Stock Opname",
+      "Stock Gudang",
       "Supplier",
       "Purchase Order",
       "Daftar Belanja",
       "Daftar Pengeluaran",
-      "Atur Meja", "Denah Meja", "Logs"],
+      "Atur Meja", "Denah Meja", "Logs", "Limit Permintaan", "Pajak & Layanan"],
     admin: ["Dashboard", "Laporan", "Laporan Penjualan", "Menu", "Inventori", "Pembelian", "Outlet", "Event", "Karyawan", "Pelanggan", "Pengaturan Meja", "Perangkat", "Promo", "Komisi", "Akun", "Setting Access", "Laporan Penjualan", "Laporan Operasional", "Laporan Laba & Rugi",
       "Stok Masuk",
       "Stok Keluar",
-      "Stock Opname",
+      "Stock Gudang",
       "Supplier",
       "Purchase Order",
       "Daftar Belanja",
       "Daftar Pengeluaran",
-      "Atur Meja", "Denah Meja", "Logs"],
+      "Atur Meja", "Denah Meja", "Logs", "Limit Permintaan", "Pajak & Layanan"],
     marketing: ["Dashboard", "Event", "Pelanggan", "Promo"],
     operasional: ["Dashboard", "Laporan Operasional", "Outlet", "Pengaturan Meja", "Atur Meja", "Denah Meja", "Perangkat"],
     akuntan: ["Dashboard", "Laporan Penjualan", "Laporan Laba & Rugi", "Komisi"],
     hrd: ["Dashboard", "Karyawan", "Akun", "Setting Access"],
     qc: ["Dashboard", "Menu", "Event"],
-    inventory: ["Dashboard", "Inventori", "Stok Masuk", "Stok Keluar", "Stock Opname", "Pembelian", "Supplier", "Purchase Order", "Daftar Belanja", "Daftar Pengeluaran"],
+    inventory: ["Dashboard", "Inventori", "Stok Masuk", "Stok Keluar", "Stock Gudang", "Pembelian", "Supplier", "Purchase Order", "Daftar Belanja", "Daftar Pengeluaran", "Limit Permintaan"],
   };
 
   // ===============================
@@ -135,27 +136,29 @@ const Sidebar = ({ isSidebarOpen }) => {
           name: "Inventori",
           icon: <FaBoxes />,
           subMenu: [
-            { name: "Stok Masuk", path: "/admin/inventori/stok-masuk" },
+            { name: "Stok Masuk", path: "/admin/inventory/in" },
             { name: "Stok Keluar", path: "/admin/inventory/out" },
-            { name: "Stock Opname", path: "/admin/inventory/so" },
+            { name: "Stock Gudang", path: "/admin/inventory/so" },
+            { name: "Limit Permintaan", path: "/admin/inventory/production-list" },
           ],
         },
-        {
-          name: "Pembelian",
-          icon: <FaReceipt />,
-          subMenu: [
-            { name: "Supplier", path: "/admin/purchase/supplier" },
-            { name: "Purchase Order", path: "/admin/purchase/purchase-order" },
-            { name: "Daftar Belanja", path: "/admin/purchase/shopping-list" },
-            { name: "Daftar Pengeluaran", path: "/admin/purchase/expenditure-list" },
-          ],
-        },
+        // {
+        //   name: "Pembelian",
+        //   icon: <FaReceipt />,
+        //   subMenu: [
+        //     { name: "Supplier", path: "/admin/purchase/supplier" },
+        //     { name: "Purchase Order", path: "/admin/purchase/purchase-order" },
+        //     { name: "Daftar Belanja", path: "/admin/purchase/shopping-list" },
+        //     { name: "Daftar Pengeluaran", path: "/admin/purchase/expenditure-list" },
+        //   ],
+        // },
       ],
     },
     {
       section: "Bisnis",
       items: [
         { name: "Outlet", path: "/admin/outlet", icon: <FaStoreAlt /> },
+        { name: "Pajak & Layanan", path: "/admin/tax-and-service", icon: <FaClipboardList /> },
         { name: "Event", path: "/admin/event", icon: <FaTicketAlt /> },
         { name: "Karyawan", path: "/admin/employee", icon: <FaIdBadge /> },
         { name: "Pelanggan", path: "/admin/customer", icon: <FaUserFriends /> },
@@ -169,7 +172,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         },
         { name: "Perangkat", path: "/admin/billing/device", icon: <FaTabletAlt /> },
         { name: "Promo", path: "/admin/promotion", icon: <FaCut /> },
-        { name: "Komisi", path: "/admin/commission", icon: <FaHandshake /> },
+        // { name: "Komisi", path: "/admin/commission", icon: <FaHandshake /> },
       ],
     },
     {

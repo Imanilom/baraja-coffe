@@ -25,7 +25,7 @@ export default function TotalOrder({ data }) {
     });
 
     return (
-        <div className="bg-white p-4 rounded-xl shadow w-full">
+        <div className="bg-white p-4 rounded-xl border-t-4 border-green-900 shadow w-full">
             {/* Header */}
             <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold text-gray-700">Penjualan</h3>

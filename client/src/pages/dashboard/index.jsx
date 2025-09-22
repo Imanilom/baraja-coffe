@@ -22,6 +22,7 @@ import DrinkChart from "./charts/drinkchart";
 import { useSelector } from "react-redux";
 import TotalOrder from "./charts/totalorder";
 import { Link } from "react-router-dom";
+import TransactionType from "./table/transactionType";
 
 const formatRupiah = (amount) => {
     return new Intl.NumberFormat('id-ID', {
@@ -58,6 +59,12 @@ const Dashboard = () => {
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const superAdmin = currentUser.role === 'superadmin';
+    const qc = currentUser.role === 'qc';
+    const hrd = currentUser.role === 'hrd';
+    const admin = currentUser.role === 'admin';
+    const inventory = currentUser.role === 'inventory';
 
 
     useEffect(() => {
@@ -440,6 +447,34 @@ const Dashboard = () => {
         return Object.values(grouped);
     }, [filteredData]);
 
+    const groupedType = useMemo(() => {
+        const grouped = {};
+
+        filteredData.forEach(product => {
+            const item = product?.items?.[0];
+            if (!item) return;
+
+            const orderType = product?.orderType || '';
+            const subtotal = Number(item?.subtotal) || 0;
+
+            const key = `${orderType}`; // unique key per produk
+
+            if (!grouped[key]) {
+                grouped[key] = {
+                    orderType,
+                    subtotal: 0,
+                    totalTransaction: 0, // tambahin field counter
+                };
+            }
+
+            grouped[key].subtotal += subtotal;
+            grouped[key].totalTransaction += 1; // increment tiap transaksi
+        });
+
+        return Object.values(grouped);
+    }, [filteredData]);
+
+
     // Show loading state
     if (loading) {
         return (
@@ -468,7 +503,7 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="min-h-screen bg-green-50">
+        <div className="min-h-screen bg-gray-50">
             {/* Header */}
             <Header />
 
@@ -531,12 +566,14 @@ const Dashboard = () => {
                 {/* Right Sidebar */}
                 <div className="space-y-6">
                     {/* New Menu Button */}
-                    <div className="bg-white px-4 py-2 rounded-lg shadow-sm flex justify-between items-center">
-                        <h3 className="font-semibold">Menu</h3>
-                        <Link to="/admin/menu-create" className="flex items-center gap-1 px-3 py-1 bg-green-900 text-white text-sm rounded">
-                            <FaPlus /> Buat
-                        </Link>
-                    </div>
+                    {superAdmin || admin ?
+                        <div className="bg-white px-4 py-2 rounded-lg shadow-sm flex justify-between items-center">
+                            <h3 className="font-semibold">Menu</h3>
+                            <Link to="/admin/menu-create" className="flex items-center gap-1 px-3 py-1 bg-green-900 text-white text-sm rounded">
+                                <FaPlus /> Buat
+                            </Link>
+                        </div> : ""
+                    }
 
                     {/* Today Performance */}
                     {/* <div className="bg-white p-4 rounded-lg shadow-sm">
@@ -558,8 +595,8 @@ const Dashboard = () => {
                     <TotalOrder data={dataSales} />
                     <FoodChart data={foodSales} />
                     <DrinkChart data={drinkSales} />
-                    <PaymentMethod data={groupedPaymnet} />
-
+                    {/* <PaymentMethod data={groupedPaymnet} /> */}
+                    <TransactionType data={groupedType} />
                 </div>
             </main>
         </div>
