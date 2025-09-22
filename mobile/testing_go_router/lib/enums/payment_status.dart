@@ -1,5 +1,7 @@
 enum PaymentStatus { pending, settlement, paid }
 
+enum PaymentTypes { fullPayment, downPayment }
+
 extension PaymentStatusExtension on PaymentStatus {
   String get value {
     switch (this) {
@@ -32,4 +34,28 @@ extension PaymentStatusExtension on PaymentStatus {
   }
 
   static String paymentStatusToJson(PaymentStatus status) => status.value;
+}
+
+extension PaymentTypesExtension on PaymentTypes {
+  String get value {
+    switch (this) {
+      case PaymentTypes.fullPayment:
+        return 'fullPayment';
+      case PaymentTypes.downPayment:
+        return 'downPayment';
+      default:
+        return 'fullPayment';
+    }
+  }
+
+  static PaymentTypes fromString(String type) {
+    switch (type.toLowerCase()) {
+      case 'fullpayment':
+        return PaymentTypes.fullPayment;
+      case 'downpayment':
+        return PaymentTypes.downPayment;
+      default:
+        return PaymentTypes.fullPayment;
+    }
+  }
 }

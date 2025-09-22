@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kasirbaraja/enums/payment_status.dart';
 import 'package:kasirbaraja/helper/payment_helper.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
@@ -10,6 +11,11 @@ import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provid
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
+
+//provider type pelunasan enum
+final choosePaymentTypesProvider = StateProvider<PaymentTypes>((ref) {
+  return PaymentTypes.fullPayment;
+});
 
 class PaymentMethodScreen extends ConsumerWidget {
   const PaymentMethodScreen({super.key});
@@ -135,6 +141,8 @@ class PaymentMethodScreen extends ConsumerWidget {
     int total,
     OrderDetailModel orderdetail,
   ) {
+    final choosePaymentType = ref.watch(choosePaymentTypesProvider);
+
     return Column(
       children: [
         // ✅ PERBAIKAN: Gunakan Flexible untuk layout yang lebih aman
@@ -144,10 +152,18 @@ class PaymentMethodScreen extends ConsumerWidget {
             children: [
               // Total Amount Card
               _buildTotalCard(total.toInt()),
-              // Payment Types
-              Expanded(
-                child: _buildPaymentTypes(paymentTypes, state, notifier),
-              ),
+
+              _buildSettlementTypes(ref),
+              // if payment types full payment show payment types,
+              if (choosePaymentType == PaymentTypes.fullPayment)
+                Expanded(
+                  child: _buildPaymentTypes(paymentTypes, state, notifier),
+                ),
+
+              // if payment types down payment show cash options
+              if (choosePaymentType == PaymentTypes.downPayment)
+                //menampilkan textfield untuk menentukan nominal downpayment
+                Expanded(child: _buildDownPayment(state, notifier)),
             ],
           ),
         ),
@@ -190,6 +206,122 @@ class PaymentMethodScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDownPayment(PaymentState state, PaymentNotifier notifier) {
+    final downPaymentController = TextEditingController(
+      text: state.selectedDownPayment?.toString() ?? '',
+    );
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      constraints: const BoxConstraints(maxWidth: 300),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Text(
+              'Nominal Down Payment',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+            ),
+          ),
+          TextField(
+            controller: downPaymentController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              hintText: 'Masukkan nominal DP',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFF2E7D4F)),
+              ),
+              prefixIcon: const Icon(Icons.money, color: Color(0xFF2E7D4F)),
+            ),
+            onChanged: (value) {
+              // final parsedValue = int.tryParse(value) ?? 0;
+              // notifier.selectDownPayment(parsedValue);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettlementTypes(WidgetRef ref) {
+    final paymentType = ref.watch(choosePaymentTypesProvider);
+    final notifier = ref.read(choosePaymentTypesProvider.notifier);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      constraints: const BoxConstraints(maxWidth: 200),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Text(
+              'Tipe Pembayaran',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+            ),
+          ),
+          Column(
+            children: [
+              ChoiceChip(
+                checkmarkColor: Colors.white,
+                label: const Text('Full Payment'),
+                selected: paymentType == PaymentTypes.fullPayment,
+                onSelected: (selected) {
+                  if (selected) {
+                    notifier.state = PaymentTypes.fullPayment;
+                  }
+                },
+                selectedColor: const Color(0xFF2E7D4F),
+                backgroundColor: Colors.grey[200],
+                labelStyle: TextStyle(
+                  color:
+                      paymentType == PaymentTypes.fullPayment
+                          ? Colors.white
+                          : Colors.grey[800],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 12),
+              ChoiceChip(
+                checkmarkColor: Colors.white,
+                label: const Text('Down Payment'),
+                selected: paymentType == PaymentTypes.downPayment,
+                onSelected: (selected) {
+                  if (selected) {
+                    notifier.state = PaymentTypes.downPayment;
+                  }
+                },
+                selectedColor: const Color(0xFF2E7D4F),
+                backgroundColor: Colors.grey[200],
+                labelStyle: TextStyle(
+                  color:
+                      paymentType == PaymentTypes.downPayment
+                          ? Colors.white
+                          : Colors.grey[800],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

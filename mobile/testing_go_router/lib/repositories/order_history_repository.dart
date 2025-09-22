@@ -10,6 +10,7 @@ class OrderHistoryRepository {
     try {
       final box = Hive.box('userBox');
       final cashier = box.get('cashier') as CashierModel?;
+      print('Cashier from Hive: ${cashier?.id}');
       final response = await _orderHistoryService.fetchOrderHistory(
         cashier!.id!,
       );
