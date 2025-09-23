@@ -17,10 +17,87 @@ import Reservation from '../models/Reservation.model.js';
 import QRCode from 'qrcode';
 // Import FCM service di bagian atas file
 import FCMNotificationService from '../services/fcmNotificationService.js';
+import { TaxAndService } from '../models/TaxAndService.model.js';
 
 
 const queueEvents = new QueueEvents('orderQueue');
 
+
+const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
+  try {
+    // Don't apply taxes for open bill orders
+    if (isOpenBill) {
+      return {
+        totalTax: 0,
+        totalServiceFee: 0,
+        taxAndServiceDetails: []
+      };
+    }
+
+    // Fetch tax and service data
+    const taxAndServices = await TaxAndService.find({
+      isActive: true,
+      appliesToOutlets: outlet
+    });
+
+    let totalTax = 0;
+    let totalServiceFee = 0;
+    const taxAndServiceDetails = [];
+
+    for (const item of taxAndServices) {
+      if (item.type === 'tax') {
+        // PPN applies to all transactions except open bill
+        if (item.name === 'PPN') {
+          const amount = subtotal * (item.percentage / 100);
+          totalTax += amount;
+          taxAndServiceDetails.push({
+            id: item._id,
+            name: item.name,
+            type: item.type,
+            percentage: item.percentage,
+            amount: amount
+          });
+        }
+        // PB1 only applies to reservations (except open bill)
+        else if (item.name === 'PB1' && isReservation) {
+          const amount = subtotal * (item.percentage / 100);
+          totalTax += amount;
+          taxAndServiceDetails.push({
+            id: item._id,
+            name: item.name,
+            type: item.type,
+            percentage: item.percentage,
+            amount: amount
+          });
+        }
+      } else if (item.type === 'service') {
+        // Apply service fees based on your business rules
+        const amount = subtotal * (item.percentage / 100);
+        totalServiceFee += amount;
+        taxAndServiceDetails.push({
+          id: item._id,
+          name: item.name,
+          type: item.type,
+          percentage: item.percentage,
+          amount: amount
+        });
+      }
+    }
+
+    return {
+      totalTax,
+      totalServiceFee,
+      taxAndServiceDetails
+    };
+  } catch (error) {
+    console.error('Error calculating tax and service:', error);
+    return {
+      totalTax: 0,
+      totalServiceFee: 0,
+      taxAndServiceDetails: []
+    };
+  }
+};
 export const createAppOrder = async (req, res) => {
   try {
     let {
@@ -37,19 +114,15 @@ export const createAppOrder = async (req, res) => {
       reservationType,
       isOpenBill,
       openBillData,
+      // Add new parameters from frontend
+      taxDetails,
+      totalTax,
+      subtotal: frontendSubtotal,
+      discount: frontendDiscount
     } = req.body;
 
-    // if (orderType === 'reservation') {
-    //   isOpenBill = "true"; // ✅ aman
-    // }
-
-
-    // if (orderType === 'reservation') {
-    //   isOpenBill = true;
-    // }
-
-
     console.log('Received createAppOrder request:', req.body);
+
     // ✅ Validasi items, kecuali reservasi tanpa open bill
     if ((!items || items.length === 0) && !(orderType === 'reservation' && !isOpenBill)) {
       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
@@ -219,15 +292,30 @@ export const createAppOrder = async (req, res) => {
       if (totalAfterDiscount < 0) totalAfterDiscount = 0;
     }
 
+    // Calculate tax and service fees
+    const isReservationOrder = orderType === 'reservation';
+    const isOpenBillOrder = isOpenBill || false;
+
+    const taxServiceCalculation = await calculateTaxAndService(
+      totalAfterDiscount,
+      outlet || "67cbc9560f025d897d69f889",
+      isReservationOrder,
+      isOpenBillOrder
+    );
+
+    // Calculate grand total including tax and service
+    const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
+
     let newOrder;
 
-    // ✅ Handle Open Bill
+    // Handle Open Bill scenario
     if (isOpenBill && existingOrder) {
       existingOrder.items.push(...orderItems);
 
       const newItemsTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
       existingOrder.totalBeforeDiscount += newItemsTotal;
 
+      // Recalculate discount
       let updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount;
       if (discountType === 'percentage') {
         updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount - (existingOrder.totalBeforeDiscount * (voucherAmount / 100));
@@ -236,14 +324,15 @@ export const createAppOrder = async (req, res) => {
         if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
       }
 
+      // For open bill, don't recalculate tax as it was already applied during reservation
       existingOrder.totalAfterDiscount = updatedTotalAfterDiscount;
-      existingOrder.grandTotal = updatedTotalAfterDiscount;
+      existingOrder.grandTotal = updatedTotalAfterDiscount; // No additional tax for open bill
 
       await existingOrder.save();
       newOrder = existingOrder;
     }
     else if (isOpenBill && !existingOrder) {
-      // Gunakan generateOrderId untuk order_id
+      // Create new order for open bill (shouldn't normally happen, but for safety)
       const generatedOrderId = await generateOrderId(openBillData.tableNumbers || tableNumber || '');
       newOrder = new Order({
         order_id: generatedOrderId,
@@ -261,14 +350,14 @@ export const createAppOrder = async (req, res) => {
         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
         totalBeforeDiscount,
         totalAfterDiscount,
-        totalTax: 0,
-        totalServiceFee: 0,
+        totalTax: 0, // No tax for open bill
+        totalServiceFee: 0, // No service fee for open bill
         discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
         appliedPromos: [],
         appliedManualPromo: null,
         appliedVoucher: voucherId,
-        taxAndServiceDetails: [],
-        grandTotal: totalAfterDiscount,
+        taxAndServiceDetails: [], // No tax details for open bill
+        grandTotal: totalAfterDiscount, // No additional charges for open bill
         promotions: [],
         source: 'App',
         reservation: existingReservation._id,
@@ -281,10 +370,8 @@ export const createAppOrder = async (req, res) => {
         existingReservation.order_id = newOrder._id;
         await existingReservation.save();
       }
-
     } else {
-      // ✅ Normal order creation
-      // Gunakan generateOrderId untuk order_id
+      // Normal order creation with tax calculation
       const generatedOrderId = await generateOrderId(tableNumber || '');
       newOrder = new Order({
         order_id: generatedOrderId,
@@ -303,14 +390,14 @@ export const createAppOrder = async (req, res) => {
         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
         totalBeforeDiscount,
         totalAfterDiscount,
-        totalTax: 0,
-        totalServiceFee: 0,
+        totalTax: taxServiceCalculation.totalTax,
+        totalServiceFee: taxServiceCalculation.totalServiceFee,
         discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
         appliedPromos: [],
         appliedManualPromo: null,
         appliedVoucher: voucherId,
-        taxAndServiceDetails: [],
-        grandTotal: totalAfterDiscount,
+        taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,
+        grandTotal: grandTotal,
         promotions: [],
         source: 'App',
         reservation: null,
@@ -318,7 +405,7 @@ export const createAppOrder = async (req, res) => {
       await newOrder.save();
     }
 
-    // ✅ Reservation creation
+    // Reservation creation (existing code remains the same)
     let reservationRecord = null;
     if (orderType === 'reservation' && !isOpenBill) {
       try {
@@ -372,7 +459,7 @@ export const createAppOrder = async (req, res) => {
       }
     }
 
-    // ✅ Response
+    // Response preparation
     const responseData = {
       success: true,
       message: isOpenBill ?
@@ -387,7 +474,7 @@ export const createAppOrder = async (req, res) => {
       responseData.reservation = reservationRecord;
     }
 
-    // Mapping data sesuai kebutuhan frontend
+    // Enhanced mapping for frontend response with tax information
     const mappedOrders = {
       _id: newOrder._id,
       userId: newOrder.user_id,
@@ -425,6 +512,11 @@ export const createAppOrder = async (req, res) => {
       type: newOrder.type,
       paymentMethod: newOrder.paymentMethod || "Cash",
       totalPrice: newOrder.totalBeforeDiscount,
+      totalAfterDiscount: newOrder.totalAfterDiscount,
+      totalTax: newOrder.totalTax,
+      totalServiceFee: newOrder.totalServiceFee,
+      taxAndServiceDetails: newOrder.taxAndServiceDetails,
+      grandTotal: newOrder.grandTotal,
       voucher: newOrder.voucher || null,
       outlet: newOrder.outlet || null,
       promotions: newOrder.promotions || [],
@@ -434,7 +526,7 @@ export const createAppOrder = async (req, res) => {
       isOpenBill: isOpenBill || false
     };
 
-    // Emit ke aplikasi kasir
+    // Emit to cashier application
     if (isOpenBill) {
       io.to('cashier_room').emit('open_bill_order', {
         mappedOrders,
@@ -455,7 +547,6 @@ export const createAppOrder = async (req, res) => {
     });
   }
 };
-
 // Helper function to parse Indonesian date format
 function parseIndonesianDate(dateString) {
   const monthMap = {
