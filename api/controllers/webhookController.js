@@ -81,7 +81,6 @@ export const midtransWebhook = async (req, res) => {
       { new: true, runValidators: true }
     );
 
-
     if (!updatedPayment) {
       console.error(`[WEBHOOK ${requestId}] Failed to update payment for payment_code ${existingPayment.payment_code}`);
       return res.status(404).json({ message: 'Payment record not found' });
@@ -98,10 +97,15 @@ export const midtransWebhook = async (req, res) => {
       console.log(`[WEBHOOK ${requestId}] Raw response updated`);
     }
 
-    // Find related order pakai order_id yang sudah benar
+    // ✅ PERBAIKAN: Populate order dengan data lengkap untuk mapping yang konsisten
     const order = await Order.findOne({ order_id })
       .populate('user_id', 'name email phone')
-      .populate('cashierId', 'name');
+      .populate('cashierId', 'name')
+      .populate({
+        path: 'items.menuItem',
+        select: 'name price image category description'
+      })
+      .populate('outlet', 'name address');
 
     if (!order) {
       console.warn(`[WEBHOOK ${requestId}] Order with ID ${order_id} not found`);
@@ -115,23 +119,32 @@ export const midtransWebhook = async (req, res) => {
       case 'capture':
       case 'settlement':
         if (fraud_status === 'accept') {
+          // ✅ PERBAIKAN: Update order status untuk pembayaran berhasil
+          order.paymentStatus = 'Paid';
+          await order.save();
+
           const paymentUpdateData = {
             order_id,
             status: order.status,
-            paymentStatus: order.paymentStatus,
+            paymentStatus: 'Paid', // ✅ Update status pembayaran
             transaction_status,
             fraud_status,
             timestamp: new Date()
           };
 
+          // Emit ke room order yang spesifik
           io.to(`order_${order_id}`).emit('payment_status_update', paymentUpdateData);
           io.to(`order_${order_id}`).emit('order_status_update', paymentUpdateData);
 
           console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${order_id}`);
 
-          const mappedOrder = mapOrderForFrontend(order);
-          io.to('cashier_room').emit('new_order', mappedOrder);
-          console.log(`[WEBHOOK ${requestId}] Broadcasted order to cashier room`);
+          // ✅ PERBAIKAN: Gunakan mapping yang konsisten dengan endpoint lain
+          const mappedOrder = mapOrderForCashier(order);
+          
+          // ✅ PERBAIKAN: Emit dengan struktur yang sama seperti endpoint lain
+          io.to('cashier_room').emit('new_order', { mappedOrders: mappedOrder });
+          console.log(`[WEBHOOK ${requestId}] Broadcasted order to cashier room with consistent mapping`);
+
         } else if (fraud_status === 'challenge') {
           const challengeData = {
             order_id,
@@ -208,11 +221,10 @@ export const midtransWebhook = async (req, res) => {
   }
 };
 
-// Helper
-function mapOrderForFrontend(order) {
+// ✅ PERBAIKAN: Helper function yang konsisten dengan endpoint lain
+function mapOrderForCashier(order) {
   return {
     _id: order._id,
-    orderId: order.order_id,
     userId: order.user_id?._id || order.user_id,
     customerName: order.user_id?.name || order.user,
     customerPhone: order.user_id?.phone || order.phoneNumber,
@@ -220,29 +232,60 @@ function mapOrderForFrontend(order) {
     cashierName: order.cashierId?.name,
     items: order.items.map(item => ({
       _id: item._id,
-      menuItemId: item.menuItem,
-      name: item.name,
       quantity: item.quantity,
-      price: item.price,
       subtotal: item.subtotal,
       isPrinted: item.isPrinted || false,
-      selectedAddons: item.selectedAddons || [],
-      selectedToppings: item.selectedToppings || []
+      menuItem: {
+        _id: item.menuItem?._id,
+        name: item.menuItem?.name || item.name,
+        price: item.menuItem?.price || item.price,
+        image: item.menuItem?.image,
+        categories: item.menuItem?.category || [], // ✅ Konsisten dengan struktur lain
+        description: item.menuItem?.description
+      },
+      selectedAddons: item.addons?.length > 0 ? item.addons.map(addon => ({
+        name: addon.name,
+        _id: addon._id,
+        options: [{
+          id: addon._id,
+          label: addon.label || addon.name,
+          price: addon.price
+        }]
+      })) : [],
+      selectedToppings: item.toppings?.length > 0 ? item.toppings.map(topping => ({
+        id: topping._id || topping.id,
+        name: topping.name,
+        price: topping.price
+      })) : []
     })),
     status: order.status,
-    paymentStatus: order.paymentStatus,
+    paymentStatus: order.paymentStatus, // ✅ Tambahkan payment status
     orderType: order.orderType,
     deliveryAddress: order.deliveryAddress,
     tableNumber: order.tableNumber,
-    paymentMethod: order.paymentMethod,
+    pickupTime: order.pickupTime,
+    type: order.type,
+    paymentMethod: order.paymentMethod || "Cash",
+    totalPrice: order.totalBeforeDiscount, // ✅ Konsisten dengan nama field
     totalBeforeDiscount: order.totalBeforeDiscount,
     totalAfterDiscount: order.totalAfterDiscount,
     taxAndService: order.taxAndService,
     grandTotal: order.grandTotal,
+    voucher: order.voucher || null,
+    outlet: order.outlet || null,
+    promotions: order.promotions || [],
     appliedPromos: order.appliedPromos || [],
     source: order.source,
     notes: order.notes,
     createdAt: order.createdAt,
-    updatedAt: order.updatedAt
+    updatedAt: order.updatedAt,
+    __v: order.__v,
+    isOpenBill: order.isOpenBill || false
   };
+}
+
+// ✅ TAMBAHAN: Helper function untuk backward compatibility
+function mapOrderForFrontend(order) {
+  // Gunakan mapping yang sama untuk konsistensi
+  return mapOrderForCashier(order);
 }

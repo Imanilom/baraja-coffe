@@ -1,7 +1,6 @@
 import express from 'express';
 import {
   createOrder,
-  checkout,
   paymentNotification,
   confirmOrder,
   getPendingOrders,
@@ -13,6 +12,7 @@ import {
   createAppOrder,
   createUnifiedOrder,
   getOrderById,
+  getOrderId,
   getCashierOrderById,
   getQueuedOrders,
   confirmOrderByCashier,
@@ -34,9 +34,6 @@ const router = express.Router();
 
 // Route untuk membuat order dan pembayaran
 router.post('/order', createOrder);
-
-
-router.post("/checkout", checkout);
 
 router.post("/unified-order", createUnifiedOrder);
 // TODO: Start route untuk melakukan charge from aplication
@@ -87,6 +84,9 @@ router.get('/orders/:userId', getUserOrders);
 router.get('/orders/history/:userId', getUserOrderHistory);
 
 router.get('/order/:orderId', getOrderById);
+
+router.get('/order-id/:orderId', getOrderId);
+
 router.get('/cashier-order/:orderId', getCashierOrderById);
 router.get('/orders/cashier/:cashierId', getCashierOrderHistory);
 
