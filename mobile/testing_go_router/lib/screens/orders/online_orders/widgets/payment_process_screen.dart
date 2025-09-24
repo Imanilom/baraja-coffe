@@ -682,7 +682,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             ref.read(paymentProcessProvider.notifier).selectPaymentType(type);
             ref
                 .read(processPaymentRequestProvider.notifier)
-                .selectedPaymentType(null, type.name);
+                .selectedPaymentType(null, type.id);
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
