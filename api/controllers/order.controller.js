@@ -3923,10 +3923,12 @@ export const cashierCharge = async (req, res) => {
       const dpAmount = Number(down_payment_amount ?? gross_amount ?? 0);
       if (dpAmount <= 0) {
         await session.abortTransaction(); session.endSession();
+        console.log('Down Payment amount must be > 0');
         return res.status(400).json({ success: false, message: 'Down Payment amount must be > 0' });
       }
       if (dpAmount >= orderTotal) {
         await session.abortTransaction(); session.endSession();
+        console.log('Down Payment must be less than total order');
         return res.status(400).json({ success: false, message: 'Down Payment must be less than total order' });
       }
 
@@ -4067,7 +4069,7 @@ export const cashierCharge = async (req, res) => {
 
     await session.commitTransaction();
     session.endSession();
-
+    console.log('Payment created');
     return res.status(200).json({
       success: true,
       message: 'Payment created',

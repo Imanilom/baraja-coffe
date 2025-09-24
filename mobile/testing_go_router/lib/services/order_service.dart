@@ -2,6 +2,7 @@ import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/services/api_response_handler.dart';
@@ -15,7 +16,10 @@ import 'package:kasirbaraja/models/payments/process_payment_request.dart';
 class OrderService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
 
-  Future<Map<String, dynamic>> createOrder(OrderDetailModel orderDetail) async {
+  Future<Map<String, dynamic>> createOrder(
+    OrderDetailModel orderDetail,
+    PaymentState paymentData,
+  ) async {
     // final requestBody = orderDetail.toJson();
     try {
       print('start create order...');
@@ -38,15 +42,21 @@ class OrderService {
         print(
           'start create charge... orderId: ${createOrderRequest(orderDetail)}',
         );
-        print(
-          'start charge request: ${createChargeRequest(response.data['orderId'], orderDetail.grandTotal, orderDetail.paymentMethod!)}',
-        );
+        // print(
+        //   'start charge request: ${createChargeRequest(response.data['orderId'], orderDetail.grandTotal, orderDetail.paymentMethod!)}',
+        // );
         Response chargeResponse = await _dio.post(
           '/api/cashierCharge',
           data: createChargeRequest(
             response.data['orderId'],
             orderDetail.grandTotal,
             orderDetail.paymentMethod!,
+            paymentData.isDownPayment,
+            paymentData.selectedDownPayment ?? 0,
+            paymentData.selectedDownPayment != null
+                ? orderDetail.grandTotal -
+                    (paymentData.selectedDownPayment ?? 0)
+                : 0,
           ),
           options: Options(
             headers: {
@@ -265,6 +275,9 @@ Map<String, dynamic> createChargeRequest(
   String orderId,
   int grandTotal,
   String paymentType,
+  bool isDownPayment,
+  int downPaymentAmount,
+  int remainingPayment,
 ) {
   print(
     'create charge orderId: $orderId, grandTotal: $grandTotal, paymentType: $paymentType',
@@ -272,9 +285,9 @@ Map<String, dynamic> createChargeRequest(
 
   return {
     'payment_type': paymentType,
-    'is_down_payment': false,
-    'down_payment_amount': 0,
-    'remaining_payment': 0,
+    'is_down_payment': isDownPayment,
+    'down_payment_amount': downPaymentAmount,
+    'remaining_payment': remainingPayment,
     'order_id': orderId,
     'gross_amount': grandTotal,
   };

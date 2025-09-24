@@ -53,7 +53,8 @@ export function validateOrderData(data, source) {
         paymentMethod: data.paymentMethod,
         orderType: data.orderType,
         tableNumber: data.tableNumber,
-        outlet: data.outlet
+        outlet: data.outlet,
+        isOpenBill: data.isOpenBill
       };
 
     case 'Web':
@@ -144,20 +145,20 @@ export async function createMidtransSnapTransaction(orderId, amount, customer, p
     },
     // ✅ PERBAIKAN: Konfigurasi untuk menampilkan QR Code
     enabled_payments: getMidtransPaymentMethods(paymentMethod),
-    
+
     // ✅ TAMBAHAN: Konfigurasi khusus untuk QRIS/GoPay/OVO
     gopay: {
       enable_callback: true,
       callback_url: `${process.env.BASE_URL}/api/payment/callback`
     },
-    
+
     // ✅ TAMBAHAN: Custom expiry untuk QR Code
     custom_expiry: {
       order_time: new Date().toISOString(),
       expiry_duration: 30, // 30 menit
       unit: "minute"
     },
-    
+
     // ✅ TAMBAHAN: Callbacks untuk update status
     callbacks: {
       finish: `${process.env.BASE_URL}/payment-success`,
@@ -185,16 +186,16 @@ function getMidtransPaymentMethods(paymentMethod) {
         'gopay', // GoPay (termasuk QR)
         'shopeepay' // ShopeePay (termasuk QR)
       ];
-    
+
     case 'ewallet':
       return [
         'gopay',
-        'shopeepay', 
+        'shopeepay',
         'dana',
         'linkaja',
         'qris'
       ];
-    
+
   }
 }
 
@@ -210,21 +211,21 @@ export async function createQRISTransaction(orderId, amount, customer) {
       email: customer.email || 'example@mail.com',
       phone: customer.phone || '081234567890'
     },
-    
+
     // ✅ KONFIGURASI KHUSUS QRIS
     enabled_payments: ['qris'],
-    
+
     // ✅ CUSTOM FIELD untuk QRIS
     custom_field1: "qris_payment",
     custom_field2: orderId,
-    
+
     // ✅ Callback URLs
     callbacks: {
       finish: `${process.env.BASE_URL}/payment-success?order_id=${orderId}`,
       error: `${process.env.BASE_URL}/payment-error?order_id=${orderId}`,
       pending: `${process.env.BASE_URL}/payment-pending?order_id=${orderId}`
     },
-    
+
     // ✅ Expiry time untuk QR Code
     custom_expiry: {
       order_time: new Date().toISOString(),
@@ -235,13 +236,13 @@ export async function createQRISTransaction(orderId, amount, customer) {
 
   try {
     const snapResponse = await snap.createTransaction(parameter);
-    
+
     // ✅ Log untuk debugging
     console.log('✅ QRIS SNAP Response:', {
       token: snapResponse.token,
       redirect_url: snapResponse.redirect_url
     });
-    
+
     return snapResponse;
   } catch (error) {
     console.error('❌ QRIS SNAP Error:', error);

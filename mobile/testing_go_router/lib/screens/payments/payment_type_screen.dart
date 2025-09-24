@@ -142,12 +142,12 @@ class PaymentMethodScreen extends ConsumerWidget {
           ),
           SizedBox(height: 8),
           //state,
-          Text('payment type: ${state.selectedPaymentType?.name ?? '-'}'),
-          Text('payment method: ${state.selectedPaymentMethod?.name ?? '-'}'),
-          Text('cash amount: ${state.selectedCashAmount}'),
-          Text('total amount: ${state.totalAmount}'),
-          Text('down payment: ${state.selectedDownPayment}'),
-          Text('is down payment: ${state.isDownPayment}'),
+          // Text('payment type: ${state.selectedPaymentType?.name ?? '-'}'),
+          // Text('payment method: ${state.selectedPaymentMethod?.name ?? '-'}'),
+          // Text('cash amount: ${state.selectedCashAmount}'),
+          // Text('total amount: ${state.totalAmount}'),
+          // Text('down payment: ${state.selectedDownPayment}'),
+          // Text('is down payment: ${state.isDownPayment}'),
           if (isDP) ...[
             const SizedBox(height: 12),
             Text(
@@ -992,6 +992,7 @@ class PaymentMethodScreen extends ConsumerWidget {
       onlineOrderDetailNotifier.savedOnlineOrderDetail(updatedOrder);
     } else {
       orderDetailNotifier.updatePayment(updatedOrder);
+      orderDetailNotifier.updateIsOpenBill(state.isDownPayment);
       print('Updated order before submit: $updatedOrder');
     }
 
@@ -1006,7 +1007,7 @@ class PaymentMethodScreen extends ConsumerWidget {
       // Submit order
       print('Submitting order with payment:');
       print(' - isDownPayment: $isDP');
-      final success = await orderDetailNotifier.submitOrder();
+      final success = await orderDetailNotifier.submitOrder(state);
 
       print('Payment processed: success=$success');
 
