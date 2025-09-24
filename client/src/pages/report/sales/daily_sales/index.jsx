@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import dayjs from 'dayjs';
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import Header from "../../../admin/header";
 
 const DailySales = () => {
     const [products, setProducts] = useState([]);
@@ -290,25 +291,18 @@ const DailySales = () => {
     return (
         <div className="overflow-y-scroll h-screen">
             {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+            <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/sales-menu" className="text-[15px] text-gray-500">Laporan Penjualan</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/daily-sales" className="text-[15px] text-[#005429]">Penjualan Harian</Link>
+            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Laporan</span>
+                    <FaChevronRight />
+                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
+                    <FaChevronRight />
+                    <span>Penjualan Harian</span>
                 </div>
-                <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                <button onClick={exportToExcel} className="flex items-center gap-2 bg-white text-green-900 px-4 py-2 rounded border border-green-900 hover:text-white hover:bg-green-900 text-[13px]"><FaDownload /> Ekspor</button>
             </div>
 
             {/* Filters */}
@@ -341,7 +335,7 @@ const DailySales = () => {
                                                     setTempSelectedOutlet(outlet);
                                                     setShowInput(false);
                                                 }}
-                                                className="px-4 py-2 cursor-pointer text-gray-500 hover:bg-[#005429] hover:text-white"
+                                                className="px-4 py-2 cursor-pointer text-gray-500 hover:bg-green-900 hover:text-white"
                                             >
                                                 {outlet}
                                             </li>

@@ -31,6 +31,7 @@ const DeviceSales = () => {
             try {
                 // Fetch products data
                 const productsResponse = await axios.get('/api/orders');
+                console.log(productsResponse.data.data)
 
                 // Ensure productsResponse.data is an array
                 const productsData = Array.isArray(productsResponse.data) ?
@@ -88,7 +89,7 @@ const DeviceSales = () => {
         const grouped = {};
 
         filteredData.forEach(product => {
-            const cashierType = product?.cashier?.cashierType || 'Unknown';
+            const cashierType = product?.cashierId?.cashierType || '-';
             const item = product?.items?.[0] || {};
             const subtotal = Number(item?.subtotal) || 0;
 

@@ -3129,7 +3129,17 @@ export const getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find()
       .populate('items.menuItem')
-      .populate('user')
+      .populate({
+        path: 'items.menuItem',
+        populate:
+        {
+          path: 'category',
+          model: 'Category',
+          select: 'name'
+        }
+      })
+      .populate('outlet')
+      .populate('user_id')
       .populate({
         path: 'cashierId',
         populate: {

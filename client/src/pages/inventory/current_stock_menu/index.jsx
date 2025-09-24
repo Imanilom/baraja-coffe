@@ -7,6 +7,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import Datepicker from "react-tailwindcss-datepicker";
 import Header from "../../admin/header";
 import ExportInventory from "../exportInventory";
+import UpdateStockForm from "./update";
 
 const CurrentStockManagement = () => {
     const customSelectStyles = {
@@ -53,6 +54,8 @@ const CurrentStockManagement = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [originalData, setOriginalData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
+    const [selectedOriginal, setSelectedOriginal] = useState(null);
+
 
     const [loading, setLoading] = useState(true);
 
@@ -102,11 +105,18 @@ const CurrentStockManagement = () => {
         }
     };
 
-
     // Gunakan useEffect untuk jalankan saat component mount atau value berubah
     useEffect(() => {
         fetchStockCard();
     }, []);
+
+    const handleSave = (updated) => {
+        setOriginalData((prev) =>
+            prev.map((p) => (p._id === updated._id ? updated : p))
+        );
+        setSelectedOriginal(null);
+        console.log("✅ Data tersimpan:", updated);
+    };
 
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -234,7 +244,9 @@ const CurrentStockManagement = () => {
                         <thead className="bg-slate-50 text-gray-400">
                             <tr>
                                 <th className="p-3 font-medium text-left w-[20%]">Produk</th>
+                                <th className="p-3 font-medium text-left w-[20%]">Kategori</th>
                                 <th className="p-3 font-medium text-right w-[10%]">Stok</th>
+                                <th className="p-3 font-medium text-right w-[10%]"></th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
@@ -245,7 +257,19 @@ const CurrentStockManagement = () => {
                                         className={`hover:bg-gray-100 `}
                                     >
                                         <td className="p-3 truncate">{item.name}</td>
+                                        <td className="p-3 truncate">{item.category}</td>
                                         <td className="p-3 text-right truncate">{item.availableStock}</td>
+                                        <td className="p-3 flex justify-end">
+                                            {/* <Link to="" className="text-gray-500 hover:text-green-900">
+                                                <FaPencilAlt />
+                                            </Link> */}
+                                            <button
+                                                onClick={() => setSelectedOriginal(item)}
+                                                className="px-3 py-1 text-sm bg-green-900 text-white rounded hover:bg-green-700"
+                                            >
+                                                <FaPencilAlt />
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -323,6 +347,17 @@ const CurrentStockManagement = () => {
                     </div>
                 )}
             </div>
+            {selectedOriginal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+                        <UpdateStockForm
+                            product={selectedOriginal}
+                            onSave={handleSave}
+                            onCancel={() => setSelectedOriginal(null)}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Footer */}
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">

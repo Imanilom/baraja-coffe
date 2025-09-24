@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 const CustomerSales = () => {
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
+    const [user, setUser] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -21,7 +22,7 @@ const CustomerSales = () => {
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
+    const ITEMS_PER_PAGE = 10;
 
     const dropdownRef = useRef(null);
 
@@ -41,6 +42,11 @@ const CustomerSales = () => {
 
                 setProducts(productsData);
                 setFilteredData(productsData); // Initialize filtered data with all products
+
+                const userResponse = await axios.get('/api/user/staff');
+                const userData = userResponse.data.data ? userResponse.data.data : userResponse.data;
+
+                setUser(userData);
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -85,53 +91,59 @@ const CustomerSales = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // const groupedArray = useMemo(() => {
-    //     const grouped = {};
+    const groupedArray = useMemo(() => {
+        const grouped = {};
 
-    //     filteredData.forEach(product => {
-    //         const outletName = product?.cashier?.outlet?.[0]?.outletId?.name || 'Unknown';
-    //         const customer = product?.user || 'N/A';
-    //         const item = product?.items?.[0] || {};
-    //         const subtotal = Number(item?.subtotal) || 0;
+        filteredData.forEach(product => {
+            const customer = product?.user_id || {};
+            const customerPhone = customer.phone || null;
+            const customerName = product?.user || 'Unknown';
+            const item = product?.items?.[0] || {};
+            const subtotal = Number(item?.subtotal) || 0;
 
-    //         if (!grouped[outletName]) {
-    //             grouped[outletName] = {
-    //                 count: 0,
-    //                 subtotalTotal: 0,
-    //                 products: []
-    //             };
-    //         }
+            // ✅ kalau phone ada → pakai phone+username
+            // ✅ kalau phone kosong → pakai username saja
+            const groupKey = customerPhone
+                ? `${customerPhone}|${customerName}`
+                : `${customerName}`;
 
-    //         grouped[outletName].products.push(product);
-    //         grouped[outletName].count++;
-    //         grouped[outletName].subtotalTotal += subtotal;
-    //     });
+            if (!grouped[groupKey]) {
+                grouped[groupKey] = {
+                    customerName,
+                    customer,
+                    count: 0,
+                    subtotalTotal: 0,
+                    products: []
+                };
+            }
 
-    //     return Object.entries(grouped).map(([outletName, data]) => ({
-    //         outletName,
-    //         ...data
-    //     }));
-    // }, [filteredData]);
+            grouped[groupKey].products.push(product);
+            grouped[groupKey].count++;
+            grouped[groupKey].subtotalTotal += subtotal;
+        });
 
-    // const paginatedData = useMemo(() => {
-    //     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    //     const endIndex = startIndex + ITEMS_PER_PAGE;
-    //     return groupedArray.slice(startIndex, endIndex);
-    // }, [groupedArray, currentPage]);
+        return Object.values(grouped);
+    }, [filteredData]);
 
     const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
-        }
-
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
-        return result;
-    }, [currentPage, filteredData]);
+        return groupedArray.slice(startIndex, endIndex);
+    }, [groupedArray, currentPage]);
+
+    // const paginatedData = useMemo(() => {
+
+    //     // Ensure filteredData is an array before calling slice
+    //     if (!Array.isArray(filteredData)) {
+    //         console.error('filteredData is not an array:', filteredData);
+    //         return [];
+    //     }
+
+    //     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    //     const endIndex = startIndex + ITEMS_PER_PAGE;
+    //     const result = filteredData.slice(startIndex, endIndex);
+    //     return result;
+    // }, [currentPage, filteredData]);
 
     // Calculate total pages based on filtered data
     // const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
@@ -160,7 +172,8 @@ const CustomerSales = () => {
 
         filteredData.forEach(product => {
             try {
-                const item = product?.items?.[0];
+                const item = product;
+                // const item = product?.items?.[0];
                 if (!item) return;
 
                 const subtotal = Number(item.subtotal) || 0;
@@ -443,12 +456,19 @@ const CustomerSales = () => {
                             <tbody className="text-sm text-gray-400">
                                 {paginatedData.map((group, index) => (
                                     <React.Fragment key={index}>
-                                        <tr className="">
+                                        {/* <tr className="">
                                             <td className="px-4 py-3">{group.user}</td>
+                                            <td className="px-4 py-3 text-right">{group.user_id ? group.user_id.consumerType : "-"}</td>
+                                            <td className="px-4 py-3 text-right">{group.user_id ? group.user_id.phone : "-"}</td>
+                                            <td className="px-4 py-3 text-right">1</td>
+                                            <td className="px-4 py-3 text-right">1</td>
+                                        </tr> */}
+                                        <tr className="">
+                                            <td className="px-4 py-3">{group.customerName}</td>
+                                            <td className="px-4 py-3 text-right">{group.customer.consumerType || "-"}</td>
+                                            <td className="px-4 py-3 text-right">{group.customer.phone || "-"}</td>
                                             <td className="px-4 py-3 text-right">{group.count}</td>
-                                            <td className="px-4 py-3 text-right">08123456789</td>
-                                            <td className="px-4 py-3 text-right">1</td>
-                                            <td className="px-4 py-3 text-right">1</td>
+                                            <td className="px-4 py-3 text-right">{group.count}</td>
                                         </tr>
                                     </React.Fragment>
                                 ))}
@@ -463,7 +483,8 @@ const CustomerSales = () => {
 
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
-                                <td className="px-4 py-2">Grand Total</td>
+                                <td className="px-4 py-2" colSpan={3}>Grand Total</td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotalItems.toLocaleString()}</p></td>
                                 <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotalItems.toLocaleString()}</p></td>
                             </tr>
                         </tfoot>
