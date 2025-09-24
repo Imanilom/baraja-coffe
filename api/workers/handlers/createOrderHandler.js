@@ -4,7 +4,7 @@ import { processOrderItems } from '../../services/order.service.js';
 import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 
-export async function createOrderHandler({ orderId, orderData, source }) {
+export async function createOrderHandler({ orderId, orderData, source, isOpenBill }) {
   try {
     const orderResult = await runWithTransactionRetry(async (session) => {
       // Process order items with inventory updates
@@ -25,7 +25,7 @@ export async function createOrderHandler({ orderId, orderData, source }) {
       let initialStatus = 'Pending';
       if (source === 'Cashier') {
         // initialStatus = orderData.paymentMethod === 'Cash' ? 'Completed' : 'Pending';
-        initialStatus = 'Completed';
+        initialStatus = isOpenBill ? 'Pending' : 'Waiting';
       }
 
       // Build complete order document
@@ -72,7 +72,7 @@ export async function createOrderHandler({ orderId, orderData, source }) {
 
     // Enqueue inventory update after successful transaction
     const queueResult = await enqueueInventoryUpdate(orderResult);
-    
+
 
     return {
       ...queueResult,
