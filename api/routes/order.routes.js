@@ -12,6 +12,7 @@ import {
   createAppOrder,
   createUnifiedOrder,
   getOrderById,
+  getOrderId,
   getCashierOrderById,
   getQueuedOrders,
   confirmOrderByCashier,
@@ -83,6 +84,9 @@ router.get('/orders/:userId', getUserOrders);
 router.get('/orders/history/:userId', getUserOrderHistory);
 
 router.get('/order/:orderId', getOrderById);
+
+router.get('/order-id/:orderId', getOrderId);
+
 router.get('/cashier-order/:orderId', getCashierOrderById);
 router.get('/orders/cashier/:cashierId', getCashierOrderHistory);
 

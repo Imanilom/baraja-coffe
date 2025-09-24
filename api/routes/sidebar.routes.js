@@ -9,33 +9,33 @@ const superadminAccess = verifyToken(['superadmin']);
 router.get('/menus', superadminAccess, SidebarController.getUserMenus);
 
 // Admin routes
-router.get('/admin/menus', 
-  superadminAccess, 
+router.get('/admin/menus',
+  superadminAccess,
   SidebarController.getAllMenus
 );
 
-router.post('/admin/menus', 
-  superadminAccess, 
+router.post('/admin/menus',
+  superadminAccess,
   SidebarController.createMenu
 );
 
-router.put('/admin/menus/:id', 
-  superadminAccess, 
+router.put('/admin/menus/:id',
+  superadminAccess,
   SidebarController.updateMenu
 );
 
-router.delete('/admin/menus/:id', 
-  superadminAccess, 
+router.delete('/admin/menus/:id',
+  superadminAccess,
   SidebarController.deleteMenu
 );
 
-router.patch('/admin/menus/:id/toggle', 
-  superadminAccess, 
+router.patch('/admin/menus/:id/toggle',
+  superadminAccess,
   SidebarController.toggleMenuStatus
 );
 
-router.patch('/admin/menus/:id/order', 
-  superadminAccess, 
+router.patch('/admin/menus/:id/order',
+  superadminAccess,
   SidebarController.updateMenuOrder
 );
 

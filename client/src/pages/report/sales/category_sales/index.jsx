@@ -93,8 +93,8 @@ const CategorySales = () => {
             if (!item) return;
 
             const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem.category
-                : [item.menuItem?.category || 'Uncategorized'];
+                ? item.menuItem?.category?.name
+                : [item.menuItem?.category?.name || 'Uncategorized'];
             const quantity = Number(item?.quantity) || 0;
             const subtotal = Number(item?.subtotal) || 0;
 
@@ -451,7 +451,7 @@ const CategorySales = () => {
                                             </React.Fragment>
                                         );
                                     } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
+                                        console.error(`Error rendering product ${index}:`, err);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
                                                 <td colSpan="7" className="px-4 py-3 text-red-500">
