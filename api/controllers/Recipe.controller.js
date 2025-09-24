@@ -1,6 +1,7 @@
 import Recipe from '../models/modul_menu/Recipe.model.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
+import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import mongoose from 'mongoose';
 
@@ -130,13 +131,13 @@ export const updateMenuAvailableStock = async (req, res) => {
 /**
  * Update stok hanya untuk satu menuItem
  */
+
 export const updateSingleMenuStock = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
     const { menuItemId } = req.params;
-
     if (!menuItemId || !mongoose.Types.ObjectId.isValid(menuItemId)) {
       return res.status(400).json({ success: false, message: 'ID Menu tidak valid' });
     }
@@ -147,26 +148,41 @@ export const updateSingleMenuStock = async (req, res) => {
     }
 
     const recipe = await Recipe.findOne({ menuItemId: menuItem._id }).session(session);
+    let calculatedStock = 0;
 
-    if (!recipe || !recipe.baseIngredients.length) {
-      menuItem.availableStock = 0;
-      await menuItem.save({ session });
-      await session.commitTransaction();
-      return res.status(200).json({
-        success: true,
-        data: menuItem
-      });
+    if (recipe?.baseIngredients?.length) {
+      const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
+      if (defaultIngredients.length) {
+        calculatedStock = await calculateMaxPortions(defaultIngredients);
+      }
     }
 
-    const totalPortion = await calculateMaxPortions(recipe.baseIngredients);
-    menuItem.availableStock = totalPortion;
+    // Simpan ke MenuStock
+    let menuStockDoc = await MenuStock.findOne({ menuItemId }).session(session);
+    if (!menuStockDoc) {
+      menuStockDoc = new MenuStock({
+        menuItemId,
+        calculatedStock,
+        lastCalculatedAt: new Date(),
+      });
+    } else {
+      menuStockDoc.calculatedStock = calculatedStock;
+      menuStockDoc.lastCalculatedAt = new Date();
+    }
+    await menuStockDoc.save({ session });
 
+    // Update MenuItem.availableStock dengan effectiveStock
+    menuItem.availableStock = menuStockDoc.effectiveStock;
     await menuItem.save({ session });
+
     await session.commitTransaction();
 
     res.status(200).json({
       success: true,
-      data: menuItem
+      data: {
+        menuItem: menuItem,
+        stockDetail: menuStockDoc.toJSON() // termasuk effectiveStock
+      }
     });
 
   } catch (error) {
@@ -178,6 +194,49 @@ export const updateSingleMenuStock = async (req, res) => {
   }
 };
 
+
+// PATCH /api/menu-stocks/:menuItemId/adjust
+export const adjustMenuStock = async (req, res) => {
+  const { menuItemId } = req.params;
+  const { manualStock, adjustmentNote, adjustedBy } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(menuItemId)) {
+    return res.status(400).json({ success: false, message: 'ID Menu tidak valid' });
+  }
+
+  if (manualStock == null || manualStock < 0) {
+    return res.status(400).json({ success: false, message: 'Stok manual harus angka ≥ 0' });
+  }
+
+  try {
+    let stockDoc = await MenuStock.findOne({ menuItemId });
+    if (!stockDoc) {
+      stockDoc = new MenuStock({ menuItemId });
+    }
+
+    stockDoc.manualStock = manualStock;
+    stockDoc.adjustmentNote = adjustmentNote || null;
+    stockDoc.adjustedBy = adjustedBy || null;
+    stockDoc.lastAdjustedAt = new Date();
+
+    await stockDoc.save();
+
+    // Opsional: update MenuItem.availableStock juga
+    await MenuItem.findByIdAndUpdate(menuItemId, {
+      availableStock: stockDoc.effectiveStock
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Stok menu berhasil disesuaikan',
+      data: stockDoc
+    });
+
+  } catch (error) {
+    console.error('Error adjusting menu stock:', error);
+    res.status(500).json({ success: false, message: 'Gagal menyesuaikan stok' });
+  }
+};
 /**
  * Lihat detail stok menu beserta komponen bahan
  */
