@@ -2862,6 +2862,41 @@ export const getOrderById = async (req, res) => {
   }
 };
 
+export const getOrderId = async (req, res) => {
+  try {
+    const { orderId  } = req.params;
+
+    const order = await Order.findOne({ order_id: orderId })
+      .populate('user_id', 'name email')
+      .populate('cashierId', 'name email')
+      .populate('items.menuItem', 'name price category')
+      .populate('outlet', 'name location')
+      .populate('reservation')
+      .populate('appliedPromos')
+      .populate('appliedManualPromo')
+      .populate('appliedVoucher');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order tidak ditemukan'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: order
+    });
+  } catch (error) {
+    console.error('Error getOrderById:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mengambil detail order',
+      error: error.message
+    });
+  }
+};
+
 export const getPendingPaymentOrders = async (req, res) => {
   try {
     const orderId = req.params.orderId;
