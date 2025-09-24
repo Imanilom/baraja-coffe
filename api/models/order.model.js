@@ -7,7 +7,16 @@ const OrderItemSchema = new mongoose.Schema({
   addons: [{ name: String, price: Number }],
   toppings: [{ name: String, price: Number }],
   notes: { type: String, default: '' },
+  batchNumber: { type: Number, default: 1 }, // Batch ke berapa item ini ditambahkan
+  addedAt: { type: Date, default: Date.now }, // Kapan item ini ditambahkan
+  kitchenStatus: {
+    type: String,
+    enum: ['pending', 'printed', 'cooking', 'ready', 'served'],
+    default: 'pending'
+  },
   isPrinted: { type: Boolean, default: false },
+  printedAt: { type: Date }, // Kapan dicetak ke kitchen
+
 
   // ✅ Tambahan untuk outlet
   outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
@@ -79,6 +88,13 @@ const OrderSchema = new mongoose.Schema({
 
   // Sumber order
   source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true },
+  currentBatch: { type: Number, default: 1 }, // Batch saat ini
+  lastItemAddedAt: { type: Date }, // Kapan terakhir ada tambahan
+  kitchenNotifications: [{
+    batchNumber: Number,
+    sentAt: Date,
+    type: { type: String, enum: ['new_batch', 'additional_items'] }
+  }],
 
   // Reservation reference
   reservation: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' }
