@@ -60,6 +60,10 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     }
   }
 
+  void updatePayment(OrderDetailModel updatedOrder) {
+    state = updatedOrder;
+  }
+
   // Set customer name, phone number, dan table number
   void updateCustomerDetails({
     String? customerName,

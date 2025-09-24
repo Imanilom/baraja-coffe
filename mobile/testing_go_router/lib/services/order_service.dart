@@ -33,7 +33,14 @@ class OrderService {
         ),
       );
       print('response create order: ${response.data}');
+
       if (orderDetail.source != 'App') {
+        print(
+          'start create charge... orderId: ${createOrderRequest(orderDetail)}',
+        );
+        print(
+          'start charge request: ${createChargeRequest(response.data['orderId'], orderDetail.grandTotal, orderDetail.paymentMethod!)}',
+        );
         Response chargeResponse = await _dio.post(
           '/api/cashierCharge',
           data: createChargeRequest(
@@ -45,6 +52,7 @@ class OrderService {
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
+              'ngrok-skip-browser-warning': 'true',
             },
           ),
         );
@@ -258,6 +266,10 @@ Map<String, dynamic> createChargeRequest(
   int grandTotal,
   String paymentType,
 ) {
+  print(
+    'create charge orderId: $orderId, grandTotal: $grandTotal, paymentType: $paymentType',
+  );
+
   return {
     'payment_type': paymentType,
     'is_down_payment': false,
