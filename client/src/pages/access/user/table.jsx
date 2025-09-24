@@ -235,7 +235,7 @@ export default function UserTable({ currentUser, customSelectStyles }) {
             {/* Table */}
             <main className="flex-1 px-6">
                 <div className="bg-white shadow rounded-lg overflow-x-auto">
-                    <table className="min-w-full text-sm text-gray-700">
+                    <table className="min-w-full text-sm text-gray-900">
                         <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                             <tr>
                                 <th className="px-4 py-3 flex justify-start">

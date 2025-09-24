@@ -92,10 +92,9 @@ const ProductSales = () => {
         filteredData.forEach(product => {
             const item = product?.items?.[0];
             if (!item) return;
-            { console.log(item) }
 
             const productName = item.menuItem?.name || 'Unknown';
-            const category = item.menuItem?.category || 'Uncategorized';
+            const category = item.menuItem?.category.name || 'Uncategorized';
             const sku = item.menuItem?.sku || '-';
             const quantity = Number(item?.quantity) || 0;
             const subtotal = Number(item?.subtotal) || 0;
@@ -349,15 +348,14 @@ const ProductSales = () => {
             <Header />
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/sales-menu" className="text-[15px] text-gray-500">Laporan Penjualan</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/product-sales" className="text-[15px] text-[#005429]">Penjualan Produk</Link>
-                </div>
+            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Laporan</span>
+                    <FaChevronRight />
+                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
+                    <FaChevronRight />
+                    <span>Penjualan Produk</span>
+                </h1>
                 <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
             </div>
 
@@ -446,7 +444,7 @@ const ProductSales = () => {
                             <tr className="text-left text-[13px]">
                                 <th className="px-4 py-3 font-normal">Produk</th>
                                 <th className="px-4 py-3 font-normal">Kategori</th>
-                                <th className="px-4 py-3 font-normal">SKU</th>
+                                {/* <th className="px-4 py-3 font-normal">SKU</th> */}
                                 <th className="px-4 py-3 font-normal text-right">Terjual</th>
                                 <th className="px-4 py-3 font-normal text-right">Penjualan Kotor</th>
                                 <th className="px-4 py-3 font-normal text-right">Diskon Produk</th>
@@ -464,11 +462,12 @@ const ProductSales = () => {
                                                         {group.productName || 'N/A'}
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        {Array.isArray(group.category) ? group.category.join(', ') : 'N/A'}
+                                                        {/* {Array.isArray(group.category) ? group.category.join(', ') : 'N/A'} */}
+                                                        {group.category}
                                                     </td>
-                                                    <td className="px-4 py-3">
+                                                    {/* <td className="px-4 py-3">
                                                         {group.sku || 'N/A'}
-                                                    </td>
+                                                    </td> */}
                                                     <td className="px-4 py-3 text-right">
                                                         {group.quantity || 'N/A'}
                                                     </td>
@@ -505,7 +504,7 @@ const ProductSales = () => {
                         )}
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
-                                <td className="px-4 py-2" colSpan="3">Grand Total</td>
+                                <td className="px-4 py-2" colSpan="2">Grand Total</td>
                                 <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotalQuantity.toLocaleString()}</p></td>
                                 <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">Rp {grandTotalSubtotal.toLocaleString()}</p></td>
                                 <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">Rp {grandTotalDiscount.toLocaleString()}</p></td>

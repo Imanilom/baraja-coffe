@@ -84,7 +84,7 @@ export const updateMenuAvailableStock = async (req, res) => {
   session.startTransaction();
 
   try {
-    const menuItems = await MenuItem.find().session(session);
+    const menuItems = await MenuItem.find().populate("category", "name").session(session);
 
     for (const menuItem of menuItems) {
       const recipe = await Recipe.findOne({ menuItemId: menuItem._id }).session(session);
@@ -115,6 +115,7 @@ export const updateMenuAvailableStock = async (req, res) => {
       data: menuItems.map(m => ({
         _id: m._id,
         name: m.name,
+        category: m.category?.name,
         availableStock: m.availableStock
       }))
     });
