@@ -99,7 +99,7 @@ const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBil
 };
 export const createAppOrder = async (req, res) => {
   try {
-    let {
+    const {
       items,
       orderType,
       tableNumber,
@@ -280,7 +280,7 @@ export const createAppOrder = async (req, res) => {
     // ✅ Perhitungan konsisten
     let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
     if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0) {
-      totalBeforeDiscount = 100000; // minimal reservasi tanpa menu
+      totalBeforeDiscount = 25000; // minimal reservasi tanpa menu
     }
 
     let totalAfterDiscount = totalBeforeDiscount;
@@ -360,7 +360,7 @@ export const createAppOrder = async (req, res) => {
         promotions: [],
         source: 'App',
         reservation: existingReservation._id,
-        isOpenBill: "true",
+        isOpenBill: true,
         originalReservationId: openBillData.reservationId,
       });
       await newOrder.save();
@@ -3923,10 +3923,12 @@ export const cashierCharge = async (req, res) => {
       const dpAmount = Number(down_payment_amount ?? gross_amount ?? 0);
       if (dpAmount <= 0) {
         await session.abortTransaction(); session.endSession();
+        console.log('Down Payment amount must be > 0');
         return res.status(400).json({ success: false, message: 'Down Payment amount must be > 0' });
       }
       if (dpAmount >= orderTotal) {
         await session.abortTransaction(); session.endSession();
+        console.log('Down Payment must be less than total order');
         return res.status(400).json({ success: false, message: 'Down Payment must be less than total order' });
       }
 
@@ -4067,7 +4069,7 @@ export const cashierCharge = async (req, res) => {
 
     await session.commitTransaction();
     session.endSession();
-
+    console.log('Payment created');
     return res.status(200).json({
       success: true,
       message: 'Payment created',
@@ -4557,6 +4559,81 @@ export const processPaymentCashier = async (req, res) => {
     // Commit transaksi
     await session.commitTransaction();
     session.endSession();
+
+    const statusUpdateData = {
+      order_id: order_id,  // Gunakan string order_id
+      orderStatus: 'Waiting',
+      paymentStatus: 'settlement',
+      message: 'Pesanan dikonfirmasi kasir, menunggu kitchen',
+      timestamp: new Date(),
+      cashier: {
+        id: cashier._id,  // Ganti dengan ID kasir yang sebenarnya
+        name: cashier.username, // Ganti dengan nama kasir yang sebenarnya
+      }
+    };
+
+    // Emit ke room spesifik untuk order tracking
+    io.to(`order_${order_id}`).emit('order_status_update', statusUpdateData);
+
+    // Emit event khusus untuk konfirmasi kasir
+    io.to(`order_${order_id}`).emit('order_confirmed', {
+      orderId: order_id,
+      orderStatus: 'Waiting',
+      paymentStatus: "settlement",
+      cashier: statusUpdateData.cashier,
+      message: 'Your order is now being prepared',
+      timestamp: new Date()
+    });
+
+    console.log(`🔔 Emitted order status update to room: order_${order_id}`, statusUpdateData);
+
+    // 3. Send FCM notification to customer
+    console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
+    if (order.user && order.user_id._id) {
+      try {
+        const orderData = {
+          orderId: order.order_id,
+          cashier: statusUpdateData.cashier
+        };
+
+        const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
+          order.user_id._id.toString(),
+          orderData
+        );
+
+        console.log('📱 FCM Notification result:', notificationResult);
+      } catch (notificationError) {
+        console.error('❌ Failed to send FCM notification:', notificationError);
+      }
+    }
+
+    // 4. Send notification to cashier dashboard if order is from Web/App
+    if (order.source === 'Web' || order.source === 'App') {
+      const orderData = {
+        orderId: order.order_id,
+        source: order.source,
+        orderType: order.orderType,
+        tableNumber: order.tableNumber || null,
+        items: order.items.map(item => ({
+          name: item.menuItem?.name || 'Unknown Item',
+          quantity: item.quantity
+        })),
+        createdAt: order.createdAt,
+        paymentMethod: order.paymentMethod,
+        totalAmount: order.grandTotal,
+        outletId: order.outlet._id
+      };
+
+      try {
+        if (typeof broadcastNewOrder === 'function') {
+          broadcastNewOrder(order.outlet._id.toString(), orderData);
+        }
+      } catch (broadcastError) {
+        console.error('Failed to broadcast new order:', broadcastError);
+      }
+    }
+
+    console.log('order berhasil di update');
 
     res.status(200).json({
       success: true,

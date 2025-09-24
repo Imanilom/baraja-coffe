@@ -3,6 +3,7 @@ import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/extentions/order_item_extensions.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
+import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -62,6 +63,12 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
   void updatePayment(OrderDetailModel updatedOrder) {
     state = updatedOrder;
+  }
+
+  void updateIsOpenBill(bool isOpenBill) {
+    if (state != null) {
+      state = state!.copyWith(isOpenBill: isOpenBill);
+    }
   }
 
   // Set customer name, phone number, dan table number
@@ -259,14 +266,14 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Kirim data orderDetail ke backend
-  Future<bool> submitOrder() async {
+  Future<bool> submitOrder(PaymentState paymentData) async {
     final cashier = await HiveService.getCashier();
 
     state = state!.copyWith(cashierId: cashier!.id);
     if (state == null) return false;
 
     try {
-      final order = await OrderService().createOrder(state!);
+      final order = await OrderService().createOrder(state!, paymentData);
 
       if (order.isNotEmpty) {
         return true;

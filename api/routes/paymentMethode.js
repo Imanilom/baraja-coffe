@@ -7,33 +7,33 @@ router.get('/payment-methods-and-types', (req, res) => {
         //Cash, E-wallet, Debit
         {
             id: 'cash',
-            name: 'Bayar di kasir',
+            name: 'Tunai',
             icon: 'cash.png',
             isActive: true,
         },
-        // {
-        //     id: 'ewallet',
-        //     name: 'E-Wallet',
-        //     icon: 'ewallet.png',
-        //     isActive: false,
-        // },
-        // {
-        //     id: 'debit',
-        //     name: 'Debit',
-        //     icon: 'debit.png',
-        //     isActive: true,
-        // },
-        // {
-        //     id: 'banktransfer',
-        //     name: 'Bank Transfer',
-        //     icon: 'bank-transfer.png',
-        //     isActive: false,
-        // }
+        {
+            id: 'ewallet',
+            name: 'E-Wallet',
+            icon: 'ewallet.png',
+            isActive: false,
+        },
+        {
+            id: 'debit',
+            name: 'Debit',
+            icon: 'debit.png',
+            isActive: true,
+        },
+        {
+            id: 'banktransfer',
+            name: 'Bank Transfer',
+            icon: 'bank-transfer.png',
+            isActive: false,
+        }
     ]
     const paymentMethods = [
         {
             id: 'cash',
-            name: 'Bayar di kasir',
+            name: 'Tunai',
             payment_method: 'Cash',
             typeId: ['cash'],
             isDigital: false,
@@ -47,62 +47,62 @@ router.get('/payment-methods-and-types', (req, res) => {
             isDigital: true,
             isActive: true
         },
-        // {
-        //     id: 'gopay',
-        //     name: 'Gopay',
-        //     payment_method: 'Gopay',
-        //     typeId: ['ewallet'],
-        //     isDigital: true,
-        //     isActive: true
-        // },
-        // {
-        //     id: 'bni',
-        //     name: 'BNI',
-        //     payment_method: 'BNI',
-        //     typeId: ['debit', 'banktransfer'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
-        // {
-        //     id: 'bri',
-        //     name: 'BRI',
-        //     payment_method: 'BRI',
-        //     typeId: ['debit', 'banktransfer'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
-        // {
-        //     id: 'bca',
-        //     name: 'BCA',
-        //     payment_method: 'BCA',
-        //     typeId: ['debit', 'banktransfer'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
-        // {
-        //     id: 'qrisbni',
-        //     name: 'Qris BNI',
-        //     payment_method: 'Qris',
-        //     typeId: ['debit', 'banktransfer'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
-        // {
-        //     id: 'qrisbri',
-        //     name: 'Qris BRI',
-        //     payment_method: 'Qris',
-        //     typeId: ['debit', 'banktransfer'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
-        // {
-        //     id: 'qrisbca',
-        //     name: 'Qris BCA',
-        //     payment_method: 'Qris',
-        //     typeId: ['debit', 'banktransfer'],
-        //     isDigital: false,
-        //     isActive: true
-        // },
+        {
+            id: 'gopay',
+            name: 'Gopay',
+            payment_method: 'Gopay',
+            typeId: ['ewallet'],
+            isDigital: true,
+            isActive: true
+        },
+        {
+            id: 'bni',
+            name: 'BNI',
+            payment_method: 'BNI',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'bri',
+            name: 'BRI',
+            payment_method: 'BRI',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'bca',
+            name: 'BCA',
+            payment_method: 'BCA',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'qrisbni',
+            name: 'Qris BNI',
+            payment_method: 'Qris',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'qrisbri',
+            name: 'Qris BRI',
+            payment_method: 'Qris',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'qrisbca',
+            name: 'Qris BCA',
+            payment_method: 'Qris',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
     ];
 
 

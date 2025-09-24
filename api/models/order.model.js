@@ -40,7 +40,7 @@ const OrderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['Cash', 'Card','QRIS', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],
+    enum: ['Cash', 'Card', 'QRIS', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],
   },
   orderType: {
     type: String,
@@ -53,11 +53,7 @@ const OrderSchema = new mongoose.Schema({
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
 
   // ✅ NEW: Open Bill fields
-  isOpenBill: {
-    type: String,
-    default: 'false',
-    enum: ['true', 'false']
-  },
+  isOpenBill: { type: Boolean, default: false },
 
   originalReservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
 

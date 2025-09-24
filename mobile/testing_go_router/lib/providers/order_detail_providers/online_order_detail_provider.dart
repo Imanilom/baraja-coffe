@@ -43,11 +43,11 @@ class OnlineOrderDetailProvider extends StateNotifier<OrderDetailModel?> {
     if (state == null) return false;
     print('Mengirim data orderDetail ke backend... ${state!.toJson()}');
     try {
-      final order = await OrderService().createOrder(state!);
-      print('Order ID : $order');
-      if (order.isNotEmpty) {
-        return true;
-      }
+      // final order = await OrderService().createOrder(state!);
+      // print('Order ID : $order');
+      // if (order.isNotEmpty) {
+      //   return true;
+      // }
     } catch (e) {
       print('error apa? $e');
       return false;
