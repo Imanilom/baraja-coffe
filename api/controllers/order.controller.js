@@ -3377,14 +3377,18 @@ export const getOrderById = async (req, res) => {
     }
     console.log('Fetching order with ID:', orderId);
 
-    // Cari pesanan
-    const order = await Order.findById(orderId).populate('items.menuItem');
+    // Cari pesanan dengan populate voucher dan tax details
+    const order = await Order.findById(orderId)
+      .populate('items.menuItem')
+      .populate('appliedVoucher')
+      .populate('taxAndServiceDetails');
     if (!order) {
       return res.status(404).json({ message: 'Order not found.' });
     }
 
     // Cari pembayaran
     const payment = await Payment.findOne({ order_id: order.order_id });
+
 
     // Cari reservasi
     const reservation = await Reservation.findOne({ order_id: orderId })
@@ -3479,6 +3483,7 @@ export const getOrderById = async (req, res) => {
     console.log("Delivery Data:", order.orderType === 'Delivery' ? { deliveryAddress: order.deliveryAddress } : 'N/A');
     console.log("Take Away Data:", order.orderType === 'Take Away' ? { note: "Take Away order" } : 'N/A');
     console.log("Ini adalah data order di getORderById:", order)
+
     // Payment status logic
     const paymentStatus = (() => {
       if (
@@ -3520,6 +3525,100 @@ export const getOrderById = async (req, res) => {
       status: paymentStatus,
     };
 
+    // ✅ DEBUG: Log semua data order untuk melihat struktur sebenarnya
+    console.log('=== DEBUGGING ORDER DATA ===');
+    console.log('Order keys:', Object.keys(order.toObject()));
+    console.log('Applied Voucher:', JSON.stringify(order.appliedVoucher, null, 2));
+    console.log('Tax And Service Details:', JSON.stringify(order.taxAndServiceDetails, null, 2));
+    console.log('Discounts:', JSON.stringify(order.discounts, null, 2));
+    console.log('Applied Promos:', order.appliedPromos);
+    console.log('Applied Manual Promo:', order.appliedManualPromo);
+    console.log('Total Tax:', order.totalTax);
+    console.log('============================');
+
+    // ✅ TAMBAHAN: Format voucher data - sekarang sudah ter-populate
+    let voucherData = null;
+
+    if (order.appliedVoucher && typeof order.appliedVoucher === 'object') {
+      // Jika sudah ter-populate, ambil data langsung
+      if (order.appliedVoucher.code) {
+        voucherData = {
+          _id: order.appliedVoucher._id,
+          code: order.appliedVoucher.code,
+          name: order.appliedVoucher.name,
+          description: order.appliedVoucher.description,
+          discountAmount: order.appliedVoucher.discountAmount,
+          discountType: order.appliedVoucher.discountType,
+          validFrom: order.appliedVoucher.validFrom,
+          validTo: order.appliedVoucher.validTo,
+          quota: order.appliedVoucher.quota,
+          applicableOutlets: order.appliedVoucher.applicableOutlets || [],
+          customerType: order.appliedVoucher.customerType,
+          printOnReceipt: order.appliedVoucher.printOnReceipt || false,
+          isActive: order.appliedVoucher.isActive || true
+        };
+      } else {
+        // Jika hanya ObjectId, coba manual query
+        console.log('Voucher not populated, trying manual query for ID:', order.appliedVoucher._id);
+        try {
+          // Assumsi Anda punya model Voucher
+          const Voucher = require('../models/Voucher'); // sesuaikan path model
+          const voucherDetails = await Voucher.findById(order.appliedVoucher._id || order.appliedVoucher);
+          if (voucherDetails) {
+            voucherData = {
+              _id: voucherDetails._id,
+              code: voucherDetails.code,
+              name: voucherDetails.name,
+              description: voucherDetails.description,
+              discountAmount: voucherDetails.discountAmount,
+              discountType: voucherDetails.discountType,
+              validFrom: voucherDetails.validFrom,
+              validTo: voucherDetails.validTo,
+              quota: voucherDetails.quota,
+              applicableOutlets: voucherDetails.applicableOutlets || [],
+              customerType: voucherDetails.customerType,
+              printOnReceipt: voucherDetails.printOnReceipt || false,
+              isActive: voucherDetails.isActive || true
+            };
+          }
+        } catch (voucherError) {
+          console.log('Error fetching voucher details:', voucherError.message);
+        }
+      }
+    }
+
+    // ✅ TAMBAHAN: Format tax and service details - sekarang sudah ter-populate  
+    let taxAndServiceDetails = [];
+
+    if (order.taxAndServiceDetails && Array.isArray(order.taxAndServiceDetails)) {
+      taxAndServiceDetails = order.taxAndServiceDetails.map(tax => {
+        // Jika tax adalah object dengan data lengkap
+        if (tax.type && tax.name) {
+          return {
+            _id: tax._id,
+            type: tax.type,
+            name: tax.name,
+            percentage: tax.percentage,
+            amount: tax.amount
+          };
+        }
+        // Jika tax hanya ObjectId, return minimal data
+        return {
+          _id: tax._id || tax,
+          type: 'unknown',
+          name: 'Tax/Service',
+          percentage: 0,
+          amount: 0
+        };
+      });
+    }
+
+    console.log('Formatted Voucher Data:', JSON.stringify(voucherData, null, 2));
+    console.log('Formatted Tax Data:', JSON.stringify(taxAndServiceDetails, null, 2));
+
+    // Calculate total tax amount
+    const totalTax = order.totalTax || 0;
+
     // Build orderData
     const orderData = {
       _id: order._id.toString(),
@@ -3527,7 +3626,6 @@ export const getOrderById = async (req, res) => {
       orderNumber: generateOrderNumber(order.order_id || order._id),
       orderDate: formatDate(order.createdAt),
       items: formattedItems,
-      // total: totalAmountRemaining?.totalAmount || payment?.totalAmount || order?.grandTotal || payment?.amount || 0, // ✅ Update: gunakan totalAmount jika ada
       orderStatus: order.status,
       paymentMethod: paymentDetails.method,
       paymentStatus,
@@ -3537,6 +3635,13 @@ export const getOrderById = async (req, res) => {
 
       // ✅ TAMBAHAN: Detail pembayaran yang lebih lengkap
       paymentDetails: paymentDetails,
+
+      // ✅ TAMBAHAN: Data voucher
+      voucher: voucherData,
+
+      // ✅ TAMBAHAN: Data tax dan service details
+      taxAndServiceDetails: taxAndServiceDetails,
+      totalTax: totalTax,
 
       reservation: reservationData,
 
