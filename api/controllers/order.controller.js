@@ -17,6 +17,7 @@ import Reservation from '../models/Reservation.model.js';
 import QRCode from 'qrcode';
 // Import FCM service di bagian atas file
 import FCMNotificationService from '../services/fcmNotificationService.js';
+import { TaxAndService } from '../models/TaxAndService.model.js';
 const { ObjectId } = mongoose.Types;
 
 const queueEvents = new QueueEvents('orderQueue');
@@ -24,29 +25,24 @@ const queueEvents = new QueueEvents('orderQueue');
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
   try {
-    // Don't apply taxes for open bill orders
-    if (isOpenBill) {
-      return {
-        totalTax: 0,
-        totalServiceFee: 0,
-        taxAndServiceDetails: []
-      };
-    }
-
     // Fetch tax and service data
     const taxAndServices = await TaxAndService.find({
       isActive: true,
       appliesToOutlets: outlet
     });
 
+    console.log('Found tax and service items:', taxAndServices);
+
     let totalTax = 0;
     let totalServiceFee = 0;
     const taxAndServiceDetails = [];
 
     for (const item of taxAndServices) {
+      console.log(`Processing item: ${item.name}, type: ${item.type}, percentage: ${item.percentage}`);
+
       if (item.type === 'tax') {
-        // PPN applies to all transactions except open bill
-        if (item.name === 'PPN') {
+        // Apply PPN to all orders (including open bill)
+        if (item.name.toLowerCase().includes('ppn') || item.name.toLowerCase() === 'tax') {
           const amount = subtotal * (item.percentage / 100);
           totalTax += amount;
           taxAndServiceDetails.push({
@@ -56,21 +52,10 @@ const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBil
             percentage: item.percentage,
             amount: amount
           });
-        }
-        // PB1 only applies to reservations (except open bill)
-        else if (item.name === 'PB1' && isReservation) {
-          const amount = subtotal * (item.percentage / 100);
-          totalTax += amount;
-          taxAndServiceDetails.push({
-            id: item._id,
-            name: item.name,
-            type: item.type,
-            percentage: item.percentage,
-            amount: amount
-          });
+          console.log(`Applied tax: ${item.name}, amount: ${amount}`);
         }
       } else if (item.type === 'service') {
-        // Apply service fees based on your business rules
+        // Apply service fees to all orders (including open bill if needed)
         const amount = subtotal * (item.percentage / 100);
         totalServiceFee += amount;
         taxAndServiceDetails.push({
@@ -80,8 +65,11 @@ const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBil
           percentage: item.percentage,
           amount: amount
         });
+        console.log(`Applied service fee: ${item.name}, amount: ${amount}`);
       }
     }
+
+    console.log('Tax calculation result:', { totalTax, totalServiceFee, taxAndServiceDetails });
 
     return {
       totalTax,
@@ -97,6 +85,7 @@ const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBil
     };
   }
 };
+
 export const createAppOrder = async (req, res) => {
   try {
     const {
@@ -295,6 +284,13 @@ export const createAppOrder = async (req, res) => {
     const isReservationOrder = orderType === 'reservation';
     const isOpenBillOrder = isOpenBill || false;
 
+    console.log('Tax calculation parameters:', {
+      totalAfterDiscount,
+      outlet: outlet || "67cbc9560f025d897d69f889",
+      isReservationOrder,
+      isOpenBillOrder
+    });
+
     const taxServiceCalculation = await calculateTaxAndService(
       totalAfterDiscount,
       outlet || "67cbc9560f025d897d69f889",
@@ -302,12 +298,21 @@ export const createAppOrder = async (req, res) => {
       isOpenBillOrder
     );
 
+    console.log('Backend tax calculation result:', taxServiceCalculation);
+
     // Calculate grand total including tax and service
     const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
 
+    console.log('Final totals:', {
+      totalAfterDiscount,
+      taxAmount: taxServiceCalculation.totalTax,
+      serviceAmount: taxServiceCalculation.totalServiceFee,
+      grandTotal
+    });
+
     let newOrder;
 
-    // Handle Open Bill scenario
+    // Handle Open Bill scenario - NOW WITH TAX CALCULATION
     if (isOpenBill && existingOrder) {
       existingOrder.items.push(...orderItems);
 
@@ -323,15 +328,31 @@ export const createAppOrder = async (req, res) => {
         if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
       }
 
-      // For open bill, don't recalculate tax as it was already applied during reservation
+      // Recalculate tax for open bill (now applies tax)
+      const updatedTaxCalculation = await calculateTaxAndService(
+        updatedTotalAfterDiscount,
+        outlet || "67cbc9560f025d897d69f889",
+        isReservationOrder,
+        true // isOpenBill = true
+      );
+
       existingOrder.totalAfterDiscount = updatedTotalAfterDiscount;
-      existingOrder.grandTotal = updatedTotalAfterDiscount; // No additional tax for open bill
+      existingOrder.totalTax = updatedTaxCalculation.totalTax;
+      existingOrder.totalServiceFee = updatedTaxCalculation.totalServiceFee;
+      existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
+      existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
 
       await existingOrder.save();
       newOrder = existingOrder;
+
+      console.log('Updated existing order with tax:', {
+        totalTax: existingOrder.totalTax,
+        totalServiceFee: existingOrder.totalServiceFee,
+        grandTotal: existingOrder.grandTotal
+      });
     }
     else if (isOpenBill && !existingOrder) {
-      // Create new order for open bill (shouldn't normally happen, but for safety)
+      // Create new order for open bill WITH TAX
       const generatedOrderId = await generateOrderId(openBillData.tableNumbers || tableNumber || '');
       newOrder = new Order({
         order_id: generatedOrderId,
@@ -349,14 +370,14 @@ export const createAppOrder = async (req, res) => {
         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
         totalBeforeDiscount,
         totalAfterDiscount,
-        totalTax: 0, // No tax for open bill
-        totalServiceFee: 0, // No service fee for open bill
+        totalTax: taxServiceCalculation.totalTax, // Now includes tax for open bill
+        totalServiceFee: taxServiceCalculation.totalServiceFee, // Now includes service fee
         discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
         appliedPromos: [],
         appliedManualPromo: null,
         appliedVoucher: voucherId,
-        taxAndServiceDetails: [], // No tax details for open bill
-        grandTotal: totalAfterDiscount, // No additional charges for open bill
+        taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails, // Tax details for open bill
+        grandTotal: grandTotal, // Grand total with tax
         promotions: [],
         source: 'App',
         reservation: existingReservation._id,
@@ -369,6 +390,12 @@ export const createAppOrder = async (req, res) => {
         existingReservation.order_id = newOrder._id;
         await existingReservation.save();
       }
+
+      console.log('Created new open bill order with tax:', {
+        totalTax: newOrder.totalTax,
+        totalServiceFee: newOrder.totalServiceFee,
+        grandTotal: newOrder.grandTotal
+      });
     } else {
       // Normal order creation with tax calculation
       const generatedOrderId = await generateOrderId(tableNumber || '');
@@ -402,7 +429,24 @@ export const createAppOrder = async (req, res) => {
         reservation: null,
       });
       await newOrder.save();
+
+      console.log('Created new order with tax:', {
+        totalTax: newOrder.totalTax,
+        totalServiceFee: newOrder.totalServiceFee,
+        grandTotal: newOrder.grandTotal
+      });
     }
+
+    // Verify order was saved with tax data
+    const savedOrder = await Order.findById(newOrder._id);
+    console.log('Verified saved order tax data:', {
+      orderId: savedOrder._id,
+      totalTax: savedOrder.totalTax,
+      totalServiceFee: savedOrder.totalServiceFee,
+      taxAndServiceDetails: savedOrder.taxAndServiceDetails,
+      grandTotal: savedOrder.grandTotal
+    });
+
 
     // Reservation creation (existing code remains the same)
     let reservationRecord = null;
