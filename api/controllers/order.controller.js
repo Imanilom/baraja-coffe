@@ -17,7 +17,7 @@ import Reservation from '../models/Reservation.model.js';
 import QRCode from 'qrcode';
 // Import FCM service di bagian atas file
 import FCMNotificationService from '../services/fcmNotificationService.js';
-
+const { ObjectId } = mongoose.Types;
 
 const queueEvents = new QueueEvents('orderQueue');
 
@@ -3022,253 +3022,244 @@ export const testSocket = async (req, res) => {
   res.status(200).json({ success: cashierRoom });
 }
 
-export const cashierCharges = async (req, res) => {
+// const generatePaymentCode = () => 'PAY-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+
+export const cashierCharge = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { payment_type, is_down_payment, down_payment_amount, remaining_payment } = req.body;
+    const {
+      payment_type,         // 'cash' | 'qris' | 'transfer' | ...
+      order_id,             // string order_id
+      gross_amount,         // total yang dibayarkan saat ini (atau total order untuk full)
+      is_down_payment,      // boolean
+      down_payment_amount,  // optional
+      remaining_payment     // optional (tidak dipakai, kita hitung ulang agar konsisten)
+    } = req.body;
 
-    console.log('Received payment type:', payment_type);
+    if (!order_id) {
+      await session.abortTransaction(); session.endSession();
+      return res.status(400).json({ success: false, message: 'Order ID is required' });
+    }
+    if (typeof gross_amount !== 'number' || isNaN(gross_amount) || gross_amount < 0) {
+      await session.abortTransaction(); session.endSession();
+      return res.status(400).json({ success: false, message: 'gross_amount must be a valid number ≥ 0' });
+    }
 
-    if (payment_type === 'cash') {
-      // Handle cash payment
-      const { order_id, gross_amount } = req.body;
-      console.log('Payment type:', payment_type, 'Order ID:', order_id, 'Gross Amount:', gross_amount);
+    // Ambil order
+    const order = await Order.findOne({ order_id }).session(session);
+    if (!order) {
+      await session.abortTransaction(); session.endSession();
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
 
-      // Find the order to get the order._id
-      const order = await Order.findOne({ order_id: order_id });
-      if (!order) {
-        return res.status(404).json({
-          success: false,
-          message: 'Order not found'
-        });
+    // Hitung total order (fallback ke gross_amount kalau field total tidak ada)
+    const orderTotal = Number(
+      order.grandTotal ?? gross_amount ?? 0
+    );
+
+    // Ambil payment yang sudah ada
+    const existingPayments = await Payment.find({ order_id }).session(session);
+
+    // Cegah DP ganda: kalau sudah ada DP 'settlement' dan masih ada Final Payment 'pending', jangan bikin DP lagi
+    const hasSettledDP = existingPayments.some(p => p.paymentType === 'Down Payment' && (p.status === 'settlement' || p.status === 'paid'));
+    const hasPendingFinal = existingPayments.some(p => p.paymentType === 'Final Payment' && p.status === 'pending');
+
+    if (is_down_payment === true && (hasSettledDP || hasPendingFinal)) {
+      await session.abortTransaction(); session.endSession();
+      return res.status(409).json({
+        success: false,
+        message: 'Down Payment already exists or pending Final Payment is present for this order'
+      });
+    }
+
+    // === MODE DP → buat 2 payment (DP settled + Final pending) ===
+    if (is_down_payment === true) {
+      const dpAmount = Number(down_payment_amount ?? gross_amount ?? 0);
+      if (dpAmount <= 0) {
+        await session.abortTransaction(); session.endSession();
+        return res.status(400).json({ success: false, message: 'Down Payment amount must be > 0' });
+      }
+      if (dpAmount >= orderTotal) {
+        await session.abortTransaction(); session.endSession();
+        return res.status(400).json({ success: false, message: 'Down Payment must be less than total order' });
       }
 
-      // Check if payment already exists for this order
-      const existingPayment = await Payment.findOne({ order_id: order_id });
-      if (existingPayment) {
-        console.log('Payment already exists for order:', order_id);
+      const remaining = Math.max(0, orderTotal - dpAmount);
 
-        // Generate QR code data using order._id only
-        const qrData = {
-          order_id: order._id.toString(),
-        };
+      // Build common fields
+      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const merchantId = 'G711879663';
 
-        const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
-
-        return res.status(200).json({
-          order_id: existingPayment.order_id,
-          transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
-          method: existingPayment.method,
-          status: existingPayment.status,
-          paymentType: existingPayment.paymentType,
-          amount: existingPayment.amount,
-          remainingAmount: existingPayment.remainingAmount,
-          discount: 0,
-          fraud_status: "accept",
-          transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
-          expiry_time: existingPayment.expiry_time || null,
-          settlement_time: existingPayment.settlement_time || null,
-          va_numbers: existingPayment.va_numbers || [],
-          permata_va_number: existingPayment.permata_va_number || null,
-          bill_key: existingPayment.bill_key || null,
-          biller_code: existingPayment.biller_code || null,
-          pdf_url: existingPayment.pdf_url || null,
-          currency: existingPayment.currency || "IDR",
-          merchant_id: existingPayment.merchant_id || "G711879663",
-          signature_key: existingPayment.signature_key || null,
-          actions: [
-            {
-              name: "generate-qr-code",
-              method: "GET",
-              url: qrCodeBase64,
-            }
-          ],
-          raw_response: existingPayment.raw_response || {
-            status_code: "201",
-            status_message: "Cash transaction is created",
-            transaction_id: existingPayment.transaction_id || existingPayment._id.toString(),
-            order_id: existingPayment.order_id,
-            merchant_id: "G711879663",
-            gross_amount: existingPayment.amount.toString() + ".00",
-            currency: "IDR",
-            payment_type: "cash",
-            transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
-            transaction_status: existingPayment.status,
-            fraud_status: "accept",
-            actions: [
-              {
-                name: "generate-qr-code",
-                method: "GET",
-                url: qrCodeBase64,
-              }
-            ],
-            acquirer: "cash",
-            qr_string: JSON.stringify(qrData),
-            expiry_time: existingPayment.expiry_time || null
-          },
-          createdAt: existingPayment.createdAt,
-          updatedAt: existingPayment.updatedAt,
-          __v: 0
-        });
-      }
-
-      // Log reservation payment details if present
-      if (is_down_payment !== undefined) {
-        console.log('Is Down Payment:', is_down_payment);
-        console.log('Down Payment Amount:', down_payment_amount);
-        console.log('Remaining Payment:', remaining_payment);
-      }
-
-      // Determine payment type and amounts based on reservation payment
-      let paymentType = 'Full';
-      let amount = gross_amount;
-      let remainingAmount = 0;
-
-      if (is_down_payment === true) {
-        paymentType = 'Down Payment';
-        amount = down_payment_amount || gross_amount;
-        remainingAmount = remaining_payment || 0;
-      }
-
-      // Generate transaction_id with UUID-like format
-      const generateTransactionId = () => {
-        const chars = '0123456789abcdef';
-        const sections = [8, 4, 4, 4, 12];
-        return sections.map(len =>
-          Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-        ).join('-');
-      };
-
-      const transactionId = generateTransactionId();
-      const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      const expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
-
-      // Generate QR code data using order._id only
-      const qrData = {
-        order_id: order._id.toString(),
-      };
-
-      const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
-
-      // Create actions array with QR code
-      const actions = [
-        {
-          name: "generate-qr-code",
-          method: "GET",
-          url: qrCodeBase64,
-        }
-      ];
-
-      // Create raw_response object
-      const rawResponse = {
-        status_code: "201",
-        status_message: "Cash transaction is created",
-        transaction_id: transactionId,
-        order_id: order_id,
-        merchant_id: "G711879663",
-        gross_amount: amount.toString() + ".00",
-        currency: "IDR",
-        payment_type: "cash",
-        transaction_time: currentTime,
-        transaction_status: "pending",
-        fraud_status: "accept",
-        actions: actions,
-        acquirer: "cash",
-        qr_string: JSON.stringify(qrData),
-        expiry_time: expiryTime
-      };
-
-      // Create payment with actions and raw_response
-      const payment = new Payment({
-        transaction_id: transactionId,
-        order_id: order_id,
-        amount: amount,
+      // 1) Payment DP (settlement)
+      const dpPayment = new Payment({
+        payment_code: generatePaymentCode(),
+        transaction_id: generateTransactionId(),
+        order_id,
         method: payment_type,
-        status: 'pending',
+        status: 'settlement',
+        paymentType: 'Down Payment',
+        amount: dpAmount,
+        totalAmount: orderTotal,
+        remainingAmount: 0,               // ← tidak digunakan lagi, set 0
+        relatedPaymentId: null,
         fraud_status: 'accept',
-        transaction_time: currentTime,
-        expiry_time: expiryTime,
-        settlement_time: null,
-        va_numbers: [],
-        permata_va_number: null,
-        bill_key: null,
-        biller_code: null,
-        pdf_url: null,
+        transaction_time: nowStr,
         currency: 'IDR',
-        merchant_id: 'G711879663',
-        signature_key: null,
-        paymentType: paymentType,
-        remainingAmount: remainingAmount,
-        is_down_payment: is_down_payment || false,
-        actions: actions,
-        raw_response: rawResponse
+        merchant_id: merchantId,
+        paidAt: new Date(),
       });
 
-      // Save payment
-      const savedPayment = await payment.save();
-      // Update order with payment_id
+      const savedDP = await dpPayment.save({ session });
+
+      // 2) Payment Final (pending) dengan amount = sisa
+      const finalPayment = new Payment({
+        payment_code: generatePaymentCode(),
+        transaction_id: generateTransactionId(),
+        order_id,
+        method: payment_type,             // boleh set 'cash' atau channel rencana pelunasan; bisa juga null
+        status: 'pending',
+        paymentType: 'Final Payment',
+        amount: remaining,
+        totalAmount: orderTotal,
+        remainingAmount: 0,               // ← tidak digunakan lagi, set 0
+        relatedPaymentId: savedDP._id,    // link ke DP
+        fraud_status: 'accept',
+        transaction_time: nowStr,
+        currency: 'IDR',
+        merchant_id: merchantId,
+      });
+
+      const savedFinal = await finalPayment.save({ session });
+
+      // Update order.items.* → set payment_id = DP (opsional: saat final settle, bisa update ulang)
       await Order.updateOne(
-        { order_id: order_id },
-        { $set: { "items.$[].payment_id": savedPayment._id } } // update semua item
+        { order_id },
+        { $set: { "items.$[].payment_id": savedDP._id } },
+        { session }
       );
 
-      console.log('Payment saved with ID:', savedPayment._id);
+      // (Opsional) Karena belum lunas total, jangan ubah status order ke 'Waiting/Finished' dulu
 
-      // Send response
+      await session.commitTransaction();
+      session.endSession();
+
       return res.status(200).json({
-        order_id: order_id,
-        transaction_id: transactionId,
-        method: payment_type,
-        status: 'pending',
-        paymentType: paymentType,
-        amount: amount,
-        remainingAmount: remainingAmount,
-        discount: 0,
-        fraud_status: 'accept',
-        transaction_time: currentTime,
-        expiry_time: expiryTime,
-        settlement_time: null,
-        va_numbers: [],
-        permata_va_number: null,
-        bill_key: null,
-        biller_code: null,
-        pdf_url: null,
-        currency: 'IDR',
-        merchant_id: 'G711879663',
-        signature_key: null,
-        actions: actions,
-        raw_response: rawResponse,
-        createdAt: savedPayment.createdAt,
-        updatedAt: savedPayment.updatedAt,
-        __v: 0
-      });
-    } else {
-      return res.status(500).json({
-        success: false,
-        message: 'Payment failed',
-        error: 'Order not found'
+        success: true,
+        message: 'Down Payment created and remaining Final Payment scheduled',
+        data: {
+          order_id,
+          totalAmount: orderTotal,
+          payments: [
+            {
+              role: 'down_payment',
+              _id: savedDP._id,
+              transaction_id: savedDP.transaction_id,
+              status: savedDP.status,               // 'settlement'
+              paymentType: savedDP.paymentType,     // 'Down Payment'
+              amount: savedDP.amount,
+              remainingAmount: savedDP.remainingAmount, // 0
+              relatedPaymentId: savedDP.relatedPaymentId,
+              createdAt: savedDP.createdAt,
+              updatedAt: savedDP.updatedAt,
+            },
+            {
+              role: 'final_payment',
+              _id: savedFinal._id,
+              transaction_id: savedFinal.transaction_id,
+              status: savedFinal.status,            // 'pending'
+              paymentType: savedFinal.paymentType,  // 'Final Payment'
+              amount: savedFinal.amount,            // sisa
+              remainingAmount: savedFinal.remainingAmount, // 0
+              relatedPaymentId: savedFinal.relatedPaymentId, // id DP
+              createdAt: savedFinal.createdAt,
+              updatedAt: savedFinal.updatedAt,
+            },
+          ],
+        },
       });
     }
+
+    // === MODE NON-DP (Full langsung atau pelunasan tanpa DP) ===
+    // Jika tidak DP, biasakan 1 payment saja. Bisa full settlement,
+    // atau kalau mau “pending” untuk non-cash, statusnya bisa diubah di sini.
+    const amount = Math.min(Number(gross_amount ?? 0), orderTotal);
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    const paymentDoc = new Payment({
+      payment_code: generatePaymentCode(),
+      transaction_id: generateTransactionId(),
+      order_id,
+      method: payment_type,
+      status: 'settlement',                 // dari kasir: langsung settled
+      paymentType: 'Full',
+      amount: amount,
+      totalAmount: orderTotal,
+      remainingAmount: 0,                   // ← tidak digunakan lagi, set 0
+      relatedPaymentId: null,
+      fraud_status: 'accept',
+      transaction_time: nowStr,
+      currency: 'IDR',
+      merchant_id: 'G711879663',
+      paidAt: new Date(),
+    });
+
+    const saved = await paymentDoc.save({ session });
+
+    // Update payment_id di items
+    await Order.updateOne(
+      { order_id },
+      { $set: { "items.$[].payment_id": saved._id } },
+      { session }
+    );
+
+    // Order bisa dianggap lunas jika amount >= orderTotal
+    const fullyPaid = amount >= orderTotal;
+    if (fullyPaid) {
+      order.status = order.orderType === 'Reservation' ? 'Finished' : 'Waiting';
+      await order.save({ session });
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment created',
+      data: {
+        order_id,
+        totalAmount: orderTotal,
+        payments: [
+          {
+            role: 'full_payment',
+            _id: saved._id,
+            transaction_id: saved.transaction_id,
+            status: saved.status,
+            paymentType: saved.paymentType,
+            amount: saved.amount,
+            remainingAmount: saved.remainingAmount, // 0
+            relatedPaymentId: saved.relatedPaymentId,
+            createdAt: saved.createdAt,
+            updatedAt: saved.updatedAt,
+          }
+        ]
+      }
+    });
+
   } catch (error) {
-    console.error('Payment processing error:', error);
-
-    // Enhanced error logging for reservation payments
-    if (req.body.is_down_payment !== undefined) {
-      console.error('Reservation payment error details:', {
-        is_down_payment: req.body.is_down_payment,
-        down_payment_amount: req.body.down_payment_amount,
-        remaining_payment: req.body.remaining_payment,
-      });
-    }
-
+    await session.abortTransaction();
+    session.endSession();
+    console.error('cashierCharge error:', error);
     return res.status(500).json({
       success: false,
-      message: payment_type === 'cash' ? 'Cash payment failed' : 'Payment failed',
-      error: error.message || error
+      message: 'Payment failed',
+      error: error.message || String(error),
     });
   }
 };
 
-export const cashierCharge = async (req, res) => {
+export const cashierCharges = async (req, res) => {
   try {
     const {
       payment_type,
@@ -3287,6 +3278,8 @@ export const cashierCharge = async (req, res) => {
       down_payment_amount,
       remaining_payment
     });
+
+    const payment_code = generatePaymentCode();
 
     if (order_id === undefined) {
       return res.status(400).json({

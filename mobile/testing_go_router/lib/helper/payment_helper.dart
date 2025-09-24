@@ -61,10 +61,11 @@ class PaymentHelper {
     return r;
   }
 
-  /// Minimal DP = max(10% total, Rp50.000), dibulatkan ke ribuan terdekat.
+  /// Minimal DP = 50% dari total, dibulatkan ke 1.000an,
+  /// dengan batas minimal Rp 10.000.
   static int minDownPayment(int total) {
     final tenPercent = (total * 0.10).round();
-    return roundToThousand(max(50000, tenPercent));
+    return roundToThousand(max(10000, tenPercent));
   }
 
   /// Saran DP: 10%, 30%, 50% dari total (dibulatkan 1.000an),

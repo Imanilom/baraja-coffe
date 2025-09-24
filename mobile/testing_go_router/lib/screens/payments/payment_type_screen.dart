@@ -140,6 +140,14 @@ class PaymentMethodScreen extends ConsumerWidget {
               color: Color(0xFF2E7D4F),
             ),
           ),
+          SizedBox(height: 8),
+          //state,
+          Text('payment type: ${state.selectedPaymentType?.name ?? '-'}'),
+          Text('payment method: ${state.selectedPaymentMethod?.name ?? '-'}'),
+          Text('cash amount: ${state.selectedCashAmount}'),
+          Text('total amount: ${state.totalAmount}'),
+          Text('down payment: ${state.selectedDownPayment}'),
+          Text('is down payment: ${state.isDownPayment}'),
           if (isDP) ...[
             const SizedBox(height: 12),
             Text(
@@ -182,14 +190,6 @@ class PaymentMethodScreen extends ConsumerWidget {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
           ],
-          SizedBox(height: 8),
-          //state,
-          Text('payment type: ${state.selectedPaymentType?.name ?? '-'}'),
-          Text('payment method: ${state.selectedPaymentMethod?.name ?? '-'}'),
-          Text('cash amount: ${state.selectedCashAmount}'),
-          Text('total amount: ${state.totalAmount}'),
-          Text('down payment: ${state.selectedDownPayment}'),
-          Text('is down payment: ${state.isDownPayment}'),
         ],
       ),
     );
@@ -218,7 +218,9 @@ class PaymentMethodScreen extends ConsumerWidget {
                   children: [
                     _buildSettlementTypes(ref),
                     // if payment types full payment show payment types,
-                    if (choosePaymentType == PaymentTypes.fullPayment)
+                    if (choosePaymentType == PaymentTypes.fullPayment ||
+                        (choosePaymentType == PaymentTypes.downPayment &&
+                            state.selectedDownPayment != null))
                       Expanded(
                         child: _buildPaymentTypes(
                           paymentTypes,
@@ -228,7 +230,8 @@ class PaymentMethodScreen extends ConsumerWidget {
                       ),
 
                     // if payment types down payment show cash options
-                    if (choosePaymentType == PaymentTypes.downPayment)
+                    if (choosePaymentType == PaymentTypes.downPayment &&
+                        state.selectedDownPayment == null)
                       //menampilkan textfield untuk menentukan nominal downpayment
                       Expanded(
                         child: _buildDownPayment(total, state, notifier),
@@ -297,6 +300,12 @@ class PaymentMethodScreen extends ConsumerWidget {
     final suggestions = PaymentHelper.getDownPaymentSuggestions(total);
     final current = state.selectedDownPayment ?? minDP;
 
+    // Controller untuk input field
+    final TextEditingController dpController = TextEditingController();
+
+    // Set initial value
+    dpController.text = current > 0 ? current.toString() : '';
+
     String format(int v) => formatRupiah(v);
 
     void applyDP(int raw) {
@@ -304,67 +313,196 @@ class PaymentMethodScreen extends ConsumerWidget {
       if (clamped < minDP) clamped = minDP;
       if (clamped > total) clamped = total;
       notifier.selectDownPayment(PaymentHelper.roundToThousand(clamped));
+      // prin
+    }
+
+    // Fungsi untuk menyimpan nominal yang diinput
+    void saveDP() {
+      final digitsOnly = dpController.text.replaceAll(RegExp(r'[^0-9]'), '');
+      final parsed = int.tryParse(digitsOnly) ?? 0;
+      applyDP(parsed);
     }
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      constraints: const BoxConstraints(maxWidth: 360),
+      constraints: const BoxConstraints(maxWidth: 400),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text(
-              'Nominal Down Payment (Min: ${format(minDP)})',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[800],
-              ),
-            ),
-          ),
-          TextFormField(
-            key: ValueKey(
-              'dp-field-$current',
-            ), // biar initialValue refresh saat state berubah
-            initialValue: current > 0 ? current.toString() : '',
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              hintText: 'Masukkan nominal DP',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF2E7D4F)),
-              ),
-              prefixIcon: const Icon(Icons.payments, color: Color(0xFF2E7D4F)),
-              helperText:
-                  'Sisa: ${format((total - (state.selectedDownPayment ?? 0)).clamp(0, total))}',
-            ),
-            onChanged: (value) {
-              final digitsOnly = value.replaceAll(RegExp(r'[^0-9]'), '');
-              final parsed = int.tryParse(digitsOnly) ?? 0;
-              applyDP(parsed);
-            },
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children:
-                suggestions.map((s) {
-                  final selected = s == current;
-                  return ChoiceChip(
-                    label: Text(format(s)),
-                    selected: selected,
-                    onSelected: (_) => applyDP(s),
-                    selectedColor: const Color(0xFF2E7D4F),
-                    labelStyle: TextStyle(
-                      color: selected ? Colors.white : Colors.black87,
+          // Header Section
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.account_balance_wallet,
+                  size: 20,
+                  color: Colors.grey[700],
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Down Payment',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[800],
                     ),
-                  );
-                }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Min DP Info
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue[200]!, width: 1),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Minimal DP (10%): ${format(minDP)}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.blue[800],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Input Section
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  controller: dpController, // Gunakan controller
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Nominal Down Payment',
+                    hintText: 'Masukkan nominal DP',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF2E7D4F),
+                        width: 2,
+                      ),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.payments,
+                      color: Color(0xFF2E7D4F),
+                    ),
+                    suffixText: 'IDR',
+                    suffixStyle: TextStyle(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Simpan Button
+              ElevatedButton(
+                onPressed: saveDP, // Panggil fungsi saveDP
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D4F),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 2,
+                ),
+                child: const Text(
+                  'Simpan',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Quick Action Buttons (Optional)
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    dpController.text = minDP.toString();
+                    applyDP(minDP);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF2E7D4F)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: Text(
+                    'Min DP',
+                    style: const TextStyle(
+                      color: Color(0xFF2E7D4F),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    final halfTotal = (total * 0.5).round();
+                    dpController.text = halfTotal.toString();
+                    applyDP(halfTotal);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF2E7D4F)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text(
+                    '50%',
+                    style: TextStyle(
+                      color: Color(0xFF2E7D4F),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -485,7 +623,10 @@ class PaymentMethodScreen extends ConsumerWidget {
                     child: GestureDetector(
                       onTap: () {
                         notifier.clearSelection();
-                        notifier.selectPaymentType(paymentType);
+                        notifier.selectPaymentType(
+                          paymentType,
+                          state.isDownPayment,
+                        );
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
@@ -579,8 +720,8 @@ class PaymentMethodScreen extends ConsumerWidget {
       children: [
         Text(
           paymentType.id == 'cash'
-              ? 'Pilih Jumlah Tunai'
-              : 'Pilih ${paymentType.name}',
+              ? 'Pilih Jumlah Tunai ${state.isDownPayment ? '(untuk Down Payment)' : ''}'
+              : 'Pilih ${paymentType.name} ${state.isDownPayment ? '(untuk Down Payment)' : ''}',
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -627,7 +768,8 @@ class PaymentMethodScreen extends ConsumerWidget {
             final isSelected = state.selectedCashAmount == amount;
 
             return GestureDetector(
-              onTap: () => notifier.selectCashAmount(amount),
+              onTap:
+                  () => notifier.selectCashAmount(amount, state.isDownPayment),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 decoration: BoxDecoration(
@@ -643,7 +785,7 @@ class PaymentMethodScreen extends ConsumerWidget {
                 ),
                 child: Center(
                   child: Text(
-                    amount == total ? 'Uang Pas' : formatRupiah(amount),
+                    amount == basis ? 'Uang Pas' : formatRupiah(amount),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -688,7 +830,9 @@ class PaymentMethodScreen extends ConsumerWidget {
             final isSelected = state.selectedPaymentMethod?.id == method.id;
 
             return GestureDetector(
-              onTap: () => notifier.selectPaymentMethod(method),
+              onTap:
+                  () =>
+                      notifier.selectPaymentMethod(method, state.isDownPayment),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 decoration: BoxDecoration(
@@ -840,47 +984,15 @@ class PaymentMethodScreen extends ConsumerWidget {
 
     // Nama metode untuk layar sukses
     final paymentMethodName =
-        typeId == 'cash' ? 'Tunai' : (state.selectedPaymentMethod?.name ?? '');
-
-    // Siapkan entry payment_details
-    // ⚠️ Sesuaikan field PaymentModel di proyekmu jika namanya berbeda.
-    // final PaymentModel paymentEntry = PaymentModel(
-    //   type: typeId,
-    //   methodId: state.selectedPaymentMethod?.id, // ex: 'qris'
-    //   methodName: state.selectedPaymentMethod?.name,
-    //   amount: amountNow,
-    //   tendered: tendered,
-    //   change: change,
-    //   isDownPayment: isDP,
-    //   remainingAmount: outstanding,
-    //   createdAt: DateTime.now(),
-    // );
-
-    // Gabungkan dengan payment_details lama (kalau ada)
-    // final List<PaymentModel> newPaymentList = [
-    //   ...(orderDetail.payment ?? <PaymentModel>[]),
-    //   paymentEntry,
-    // ];
-
-    // final paymentData = PaymentState(
-    //   selectedPaymentType: state.selectedPaymentType,
-    //   selectedPaymentMethod: state.selectedPaymentMethod,
-    //   selectedCashAmount: state.selectedCashAmount,
-    //   totalAmount: orderDetail.grandTotal.toInt(),
-    //   selectedDownPayment: state.selectedDownPayment,
-    //   isDownPayment: state.isDownPayment,
-    // );
-
-    final updatedOrder = orderDetail.copyWith(
-      paymentMethod: typeId, // untuk ringkasannya (id tipe)
-      paymentStatus: statusStr, // detail transaksi pembayaran saat ini
-    );
+        typeId == 'cash' ? 'Cash' : (state.selectedPaymentType?.name ?? '');
+    print('Processing payment methd: $paymentMethodName');
+    final updatedOrder = orderDetail.copyWith(paymentMethod: paymentMethodName);
 
     if (orderDetail.source == 'App') {
       onlineOrderDetailNotifier.savedOnlineOrderDetail(updatedOrder);
     } else {
-      // Jika ada method spesifik, silakan pakai itu; jika tidak, set langsung detailnya
-      // orderDetailNotifier.setOrderDetail(updatedOrder);
+      orderDetailNotifier.updatePayment(updatedOrder);
+      print('Updated order before submit: $updatedOrder');
     }
 
     // Loading
@@ -891,10 +1003,12 @@ class PaymentMethodScreen extends ConsumerWidget {
     );
 
     try {
-      final success =
-          orderDetail.source == 'App'
-              ? await onlineOrderDetailNotifier.submitOnlineOrder()
-              : await orderDetailNotifier.submitOrder();
+      // Submit order
+      print('Submitting order with payment:');
+      print(' - isDownPayment: $isDP');
+      final success = await orderDetailNotifier.submitOrder();
+
+      print('Payment processed: success=$success');
 
       if (context.mounted) Navigator.pop(context);
 
