@@ -31,6 +31,7 @@ import warehouseRoutes from './routes/warehouse.routes.js';
 import roleRoutes from './routes/role.route.js';
 import LogRoutes from './routes/log.routes.js';
 import SidebarRoutes from './routes/sidebar.routes.js';
+import AnalyticsRoutes from './routes/analytics.routes.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
@@ -133,6 +134,7 @@ app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/logs', LogRoutes);
 app.use('/api/sidebar', SidebarRoutes);
+app.use('/api/analytics', AnalyticsRoutes);
 // app.post('/api/midtrans/webhook', (req, res) => {
 //   res.status(200).send('OK');
 // });
