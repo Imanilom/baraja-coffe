@@ -12,3 +12,12 @@ node_modules
 .git
 .DS_Store
 *.log
+
+
+testing
+*.md
+*.lock
+**/build/
+**/.gradle/
+**/.idea/
+**/.vscode/
