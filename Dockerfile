@@ -20,5 +20,5 @@ RUN npm install -g pm2
 EXPOSE 3000
 
 # Jalankan dengan PM2 cluster (pakai semua core: -i max)
-CMD ["pm2-runtime", "start", "ecosystem.config.js"]
+CMD ["pm2-runtime", "start", "ecosystem.config.cjs"]
 
