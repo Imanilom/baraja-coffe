@@ -2924,6 +2924,7 @@ export const getAllOrders = async (req, res) => {
 export const getPendingOrders = async (req, res) => {
   try {
     const { rawOutletId } = req.params;
+    const { sources } = req.body;
     if (!rawOutletId) {
       return res.status(400).json({ message: 'outletId is required' });
     }
@@ -2934,6 +2935,7 @@ export const getPendingOrders = async (req, res) => {
     // Ambil order pending / reserved dari outlet tertentu
     const pendingOrders = await Order.find({
       status: { $in: ['Pending', 'Reserved'] },
+      source: { $in: sources },
       outlet: outletObjectId
     })
       .lean()

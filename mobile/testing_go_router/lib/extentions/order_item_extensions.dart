@@ -62,17 +62,19 @@ extension OrderItemModelExtensions on OrderItemModel {
   }
 
   /// Mengecek apakah dua list addons sama
-  bool _areAddonsEqual(List<AddonModel> addons1, List<AddonModel> addons2) {
-    if (addons1.length != addons2.length) return false;
+  bool _areAddonsEqual(List<AddonModel> a1, List<AddonModel> a2) {
+    if (a1.length != a2.length) return false;
 
-    for (var i = 0; i < addons1.length; i++) {
-      final ids1 = addons1[i].options!.map((e) => e.id).toList()..sort();
-      final ids2 = addons2[i].options!.map((e) => e.id).toList()..sort();
+    Map<String, List<String>> m1 = {
+      for (final a in a1)
+        a.id!: (a.options ?? []).map((o) => o.id!).toList()..sort(),
+    };
+    Map<String, List<String>> m2 = {
+      for (final a in a2)
+        a.id!: (a.options ?? []).map((o) => o.id!).toList()..sort(),
+    };
 
-      if (!listEquality.equals(ids1, ids2)) return false;
-    }
-
-    return true;
+    return const DeepCollectionEquality().equals(m1, m2);
   }
 
   /// Mengecek apakah dua notes sama
