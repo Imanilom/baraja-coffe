@@ -2,9 +2,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
+import 'package:kasirbaraja/repositories/event_repository.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/repositories/payment_type_repository.dart';
 import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 // import 'package:kasirbaraja/services/hive_service.dart';
 
 // Data sync progress state
@@ -77,6 +79,16 @@ class DataSyncService {
         DataSyncProgress(
           currentStep: currentStep,
           totalSteps: totalSteps,
+          currentTask: 'Downloading Event...',
+        ),
+      );
+      await EventRepository().getEvents();
+      // Step 2: Sync Tax and Service
+      currentStep++;
+      onProgress(
+        DataSyncProgress(
+          currentStep: currentStep,
+          totalSteps: totalSteps,
           currentTask: 'Downloading tax and service data...',
         ),
       );
@@ -102,6 +114,11 @@ class DataSyncService {
           isCompleted: true,
         ),
       );
+
+      print('Event data count: ${HiveService.eventBox.length}');
+      print('MenuItem data count: ${HiveService.menuItemsBox.length}');
+      print('TaxAndService data count: ${HiveService.taxAndServiceBox.length}');
+      print('PaymentType data count: ${HiveService.paymentTypeBox.length}');
     } catch (e) {
       onProgress(
         DataSyncProgress(

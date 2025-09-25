@@ -1,6 +1,7 @@
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/models/event.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -30,6 +31,7 @@ class HiveService {
     Hive.registerAdapter(PaymentMethodModelAdapter());
     Hive.registerAdapter(TaxAndServiceModelAdapter());
     Hive.registerAdapter(OutletInfoModelAdapter());
+    Hive.registerAdapter(EventAdapter());
 
     await _openBoxes();
   }
@@ -40,6 +42,7 @@ class HiveService {
     await Hive.openBox<BluetoothPrinterModel>('printers');
     await Hive.openBox<TaxAndServiceModel>('taxAndService');
     await Hive.openBox<PaymentTypeModel>('paymentTypes');
+    await Hive.openBox<Event>('eventsBox');
   }
 
   // Helper methods to get boxes
@@ -50,6 +53,7 @@ class HiveService {
       Hive.box<TaxAndServiceModel>('taxAndService');
   static Box<PaymentTypeModel> get paymentTypeBox =>
       Hive.box<PaymentTypeModel>('paymentTypes');
+  static Box<Event> get eventBox => Hive.box<Event>('eventsBox');
 
   // Clear all data (useful for logout or data refresh)
   static Future<void> clearAllData() async {
@@ -57,6 +61,7 @@ class HiveService {
     await menuItemsBox.clear();
     await taxAndServiceBox.clear();
     await paymentTypeBox.clear();
+    await eventBox.clear();
   }
 
   // Close all boxes (call this when app is closing)
@@ -64,13 +69,15 @@ class HiveService {
     await menuItemsBox.close();
     await taxAndServiceBox.close();
     await paymentTypeBox.close();
+    await eventBox.close();
   }
 
   // Check if data exists (to determine if sync is needed)
   static bool hasData() {
     return menuItemsBox.isNotEmpty ||
         taxAndServiceBox.isNotEmpty ||
-        paymentTypeBox.isNotEmpty;
+        paymentTypeBox.isNotEmpty ||
+        eventBox.isNotEmpty;
   }
 
   // Get data count for each type
@@ -79,6 +86,7 @@ class HiveService {
       'menuItemsBox': menuItemsBox.length,
       'taxAndService': taxAndServiceBox.length,
       'paymentTypes': paymentTypeBox.length,
+      'eventsBox': eventBox.length,
     };
   }
 
