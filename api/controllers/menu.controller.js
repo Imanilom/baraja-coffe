@@ -3,6 +3,7 @@ import Category from '../models/Category.model.js';
 import { Outlet } from '../models/Outlet.model.js';
 import mongoose from 'mongoose';
 import { MenuRating } from '../models/MenuRating.model.js';
+import IORedis from "ioredis";
 
 // Create a new menu item
 export const createMenuItem = async (req, res) => {
@@ -129,64 +130,189 @@ export const createMenuItem = async (req, res) => {
 };
 
 // GET /api/menu?limit=10&offset=0
+// export const getMenuItems = async (req, res) => {
+//   try {
+//     // const { limit = 10, offset = 0 } = req.query;
+
+//     // // Validasi input
+//     // const parsedLimit = parseInt(limit);
+//     // const parsedOffset = parseInt(offset);
+
+//     // if (isNaN(parsedLimit) || isNaN(parsedOffset)) {
+//     //   return res.status(400).json({
+//     //     success: false,
+//     //     message: 'Limit and offset must be valid numbers.'
+//     //   });
+//     // }
+
+//     // Ambil semua menu items dengan pagination
+//     const menuItems = await MenuItem.find()
+//       .populate([
+//         { path: 'toppings' },
+//         { path: 'availableAt' },
+//         {
+//           path: 'addons',
+//           populate: { path: 'options' }
+//         },
+//         {
+//           path: 'category',
+//           select: 'name'
+//         },
+//         {
+//           path: 'subCategory',
+//           select: 'name'
+//         }
+//       ])
+//       // .skip(parsedOffset)
+//       // .limit(parsedLimit)
+//       // ururt berdasarkan nama
+//       .sort({ name: 1 });
+
+//     // Hitung total dokumen untuk metadata
+//     const totalItems = await MenuItem.countDocuments();
+
+//     // Ambil semua rating untuk menghitung rata-rata
+//     const ratings = await MenuRating.find({ isActive: true });
+
+//     const ratingMap = {};
+//     ratings.forEach(rating => {
+//       const menuId = rating.menuItemId.toString();
+//       if (!ratingMap[menuId]) ratingMap[menuId] = [];
+//       ratingMap[menuId].push(rating.rating);
+//     });
+
+//     const formattedMenuItems = menuItems.map(item => {
+//       const itemId = item._id.toString();
+//       const itemRatings = ratingMap[itemId] || [];
+
+//       const averageRating = itemRatings.length > 0
+//         ? Math.round((itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) * 10) / 10
+//         : null;
+
+//       const reviewCount = itemRatings.length;
+
+//       return {
+//         id: item._id,
+//         name: item.name,
+//         mainCategory: item.mainCategory,
+//         category: item.category ? { id: item.category._id, name: item.category.name } : null,
+//         subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
+//         imageUrl: item.imageURL,
+//         originalPrice: item.price,
+//         discountedPrice: item.discountedPrice || item.price,
+//         description: item.description,
+//         discountPercentage: item.discount ? `${item.discount}%` : null,
+//         averageRating,
+//         reviewCount,
+//         toppings: item.toppings.map(topping => ({
+//           id: topping._id,
+//           name: topping.name,
+//           price: topping.price
+//         })),
+//         addons: item.addons.map(addon => ({
+//           id: addon._id,
+//           name: addon.name,
+//           options: addon.options.map(opt => ({
+//             id: opt._id,
+//             label: opt.label,
+//             price: opt.price,
+//             isDefault: opt.isDefault
+//           }))
+//         })),
+//         availableAt: item.availableAt,
+//         workstation: item.workstation,
+//         isActive: item.isActive
+//       };
+//     });
+
+//     // Metadata pagination
+//     // const meta = {
+//     //   totalItems,
+//     //   itemCount: formattedMenuItems.length,
+//     //   itemsPerPage: parsedLimit,
+//     //   totalPages: Math.ceil(totalItems / parsedLimit),
+//     //   currentPage: Math.floor(parsedOffset / parsedLimit) + 1
+//     // };
+
+//     res.status(200).json({
+//       success: true,
+//       data: formattedMenuItems,
+//       // meta
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching menu items:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch menu items.',
+//       error: error.message
+//     });
+//   }
+// };
+
+const redis = new IORedis({
+  host: "127.0.0.1",
+  port: 6379,
+});
+
 export const getMenuItems = async (req, res) => {
+  const cacheKey = "menu_items_full";
+
   try {
-    // const { limit = 10, offset = 0 } = req.query;
+    // cek cache
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.status(200).json(JSON.parse(cached));
+      }
+    } catch (cacheErr) {
+      console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
+    }
 
-    // // Validasi input
-    // const parsedLimit = parseInt(limit);
-    // const parsedOffset = parseInt(offset);
-
-    // if (isNaN(parsedLimit) || isNaN(parsedOffset)) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'Limit and offset must be valid numbers.'
-    //   });
-    // }
-
-    // Ambil semua menu items dengan pagination
+    // Ambil semua menu items
     const menuItems = await MenuItem.find()
       .populate([
-        { path: 'toppings' },
-        { path: 'availableAt' },
+        { path: "toppings" },
+        { path: "availableAt" },
         {
-          path: 'addons',
-          populate: { path: 'options' }
+          path: "addons",
+          populate: { path: "options" },
         },
         {
-          path: 'category',
-          select: 'name'
+          path: "category",
+          select: "name",
         },
         {
-          path: 'subCategory',
-          select: 'name'
-        }
+          path: "subCategory",
+          select: "name",
+        },
       ])
-      // .skip(parsedOffset)
-      // .limit(parsedLimit)
-      // ururt berdasarkan nama
       .sort({ name: 1 });
 
-    // Hitung total dokumen untuk metadata
+    // Hitung total dokumen untuk metadata (optional)
     const totalItems = await MenuItem.countDocuments();
 
-    // Ambil semua rating untuk menghitung rata-rata
+    // Ambil semua rating aktif
     const ratings = await MenuRating.find({ isActive: true });
 
     const ratingMap = {};
-    ratings.forEach(rating => {
+    ratings.forEach((rating) => {
       const menuId = rating.menuItemId.toString();
       if (!ratingMap[menuId]) ratingMap[menuId] = [];
       ratingMap[menuId].push(rating.rating);
     });
 
-    const formattedMenuItems = menuItems.map(item => {
+    const formattedMenuItems = menuItems.map((item) => {
       const itemId = item._id.toString();
       const itemRatings = ratingMap[itemId] || [];
 
-      const averageRating = itemRatings.length > 0
-        ? Math.round((itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) * 10) / 10
-        : null;
+      const averageRating =
+        itemRatings.length > 0
+          ? Math.round(
+            (itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) *
+            10
+          ) / 10
+          : null;
 
       const reviewCount = itemRatings.length;
 
@@ -194,8 +320,12 @@ export const getMenuItems = async (req, res) => {
         id: item._id,
         name: item.name,
         mainCategory: item.mainCategory,
-        category: item.category ? { id: item.category._id, name: item.category.name } : null,
-        subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
+        category: item.category
+          ? { id: item.category._id, name: item.category.name }
+          : null,
+        subCategory: item.subCategory
+          ? { id: item.subCategory._id, name: item.subCategory.name }
+          : null,
         imageUrl: item.imageURL,
         originalPrice: item.price,
         discountedPrice: item.discountedPrice || item.price,
@@ -203,48 +333,47 @@ export const getMenuItems = async (req, res) => {
         discountPercentage: item.discount ? `${item.discount}%` : null,
         averageRating,
         reviewCount,
-        toppings: item.toppings.map(topping => ({
+        toppings: item.toppings.map((topping) => ({
           id: topping._id,
           name: topping.name,
-          price: topping.price
+          price: topping.price,
         })),
-        addons: item.addons.map(addon => ({
+        addons: item.addons.map((addon) => ({
           id: addon._id,
           name: addon.name,
-          options: addon.options.map(opt => ({
+          options: addon.options.map((opt) => ({
             id: opt._id,
             label: opt.label,
             price: opt.price,
-            isDefault: opt.isDefault
-          }))
+            isDefault: opt.isDefault,
+          })),
         })),
         availableAt: item.availableAt,
         workstation: item.workstation,
-        isActive: item.isActive
+        isActive: item.isActive,
       };
     });
 
-    // Metadata pagination
-    // const meta = {
-    //   totalItems,
-    //   itemCount: formattedMenuItems.length,
-    //   itemsPerPage: parsedLimit,
-    //   totalPages: Math.ceil(totalItems / parsedLimit),
-    //   currentPage: Math.floor(parsedOffset / parsedLimit) + 1
-    // };
-
-    res.status(200).json({
+    const responsePayload = {
       success: true,
       data: formattedMenuItems,
-      // meta
-    });
+      // meta bisa ditambahkan kalau perlu
+    };
 
+    // Simpan hasil ke Redis dengan TTL (5 menit = 300 detik)
+    try {
+      await redis.set(cacheKey, JSON.stringify(responsePayload), "EX", 300);
+    } catch (cacheErr) {
+      console.warn("⚠️ Redis write error:", cacheErr.message);
+    }
+
+    return res.status(200).json(responsePayload);
   } catch (error) {
-    console.error('Error fetching menu items:', error);
-    res.status(500).json({
+    console.error("❌ Error fetching menu items:", error);
+    return res.status(500).json({
       success: false,
-      message: 'Failed to fetch menu items.',
-      error: error.message
+      message: "Failed to fetch menu items.",
+      error: error.message,
     });
   }
 };
