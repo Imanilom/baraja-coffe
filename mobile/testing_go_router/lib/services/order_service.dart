@@ -85,7 +85,9 @@ class OrderService {
     try {
       Response response = await _dio.get(
         '/api/pending-orders/$outletId',
-        data: ['Web', 'App'],
+        data: {
+          "sources": ["App", "Web"],
+        },
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -108,7 +110,9 @@ class OrderService {
     try {
       Response response = await _dio.get(
         '/api/pending-orders/$outletId',
-        data: ['Cashier'],
+        data: {
+          "sources": ["Cashier"],
+        },
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -292,6 +296,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'outlet': user.outletId,
     'totalPrice': order.grandTotal,
     'source': "Cashier",
+    'isOpenBill': order.isOpenBill,
   };
 }
 

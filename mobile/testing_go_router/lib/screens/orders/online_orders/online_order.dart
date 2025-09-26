@@ -10,9 +10,6 @@ import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 import '../../../widgets/scanner/qrscanner.dart';
-
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/widgets/order_list_widget.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/widgets/order_detail_widget.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/widgets/payment_details_widget.dart';

@@ -1071,6 +1071,7 @@ export const createUnifiedOrder = async (req, res) => {
         orderId,
         orderData: validated,
         source,
+        isOpenBill: validated.isOpenBill,
         isReservation: orderType === 'reservation'
       }
     }, { jobId: orderId });
@@ -1089,7 +1090,7 @@ export const createUnifiedOrder = async (req, res) => {
     // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(202).json({
-        status: 'Completed',
+        // status: ,
         orderId,
         jobId: job.id,
         message: 'Cashier order processed and paid',
@@ -2925,6 +2926,7 @@ export const getPendingOrders = async (req, res) => {
   try {
     const { rawOutletId } = req.params;
     const { sources } = req.body;
+    console.log("rawOutletId:", rawOutletId, "sources:", sources);
     if (!rawOutletId) {
       return res.status(400).json({ message: 'outletId is required' });
     }
@@ -4602,10 +4604,6 @@ export const processPaymentCashier = async (req, res) => {
       await order.save({ session });
     }
 
-    // Commit transaksi
-    await session.commitTransaction();
-    session.endSession();
-
     const statusUpdateData = {
       order_id: order_id,  // Gunakan string order_id
       orderStatus: 'Waiting',
@@ -4634,22 +4632,24 @@ export const processPaymentCashier = async (req, res) => {
     console.log(`🔔 Emitted order status update to room: order_${order_id}`, statusUpdateData);
 
     // 3. Send FCM notification to customer
-    console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
-    if (order.user && order.user_id._id) {
-      try {
-        const orderData = {
-          orderId: order.order_id,
-          cashier: statusUpdateData.cashier
-        };
+    if (order.source === "App") {
+      console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
+      if (order.user && order.user_id._id) {
+        try {
+          const orderData = {
+            orderId: order.order_id,
+            cashier: statusUpdateData.cashier
+          };
 
-        const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
-          order.user_id._id.toString(),
-          orderData
-        );
+          const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
+            order.user_id._id.toString(),
+            orderData
+          );
 
-        console.log('📱 FCM Notification result:', notificationResult);
-      } catch (notificationError) {
-        console.error('❌ Failed to send FCM notification:', notificationError);
+          console.log('📱 FCM Notification result:', notificationResult);
+        } catch (notificationError) {
+          console.error('❌ Failed to send FCM notification:', notificationError);
+        }
       }
     }
 
@@ -4678,6 +4678,10 @@ export const processPaymentCashier = async (req, res) => {
         console.error('Failed to broadcast new order:', broadcastError);
       }
     }
+
+    // Commit transaksi
+    await session.commitTransaction();
+    session.endSession();
 
     console.log('order berhasil di update');
 
