@@ -1111,17 +1111,27 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (source === 'Web') {
-      const midtransRes = await createMidtransSnapTransaction(
-        orderId,
-        validated.paymentDetails.amount,
-        validated.paymentDetails.method
-      );
+      // If payment method is cash, do not create Midtrans Snap
+      if (validated.paymentDetails.method?.toLowerCase() === 'cash') {
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
         jobId: job.id,
-        snapToken: midtransRes.token,
-        redirectUrl: midtransRes.redirect_url,
+        message: 'Cash payment, no Midtrans Snap required',
+      });
+      }
+      // Otherwise, create Midtrans Snap transaction
+      const midtransRes = await createMidtransSnapTransaction(
+      orderId,
+      validated.paymentDetails.amount,
+      validated.paymentDetails.method
+      );
+      return res.status(200).json({
+      status: 'waiting_payment',
+      orderId,
+      jobId: job.id,
+      snapToken: midtransRes.token,
+      redirectUrl: midtransRes.redirect_url,
       });
     }
 
@@ -3910,7 +3920,6 @@ export const testSocket = async (req, res) => {
   res.status(200).json({ success: cashierRoom });
 }
 
-// const generatePaymentCode = () => 'PAY-' + Math.random().toString(36).slice(2, 8).toUpperCase();
 
 export const cashierCharge = async (req, res) => {
   const session = await mongoose.startSession();
