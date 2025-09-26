@@ -3,6 +3,7 @@ import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/extentions/order_item_extensions.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
+import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -57,6 +58,16 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         );
       }
       print(state);
+    }
+  }
+
+  void updatePayment(OrderDetailModel updatedOrder) {
+    state = updatedOrder;
+  }
+
+  void updateIsOpenBill(bool isOpenBill) {
+    if (state != null) {
+      state = state!.copyWith(isOpenBill: isOpenBill);
     }
   }
 
@@ -119,27 +130,45 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Tambahkan menu ke daftar pesanan
-  void addItemToOrder(OrderItemModel orderItem) {
-    // Menggunakan fungsi reusable
-    // final existingOrderItemIndex = findExistingOrderItemIndex(orderItem);
-    final existingOrderItemIndex = state!.items.findSimilarItemIndex(orderItem);
+  // void addItemToOrder(OrderItemModel orderItem) {
+  //   // Menggunakan fungsi reusable
+  //   // final existingOrderItemIndex = findExistingOrderItemIndex(orderItem);
+  //   final existingOrderItemIndex = state!.items.findSimilarItemIndex(orderItem);
 
-    if (existingOrderItemIndex != -1) {
-      // Jika menu item sudah ada, tambahkan quantity-nya
-      final updatedItem = state!.items[existingOrderItemIndex].copyWith(
-        quantity:
-            state!.items[existingOrderItemIndex].quantity + orderItem.quantity,
-      );
-      final updatedItems = [...state!.items];
-      updatedItems[existingOrderItemIndex] = updatedItem;
-      state = state!.copyWith(items: updatedItems);
-    } else {
-      //simpan orderItem ke dalam daftar pesanan
-      state = state!.copyWith(items: [...state!.items, orderItem]);
+  //   if (existingOrderItemIndex != -1) {
+  //     // Jika menu item sudah ada, tambahkan quantity-nya
+  //     final updatedItem = state!.items[existingOrderItemIndex].copyWith(
+  //       quantity:
+  //           state!.items[existingOrderItemIndex].quantity + orderItem.quantity,
+  //     );
+  //     final updatedItems = [...state!.items];
+  //     updatedItems[existingOrderItemIndex] = updatedItem;
+  //     state = state!.copyWith(items: updatedItems);
+  //   } else {
+  //     //simpan orderItem ke dalam daftar pesanan
+  //     state = state!.copyWith(items: [...state!.items, orderItem]);
+  //   }
+
+  //   _recalculateAll();
+  //   print('Item order berhasil ditambahkan.');
+  // }
+  void addItemsToOrder(List<OrderItemModel> items) {
+    print('Menambahkan beberapa item ke order...${items.length}');
+    var updated = [...state!.items];
+
+    for (final orderItem in items) {
+      final idx = updated.findSimilarItemIndex(orderItem);
+      if (idx != -1) {
+        updated[idx] = updated[idx].copyWith(
+          quantity: updated[idx].quantity + orderItem.quantity,
+        );
+      } else {
+        updated.add(orderItem);
+      }
     }
 
+    state = state!.copyWith(items: updated);
     _recalculateAll();
-    print('Item order berhasil ditambahkan.');
   }
 
   static const listEquality = DeepCollectionEquality.unordered();
@@ -255,14 +284,14 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Kirim data orderDetail ke backend
-  Future<bool> submitOrder() async {
+  Future<bool> submitOrder(PaymentState paymentData) async {
     final cashier = await HiveService.getCashier();
 
     state = state!.copyWith(cashierId: cashier!.id);
     if (state == null) return false;
 
     try {
-      final order = await OrderService().createOrder(state!);
+      final order = await OrderService().createOrder(state!, paymentData);
 
       if (order.isNotEmpty) {
         return true;

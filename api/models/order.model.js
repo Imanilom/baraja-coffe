@@ -7,7 +7,16 @@ const OrderItemSchema = new mongoose.Schema({
   addons: [{ name: String, price: Number }],
   toppings: [{ name: String, price: Number }],
   notes: { type: String, default: '' },
+  batchNumber: { type: Number, default: 1 }, // Batch ke berapa item ini ditambahkan
+  addedAt: { type: Date, default: Date.now }, // Kapan item ini ditambahkan
+  kitchenStatus: {
+    type: String,
+    enum: ['pending', 'printed', 'cooking', 'ready', 'served'],
+    default: 'pending'
+  },
   isPrinted: { type: Boolean, default: false },
+  printedAt: { type: Date }, // Kapan dicetak ke kitchen
+
 
   // ✅ Tambahan untuk outlet
   outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
@@ -31,7 +40,7 @@ const OrderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['Cash', 'Card','QRIS', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],
+    enum: ['Cash', 'Card', 'QRIS', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],
   },
   orderType: {
     type: String,
@@ -44,11 +53,7 @@ const OrderSchema = new mongoose.Schema({
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
 
   // ✅ NEW: Open Bill fields
-  isOpenBill: {
-    type: String,
-    default: 'false',
-    enum: ['true', 'false']
-  },
+  isOpenBill: { type: Boolean, default: false },
 
   originalReservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
 
@@ -79,6 +84,13 @@ const OrderSchema = new mongoose.Schema({
 
   // Sumber order
   source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true },
+  currentBatch: { type: Number, default: 1 }, // Batch saat ini
+  lastItemAddedAt: { type: Date }, // Kapan terakhir ada tambahan
+  kitchenNotifications: [{
+    batchNumber: Number,
+    sentAt: Date,
+    type: { type: String, enum: ['new_batch', 'additional_items'] }
+  }],
 
   // Reservation reference
   reservation: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' }

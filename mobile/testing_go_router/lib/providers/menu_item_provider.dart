@@ -1,4 +1,6 @@
+import 'package:kasirbaraja/models/event.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
+import 'package:kasirbaraja/repositories/event_repository.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final menuItemRepository = Provider<MenuItemRepository>(
   (ref) => MenuItemRepository(),
 );
+
+final eventRepository = Provider<EventRepository>((ref) => EventRepository());
 
 // final categoryProvider = StateProvider<String>((ref) => 'Chocolate');
 // final categoryProvider = StateProvider<String>((ref) => 'Appetizer');
@@ -25,6 +29,7 @@ final menuItemProvider = FutureProvider<List<MenuItemModel>>((ref) async {
   // var filteredProducts = menuItems
   //     .where((menuItem) => menuItem.categories!.contains(category))
   //     .toList();
+
   var filteredProducts =
       category == 'All'
           ? menuItems
@@ -87,4 +92,53 @@ final reservationMenuItemProvider = FutureProvider<List<MenuItemModel>>((
   }
 
   return filteredProducts;
+});
+
+//event provider
+final eventProvider = FutureProvider<List<Event>>((ref) async {
+  final events = await ref.read(eventRepository).getEvents();
+  var category = ref.watch(categoryProvider); // Ambil kategori yang dipilih
+  var searchQuery = ref.watch(searchQueryProvider);
+
+  final filteredProducts =
+      category == 'All'
+          ? events
+          : events
+              .where(
+                (event) =>
+                    (event.name).toLowerCase().contains(category.toLowerCase()),
+              ) // amanin null
+              .toList();
+  // 🔹 Filter berdasarkan pencarian
+  if (searchQuery.isNotEmpty) {
+    return filteredProducts
+        .where(
+          (event) =>
+              event.name.toLowerCase().contains(searchQuery.toLowerCase()),
+        )
+        .toList();
+  }
+
+  return filteredProducts;
+});
+
+//local event
+final localEventProvider = FutureProvider<List<Event>>((ref) async {
+  var filterEvent = await ref.read(eventRepository).getLocalEvents();
+  var searchQuery = ref.watch(searchQueryProvider);
+  var category = ref.watch(categoryProvider);
+
+  // 🔹 Filter berdasarkan pencarian
+  if (searchQuery.isNotEmpty) {
+    filterEvent =
+        filterEvent
+            .where(
+              (menuItem) => menuItem.name.toLowerCase().contains(
+                searchQuery.toLowerCase(),
+              ),
+            )
+            .toList();
+  }
+
+  return filterEvent;
 });

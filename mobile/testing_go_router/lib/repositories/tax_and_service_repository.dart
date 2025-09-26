@@ -17,6 +17,7 @@ class TaxAndServiceRepository {
       if (_box.isEmpty) {
         final taxAndServicesResponse =
             await _taxAndServiceService.fetchTaxAndServices();
+        print('fetched tax and services: ${taxAndServicesResponse['data']}');
         final taxAndServicesList =
             (taxAndServicesResponse['data'] as List)
                 .map((json) => TaxAndServiceModel.fromJson(json))

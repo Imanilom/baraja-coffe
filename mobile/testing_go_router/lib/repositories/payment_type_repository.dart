@@ -94,6 +94,7 @@ class PaymentTypeRepository {
     List<PaymentTypeModel> types,
   ) async {
     for (final type in types) {
+      print('Updating type: ${type.name}');
       await box.put(type.id, type);
     }
   }

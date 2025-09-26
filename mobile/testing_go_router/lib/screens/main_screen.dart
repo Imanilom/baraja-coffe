@@ -13,6 +13,7 @@ import 'package:kasirbaraja/screens/reports/sales_report_screen.dart';
 import 'package:kasirbaraja/screens/reservation/reservation_screen.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/order_history.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/online_order.dart';
+import 'package:kasirbaraja/screens/orders/pending_orders/pending_order_screen.dart';
 
 class MainScreen extends ConsumerWidget {
   const MainScreen({super.key});
@@ -199,6 +200,20 @@ class MainScreen extends ConsumerWidget {
                   _buildDrawerItem(
                     context: context,
                     ref: ref,
+                    icon: Icons.pending_actions,
+                    title: 'Pending Order',
+                    isSelected: currentPageIndex == 1,
+                    onTap: () {
+                      if (currentPageIndex != 1) {
+                        ref.read(currentPageIndexProvider.notifier).setIndex(1);
+                      }
+                      Navigator.pop(context);
+                    },
+                    // count: _getOnlineOrderCount(ref),
+                  ),
+                  _buildDrawerItem(
+                    context: context,
+                    ref: ref,
                     icon: Icons.online_prediction,
                     title: 'Online Order',
                     isSelected: currentPageIndex == 3,
@@ -363,7 +378,7 @@ class MainScreen extends ConsumerWidget {
         index: currentPageIndex,
         children: const <Widget>[
           OrderScreen(),
-          ReservationScreen(),
+          PendingOrderScreen(),
           OrderHistoryScreen(),
           OnlineOrderScreen(),
           // SalesReportScreen(),

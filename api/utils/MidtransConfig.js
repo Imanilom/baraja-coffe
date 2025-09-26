@@ -13,7 +13,7 @@ export const coreApi = new midtransClient.CoreApi({
 // Create Snap API instance
 export const snap = new midtransClient.Snap({
     isProduction: true,
-    serverKey: process.env.MIDTRANS_SERVER_KEY, 
+    serverKey: process.env.MIDTRANS_SERVER_KEY,
     clientKey: process.env.MIDTRANS_CLIENT_KEY
 });
 

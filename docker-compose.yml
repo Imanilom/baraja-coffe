@@ -13,6 +13,7 @@ services:
     command: redis-server --port 6379 --bind 127.0.0.1
 
   app:
+    build: .
     image: barajacoffee/barajahub:latest
     container_name: barajahub
     network_mode: "host"
@@ -27,6 +28,10 @@ services:
       - HOST=0.0.0.0
       - PORT=3000
       - NODE_ENV=production
+    ulimits: # 🚀 biar tidak mentok di koneksi/file descriptor
+      nofile:
+        soft: 65535
+        hard: 65535
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     init: true

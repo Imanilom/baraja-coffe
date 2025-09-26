@@ -1,23 +1,24 @@
-FROM node:18
+FROM node:18-alpine
 
-ARG NODE_ENV=development
+# Set environment
+ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
 
+# Workdir
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+# Install deps
+COPY package*.json ./
+RUN npm ci --only=production
 
-# Install netcat untuk wait script
-# RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
-
+# Copy source
 COPY . .
 
-# Copy wait script dan beri permission
-# COPY wait-for-redis.sh /wait-for-redis.sh
-# RUN chmod +x /wait-for-redis.sh
+# Install PM2 globally
+RUN npm install -g pm2
 
 EXPOSE 3000
 
-# Gunakan wait script
-CMD ["npm", "run", "dev"]
+# Jalankan dengan PM2 cluster (pakai semua core: -i max)
+CMD ["pm2-runtime", "start", "ecosystem.config.cjs"]
+

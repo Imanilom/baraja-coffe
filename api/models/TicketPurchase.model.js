@@ -12,6 +12,11 @@ const TicketPurchaseSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    payment_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Payment',
+        required: true
+    },
     quantity: {
         type: Number,
         required: true,
@@ -21,16 +26,6 @@ const TicketPurchaseSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    status: {
-        type: String,
-        enum: ['pending', 'paid', 'cancelled'],
-        default: 'pending'
-    },
-    paymentMethod: {
-        type: String,
-        enum: ['credit_card', 'bank_transfer', 'ewallet'],
-        required: true
-    }
 }, {
     timestamps: true
 });

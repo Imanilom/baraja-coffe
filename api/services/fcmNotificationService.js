@@ -28,7 +28,8 @@ class FCMNotificationService {
                     ...(notification.imageUrl && { imageUrl: notification.imageUrl })
                 },
                 data: {
-                    ...data,
+                    // Ensure all data values are strings
+                    ...this.stringifyDataValues(data),
                     timestamp: new Date().toISOString(),
                     click_action: 'FLUTTER_NOTIFICATION_CLICK'
                 }
@@ -71,6 +72,18 @@ class FCMNotificationService {
         }
     }
 
+    /**
+     * Convert all data values to strings for FCM compatibility
+     */
+    stringifyDataValues(data) {
+        const stringifiedData = {};
+        for (const [key, value] of Object.entries(data)) {
+            if (value !== null && value !== undefined) {
+                stringifiedData[key] = String(value);
+            }
+        }
+        return stringifiedData;
+    }
 
     async sendToToken(token, message) {
         try {
@@ -102,17 +115,17 @@ class FCMNotificationService {
         }
     }
 
-
     async sendOrderConfirmationNotification(userId, orderData) {
         const notification = {
             title: '✅ Pesanan Dikonfirmasi!',
-            body: `Pesanan ${orderData.orderId} sedang diproses oleh ${orderData.cashier.name}`
+            body: `Pesanan anda sedang diproses`
+            // body: `Pesanan ${orderData.orderId} sedang diproses oleh ${orderData.cashier.name}`
         };
         const data = {
             type: 'order_confirmation',
             order_id: orderData.orderId,
             status: 'OnProcess',
-            cashier_id: orderData.cashier.id,
+            cashier_id: orderData.cashier.id, // Will be converted to string by stringifyDataValues
             cashier_name: orderData.cashier.name
         };
         return this.sendToUser(userId, notification, data);

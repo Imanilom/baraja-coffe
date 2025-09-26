@@ -8,7 +8,7 @@ import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 class AddOrderItemDialog extends StatefulWidget {
   final OrderItemModel orderItem;
-  final Function(OrderItemModel) onAddOrder;
+  final Function(List<OrderItemModel>) onAddOrder;
   final Function() onClose;
 
   const AddOrderItemDialog({
@@ -961,19 +961,19 @@ class AddOrderItemDialogState extends State<AddOrderItemDialog> {
       for (var addon in menuAddons) {
         final optionQuantities = addonOptionQuantities[addon.id!] ?? {};
         AddonOptionModel? selectedOption;
+        final entries =
+            optionQuantities.entries.toList()
+              ..sort((a, b) => a.key.compareTo(b.key));
+        // atau sesuai urutan UI
 
         // Find which option this unit should get
         int distributedSoFar = 0;
-        for (var entry in optionQuantities.entries) {
-          final optionQty = entry.value;
+        for (final e in entries) {
+          final optionQty = e.value;
           if (unitIndex >= distributedSoFar &&
               unitIndex < distributedSoFar + optionQty) {
-            // This unit gets this option
             selectedOption = addon.options!.firstWhere(
-              (opt) => opt.id == entry.key,
-            );
-            print(
-              '  Unit $unitIndex gets addon ${addon.name} option ${selectedOption.label}',
+              (opt) => opt.id == e.key,
             );
             break;
           }
@@ -1040,14 +1040,20 @@ class AddOrderItemDialogState extends State<AddOrderItemDialog> {
 
     print('Final grouped items: ${groupedItems.length}');
     print('list of grouped items: ${groupedItems.values}');
-
+    final groupedItemList = groupedItems.values.toList();
+    widget.onAddOrder(groupedItemList);
     // Add each grouped item to the order
-    for (var orderItem in groupedItems.values) {
-      print('Adding item with quantity ${orderItem.quantity}');
+    for (var orderItem in groupedItemList) {
+      print('--- Adding Order Item ---');
+      print('mencoba menambahkan data nama item ${orderItem.menuItem.name}');
+      print('mencoba menambahkan data addons item ${orderItem.selectedAddons}');
       print(
-        '  Addons: ${orderItem.selectedAddons.map((a) => '${a.name}: ${a.options!.map((o) => o.label).join(',')}').join(' | ')}',
+        'mencoba menambahkan data toppings item ${orderItem.selectedToppings}',
       );
-      widget.onAddOrder(orderItem);
+      print('mencoba menambahkan data quantity item ${orderItem.quantity}');
+      print('mencoba menambahkan data subtotal item ${orderItem.subtotal}');
+      print('------------------------');
+      // widget.onAddOrder(orderItem);
     }
   }
 

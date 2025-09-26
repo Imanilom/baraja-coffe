@@ -73,6 +73,19 @@ const PaymentSchema = new mongoose.Schema({
   }
 });
 
+PaymentSchema.index({
+  order_id: 1,
+  transaction_id: 1,
+  status: 1,
+  paymentType: 1,
+  relatedPaymentId: 1,
+  createdAt: -1,
+});
+
+// Supaya virtual ikut ke JSON/obj
+PaymentSchema.set('toJSON', { virtuals: true });
+PaymentSchema.set('toObject', { virtuals: true });
+
 // ✅ PERBAIKAN: Virtual untuk check payment status
 PaymentSchema.virtual('isFullyPaid').get(function () {
   return (this.status === 'paid' || this.status === 'settlement') && this.remainingAmount === 0;
@@ -198,6 +211,7 @@ PaymentSchema.statics.getRequiredFinalPaymentAmount = async function (orderId) {
 };
 
 export default mongoose.model('Payment', PaymentSchema);
+
 
 
 

@@ -22,27 +22,33 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     : super(PaymentState(totalAmount: totalAmount));
 
   // Select payment type (cash, ewallet, debit, etc.)
-  void selectPaymentType(PaymentTypeModel paymentType) {
+  void selectPaymentType(PaymentTypeModel paymentType, bool isDownPayment) {
     state = state.copyWith(
       selectedPaymentType: paymentType,
       clearPaymentMethod: true,
       clearCashAmount: true,
+      isDownPayment: isDownPayment,
     );
   }
 
   // Select specific payment method (for non-cash payments)
-  void selectPaymentMethod(PaymentMethodModel paymentMethod) {
+  void selectPaymentMethod(
+    PaymentMethodModel paymentMethod,
+    bool isDownPayment,
+  ) {
     state = state.copyWith(
       selectedPaymentMethod: paymentMethod,
       clearCashAmount: true,
+      isDownPayment: isDownPayment,
     );
   }
 
   // Select cash amount (for cash payments)
-  void selectCashAmount(int amount) {
+  void selectCashAmount(int amount, bool isDownPayment) {
     state = state.copyWith(
       selectedCashAmount: amount,
       clearPaymentMethod: true,
+      isDownPayment: isDownPayment,
     );
   }
 
@@ -95,12 +101,24 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
 
   // 🔽 set mode full/DP (sinkron dengan ChoiceChip kamu)
   void setSettlementMode(bool isDownPayment) {
-    state = state.copyWith(isDownPayment: isDownPayment);
+    state = state.copyWith(
+      isDownPayment: isDownPayment,
+      clearDownPayment: isDownPayment ? false : true,
+      clearCashAmount: true,
+      clearPaymentMethod: true,
+      clearPaymentType: true,
+    );
   }
 
   // 🔽 set nominal DP
   void selectDownPayment(int amount) {
-    state = state.copyWith(selectedDownPayment: amount);
+    state = state.copyWith(
+      selectedDownPayment: amount,
+      clearCashAmount: true,
+      clearPaymentMethod: true,
+      clearPaymentType: true,
+      isDownPayment: true,
+    );
   }
 
   // 🔽 bersihkan DP
