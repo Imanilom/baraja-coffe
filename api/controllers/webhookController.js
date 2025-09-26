@@ -126,7 +126,7 @@ export const midtransWebhook = async (req, res) => {
           const paymentUpdateData = {
             order_id,
             status: order.status,
-            paymentStatus: 'Paid', // ✅ Update status pembayaran
+            paymentStatus: 'settlement', // ✅ Update status pembayaran
             transaction_status,
             fraud_status,
             timestamp: new Date()

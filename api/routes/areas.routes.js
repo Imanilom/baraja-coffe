@@ -146,7 +146,19 @@ router.get('/tables', async (req, res) => {
 // Get single table by ID
 router.get('/tables/:id', async (req, res) => {
     try {
-        const table = await Table.findById(req.params.id).populate('area_id', 'area_code area_name');
+        const { id } = req.params;
+        let table;
+
+        // cek apakah id valid ObjectId
+        if (mongoose.Types.ObjectId.isValid(id)) {
+            table = await Table.findById(id)
+                .populate('area_id', 'area_code area_name');
+        } else {
+            // kalau bukan ObjectId, anggap sebagai table_number
+            table = await Table.findOne({ table_number: id })
+                .populate('area_id', 'area_code area_name');
+        }
+
         if (!table || !table.is_active) {
             return res.status(404).json({
                 success: false,

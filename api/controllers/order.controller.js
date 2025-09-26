@@ -1077,15 +1077,35 @@ export const createUnifiedOrder = async (req, res) => {
 
     // Wait for job completion
     let result;
-    try {
-      result = await job.waitUntilFinished(queueEvents);
-    } catch (queueErr) {
-      return res.status(500).json({
-        success: false,
-        message: `Order processing failed: ${queueErr.message}`
-      });
+  try {
+    result = await job.waitUntilFinished(queueEvents);
+
+    // Pastikan order sudah ada
+    const order = await Order.findOne({ order_id: orderId });
+    if (!order) {
+      throw new Error(`Order ${orderId} not found after job completion`);
     }
 
+    // ✅ Buat record payment pending
+    const paymentData = {
+      order_id: order.order_id,
+      payment_code: `${orderId}-${Date.now()}`, // ini yang jadi kode unik ke Midtrans
+      method: validated.paymentDetails?.method || 'Cash',
+      status: 'pending',
+      paymentType: validated.paymentDetails?.paymentType || 'Full',
+      amount: validated.paymentDetails?.amount || order.grandTotal,
+      totalAmount: order.grandTotal,
+      remainingAmount: order.grandTotal,
+    };
+
+    const payment = await Payment.create(paymentData);
+    console.log(`✅ Payment pending created for order ${orderId}`, payment._id);
+  } catch (queueErr) {
+    return res.status(500).json({
+      success: false,
+      message: `Order processing failed: ${queueErr.message}`
+    });
+  }
     // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(202).json({
