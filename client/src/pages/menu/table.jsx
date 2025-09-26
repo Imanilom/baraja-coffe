@@ -28,19 +28,35 @@ export default function MenuTable({
     formatCurrency,
     setCurrentPage,
     totalPages,
-    menuItems,
-    itemsPerPage,
     handleDeleteSelected,
     customStyles,
     currentPage,
     loading
 }) {
+    const renderPageNumbers = () => {
+        let pages = [];
+        for (let i = 1; i <= totalPages; i++) {
+            pages.push(
+                <button
+                    key={i}
+                    onClick={() => setCurrentPage(i)}
+                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
+                        ? "bg-green-900 text-white border-green-900"
+                        : "text-green-900 hover:bg-green-900 hover:text-white"
+                        }`}
+                >
+                    {i}
+                </button>
+            );
+        }
+        return pages;
+    };
 
     if (loading) return <MenuSkeleton />;
 
     return (
         <>
-            <div className="px-[15px]">
+            <div className="px-6">
                 <CategoryTabs
                     categoryOptions={categoryOptions}
                     selectedCategory={selectedCategory}
@@ -96,8 +112,8 @@ export default function MenuTable({
             </div>
 
             {/* Menu Table */}
-            <div className="w-full">
-                <div className="overflow-auto border rounded-lg mx-[15px]">
+            <div className="w-full px-6">
+                <div className="overflow-auto border rounded-lg bg-white">
                     <table className="w-full table-auto text-gray-500">
                         <thead>
                             <tr className="text-sm border-b">
@@ -246,67 +262,28 @@ export default function MenuTable({
                 </div>
             </div>
 
-            {/* Pagination */}
-            <div className="flex justify-end mx-3 items-center mt-6 gap-2 flex-wrap">
-                <button
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="px-2 py-2 bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex px-6 justify-between items-center mt-4 text-sm text-white">
+                    <button
+                        onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
+                    >
+                        <FaChevronLeft /> Sebelumnya
+                    </button>
 
-                    <FaChevronLeft />
-                </button>
+                    <div className="flex gap-2">{renderPageNumbers()}</div>
 
-                {[...Array(totalPages)].map((_, index) => {
-                    const page = index + 1;
-
-                    // Show page numbers for first, last, current ±2
-                    if (
-                        page === 1 ||
-                        page === totalPages ||
-                        (page >= currentPage - 2 && page <= currentPage + 2)
-                    ) {
-                        return (
-                            <button
-                                key={page}
-                                onClick={() => setCurrentPage(page)}
-                                className={`px-3 py-1 rounded border ${currentPage === page
-                                    ? "bg-[#005429] text-white"
-                                    : "bg-gray-100 text-gray-800"
-                                    }`}
-                            >
-                                {page}
-                            </button>
-                        );
-                    }
-
-                    // Show "..." when skipping
-                    if (
-                        (page === currentPage - 3 && page > 1) ||
-                        (page === currentPage + 3 && page < totalPages)
-                    ) {
-                        return (
-                            <span key={page} className="px-2">
-                                ...
-                            </span>
-                        );
-                    }
-
-                    return null;
-                })}
-
-                <button
-                    onClick={() =>
-                        setCurrentPage(prev =>
-                            prev < Math.ceil(menuItems.length / itemsPerPage) ? prev + 1 : prev
-                        )
-                    }
-                    disabled={currentPage >= Math.ceil(menuItems.length / itemsPerPage)}
-                    className="px-2 py-2 bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    <FaChevronRight />
-                </button>
-            </div>
+                    <button
+                        onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
+                    >
+                        Selanjutnya <FaChevronRight />
+                    </button>
+                </div>
+            )}
         </>
     )
 }

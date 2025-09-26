@@ -32,9 +32,9 @@ const SalesTransactionTable = ({
                 <button
                     key={i}
                     onClick={() => setCurrentPage(i)}
-                    className={`px-3 py-1 border rounded ${currentPage === i
+                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
                         ? "bg-green-900 text-white border-green-900"
-                        : "hover:bg-gray-100"
+                        : "text-green-900 hover:bg-green-900 hover:text-white"
                         }`}
                 >
                     {i}
@@ -46,37 +46,32 @@ const SalesTransactionTable = ({
     return (
         <>
             <div className="flex flex-wrap gap-4 md:justify-between items-center px-6 py-3">
-
-                {/* Search */}
-                <div className="relative md:w-64 w-full">
-                    <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Produk / Pelanggan / Kode Struk"
-                        value={tempSearch}
-                        onChange={(e) => setTempSearch(e.target.value)}
-                        className="pl-9 pr-3 py-2 w-full border rounded-md text-sm focus:ring-1 focus:ring-green-900 focus:outline-none"
-                    />
-                </div>
-
-                <div className="flex flex-wrap gap-3 mb-4">
-                    {/* Datepicker */}
-                    <div className="relative md:w-64 w-full">
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
-                            {/* Overlay hide calendar icon */}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
-                        </div>
+                {/* Datepicker */}
+                <div className="flex flex-col md:w-1/5 w-full">
+                    <div className="relative text-gray-500">
+                        <Datepicker
+                            showFooter
+                            showShortcuts
+                            value={value}
+                            onChange={setValue}
+                            displayFormat="DD-MM-YYYY"
+                            inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                            popoverDirection="down"
+                        />
                     </div>
-
+                </div>
+                <div className="flex items-center flex-wrap gap-3">
+                    {/* Search */}
+                    <div className="relative md:w-64 w-full">
+                        <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Produk / Pelanggan / Kode Struk"
+                            value={tempSearch}
+                            onChange={(e) => setTempSearch(e.target.value)}
+                            className="pl-9 pr-3 py-2 w-full border rounded-md text-sm focus:ring-1 focus:ring-green-900 focus:outline-none"
+                        />
+                    </div>
                     {/* Outlet */}
                     <div className="relative md:w-64 w-full">
                         <Select
@@ -188,11 +183,11 @@ const SalesTransactionTable = ({
                 </div>
                 {/* Pagination Controls */}
                 {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
+                    <div className="flex justify-between items-center mt-4 text-sm text-white">
                         <button
                             onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                             disabled={currentPage === 1}
-                            className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
                         >
                             <FaChevronLeft /> Sebelumnya
                         </button>
@@ -202,7 +197,7 @@ const SalesTransactionTable = ({
                         <button
                             onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
                             disabled={currentPage === totalPages}
-                            className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
                         >
                             Selanjutnya <FaChevronRight />
                         </button>

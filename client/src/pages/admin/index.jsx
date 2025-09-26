@@ -6,6 +6,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "../../redux/user/userSlice";
 import { jwtDecode } from "jwt-decode";
 import { FaHome, FaShoppingCart, FaCog, FaUser } from "react-icons/fa";
+import Header from "./header";
 
 const AdminDashboard = () => {
 
@@ -62,16 +63,17 @@ const AdminDashboard = () => {
       <div className="flex">
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className={`fixed top-10 z-50 bg-green-900 text-white p-2 rounded-full transition-all duration-300 ${isSidebarOpen ? "left-[17rem]" : "left-12"}`}
+          className={`fixed top-10 z-50 border border-green-900 bg-white text-green-900 p-2 rounded-full transition-all duration-300 ${isSidebarOpen ? "left-[17rem]" : "left-12"}`}
         >
           {isSidebarOpen ? <FaChevronLeft /> : <FaChevronRight />}
         </button>
         <Sidebar isSidebarOpen={isSidebarOpen} />
 
         <div
-          className={`transition-all duration-300 w-full max-w-full box-border overflow-y-auto overflow-x-hidden h-screen ${isSidebarOpen ? "lg:ml-72" : "ml-16"
+          className={`transition-all duration-300 w-full max-w-full box-border overflow-y-auto overflow-x-hidden h-screen bg-green-50 ${isSidebarOpen ? "lg:ml-72" : "ml-16"
             }`}
         >
+          <Header />
           <Outlet context={{ isSidebarOpen }} />
         </div>
       </div>
