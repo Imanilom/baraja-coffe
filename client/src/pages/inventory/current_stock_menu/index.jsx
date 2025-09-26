@@ -8,8 +8,10 @@ import Datepicker from "react-tailwindcss-datepicker";
 import Header from "../../admin/header";
 import ExportInventory from "../exportInventory";
 import UpdateStockForm from "./update";
+import { useSelector } from "react-redux";
 
 const CurrentStockManagement = () => {
+    const { currentUser } = useSelector((state) => state.user);
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
@@ -70,13 +72,42 @@ const CurrentStockManagement = () => {
         setLoading(true);
         setError(null);
         try {
+            // const responseManual = await axios.get("/api/product/menu-stock/manual-stock");
+            // const dataManual = response.data.data ? response.data.data : response;
+            // const response = await axios.get("/api/product/menu-stock");
+            // const data = response.data.data ? response.data.data : response;
+            // const sortedData = [...data].sort((a, b) =>
+            //     a.name.localeCompare(b.name)
+            // );
+            // // setOriginalData(data);   // simpan data asli
+            // // setFilteredData(data);   // default filter sama dengan asli
+            // setOriginalData(sortedData);   // simpan data asli
+            // setFilteredData(sortedData);   // default filter sama dengan asli
+            const responseManual = await axios.get("/api/product/menu-stock/manual-stock");
+            const dataManual = responseManual.data.data ?? responseManual; // hasil manual stock
+
             const response = await axios.get("/api/product/menu-stock");
-            const data = response.data.data ? response.data.data : response;
-            const sortedData = [...data].sort((a, b) =>
+            const data = response.data.data ?? response; // hasil menuItem
+
+            // gabungkan manualStock ke data utama
+            const mergedData = data.map((item) => {
+                const manual = dataManual.find((m) => m.menuItemId === item._id);
+                return {
+                    ...item,
+                    manualStock: manual ? manual.manualStock : null, // kalau ada manual stock, pakai itu
+                    adjustmentNote: manual?.adjustmentNote || null,
+                    adjustedBy: manual?.adjustedBy || null,
+                };
+            });
+
+            // urutkan hasil merge
+            const sortedData = [...mergedData].sort((a, b) =>
                 a.name.localeCompare(b.name)
             );
-            setOriginalData(sortedData);   // simpan data asli
-            setFilteredData(sortedData);   // default filter sama dengan asli
+
+            setOriginalData(sortedData);
+            setFilteredData(sortedData);
+
         } catch (err) {
             console.error("Error fetching stock menu", err);
             setError("Failed to load data. Please try again later.");
@@ -245,7 +276,8 @@ const CurrentStockManagement = () => {
                             <tr>
                                 <th className="p-3 font-medium text-left w-[20%]">Produk</th>
                                 <th className="p-3 font-medium text-left w-[20%]">Kategori</th>
-                                <th className="p-3 font-medium text-right w-[10%]">Stok</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Kalkulasi Stok</th>
+                                <th className="p-3 font-medium text-right w-[10%]">Manual Stok</th>
                                 <th className="p-3 font-medium text-right w-[10%]"></th>
                             </tr>
                         </thead>
@@ -259,6 +291,7 @@ const CurrentStockManagement = () => {
                                         <td className="p-3 truncate">{item.name}</td>
                                         <td className="p-3 truncate">{item.category}</td>
                                         <td className="p-3 text-right truncate">{item.availableStock}</td>
+                                        <td className="p-3 text-right truncate">{item.manualStock ? item.manualStock : 0}</td>
                                         <td className="p-3 flex justify-end">
                                             {/* <Link to="" className="text-gray-500 hover:text-green-900">
                                                 <FaPencilAlt />
@@ -354,6 +387,7 @@ const CurrentStockManagement = () => {
                             product={selectedOriginal}
                             onSave={handleSave}
                             onCancel={() => setSelectedOriginal(null)}
+                            currentUser={currentUser}
                         />
                     </div>
                 </div>

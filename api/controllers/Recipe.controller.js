@@ -129,6 +129,43 @@ export const updateMenuAvailableStock = async (req, res) => {
   }
 };
 
+// Ambil data stok menu dari MenuStock (dengan join ke MenuItem & category)
+export const getMenuStocks = async (req, res) => {
+  try {
+    const stocks = await MenuStock.find()
+      .populate({
+        path: "menuItemId",
+        select: "name category availableStock",
+        populate: { path: "category", select: "name" }
+      })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      message: "Data stok menu berhasil diambil",
+      data: stocks.map(s => ({
+        _id: s._id,
+        menuItemId: s.menuItemId?._id,
+        name: s.menuItemId?.name,
+        category: s.menuItemId?.category?.name || "-",
+        calculatedStock: s.calculatedStock,
+        manualStock: s.manualStock,
+        effectiveStock: s.effectiveStock, // Virtual dari schema
+        adjustmentNote: s.adjustmentNote,
+        adjustedBy: s.adjustedBy,
+        lastCalculatedAt: s.lastCalculatedAt,
+        lastAdjustedAt: s.lastAdjustedAt
+      }))
+    });
+  } catch (error) {
+    console.error("Error fetching menu stocks:", error);
+    res.status(500).json({
+      success: false,
+      message: "Gagal mengambil data stok menu"
+    });
+  }
+};
+
 /**
  * Update stok hanya untuk satu menuItem
  */

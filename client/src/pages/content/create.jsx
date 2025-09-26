@@ -58,7 +58,7 @@ const CreateContent = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("/api/contents", formData);
+      await axios.post("/api/content", formData);
       alert("Content created successfully!");
       setFormData({
         type: "banner",

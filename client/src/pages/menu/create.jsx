@@ -255,14 +255,12 @@ const CreateMenu = () => {
   }
 
   return (
-    <div className="h-screen">
-      <Header />
+    <div className="">
       <form onSubmit={handleSubmit}>
         {/* Header */}
 
-        <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+        <div className="flex justify-between items-center px-6 py-3 my-3">
           <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-            <FaShoppingBag />
             <Link to="/admin/menu">
               Menu
             </Link>
@@ -311,8 +309,8 @@ const CreateMenu = () => {
         )}
 
         {/* Form Container */}
-        <div className="bg-slate-50 p-4 sm:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 bg-white shadow-md p-4 sm:p-6 md:p-12 rounded-lg">
+        <div className="px-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 shadow-md p-4 sm:p-6 md:p-12 rounded-lg bg-white">
             {/* grid 1 */}
             <div className="text-green-900 space-y-4">
               {/* Nama Menu */}

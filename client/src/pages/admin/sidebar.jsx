@@ -20,6 +20,7 @@ import {
   FaSignOutAlt,
   FaMoon,
   FaClock,
+  FaPhotoVideo,
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -91,7 +92,7 @@ const Sidebar = ({ isSidebarOpen }) => {
       "Purchase Order",
       "Daftar Belanja",
       "Daftar Pengeluaran",
-      "Atur Meja", "Denah Meja", "Logs", "Limit Permintaan", "Pajak & Layanan"],
+      "Atur Meja", "Denah Meja", "Logs", "Limit Permintaan", "Pajak & Layanan", "Analisis Resto", "Konten", "QR"],
     admin: ["Dashboard", "Laporan", "Laporan Penjualan", "Menu", "Inventori", "Pembelian", "Outlet", "Event", "Karyawan", "Pelanggan", "Pengaturan Meja", "Perangkat", "Promo", "Komisi", "Akun", "Setting Access", "Laporan Penjualan", "Laporan Operasional", "Laporan Laba & Rugi",
       "Stok Masuk",
       "Stok Keluar",
@@ -100,7 +101,7 @@ const Sidebar = ({ isSidebarOpen }) => {
       "Purchase Order",
       "Daftar Belanja",
       "Daftar Pengeluaran",
-      "Atur Meja", "Denah Meja", "Logs", "Limit Permintaan", "Pajak & Layanan"],
+      "Atur Meja", "Denah Meja", "Logs", "Limit Permintaan", "Pajak & Layanan", "Analisis Resto", "Konten", "QR"],
     marketing: ["Dashboard", "Event", "Pelanggan", "Promo"],
     operasional: ["Dashboard", "Laporan Operasional", "Outlet", "Pengaturan Meja", "Atur Meja", "Denah Meja", "Perangkat"],
     akuntan: ["Dashboard", "Laporan Penjualan", "Laporan Laba & Rugi", "Komisi"],
@@ -126,6 +127,7 @@ const Sidebar = ({ isSidebarOpen }) => {
             { name: "Laporan Laba & Rugi", path: "/admin/profit-menu" },
           ],
         },
+        { name: "Analisis Resto", path: "/admin/restaurant-analytics", icon: <FaPoll /> },
       ],
     },
     {
@@ -160,6 +162,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         { name: "Outlet", path: "/admin/outlet", icon: <FaStoreAlt /> },
         { name: "Pajak & Layanan", path: "/admin/tax-and-service", icon: <FaClipboardList /> },
         { name: "Event", path: "/admin/event", icon: <FaTicketAlt /> },
+        { name: "Konten", path: "/admin/content", icon: <FaPhotoVideo /> },
         { name: "Karyawan", path: "/admin/employee", icon: <FaIdBadge /> },
         { name: "Pelanggan", path: "/admin/customer", icon: <FaUserFriends /> },
         {
@@ -168,6 +171,7 @@ const Sidebar = ({ isSidebarOpen }) => {
           subMenu: [
             { name: "Atur Meja", path: "/admin/table-management" },
             { name: "Denah Meja", path: "/admin/table-plan" },
+            { name: "QR", path: "/admin/generate-qr" },
           ],
         },
         { name: "Perangkat", path: "/admin/billing/device", icon: <FaTabletAlt /> },
@@ -223,14 +227,14 @@ const Sidebar = ({ isSidebarOpen }) => {
 
   return (
     <div
-      className={`h-screen bg-white text-green-900 fixed top-0 left-0 flex flex-col transition-all duration-300 z-40 shadow-lg ${isSidebarOpen ? "w-72" : "w-16"}`}
+      className={`h-screen bg-green-900 text-white fixed top-0 left-0 flex flex-col transition-all duration-300 z-40 shadow-lg ${isSidebarOpen ? "w-72" : "w-16"}`}
     >
       {/* Logo */}
       <div className="px-4 pt-6 pb-4 shrink-0 flex justify-center">
         <img
-          src="/images/baraja.png"
+          src="/images/baraja white.png"
           alt="Logo"
-          className={`${isSidebarOpen ? "w-28" : "w-8"} object-contain`}
+          className={`${isSidebarOpen ? "w-full" : "w-8"} object-contain`}
         />
       </div>
 
@@ -264,7 +268,7 @@ const Sidebar = ({ isSidebarOpen }) => {
                             className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg font-medium transition
                             ${isSubMenuOpen
                                 ? "bg-green-100 text-green-900 font-semibold"
-                                : "text-green-900 hover:bg-green-50"
+                                : "text-white hover:bg-green-50 hover:text-green-900"
                               }`}
                           >
                             <div className="flex items-center gap-2">
@@ -289,7 +293,7 @@ const Sidebar = ({ isSidebarOpen }) => {
                                       className={`block py-2 px-5 rounded-lg text-sm transition
                                       ${isSubActive
                                           ? "bg-green-100 text-green-900 font-semibold"
-                                          : "text-green-900 hover:bg-green-50"
+                                          : "text-white hover:bg-green-50 hover:text-green-900"
                                         }`}
                                     >
                                       {subItem.name}
@@ -307,7 +311,7 @@ const Sidebar = ({ isSidebarOpen }) => {
                           className={`block py-2.5 px-3 rounded-lg transition font-medium
                           ${isActive
                               ? "bg-green-100 text-green-900 font-semibold"
-                              : "text-green-900 hover:bg-green-50"
+                              : "text-white hover:bg-green-50 hover:text-green-900"
                             }`}
                         >
                           <div className="flex items-center gap-2 justify-start">
@@ -335,7 +339,7 @@ const Sidebar = ({ isSidebarOpen }) => {
           />
           {isSidebarOpen && (
             <div className="text-sm">
-              <p className="font-semibold text-green-900">{currentUser.username}</p>
+              <p className="font-semibold text-white">{currentUser.username}</p>
               <p className="text-gray-400 text-xs capitalize">
                 {currentUser.role}
               </p>
@@ -345,9 +349,9 @@ const Sidebar = ({ isSidebarOpen }) => {
 
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-2 w-full py-2 px-3 rounded-lg text-green-900 hover:bg-green-50 transition justify-center md:justify-start"
+          className="flex items-center gap-2 w-full py-2 px-3 rounded-lg text-white hover:bg-green-50 hover:text-green-900 transition justify-center md:justify-start"
         >
-          <FaSignOutAlt className="text-green-900" />
+          <FaSignOutAlt className="text-white" />
           {isSidebarOpen && <span className="font-medium">Log out</span>}
         </button>
       </div>

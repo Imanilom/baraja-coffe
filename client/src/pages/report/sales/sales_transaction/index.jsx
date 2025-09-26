@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
@@ -49,10 +49,7 @@ const SalesTransaction = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    // const [value, setValue] = useState(null);
     const [value, setValue] = useState({
         startDate: dayjs(),
         endDate: dayjs()
@@ -141,17 +138,6 @@ const SalesTransaction = () => {
         })),
     ];
 
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
     // Paginate the filtered data
     const paginatedData = useMemo(() => {
 
@@ -214,7 +200,7 @@ const SalesTransaction = () => {
     }, [filteredData]);
 
     // Apply filter function
-    const applyFilter = () => {
+    const applyFilter = useCallback(() => {
 
         // Make sure products is an array before attempting to filter
         let filtered = ensureArray([...products]);
@@ -247,7 +233,7 @@ const SalesTransaction = () => {
         if (tempSelectedOutlet) {
             filtered = filtered.filter(product => {
                 try {
-                    const outletId = product.outlet;
+                    const outletId = product.outlet?._id;
 
                     return outletId === tempSelectedOutlet;
                 } catch (err) {
@@ -292,11 +278,17 @@ const SalesTransaction = () => {
 
         setFilteredData(filtered);
         setCurrentPage(1); // Reset to first page after filter
-    };
+    }, [products, tempSearch, tempSelectedOutlet, value]);
 
+    // Auto-apply filter whenever dependencies change
     useEffect(() => {
         applyFilter();
-    }, [products, tempSearch, tempSelectedOutlet, value]);
+    }, [applyFilter]);
+
+    // Initial load
+    useEffect(() => {
+        applyFilter();
+    }, []);
 
     // Show loading state
     if (loading) {
@@ -327,11 +319,8 @@ const SalesTransaction = () => {
 
     return (
         <div className="">
-            {/* Header */}
-            <Header />
-
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     <span>Laporan</span>
                     <FaChevronRight />

@@ -288,13 +288,10 @@ const ReceiptMenu = () => {
 
     return (
         <div className="w-full">
-            {/* Header */}
-            <Header />
 
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
                 <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <FaShoppingBag size={21} />
                     <Link to="/admin/menu">Produk</Link>
                     <FaChevronRight />
                     <p>{menuName}</p>
@@ -304,7 +301,7 @@ const ReceiptMenu = () => {
             </div>
 
             {/* Main Form */}
-            <div className="w-full pb-6 mb-[60px]">
+            <div className="w-full px-6">
                 <div className="px-[15px] pb-[15px]">
                     {!menuItemStatus.isComplete && (
                         <div className="my-4 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
@@ -759,10 +756,6 @@ const ReceiptMenu = () => {
                         </div>
                     </form>
                 </div>
-            </div>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]"></div>
             </div>
         </div>
     );

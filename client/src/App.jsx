@@ -157,6 +157,8 @@ import UpdateTax from "./pages/tax/update_tax";
 import BarMenu from "./pages/access/barmenu";
 import CreateSidebarMenu from "./pages/access/barmenu/create";
 import UpdateSidebarMenu from "./pages/access/barmenu/update";
+import AnalyticsDashboard from "./pages/analytics";
+import QRCodeGenerator from "./pages/table/generateQr";
 
 
 export default function App() {
@@ -178,6 +180,7 @@ export default function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<Dashboard />} />
+                <Route path="restaurant-analytics" element={<AnalyticsDashboard />} />
                 <Route path="example" element={<Example />} />
                 <Route path="menu-receipt/:id" element={<ReceiptMenu />} />
                 <Route path="menu" element={<Menumanagement />} />
@@ -201,6 +204,7 @@ export default function App() {
                 <Route path="table-plan" element={<TablePlanManagement />} />
                 <Route path="table-plan/create" element={<CreateTable />} />
                 <Route path="table-plan/update/:id" element={<UpdateTableForm />} />
+                <Route path="generate-qr" element={<QRCodeGenerator />} />
                 {/* Purchase */}
 
                 {/* supplier */}

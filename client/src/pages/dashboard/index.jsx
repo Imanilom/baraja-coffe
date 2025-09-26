@@ -2,20 +2,12 @@ import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import Datepicker from 'react-tailwindcss-datepicker';
 import {
-    FaPoll,
     FaChartBar,
     FaShoppingCart,
-    FaSearch,
-    FaBell,
     FaPlus,
 } from "react-icons/fa";
-import DashboardModal from "./modal";
-import Header from "../admin/header";
 import SalesChart from "./charts/saleschart";
-import TopProductChart from "./charts/topproductchart";
-import TopCategoryChart from "./charts/topcategorychart";
 import TopProductTable from "./table/topproducttable";
-import PaymentMethod from "./table/paymentmethod";
 import CardItem from "./cardItem/carditem";
 import FoodChart from "./charts/foodchart";
 import DrinkChart from "./charts/drinkchart";
@@ -80,8 +72,10 @@ const Dashboard = () => {
                     (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
                         productsResponse.data.data : [];
 
-                setProductSales(productsData);
-                setFilteredData(productsData); // Initialize filtered data with all products
+                const completedData = productsData.filter(item => item.status === "Completed");
+
+                setProductSales(completedData);
+                setFilteredData(completedData); // Initialize filtered data with all products
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -503,10 +497,7 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <Header />
-
+        <div className="min-h-screen">
             {/* Main */}
             <main className="grid grid-cols-1 lg:grid-cols-4 gap-6 p-6">
                 {/* Left Section */}
@@ -545,7 +536,7 @@ const Dashboard = () => {
                     </div>
                     {/* Welcome */}
                     <div className="bg-white p-4 rounded-lg shadow">
-                        <h2 className="text-lg font-semibold">Selamat Datang, <span className="capitalize">{currentUser.username}</span></h2>
+                        <h2 className="text-lg font-semibold text-green-900">Selamat Datang, <span className="capitalize">{currentUser.username}</span></h2>
                         <p className="text-sm text-gray-500">Baraja Coffee</p>
                     </div>
 

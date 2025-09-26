@@ -72,14 +72,14 @@ const AddonForm = ({ addons, setAddons }) => {
     return (
         <div className="space-y-5">
             <div className="flex justify-between items-center">
-                <label className="block font-semibold text-green-900 text-xs uppercase">Addon</label>
+                <label className="block font-semibold text-green-900 text-xs uppercase">Variasi</label>
                 <div className="flex items-center justify-end gap-3">
                     <button
                         type="button"
                         onClick={addAddonGroup}
                         className="inline-flex items-center px-4 py-2 rounded-md bg-green-900 text-white text-sm font-medium gap-2"
                     >
-                        <FaPlus /> Tambah Addon
+                        <FaPlus /> Tambah Variasi
                     </button>
                     {localAddons.length > 0 && (
                         <button
@@ -173,7 +173,7 @@ const AddonForm = ({ addons, setAddons }) => {
                             onClick={() => removeAddonGroup(addonIndex)}
                             className="mt-3 inline-flex items-center text-red-600 hover:text-red-800 text-sm"
                         >
-                            <FaTrashAlt className="mr-1" /> Hapus Addon
+                            <FaTrashAlt className="mr-1" /> Hapus Variasi
                         </button>
                     </div>
                 </div>
