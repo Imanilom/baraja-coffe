@@ -1027,7 +1027,7 @@ export const createUnifiedOrder = async (req, res) => {
 
         return res.status(200).json({
           status: 'Completed',
-          orderId: order_id, // ✅ Fixed: use order_id from req.body
+          orderId: order_id,
           message: 'Cashier order processed and paid',
           order: result.order
         });
@@ -1085,11 +1085,10 @@ export const createUnifiedOrder = async (req, res) => {
     if (!order) {
       throw new Error(`Order ${orderId} not found after job completion`);
     }
-
-    // ✅ Buat record payment pending
     const paymentData = {
       order_id: order.order_id,
-      payment_code: `${orderId}-${Date.now()}`, // ini yang jadi kode unik ke Midtrans
+      payment_code: generatePaymentCode(), 
+      transaction_id: generateTransactionId(),
       method: validated.paymentDetails?.method || 'Cash',
       status: 'pending',
       paymentType: validated.paymentDetails?.paymentType || 'Full',
