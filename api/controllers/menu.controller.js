@@ -3,6 +3,7 @@ import Category from '../models/Category.model.js';
 import { Outlet } from '../models/Outlet.model.js';
 import mongoose from 'mongoose';
 import { MenuRating } from '../models/MenuRating.model.js';
+import IORedis from "ioredis";
 import IORedis from 'ioredis';
 
 // Create a new menu item
