@@ -2,21 +2,19 @@ import 'package:kasirbaraja/services/api_response_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 
-class TaxAndServiceService {
+class EventService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
 
-  Future<Map<String, dynamic>> fetchTaxAndServices() async {
+  Future<Map<String, dynamic>> fetchEvent() async {
     try {
       final response = await _dio.get(
-        '/api/tax-service/cashier',
+        '/api/event',
         options: Options(headers: {'ngrok-skip-browser-warning': true}),
+        // queryParameters: {'limit': '500'},
       );
-
-      print('response tax and service: ${response.data}');
 
       return response.data;
     } on DioException catch (e) {
-      print('error fetch tax and service: ${e.response?.data}');
       throw ApiResponseHandler.handleError(e);
     }
   }

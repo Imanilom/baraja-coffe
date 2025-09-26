@@ -85,6 +85,30 @@ class OrderService {
     try {
       Response response = await _dio.get(
         '/api/pending-orders/$outletId',
+        data: ['Web', 'App'],
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        ),
+      );
+
+      return response.data;
+    } on DioException catch (e) {
+      print('error fetch pending orders: ${e.response?.data}');
+      throw ApiResponseHandler.handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchPendingOrdersCashier(
+    String outletId,
+  ) async {
+    try {
+      Response response = await _dio.get(
+        '/api/pending-orders/$outletId',
+        data: ['Cashier'],
         options: Options(
           headers: {
             'Content-Type': 'application/json',
