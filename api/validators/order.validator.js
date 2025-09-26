@@ -77,8 +77,6 @@ function formatOrderType(orderType) {
   return types[orderType] || orderType;
 }
 
-
-
 export function sanitizeForRedis(data) {
   const replacer = (key, value) => {
     if (value instanceof mongoose.Types.ObjectId) {

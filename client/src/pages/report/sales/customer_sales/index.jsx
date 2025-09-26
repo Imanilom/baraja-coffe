@@ -1,11 +1,47 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import Select from "react-select";
 
 const CustomerSales = () => {
+
+    const customStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db',
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            '&:hover': {
+                borderColor: '#9ca3af',
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af',
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
+    };
+
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [user, setUser] = useState([]);
@@ -27,69 +63,58 @@ const CustomerSales = () => {
     const dropdownRef = useRef(null);
 
     // Fetch products and outlets data
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            // Fetch products data
+            const productsResponse = await axios.get('/api/orders');
+
+            // Ensure productsResponse.data is an array
+            const productsData = Array.isArray(productsResponse.data) ?
+                productsResponse.data :
+                (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
+                    productsResponse.data.data : [];
+
+            setProducts(productsData);
+            setFilteredData(productsData); // Initialize filtered data with all products
+
+            const userResponse = await axios.get('/api/user/staff');
+            const userData = userResponse.data.data ? userResponse.data.data : userResponse.data;
+
+            setUser(userData);
+
+            // Fetch outlets data
+            const outletsResponse = await axios.get('/api/outlet');
+
+            // Ensure outletsResponse.data is an array
+            const outletsData = Array.isArray(outletsResponse.data) ?
+                outletsResponse.data :
+                (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
+                    outletsResponse.data.data : [];
+
+            setOutlets(outletsData);
+
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            setError("Failed to load data. Please try again later.");
+            // Set empty arrays as fallback
+            setProducts([]);
+            setFilteredData([]);
+            setOutlets([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch products data
-                const productsResponse = await axios.get('/api/orders');
-
-                // Ensure productsResponse.data is an array
-                const productsData = Array.isArray(productsResponse.data) ?
-                    productsResponse.data :
-                    (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
-                        productsResponse.data.data : [];
-
-                setProducts(productsData);
-                setFilteredData(productsData); // Initialize filtered data with all products
-
-                const userResponse = await axios.get('/api/user/staff');
-                const userData = userResponse.data.data ? userResponse.data.data : userResponse.data;
-
-                setUser(userData);
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setProducts([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
     }, []);
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    const options = [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((o) => ({ value: o._id, label: o.name })),
+    ];
 
     const groupedArray = useMemo(() => {
         const grouped = {};
@@ -146,15 +171,8 @@ const CustomerSales = () => {
     // }, [currentPage, filteredData]);
 
     // Calculate total pages based on filtered data
-    // const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
+    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
+    // const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
     // Calculate grand totals for filtered data
     const {
@@ -198,7 +216,7 @@ const CustomerSales = () => {
     };
 
     // Apply filter function
-    const applyFilter = () => {
+    const applyFilter = useCallback(() => {
 
         // Make sure products is an array before attempting to filter
         let filtered = ensureArray([...products]);
@@ -280,17 +298,25 @@ const CustomerSales = () => {
 
         setFilteredData(filtered);
         setCurrentPage(1); // Reset to first page after filter
-    };
+    }, [products, tempSearch, tempSelectedOutlet, value]);
 
-    // Reset filters
-    const resetFilter = () => {
-        setTempSelectedOutlet("");
-        setTempSearch("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(products));
-        setCurrentPage(1);
-    };
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
+
+    // Initial load
+    useEffect(() => {
+        applyFilter();
+    }, []);
+
+    useEffect(() => {
+        const today = new Date();
+        setValue({
+            startDate: today,
+            endDate: today,
+        });
+    }, []);
 
     // Export current data to Excel
     const exportToExcel = () => {
@@ -309,6 +335,26 @@ const CustomerSales = () => {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Outlet");
         XLSX.writeFile(wb, "Penjualan_Per_Outlet.xlsx");
+    };
+
+    // generate nomor halaman
+    const renderPageNumbers = () => {
+        let pages = [];
+        for (let i = 1; i <= totalPages; i++) {
+            pages.push(
+                <button
+                    key={i}
+                    onClick={() => setCurrentPage(i)}
+                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
+                        ? "bg-green-900 text-white border-green-900"
+                        : "text-green-900 hover:bg-green-900 hover:text-white"
+                        }`}
+                >
+                    {i}
+                </button>
+            );
+        }
+        return pages;
     };
 
     // Show loading state
@@ -339,109 +385,70 @@ const CustomerSales = () => {
     }
 
     return (
-        <div className="h-screen">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+        <div className="">
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/sales-menu" className="text-[15px] text-gray-500">Laporan Penjualan</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/customer-sales" className="text-[15px] text-[#005429]">Penjualan Per Pelanggan</Link>
-                </div>
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Laporan</span>
+                    <FaChevronRight />
+                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
+                    <FaChevronRight />
+                    <span>Penjualan Per Pelanggan</span>
+                </h1>
                 <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-gray-50 shadow-md">
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 cursor-pointer text-gray-500 hover:bg-[#005429] hover:text-white"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
+            <div className="px-6">
+                <div className="flex justify-between py-3 gap-2">
+                    <div className="flex flex-col col-span-3 w-2/5">
+                        <div className="relative text-gray-500">
                             <Datepicker
                                 showFooter
                                 showShortcuts
                                 value={value}
                                 onChange={setValue}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
                             />
-
-                            {/* Overlay untuk menyembunyikan ikon kalender */}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
-                        <input
-                            type="text"
-                            placeholder="Pelanggan / Telepon"
-                            value={tempSearch}
-                            onChange={(e) => setTempSearch(e.target.value)}
-                            className="text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded"
-                        />
-                    </div>
+                    <div className="flex justify-end gap-2 w-2/5">
+                        <div className="flex flex-col col-span-3 w-2/5">
+                            <input
+                                type="text"
+                                value={tempSearch}
+                                placeholder="Pelanggan / Telepon"
+                                onChange={(e) => setTempSearch(e.target.value)}
+                                className="text-[13px] border py-2 pr-[25px] pl-[12px] rounded"
+                            />
+                        </div>
 
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+                        <div className="flex flex-col col-span-3">
+                            <Select
+                                options={options}
+                                value={
+                                    tempSelectedOutlet
+                                        ? options.find((opt) => opt.value === tempSelectedOutlet)
+                                        : options[0]
+                                }
+                                onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                                placeholder="Pilih outlet..."
+                                className="text-[13px]"
+                                classNamePrefix="react-select"
+                                styles={customStyles}
+                                isSearchable
+                            />
+                        </div>
                     </div>
                 </div>
 
+
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-md shadow-slate-200">
+                <div className="overflow-x-auto rounded shadow-md bg-white shadow-slate-200">
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
@@ -492,27 +499,25 @@ const CustomerSales = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                {filteredData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                        </span>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
+                {totalPages > 1 && (
+                    <div className="flex justify-between items-center mt-4 text-sm text-white">
+                        <button
+                            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                            disabled={currentPage === 1}
+                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
+                        >
+                            <FaChevronLeft /> Sebelumnya
+                        </button>
+
+                        <div className="flex gap-2">{renderPageNumbers()}</div>
+
+                        <button
+                            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                            disabled={currentPage === totalPages}
+                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
+                        >
+                            Selanjutnya <FaChevronRight />
+                        </button>
                     </div>
                 )}
 

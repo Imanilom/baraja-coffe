@@ -1027,7 +1027,7 @@ export const createUnifiedOrder = async (req, res) => {
 
         return res.status(200).json({
           status: 'Completed',
-          orderId: order_id, // ✅ Fixed: use order_id from req.body
+          orderId: order_id,
           message: 'Cashier order processed and paid',
           order: result.order
         });
@@ -1078,15 +1078,34 @@ export const createUnifiedOrder = async (req, res) => {
 
     // Wait for job completion
     let result;
-    try {
-      result = await job.waitUntilFinished(queueEvents);
-    } catch (queueErr) {
-      return res.status(500).json({
-        success: false,
-        message: `Order processing failed: ${queueErr.message}`
-      });
-    }
+  try {
+    result = await job.waitUntilFinished(queueEvents);
 
+    // Pastikan order sudah ada
+    const order = await Order.findOne({ order_id: orderId });
+    if (!order) {
+      throw new Error(`Order ${orderId} not found after job completion`);
+    }
+    const paymentData = {
+      order_id: order.order_id,
+      payment_code: generatePaymentCode(), 
+      transaction_id: generateTransactionId(),
+      method: validated.paymentDetails?.method || 'Cash',
+      status: 'pending',
+      paymentType: validated.paymentDetails?.paymentType || 'Full',
+      amount: validated.paymentDetails?.amount || order.grandTotal,
+      totalAmount: order.grandTotal,
+      remainingAmount: order.grandTotal,
+    };
+
+    const payment = await Payment.create(paymentData);
+    console.log(`✅ Payment pending created for order ${orderId}`, payment._id);
+  } catch (queueErr) {
+    return res.status(500).json({
+      success: false,
+      message: `Order processing failed: ${queueErr.message}`
+    });
+  }
     // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(202).json({
@@ -1112,17 +1131,27 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (source === 'Web') {
-      const midtransRes = await createMidtransSnapTransaction(
-        orderId,
-        validated.paymentDetails.amount,
-        validated.paymentDetails.method
-      );
+      // If payment method is cash, do not create Midtrans Snap
+      if (validated.paymentDetails.method?.toLowerCase() === 'cash') {
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
         jobId: job.id,
-        snapToken: midtransRes.token,
-        redirectUrl: midtransRes.redirect_url,
+        message: 'Cash payment, no Midtrans Snap required',
+      });
+      }
+      // Otherwise, create Midtrans Snap transaction
+      const midtransRes = await createMidtransSnapTransaction(
+      orderId,
+      validated.paymentDetails.amount,
+      validated.paymentDetails.method
+      );
+      return res.status(200).json({
+      status: 'waiting_payment',
+      orderId,
+      jobId: job.id,
+      snapToken: midtransRes.token,
+      redirectUrl: midtransRes.redirect_url,
       });
     }
 
@@ -3914,7 +3943,6 @@ export const testSocket = async (req, res) => {
   res.status(200).json({ success: cashierRoom });
 }
 
-// const generatePaymentCode = () => 'PAY-' + Math.random().toString(36).slice(2, 8).toUpperCase();
 
 export const cashierCharge = async (req, res) => {
   const session = await mongoose.startSession();

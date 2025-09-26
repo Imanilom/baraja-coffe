@@ -242,10 +242,8 @@ const Menu = () => {
 
   return (
     <div className="w-full">
-      {/* Header */}
-      <Header />
 
-      <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+      <div className="flex justify-between items-center px-6 py-3 my-3">
         <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
           Menu
         </h1>

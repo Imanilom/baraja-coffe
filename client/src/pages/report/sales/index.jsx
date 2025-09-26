@@ -4,35 +4,20 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaBook, FaShoppingBag,
 
 const SalesMenu = () => {
     return (
-        <div className="min-h-screen bg-gray-100">
-            <div className="">
-                <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                    <FaBell size={23} className="text-gray-400" />
-                    <span className="text-[14px]">Hi Baraja</span>
-                    <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                        <FaUser size={30} />
-                    </Link>
-                </div>
-                <div className="px-3 py-2 flex justify-between items-center border-b">
-                    <div className="flex items-center space-x-2">
-                        <FaClipboardList className="text-gray-400 inline-block" />
-                        <p className="text-gray-400 inline-block">Laporan</p>
-                        <FaChevronRight className="text-gray-400 inline-block" />
-                        <Link
-                            to="/admin/sales-menu"
-                            className="text-[#005429] inline-block"
-                        >
-                            Laporan Penjualan
-                        </Link>
-                    </div>
-                </div>
+        <div className="">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Laporan</span>
+                    <FaChevronRight />
+                    <span>Laporan Penjualan</span>
+                </h1>
             </div>
-            <div className="max-w-7xl mx-auto my-2 p-4">
+            <div className="w-full mx-auto my-2 p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {/* Menu Ringkasan */}
                     <Link
                         to="/admin/summary"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaBook size={24} />
@@ -43,7 +28,7 @@ const SalesMenu = () => {
                     {/* Transaksi Penjualan */}
                     <Link
                         to="/admin/transaction-sales"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaFileInvoiceDollar className='' size={24} />
@@ -54,7 +39,7 @@ const SalesMenu = () => {
                     {/* Penjualan Produk */}
                     <Link
                         to="/admin/product-sales"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaShoppingBag className='' size={24} />
@@ -65,7 +50,7 @@ const SalesMenu = () => {
                     {/* Penjualan Per Outlet */}
                     <Link
                         to="/admin/outlet-sales"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaStore size={24} />
@@ -76,7 +61,7 @@ const SalesMenu = () => {
                     {/* Penjualan Harian */}
                     <Link
                         to="/admin/daily-sales"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaSignal className='' size={24} />
@@ -87,7 +72,7 @@ const SalesMenu = () => {
                     {/* Penjualan Per Kategori */}
                     <Link
                         to="/admin/hourly-sales"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaClock className='' size={24} />
@@ -98,7 +83,7 @@ const SalesMenu = () => {
                     {/* Penjualan Per Kategori */}
                     <Link
                         to="/admin/category-sales"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaTag className='' size={24} />
@@ -109,7 +94,7 @@ const SalesMenu = () => {
                     {/* Penjualan Per Kategori */}
                     <Link
                         to="/admin/device-sales"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaTabletAlt className='' size={24} />
@@ -120,7 +105,7 @@ const SalesMenu = () => {
                     {/* Penjualan Per Kategori */}
                     <Link
                         to="/admin/customer-sales"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaAddressCard className='' size={24} />
@@ -131,7 +116,7 @@ const SalesMenu = () => {
                     {/* Penjualan Per Kategori */}
                     <Link
                         to="/admin/payment-method-sales"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaWallet className='' size={24} />
@@ -142,7 +127,7 @@ const SalesMenu = () => {
                     {/* Penjualan Per Kategori */}
                     {/* <Link
                         to="/admin/digital-payment"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaRegCreditCard className='' size={24} />
@@ -153,7 +138,7 @@ const SalesMenu = () => {
                     {/* Penjualan Per Kategori */}
                     <Link
                         to="/admin/type-sales"
-                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaTag className='' size={24} />
