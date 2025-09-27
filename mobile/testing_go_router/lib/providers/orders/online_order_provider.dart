@@ -221,6 +221,14 @@ class ProcessPaymentRequestNotifier
     state = state!.copyWith(paymentMethod: paymentMethod);
   }
 
+  //add payment type and payment method
+  void addPaymentTypeAndMethod(String paymentType, String paymentMethod) {
+    state = state!.copyWith(
+      paymentType: paymentType,
+      paymentMethod: paymentMethod,
+    );
+  }
+
   void resetState() {
     state = null;
   }
