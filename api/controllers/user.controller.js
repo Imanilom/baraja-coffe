@@ -155,7 +155,9 @@ export const getUserProfile = async (req, res) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password'); // Hindari return password
+    const user = await User.findById(decoded.id).select('-password').populate('role', 'name permissions');
+
+    console.log("ini adalah data user yang di dapat dari token:", user);
 
     if (!user) {
       return res.status(404).json({ message: 'User tidak ditemukan' });
