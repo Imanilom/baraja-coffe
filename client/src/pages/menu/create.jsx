@@ -1,84 +1,163 @@
-import React, { useRef, useEffect, useState } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import Select from 'react-select';
 import axios from "axios";
 import {
   getDownloadURL,
   getStorage,
   ref,
   uploadBytesResumable,
-} from "firebase/storage";
-import { app } from "../../firebase";
+} from 'firebase/storage';
+import { app } from '../../firebase';
+import { Link } from "react-router-dom";
+import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
+import ConfirmationModal from "./confirmmodal";
+import ToppingForm from "./varianmodal";
+import AddonForm from "./opsimodal";
+import Header from "../admin/header";
 
-const CreateMenu = ({ fetchMenuItems, onCancel }) => {
+const CreateMenu = () => {
+  const [allCategories, setAllCategories] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [subCategories, setSubCategories] = useState([]);
+
+  const MainCategories = ['makanan', 'minuman', 'dessert', 'snack'];
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const [outlets, setOutlets] = useState([]);
+  const [file, setFile] = useState(null);
+  const [isVariationOpen, setIsVariationOpen] = useState(false);
+  const [isOpsiOpen, setIsOpsiOpen] = useState(false);
+  const [isChecked, setIsChecked] = useState(false);
+
+  const [selectedOutlet, setSelectedOutlet] = useState('');
+  const [selectedMainCategory, setSelectedMainCategory] = useState("");
+  const [searchTermMainCategories, setSearchTermMainCategories] = useState("");
+  const [searchTermCategories, setSearchTermCategories] = useState("");
+  const [searchTermSub, setSearchTermSub] = useState("");
+
+  const [showMainDropdown, setShowMainDropdown] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showSubDropdown, setShowSubDropdown] = useState(false);
+  const fileRef = useRef(null);
+  const navigate = useNavigate();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isOptional, setIsOptional] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+
+  const [imageFile, setImageFile] = useState(null);
+
+  const [compressedImageURL, setCompressedImageURL] = useState(null);
+  const [imageError, setImageError] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     price: "",
     description: "",
+    mainCat: "",
     category: "",
-    stock: 0,
-    imageURL: "",
-    toppings: [],
-    addOns: [],
+    subCategory: "",
     rawMaterials: [],
+    availableAt: [],
   });
 
-  const fileRef = useRef(null);
-  const [image, setImage] = useState(undefined);
-  const [imagePercent, setImagePercent] = useState(0);
-  const [imageError, setImageError] = useState(false);
-
   const [toppings, setToppings] = useState([]);
-  const [addOns, setAddOns] = useState([]);
-  const [rawMaterials, setRawMaterials] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [addons, setAddons] = useState([]);
 
-  useEffect(() => {
-    if (image) {
-      handleFileUpload(image);
-    }
-  }, [image]);
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [toppingsRes, addOnsRes, rawMaterialsRes] = await Promise.all([
-          axios.get("/api/toppings"),
-          axios.get("/api/addons"),
-          axios.get("/api/storage/raw-material"),
-        ]);
-        setToppings(toppingsRes.data?.data || []);
-        setAddOns(addOnsRes.data?.data || []);
-        setRawMaterials(rawMaterialsRes.data?.data || []);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        setToppings([]);
-        setAddOns([]);
-        setRawMaterials([]);
-      }
-    };
-    fetchData();
-  }, []);
+    setImageFile(file);
+    setCompressedImageURL(URL.createObjectURL(file)); // tampilkan preview
+  };
 
-  const handleFileUpload = async (image) => {
-    const storage = getStorage(app);
-    const fileName = new Date().getTime() + image.name;
-    const storageRef = ref(storage, fileName);
-    const uploadTask = uploadBytesResumable(storageRef, image);
-    uploadTask.on(
-      "state_changed",
-      (snapshot) => {
-        const progress =
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setImagePercent(Math.round(progress));
+  const compressImage = (file, quality = 0.6, maxWidth = 800) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+
+          const scale = maxWidth / img.width;
+          canvas.width = maxWidth;
+          canvas.height = img.height * scale;
+
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return reject("Blob is null");
+              resolve(blob);
+            },
+            "image/jpeg",
+            quality
+          );
+        };
+
+        img.onerror = (err) => reject(err);
+      };
+
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  const uploadToFirebase = (file) => {
+    return new Promise((resolve, reject) => {
+      const storage = getStorage(app);
+      const fileRef = ref(storage, `menu/${Date.now()}-${file.name}`);
+      const uploadTask = uploadBytesResumable(fileRef, file);
+
+      uploadTask.on(
+        "state_changed",
+        null,
+        (err) => reject(err),
+        async () => {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(url);
+        }
+      );
+    });
+  };
+
+  const customSelectStyles = {
+    control: (provided, state) => ({
+      ...provided,
+      borderColor: '#d1d5db', // Tailwind border-gray-300
+      minHeight: '34px',
+      fontSize: '13px',
+      color: '#6b7280', // text-gray-500
+      boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+      '&:hover': {
+        borderColor: '#9ca3af', // Tailwind border-gray-400
       },
-      (error) => {
-        setImageError(true);
-      },
-      () => {
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) =>
-          setFormData((prevData) => ({ ...prevData, imageURL: downloadURL }))
-        );
-      }
-    );
+    }),
+    singleValue: (provided) => ({
+      ...provided,
+      color: '#6b7280', // text-gray-500
+    }),
+    input: (provided) => ({
+      ...provided,
+      color: '#6b7280', // text-gray-500 for typed text
+    }),
+    placeholder: (provided) => ({
+      ...provided,
+      color: '#9ca3af', // text-gray-400
+      fontSize: '13px',
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      fontSize: '13px',
+      color: '#374151', // gray-700
+      backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+      cursor: 'pointer',
+    }),
   };
 
   const handleInputChange = (e) => {
@@ -86,237 +165,409 @@ const CreateMenu = ({ fetchMenuItems, onCancel }) => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleCheckboxChange = (e, listName) => {
-    const { value, checked } = e.target;
-    setFormData((prevData) => ({
-      ...prevData,
-      [listName]: checked
-        ? [...prevData[listName], value]
-        : prevData[listName].filter((id) => id !== value),
-    }));
-  };
+  useEffect(() => {
+    fetchCategories();
+    fetchOutlets();
+  }, []);
 
-  const handleRawMaterialChange = (e, materialId) => {
-    const { value } = e.target;
-    setFormData((prevData) => {
-      const updatedRawMaterials = prevData.rawMaterials.map((material) => {
-        if (material.materialId === materialId) {
-          return { ...material, quantityRequired: value };
-        }
-        return material;
-      });
-      return { ...prevData, rawMaterials: updatedRawMaterials };
-    });
-  };
-
-  const handleRawMaterialSelect = (e) => {
-    const { value } = e.target;
-    const materialExists = formData.rawMaterials.some(
-      (material) => material.materialId === value
-    );
-
-    if (!materialExists) {
-      setFormData((prevData) => ({
-        ...prevData,
-        rawMaterials: [
-          ...prevData.rawMaterials,
-          { materialId: value, quantityRequired: 1 },
-        ],
-      }));
-    }
-  };
-
-  const handleRemoveRawMaterial = (materialId) => {
-    setFormData((prevData) => ({
-      ...prevData,
-      rawMaterials: prevData.rawMaterials.filter(
-        (material) => material.materialId !== materialId
-      ),
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault(); // Prevent page refresh
+  const fetchCategories = async () => {
     setLoading(true);
-    console.log(formData)
     try {
-      await axios.post("/api/menu-items", formData);
-      fetchMenuItems();
-      onCancel();
+      const res = await axios.get("/api/menu/categories");
+      const data = res.data.data;
+
+      setAllCategories(data);
+      const main = data.filter((cat) => !cat.parentCategory);
+      setCategories(main);
     } catch (error) {
-      console.error("Error creating menu item:", error);
+      console.error("Gagal fetch categories:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchOutlets = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get("/api/outlet");
+      const data = res.data.data;
+
+      setOutlets(data);
+    } catch (error) {
+      console.error("Gagal fetch outlet:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    const valueToSend = isChecked ? "kitchen" : "bar";
+    e.preventDefault();
+    try {
+      let imageURL = "";
+      if (imageFile) {
+        imageURL = await uploadToFirebase(imageFile);
+      }
+
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        price: Number(formData.price),
+        // discountedPrice: Number(formData.price), // bisa ubah sesuai diskon
+        imageURL: imageURL || "",
+        mainCat: selectedMainCategory,
+        category: formData.category,
+        subCategory: formData.subCategory || null,
+        availableAt: formData.availableAt, // array of outlet ids
+        rawMaterials: formData.rawMaterials || [],
+        toppings: toppings.map((top) => ({
+          name: top.name,
+          price: Number(top.price),
+        })),
+        addons: addons.map((addon) => ({
+          name: addon.name,
+          options: addon.options.map((opt) => ({
+            label: opt.label,
+            price: Number(opt.price),
+            isDefault: opt.isDefault,
+          })),
+        })),
+        workstation: valueToSend
+      };
+
+      console.log(payload);
+
+      await axios.post("/api/menu/menu-items", payload);
+      navigate("/admin/menu");
+      // alert("Berhasil");
+    } catch (err) {
+      console.error("Gagal kirim data:", err);
+    }
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-6 rounded shadow-md w-full max-w-lg"
-      >
-        <h2 className="text-xl font-bold mb-4">Create Menu Item</h2>
+    <div className="">
+      <form onSubmit={handleSubmit}>
+        {/* Header */}
 
-        <div className="mb-4">
-          <label className="block text-gray-700">Name</label>
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleInputChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
+        <div className="flex justify-between items-center px-6 py-3 my-3">
+          <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+            <Link to="/admin/menu">
+              Menu
+            </Link>
+            <FaChevronRight />
+            <span>
+              Tambah Menu
+            </span>
+          </h1>
+          <div className="flex items-center gap-3">
+            <span
+              onClick={() => setIsModalOpen(true)}
+              className="block border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
+            >
+              Batal
+            </span>
+            <button
+              type="submit"
+              className="block bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
+            >
+              Simpan
+            </button>
+          </div>
         </div>
 
-        <div className="mb-4">
-          <label className="block text-gray-700">Price</label>
-          <input
-            type="number"
-            name="price"
-            value={formData.price}
-            onChange={handleInputChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-gray-700">Description</label>
-          <textarea
-            name="description"
-            value={formData.description}
-            onChange={handleInputChange}
-            className="w-full border rounded px-3 py-2"
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-gray-700">Category</label>
-          <input
-            type="text"
-            name="category"
-            value={formData.category}
-            onChange={handleInputChange}
-            className="w-full border rounded px-3 py-2"
-            required
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-gray-700">Stock</label>
-          <input
-            type="number"
-            name="stock"
-            value={formData.stock}
-            onChange={handleInputChange}
-            className="w-full border rounded px-3 py-2"
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-gray-700">Image</label>
-          <img
-            src={formData.imageURL}
-            alt="Uploaded"
-            className="h-24 w-24 object-cover rounded mb-2"
-            onClick={() => fileRef.current.click()}
-          />
-          <input
-            ref={fileRef}
-            type="file"
-            className="hidden"
-            onChange={(e) => setImage(e.target.files[0])}
-          />
-          {imagePercent > 0 && <div>Upload Progress: {imagePercent}%</div>}
-          {imageError && <div className="text-red-500">Image upload failed</div>}
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-gray-700">Toppings</label>
-          {toppings.map((topping) => (
-            <div key={topping._id} className="flex items-center">
-              <input
-                type="checkbox"
-                value={topping._id}
-                checked={formData.toppings.includes(topping._id)}
-                onChange={(e) => handleCheckboxChange(e, "toppings")}
-              />
-              <label className="ml-2">{topping.name}</label>
+        {/* Modal */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-2">
+            <div className="bg-white p-6 rounded shadow-md text-center space-y-4 w-full max-w-md">
+              <p className="text-lg font-semibold">Yakin ingin membatalkan?</p>
+              <div className="flex justify-center gap-4 flex-wrap">
+                <Link
+                  to="/admin/menu"
+                  className="px-4 py-2 bg-red-500 text-white rounded"
+                >
+                  Ya, Batalkan
+                </Link>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 bg-gray-300 rounded"
+                >
+                  Tidak
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
 
-        <div className="mb-4">
-          <label className="block text-gray-700">Add-Ons</label>
-          {addOns.map((addOn) => (
-            <div key={addOn._id} className="flex items-center">
-              <input
-                type="checkbox"
-                value={addOn._id}
-                checked={formData.addOns.includes(addOn._id)}
-                onChange={(e) => handleCheckboxChange(e, "addOns")}
-              />
-              <label className="ml-2">{addOn.name}</label>
+        {/* Form Container */}
+        <div className="px-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 shadow-md p-4 sm:p-6 md:p-12 rounded-lg bg-white">
+            {/* grid 1 */}
+            <div className="text-green-900 space-y-4">
+              {/* Nama Menu */}
+              <div>
+                <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">
+                  NAMA MENU
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="w-full py-2 px-3 border rounded-lg"
+                />
+              </div>
+
+              {/* Main Kategori */}
+              <div>
+                <label className="my-2.5 text-xs block font-medium">
+                  MAIN KATEGORI
+                </label>
+                <Select
+                  options={MainCategories.map((cat) => ({
+                    label: cat.charAt(0).toUpperCase() + cat.slice(1),
+                    value: cat.toLowerCase(),
+                  }))}
+                  value={
+                    MainCategories.find((cat) => cat === selectedMainCategory)
+                      ? {
+                        label:
+                          selectedMainCategory.charAt(0).toUpperCase() +
+                          selectedMainCategory.slice(1),
+                        value: selectedMainCategory,
+                      }
+                      : null
+                  }
+                  onChange={(selectedOption) => {
+                    setSelectedMainCategory(selectedOption.value);
+                    setSearchTermMainCategories(selectedOption.value);
+                  }}
+                  styles={customSelectStyles}
+                  placeholder="Pilih kategori utama..."
+                />
+              </div>
+
+              {/* Kategori */}
+              <div>
+                <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
+                <Select
+                  options={categories.map((cat) => ({
+                    label: cat.name,
+                    value: cat._id,
+                  }))}
+                  value={
+                    formData.category
+                      ? {
+                        label:
+                          categories.find((cat) => cat._id === formData.category)
+                            ?.name || "",
+                        value: formData.category,
+                      }
+                      : null
+                  }
+                  onChange={(selected) => {
+                    setSearchTermCategories(selected.label);
+                    setFormData((prev) => ({
+                      ...prev,
+                      category: selected.value,
+                    }));
+                    const sub = allCategories.filter(
+                      (cat) => cat.parentCategory === selected.value
+                    );
+                    setSubCategories(sub);
+                  }}
+                  styles={customSelectStyles}
+                  placeholder="Pilih kategori..."
+                  className="mb-2"
+                />
+              </div>
+
+              {/* Sub Kategori */}
+              {subCategories.length > 0 && (
+                <div>
+                  <label className="my-2.5 text-xs block font-medium">
+                    SUB KATEGORI
+                  </label>
+                  <Select
+                    options={subCategories.map((sub) => ({
+                      label: sub.name,
+                      value: sub._id,
+                    }))}
+                    onChange={(selected) => {
+                      setSearchTermSub(selected.label);
+                      setFormData((prev) => ({
+                        ...prev,
+                        subCategory: selected.value,
+                      }));
+                    }}
+                    placeholder="Pilih sub kategori..."
+                    className="mb-2"
+                    styles={customSelectStyles}
+                  />
+                </div>
+              )}
+
+              {/* Price */}
+              <div>
+                <label className="my-2.5 text-xs block font-medium">HARGA</label>
+                <input
+                  type="number"
+                  name="price"
+                  value={formData.price}
+                  onChange={handleInputChange}
+                  className="w-full py-2 px-3 border rounded-lg"
+                />
+              </div>
+
+              {/* SKU */}
+              {/* <div>
+                <label className="my-2.5 text-xs block font-medium">SKU</label>
+                <input
+                  type="text"
+                  name="sku"
+                  value={formData.sku}
+                  onChange={handleInputChange}
+                  className="w-full py-2 px-3 border rounded-lg"
+                />
+              </div> */}
+
+              {/* Barcode */}
+              {/* <div>
+                <label className="my-2.5 text-xs block font-medium">BARCODE</label>
+                <input
+                  type="text"
+                  name="barcode"
+                  value={formData.barcode}
+                  onChange={handleInputChange}
+                  className="w-full py-2 px-3 border rounded-lg"
+                />
+              </div> */}
+
+              {/* Stock Unit */}
+              {/* <div>
+                <label className="my-2.5 text-xs block font-medium">
+                  SATUAN STOK
+                </label>
+                <input
+                  type="text"
+                  name="stock"
+                  value={formData.stock}
+                  onChange={handleInputChange}
+                  className="w-full py-2 px-3 border rounded-lg"
+                />
+              </div> */}
+
+              {/* Image Input */}
+              <div className="flex items-center space-x-4 py-4">
+                {compressedImageURL ? (
+                  <img
+                    src={compressedImageURL}
+                    alt="Compressed Preview"
+                    className="h-24 w-24 object-cover rounded cursor-pointer"
+                    onClick={() => fileRef.current.click()}
+                  />
+                ) : (
+                  <div
+                    className="h-24 w-24 flex items-center justify-center bg-gray-200 rounded cursor-pointer"
+                    onClick={() => fileRef.current.click()}
+                  >
+                    <span className="text-gray-500 text-xl">+</span>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={fileRef}
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2.5 text-xs font-medium uppercase">Deskripsi</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  className="w-full border rounded p-2 h-36"
+                />
+              </div>
             </div>
-          ))}
-        </div>
 
-        <div className="mb-4">
-          <label className="block text-gray-700">Raw Materials</label>
-          <select
-            onChange={handleRawMaterialSelect}
-            className="w-full border rounded px-3 py-2 mb-2"
-          >
-            <option value="">Select Raw Material</option>
-            {rawMaterials.map((rawMaterial) => (
-              <option key={rawMaterial._id} value={rawMaterial._id}>
-                {rawMaterial.name}
-              </option>
-            ))}
-          </select>
-          {formData.rawMaterials.map((material, index) => (
-            <div key={index} className="flex items-center mb-2">
-              <label className="w-2/3 text-gray-700">
-                {rawMaterials.find((item) => item._id === material.materialId)?.name}
-              </label>
-              <input
-                type="number"
-                value={material.quantityRequired}
-                onChange={(e) => handleRawMaterialChange(e, material.materialId)}
-                className="w-20 border rounded px-3 py-2 mr-2"
-                placeholder="Quantity"
-                min="1"
-              />
-              <button
-                type="button"
-                onClick={() => handleRemoveRawMaterial(material.materialId)}
-                className="bg-red-500 text-white px-3 py-1 rounded"
-              >
-                Remove
-              </button>
+            {/* grid 2 */}
+            <div className="text-[14px] text-green-900 space-y-4">
+
+              <ToppingForm toppings={toppings} setToppings={setToppings} />
+              <AddonForm addons={addons} setAddons={setAddons} />
+
+              {/* Outlet */}
+              <div>
+                <label className="block mb-1 text-sm font-medium">Pilih Outlet</label>
+                <div className="grid gap-2">
+                  {outlets.map((outlet) => (
+                    <label
+                      key={outlet._id}
+                      className="inline-flex items-center space-x-2"
+                    >
+                      <input
+                        type="checkbox"
+                        value={outlet._id}
+                        checked={formData.availableAt.includes(outlet._id)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          const value = outlet._id;
+                          setFormData((prev) => ({
+                            ...prev,
+                            availableAt: checked
+                              ? [...prev.availableAt, value]
+                              : prev.availableAt.filter((id) => id !== value),
+                          }));
+                        }}
+                        className="form-checkbox text-blue-600"
+                      />
+                      <span>{outlet.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Switch */}
+              <div className="flex justify-between items-center">
+                <span>Apakah menu ini berada di dapur?</span>
+                <label className="inline-flex items-center cursor-pointer space-x-3">
+                  <span className="text-sm font-medium text-gray-900">
+                    {isChecked ? "Ya" : "Tidak"}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={(e) => setIsChecked(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer-focus:ring-1 peer-checked:bg-[#005429] relative after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
+                </label>
+              </div>
             </div>
-          ))}
-        </div>
-
-        <div className="flex justify-between">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="bg-gray-400 text-white px-4 py-2 rounded"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-500 text-white px-4 py-2 rounded"
-          >
-            {loading ? "Saving..." : "Save"}
-          </button>
+          </div>
         </div>
       </form>
+
+
+      {/* Modal Slide */}
+      <ConfirmationModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={() => navigate("/admin/menu")}
+      />
     </div>
   );
 };
