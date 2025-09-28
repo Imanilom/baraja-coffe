@@ -48,7 +48,7 @@ import TicketRoutes from './routes/ticket.routes.js';
 import AccountingRoutes from './routes/accounting.routes.js';
 import socketHandler from './socket/index.js';
 import { midtransWebhook } from './controllers/webhookController.js';
-
+import { fileURLToPath } from "url";
 dotenv.config();
 
 mongoose
@@ -60,7 +60,9 @@ mongoose
     console.log(err);
   });
 
-const __dirname = path.resolve();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 initializeFirebase();
 const server = http.createServer(app);
@@ -142,6 +144,14 @@ app.use('/api/assets', AssetRoutes);
 // });
 
 app.post('/api/midtrans/webhook', midtransWebhook);
+
+// 1. Serve static assets
+app.use(express.static(path.join(__dirname, "../client/dist")));
+
+// 2. SPA fallback — but exclude /api and static files
+app.get(/^\/(?!api).*/, (req, res) => {
+  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
+});
 
 
 // Start server
