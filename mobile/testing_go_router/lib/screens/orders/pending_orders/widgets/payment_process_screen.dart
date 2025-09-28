@@ -680,9 +680,9 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
         child: InkWell(
           onTap: () {
             ref.read(paymentProcessProvider.notifier).selectPaymentType(type);
-            // ref
-            //     .read(processPaymentRequestProvider.notifier)
-            //     .selectedPaymentType(null, type.id);
+            ref
+                .read(processPaymentRequestProvider.notifier)
+                .selectedPaymentType(null, type.id);
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -859,9 +859,9 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             ref
                 .read(paymentProcessProvider.notifier)
                 .selectPaymentMethod(method);
-            // ref
-            //     .read(processPaymentRequestProvider.notifier)
-            //     .selectedPaymentMethod(null, method.name);
+            ref
+                .read(processPaymentRequestProvider.notifier)
+                .selectedPaymentMethod(null, method.name);
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -1233,12 +1233,6 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
       ref
           .read(processPaymentRequestProvider.notifier)
           .addCashierId(cashier!.id!);
-      ref
-          .read(processPaymentRequestProvider.notifier)
-          .addPaymentTypeAndMethod(
-            ref.read(paymentProcessProvider).selectedType!.name,
-            ref.read(paymentProcessProvider).selectedMethod!.methodCode,
-          );
       final requestData = ref.watch(processPaymentRequestProvider);
       print('req data: $requestData');
       final success = await ref

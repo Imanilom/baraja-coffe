@@ -1,15 +1,37 @@
 import express from 'express';
-import { chargeTicket, getUserTickets, updateTicketStatus } from '../controllers/ticket.controller.js';
+import {
+    chargeTicket,
+    getUserTickets,
+    updateTicketStatus,
+    // getTicketByCode,
+    // validateTicket,
+    // getEventTickets,
+    refreshTicketStatus,
+    cancelTicket,
+    getEventAvailability,
+    bulkUpdateTickets
+} from '../controllers/ticket.controller.js';
 
 const router = express.Router();
 
-// Endpoint untuk pembelian tiket (sesuai dengan Flutter service)
+// Core ticket purchase endpoint
 router.post('/buy', chargeTicket);
 
-// Endpoint untuk mendapatkan tiket user
+// User ticket management
 router.get('/user/:userId', getUserTickets);
 
-// Endpoint untuk update status tiket
+// Event ticket management (for organizers)
+// router.get('/event/:eventId', getEventTickets);
+router.get('/event/:eventId/availability', getEventAvailability);
+
+// Ticket operations
 router.patch('/:id/status', updateTicketStatus);
+router.get('/:id/refresh', refreshTicketStatus);
+router.post('/:id/cancel', cancelTicket);
+// router.get('/code/:ticketCode', getTicketByCode);
+// router.post('/validate/:ticketCode', validateTicket);
+
+// Bulk operations (for organizers)
+router.post('/bulk/update', bulkUpdateTickets);
 
 export default router;

@@ -1071,44 +1071,45 @@ export const createUnifiedOrder = async (req, res) => {
         orderId,
         orderData: validated,
         source,
+        isOpenBill: validated.isOpenBill,
         isReservation: orderType === 'reservation'
       }
     }, { jobId: orderId });
 
     // Wait for job completion
     let result;
-  try {
-    result = await job.waitUntilFinished(queueEvents);
+    try {
+      result = await job.waitUntilFinished(queueEvents);
 
-    // Pastikan order sudah ada
-    const order = await Order.findOne({ order_id: orderId });
-    if (!order) {
-      throw new Error(`Order ${orderId} not found after job completion`);
+      // Pastikan order sudah ada
+      const order = await Order.findOne({ order_id: orderId });
+      if (!order) {
+        throw new Error(`Order ${orderId} not found after job completion`);
+      }
+      const paymentData = {
+        order_id: order.order_id,
+        payment_code: generatePaymentCode(),
+        transaction_id: generateTransactionId(),
+        method: validated.paymentDetails?.method || 'Cash',
+        status: 'pending',
+        paymentType: validated.paymentDetails?.paymentType || 'Full',
+        amount: validated.paymentDetails?.amount || order.grandTotal,
+        totalAmount: order.grandTotal,
+        remainingAmount: order.grandTotal,
+      };
+
+      const payment = await Payment.create(paymentData);
+      console.log(`✅ Payment pending created for order ${orderId}`, payment._id);
+    } catch (queueErr) {
+      return res.status(500).json({
+        success: false,
+        message: `Order processing failed: ${queueErr.message}`
+      });
     }
-    const paymentData = {
-      order_id: order.order_id,
-      payment_code: generatePaymentCode(), 
-      transaction_id: generateTransactionId(),
-      method: validated.paymentDetails?.method || 'Cash',
-      status: 'pending',
-      paymentType: validated.paymentDetails?.paymentType || 'Full',
-      amount: validated.paymentDetails?.amount || order.grandTotal,
-      totalAmount: order.grandTotal,
-      remainingAmount: order.grandTotal,
-    };
-
-    const payment = await Payment.create(paymentData);
-    console.log(`✅ Payment pending created for order ${orderId}`, payment._id);
-  } catch (queueErr) {
-    return res.status(500).json({
-      success: false,
-      message: `Order processing failed: ${queueErr.message}`
-    });
-  }
     // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(202).json({
-        status: 'Completed',
+        // status: ,
         orderId,
         jobId: job.id,
         message: 'Cashier order processed and paid',
@@ -1132,25 +1133,25 @@ export const createUnifiedOrder = async (req, res) => {
     if (source === 'Web') {
       // If payment method is cash, do not create Midtrans Snap
       if (validated.paymentDetails.method?.toLowerCase() === 'cash') {
+        return res.status(200).json({
+          status: 'waiting_payment',
+          orderId,
+          jobId: job.id,
+          message: 'Cash payment, no Midtrans Snap required',
+        });
+      }
+      // Otherwise, create Midtrans Snap transaction
+      const midtransRes = await createMidtransSnapTransaction(
+        orderId,
+        validated.paymentDetails.amount,
+        validated.paymentDetails.method
+      );
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
         jobId: job.id,
-        message: 'Cash payment, no Midtrans Snap required',
-      });
-      }
-      // Otherwise, create Midtrans Snap transaction
-      const midtransRes = await createMidtransSnapTransaction(
-      orderId,
-      validated.paymentDetails.amount,
-      validated.paymentDetails.method
-      );
-      return res.status(200).json({
-      status: 'waiting_payment',
-      orderId,
-      jobId: job.id,
-      snapToken: midtransRes.token,
-      redirectUrl: midtransRes.redirect_url,
+        snapToken: midtransRes.token,
+        redirectUrl: midtransRes.redirect_url,
       });
     }
 
@@ -2954,6 +2955,7 @@ export const getPendingOrders = async (req, res) => {
   try {
     const { rawOutletId } = req.params;
     const { sources } = req.body;
+    console.log("rawOutletId:", rawOutletId, "sources:", sources);
     if (!rawOutletId) {
       return res.status(400).json({ message: 'outletId is required' });
     }
@@ -2983,7 +2985,7 @@ export const getPendingOrders = async (req, res) => {
       .lean()
       .sort({ createdAt: -1 }); // Sort by latest payment first
 
-    console.log('Found payments:', payments);
+    // console.log('Found payments:', payments);
 
     // 🔧 Enhanced Payment Processing with Full Details
     const paymentDetailsMap = new Map();
@@ -4587,10 +4589,10 @@ export const processPaymentCashier = async (req, res) => {
     // Proses setiap payment
     for (const payment of payments) {
       // Jika paymentType adalah "Down Payment", pindahkan remainingAmount ke amount
-      if (payment.paymentType === 'Down Payment') {
-        payment.amount += payment.remainingAmount;
-        payment.remainingAmount = 0;
-      }
+      // if (payment.paymentType === 'Down Payment') {
+      //   payment.amount += payment.remainingAmount;
+      //   payment.remainingAmount = 0;
+      // }
 
       // Update status payment menjadi settlement
       payment.status = 'settlement';
@@ -4598,14 +4600,14 @@ export const processPaymentCashier = async (req, res) => {
       payment.paidAt = new Date();
 
       await payment.save({ session });
-      console.log(payment);
+      // console.log(payment);
     }
 
 
     // Cek apakah semua payment untuk order ini sudah settlement dan remainingAmount 0
     const allPayments = await Payment.find({ order_id }).session(session);
     const isFullyPaid = allPayments.every(p =>
-      (p.status === 'settlement' || p.status === 'paid') && p.remainingAmount === 0
+      p.status === 'settlement'
     );
     const cashier = await User.findOne({ _id: cashier_id });
     if (!cashier) {
@@ -4619,20 +4621,17 @@ export const processPaymentCashier = async (req, res) => {
     // Update status order jika semua pembayaran sudah lunas
     order.cashierId = cashier._id;
     await order.save({ session });
-
+    console.log('is fully paid:', isFullyPaid);
     if (isFullyPaid) {
       if (order.orderType === 'Reservation') {
         order.status = 'Completed';
       } else {
+        console.log('ordered waiting');
         order.status = 'Waiting';
       }
 
       await order.save({ session });
     }
-
-    // Commit transaksi
-    await session.commitTransaction();
-    session.endSession();
 
     const statusUpdateData = {
       order_id: order_id,  // Gunakan string order_id
@@ -4662,22 +4661,24 @@ export const processPaymentCashier = async (req, res) => {
     console.log(`🔔 Emitted order status update to room: order_${order_id}`, statusUpdateData);
 
     // 3. Send FCM notification to customer
-    console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
-    if (order.user && order.user_id._id) {
-      try {
-        const orderData = {
-          orderId: order.order_id,
-          cashier: statusUpdateData.cashier
-        };
+    if (order.source === "App") {
+      console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
+      if (order.user && order.user_id._id) {
+        try {
+          const orderData = {
+            orderId: order.order_id,
+            cashier: statusUpdateData.cashier
+          };
 
-        const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
-          order.user_id._id.toString(),
-          orderData
-        );
+          const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
+            order.user_id._id.toString(),
+            orderData
+          );
 
-        console.log('📱 FCM Notification result:', notificationResult);
-      } catch (notificationError) {
-        console.error('❌ Failed to send FCM notification:', notificationError);
+          console.log('📱 FCM Notification result:', notificationResult);
+        } catch (notificationError) {
+          console.error('❌ Failed to send FCM notification:', notificationError);
+        }
       }
     }
 
@@ -4707,9 +4708,12 @@ export const processPaymentCashier = async (req, res) => {
       }
     }
 
-    console.log('order berhasil di update');
+    // Commit transaksi
+    await session.commitTransaction();
+    session.endSession();
 
-    res.status(200).json({
+
+    const result = {
       success: true,
       message: 'Payment processed successfully',
       data: {
@@ -4724,7 +4728,11 @@ export const processPaymentCashier = async (req, res) => {
           status: p.status
         }))
       }
-    });
+    };
+
+    console.log('order berhasil di update', result);
+
+    res.status(200).json(result);
 
   } catch (error) {
     // Rollback transaksi jika terjadi error

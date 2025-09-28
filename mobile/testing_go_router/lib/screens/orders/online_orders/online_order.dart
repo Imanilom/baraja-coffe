@@ -10,9 +10,6 @@ import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 
 import '../../../widgets/scanner/qrscanner.dart';
-
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/widgets/order_list_widget.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/widgets/order_detail_widget.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/widgets/payment_details_widget.dart';
@@ -405,79 +402,81 @@ Widget _buildStatisticsLoadingSkeleton() {
 
 Widget _buildEmptyOrdersState() {
   return Container(
-    padding: const EdgeInsets.all(32),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.blue.withOpacity(0.1),
-                Colors.blue.withOpacity(0.05),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.shopping_cart_rounded,
-            size: 60,
-            color: Colors.blue.shade300,
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'No orders yet',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'New orders will appear here automatically',
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.blue.withOpacity(0.1),
-                Colors.blue.withOpacity(0.05),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.blue.withOpacity(0.2)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                size: 16,
-                color: Colors.blue.shade600,
+    padding: const EdgeInsets.all(8),
+    child: SingleChildScrollView(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.blue.withOpacity(0.1),
+                  Colors.blue.withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Orders update in real-time',
-                style: TextStyle(
-                  fontSize: 12,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.shopping_cart_rounded,
+              size: 60,
+              color: Colors.blue.shade300,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'No orders yet',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'New orders will appear here automatically',
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.blue.withOpacity(0.1),
+                  Colors.blue.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.blue.withOpacity(0.2)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 16,
                   color: Colors.blue.shade600,
-                  fontWeight: FontWeight.w500,
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Text(
+                  'Orders update in real-time',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.blue.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }

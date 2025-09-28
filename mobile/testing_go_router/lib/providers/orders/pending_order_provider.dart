@@ -1,30 +1,31 @@
 import 'package:dio/dio.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
-import 'package:kasirbaraja/repositories/online_order_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/repositories/pending_order_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/models/online_order/confirm_order.model.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 import 'package:kasirbaraja/models/payments/process_payment_request.dart';
 
 // Provider untuk SavedOrderDetailProvider
-final onlineOrderRepository = Provider<OnlineOrderRepository>(
-  (ref) => OnlineOrderRepository(),
+final pendingOrderRepository = Provider<PendingOrderRepository>(
+  (ref) => PendingOrderRepository(),
 );
-final onlineOrderService = Provider<OrderService>((ref) => OrderService());
+final pendingOrderService = Provider<OrderService>((ref) => OrderService());
 
-class OnlineOrderDetailNotifier extends AsyncNotifier<List<OrderDetailModel>?> {
+class PendingOrderDetailNotifier
+    extends AsyncNotifier<List<OrderDetailModel>?> {
   @override
   Future<List<OrderDetailModel>> build() async {
-    return _fetchPendingOrder();
+    return _fetchPendingOrderCashier();
   }
 
-  Future<List<OrderDetailModel>> _fetchPendingOrder() async {
+  Future<List<OrderDetailModel>> _fetchPendingOrderCashier() async {
     try {
-      final onlineOrderRepo = ref.read(onlineOrderRepository);
+      final pendingOrderRepo = ref.read(pendingOrderRepository);
       final user = await HiveService.getUser();
       final cashier = await HiveService.getCashier();
-      final onlineOrders = await onlineOrderRepo.fetchPendingOrders(
+      final onlineOrders = await pendingOrderRepo.fetchPendingOrders(
         user!.outletId!,
       );
 
@@ -37,7 +38,7 @@ class OnlineOrderDetailNotifier extends AsyncNotifier<List<OrderDetailModel>?> {
   Future<void> refresh() async {
     state = const AsyncValue.loading();
     try {
-      final data = await _fetchPendingOrder();
+      final data = await _fetchPendingOrderCashier();
       state = AsyncValue.data(data);
       // state = AsyncValue.guard(data);
     } catch (error, stackTrace) {
@@ -46,9 +47,9 @@ class OnlineOrderDetailNotifier extends AsyncNotifier<List<OrderDetailModel>?> {
   }
 }
 
-final onlineOrderProvider =
-    AsyncNotifierProvider<OnlineOrderDetailNotifier, List<OrderDetailModel>?>(
-      () => OnlineOrderDetailNotifier(),
+final pendingOrderProvider =
+    AsyncNotifierProvider<PendingOrderDetailNotifier, List<OrderDetailModel>?>(
+      () => PendingOrderDetailNotifier(),
     );
 
 // State untuk konfirmasi order
@@ -83,7 +84,7 @@ class OrderConfirmationNotifier extends StateNotifier<OrderConfirmationState> {
     state = OrderConfirmationState(isLoading: true);
 
     try {
-      final apiService = ref.read(onlineOrderService);
+      final apiService = ref.read(pendingOrderService);
       final response = await apiService.confirmPaidOrder(ref, request);
 
       // Update state dengan response
@@ -143,7 +144,7 @@ class ProcessPaymentNotifier extends StateNotifier<ProcessPaymentState> {
     state = ProcessPaymentState(isLoading: true);
 
     try {
-      final apiService = ref.read(onlineOrderService);
+      final apiService = ref.read(pendingOrderService);
       final response = await apiService.processPaymentOrder(request);
 
       state = ProcessPaymentState(response: response);
@@ -219,14 +220,6 @@ class ProcessPaymentRequestNotifier
     //   initialState(orderId);
     // }
     state = state!.copyWith(paymentMethod: paymentMethod);
-  }
-
-  //add payment type and payment method
-  void addPaymentTypeAndMethod(String paymentType, String paymentMethod) {
-    state = state!.copyWith(
-      paymentType: paymentType,
-      paymentMethod: paymentMethod,
-    );
   }
 
   void resetState() {

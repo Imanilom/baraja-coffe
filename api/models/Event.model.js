@@ -60,6 +60,17 @@ const EventSchema = new mongoose.Schema({
         required: true,
         min: 1
     },
+    // ✅ FIXED: Changed to proper ticket tracking
+    soldTickets: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    // ✅ ADDED: Track ticket purchases
+    ticketPurchases: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TicketPurchase'
+    }],
     attendees: {
         type: [String],
         default: []
@@ -77,6 +88,28 @@ const EventSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
+
+// ✅ ADDED: Virtual for available tickets
+EventSchema.virtual('availableTickets').get(function () {
+    return Math.max(0, this.capacity - this.soldTickets);
+});
+
+// ✅ ADDED: Method to check ticket availability
+EventSchema.methods.hasAvailableTickets = function (requestedQuantity) {
+    return this.availableTickets >= requestedQuantity;
+};
+
+// ✅ ADDED: Method to reserve tickets
+EventSchema.methods.reserveTickets = function (quantity) {
+    if (this.hasAvailableTickets(quantity)) {
+        this.soldTickets += quantity;
+        return this.save();
+    }
+    throw new Error('Not enough tickets available');
+};
+
+EventSchema.set('toJSON', { virtuals: true });
+EventSchema.set('toObject', { virtuals: true });
 
 const Event = mongoose.model('Event', EventSchema);
 
