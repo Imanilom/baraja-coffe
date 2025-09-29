@@ -9,6 +9,7 @@ import * as XLSX from "xlsx";
 import { get } from "mongoose";
 import Header from "../../admin/header";
 import MessageAlert from "../messageAlert";
+import Paginated from "../../../components/paginated";
 
 
 const ProductionListManagement = () => {
@@ -336,15 +337,13 @@ const ProductionListManagement = () => {
 
     return (
         <div className="w-full">
-            {/* Header */}
-            <Header />
 
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <Link to="/admin/promotion">Inventori</Link>
+                    <span>Inventori</span>
                     <FaChevronRight />
-                    <span className="text-[#005429]">Limit Permintaan</span>
+                    <span>Limit Permintaan</span>
                 </h1>
 
                 <Link
@@ -358,7 +357,7 @@ const ProductionListManagement = () => {
             <MessageAlert />
 
             {/* Filters */}
-            <div className="px-3 pb-4 mb-[60px]">
+            <div className="px-6">
                 <div className="my-3 py-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded">
 
                     {/* Cari */}
@@ -398,7 +397,7 @@ const ProductionListManagement = () => {
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
+                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 bg-white">
                     <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
                         <thead className="text-gray-400 bg-slate-50">
                             <tr className="text-left">
@@ -457,68 +456,11 @@ const ProductionListManagement = () => {
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
-                {paginatedData.length > 0 && (
-                    <div className="flex flex-col sm:flex-row justify-between items-center mt-4 space-y-2 sm:space-y-0">
-                        <span className="text-xs sm:text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–
-                            {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                        </span>
-                        <div className="flex justify-center space-x-1 sm:space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="px-2 py-1 border rounded disabled:opacity-50"
-                            >
-                                <FaChevronLeft />
-                            </button>
-
-                            {[...Array(totalPages)].map((_, index) => {
-                                const page = index + 1;
-
-                                if (
-                                    page === 1 ||
-                                    page === totalPages ||
-                                    (page >= currentPage - 1 && page <= currentPage + 1)
-                                ) {
-                                    return (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`px-3 py-1 rounded border ${currentPage === page
-                                                ? "bg-[#005429] text-white"
-                                                : ""
-                                                }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    );
-                                }
-
-                                if (
-                                    (page === currentPage - 2 && page > 1) ||
-                                    (page === currentPage + 2 && page < totalPages)
-                                ) {
-                                    return (
-                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
-                                            ...
-                                        </span>
-                                    );
-                                }
-
-                                return null;
-                            })}
-
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="px-2 py-1 border rounded disabled:opacity-50"
-                            >
-                                <FaChevronRight />
-                            </button>
-                        </div>
-                    </div>
-                )}
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
             </div>
         </div>
 

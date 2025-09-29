@@ -8,6 +8,7 @@ import {
   FaPlus
 } from "react-icons/fa";
 import Header from "../admin/header";
+import Paginated from "../../components/paginated";
 
 const OutletManagementPage = () => {
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -74,12 +75,10 @@ const OutletManagementPage = () => {
   }
 
   return (
-    <div className="pb-[100px]">
-      {/* Header */}
-      <Header />
+    <div className="">
 
       {/* Breadcrumb */}
-      <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+      <div className="flex justify-between items-center px-6 py-3 my-3">
         <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
           Outlet
         </h1>
@@ -104,7 +103,7 @@ const OutletManagementPage = () => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="text-[13px] border py-[6px] pl-[30px] pr-[12px] rounded w-1/4"
+              className="text-[13px] border py-2 pl-[30px] pr-[12px] rounded w-1/4"
             />
           </div>
         </div>
@@ -112,7 +111,7 @@ const OutletManagementPage = () => {
 
       {/* Outlet Table */}
       <div className="p-4">
-        <div className="overflow-x-auto shadow rounded">
+        <div className="overflow-x-auto bg-white shadow rounded">
           <table className="min-w-full text-sm text-left text-gray-500">
             <thead className="text-[14px] border-b">
               <tr>
@@ -179,31 +178,11 @@ const OutletManagementPage = () => {
         </div>
       </div>
 
-      {/* Pagination */}
-      {filteredOutlets.length > 0 && (
-        <div className="flex justify-between items-center mt-4 px-[15px]">
-          <span className="text-sm text-gray-500">
-            Menampilkan <b>{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</b> – <b>{Math.min(currentPage * ITEMS_PER_PAGE, filteredOutlets.length)}</b> dari <b>{filteredOutlets.length}</b> data
-          </span>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50"
-            >
-              Sebelumnya
-            </button>
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50"
-            >
-              Berikutnya
-            </button>
-          </div>
-        </div>
-      )}
-
+      <Paginated
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        totalPages={totalPages}
+      />
     </div>
   );
 };

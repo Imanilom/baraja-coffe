@@ -274,16 +274,12 @@ export default function CreateOutlet() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col">
-            {/* Header bar */}
-            <div className="sticky top-0 z-30 bg-white border-b">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-gray-700 text-sm">
-                        <FaStore className="w-4 h-4 text-gray-400" />
-                        <span>Outlet</span>
-                        <FaChevronRight className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium">Tambah Outlet</span>
-                    </div>
+        <div className="w-full">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Outlet</span>
+                    <FaChevronRight />
+                    <span>Tambah Outlet</span>
                 </div>
             </div>
 

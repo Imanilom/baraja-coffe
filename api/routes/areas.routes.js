@@ -180,6 +180,114 @@ router.get('/tables/:id', async (req, res) => {
     }
 });
 
+// PUT /api/areas/tables/bulk-update
+router.put('/tables/bulk-update', async (req, res) => {
+    try {
+        const { updates } = req.body; // Array of table updates
+
+        if (!Array.isArray(updates) || updates.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Updates array is required and cannot be empty'
+            });
+        }
+
+        const results = [];
+        const errors = [];
+
+        // Process each update
+        for (const update of updates) {
+            try {
+                const { tableId, table_number, area_id, seats, table_type, shape, position, status, is_available, is_active } = update;
+
+                if (!tableId) {
+                    errors.push({ tableId: null, message: 'tableId is required' });
+                    continue;
+                }
+
+                // Find table
+                const table = await Table.findById(tableId);
+                if (!table) {
+                    errors.push({ tableId, message: 'Table not found' });
+                    continue;
+                }
+
+                // Check area
+                const areaToCheck = area_id ? await Area.findById(area_id) : await Area.findById(table.area_id);
+                if (!areaToCheck || !areaToCheck.is_active) {
+                    errors.push({ tableId, message: 'Area not found or inactive' });
+                    continue;
+                }
+
+                // Validate position within area bounds
+                if (position?.x !== undefined && position?.y !== undefined) {
+                    if (position.x > areaToCheck.roomSize.width || position.y > areaToCheck.roomSize.height) {
+                        errors.push({
+                            tableId,
+                            message: `Position (${position.x}, ${position.y}) exceeds area size (${areaToCheck.roomSize.width}, ${areaToCheck.roomSize.height})`
+                        });
+                        continue;
+                    }
+                }
+
+                // Check duplicate table number
+                if (table_number) {
+                    const exists = await Table.findOne({
+                        table_number: table_number.toUpperCase(),
+                        area_id: area_id || table.area_id,
+                        _id: { $ne: tableId }
+                    });
+                    if (exists) {
+                        errors.push({ tableId, message: 'Table number already exists in this area' });
+                        continue;
+                    }
+                }
+
+                // Update table
+                Object.assign(table, {
+                    table_number: table_number ? table_number.toUpperCase() : table.table_number,
+                    area_id: area_id || table.area_id,
+                    seats: seats ?? table.seats,
+                    table_type: table_type ?? table.table_type,
+                    shape: shape ?? table.shape,
+                    position: position ?? table.position,
+                    status: status ?? table.status,
+                    is_available: is_available ?? table.is_available,
+                    is_active: is_active ?? table.is_active
+                });
+
+                const updated = await table.save();
+                results.push({ tableId, success: true, data: updated });
+
+            } catch (error) {
+                errors.push({ tableId: update.tableId, message: error.message });
+            }
+        }
+
+        // Response
+        const response = {
+            success: errors.length === 0,
+            message: errors.length === 0
+                ? 'All tables updated successfully'
+                : `${results.length} tables updated, ${errors.length} failed`,
+            updated: results.length,
+            failed: errors.length,
+            results,
+            errors
+        };
+
+        res.status(errors.length === 0 ? 200 : 207).json(response); // 207 = Multi-Status
+
+    } catch (error) {
+        console.error('Error bulk updating tables:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error bulk updating tables',
+            error: error.message
+        });
+    }
+});
+
 // Update a table
 router.put('/tables/:id', async (req, res) => {
     try {

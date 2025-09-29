@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
-import { FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaBoxes, FaPencilAlt, FaTrash, FaExpand, FaCompress } from "react-icons/fa";
-import DetailMejaModal from "./detailtablemodal";
+import { FaChevronRight, FaIdBadge, FaPencilAlt, FaExpand, FaCompress, FaSave, FaTimes, FaPlus, FaEdit, FaTrash } from "react-icons/fa";
 
 const TablePlanManagement = () => {
     const [outlets, setOutlets] = useState([]);
@@ -17,10 +15,28 @@ const TablePlanManagement = () => {
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
     const [offset, setOffset] = useState({ x: 0, y: 0 });
 
-    const containerRef = useRef(null);
-    const navigate = useNavigate();
+    // Drag & Drop states
+    const [draggingTable, setDraggingTable] = useState(null);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const [tablePositions, setTablePositions] = useState({});
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [saving, setSaving] = useState(false);
 
-    // Fixed scale: 1 meter = 100 pixels
+    // Add/Edit table states
+    const [showTableForm, setShowTableForm] = useState(false);
+    const [editingTable, setEditingTable] = useState(null);
+    const [tableForm, setTableForm] = useState({
+        table_number: '',
+        area_id: '',
+        seats: 4,
+        table_type: 'regular',
+        shape: 'rectangle',
+        position: { x: 2, y: 2 },
+        size: { width: 1, height: 1 },
+        status: 'available'
+    });
+
+    const containerRef = useRef(null);
     const scale = 100 * zoomLevel;
 
     // Fetch data
@@ -28,18 +44,16 @@ const TablePlanManagement = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch outlets
                 const outletsResponse = await axios.get('/api/outlet');
                 setOutlets(outletsResponse.data.data || []);
 
-                // Fetch areas with tables
                 const areasResponse = await axios.get('/api/areas');
                 const areasData = areasResponse.data.data || [];
                 setAreas(areasData);
 
                 if (areasData.length > 0) {
                     setSelectedArea(areasData[0]);
-                    // Center the view on the first area
+                    initializeTablePositions(areasData[0]);
                     setOffset({ x: 0, y: 0 });
                 }
 
@@ -55,13 +69,236 @@ const TablePlanManagement = () => {
         fetchData();
     }, []);
 
-    // Handle table click
-    const handleTableClick = (table) => {
-        setSelectedTable(table);
-        setShowDetail(true);
+    // Initialize table positions from area data
+    const initializeTablePositions = (area) => {
+        const positions = {};
+        area.tables?.forEach(table => {
+            positions[table._id] = {
+                x: table.position.x,
+                y: table.position.y
+            };
+        });
+        setTablePositions(positions);
     };
 
-    // Format status text
+    // Handle area change
+    const handleAreaChange = (areaId) => {
+        const area = areas.find(a => a._id === areaId);
+        setSelectedArea(area);
+        initializeTablePositions(area);
+        setOffset({ x: 0, y: 0 });
+        setHasUnsavedChanges(false);
+    };
+
+    // Handle table drag start
+    const handleTableDragStart = (e, table) => {
+        e.stopPropagation();
+        setDraggingTable(table._id);
+
+        const rect = containerRef.current.getBoundingClientRect();
+        const currentPos = tablePositions[table._id] || table.position;
+
+        setDragStart({
+            x: e.clientX,
+            y: e.clientY,
+            initialX: currentPos.x,
+            initialY: currentPos.y
+        });
+    };
+
+    // Handle table drag move
+    const handleTableDragMove = (e) => {
+        if (!draggingTable) return;
+
+        const deltaX = (e.clientX - dragStart.x) / scale;
+        const deltaY = (e.clientY - dragStart.y) / scale;
+
+        let newX = dragStart.initialX + deltaX;
+        let newY = dragStart.initialY + deltaY;
+
+        // Constrain within area bounds
+        if (selectedArea) {
+            newX = Math.max(0.5, Math.min(selectedArea.roomSize.width - 0.5, newX));
+            newY = Math.max(0.5, Math.min(selectedArea.roomSize.height - 0.5, newY));
+        }
+
+        setTablePositions(prev => ({
+            ...prev,
+            [draggingTable]: { x: newX, y: newY }
+        }));
+
+        setHasUnsavedChanges(true);
+    };
+
+    // Handle table drag end
+    const handleTableDragEnd = () => {
+        setDraggingTable(null);
+    };
+
+    // Add drag event listeners
+    useEffect(() => {
+        if (draggingTable) {
+            window.addEventListener('mousemove', handleTableDragMove);
+            window.addEventListener('mouseup', handleTableDragEnd);
+            return () => {
+                window.removeEventListener('mousemove', handleTableDragMove);
+                window.removeEventListener('mouseup', handleTableDragEnd);
+            };
+        }
+    }, [draggingTable, dragStart, scale]);
+
+    // Save table positions
+    const handleSavePositions = async () => {
+        setSaving(true);
+        try {
+            // Prepare update data - hanya kirim meja yang posisinya berubah
+            const updates = selectedArea.tables
+                .filter(table => tablePositions[table._id]) // Hanya yang di-drag
+                .map(table => ({
+                    tableId: table._id,
+                    position: tablePositions[table._id]
+                }));
+
+            if (updates.length === 0) {
+                alert('Tidak ada perubahan untuk disimpan');
+                setSaving(false);
+                return;
+            }
+
+            // Send bulk update request
+            const response = await axios.put(`/api/areas/tables/bulk-update`, {
+                updates
+            });
+
+            // Check if all updates succeeded
+            if (response.data.errors && response.data.errors.length > 0) {
+                console.error('Some updates failed:', response.data.errors);
+                alert(`${response.data.updated} meja berhasil disimpan, ${response.data.failed} gagal. Cek console untuk detail.`);
+            } else {
+                alert('Semua posisi meja berhasil disimpan!');
+            }
+
+            // Refresh data dari server untuk memastikan sinkron
+            const areasResponse = await axios.get('/api/areas');
+            const areasData = areasResponse.data.data || [];
+            setAreas(areasData);
+
+            const updatedArea = areasData.find(a => a._id === selectedArea._id);
+            if (updatedArea) {
+                setSelectedArea(updatedArea);
+                initializeTablePositions(updatedArea);
+            }
+
+            setHasUnsavedChanges(false);
+
+        } catch (err) {
+            console.error('Error saving positions:', err);
+            console.error('Error details:', err.response?.data);
+            alert(`Gagal menyimpan posisi meja: ${err.response?.data?.message || err.message}`);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Cancel position changes
+    const handleCancelChanges = () => {
+        initializeTablePositions(selectedArea);
+        setHasUnsavedChanges(false);
+    };
+
+    // Open add table form
+    const handleAddTable = () => {
+        setEditingTable(null);
+        setTableForm({
+            table_number: '',
+            area_id: selectedArea?._id || '',
+            seats: 4,
+            table_type: 'regular',
+            shape: 'rectangle',
+            position: { x: 2, y: 2 },
+            size: { width: 1, height: 1 },
+            status: 'available'
+        });
+        setShowTableForm(true);
+    };
+
+    // Open edit table form
+    const handleEditTable = (table) => {
+        setEditingTable(table);
+        setTableForm({
+            table_number: table.table_number,
+            seats: table.seats,
+            table_type: table.table_type,
+            shape: table.shape,
+            position: tablePositions[table._id] || table.position,
+            size: table.size || { width: 1, height: 1 },
+            status: table.status
+        });
+        setShowTableForm(true);
+    };
+
+    // Submit table form (add or edit)
+    const handleSubmitTable = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+
+        try {
+            if (editingTable) {
+                // Update existing table
+                await axios.put(`/api/areas/tables/${editingTable._id}`, tableForm);
+                alert('Meja berhasil diperbarui!');
+            } else {
+                await axios.post(`/api/areas/tables`, tableForm);
+                alert('Meja berhasil diperbarui!');
+            }
+
+            // Refresh area data
+            const areasResponse = await axios.get('/api/areas');
+            const areasData = areasResponse.data.data || [];
+            setAreas(areasData);
+
+            const updatedArea = areasData.find(a => a._id === selectedArea._id);
+            setSelectedArea(updatedArea);
+            initializeTablePositions(updatedArea);
+
+            setShowTableForm(false);
+            setEditingTable(null);
+        } catch (err) {
+            console.error('Error saving table:', err);
+            alert('Gagal menyimpan meja. Silakan coba lagi.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Delete table
+    const handleDeleteTable = async (table) => {
+        if (!confirm(`Apakah Anda yakin ingin menghapus meja ${table.table_number}?`)) {
+            return;
+        }
+
+        setSaving(true);
+        try {
+            await axios.delete(`/api/areas/tables/${table._id}`);
+
+            // Refresh area data
+            const areasResponse = await axios.get('/api/areas');
+            const areasData = areasResponse.data.data || [];
+            setAreas(areasData);
+
+            const updatedArea = areasData.find(a => a._id === selectedArea._id);
+            setSelectedArea(updatedArea);
+            initializeTablePositions(updatedArea);
+
+            alert('Meja berhasil dihapus!');
+        } catch (err) {
+            console.error('Error deleting table:', err);
+            alert('Gagal menghapus meja. Silakan coba lagi.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const formatStatus = (status) => {
         switch (status) {
             case 'available': return 'Tersedia';
@@ -72,18 +309,15 @@ const TablePlanManagement = () => {
         }
     };
 
-    // Handle zoom in
-    const handleZoomIn = () => {
-        setZoomLevel(prev => Math.min(prev + 0.1, 2)); // Max zoom 2x
+    const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 0.1, 2));
+    const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
+    const handleResetView = () => {
+        setZoomLevel(1);
+        setOffset({ x: 0, y: 0 });
     };
 
-    // Handle zoom out
-    const handleZoomOut = () => {
-        setZoomLevel(prev => Math.max(prev - 0.1, 0.5)); // Min zoom 0.5x
-    };
-
-    // Handle pan start
     const handlePanStart = (e) => {
+        if (draggingTable) return;
         e.preventDefault();
         setPanning(true);
         setPanStart({
@@ -92,7 +326,6 @@ const TablePlanManagement = () => {
         });
     };
 
-    // Handle pan move
     const handlePanMove = (e) => {
         if (!panning) return;
 
@@ -101,14 +334,12 @@ const TablePlanManagement = () => {
             y: e.clientY - panStart.y
         };
 
-        // Calculate bounds based on area size and container size
         if (selectedArea && containerRef.current) {
             const containerWidth = containerRef.current.clientWidth;
             const containerHeight = containerRef.current.clientHeight;
             const areaWidth = selectedArea.roomSize.width * scale;
             const areaHeight = selectedArea.roomSize.height * scale;
 
-            // Limit panning to keep the area visible
             const maxX = Math.max(0, areaWidth - containerWidth);
             const maxY = Math.max(0, areaHeight - containerHeight);
 
@@ -119,18 +350,8 @@ const TablePlanManagement = () => {
         setOffset(newOffset);
     };
 
-    // Handle pan end
-    const handlePanEnd = () => {
-        setPanning(false);
-    };
+    const handlePanEnd = () => setPanning(false);
 
-    // Reset view
-    const handleResetView = () => {
-        setZoomLevel(1);
-        setOffset({ x: 0, y: 0 });
-    };
-
-    // Add event listeners for panning
     useEffect(() => {
         if (panning) {
             window.addEventListener('mousemove', handlePanMove);
@@ -142,7 +363,6 @@ const TablePlanManagement = () => {
         }
     }, [panning, panStart]);
 
-    // Show loading state
     if (loading) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -151,7 +371,6 @@ const TablePlanManagement = () => {
         );
     }
 
-    // Show error state
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -171,15 +390,6 @@ const TablePlanManagement = () => {
 
     return (
         <div className="relative">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
-
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">
@@ -200,12 +410,7 @@ const TablePlanManagement = () => {
                             <select
                                 className="w-full text-[13px] border py-[6px] px-[12px] rounded"
                                 value={selectedArea?._id || ''}
-                                onChange={(e) => {
-                                    const areaId = e.target.value;
-                                    const area = areas.find(a => a._id === areaId);
-                                    setSelectedArea(area);
-                                    setOffset({ x: 0, y: 0 }); // Reset offset when changing area
-                                }}
+                                onChange={(e) => handleAreaChange(e.target.value)}
                             >
                                 {areas.map(area => (
                                     <option key={area._id} value={area._id}>
@@ -216,6 +421,30 @@ const TablePlanManagement = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Unsaved Changes Warning */}
+                {hasUnsavedChanges && (
+                    <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded flex items-center justify-between">
+                        <span className="text-sm text-yellow-800">
+                            Ada perubahan yang belum disimpan
+                        </span>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleCancelChanges}
+                                className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded flex items-center gap-1"
+                            >
+                                <FaTimes size={12} /> Batal
+                            </button>
+                            <button
+                                onClick={handleSavePositions}
+                                disabled={saving}
+                                className="px-3 py-1 text-sm bg-[#005429] text-white hover:bg-[#006d34] rounded flex items-center gap-1 disabled:opacity-50"
+                            >
+                                <FaSave size={12} /> {saving ? 'Menyimpan...' : 'Simpan'}
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Area Visualization */}
                 {selectedArea && (
@@ -260,34 +489,32 @@ const TablePlanManagement = () => {
                             style={{
                                 height: '500px',
                                 width: '100%',
-                                cursor: panning ? 'grabbing' : 'grab',
+                                cursor: panning ? 'grabbing' : draggingTable ? 'grabbing' : 'grab',
                                 touchAction: 'none'
                             }}
                             onMouseDown={handlePanStart}
                         >
-                            {/* Area container with panning and zoom */}
                             <div
                                 className="absolute inset-0"
                                 style={{
                                     transform: `translate(${offset.x}px, ${offset.y}px)`,
-                                    width: `${selectedArea.roomSize.width * scale}px`,
-                                    height: `${selectedArea.roomSize.height * scale}px`
+                                    width: '100%',
+                                    height: '500px'
                                 }}
                             >
-                                {/* Grid background (minor grid - 10cm) */}
+                                {/* Grid background */}
                                 <div
                                     className="absolute inset-0"
                                     style={{
                                         backgroundImage: 'linear-gradient(to right, #f0f0f0 1px, transparent 1px), linear-gradient(to bottom, #f0f0f0 1px, transparent 1px)',
-                                        backgroundSize: `${10 * zoomLevel}px ${10 * zoomLevel}px` // 10cm grid
+                                        backgroundSize: `${10 * zoomLevel}px ${10 * zoomLevel}px`
                                     }}
                                 >
-                                    {/* Major grid lines (1m) */}
                                     <div
                                         className="absolute inset-0"
                                         style={{
                                             backgroundImage: 'linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px)',
-                                            backgroundSize: `${100 * zoomLevel}px ${100 * zoomLevel}px` // 1m grid
+                                            backgroundSize: `${100 * zoomLevel}px ${100 * zoomLevel}px`
                                         }}
                                     />
                                 </div>
@@ -298,42 +525,46 @@ const TablePlanManagement = () => {
                                 </div>
 
                                 {/* Tables */}
-                                {selectedArea.tables?.map((table) => (
-                                    <div
-                                        key={table._id}
-                                        className={`absolute flex flex-col items-center justify-center rounded cursor-pointer border-2 
-                                            ${table.status === 'available' ? 'border-green-500 bg-green-100 hover:bg-green-200' :
-                                                table.status === 'occupied' ? 'border-red-500 bg-red-100 hover:bg-red-200' :
-                                                    table.status === 'reserved' ? 'border-yellow-500 bg-yellow-100 hover:bg-yellow-200' :
-                                                        'border-gray-500 bg-gray-100 hover:bg-gray-200'}`}
-                                        style={{
-                                            left: `${table.position.x * scale}px`,
-                                            top: `${table.position.y * scale}px`,
-                                            width: `${table.size?.width ? table.size.width * scale : 0.8 * scale}px`,
-                                            height: `${table.size?.height ? table.size.height * scale : 0.8 * scale}px`,
-                                            borderRadius: table.shape === 'circle' ? '50%' :
-                                                table.shape === 'oval' ? '50%' : '4px',
-                                            transform: 'translate(-50%, -50%)',
-                                            transition: 'background-color 0.2s',
-                                            zIndex: 10
-                                        }}
-                                        onClick={() => handleTableClick(table)}
-                                    >
-                                        <div className="text-sm font-semibold text-center">
-                                            {table.table_number}
+                                {selectedArea.tables?.map((table) => {
+                                    const pos = tablePositions[table._id] || table.position;
+                                    return (
+                                        <div
+                                            key={table._id}
+                                            className={`absolute flex flex-col items-center justify-center rounded border-2 
+                                                ${draggingTable === table._id ? 'cursor-grabbing shadow-lg' : 'cursor-move'}
+                                                ${table.status === 'available' ? 'border-green-500 bg-green-100 hover:bg-green-200' :
+                                                    table.status === 'occupied' ? 'border-red-500 bg-red-100 hover:bg-red-200' :
+                                                        table.status === 'reserved' ? 'border-yellow-500 bg-yellow-100 hover:bg-yellow-200' :
+                                                            'border-gray-500 bg-gray-100 hover:bg-gray-200'}`}
+                                            style={{
+                                                left: `${pos.x * scale}px`,
+                                                top: `${pos.y * scale}px`,
+                                                width: `${table.size?.width ? table.size.width * scale : 0.8 * scale}px`,
+                                                height: `${table.size?.height ? table.size.height * scale : 0.8 * scale}px`,
+                                                borderRadius: table.shape === 'circle' ? '50%' :
+                                                    table.shape === 'oval' ? '50%' : '4px',
+                                                transform: 'translate(-50%, -50%)',
+                                                transition: draggingTable === table._id ? 'none' : 'background-color 0.2s',
+                                                zIndex: draggingTable === table._id ? 100 : 10
+                                            }}
+                                            onMouseDown={(e) => handleTableDragStart(e, table)}
+                                        >
+                                            <div className="text-sm font-semibold text-center">
+                                                {table.table_number}
+                                            </div>
+                                            <div className="text-xs text-gray-600">
+                                                {table.seats} kursi
+                                            </div>
+                                            <div className={`text-xs font-medium mt-1 
+                                                ${table.status === 'available' ? 'text-green-600' :
+                                                    table.status === 'occupied' ? 'text-red-600' :
+                                                        table.status === 'reserved' ? 'text-yellow-600' :
+                                                            'text-gray-600'}`}>
+                                                {formatStatus(table.status)}
+                                            </div>
                                         </div>
-                                        <div className="text-xs text-gray-600">
-                                            {table.seats} kursi
-                                        </div>
-                                        <div className={`text-xs font-medium mt-1 
-                                            ${table.status === 'available' ? 'text-green-600' :
-                                                table.status === 'occupied' ? 'text-red-600' :
-                                                    table.status === 'reserved' ? 'text-yellow-600' :
-                                                        'text-gray-600'}`}>
-                                            {formatStatus(table.status)}
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
 
                                 {/* Scale indicator */}
                                 <div className="absolute bottom-2 right-2 bg-white bg-opacity-70 px-2 py-1 rounded text-xs text-gray-500 shadow-sm">
@@ -342,73 +573,247 @@ const TablePlanManagement = () => {
                             </div>
                         </div>
 
-                        {/* Table Info */}
+                        {/* Instructions */}
+                        <div className="mt-2 text-sm text-gray-600 bg-blue-50 p-2 rounded">
+                            💡 Tips: Klik dan drag meja untuk memindahkan posisi. Jangan lupa simpan perubahan setelah selesai.
+                        </div>
+
+                        {/* Table List */}
                         <div className="mt-4">
-                            <h4 className="font-semibold mb-2">Daftar Meja</h4>
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 className="font-semibold">Daftar Meja</h4>
+                                <button
+                                    onClick={handleAddTable}
+                                    className="px-3 py-1 bg-[#005429] text-white text-sm rounded hover:bg-[#006d34] flex items-center gap-1"
+                                >
+                                    <FaPlus size={12} /> Tambah Meja
+                                </button>
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {selectedArea.tables?.map(table => (
-                                    <div
-                                        key={table._id}
-                                        className={`p-3 rounded border cursor-pointer hover:shadow-md transition-shadow
-                                            ${table.status === 'available' ? 'border-green-300 bg-green-50 hover:bg-green-100' :
-                                                table.status === 'occupied' ? 'border-red-300 bg-red-50 hover:bg-red-100' :
-                                                    table.status === 'reserved' ? 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100' :
-                                                        'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}
-                                        onClick={() => handleTableClick(table)}
-                                    >
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h4 className="font-semibold">{table.table_number}</h4>
-                                                <p className="text-sm text-gray-600">
-                                                    {table.seats} kursi • {table.table_type} • {table.shape}
-                                                </p>
+                                {selectedArea.tables?.map(table => {
+                                    const pos = tablePositions[table._id] || table.position;
+                                    return (
+                                        <div
+                                            key={table._id}
+                                            className={`p-3 rounded border hover:shadow-md transition-shadow
+                                                ${table.status === 'available' ? 'border-green-300 bg-green-50' :
+                                                    table.status === 'occupied' ? 'border-red-300 bg-red-50' :
+                                                        table.status === 'reserved' ? 'border-yellow-300 bg-yellow-50' :
+                                                            'border-gray-300 bg-gray-50'}`}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h4 className="font-semibold">{table.table_number}</h4>
+                                                    <p className="text-sm text-gray-600">
+                                                        {table.seats} kursi • {table.table_type} • {table.shape}
+                                                    </p>
+                                                </div>
+                                                <span className={`text-xs px-2 py-1 rounded 
+                                                    ${table.status === 'available' ? 'bg-green-100 text-green-800' :
+                                                        table.status === 'occupied' ? 'bg-red-100 text-red-800' :
+                                                            table.status === 'reserved' ? 'bg-yellow-100 text-yellow-800' :
+                                                                'bg-gray-100 text-gray-800'}`}>
+                                                    {formatStatus(table.status)}
+                                                </span>
                                             </div>
-                                            <span className={`text-xs px-2 py-1 rounded 
-                                                ${table.status === 'available' ? 'bg-green-100 text-green-800' :
-                                                    table.status === 'occupied' ? 'bg-red-100 text-red-800' :
-                                                        table.status === 'reserved' ? 'bg-yellow-100 text-yellow-800' :
-                                                            'bg-gray-100 text-gray-800'}`}>
-                                                {formatStatus(table.status)}
-                                            </span>
+                                            <div className="mt-2 flex justify-between text-xs text-gray-500">
+                                                <span>Posisi: ({pos.x.toFixed(1)}, {pos.y.toFixed(1)})</span>
+                                                <span>Ukuran: {table.size?.width?.toFixed(1) || '0.8'}x{table.size?.height?.toFixed(1) || '0.8'}m</span>
+                                            </div>
+                                            <div className="mt-2 flex gap-2">
+                                                <button
+                                                    onClick={() => handleEditTable(table)}
+                                                    className="flex-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center gap-1"
+                                                >
+                                                    <FaEdit size={10} /> Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteTable(table)}
+                                                    className="flex-1 px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 flex items-center justify-center gap-1"
+                                                >
+                                                    <FaTrash size={10} /> Hapus
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="mt-2 flex justify-between text-xs text-gray-500">
-                                            <span>Posisi: ({table.position.x.toFixed(1)}, {table.position.y.toFixed(1)})</span>
-                                            <span>Ukuran: {table.size?.width?.toFixed(1) || '0.8'}x{table.size?.height?.toFixed(1) || '0.8'}m</span>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
                 )}
-
-                <button
-                    onClick={() => navigate(`/admin/table-plan/create`)}
-                    className="fixed right-5 bottom-20 bg-[#005429] text-white px-4 py-2 rounded text-sm hover:bg-[#006d34] flex items-center gap-2 shadow-lg"
-                >
-                    <FaPencilAlt /> Add Table
-                </button>
             </div>
 
-            {/* Table Detail Modal */}
-            {selectedTable && (
-                <DetailMejaModal
-                    isOpen={showDetail}
-                    onClose={() => setShowDetail(false)}
-                    data={{
-                        tableId: selectedTable?._id || '',
-                        tableName: selectedTable.table_number,
-                        areaName: selectedArea?.area_name || '',
-                        areaStatus: selectedArea?.is_active ? 'Aktif' : 'Nonaktif',
-                        seats: selectedTable.seats,
-                        tableType: selectedTable.table_type,
-                        shape: selectedTable.shape,
-                        position: `(${selectedTable.position.x.toFixed(1)}, ${selectedTable.position.y.toFixed(1)})`,
-                        size: `${selectedTable.size?.width?.toFixed(1) || '0.8'} x ${selectedTable.size?.height?.toFixed(1) || '0.8'} m`,
-                        status: formatStatus(selectedTable.status),
-                        isAvailable: selectedTable.is_available ? 'Ya' : 'Tidak'
-                    }}
-                />
+            {/* Table Form Modal */}
+            {showTableForm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+                        <div className="p-4 border-b flex justify-between items-center">
+                            <h3 className="text-lg font-semibold">
+                                {editingTable ? 'Edit Meja' : 'Tambah Meja Baru'}
+                            </h3>
+                            <button
+                                onClick={() => setShowTableForm(false)}
+                                className="text-gray-500 hover:text-gray-700"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmitTable} className="p-4">
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Nomor Meja</label>
+                                    <input
+                                        type="text"
+                                        value={tableForm.table_number}
+                                        onChange={(e) => setTableForm({ ...tableForm, table_number: e.target.value })}
+                                        className="w-full border rounded px-3 py-2 text-sm uppercase"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Jumlah Kursi</label>
+                                    <input
+                                        type="number"
+                                        value={tableForm.seats}
+                                        onChange={(e) => setTableForm({ ...tableForm, seats: parseInt(e.target.value) })}
+                                        className="w-full border rounded px-3 py-2 text-sm"
+                                        min="1"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <select value={tableForm.area_id || selectedArea?._id}>
+                                        {areas.map(area => (
+                                            <option key={area._id} value={area._id}>
+                                                {area.area_name} ({area.area_code}) - {area.roomSize.width}x{area.roomSize.height}{area.roomSize.unit}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Tipe Meja</label>
+                                    <select
+                                        value={tableForm.table_type}
+                                        onChange={(e) => setTableForm({ ...tableForm, table_type: e.target.value })}
+                                        className="w-full border rounded px-3 py-2 text-sm"
+                                    >
+                                        <option value="regular">Regular</option>
+                                        <option value="vip">VIP</option>
+                                        <option value="outdoor">Outdoor</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Bentuk</label>
+                                    <select
+                                        value={tableForm.shape}
+                                        onChange={(e) => setTableForm({ ...tableForm, shape: e.target.value })}
+                                        className="w-full border rounded px-3 py-2 text-sm"
+                                    >
+                                        <option value="rectangle">Persegi Panjang</option>
+                                        <option value="square">Persegi</option>
+                                        <option value="circle">Lingkaran</option>
+                                        <option value="oval">Oval</option>
+                                    </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Lebar (m)</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={tableForm.size.width}
+                                            onChange={(e) => setTableForm({
+                                                ...tableForm,
+                                                size: { ...tableForm.size, width: parseFloat(e.target.value) }
+                                            })}
+                                            className="w-full border rounded px-3 py-2 text-sm"
+                                            min="0.5"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Tinggi (m)</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={tableForm.size.height}
+                                            onChange={(e) => setTableForm({
+                                                ...tableForm,
+                                                size: { ...tableForm.size, height: parseFloat(e.target.value) }
+                                            })}
+                                            className="w-full border rounded px-3 py-2 text-sm"
+                                            min="0.5"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Posisi X (m)</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={tableForm.position.x}
+                                            onChange={(e) => setTableForm({
+                                                ...tableForm,
+                                                position: { ...tableForm.position, x: parseFloat(e.target.value) }
+                                            })}
+                                            className="w-full border rounded px-3 py-2 text-sm"
+                                            min="0"
+                                            max={selectedArea?.roomSize.width}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Posisi Y (m)</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={tableForm.position.y}
+                                            onChange={(e) => setTableForm({
+                                                ...tableForm,
+                                                position: { ...tableForm.position, y: parseFloat(e.target.value) }
+                                            })}
+                                            className="w-full border rounded px-3 py-2 text-sm"
+                                            min="0"
+                                            max={selectedArea?.roomSize.height}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Status</label>
+                                    <select
+                                        value={tableForm.status}
+                                        onChange={(e) => setTableForm({ ...tableForm, status: e.target.value })}
+                                        className="w-full border rounded px-3 py-2 text-sm"
+                                    >
+                                        <option value="available">Tersedia</option>
+                                        <option value="occupied">Terisi</option>
+                                        <option value="reserved">Dipesan</option>
+                                        <option value="maintenance">Perbaikan</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="mt-4 flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowTableForm(false)}
+                                    className="flex-1 px-4 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={saving}
+                                    className="flex-1 px-4 py-2 bg-[#005429] text-white rounded text-sm hover:bg-[#006d34] disabled:opacity-50"
+                                >
+                                    {saving ? 'Menyimpan...' : editingTable ? 'Update' : 'Tambah'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -159,6 +159,7 @@ import CreateSidebarMenu from "./pages/access/barmenu/create";
 import UpdateSidebarMenu from "./pages/access/barmenu/update";
 import AnalyticsDashboard from "./pages/analytics";
 import QRCodeGenerator from "./pages/table/generateQr";
+import AssetManagement from "./pages/aset";
 
 
 export default function App() {
@@ -257,6 +258,9 @@ export default function App() {
                 <Route path="discount" element={<DiscountManagement />} />
                 <Route path="daily-profit" element={<DailyProfitManagement />} />
                 <Route path="profit-by-product" element={<ProfitByProductManagement />} />
+
+                {/* Asset */}
+                <Route path="assets" element={<AssetManagement />} />
 
                 {/* Inventory */}
                 <Route path="inventory/stockcard" element={<StockCardManagement />} />

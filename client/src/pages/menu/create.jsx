@@ -21,7 +21,7 @@ const CreateMenu = () => {
   const [categories, setCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
 
-  const MainCategories = ['makanan', 'minuman', 'dessert', 'snack'];
+  const MainCategories = ['makanan', 'minuman', 'dessert', 'snack', 'event'];
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [outlets, setOutlets] = useState([]);
@@ -177,6 +177,7 @@ const CreateMenu = () => {
       const data = res.data.data;
 
       setAllCategories(data);
+      console.log(data);
       const main = data.filter((cat) => !cat.parentCategory);
       setCategories(main);
     } catch (error) {

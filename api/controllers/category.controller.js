@@ -77,7 +77,7 @@ export const assignMenuItemsToCategory = async (req, res) => {
 // Controller untuk mengambil daftar kategori
 export const getCategories = async (req, res) => {
   try {
-    const allowedTypes = ['food', 'beverage', 'instan'];
+    const allowedTypes = ['food', 'beverage', 'instan', 'event'];
 
     // Ambil kategori yang bertipe tertentu atau tidak memiliki tipe
     const categories = await Category.find({
