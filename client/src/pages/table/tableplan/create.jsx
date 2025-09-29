@@ -21,32 +21,30 @@ const TableForm = () => {
         is_active: true
     });
     const [errors, setErrors] = useState({});
-    const [areaSize, setAreaSize] = useState({ width: 10, height: 10, unit: 'm' }); // Default size
+    const [areaSize, setAreaSize] = useState({ width: 10, height: 10, unit: 'm' });
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [resizeStart, setResizeStart] = useState({ x: 0, y: 0 });
     const [selectedArea, setSelectedArea] = useState(null);
-    
+    const [existingTables, setExistingTables] = useState([]); // <-- TAMBAHAN
+
     const areaRef = useRef(null);
     const tableRef = useRef(null);
     const resizeHandleRef = useRef(null);
 
-    // Fixed scale: 1 meter = 100 pixels
-    const scale = 100; 
+    const scale = 100; // 1 meter = 100 pixels
 
     // Fetch areas and table data (if editing)
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch all active areas
                 const areasResponse = await axios.get('/api/areas');
                 setAreas(areasResponse.data.data);
 
-                // If editing, fetch table data
                 if (id) {
                     const tableResponse = await axios.get(`/api/areas/tables/${id}`);
                     const tableData = tableResponse.data.data;
-                    
+
                     setForm({
                         table_number: tableData.table_number,
                         area_id: tableData.area_id._id,
@@ -60,7 +58,6 @@ const TableForm = () => {
                         is_active: tableData.is_active
                     });
 
-                    // Get area dimensions for position validation
                     const area = areasResponse.data.data.find(a => a._id === tableData.area_id._id);
                     if (area) {
                         setAreaSize({
@@ -69,6 +66,10 @@ const TableForm = () => {
                             unit: area.roomSize.unit || 'm'
                         });
                         setSelectedArea(area);
+                        // Load existing tables in this area (exclude current)
+                        const otherTables = (Array.isArray(area.tables) ? area.tables : [])
+                            .filter(t => t._id !== id);
+                        setExistingTables(otherTables);
                     }
                 }
             } catch (error) {
@@ -83,7 +84,7 @@ const TableForm = () => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        
+
         if (name === 'area_id') {
             const area = areas.find(a => a._id === value);
             if (area) {
@@ -93,16 +94,20 @@ const TableForm = () => {
                     unit: area.roomSize.unit || 'm'
                 });
                 setSelectedArea(area);
-                // Reset position when changing area
+                // Reset position to center
                 setForm(prev => ({
                     ...prev,
                     [name]: value,
                     position: { x: area.roomSize.width / 2, y: area.roomSize.height / 2 }
                 }));
-                return;
+                // Load existing tables in this area
+                const otherTables = (Array.isArray(area.tables) ? area.tables : [])
+                    .filter(t => t._id !== id);
+                setExistingTables(otherTables);
             }
+            return;
         }
-        
+
         setForm(prev => ({
             ...prev,
             [name]: value
@@ -112,7 +117,7 @@ const TableForm = () => {
     const handleSizeChange = (e) => {
         const { name, value } = e.target;
         const numValue = parseFloat(value) || 0;
-        
+
         setForm(prev => ({
             ...prev,
             size: {
@@ -125,7 +130,7 @@ const TableForm = () => {
     const handlePositionChange = (e) => {
         const { name, value } = e.target;
         const numValue = parseFloat(value) || 0;
-        
+
         setForm(prev => ({
             ...prev,
             position: {
@@ -135,20 +140,14 @@ const TableForm = () => {
         }));
     };
 
-    // Drag handlers (revised)
+    // Drag handlers
     const handleDragStart = (e) => {
         e.preventDefault();
         setIsDragging(true);
-
-        // Simpan offset kursor dari pusat meja
         const tableRect = tableRef.current.getBoundingClientRect();
         const offsetX = e.clientX - tableRect.left - tableRect.width / 2;
         const offsetY = e.clientY - tableRect.top - tableRect.height / 2;
-
-        const startX = e.clientX - offsetX;
-        const startY = e.clientY - offsetY;
-
-        setResizeStart({ x: startX, y: startY }); // reuse resizeStart as dragStart
+        setResizeStart({ x: e.clientX - offsetX, y: e.clientY - offsetY });
     };
 
     const handleDrag = (e) => {
@@ -158,7 +157,6 @@ const TableForm = () => {
         const x = (e.clientX - areaRect.left) / scale;
         const y = (e.clientY - areaRect.top) / scale;
 
-        // Batas: meja tidak boleh keluar dari area
         const halfWidth = form.size.width / 2;
         const halfHeight = form.size.height / 2;
 
@@ -175,15 +173,12 @@ const TableForm = () => {
         setIsDragging(false);
     };
 
-    // Resize handlers (revised)
+    // Resize handlers
     const handleResizeStart = (e) => {
         e.preventDefault();
         e.stopPropagation();
         setIsResizing(true);
-        setResizeStart({
-            x: e.clientX,
-            y: e.clientY
-        });
+        setResizeStart({ x: e.clientX, y: e.clientY });
     };
 
     const handleResize = (e) => {
@@ -192,35 +187,29 @@ const TableForm = () => {
         const deltaX = (e.clientX - resizeStart.x) / scale;
         const deltaY = (e.clientY - resizeStart.y) / scale;
 
-        // Hitung ukuran baru
         let newWidth = form.size.width + deltaX;
         let newHeight = form.size.height + deltaY;
 
-        // Batasi ukuran
         newWidth = Math.max(0.5, Math.min(5, newWidth));
         newHeight = Math.max(0.5, Math.min(5, newHeight));
 
-        // Validasi posisi agar tidak keluar dari area
         const boundedX = Math.max(newWidth / 2, Math.min(form.position.x, areaSize.width - newWidth / 2));
         const boundedY = Math.max(newHeight / 2, Math.min(form.position.y, areaSize.height - newHeight / 2));
 
         setForm(prev => ({
             ...prev,
             size: { width: newWidth, height: newHeight },
-            position: { x: boundedX, y: boundedY } // sesuaikan posisi jika ukuran baru terlalu besar
+            position: { x: boundedX, y: boundedY }
         }));
 
-        setResizeStart({
-            x: e.clientX,
-            y: e.clientY
-        });
+        setResizeStart({ x: e.clientX, y: e.clientY });
     };
 
     const handleResizeEnd = () => {
         setIsResizing(false);
     };
 
-    // Event listeners untuk drag (global)
+    // Global mouse listeners
     useEffect(() => {
         const handleMouseMove = (e) => {
             if (isDragging) handleDrag(e);
@@ -247,49 +236,45 @@ const TableForm = () => {
 
     const validateForm = () => {
         const newErrors = {};
-        
+
         if (!form.table_number) newErrors.table_number = 'Nomor meja wajib diisi';
         if (!form.area_id) newErrors.area_id = 'Area wajib dipilih';
-        
-        // Validate position stays within area with table size considered
+
         const minX = form.size.width / 2;
         const maxX = areaSize.width - form.size.width / 2;
         const minY = form.size.height / 2;
         const maxY = areaSize.height - form.size.height / 2;
-        
+
         if (form.position.x < minX || form.position.x > maxX) {
             newErrors.position = `Posisi X harus antara ${minX.toFixed(1)} dan ${maxX.toFixed(1)}`;
         }
-        
+
         if (form.position.y < minY || form.position.y > maxY) {
             newErrors.position = `Posisi Y harus antara ${minY.toFixed(1)} dan ${maxY.toFixed(1)}`;
         }
-        
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         if (!validateForm()) return;
-        
+
         try {
             if (id) {
-                // Update existing table
                 await axios.put(`/api/areas/tables/${id}`, form);
             } else {
-                // Create new table
                 await axios.post('/api/areas/tables', form);
             }
-            
             navigate('/admin/table-management');
         } catch (error) {
             console.error('Error saving table:', error);
             if (error.response?.data?.message) {
-                setErrors({...errors, server: error.response.data.message});
+                setErrors({ ...errors, server: error.response.data.message });
             } else {
-                setErrors({...errors, server: 'Terjadi kesalahan saat menyimpan data'});
+                setErrors({ ...errors, server: 'Terjadi kesalahan saat menyimpan data' });
             }
         }
     };
@@ -337,7 +322,6 @@ const TableForm = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Left Column - Form Fields */}
                         <div>
-                            {/* Table Number */}
                             <div className="mb-4">
                                 <label className="block text-gray-700 text-sm font-medium mb-2">
                                     Nomor Meja <span className="text-red-500">*</span>
@@ -355,7 +339,6 @@ const TableForm = () => {
                                 )}
                             </div>
 
-                            {/* Area Selection */}
                             <div className="mb-4">
                                 <label className="block text-gray-700 text-sm font-medium mb-2">
                                     Area <span className="text-red-500">*</span>
@@ -378,7 +361,6 @@ const TableForm = () => {
                                 )}
                             </div>
 
-                            {/* Seats */}
                             <div className="mb-4">
                                 <label className="block text-gray-700 text-sm font-medium mb-2">
                                     Jumlah Kursi
@@ -393,7 +375,6 @@ const TableForm = () => {
                                 />
                             </div>
 
-                            {/* Table Type */}
                             <div className="mb-4">
                                 <label className="block text-gray-700 text-sm font-medium mb-2">
                                     Tipe Meja
@@ -411,7 +392,6 @@ const TableForm = () => {
                                 </select>
                             </div>
 
-                            {/* Shape */}
                             <div className="mb-4">
                                 <label className="block text-gray-700 text-sm font-medium mb-2">
                                     Bentuk Meja
@@ -430,7 +410,6 @@ const TableForm = () => {
                                 </select>
                             </div>
 
-                            {/* Table Size */}
                             <div className="mb-4 grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-gray-700 text-sm font-medium mb-2">
@@ -471,8 +450,7 @@ const TableForm = () => {
                                 <label className="block text-gray-700 text-sm font-medium mb-2">
                                     Posisi Meja
                                 </label>
-                                
-                                {/* Position Inputs */}
+
                                 <div className="grid grid-cols-2 gap-4 mb-4">
                                     <div>
                                         <label className="block text-gray-700 text-xs mb-1">
@@ -512,41 +490,66 @@ const TableForm = () => {
                                 {/* Visual Position Editor */}
                                 <div className="relative">
                                     {selectedArea ? (
-                                        <div 
+                                        <div
                                             ref={areaRef}
-                                            className="relative border-2 border-gray-300 bg-gray-50 rounded-md overflow-auto"
+                                            className="relative border-2 border-gray-300 bg-gray-50 rounded-md overflow-hidden"
                                             style={{
                                                 height: `${areaSize.height * scale}px`,
                                                 width: `${areaSize.width * scale}px`,
                                                 maxHeight: '500px',
                                                 maxWidth: '100%',
                                                 backgroundImage: 'linear-gradient(to right, #f0f0f0 1px, transparent 1px), linear-gradient(to bottom, #f0f0f0 1px, transparent 1px)',
-                                                backgroundSize: '10px 10px' // Small 10px grid (10cm squares)
+                                                backgroundSize: '10px 10px'
                                             }}
-                                            onMouseMove={isDragging ? handleDrag : undefined}
-                                            onMouseUp={handleDragEnd}
-                                            onMouseLeave={handleDragEnd}
                                         >
-                                            {/* Grid lines - 1m (100px) major grid */}
-                                            <div 
+                                            {/* Major grid (1m = 100px) */}
+                                            <div
                                                 className="absolute inset-0"
                                                 style={{
                                                     backgroundImage: 'linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px)',
-                                                    backgroundSize: '100px 100px' // 1m grid lines
+                                                    backgroundSize: '100px 100px'
                                                 }}
                                             />
 
-                                            {/* Area name label */}
                                             <div className="absolute top-2 left-2 bg-white bg-opacity-70 px-2 py-1 rounded text-sm font-medium">
                                                 {selectedArea.area_name}
                                             </div>
 
-                                            {/* Dimensions label */}
                                             <div className="absolute top-2 right-2 bg-white bg-opacity-70 px-2 py-1 rounded text-sm">
                                                 {areaSize.width}m × {areaSize.height}m
                                             </div>
 
-                                            {/* Draggable Table Representation */}
+                                            {/* Existing tables (non-editable) */}
+                                            {existingTables.map(table => {
+                                                const width = table.size?.width || 0.8;
+                                                const height = table.size?.height || 0.8;
+                                                return (
+                                                    <div
+                                                        key={table._id}
+                                                        className={`absolute flex items-center justify-center rounded border-2 
+                                                            ${table.status === 'available' ? 'border-green-400 bg-green-50' : 
+                                                              table.status === 'occupied' ? 'border-red-400 bg-red-50' :
+                                                              table.status === 'reserved' ? 'border-yellow-400 bg-yellow-50' :
+                                                              'border-gray-400 bg-gray-50'}`}
+                                                        style={{
+                                                            left: `${table.position.x * scale}px`,
+                                                            top: `${table.position.y * scale}px`,
+                                                            width: `${width * scale}px`,
+                                                            height: `${height * scale}px`,
+                                                            borderRadius: table.shape === 'circle' || table.shape === 'oval' ? '50%' : '4px',
+                                                            transform: 'translate(-50%, -50%)',
+                                                            userSelect: 'none',
+                                                            pointerEvents: 'none'
+                                                        }}
+                                                    >
+                                                        <div className="text-xs font-medium text-center">
+                                                            {table.table_number}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* Current table (editable) */}
                                             <div
                                                 ref={tableRef}
                                                 className={`absolute flex flex-col items-center justify-center rounded cursor-move border-2 
@@ -560,7 +563,7 @@ const TableForm = () => {
                                                     width: `${form.size.width * scale}px`,
                                                     height: `${form.size.height * scale}px`,
                                                     borderRadius: form.shape === 'circle' || form.shape === 'oval' ? '50%' : '4px',
-                                                    transform: 'translate(-50%, -50%)', // Pusatkan berdasarkan posisi
+                                                    transform: 'translate(-50%, -50%)',
                                                     userSelect: 'none'
                                                 }}
                                                 onMouseDown={handleDragStart}
@@ -572,7 +575,6 @@ const TableForm = () => {
                                                     {form.seats} kursi
                                                 </div>
 
-                                                {/* Resize handle */}
                                                 <div
                                                     ref={resizeHandleRef}
                                                     className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 rounded-tl cursor-nwse-resize opacity-80 hover:opacity-100"
@@ -582,7 +584,6 @@ const TableForm = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Scale indicator */}
                                             <div className="absolute bottom-2 right-2 text-xs text-gray-500">
                                                 Skala: 1m = 100px
                                             </div>
@@ -595,7 +596,6 @@ const TableForm = () => {
                                 </div>
                             </div>
 
-                            {/* Status */}
                             <div className="mb-4">
                                 <label className="block text-gray-700 text-sm font-medium mb-2">
                                     Status
@@ -613,14 +613,13 @@ const TableForm = () => {
                                 </select>
                             </div>
 
-                            {/* Availability */}
                             <div className="mb-4 flex items-center">
                                 <input
                                     type="checkbox"
                                     name="is_available"
                                     id="is_available"
                                     checked={form.is_available}
-                                    onChange={(e) => setForm({...form, is_available: e.target.checked})}
+                                    onChange={(e) => setForm({ ...form, is_available: e.target.checked })}
                                     className="mr-2"
                                 />
                                 <label htmlFor="is_available" className="text-gray-700 text-sm font-medium">
@@ -628,14 +627,13 @@ const TableForm = () => {
                                 </label>
                             </div>
 
-                            {/* Active Status */}
                             <div className="mb-4 flex items-center">
                                 <input
                                     type="checkbox"
                                     name="is_active"
                                     id="is_active"
                                     checked={form.is_active}
-                                    onChange={(e) => setForm({...form, is_active: e.target.checked})}
+                                    onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
                                     className="mr-2"
                                 />
                                 <label htmlFor="is_active" className="text-gray-700 text-sm font-medium">
@@ -656,7 +654,7 @@ const TableForm = () => {
                             type="submit"
                             className="flex items-center px-4 py-2 bg-[#005429] text-white rounded hover:bg-[#004020]"
                         >
-                            <FaSave className="mr-2" /> Simpannpm
+                            <FaSave className="mr-2" /> Simpan
                         </button>
                     </div>
                 </form>
