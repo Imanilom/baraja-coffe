@@ -361,7 +361,7 @@ router.get('/:id/tables', async (req, res) => {
 // Create a new area
 router.post('/', async (req, res) => {
     try {
-        const { area_code, area_name, capacity, description, rentfee, roomSize } = req.body;
+        const { area_code, area_name, capacity, description, rentfee, roomSize, outlet_id } = req.body;
 
         if (!roomSize?.width || !roomSize?.height) {
             return res.status(400).json({ success: false, message: 'Room size (width & height) is required' });
@@ -375,6 +375,7 @@ router.post('/', async (req, res) => {
 
         const newArea = new Area({
             area_code: area_code.toUpperCase(),
+            outlet_id,
             area_name,
             capacity,
             description: description || '',

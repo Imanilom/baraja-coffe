@@ -2,8 +2,44 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
 import { FaBoxes, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import Select from "react-select";
 
 const CreateArea = () => {
+
+    const customStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db',
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            '&:hover': {
+                borderColor: '#9ca3af',
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af',
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
+    };
+
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [form, setForm] = useState({
@@ -50,7 +86,7 @@ const CreateArea = () => {
     const handleCapacityChange = (operation) => {
         setForm(prev => ({
             ...prev,
-            capacity: operation === 'increase' 
+            capacity: operation === 'increase'
                 ? Math.min(99, prev.capacity + 1)
                 : Math.max(1, prev.capacity - 1)
         }));
@@ -77,7 +113,10 @@ const CreateArea = () => {
         }));
     };
 
-
+    const options = [
+        { value: "", label: "Semua Outlet" },
+        ...outletList.map((o) => ({ value: o._id, label: o.name })),
+    ];
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -99,9 +138,10 @@ const CreateArea = () => {
         try {
             const response = await axios.post('/api/areas', {
                 ...form,
+                outlet_id: selectedOutlet,
                 area_code: form.area_code.toUpperCase()
             });
-            
+
             if (response.data.success) {
                 navigate('/admin/table-management');
             }
@@ -115,29 +155,19 @@ const CreateArea = () => {
 
     return (
         <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
-            
             <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="px-3 py-3 flex justify-between items-center border-b">
-                    <div className="flex items-center space-x-2">
-                        <FaBoxes size={22} className="text-gray-400 inline-block" />
-                        <span className="text-gray-400 inline-block">
+                <div className="flex justify-between items-center px-6 py-3 my-3">
+                    <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                        <span>
                             Pengaturan Area
                         </span>
-                        <FaChevronRight size={22} className="text-gray-400 inline-block" />
-                        <span className="text-gray-400 inline-block">
+                        <FaChevronRight />
+                        <span>
                             Tambah Area
                         </span>
                     </div>
                 </div>
-                
+
                 {/* Area Information */}
                 <div className="grid px-3 grid-cols-1 w-full md:w-1/2 gap-4">
                     {/* Outlet Selection */}
@@ -146,48 +176,20 @@ const CreateArea = () => {
                             Outlet
                         </label>
                         <div className="relative flex-1">
-                            {!showInput ? (
-                                <button
-                                    type="button"
-                                    className="w-full text-[13px] text-gray-500 border py-2 px-3 rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
-                                    onClick={() => setShowInput(true)}
-                                >
-                                    {selectedOutlet || 'Pilih Outlet'}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-2 px-3 rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder="Cari outlet..."
-                                />
-                            )}
-                            {showInput && (
-                                <ul
-                                    className="absolute z-10 bg-white border mt-1 w-full rounded shadow-md max-h-48 overflow-auto"
-                                    ref={dropdownRef}
-                                >
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setSelectedOutlet(outlet.name);
-                                                    setShowInput(false);
-                                                    setSearch('');
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet.name}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
+                            <Select
+                                options={options}
+                                value={
+                                    selectedOutlet
+                                        ? options.find((opt) => opt.value === selectedOutlet)
+                                        : options[0]
+                                }
+                                onChange={(selected) => setSelectedOutlet(selected.value)}
+                                placeholder="Pilih outlet..."
+                                className="text-[13px]"
+                                classNamePrefix="react-select"
+                                styles={customStyles}
+                                isSearchable
+                            />
                         </div>
                     </div>
 
@@ -273,7 +275,7 @@ const CreateArea = () => {
                         </div>
                     </div>
 
-                     {/* Room Size */}
+                    {/* Room Size */}
                     <div className="flex items-center">
                         <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
                             Ukuran Ruangan

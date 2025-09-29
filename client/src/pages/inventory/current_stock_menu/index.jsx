@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { FaBox, FaTag, FaBell, FaUser, FaShoppingBag, FaLayerGroup, FaSquare, FaInfo, FaPencilAlt, FaThLarge, FaDollarSign, FaTrash, FaSearch, FaChevronRight, FaInfoCircle, FaBoxes, FaChevronLeft } from 'react-icons/fa';
 import axios from "axios";
 import dayjs from "dayjs";
@@ -116,7 +116,7 @@ const CurrentStockManagement = () => {
         }
     };
 
-    const applyFilter = () => {
+    const applyFilter = useCallback(() => {
         try {
             let filtered = [...originalData]; // selalu mulai dari data asli
             if (tempSearch) {
@@ -134,12 +134,41 @@ const CurrentStockManagement = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [tempSearch]);
+
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
+
+    // Initial load
+    useEffect(() => {
+        applyFilter();
+    }, []);
 
     // Gunakan useEffect untuk jalankan saat component mount atau value berubah
     useEffect(() => {
         fetchStockCard();
     }, []);
+
+    const renderPageNumbers = () => {
+        let pages = [];
+        for (let i = 1; i <= totalPages; i++) {
+            pages.push(
+                <button
+                    key={i}
+                    onClick={() => setCurrentPage(i)}
+                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
+                        ? "bg-green-900 text-white border-green-900"
+                        : "text-green-900 hover:bg-green-900 hover:text-white"
+                        }`}
+                >
+                    {i}
+                </button>
+            );
+        }
+        return pages;
+    };
 
     const handleSave = (updated) => {
         setOriginalData((prev) =>
@@ -186,19 +215,15 @@ const CurrentStockManagement = () => {
     }
 
     return (
-        <div className="min-h-screen flex flex-col">
-            {/* Header */}
-            <Header />
+        <div className="">
 
             {/* Sub Header */}
-            <div className="px-3 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b bg-white space-y-2 sm:space-y-0">
-                <div className="flex items-center space-x-2 text-sm">
-                    <FaBoxes size={18} className="text-gray-500" />
-                    <p className="text-gray-500">Inventori</p>
-                    <FaChevronRight className="text-gray-500" />
-                    <p className="text-[#005429]">Stok Masuk</p>
-                    <FaInfoCircle size={15} className="text-gray-400" />
-                </div>
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Inventori</span>
+                    <FaChevronRight />
+                    <span>Stok Masuk</span>
+                </h1>
                 <div className="flex w-full sm:w-auto px-4 py-2">
                     <ExportInventory
                         isOpen={isModalOpen}
@@ -213,13 +238,12 @@ const CurrentStockManagement = () => {
                 </div>
             </div>
 
-            <div className="px-3 pb-4 mb-[60px]">
+            <div className="px-6">
                 {/* Filter */}
-                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
+                <div className="flex flex-wrap gap-4 md:justify-between items-center py-3">
                     {/* Search */}
-                    <div className="md:flex md:flex-col md:col-span-5 hidden"></div>
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                    <div className="md:flex md:flex-col md:col-span-6 hidden"></div>
+                    <div className="flex flex-col col-span-5 w-1/5">
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
@@ -227,29 +251,9 @@ const CurrentStockManagement = () => {
                                 placeholder="Cari"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[8px] pl-[30px] pr-[25px] rounded w-full"
+                                className="text-[13px] border py-2 pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
-                    </div>
-
-                    {/* Buttons */}
-                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
-                        <button
-                            onClick={applyFilter}
-                            className="w-full sm:w-auto bg-[#005429] border text-white text-[13px] px-[15px] py-[8px] rounded"
-                        >
-                            Terapkan
-                        </button>
-                        <button
-                            onClick={() => {
-                                setTempSearch("");
-                                setFilteredData(originalData); // kembalikan ke data asli
-                                setCurrentPage(1);
-                            }}
-                            className="w-full sm:w-auto text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded"
-                        >
-                            Reset
-                        </button>
                     </div>
                 </div>
 
@@ -270,9 +274,9 @@ const CurrentStockManagement = () => {
                 </div> */}
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
+                <div className="overflow-x-auto rounded bg-white shadow-md shadow-slate-200">
                     <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
-                        <thead className="bg-slate-50 text-gray-400">
+                        <thead className="text-gray-400">
                             <tr>
                                 <th className="p-3 font-medium text-left w-[20%]">Produk</th>
                                 <th className="p-3 font-medium text-left w-[20%]">Kategori</th>
@@ -318,65 +322,26 @@ const CurrentStockManagement = () => {
                     </table>
                 </div>
 
-                {/* Pagination */}
-                {paginatedData.length > 0 && (
-                    <div className="flex flex-col sm:flex-row justify-between items-center mt-4 space-y-2 sm:space-y-0">
-                        <span className="text-sm text-gray-600 text-center sm:text-left">
-                            Menampilkan{" "}
-                            {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-                            {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari{" "}
-                            {filteredData.length} data
-                        </span>
-                        <div className="flex flex-wrap justify-center sm:justify-end space-x-1">
-                            <button
-                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="px-3 py-2 border rounded disabled:opacity-50"
-                            >
-                                <FaChevronLeft />
-                            </button>
-                            {[...Array(totalPages)].map((_, index) => {
-                                const page = index + 1;
-                                if (
-                                    page === 1 ||
-                                    page === totalPages ||
-                                    (page >= currentPage - 2 && page <= currentPage + 2)
-                                ) {
-                                    return (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`px-3 py-1 rounded border ${currentPage === page
-                                                ? "bg-[#005429] text-white"
-                                                : "bg-white"
-                                                }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    );
-                                }
-                                if (
-                                    (page === currentPage - 3 && page > 1) ||
-                                    (page === currentPage + 3 && page < totalPages)
-                                ) {
-                                    return (
-                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
-                                            ...
-                                        </span>
-                                    );
-                                }
-                                return null;
-                            })}
-                            <button
-                                onClick={() =>
-                                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                                }
-                                disabled={currentPage === totalPages}
-                                className="px-3 py-2 border rounded disabled:opacity-50"
-                            >
-                                <FaChevronRight />
-                            </button>
-                        </div>
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex justify-between items-center mt-4 text-sm text-white">
+                        <button
+                            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                            disabled={currentPage === 1}
+                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
+                        >
+                            <FaChevronLeft /> Sebelumnya
+                        </button>
+
+                        <div className="flex gap-2">{renderPageNumbers()}</div>
+
+                        <button
+                            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                            disabled={currentPage === totalPages}
+                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
+                        >
+                            Selanjutnya <FaChevronRight />
+                        </button>
                     </div>
                 )}
             </div>
@@ -392,11 +357,6 @@ const CurrentStockManagement = () => {
                     </div>
                 </div>
             )}
-
-            {/* Footer */}
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]" />
-            </div>
         </div>
 
     );

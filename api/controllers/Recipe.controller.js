@@ -1,7 +1,7 @@
 import Recipe from '../models/modul_menu/Recipe.model.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
-import {MenuStock} from '../models/modul_menu/MenuStock.model.js';
+import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import mongoose from 'mongoose';
 

@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload, FaEye, FaTimes, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
+import PaymentDetailModal from "./detailModal";
 
 const PaymentMethodSales = () => {
+    // Modal state
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
 
     const customStyles = {
         control: (provided, state) => ({
@@ -58,6 +62,18 @@ const PaymentMethodSales = () => {
 
     const dropdownRef = useRef(null);
 
+    // Function to open modal with selected payment method
+    const openModal = (paymentMethod) => {
+        setSelectedPaymentMethod(paymentMethod);
+        setIsModalOpen(true);
+    };
+
+    // Function to close modal
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setSelectedPaymentMethod('');
+    };
+
     // Fetch products and outlets data
     const fetchData = async () => {
         setLoading(true);
@@ -70,8 +86,6 @@ const PaymentMethodSales = () => {
                 productsResponse.data :
                 (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
                     productsResponse.data.data : [];
-
-            // const completedData = productsData.filter(item => item.status === "Completed");
 
             setProducts(productsData);
             setFilteredData(productsData); // Initialize filtered data with all products
@@ -187,9 +201,6 @@ const PaymentMethodSales = () => {
                     const outletName = product.cashier.outlet[0]?.outletId?.name;
                     const matches = outletName === tempSelectedOutlet;
 
-                    if (!matches) {
-                    }
-
                     return matches;
                 } catch (err) {
                     console.error("Error filtering by outlet:", err);
@@ -220,8 +231,6 @@ const PaymentMethodSales = () => {
                     }
 
                     const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
                     return isInRange;
                 } catch (err) {
                     console.error("Error filtering by date:", err);
@@ -320,7 +329,6 @@ const PaymentMethodSales = () => {
 
     return (
         <div className="">
-
             {/* Breadcrumb */}
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
@@ -377,6 +385,7 @@ const PaymentMethodSales = () => {
                                 <th className="px-4 py-3 font-normal">Metode Pembayaran</th>
                                 <th className="px-4 py-3 font-normal text-right">Jumlah Transaksi</th>
                                 <th className="px-4 py-3 font-normal text-right">Total</th>
+                                <th className="px-4 py-3 font-normal text-center"></th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
@@ -385,8 +394,8 @@ const PaymentMethodSales = () => {
                                     try {
                                         return (
                                             <React.Fragment key={index}>
-                                                <tr className="text-left text-sm">
-                                                    <td className="px-4 py-3">
+                                                <tr className="text-left text-sm hover:bg-gray-50">
+                                                    <td className="px-4 py-3 font-medium">
                                                         {group.paymentMethod}
                                                     </td>
                                                     <td className="px-4 py-3 text-right">
@@ -395,14 +404,24 @@ const PaymentMethodSales = () => {
                                                     <td className="px-4 py-3 text-right">
                                                         {formatCurrency(group.subtotal) || 'N/A'}
                                                     </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <button
+                                                            onClick={() => openModal(group.paymentMethod)}
+                                                            className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                                                            title="Lihat Detail Transaksi"
+                                                        >
+                                                            <FaEye className="text-xs" />
+                                                            Detail
+                                                        </button>
+                                                    </td>
                                                 </tr>
                                             </React.Fragment>
                                         );
                                     } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
+                                        console.error(`Error rendering product ${index}:`, err);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="7" className="px-4 py-3 text-red-500">
+                                                <td colSpan="4" className="px-4 py-3 text-red-500">
                                                     Error rendering product
                                                 </td>
                                             </tr>
@@ -413,7 +432,7 @@ const PaymentMethodSales = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={4}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
@@ -422,11 +441,11 @@ const PaymentMethodSales = () => {
                                 <td className="px-4 py-2">Grand Total</td>
                                 <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotal.count.toLocaleString()}</p></td>
                                 <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal.toFixed())}</p></td>
+                                <td className="px-4 py-2"></td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
-
 
                 {/* Pagination Controls */}
                 {totalPages > 1 && (
@@ -451,6 +470,15 @@ const PaymentMethodSales = () => {
                     </div>
                 )}
             </div>
+
+            {/* Detail Modal */}
+            <PaymentDetailModal
+                isOpen={isModalOpen}
+                onClose={closeModal}
+                paymentMethod={selectedPaymentMethod}
+                orders={filteredData}
+                formatCurrency={formatCurrency}
+            />
         </div>
     );
 };

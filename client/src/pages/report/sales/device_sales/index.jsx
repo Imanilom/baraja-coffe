@@ -5,6 +5,7 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "rea
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
+import Paginated from "../../../../components/paginated";
 
 const DeviceSales = () => {
 
@@ -72,8 +73,10 @@ const DeviceSales = () => {
                     (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
                         productsResponse.data.data : [];
 
-                setProducts(productsData);
-                setFilteredData(productsData); // Initialize filtered data with all products
+                const completedData = productsData.filter(item => item.status === "Completed");
+
+                setProducts(completedData);
+                setFilteredData(completedData); // Initialize filtered data with all products
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -284,25 +287,6 @@ const DeviceSales = () => {
         XLSX.writeFile(wb, "Penjualan_Per_Outlet.xlsx");
     };
 
-    const renderPageNumbers = () => {
-        let pages = [];
-        for (let i = 1; i <= totalPages; i++) {
-            pages.push(
-                <button
-                    key={i}
-                    onClick={() => setCurrentPage(i)}
-                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
-                        ? "bg-green-900 text-white border-green-900"
-                        : "text-green-900 hover:bg-green-900 hover:text-white"
-                        }`}
-                >
-                    {i}
-                </button>
-            );
-        }
-        return pages;
-    };
-
     // Show loading state
     if (loading) {
         return (
@@ -426,28 +410,12 @@ const DeviceSales = () => {
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
-                {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-4 text-sm text-white">
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
-                        >
-                            <FaChevronLeft /> Sebelumnya
-                        </button>
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
 
-                        <div className="flex gap-2">{renderPageNumbers()}</div>
-
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                            disabled={currentPage === totalPages}
-                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
-                        >
-                            Selanjutnya <FaChevronRight />
-                        </button>
-                    </div>
-                )}
             </div>
         </div>
     );

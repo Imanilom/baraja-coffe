@@ -292,14 +292,11 @@ const UpdateMenu = () => {
   }
 
   return (
-    <div className="min-h-screen">
-      <Header />
-
+    <div className="">
       <form onSubmit={handleSubmit}>
 
-        <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+        <div className="flex justify-between items-center px-6 py-3 my-3">
           <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-            <FaShoppingBag />
             <Link to="/admin/menu">
               Menu
             </Link>
@@ -329,8 +326,8 @@ const UpdateMenu = () => {
           onConfirm={() => navigate("/admin/menu")}
         />
 
-        <div className="bg-slate-50 p-4 md:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white shadow-md rounded-xl p-6">
+        <div className="p-4 md:p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 shadow-md rounded-xl p-6 bg-white">
             {/* Bagian kiri */}
             <div className="space-y-4 text-green-900">
               {/* Name */}

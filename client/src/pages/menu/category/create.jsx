@@ -1,237 +1,123 @@
-// import React, { useState } from 'react';
-// import axios from 'axios';
-
-// const AddCategory = () => {
-//   const [name, setName] = useState('');
-//   const [description, setDescription] = useState('');
-//   const [type, setType] = useState('food'); // Default type adalah "food"
-//   const [loading, setLoading] = useState(false);
-//   const [error, setError] = useState(null);
-//   const [successMessage, setSuccessMessage] = useState('');
-
-//   // Fungsi untuk menangani pengiriman formulir
-//   const handleSubmit = async (e) => {
-//     e.preventDefault();
-//     setLoading(true);
-//     setError(null);
-
-//     try {
-//       const newCategory = {
-//         name,
-//         description,
-//         type,
-//       };
-
-//       const response = await axios.post('/api/storage/categories', [newCategory]); // Kirim sebagai array
-//       if (response.data.success) {
-//         setSuccessMessage('Category added successfully!');
-//         setName('');
-//         setDescription('');
-//         setType('food'); // Reset form
-//       }
-//     } catch (err) {
-//       setError('Failed to add category');
-//       console.error('Error adding category:', err);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   return (
-//     <div className="p-6">
-//       <h1 className="text-2xl font-bold mb-4">Add New Category</h1>
-
-//       {successMessage && (
-//         <p className="text-green-500 mb-4">{successMessage}</p>
-//       )}
-
-//       {error && <p className="text-red-500 mb-4">{error}</p>}
-
-//       <form onSubmit={handleSubmit}>
-//         <div className="mb-4">
-//           <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-//             Name:
-//           </label>
-//           <input
-//             type="text"
-//             id="name"
-//             value={name}
-//             onChange={(e) => setName(e.target.value)}
-//             className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-//             required
-//           />
-//         </div>
-
-//         <div className="mb-4">
-//           <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-//             Description:
-//           </label>
-//           <textarea
-//             id="description"
-//             value={description}
-//             onChange={(e) => setDescription(e.target.value)}
-//             className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-//           />
-//         </div>
-
-//         <div className="mb-4">
-//           <label htmlFor="type" className="block text-sm font-medium text-gray-700">
-//             Type:
-//           </label>
-//           <select
-//             id="type"
-//             value={type}
-//             onChange={(e) => setType(e.target.value)}
-//             className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-//           >
-//             <option value="food">Food</option>
-//             <option value="beverage">Beverage</option>
-//             <option value="instan">Instant Food</option>
-//             <option value="inventory">Inventory</option>
-//           </select>
-//         </div>
-
-//         <button
-//           type="submit"
-//           disabled={loading}
-//           className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-//         >
-//           {loading ? 'Adding...' : 'Add Category'}
-//         </button>
-//       </form>
-//     </div>
-//   );
-// };
-
-// export default AddCategory;
-
-import React, { useState, useEffect } from 'react';
+// Contoh lengkap dengan state management
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Link, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 
 const AddCategory = () => {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [type, setType] = useState('food');
-
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  // const [successMessage, setSuccessMessage] = useState('');
-  const navigate = useNavigate(); // ← inisialisasi
 
-  // Fungsi untuk menangani pengiriman formulir
+  // Form states
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState(''); // 'product' atau 'menu'
+  const [parentCategory, setParentCategory] = useState(''); // Optional
+  const { currentUser } = useSelector((state) => state.user);
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
+    // Validasi di frontend
+    if (!name.trim()) {
+      setError('Nama kategori harus diisi');
+      setLoading(false);
+      return;
+    }
+
+    if (!type) {
+      setError('Tipe kategori harus dipilih');
+      setLoading(false);
+      return;
+    }
+
     try {
       const newCategory = {
-        name,
-        description,
+        name: name.trim(),
+        description: description.trim(),
         type,
+        ...(parentCategory && { parentCategory }), // Hanya kirim jika ada
+        user: currentUser._id,
       };
 
-      await axios.post('/api/menu/categories', newCategory); // Kirim sebagai array
-      navigate('/admin/categories');
+      const response = await axios.post('/api/menu/categories', newCategory);
+
+      // Redirect dengan success message (optional)
+      navigate('/admin/categories', {
+        state: { message: 'Kategori berhasil ditambahkan!' }
+      });
     } catch (err) {
-      setError('Failed to add category');
-      console.error('Error adding category:', err);
+      const errorMessage = err.response?.data?.error ||
+        err.response?.data?.details ||
+        'Failed to add category';
+      setError(errorMessage);
+      console.error('Error adding category:', err.response?.data || err);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Tambah Kategori</h1>
-
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-            Nama Kategori
-          </label>
-          <input
-            type="text"
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            required
-          />
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          {error}
         </div>
+      )}
 
-        <div className="mb-4">
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-            Description:
-          </label>
-          <textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-          />
-        </div>
+      <div>
+        <label className="block mb-2">Nama Kategori *</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full px-3 py-2 border rounded"
+          required
+        />
+      </div>
 
-        <div className="mb-4">
-          <label htmlFor="type" className="block text-sm font-medium text-gray-700">
-            Type:
-          </label>
-          <select
-            id="type"
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-          >
-            <option value="food">Makanan</option>
-            <option value="beverage">Minuman</option>
-            <option value="instan">Makanan Instan</option>
-            <option value="inventory">Inventori</option>
-          </select>
-        </div>
-        {/* <div className="flex items-center justify-between space-x-4 mb-4">
-          <span>Tampilkan pada Pawoon Order</span>
-          <div className="flex items-center space-x-4">
-            <label className="flex items-center space-x-1">
-              <input type="radio" name="pawoon_order" value="yes" />
-              <span>Ya</span>
-            </label>
-            <label className="flex items-center space-x-1">
-              <input type="radio" name="pawoon_order" value="no" />
-              <span>Tidak</span>
-            </label>
-          </div>
-        </div>
+      <div>
+        <label className="block mb-2">Deskripsi</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="w-full px-3 py-2 border rounded"
+          rows="3"
+        />
+      </div>
 
-        <div className="flex items-center justify-between space-x-4">
-          <span>Tampilkan pada Digi Pawon</span>
-          <div className="flex items-center space-x-4">
-            <label className="flex items-center space-x-1">
-              <input type="radio" name="digi_pawon" value="yes" />
-              <span>Ya</span>
-            </label>
-            <label className="flex items-center space-x-1">
-              <input type="radio" name="digi_pawon" value="no" />
-              <span>Tidak</span>
-            </label>
-          </div>
-        </div> */}
+      <div>
+        <label className="block mb-2">Tipe Kategori *</label>
+        <input
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="w-full px-3 py-2 border rounded"
+          required
+        />
+      </div>
 
+      <div>
+        <label className="block mb-2">Parent Category (Optional)</label>
+        <select
+          value={parentCategory}
+          onChange={(e) => setParentCategory(e.target.value)}
+          className="w-full px-3 py-2 border rounded"
+        >
+          <option value="">Tidak Ada Parent</option>
+          {/* Map categories dari API */}
+        </select>
+      </div>
 
-        <div className="absolute h-[50px] bottom-0 right-6 space-x-2">
-          <Link to="/admin/categories" className="bg-white text-[#005429] border border-[#005429] inline-flex justify-center py-2 px-4 shadow-sm text-sm font-medium rounded-md hover:text-white hover:bg-[#005429]">Batal</Link>
-          <button
-            type="submit"
-            disabled={loading}
-            className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#005429]"
-          >
-            {loading ? 'Adding...' : 'Simpan'}
-          </button>
-        </div>
-      </form>
-    </div>
+      <button
+        type="submit"
+        disabled={loading}
+        className="px-4 py-2 bg-green-900 text-white rounded hover:bg-green-800 disabled:opacity-50"
+      >
+        {loading ? 'Menyimpan...' : 'Simpan Kategori'}
+      </button>
+    </form>
   );
 };
 
