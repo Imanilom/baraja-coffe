@@ -5,6 +5,7 @@ import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
+import 'package:kasirbaraja/screens/orders/online_orders/widgets/sheets/delete_order_item_sheet.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/utils/payment_status_utils.dart';
 
@@ -34,7 +35,7 @@ class OrderDetailWidget extends ConsumerWidget {
           const SizedBox(height: 8),
           _buildOrderInfo(order),
           const SizedBox(height: 8),
-          _buildItemsList(order),
+          _buildItemsList(context, order),
           const SizedBox(height: 8),
           _buildPricingDetails(order),
         ],
@@ -151,7 +152,7 @@ class OrderDetailWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildItemsList(OrderDetailModel order) {
+  Widget _buildItemsList(BuildContext context, OrderDetailModel order) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -162,9 +163,32 @@ class OrderDetailWidget extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Items (${order.items.length})',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Items (${order.items.length})',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(backgroundColor: Colors.red[50]),
+                child: Text(
+                  'Stok Habis ?',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (ctx) => DeleteOrderItemSheet(order: order),
+                  );
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           ...order.items.map((item) => _buildItemCard(item)),

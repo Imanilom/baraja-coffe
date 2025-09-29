@@ -26,6 +26,8 @@ import {
   getPaymentStatus,
   createFinalPayment,
   processPaymentCashier,
+  deleteOrderItemAtOrder,
+  getOrderByIdAfterItemDelete,
 } from '../controllers/order.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
@@ -99,5 +101,9 @@ router.post('/cashierCharge', cashierCharge);
 router.post('/order/cashier/confirm-order', confirmOrderViaCashier);
 
 router.post('/order/cashier/process-payment', processPaymentCashier);
+
+router.post('/order/delete-order-item', deleteOrderItemAtOrder);
+
+router.get('/order/:orderId/cashier', getOrderByIdAfterItemDelete);
 
 export default router;
