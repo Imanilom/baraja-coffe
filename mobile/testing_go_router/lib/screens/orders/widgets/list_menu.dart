@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
+import 'package:kasirbaraja/models/event.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
+import 'package:kasirbaraja/widgets/cards/event_item_card.dart';
 import 'package:kasirbaraja/widgets/cards/menu_item_card.dart';
 import 'package:kasirbaraja/widgets/dialogs/add_order_item_dialog.dart';
 
@@ -86,11 +88,11 @@ class _ListMenuState extends ConsumerState<ListMenu> {
   @override
   Widget build(BuildContext context) {
     final selectedCategory = ref.watch(categoryProvider);
-    final event = ref.watch(localEventProvider);
+    // final event = ref.watch(localEventProvider);
     final menu = ref.watch(reservationMenuItemProvider);
     final isSearchBarVisible = ref.watch(searchBarProvider);
 
-    const categories = ['All', 'makanan', 'minuman', 'Event', 'Art Galery'];
+    const categories = ['All', 'makanan', 'minuman', 'event', 'Art Galery'];
 
     return Row(
       children: [
@@ -188,146 +190,157 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                 // Menu Grid
                 Expanded(
                   child:
-                      selectedCategory == 'Event'
-                          ? event.when(
-                            loading:
-                                () => const Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                            error:
-                                (error, stack) =>
-                                    Center(child: Text('Error: $error')),
-                            data:
-                                (data) =>
-                                    data.isEmpty
-                                        ? const Center(
-                                          child: Text(
-                                            'Tidak ada menu ditemukan',
-                                          ),
-                                        )
-                                        : GridView.builder(
-                                          gridDelegate:
-                                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                                crossAxisCount: 2,
-                                                mainAxisSpacing: 8,
-                                                crossAxisSpacing: 8,
-                                                childAspectRatio: 1.5,
-                                              ),
-                                          padding: const EdgeInsets.all(8),
-                                          itemCount: data.length,
-                                          itemBuilder:
-                                              (context, index) => Container(
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Padding(
-                                                  padding: const EdgeInsets.all(
-                                                    8.0,
-                                                  ),
-                                                  child: Column(
-                                                    children: [
-                                                      Expanded(
-                                                        flex: 4,
-                                                        child: ClipRRect(
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                          child: Image.network(
-                                                            data[index]
-                                                                    .imageUrl ??
-                                                                '',
-                                                            fit: BoxFit.cover,
-                                                            width:
-                                                                double.infinity,
-                                                            height:
-                                                                double.infinity,
-                                                            errorBuilder: (
-                                                              context,
-                                                              error,
-                                                              stackTrace,
-                                                            ) {
-                                                              return Container(
-                                                                color:
-                                                                    Colors
-                                                                        .grey[100],
-                                                                child: Center(
-                                                                  child: Icon(
-                                                                    Icons
-                                                                        .restaurant_menu,
-                                                                    color:
-                                                                        Colors
-                                                                            .grey[400],
-                                                                    size: 32,
-                                                                  ),
-                                                                ),
-                                                              );
-                                                            },
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      Expanded(
-                                                        flex: 2,
-                                                        child: Center(
-                                                          child: Text(
-                                                            data[index].name,
-                                                            style:
-                                                                const TextStyle(
-                                                                  fontSize: 12,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
-                                                                ),
-                                                            textAlign:
-                                                                TextAlign
-                                                                    .center,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                        ),
-                          )
-                          : menu.when(
-                            loading:
-                                () => const Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                            error:
-                                (error, stack) =>
-                                    Center(child: Text('Error: $error')),
-                            data:
-                                (data) =>
-                                    data.isEmpty
-                                        ? const Center(
-                                          child: Text(
-                                            'Tidak ada menu ditemukan',
-                                          ),
-                                        )
-                                        : GridView.builder(
-                                          gridDelegate:
-                                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                                crossAxisCount: 4,
-                                                mainAxisSpacing: 4,
-                                                crossAxisSpacing: 4,
-                                                childAspectRatio: 1,
-                                              ),
-                                          padding: const EdgeInsets.all(8),
-                                          itemCount: data.length,
-                                          itemBuilder:
-                                              (context, index) => MenuItemCard(
+                  // selectedCategory == 'Event'
+                  //     ? event.when(
+                  //       loading:
+                  //           () => const Center(
+                  //             child: CircularProgressIndicator(),
+                  //           ),
+                  //       error:
+                  //           (error, stack) =>
+                  //               Center(child: Text('Error: $error')),
+                  //       data:
+                  //           (data) =>
+                  //               data.isEmpty
+                  //                   ? const Center(
+                  //                     child: Text(
+                  //                       'Tidak ada menu ditemukan',
+                  //                     ),
+                  //                   )
+                  //                   : GridView.builder(
+                  //                     gridDelegate:
+                  //                         const SliverGridDelegateWithFixedCrossAxisCount(
+                  //                           crossAxisCount: 2,
+                  //                           mainAxisSpacing: 8,
+                  //                           crossAxisSpacing: 8,
+                  //                           childAspectRatio: 1.5,
+                  //                         ),
+                  //                     padding: const EdgeInsets.all(8),
+                  //                     itemCount: data.length,
+                  //                     itemBuilder:
+                  //                         (context, index) => Container(
+                  //                           decoration: BoxDecoration(
+                  //                             color: Colors.white,
+                  //                             borderRadius:
+                  //                                 BorderRadius.circular(8),
+                  //                           ),
+                  //                           child: Padding(
+                  //                             padding: const EdgeInsets.all(
+                  //                               8.0,
+                  //                             ),
+                  //                             child: Column(
+                  //                               children: [
+                  //                                 Expanded(
+                  //                                   flex: 4,
+                  //                                   child: ClipRRect(
+                  //                                     borderRadius:
+                  //                                         BorderRadius.circular(
+                  //                                           8,
+                  //                                         ),
+                  //                                     child: Image.network(
+                  //                                       data[index]
+                  //                                               .imageUrl ??
+                  //                                           '',
+                  //                                       fit: BoxFit.cover,
+                  //                                       width:
+                  //                                           double.infinity,
+                  //                                       height:
+                  //                                           double.infinity,
+                  //                                       errorBuilder: (
+                  //                                         context,
+                  //                                         error,
+                  //                                         stackTrace,
+                  //                                       ) {
+                  //                                         return Container(
+                  //                                           color:
+                  //                                               Colors
+                  //                                                   .grey[100],
+                  //                                           child: Center(
+                  //                                             child: Icon(
+                  //                                               Icons
+                  //                                                   .restaurant_menu,
+                  //                                               color:
+                  //                                                   Colors
+                  //                                                       .grey[400],
+                  //                                               size: 32,
+                  //                                             ),
+                  //                                           ),
+                  //                                         );
+                  //                                       },
+                  //                                     ),
+                  //                                   ),
+                  //                                 ),
+                  //                                 Expanded(
+                  //                                   flex: 2,
+                  //                                   child: Center(
+                  //                                     child: Text(
+                  //                                       data[index].name,
+                  //                                       style:
+                  //                                           const TextStyle(
+                  //                                             fontSize: 12,
+                  //                                             fontWeight:
+                  //                                                 FontWeight
+                  //                                                     .bold,
+                  //                                           ),
+                  //                                       textAlign:
+                  //                                           TextAlign
+                  //                                               .center,
+                  //                                     ),
+                  //                                   ),
+                  //                                 ),
+                  //                               ],
+                  //                             ),
+                  //                           ),
+                  //                         ),
+                  //                   ),
+                  //     )
+                  //     :
+                  menu.when(
+                    loading:
+                        () => const Center(child: CircularProgressIndicator()),
+                    error:
+                        (error, stack) => Center(child: Text('Error: $error')),
+                    data:
+                        (data) =>
+                            data.isEmpty
+                                ? const Center(
+                                  child: Text('Tidak ada menu ditemukan'),
+                                )
+                                : GridView.builder(
+                                  gridDelegate:
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount:
+                                            selectedCategory == 'event' ? 2 : 4,
+                                        mainAxisSpacing:
+                                            selectedCategory == 'event' ? 8 : 4,
+                                        crossAxisSpacing:
+                                            selectedCategory == 'event' ? 8 : 4,
+                                        childAspectRatio:
+                                            selectedCategory == 'event'
+                                                ? 1.5
+                                                : 1,
+                                      ),
+                                  padding: const EdgeInsets.all(8),
+                                  itemCount: data.length,
+                                  itemBuilder:
+                                      (context, index) =>
+                                          selectedCategory == 'event'
+                                              ? EventItemCard(
+                                                menuItem: data[index],
+                                                onTap:
+                                                    () => _handleAddToOrder(
+                                                      data[index],
+                                                    ),
+                                              )
+                                              : MenuItemCard(
                                                 menuItem: data[index],
                                                 onTap:
                                                     () => _handleAddToOrder(
                                                       data[index],
                                                     ),
                                               ),
-                                        ),
-                          ),
+                                ),
+                  ),
                 ),
               ],
             ),

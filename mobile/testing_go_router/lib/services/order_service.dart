@@ -254,6 +254,41 @@ class OrderService {
       throw ApiResponseHandler.handleError(e);
     }
   }
+
+  Future<OrderDetailModel> fetchOrderDetail(String orderId) async {
+    final res = await _dio.get('/api/order/$orderId/cashier');
+    final json = res.data['data']?['order'] ?? res.data['data'] ?? res.data;
+    print('response fetch order detail: $json');
+    final result = OrderDetailModel.fromJson(json);
+    print('result fetch order detail: $result');
+    return result;
+  }
+
+  Future<Map<String, dynamic>> deleteOrderItemAtOrder({
+    required String orderId,
+    required String menuItemId,
+  }) async {
+    try {
+      if (orderId.isEmpty || menuItemId.isEmpty) {
+        throw Exception("orderId atau menuItemId tidak boleh kosong");
+      }
+
+      print('orderId: $orderId, menuItemId: $menuItemId');
+
+      final res = await _dio.post(
+        '/api/order/delete-order-item',
+        data: {'order_id': orderId, 'menu_item_id': menuItemId},
+      );
+
+      if (res.data['success'] == true) {
+        return res.data;
+      } else {
+        throw Exception('Failed to delete order item: ${res.data['message']}');
+      }
+    } catch (e) {
+      throw Exception('Failed to delete order item: $e');
+    }
+  }
 }
 
 Map<String, dynamic> createOrderRequest(OrderDetailModel order) {

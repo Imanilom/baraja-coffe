@@ -42,6 +42,28 @@ class OnlineOrderRepository {
     }
   }
 
+  Future<OrderDetailModel> deleteOrderItem({
+    required String orderId,
+    required String menuItemId,
+  }) async {
+    try {
+      final response = await _orderService.deleteOrderItemAtOrder(
+        orderId: orderId,
+        menuItemId: menuItemId,
+      );
+
+      final json = response['data']?['order'] ?? response['data'] ?? response;
+
+      print('response delete order item: $json');
+      final updatedOrder = json['order_id'];
+      print('updated order setelah delete item: $updatedOrder');
+      return _orderService.fetchOrderDetail(updatedOrder);
+    } catch (e) {
+      print("Gagal menghapus item dari order: ${e.toString()}");
+      rethrow;
+    }
+  }
+
   Future<void> confirmOrder(WidgetRef ref, OrderDetailModel orderDetail) async {
     try {
       final result = await _orderService.confirmPendingOrder(ref, orderDetail);
