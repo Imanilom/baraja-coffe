@@ -4403,7 +4403,7 @@ export const confirmOrderViaCashier = async (req, res) => {
     } else {
       order.status = 'Waiting';
     }
-    // order.source = source || order.source; // Update source jika diberikan
+
     await order.save();
 
     const statusUpdateData = {
@@ -4434,22 +4434,24 @@ export const confirmOrderViaCashier = async (req, res) => {
     console.log(`🔔 Emitted order status update to room: order_${order_id}`, statusUpdateData);
 
     // 3. Send FCM notification to customer
-    console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
-    if (order.user && order.user_id._id) {
-      try {
-        const orderData = {
-          orderId: order.order_id,
-          cashier: statusUpdateData.cashier
-        };
+    if (order.source === 'App') {
+      console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
+      if (order.user && order.user_id._id) {
+        try {
+          const orderData = {
+            orderId: order.order_id,
+            cashier: statusUpdateData.cashier
+          };
 
-        const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
-          order.user_id._id.toString(),
-          orderData
-        );
+          const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
+            order.user_id._id.toString(),
+            orderData
+          );
 
-        console.log('📱 FCM Notification result:', notificationResult);
-      } catch (notificationError) {
-        console.error('❌ Failed to send FCM notification:', notificationError);
+          console.log('📱 FCM Notification result:', notificationResult);
+        } catch (notificationError) {
+          console.error('❌ Failed to send FCM notification:', notificationError);
+        }
       }
     }
 
@@ -4723,8 +4725,8 @@ export const processPaymentCashier = async (req, res) => {
         processed_payments: payments.map(p => ({
           payment_id: p._id,
           payment_type: p.paymentType,
-          amount: p.amount,
-          remaining_amount: p.remainingAmount,
+          // amount: p.amount,
+          // remaining_amount: p.remainingAmount,
           status: p.status
         }))
       }

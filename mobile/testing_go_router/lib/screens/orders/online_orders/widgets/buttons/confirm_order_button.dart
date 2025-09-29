@@ -73,22 +73,10 @@ class _ConfirmOrderButtonState extends ConsumerState<ConfirmOrderButton> {
     });
 
     return ElevatedButton(
-      onPressed:
-          _isLoading || confirmationState.isLoading
-              ? null
-              : () async {
-                setState(() => _isLoading = true);
-
-                final request = ConfirmOrderRequest(
-                  orderId: widget.orderId,
-                  cashierId: widget.cashierId,
-                  source: widget.source,
-                );
-
-                await ref
-                    .read(orderConfirmationProvider.notifier)
-                    .confirmOrder(ref, request);
-              },
+      onPressed: () {
+        _confirmOrder(context, ref);
+        // Navigator.of(context).pop();
+      },
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
@@ -113,6 +101,63 @@ class _ConfirmOrderButtonState extends ConsumerState<ConfirmOrderButton> {
                 ],
               )
               : const Text('Konfirmasi'),
+    );
+  }
+
+  void _confirmOrder(BuildContext context, WidgetRef ref) {
+    final confirmationState = ref.watch(orderConfirmationProvider);
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Order'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text('Anda akan mengonfirmasi order ini.'),
+              SizedBox(height: 8),
+              Text(
+                'Apakah Anda yakin ingin melanjutkan?',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed:
+                  _isLoading || confirmationState.isLoading
+                      ? null
+                      : () async {
+                        setState(() => _isLoading = true);
+
+                        final request = ConfirmOrderRequest(
+                          orderId: widget.orderId,
+                          cashierId: widget.cashierId,
+                          source: widget.source,
+                        );
+
+                        await ref
+                            .read(orderConfirmationProvider.notifier)
+                            .confirmOrder(ref, request);
+                        // Tutup dialog setelah proses konfirmasi
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                        }
+                      },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Ya, Lanjutkan'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
