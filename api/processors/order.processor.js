@@ -66,9 +66,9 @@ orderQueue.process(async (job) => {
       taxAndServiceDetails,
       totalTax,
       totalServiceFee,
-      grandTotal
+      grandTotal,
     } = await processOrderItems(
-      { items, outletId: outlet, orderType, voucherCode, customerType },
+      { items, outletId: outlet, orderType, voucherCode, customerType, source},
       session
     );
 
