@@ -14,7 +14,7 @@ const TableForm = () => {
         seats: 4,
         table_type: 'regular',
         shape: 'rectangle',
-        size: { width: 0.8, height: 0.8 }, // in meters
+        size: { width: 0.8, height: 0.8 },
         position: { x: 0, y: 0 },
         status: 'available',
         is_available: true,
@@ -26,20 +26,22 @@ const TableForm = () => {
     const [isResizing, setIsResizing] = useState(false);
     const [resizeStart, setResizeStart] = useState({ x: 0, y: 0 });
     const [selectedArea, setSelectedArea] = useState(null);
-    const [existingTables, setExistingTables] = useState([]); // <-- TAMBAHAN
+    const [existingTables, setExistingTables] = useState([]);
+    const [canvasScale, setCanvasScale] = useState(1); // State untuk zoom
 
     const areaRef = useRef(null);
     const tableRef = useRef(null);
     const resizeHandleRef = useRef(null);
+    const canvasContainerRef = useRef(null);
 
-    const scale = 100; // 1 meter = 100 pixels
+    const baseScale = 100; // Skala dasar 1m = 100px
 
-    // Fetch areas and table data (if editing)
     useEffect(() => {
         const fetchData = async () => {
             try {
                 const areasResponse = await axios.get('/api/areas');
-                setAreas(areasResponse.data.data);
+                const areasData = areasResponse.data.data || [];
+                setAreas(areasData);
 
                 if (id) {
                     const tableResponse = await axios.get(`/api/areas/tables/${id}`);
@@ -58,7 +60,7 @@ const TableForm = () => {
                         is_active: tableData.is_active
                     });
 
-                    const area = areasResponse.data.data.find(a => a._id === tableData.area_id._id);
+                    const area = areasData.find(a => a._id === tableData.area_id._id);
                     if (area) {
                         setAreaSize({
                             width: area.roomSize.width,
@@ -66,9 +68,8 @@ const TableForm = () => {
                             unit: area.roomSize.unit || 'm'
                         });
                         setSelectedArea(area);
-                        // Load existing tables in this area (exclude current)
-                        const otherTables = (Array.isArray(area.tables) ? area.tables : [])
-                            .filter(t => t._id !== id);
+                        // Filter out current table
+                        const otherTables = (area.tables || []).filter(t => t._id !== id);
                         setExistingTables(otherTables);
                     }
                 }
@@ -82,7 +83,29 @@ const TableForm = () => {
         fetchData();
     }, [id]);
 
-    const handleChange = (e) => {
+    // Handle zoom dengan mouse wheel
+    useEffect(() => {
+        const handleWheel = (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                setCanvasScale(prev => Math.max(0.3, Math.min(2, prev + delta)));
+            }
+        };
+
+        const canvasContainer = canvasContainerRef.current;
+        if (canvasContainer) {
+            canvasContainer.addEventListener('wheel', handleWheel, { passive: false });
+        }
+
+        return () => {
+            if (canvasContainer) {
+                canvasContainer.removeEventListener('wheel', handleWheel);
+            }
+        };
+    }, []);
+
+    const handleChange = async (e) => {
         const { name, value } = e.target;
 
         if (name === 'area_id') {
@@ -94,30 +117,42 @@ const TableForm = () => {
                     unit: area.roomSize.unit || 'm'
                 });
                 setSelectedArea(area);
-                // Reset position to center
+                
+                // Reset position to center of area
                 setForm(prev => ({
                     ...prev,
-                    [name]: value,
-                    position: { x: area.roomSize.width / 2, y: area.roomSize.height / 2 }
+                    area_id: value,
+                    position: { 
+                        x: area.roomSize.width / 2, 
+                        y: area.roomSize.height / 2 
+                    }
                 }));
-                // Load existing tables in this area
-                const otherTables = (Array.isArray(area.tables) ? area.tables : [])
-                    .filter(t => t._id !== id);
-                setExistingTables(otherTables);
+
+                // Reset zoom ketika ganti area
+                setCanvasScale(1);
+
+                // Load tables from the area data (same as TablePlanManagement)
+                const tablesInArea = area.tables || [];
+                
+                // Jika mode edit, filter out current table
+                const filteredTables = id 
+                    ? tablesInArea.filter(t => t._id !== id)
+                    : [...tablesInArea]; // shallow copy untuk create
+                
+                setExistingTables(filteredTables);
+            } else {
+                setSelectedArea(null);
+                setExistingTables([]);
             }
             return;
         }
 
-        setForm(prev => ({
-            ...prev,
-            [name]: value
-        }));
+        setForm(prev => ({ ...prev, [name]: value }));
     };
 
     const handleSizeChange = (e) => {
         const { name, value } = e.target;
         const numValue = parseFloat(value) || 0;
-
         setForm(prev => ({
             ...prev,
             size: {
@@ -130,7 +165,6 @@ const TableForm = () => {
     const handlePositionChange = (e) => {
         const { name, value } = e.target;
         const numValue = parseFloat(value) || 0;
-
         setForm(prev => ({
             ...prev,
             position: {
@@ -140,7 +174,6 @@ const TableForm = () => {
         }));
     };
 
-    // Drag handlers
     const handleDragStart = (e) => {
         e.preventDefault();
         setIsDragging(true);
@@ -152,14 +185,12 @@ const TableForm = () => {
 
     const handleDrag = (e) => {
         if (!isDragging || !areaRef.current) return;
-
         const areaRect = areaRef.current.getBoundingClientRect();
-        const x = (e.clientX - areaRect.left) / scale;
-        const y = (e.clientY - areaRect.top) / scale;
+        const x = (e.clientX - areaRect.left) / (baseScale * canvasScale);
+        const y = (e.clientY - areaRect.top) / (baseScale * canvasScale);
 
         const halfWidth = form.size.width / 2;
         const halfHeight = form.size.height / 2;
-
         const boundedX = Math.max(halfWidth, Math.min(x, areaSize.width - halfWidth));
         const boundedY = Math.max(halfHeight, Math.min(y, areaSize.height - halfHeight));
 
@@ -173,7 +204,6 @@ const TableForm = () => {
         setIsDragging(false);
     };
 
-    // Resize handlers
     const handleResizeStart = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -183,13 +213,11 @@ const TableForm = () => {
 
     const handleResize = (e) => {
         if (!isResizing || !areaRef.current) return;
-
-        const deltaX = (e.clientX - resizeStart.x) / scale;
-        const deltaY = (e.clientY - resizeStart.y) / scale;
+        const deltaX = (e.clientX - resizeStart.x) / (baseScale * canvasScale);
+        const deltaY = (e.clientY - resizeStart.y) / (baseScale * canvasScale);
 
         let newWidth = form.size.width + deltaX;
         let newHeight = form.size.height + deltaY;
-
         newWidth = Math.max(0.5, Math.min(5, newWidth));
         newHeight = Math.max(0.5, Math.min(5, newHeight));
 
@@ -201,7 +229,6 @@ const TableForm = () => {
             size: { width: newWidth, height: newHeight },
             position: { x: boundedX, y: boundedY }
         }));
-
         setResizeStart({ x: e.clientX, y: e.clientY });
     };
 
@@ -209,13 +236,11 @@ const TableForm = () => {
         setIsResizing(false);
     };
 
-    // Global mouse listeners
     useEffect(() => {
         const handleMouseMove = (e) => {
             if (isDragging) handleDrag(e);
             if (isResizing) handleResize(e);
         };
-
         const handleMouseUp = () => {
             setIsDragging(false);
             setIsResizing(false);
@@ -233,10 +258,62 @@ const TableForm = () => {
             window.removeEventListener('mouseleave', handleMouseUp);
         };
     }, [isDragging, isResizing]);
+    
+    // Format status text (sama seperti di TablePlanManagement)
+    const formatStatus = (status) => {
+        switch (status) {
+            case 'available': return 'Tersedia';
+            case 'occupied': return 'Terisi';
+            case 'reserved': return 'Dipesan';
+            case 'maintenance': return 'Perbaikan';
+            default: return status;
+        }
+    };
+
+    // Render existing tables dengan style yang sama seperti TablePlanManagement
+    const renderExistingTable = (table) => {
+        const width = table.size?.width ?? 0.8;
+        const height = table.size?.height ?? 0.8;
+        
+        return (
+            <div
+                key={table._id}
+                className={`absolute flex flex-col items-center justify-center rounded cursor-pointer border-2 
+                    ${table.status === 'available' ? 'border-green-500 bg-green-100 hover:bg-green-200' :
+                      table.status === 'occupied' ? 'border-red-500 bg-red-100 hover:bg-red-200' :
+                      table.status === 'reserved' ? 'border-yellow-500 bg-yellow-100 hover:bg-yellow-200' :
+                      'border-gray-500 bg-gray-100 hover:bg-gray-200'}`}
+                style={{
+                    left: `${table.position.x * baseScale * canvasScale}px`,
+                    top: `${table.position.y * baseScale * canvasScale}px`,
+                    width: `${width * baseScale * canvasScale}px`,
+                    height: `${height * baseScale * canvasScale}px`,
+                    borderRadius: table.shape === 'circle' || table.shape === 'oval' ? '50%' : '4px',
+                    transform: 'translate(-50%, -50%)',
+                    transition: 'background-color 0.2s',
+                    userSelect: 'none',
+                    pointerEvents: 'none' // Non-editable
+                }}
+            >
+                <div className="text-sm font-semibold text-center pointer-events-none">
+                    {table.table_number}
+                </div>
+                <div className="text-xs text-gray-600 pointer-events-none">
+                    {table.seats} kursi
+                </div>
+                <div className={`text-xs font-medium mt-1 pointer-events-none
+                    ${table.status === 'available' ? 'text-green-600' :
+                      table.status === 'occupied' ? 'text-red-600' :
+                      table.status === 'reserved' ? 'text-yellow-600' :
+                      'text-gray-600'}`}>
+                    {formatStatus(table.status)}
+                </div>
+            </div>
+        );
+    };
 
     const validateForm = () => {
         const newErrors = {};
-
         if (!form.table_number) newErrors.table_number = 'Nomor meja wajib diisi';
         if (!form.area_id) newErrors.area_id = 'Area wajib dipilih';
 
@@ -248,7 +325,6 @@ const TableForm = () => {
         if (form.position.x < minX || form.position.x > maxX) {
             newErrors.position = `Posisi X harus antara ${minX.toFixed(1)} dan ${maxX.toFixed(1)}`;
         }
-
         if (form.position.y < minY || form.position.y > maxY) {
             newErrors.position = `Posisi Y harus antara ${minY.toFixed(1)} dan ${maxY.toFixed(1)}`;
         }
@@ -259,7 +335,6 @@ const TableForm = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         if (!validateForm()) return;
 
         try {
@@ -277,6 +352,20 @@ const TableForm = () => {
                 setErrors({ ...errors, server: 'Terjadi kesalahan saat menyimpan data' });
             }
         }
+    };
+
+    // Fungsi untuk reset zoom
+    const resetZoom = () => {
+        setCanvasScale(1);
+    };
+
+    // Fungsi untuk zoom in/out
+    const zoomIn = () => {
+        setCanvasScale(prev => Math.min(2, prev + 0.1));
+    };
+
+    const zoomOut = () => {
+        setCanvasScale(prev => Math.max(0.3, prev - 0.1));
     };
 
     if (loading) {
@@ -487,105 +576,131 @@ const TableForm = () => {
                                     <p className="text-red-500 text-xs mt-1 mb-2">{errors.position}</p>
                                 )}
 
-                                {/* Visual Position Editor */}
                                 <div className="relative">
                                     {selectedArea ? (
+                                        <div className="mb-2 flex justify-between items-center">
+                                            <div className="text-sm text-gray-600">
+                                                Zoom: {Math.round(canvasScale * 100)}%
+                                            </div>
+                                            <div className="flex space-x-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={zoomOut}
+                                                    className="px-2 py-1 bg-gray-200 rounded text-sm hover:bg-gray-300"
+                                                >
+                                                    -
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={resetZoom}
+                                                    className="px-2 py-1 bg-gray-200 rounded text-sm hover:bg-gray-300"
+                                                >
+                                                    100%
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={zoomIn}
+                                                    className="px-2 py-1 bg-gray-200 rounded text-sm hover:bg-gray-300"
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : null}
+
+                                    {selectedArea ? (
                                         <div
-                                            ref={areaRef}
-                                            className="relative border-2 border-gray-300 bg-gray-50 rounded-md overflow-hidden"
+                                            ref={canvasContainerRef}
+                                            className="relative border-2 border-gray-300 bg-gray-50 rounded-md overflow-auto"
                                             style={{
-                                                height: `${areaSize.height * scale}px`,
-                                                width: `${areaSize.width * scale}px`,
                                                 maxHeight: '500px',
                                                 maxWidth: '100%',
-                                                backgroundImage: 'linear-gradient(to right, #f0f0f0 1px, transparent 1px), linear-gradient(to bottom, #f0f0f0 1px, transparent 1px)',
-                                                backgroundSize: '10px 10px'
                                             }}
                                         >
-                                            {/* Major grid (1m = 100px) */}
                                             <div
-                                                className="absolute inset-0"
+                                                ref={areaRef}
+                                                className="relative"
                                                 style={{
-                                                    backgroundImage: 'linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px)',
-                                                    backgroundSize: '100px 100px'
+                                                    height: `${areaSize.height * baseScale * canvasScale}px`,
+                                                    width: `${areaSize.width * baseScale * canvasScale}px`,
+                                                    minHeight: '200px',
+                                                    minWidth: '100%',
+                                                    backgroundImage: 'linear-gradient(to right, #f0f0f0 1px, transparent 1px), linear-gradient(to bottom, #f0f0f0 1px, transparent 1px)',
+                                                    backgroundSize: `${100 * canvasScale}px ${100 * canvasScale}px`
                                                 }}
-                                            />
-
-                                            <div className="absolute top-2 left-2 bg-white bg-opacity-70 px-2 py-1 rounded text-sm font-medium">
-                                                {selectedArea.area_name}
-                                            </div>
-
-                                            <div className="absolute top-2 right-2 bg-white bg-opacity-70 px-2 py-1 rounded text-sm">
-                                                {areaSize.width}m × {areaSize.height}m
-                                            </div>
-
-                                            {/* Existing tables (non-editable) */}
-                                            {existingTables.map(table => {
-                                                const width = table.size?.width || 0.8;
-                                                const height = table.size?.height || 0.8;
-                                                return (
-                                                    <div
-                                                        key={table._id}
-                                                        className={`absolute flex items-center justify-center rounded border-2 
-                                                            ${table.status === 'available' ? 'border-green-400 bg-green-50' : 
-                                                              table.status === 'occupied' ? 'border-red-400 bg-red-50' :
-                                                              table.status === 'reserved' ? 'border-yellow-400 bg-yellow-50' :
-                                                              'border-gray-400 bg-gray-50'}`}
-                                                        style={{
-                                                            left: `${table.position.x * scale}px`,
-                                                            top: `${table.position.y * scale}px`,
-                                                            width: `${width * scale}px`,
-                                                            height: `${height * scale}px`,
-                                                            borderRadius: table.shape === 'circle' || table.shape === 'oval' ? '50%' : '4px',
-                                                            transform: 'translate(-50%, -50%)',
-                                                            userSelect: 'none',
-                                                            pointerEvents: 'none'
-                                                        }}
-                                                    >
-                                                        <div className="text-xs font-medium text-center">
-                                                            {table.table_number}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-
-                                            {/* Current table (editable) */}
-                                            <div
-                                                ref={tableRef}
-                                                className={`absolute flex flex-col items-center justify-center rounded cursor-move border-2 
-                                                    ${form.status === 'available' ? 'border-green-500 bg-green-100' : 
-                                                    form.status === 'occupied' ? 'border-red-500 bg-red-100' :
-                                                    form.status === 'reserved' ? 'border-yellow-500 bg-yellow-100' :
-                                                    'border-gray-500 bg-gray-100'}`}
-                                                style={{
-                                                    left: `${form.position.x * scale}px`,
-                                                    top: `${form.position.y * scale}px`,
-                                                    width: `${form.size.width * scale}px`,
-                                                    height: `${form.size.height * scale}px`,
-                                                    borderRadius: form.shape === 'circle' || form.shape === 'oval' ? '50%' : '4px',
-                                                    transform: 'translate(-50%, -50%)',
-                                                    userSelect: 'none'
-                                                }}
-                                                onMouseDown={handleDragStart}
                                             >
-                                                <div className="text-sm font-semibold text-center pointer-events-none">
-                                                    {form.table_number || 'Meja'}
-                                                </div>
-                                                <div className="text-xs text-gray-600 pointer-events-none">
-                                                    {form.seats} kursi
-                                                </div>
-
+                                                {/* Grid background */}
                                                 <div
-                                                    ref={resizeHandleRef}
-                                                    className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 rounded-tl cursor-nwse-resize opacity-80 hover:opacity-100"
-                                                    onMouseDown={handleResizeStart}
-                                                >
-                                                    <FaExpandArrowsAlt className="text-white text-xs absolute -bottom-0.5 -right-0.5" />
-                                                </div>
-                                            </div>
+                                                    className="absolute inset-0"
+                                                    style={{
+                                                        backgroundImage: 'linear-gradient(to right, #ddd 1px, transparent 1px), linear-gradient(to bottom, #ddd 1px, transparent 1px)',
+                                                        backgroundSize: `${100 * canvasScale}px ${100 * canvasScale}px`
+                                                    }}
+                                                />
 
-                                            <div className="absolute bottom-2 right-2 text-xs text-gray-500">
-                                                Skala: 1m = 100px
+                                                <div className="absolute top-2 left-2 bg-white bg-opacity-70 px-2 py-1 rounded text-sm font-medium">
+                                                    {selectedArea.area_name}
+                                                </div>
+
+                                                <div className="absolute top-2 right-2 bg-white bg-opacity-70 px-2 py-1 rounded text-sm">
+                                                    {areaSize.width}m × {areaSize.height}m
+                                                </div>
+
+                                                {/* Informasi jumlah meja yang sudah ada */}
+                                                <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-white bg-opacity-70 px-2 py-1 rounded text-sm">
+                                                    Meja tersedia: {existingTables.length}
+                                                </div>
+
+                                                {/* Existing tables (non-editable) - menggunakan style yang sama */}
+                                                {existingTables.map(renderExistingTable)}
+
+                                                {/* Current table (editable) */}
+                                                <div
+                                                    ref={tableRef}
+                                                    className={`absolute flex flex-col items-center justify-center rounded cursor-move border-2 
+                                                        ${form.status === 'available' ? 'border-green-500 bg-green-100' : 
+                                                        form.status === 'occupied' ? 'border-red-500 bg-red-100' :
+                                                        form.status === 'reserved' ? 'border-yellow-500 bg-yellow-100' :
+                                                        'border-gray-500 bg-gray-100'}`}
+                                                    style={{
+                                                        left: `${form.position.x * baseScale * canvasScale}px`,
+                                                        top: `${form.position.y * baseScale * canvasScale}px`,
+                                                        width: `${form.size.width * baseScale * canvasScale}px`,
+                                                        height: `${form.size.height * baseScale * canvasScale}px`,
+                                                        borderRadius: form.shape === 'circle' || form.shape === 'oval' ? '50%' : '4px',
+                                                        transform: 'translate(-50%, -50%)',
+                                                        userSelect: 'none',
+                                                        zIndex: 20 // Lebih tinggi agar di atas existing tables
+                                                    }}
+                                                    onMouseDown={handleDragStart}
+                                                >
+                                                    <div className="text-sm font-semibold text-center pointer-events-none">
+                                                        {form.table_number || 'Meja Baru'}
+                                                    </div>
+                                                    <div className="text-xs text-gray-600 pointer-events-none">
+                                                        {form.seats} kursi
+                                                    </div>
+                                                    <div className={`text-xs font-medium mt-1 pointer-events-none
+                                                        ${form.status === 'available' ? 'text-green-600' :
+                                                          form.status === 'occupied' ? 'text-red-600' :
+                                                          form.status === 'reserved' ? 'text-yellow-600' :
+                                                          'text-gray-600'}`}>
+                                                        {formatStatus(form.status)}
+                                                    </div>
+
+                                                    <div
+                                                        ref={resizeHandleRef}
+                                                        className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 rounded-tl cursor-nwse-resize opacity-80 hover:opacity-100"
+                                                        onMouseDown={handleResizeStart}
+                                                    >
+                                                        <FaExpandArrowsAlt className="text-white text-xs absolute -bottom-0.5 -right-0.5" />
+                                                    </div>
+                                                </div>
+
+                                                <div className="absolute bottom-2 right-2 text-xs text-gray-500">
+                                                    Skala: 1m = {Math.round(baseScale * canvasScale)}px
+                                                    {canvasScale !== 1 && ` (${Math.round(canvasScale * 100)}%)`}
+                                                </div>
                                             </div>
                                         </div>
                                     ) : (
@@ -660,7 +775,6 @@ const TableForm = () => {
                 </form>
             </div>
 
-            {/* Footer */}
             <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
                 <div className="w-full h-[2px] bg-[#005429]"></div>
             </div>
