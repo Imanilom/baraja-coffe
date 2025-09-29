@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 import { get } from "mongoose";
 import Header from "../../admin/header";
 import BubbleAlert from "../stockcard/bubblralert";
+import Paginated from "../../../components/paginated";
 
 
 const SoManagement = () => {
@@ -59,9 +60,17 @@ const SoManagement = () => {
 
             // buat map untuk stok biar cepat dicari
             const stockMap = {};
-            stockData.forEach((s) => {
-                stockMap[s.productId._id] = s;
-            });
+            if (stockData && stockData.length > 0) {
+                stockData.forEach((s) => {
+                    try {
+                        if (s?.productId?._id) {
+                            stockMap[s.productId._id] = s;
+                        }
+                    } catch (error) {
+                        console.error("Error processing stock item:", s, error);
+                    }
+                });
+            }
 
             // gabungkan product dengan stok + movements
             const mergedData = await Promise.all(
@@ -69,21 +78,20 @@ const SoManagement = () => {
                     const stockItem = stockMap[prod._id] || null;
 
                     let movements = [];
-                    if (stockItem) {
+                    if (stockItem?.productId?._id) {
                         try {
                             const movementResponse = await axios.get(
                                 `/api/product/stock/${stockItem.productId._id}/movements`
                             );
-
-                            movements = movementResponse.data.data.movements || [];
+                            movements = movementResponse.data?.data?.movements || [];
                         } catch (err) {
-                            console.warn(`No movements for ${prod.name}`);
+                            console.error(`No movements for product: ${prod.name}`, err.message);
                         }
                     }
 
                     return {
                         ...prod, // semua data dari marketlist product
-                        stock: stockItem ? stockItem.stock : 0,
+                        stock: stockItem?.stock || 0,
                         stockData: stockItem || null,
                         movements, // array movements
                     };
@@ -93,9 +101,10 @@ const SoManagement = () => {
             setProductStock(mergedData);
             setFilteredData(mergedData);
             setError(null);
+
         } catch (err) {
             console.error("Error fetching stock:", err);
-            setError("Failed to load stock data.");
+            setError(`Failed to load stock data: ${err.message}`);
             setProductStock([]);
             setFilteredData([]);
         } finally {
@@ -125,22 +134,6 @@ const SoManagement = () => {
     useEffect(() => {
         fetchStockData();
         fetchOutletsData();
-    }, []);
-
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
     const formatCurrency = (amount) => {
@@ -176,18 +169,8 @@ const SoManagement = () => {
             .replace(/\b\w/g, (char) => char.toUpperCase());
     };
 
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
     // Apply filter function
-    const applyFilter = () => {
+    const applyFilter = useCallback(() => {
         const filtered = productStock.map(item => {
             const movements = item.movements || [];
 
@@ -212,14 +195,13 @@ const SoManagement = () => {
             const stockOutBefore = previousMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
             const adjustmentBefore = previousMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
 
-            const firstStock = stockInBefore - stockOutBefore;
-            // const firstStock = stockIn - stockOut - adjustmentBefore;
+            const firstStock = stockInBefore - stockOutBefore + adjustmentBefore;
 
             const stockIn = rangeMovements.filter(m => m.type === "in").reduce((acc, m) => acc + m.quantity, 0);
             const stockOut = rangeMovements.filter(m => m.type === "out").reduce((acc, m) => acc + m.quantity, 0);
             const stockAdjustment = rangeMovements.filter(m => m.type === "adjustment").reduce((acc, m) => acc + m.quantity, 0);
 
-            const finalStock = firstStock + stockIn - stockOut;
+            const finalStock = firstStock + stockIn - stockOut + stockAdjustment;
 
             return {
                 ...item,
@@ -234,14 +216,21 @@ const SoManagement = () => {
         // Filter by search jika searchTerm tidak kosong
         const finalFiltered = tempSearch
             ? filtered.filter(item =>
-                item.name.toLowerCase().includes(tempSearch.toLowerCase()) ||
-                item.sku.toLowerCase().includes(tempSearch.toLowerCase())
+                item.name?.toLowerCase().includes(tempSearch.toLowerCase()) ||
+                item.sku?.toLowerCase().includes(tempSearch.toLowerCase())
             )
             : filtered;
 
         setFilteredData(finalFiltered);
         setCurrentPage(1);
-    };
+    }, [productStock, value.startDate, value.endDate, tempSearch]); // Tambahkan dependencies
+
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        if (productStock.length > 0) { // Hanya jalankan jika ada data
+            applyFilter();
+        }
+    }, [productStock, value.startDate, value.endDate, tempSearch]);
 
     // Paginate the filtered data
     const paginatedData = useMemo(() => {
@@ -250,25 +239,17 @@ const SoManagement = () => {
         return filteredData.slice(startIndex, endIndex);
     }, [currentPage, filteredData]);
 
+    // Calculate total pages based on filtered data
+    const totalPages = useMemo(() => {
+        return Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+    }, [filteredData]);
+
+    // Reset currentPage ketika filtered data berubah dan currentPage melebihi total pages
     useEffect(() => {
-        if (productStock.length > 0) {
-            applyFilter();
+        if (currentPage > totalPages && totalPages > 0) {
+            setCurrentPage(1);
         }
-    }, [productStock]);
-
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedOutlet("");
-
-        setValue({
-            startDate: dayjs(),
-            endDate: dayjs(),
-        });
-        setSearch("");
-        setFilteredData(ensureArray(productStock));
-        setCurrentPage(1);
-    };
+    }, [currentPage, totalPages]);
 
     // Export current data to Excel
     const exportToExcel = () => {
@@ -300,7 +281,6 @@ const SoManagement = () => {
         XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
     };
 
-
     // Show loading state
     if (loading) {
         return (
@@ -329,38 +309,26 @@ const SoManagement = () => {
     }
 
     return (
-        <div className="min-h-screen flex flex-col">
-            {/* Header */}
-            <Header />
+        <div className="">
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b bg-white space-y-2 sm:space-y-0">
-                <div className="flex items-center space-x-2 text-sm">
-                    <FaBoxes size={18} className="text-gray-500" />
-                    <p className="text-gray-500">Inventori</p>
-                    <FaChevronRight className="text-gray-500" />
-                    <span className="text-[#005429]">Stok Gudang</span>
-                </div>
-                <div className="flex w-full sm:w-auto">
-                    <div
-                        onClick={() => console.log("Ekspor")}
-                        className="w-full sm:w-auto bg-white text-white px-4 py-2 rounded border border-white hover:text-white text-[13px] cursor-default"
-                    >
-                        Ekspor
-                    </div>
-                </div>
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Inventori</span>
+                    <FaChevronRight />
+                    <span>Stok Gudang</span>
+                </h1>
             </div>
 
             {/* Filters */}
-            <div className="px-3 pb-4 mb-[60px]">
-                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
+            <div className="px-6">
+                <div className="flex flex-wrap gap-4 md:justify-between items-center py-3">
 
                     {/* Spacer */}
                     <div className="hidden lg:block col-span-5"></div>
 
                     {/* Cari */}
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                    <div className="flex flex-col col-span-5 w-1/5">
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
@@ -371,22 +339,6 @@ const SoManagement = () => {
                                 className="text-[13px] border py-2 pl-8 pr-4 rounded w-full"
                             />
                         </div>
-                    </div>
-
-                    {/* Buttons */}
-                    <div className="flex lg:justify-end space-x-2 items-end col-span-1">
-                        <button
-                            onClick={applyFilter}
-                            className="bg-[#005429] text-white text-[13px] px-4 py-2 border border-[#005429] rounded"
-                        >
-                            Terapkan
-                        </button>
-                        <button
-                            onClick={resetFilter}
-                            className="text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-4 py-2 rounded"
-                        >
-                            Reset
-                        </button>
                     </div>
                 </div>
 
@@ -409,9 +361,9 @@ const SoManagement = () => {
                 <BubbleAlert paginatedData={filteredData} /> */}
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 mt-4">
+                <div className="overflow-x-auto rounded shadow-md bg-white shadow-slate-200">
                     <table className="min-w-full table-fixed text-xs sm:text-sm border-collapse">
-                        <thead className="text-gray-400 bg-slate-50">
+                        <thead className="text-gray-400">
                             <tr className="text-left">
                                 <th className="px-4 py-3 font-normal w-[20%]">Produk</th>
                                 <th className="px-4 py-3 font-normal w-[12%]">SKU</th>
@@ -427,12 +379,7 @@ const SoManagement = () => {
                                 {paginatedData.map((data) => (
                                     <tr
                                         key={data._id}
-                                        className={`hover:bg-gray-100 ${data.stockData?.currentStock <= 0 || data.stockData == null
-                                            ? "bg-red-500/30"
-                                            : data.stockData?.currentStock <= data.stockData?.minStock
-                                                ? "bg-yellow-500/30"
-                                                : ""
-                                            }`}
+                                        className=""
                                     >
                                         <td className="px-4 py-3 truncate">{capitalizeWords(data.name) || "-"}</td>
                                         <td className="px-4 py-3 truncate">{data.sku || "-"}</td>
@@ -458,76 +405,11 @@ const SoManagement = () => {
                         )}
                     </table>
                 </div>
-
-
-                {/* Pagination */}
-                {paginatedData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                        </span>
-                        <div className="flex justify-center space-x-2 mt-4">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="px-3 py-2 border rounded disabled:opacity-50"
-                            >
-                                <FaChevronLeft />
-                            </button>
-
-                            {[...Array(totalPages)].map((_, index) => {
-                                const page = index + 1;
-
-                                if (
-                                    page === 1 ||
-                                    page === totalPages ||
-                                    (page >= currentPage - 2 && page <= currentPage + 2)
-                                ) {
-                                    return (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`px-3 py-1 rounded border ${currentPage === page
-                                                ? "bg-[#005429] text-white"
-                                                : ""
-                                                }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    );
-                                }
-
-                                // Tampilkan "..." jika melompati halaman
-                                if (
-                                    (page === currentPage - 3 && page > 1) ||
-                                    (page === currentPage + 3 && page < totalPages)
-                                ) {
-                                    return (
-                                        <span key={`dots-${page}`} className="px-2 text-gray-500">
-                                            ...
-                                        </span>
-                                    );
-                                }
-
-                                return null;
-                            })}
-
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="px-3 py-2 border rounded disabled:opacity-50"
-                            >
-                                <FaChevronRight />
-                            </button>
-                        </div>
-
-                    </div>
-                )}
-            </div>
-
-            {/* Bottom bar */}
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]"></div>
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
             </div>
         </div>
 

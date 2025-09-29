@@ -2,7 +2,7 @@ const MenuSkeleton = () => {
     return (
         <div className="w-full animate-pulse">
             {/* Header */}
-            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
                 <div className="h-6 w-32 bg-gray-200 rounded"></div>
                 <div className="flex gap-3">
                     <div className="h-9 w-24 bg-gray-200 rounded"></div>
@@ -20,7 +20,7 @@ const MenuSkeleton = () => {
 
                 {/* Search + Filters */}
                 <div className="flex items-center justify-between gap-3 py-3">
-                    <div className="flex items-center flex-1 max-w-sm border rounded-lg px-3 py-2 bg-white shadow-sm">
+                    <div className="flex items-center flex-1 max-w-sm border rounded-lg px-3 py-2 shadow-sm">
                         <div className="h-4 w-4 bg-gray-200 rounded mr-2"></div>
                         <div className="h-4 w-full bg-gray-200 rounded"></div>
                     </div>
@@ -36,7 +36,7 @@ const MenuSkeleton = () => {
                 <div className="overflow-auto border rounded-lg mx-[15px]">
                     <table className="w-full table-auto">
                         <thead>
-                            <tr className="text-sm border-b bg-gray-50">
+                            <tr className="text-sm border-b">
                                 <th className="p-3 w-10">
                                     <div className="w-5 h-5 bg-gray-200 rounded"></div>
                                 </th>

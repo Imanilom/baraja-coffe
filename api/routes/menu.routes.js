@@ -37,7 +37,7 @@ router.get('/menu-items/rating', getMenuByRating); // Get MenuItems by rating
 
 // Category Routes
 // router.post('/categories', adminAccess, assignMenuItemsToCategory); // Assign menu items to a category
-router.post('/categories', createCategory); // Create a new category
+router.post('/categories', adminAccess, createCategory); // Create a new category
 router.get('/categories', getCategories); // Get all categories
 router.get('/categories/filter', filterMenuByCategory); // Filter menu items by category
 

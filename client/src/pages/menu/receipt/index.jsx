@@ -302,133 +302,35 @@ const ReceiptMenu = () => {
 
             {/* Main Form */}
             <div className="w-full px-6">
-                <div className="px-[15px] pb-[15px]">
-                    {!menuItemStatus.isComplete && (
-                        <div className="my-4 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
-                            <p className="font-bold">Perhatian!</p>
-                            <p>Menu item belum lengkap. Harap lengkapi field berikut: {menuItemStatus.missingFields.join(', ')} sebelum membuat resep.</p>
-                        </div>
-                    )}
+                {!menuItemStatus.isComplete && (
+                    <div className="my-4 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
+                        <p className="font-bold">Perhatian!</p>
+                        <p>Menu item belum lengkap. Harap lengkapi field berikut: {menuItemStatus.missingFields.join(', ')} sebelum membuat resep.</p>
+                    </div>
+                )}
 
-                    <form onSubmit={handleSubmit} className="my-[13px] shadow-lg space-y-10 p-6 bg-gray-50 rounded">
-                        <div className="mb-6">
-                            <h2 className="text-lg font-semibold mb-4">Bahan Wajib</h2>
+                <form onSubmit={handleSubmit} className="my-[13px] shadow-lg space-y-10 p-6 bg-gray-50 rounded">
+                    <div className="mb-6">
+                        <h2 className="text-lg font-semibold mb-4">Bahan Wajib</h2>
 
-                            {mainIngredients.map((item, index) => (
-                                <div
-                                    key={index}
-                                    className="grid grid-cols-5 gap-4 mb-3 items-start"
-                                >
-                                    {/* Select Bahan */}
-                                    <div>
-                                        <Select
-                                            className="text-sm"
-                                            classNamePrefix="react-select"
-                                            options={productOptions}
-                                            value={
-                                                productOptions.find(
-                                                    (opt) => opt.value === item.productName
-                                                ) || null
-                                            }
-                                            onChange={(selected) => {
-                                                const updated = [...mainIngredients];
-                                                updated[index] = {
-                                                    ...updated[index],
-                                                    productId: selected?._id || "",
-                                                    productName: selected?.value || "",
-                                                    productSku: selected?.sku || "",
-                                                    unit: selected?.unit || "",
-                                                };
-                                                setMainIngredients(updated);
-                                            }}
-                                            styles={customSelectStyles}
-                                            placeholder="Pilih Bahan Baku"
-                                            isClearable
-                                        />
-                                        {errors[`${index}_productName`] && (
-                                            <p className="text-xs text-red-500 mt-1">
-                                                {errors[`${index}_productName`]}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {/* SKU */}
-                                    <input
-                                        type="text"
-                                        placeholder="SKU"
-                                        value={item.productSku}
-                                        onChange={(e) =>
-                                            handleChange(
-                                                setMainIngredients,
-                                                mainIngredients,
-                                                index,
-                                                "productSku",
-                                                e.target.value
-                                            )
-                                        }
-                                        className="border rounded p-2 text-sm"
-                                        disabled
-                                    />
-
-                                    {/* Qty */}
-                                    <div className="">
-                                        <input
-                                            type="number"
-                                            placeholder="Qty"
-                                            value={item.quantity}
-                                            onChange={(e) =>
-                                                handleChange(
-                                                    setMainIngredients,
-                                                    mainIngredients,
-                                                    index,
-                                                    "quantity",
-                                                    e.target.value
-                                                )
-                                            }
-                                            className="border w-full rounded p-2 text-sm"
-                                            min="0"
-                                            step="0.001"
-                                        />
-                                        {errors[`${index}_quantity`] && (
-                                            <p className="text-xs text-red-500 mt-1">
-                                                {errors[`${index}_quantity`]}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {/* Unit */}
-                                    <input
-                                        type="text"
-                                        placeholder="Satuan"
-                                        value={item.unit}
-                                        onChange={(e) =>
-                                            handleChange(
-                                                setMainIngredients,
-                                                mainIngredients,
-                                                index,
-                                                "unit",
-                                                e.target.value
-                                            )
-                                        }
-                                        className="border rounded p-2 text-sm lowercase"
-                                        disabled
-                                    />
-                                </div>
-                            ))}
-                        </div>
-
-
-                        <div className="mb-6">
-                            <h2 className="text-lg font-semibold mb-4">Bahan Tambahan (Opsional)</h2>
-                            {subIngredients.map((item, index) => (
-                                <div key={index} className="grid grid-cols-5 gap-4 mb-2 items-center">
+                        {mainIngredients.map((item, index) => (
+                            <div
+                                key={index}
+                                className="grid grid-cols-5 gap-4 mb-3 items-start"
+                            >
+                                {/* Select Bahan */}
+                                <div>
                                     <Select
                                         className="text-sm"
                                         classNamePrefix="react-select"
                                         options={productOptions}
-                                        value={productOptions.find(opt => opt.value === item.productName) || null}
+                                        value={
+                                            productOptions.find(
+                                                (opt) => opt.value === item.productName
+                                            ) || null
+                                        }
                                         onChange={(selected) => {
-                                            const updated = [...subIngredients];
+                                            const updated = [...mainIngredients];
                                             updated[index] = {
                                                 ...updated[index],
                                                 productId: selected?._id || "",
@@ -436,326 +338,422 @@ const ReceiptMenu = () => {
                                                 productSku: selected?.sku || "",
                                                 unit: selected?.unit || "",
                                             };
-                                            setSubIngredients(updated);
+                                            setMainIngredients(updated);
                                         }}
-                                        placeholder="Pilih Bahan Baku"
                                         styles={customSelectStyles}
+                                        placeholder="Pilih Bahan Baku"
                                         isClearable
                                     />
+                                    {errors[`${index}_productName`] && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            {errors[`${index}_productName`]}
+                                        </p>
+                                    )}
+                                </div>
 
-                                    <input
-                                        type="text"
-                                        placeholder="SKU"
-                                        value={item.productSku}
-                                        onChange={(e) =>
-                                            handleChange(setSubIngredients, subIngredients, index, "productSku", e.target.value)
-                                        }
-                                        className="border rounded p-2 text-sm"
-                                        disabled
-                                    />
+                                {/* SKU */}
+                                <input
+                                    type="text"
+                                    placeholder="SKU"
+                                    value={item.productSku}
+                                    onChange={(e) =>
+                                        handleChange(
+                                            setMainIngredients,
+                                            mainIngredients,
+                                            index,
+                                            "productSku",
+                                            e.target.value
+                                        )
+                                    }
+                                    className="border rounded p-2 text-sm"
+                                    disabled
+                                />
 
+                                {/* Qty */}
+                                <div className="">
                                     <input
                                         type="number"
                                         placeholder="Qty"
                                         value={item.quantity}
                                         onChange={(e) =>
-                                            handleChange(setSubIngredients, subIngredients, index, "quantity", e.target.value)
+                                            handleChange(
+                                                setMainIngredients,
+                                                mainIngredients,
+                                                index,
+                                                "quantity",
+                                                e.target.value
+                                            )
                                         }
-                                        className="border rounded p-2 text-sm"
+                                        className="border w-full rounded p-2 text-sm"
                                         min="0"
                                         step="0.001"
                                     />
+                                    {errors[`${index}_quantity`] && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            {errors[`${index}_quantity`]}
+                                        </p>
+                                    )}
+                                </div>
 
+                                {/* Unit */}
+                                <input
+                                    type="text"
+                                    placeholder="Satuan"
+                                    value={item.unit}
+                                    onChange={(e) =>
+                                        handleChange(
+                                            setMainIngredients,
+                                            mainIngredients,
+                                            index,
+                                            "unit",
+                                            e.target.value
+                                        )
+                                    }
+                                    className="border rounded p-2 text-sm lowercase"
+                                    disabled
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+
+                    <div className="mb-6">
+                        <h2 className="text-lg font-semibold mb-4">Bahan Tambahan (Opsional)</h2>
+                        {subIngredients.map((item, index) => (
+                            <div key={index} className="grid grid-cols-5 gap-4 mb-2 items-center">
+                                <Select
+                                    className="text-sm"
+                                    classNamePrefix="react-select"
+                                    options={productOptions}
+                                    value={productOptions.find(opt => opt.value === item.productName) || null}
+                                    onChange={(selected) => {
+                                        const updated = [...subIngredients];
+                                        updated[index] = {
+                                            ...updated[index],
+                                            productId: selected?._id || "",
+                                            productName: selected?.value || "",
+                                            productSku: selected?.sku || "",
+                                            unit: selected?.unit || "",
+                                        };
+                                        setSubIngredients(updated);
+                                    }}
+                                    placeholder="Pilih Bahan Baku"
+                                    styles={customSelectStyles}
+                                    isClearable
+                                />
+
+                                <input
+                                    type="text"
+                                    placeholder="SKU"
+                                    value={item.productSku}
+                                    onChange={(e) =>
+                                        handleChange(setSubIngredients, subIngredients, index, "productSku", e.target.value)
+                                    }
+                                    className="border rounded p-2 text-sm"
+                                    disabled
+                                />
+
+                                <input
+                                    type="number"
+                                    placeholder="Qty"
+                                    value={item.quantity}
+                                    onChange={(e) =>
+                                        handleChange(setSubIngredients, subIngredients, index, "quantity", e.target.value)
+                                    }
+                                    className="border rounded p-2 text-sm"
+                                    min="0"
+                                    step="0.001"
+                                />
+
+                                <input
+                                    type="text"
+                                    placeholder="Satuan"
+                                    value={item.unit}
+                                    onChange={(e) =>
+                                        handleChange(setSubIngredients, subIngredients, index, "unit", e.target.value)
+                                    }
+                                    className="border rounded p-2 text-sm lowercase"
+                                    disabled
+                                />
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const updated = subIngredients.filter((_, i) => i !== index);
+                                        setSubIngredients(updated.length ? updated : [
+                                            { productId: "", productName: "", productSku: "", quantity: "", unit: "", isDefault: false }
+                                        ]);
+                                    }}
+                                    className="text-red-500 text-sm"
+                                >
+                                    Hapus
+                                </button>
+                            </div>
+                        ))}
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setSubIngredients([
+                                    ...subIngredients,
+                                    { productId: "", productName: "", productSku: "", quantity: "", unit: "", isDefault: false }
+                                ])
+                            }
+                            className="text-blue-600 text-sm mt-2"
+                        >
+                            + Tambah Sub Ingredient
+                        </button>
+                    </div>
+
+                    {/* Toppings */}
+                    <div>
+                        <h2 className="text-lg font-semibold mb-4">Bahan Topping</h2>
+                        {toppingOptions.map((topping, tIdx) => (
+                            <div key={tIdx} className="mb-6 border border-gray-200 p-4 rounded">
+                                <div className="flex items-center gap-4 mb-3">
                                     <input
                                         type="text"
-                                        placeholder="Satuan"
-                                        value={item.unit}
-                                        onChange={(e) =>
-                                            handleChange(setSubIngredients, subIngredients, index, "unit", e.target.value)
-                                        }
-                                        className="border rounded p-2 text-sm lowercase"
+                                        placeholder="Nama Topping"
+                                        value={topping.toppingName}
+                                        onChange={(e) => {
+                                            const updated = [...toppingOptions];
+                                            updated[tIdx].toppingName = e.target.value;
+                                            setToppingOptions(updated);
+                                        }}
+                                        className="border p-2 rounded text-sm w-full"
+                                        required
+                                        disabled
+                                    />
+                                </div>
+
+                                {topping.ingredients.map((ing, iIdx) => (
+                                    <div key={iIdx} className="grid grid-cols-5 gap-4 mb-2 items-center">
+                                        <Select
+                                            className="text-sm"
+                                            classNamePrefix="react-select"
+                                            options={productOptions}
+                                            value={productOptions.find(opt => opt.value === ing.productName) || null}
+                                            onChange={(select) => {
+                                                const updated = [...toppingOptions];
+                                                updated[tIdx].ingredients[iIdx] = {
+                                                    ...updated[tIdx].ingredients[iIdx],
+                                                    productId: select?._id || "",
+                                                    productName: select?.value || "",
+                                                    productSku: select?.sku || "",
+                                                    unit: select?.unit || ""
+                                                };
+                                                setToppingOptions(updated);
+                                            }}
+                                            placeholder="Pilih Bahan"
+                                            isClearable
+                                            required
+                                        />
+
+                                        <input
+                                            type="text"
+                                            placeholder="SKU"
+                                            value={ing.productSku}
+                                            onChange={(e) =>
+                                                handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "productSku", e.target.value)
+                                            }
+                                            className="border rounded p-2 text-sm"
+                                            disabled
+                                        />
+                                        <input
+                                            type="number"
+                                            placeholder="Qty"
+                                            value={ing.quantity}
+                                            onChange={(e) =>
+                                                handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "quantity", e.target.value)
+                                            }
+                                            className="border rounded p-2 text-sm"
+                                            min="0"
+                                            step="0.001"
+                                            required
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Satuan"
+                                            value={ing.unit}
+                                            onChange={(e) =>
+                                                handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "unit", e.target.value)
+                                            }
+                                            className="border rounded p-2 text-sm lowercase"
+                                            disabled
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const updated = [...toppingOptions];
+                                                updated[tIdx].ingredients = updated[tIdx].ingredients.filter((_, i) => i !== iIdx);
+                                                setToppingOptions(updated);
+                                            }}
+                                            className="text-red-500 text-sm"
+                                        >
+                                            Hapus
+                                        </button>
+                                    </div>
+                                ))}
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const updated = [...toppingOptions];
+                                        updated[tIdx].ingredients.push({
+                                            productId: "",
+                                            productName: "",
+                                            productSku: "",
+                                            quantity: "",
+                                            unit: ""
+                                        });
+                                        setToppingOptions(updated);
+                                    }}
+                                    className="text-blue-600 text-sm mt-2"
+                                >
+                                    + Tambah Bahan
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Addons */}
+                    <div>
+                        <h2 className="text-lg font-semibold mb-4">Bahan Addon</h2>
+                        {addonOptions.map((addon, aIdx) => (
+                            <div key={aIdx} className="mb-6 border border-gray-200 p-4 rounded">
+                                <div className="grid grid-cols-2 gap-4 mb-3 items-center">
+                                    <input
+                                        type="text"
+                                        placeholder="Nama Addon"
+                                        value={addon.addonName}
+                                        onChange={(e) => {
+                                            const updated = [...addonOptions];
+                                            updated[aIdx].addonName = e.target.value;
+                                            setAddonOptions(updated);
+                                        }}
+                                        className="border w-full p-2 rounded text-sm"
+                                        required
+                                        disabled
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Label Opsi"
+                                        value={addon.optionLabel}
+                                        onChange={(e) => {
+                                            const updated = [...addonOptions];
+                                            updated[aIdx].optionLabel = e.target.value;
+                                            setAddonOptions(updated);
+                                        }}
+                                        className="border p-2 rounded text-sm"
+                                        required
                                         disabled
                                     />
 
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const updated = subIngredients.filter((_, i) => i !== index);
-                                            setSubIngredients(updated.length ? updated : [
-                                                { productId: "", productName: "", productSku: "", quantity: "", unit: "", isDefault: false }
-                                            ]);
-                                        }}
-                                        className="text-red-500 text-sm"
-                                    >
-                                        Hapus
-                                    </button>
                                 </div>
-                            ))}
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setSubIngredients([
-                                        ...subIngredients,
-                                        { productId: "", productName: "", productSku: "", quantity: "", unit: "", isDefault: false }
-                                    ])
-                                }
-                                className="text-blue-600 text-sm mt-2"
-                            >
-                                + Tambah Sub Ingredient
-                            </button>
-                        </div>
 
-                        {/* Toppings */}
-                        <div>
-                            <h2 className="text-lg font-semibold mb-4">Bahan Topping</h2>
-                            {toppingOptions.map((topping, tIdx) => (
-                                <div key={tIdx} className="mb-6 border border-gray-200 p-4 rounded">
-                                    <div className="flex items-center gap-4 mb-3">
-                                        <input
-                                            type="text"
-                                            placeholder="Nama Topping"
-                                            value={topping.toppingName}
-                                            onChange={(e) => {
-                                                const updated = [...toppingOptions];
-                                                updated[tIdx].toppingName = e.target.value;
-                                                setToppingOptions(updated);
-                                            }}
-                                            className="border p-2 rounded text-sm w-full"
-                                            required
-                                            disabled
-                                        />
-                                    </div>
-
-                                    {topping.ingredients.map((ing, iIdx) => (
-                                        <div key={iIdx} className="grid grid-cols-5 gap-4 mb-2 items-center">
-                                            <Select
-                                                className="text-sm"
-                                                classNamePrefix="react-select"
-                                                options={productOptions}
-                                                value={productOptions.find(opt => opt.value === ing.productName) || null}
-                                                onChange={(select) => {
-                                                    const updated = [...toppingOptions];
-                                                    updated[tIdx].ingredients[iIdx] = {
-                                                        ...updated[tIdx].ingredients[iIdx],
-                                                        productId: select?._id || "",
-                                                        productName: select?.value || "",
-                                                        productSku: select?.sku || "",
-                                                        unit: select?.unit || ""
-                                                    };
-                                                    setToppingOptions(updated);
-                                                }}
-                                                placeholder="Pilih Bahan"
-                                                isClearable
-                                                required
-                                            />
-
-                                            <input
-                                                type="text"
-                                                placeholder="SKU"
-                                                value={ing.productSku}
-                                                onChange={(e) =>
-                                                    handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "productSku", e.target.value)
-                                                }
-                                                className="border rounded p-2 text-sm"
-                                                disabled
-                                            />
-                                            <input
-                                                type="number"
-                                                placeholder="Qty"
-                                                value={ing.quantity}
-                                                onChange={(e) =>
-                                                    handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "quantity", e.target.value)
-                                                }
-                                                className="border rounded p-2 text-sm"
-                                                min="0"
-                                                step="0.001"
-                                                required
-                                            />
-                                            <input
-                                                type="text"
-                                                placeholder="Satuan"
-                                                value={ing.unit}
-                                                onChange={(e) =>
-                                                    handleNestedChange(setToppingOptions, toppingOptions, tIdx, iIdx, "unit", e.target.value)
-                                                }
-                                                className="border rounded p-2 text-sm lowercase"
-                                                disabled
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const updated = [...toppingOptions];
-                                                    updated[tIdx].ingredients = updated[tIdx].ingredients.filter((_, i) => i !== iIdx);
-                                                    setToppingOptions(updated);
-                                                }}
-                                                className="text-red-500 text-sm"
-                                            >
-                                                Hapus
-                                            </button>
-                                        </div>
-                                    ))}
-
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const updated = [...toppingOptions];
-                                            updated[tIdx].ingredients.push({
-                                                productId: "",
-                                                productName: "",
-                                                productSku: "",
-                                                quantity: "",
-                                                unit: ""
-                                            });
-                                            setToppingOptions(updated);
-                                        }}
-                                        className="text-blue-600 text-sm mt-2"
-                                    >
-                                        + Tambah Bahan
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Addons */}
-                        <div>
-                            <h2 className="text-lg font-semibold mb-4">Bahan Addon</h2>
-                            {addonOptions.map((addon, aIdx) => (
-                                <div key={aIdx} className="mb-6 border border-gray-200 p-4 rounded">
-                                    <div className="grid grid-cols-2 gap-4 mb-3 items-center">
-                                        <input
-                                            type="text"
-                                            placeholder="Nama Addon"
-                                            value={addon.addonName}
-                                            onChange={(e) => {
+                                {addon.ingredients.map((ing, iIdx) => (
+                                    <div key={iIdx} className="grid grid-cols-5 gap-4 mb-2 items-center">
+                                        <Select
+                                            className="text-sm"
+                                            classNamePrefix="react-select"
+                                            options={productOptions}
+                                            value={productOptions.find(opt => opt.value === ing.productName) || null}
+                                            onChange={(select) => {
                                                 const updated = [...addonOptions];
-                                                updated[aIdx].addonName = e.target.value;
+                                                updated[aIdx].ingredients[iIdx] = {
+                                                    ...updated[aIdx].ingredients[iIdx],
+                                                    productId: select?._id || "",
+                                                    productName: select?.value || "",
+                                                    productSku: select?.sku || "",
+                                                    unit: select?.unit || "",
+                                                };
                                                 setAddonOptions(updated);
                                             }}
-                                            className="border w-full p-2 rounded text-sm"
+                                            placeholder="Pilih Bahan"
+                                            isClearable
                                             required
-                                            disabled
                                         />
                                         <input
                                             type="text"
-                                            placeholder="Label Opsi"
-                                            value={addon.optionLabel}
-                                            onChange={(e) => {
-                                                const updated = [...addonOptions];
-                                                updated[aIdx].optionLabel = e.target.value;
-                                                setAddonOptions(updated);
-                                            }}
-                                            className="border p-2 rounded text-sm"
-                                            required
+                                            placeholder="SKU"
+                                            value={ing.productSku}
+                                            onChange={(e) =>
+                                                handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "productSku", e.target.value)
+                                            }
+                                            className="border rounded p-2 text-sm"
                                             disabled
                                         />
-
+                                        <input
+                                            type="number"
+                                            placeholder="Qty"
+                                            value={ing.quantity}
+                                            onChange={(e) =>
+                                                handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "quantity", e.target.value)
+                                            }
+                                            className="border rounded p-2 text-sm"
+                                            min="0"
+                                            step="0.001"
+                                            required
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Satuan"
+                                            value={ing.unit}
+                                            onChange={(e) =>
+                                                handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "unit", e.target.value)
+                                            }
+                                            className="border rounded p-2 text-sm lowercase"
+                                            disabled
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const updated = [...addonOptions];
+                                                updated[aIdx].ingredients = updated[aIdx].ingredients.filter((_, i) => i !== iIdx);
+                                                setAddonOptions(updated);
+                                            }}
+                                            className="text-red-500 text-sm"
+                                        >
+                                            Hapus
+                                        </button>
                                     </div>
+                                ))}
 
-                                    {addon.ingredients.map((ing, iIdx) => (
-                                        <div key={iIdx} className="grid grid-cols-5 gap-4 mb-2 items-center">
-                                            <Select
-                                                className="text-sm"
-                                                classNamePrefix="react-select"
-                                                options={productOptions}
-                                                value={productOptions.find(opt => opt.value === ing.productName) || null}
-                                                onChange={(select) => {
-                                                    const updated = [...addonOptions];
-                                                    updated[aIdx].ingredients[iIdx] = {
-                                                        ...updated[aIdx].ingredients[iIdx],
-                                                        productId: select?._id || "",
-                                                        productName: select?.value || "",
-                                                        productSku: select?.sku || "",
-                                                        unit: select?.unit || "",
-                                                    };
-                                                    setAddonOptions(updated);
-                                                }}
-                                                placeholder="Pilih Bahan"
-                                                isClearable
-                                                required
-                                            />
-                                            <input
-                                                type="text"
-                                                placeholder="SKU"
-                                                value={ing.productSku}
-                                                onChange={(e) =>
-                                                    handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "productSku", e.target.value)
-                                                }
-                                                className="border rounded p-2 text-sm"
-                                                disabled
-                                            />
-                                            <input
-                                                type="number"
-                                                placeholder="Qty"
-                                                value={ing.quantity}
-                                                onChange={(e) =>
-                                                    handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "quantity", e.target.value)
-                                                }
-                                                className="border rounded p-2 text-sm"
-                                                min="0"
-                                                step="0.001"
-                                                required
-                                            />
-                                            <input
-                                                type="text"
-                                                placeholder="Satuan"
-                                                value={ing.unit}
-                                                onChange={(e) =>
-                                                    handleNestedChange(setAddonOptions, addonOptions, aIdx, iIdx, "unit", e.target.value)
-                                                }
-                                                className="border rounded p-2 text-sm lowercase"
-                                                disabled
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const updated = [...addonOptions];
-                                                    updated[aIdx].ingredients = updated[aIdx].ingredients.filter((_, i) => i !== iIdx);
-                                                    setAddonOptions(updated);
-                                                }}
-                                                className="text-red-500 text-sm"
-                                            >
-                                                Hapus
-                                            </button>
-                                        </div>
-                                    ))}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const updated = [...addonOptions];
+                                        updated[aIdx].ingredients.push({
+                                            productId: "",
+                                            productName: "",
+                                            productSku: "",
+                                            quantity: "",
+                                            unit: ""
+                                        });
+                                        setAddonOptions(updated);
+                                    }}
+                                    className="text-blue-600 text-sm mt-2"
+                                >
+                                    + Tambah Bahan
+                                </button>
+                            </div>
+                        ))}
+                    </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const updated = [...addonOptions];
-                                            updated[aIdx].ingredients.push({
-                                                productId: "",
-                                                productName: "",
-                                                productSku: "",
-                                                quantity: "",
-                                                unit: ""
-                                            });
-                                            setAddonOptions(updated);
-                                        }}
-                                        className="text-blue-600 text-sm mt-2"
-                                    >
-                                        + Tambah Bahan
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Submit Button */}
-                        <div className="flex justify-end space-x-2">
-                            <Link to="/admin/menu"
-                                className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
-                            >
-                                Batal
-                            </Link>
-                            <button
-                                type="submit"
-                                className="bg-[#005429] text-white px-6 py-2 rounded"
-                            >
-                                Simpan
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    {/* Submit Button */}
+                    <div className="flex justify-end space-x-2">
+                        <Link to="/admin/menu"
+                            className="bg-white text-[#005429] px-4 py-2 rounded border border-[#005429] hover:text-white hover:bg-[#005429] text-[13px]"
+                        >
+                            Batal
+                        </Link>
+                        <button
+                            type="submit"
+                            className="bg-[#005429] text-white px-6 py-2 rounded"
+                        >
+                            Simpan
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     );

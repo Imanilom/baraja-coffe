@@ -92,7 +92,7 @@ const Sidebar = ({ isSidebarOpen }) => {
       "Purchase Order",
       "Daftar Belanja",
       "Daftar Pengeluaran",
-      "Atur Meja", "Denah Meja", "Logs", "Limit Permintaan", "Pajak & Layanan", "Analisis Resto", "Konten", "QR"],
+      "Atur Meja", "Denah Meja", "Logs", "Limit Permintaan", "Pajak & Layanan", "Analisis Resto", "Konten", "QR", "Kategori"],
     admin: ["Dashboard", "Laporan", "Laporan Penjualan", "Menu", "Inventori", "Pembelian", "Outlet", "Event", "Karyawan", "Pelanggan", "Pengaturan Meja", "Perangkat", "Promo", "Komisi", "Akun", "Setting Access", "Laporan Penjualan", "Laporan Operasional", "Laporan Laba & Rugi",
       "Stok Masuk",
       "Stok Keluar",
@@ -101,7 +101,7 @@ const Sidebar = ({ isSidebarOpen }) => {
       "Purchase Order",
       "Daftar Belanja",
       "Daftar Pengeluaran",
-      "Atur Meja", "Denah Meja", "Logs", "Limit Permintaan", "Pajak & Layanan", "Analisis Resto", "Konten", "QR"],
+      "Atur Meja", "Denah Meja", "Logs", "Limit Permintaan", "Pajak & Layanan", "Analisis Resto", "Konten", "QR", "Kategori"],
     marketing: ["Dashboard", "Event", "Pelanggan", "Promo"],
     operasional: ["Dashboard", "Laporan Operasional", "Outlet", "Pengaturan Meja", "Atur Meja", "Denah Meja", "Perangkat"],
     akuntan: ["Dashboard", "Laporan Penjualan", "Laporan Laba & Rugi", "Komisi"],
@@ -133,7 +133,14 @@ const Sidebar = ({ isSidebarOpen }) => {
     {
       section: "Produk",
       items: [
-        { name: "Menu", path: "/admin/menu", icon: <FaShoppingBag /> },
+        {
+          name: "Menu",
+          icon: <FaShoppingBag />,
+          subMenu: [
+            { name: "Menu", path: "/admin/menu" },
+            { name: "Kategori", path: "/admin/categories" },
+          ]
+        },
         {
           name: "Inventori",
           icon: <FaBoxes />,
