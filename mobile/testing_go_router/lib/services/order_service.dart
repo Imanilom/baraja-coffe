@@ -186,6 +186,7 @@ class OrderService {
       );
 
       if (response.statusCode == 200) {
+        print('response process payment: ${response.data}');
         return ProcessPaymentResponse.fromJson(response.data);
       } else {
         throw Exception('Failed to process payment: ${response.statusCode}');
