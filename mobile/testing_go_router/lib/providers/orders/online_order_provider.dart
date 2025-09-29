@@ -44,6 +44,54 @@ class OnlineOrderDetailNotifier extends AsyncNotifier<List<OrderDetailModel>?> {
       state = AsyncValue.error(error, stackTrace);
     }
   }
+
+  /// Hapus item lalu replace 1 order di state list
+  Future<void> deleteItemFromOrder({
+    required String orderId,
+    required String menuItemId,
+  }) async {
+    final repo = ref.read(onlineOrderRepository);
+
+    // Optimistic update (opsional)
+    final prev = state.value;
+    if (prev != null) {
+      final idx = prev.indexWhere((o) => o.orderId == orderId);
+      if (idx != -1) {
+        final target = prev[idx];
+        final newItems =
+            target.items.where((it) {
+              final id = it.menuItem.id;
+              return id != menuItemId;
+            }).toList();
+        final optimistic = target.copyWith(items: newItems);
+        final newList = [...prev]..[idx] = optimistic;
+        state = AsyncValue.data(newList);
+      }
+    }
+
+    try {
+      final updated = await repo.deleteOrderItem(
+        orderId: orderId,
+        menuItemId: menuItemId,
+      );
+
+      // Replace order di list
+      final cur = state.value ?? <OrderDetailModel>[];
+      final idx = cur.indexWhere((o) => o.orderId == orderId);
+      if (idx != -1) {
+        final next = [...cur]..[idx] = updated;
+        state = AsyncValue.data(next);
+      } else {
+        // kalau tidak ada, tambahkan (edge case)
+        state = AsyncValue.data([...cur, updated]);
+      }
+    } catch (e, st) {
+      // rollback sederhana: refresh penuh
+      await refresh();
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
 }
 
 final onlineOrderProvider =

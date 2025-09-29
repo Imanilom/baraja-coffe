@@ -24,10 +24,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
     // Filter hanya tagihan yang belum dibayar (status pending/unpaid)
     final List<PaymentModel> pendingPayments =
         orders?.payment
-            ?.where(
-              (payment) =>
-                  payment.status?.toLowerCase() == 'pending',
-            )
+            ?.where((payment) => payment.status?.toLowerCase() == 'pending')
             .toList() ??
         [];
 
@@ -122,8 +119,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
         // Tombol Confirmation jika semua tagihan sudah dibayar
         if (pendingPayments.isEmpty &&
             paidPayments.isNotEmpty &&
-            paidPayments.any((p) => p.status?.toLowerCase() == 'settlement') &&
-            paidPayments.any((p) => p.remainingAmount == 0))
+            paidPayments.any((p) => p.status?.toLowerCase() == 'settlement'))
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -148,51 +144,6 @@ class PaymentDetailsWidget extends ConsumerWidget {
                     cashierId: '',
                     source: orders.source,
                   ),
-                  // child: ElevatedButton(
-                  //   onPressed:
-                  //       isProcessingConfirm
-                  //           ? null
-                  //           : () => _confirmOrder(context, ref),
-                  //   style: ElevatedButton.styleFrom(
-                  //     backgroundColor:
-                  //         isProcessingConfirm ? Colors.grey : Colors.orange,
-                  //     foregroundColor: Colors.white,
-                  //     disabledBackgroundColor: Colors.grey[300],
-                  //     shape: RoundedRectangleBorder(
-                  //       borderRadius: BorderRadius.circular(8),
-                  //     ),
-                  //   ),
-                  //   child:
-                  //       isProcessingConfirm
-                  //           ? Row(
-                  //             mainAxisAlignment: MainAxisAlignment.center,
-                  //             children: const [
-                  //               SizedBox(
-                  //                 width: 20,
-                  //                 height: 20,
-                  //                 child: CircularProgressIndicator(
-                  //                   color: Colors.white,
-                  //                   strokeWidth: 2,
-                  //                 ),
-                  //               ),
-                  //               SizedBox(width: 4),
-                  //               Text(
-                  //                 'Processing...',
-                  //                 style: TextStyle(
-                  //                   fontSize: 14,
-                  //                   fontWeight: FontWeight.bold,
-                  //                 ),
-                  //               ),
-                  //             ],
-                  //           )
-                  //           : const Text(
-                  //             'Confirm',
-                  //             style: TextStyle(
-                  //               fontSize: 16,
-                  //               fontWeight: FontWeight.bold,
-                  //             ),
-                  //           ),
-                  // ),
                 ),
               ],
             ),

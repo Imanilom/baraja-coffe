@@ -139,7 +139,13 @@ class OrderDetailWidget extends ConsumerWidget {
               ),
             ),
           ),
-          Text(': $value', style: const TextStyle(fontWeight: FontWeight.w500)),
+          Expanded(
+            child: Text(
+              ': $value',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );

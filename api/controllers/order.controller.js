@@ -4403,7 +4403,7 @@ export const confirmOrderViaCashier = async (req, res) => {
     } else {
       order.status = 'Waiting';
     }
-    // order.source = source || order.source; // Update source jika diberikan
+
     await order.save();
 
     const statusUpdateData = {
@@ -4434,22 +4434,24 @@ export const confirmOrderViaCashier = async (req, res) => {
     console.log(`🔔 Emitted order status update to room: order_${order_id}`, statusUpdateData);
 
     // 3. Send FCM notification to customer
-    console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
-    if (order.user && order.user_id._id) {
-      try {
-        const orderData = {
-          orderId: order.order_id,
-          cashier: statusUpdateData.cashier
-        };
+    if (order.source === 'App') {
+      console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
+      if (order.user && order.user_id._id) {
+        try {
+          const orderData = {
+            orderId: order.order_id,
+            cashier: statusUpdateData.cashier
+          };
 
-        const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
-          order.user_id._id.toString(),
-          orderData
-        );
+          const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
+            order.user_id._id.toString(),
+            orderData
+          );
 
-        console.log('📱 FCM Notification result:', notificationResult);
-      } catch (notificationError) {
-        console.error('❌ Failed to send FCM notification:', notificationError);
+          console.log('📱 FCM Notification result:', notificationResult);
+        } catch (notificationError) {
+          console.error('❌ Failed to send FCM notification:', notificationError);
+        }
       }
     }
 
@@ -4723,8 +4725,8 @@ export const processPaymentCashier = async (req, res) => {
         processed_payments: payments.map(p => ({
           payment_id: p._id,
           payment_type: p.paymentType,
-          amount: p.amount,
-          remaining_amount: p.remainingAmount,
+          // amount: p.amount,
+          // remaining_amount: p.remainingAmount,
           status: p.status
         }))
       }
@@ -4747,3 +4749,355 @@ export const processPaymentCashier = async (req, res) => {
     });
   }
 };
+
+export const deleteOrderItemAtOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { order_id, menu_item_id, cashier_id } = req.body;
+    console.log('order_id and menu_item_id:', order_id, menu_item_id);
+    // 1) Validasi awal
+    if (!order_id || !menu_item_id) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'order_id dan menu_item_id wajib diisi',
+      });
+    }
+
+    // 2) Ambil order
+    const order = await Order.findOne({ order_id })
+      .populate({ path: 'items.menuItem', select: '_id name price workstation' })
+      .session(session);
+
+    if (!order) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ success: false, message: 'Order tidak ditemukan' });
+    }
+
+    // 3) Cari item target di dalam order
+    const idx = order.items.findIndex((item) => {
+      return item.menuItem._id.toString() === menu_item_id;
+    });
+
+    console.log('cari item target', idx);
+
+    if (idx === -1) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({
+        success: false,
+        message: 'Item dengan menu_item_id tersebut tidak ada dalam order',
+      });
+    }
+
+    // 4) Simpan salinan item yang akan dihapus (untuk logging/response)
+    const removedItem = order.items[idx];
+
+    // 5) Hapus item
+    order.items.splice(idx, 1);
+
+    // 6) Hitung ulang total2 secara defensif
+    recomputeOrderTotals(order);
+
+    // 7) Jika items kosong, Anda bisa menandai status khusus (opsional)
+    if (order.items.length === 0) {
+      // Pilihan: 'Canceled' atau 'Empty' sesuai alur bisnis Anda
+      order.status = 'Canceled';
+      // Jika perlu, nolkan total agar rapi:
+      order.totalBeforeDiscount = 0;
+      order.totalAfterDiscount = 0;
+      order.totalTax = 0;
+      order.totalServiceFee = 0;
+      order.grandTotal = 0;
+    }
+
+    order.cashier_id = cashier_id;
+    // 8) Simpan order
+    await order.save({ session });
+
+    // (Opsional) Emit notifikasi ke UI real-time
+    try {
+      const payload = {
+        order_id: order.order_id,
+        removed_menu_item_id: menu_item_id,
+        order_status: order.status,
+        grand_total: order.grandTotal,
+        items_count: order.items.length,
+        message: 'Satu item dihapus dari order karena stok habis',
+        timestamp: new Date(),
+      };
+      io.to(`order_${order.order_id}`).emit('order_item_removed', payload);
+    } catch (emitErr) {
+      // Jangan gagalkan transaksi hanya karena emit gagal
+      console.error('Emit order_item_removed gagal:', emitErr);
+    }
+
+    // 9) Commit transaksi
+    await session.commitTransaction();
+    session.endSession();
+
+    // 10) Respons
+    return res.status(200).json({
+      success: true,
+      message: 'Item berhasil dihapus dari order',
+      data: {
+        order_id: order.order_id,
+        // removed_item: {
+        //   menu_item_id:
+        //     removedItem?.menuItem?._id?.toString?.() ??
+        //     removedItem?.menuItem?.toString?.() ??
+        //     null,
+        //   name:
+        //     removedItem?.menuItem?.name ??
+        //     removedItem?.name ??
+        //     'Unknown Item',
+        //   quantity: removedItem?.quantity ?? 0,
+        //   // estimasi total item yang dihapus (berguna untuk audit)
+        //   estimated_total:
+        //     removedItem?.totalAfterDiscount ??
+        //     removedItem?.total ??
+        //     removedItem?.lineTotal ??
+        //     num(removedItem?.price) * num(removedItem?.quantity),
+        // },
+        // order_summary: {
+        //   items_count: order.items.length,
+        //   total_before_discount: order.totalBeforeDiscount,
+        //   total_tax: order.totalTax,
+        //   total_service_fee: order.totalServiceFee,
+        //   total_after_discount: order.totalAfterDiscount,
+        //   order_level_discounts: {
+        //     autoPromoDiscount,
+        //     manualDiscount,
+        //     voucherDiscount,
+        //   },
+        //   grand_total: order.grandTotal,
+        //   status: order.status,
+        // },
+      },
+    });
+  } catch (error) {
+    // Rollback bila ada error
+    await session.abortTransaction();
+    session.endSession();
+    console.error('deleteOrderItemAtOrder error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+};
+
+export const getOrderByIdAfterItemDelete = async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    // Cari berdasarkan order_id (string), bukan _id
+    // Populate minimal agar UI dapat nama & harga
+    const order = await Order.findOne({ order_id: orderId })
+      .populate({
+        path: 'items.menuItem',
+        select: '_id name price workstation',
+      })
+      .populate({ path: 'user_id', select: '_id name' })
+      .populate({ path: 'outlet', select: '_id name' })
+      .exec();
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Pastikan agregat up-to-date (kalau totals tersimpan mentah)
+    recomputeOrderTotals(order);
+
+    // (Opsional) turunkan paymentStatus dari collection Payment jika tidak tersimpan di order
+    const payments = await Payment.find({ order_id: orderId });
+    const anyPending = payments.some(p => (p.status || '').toLowerCase() !== 'settlement');
+    order.paymentStatus = anyPending ? 'partial' : 'settlement';
+
+    await order.save(); // simpan jika kita recompute
+
+    const dto = toOrderDTO(order, payments);
+    return res.status(200).json({
+      success: true,
+      data: { order: dto },
+    });
+  } catch (err) {
+    console.error('getOrderById error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
+  }
+};
+
+const num = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** Helper: hitung ulang agregat order agar rapi */
+function recomputeOrderTotals(order) {
+  const items = order.items ?? [];
+
+  const sumBy = (arr, pick) => arr.reduce((acc, x) => acc + num(pick(x)), 0);
+
+  const totalBeforeDiscount = sumBy(items, (i) =>
+    i.totalBeforeDiscount ?? i.subtotal ?? (num(i.price) * num(i.quantity))
+  );
+
+  const itemsTotalAfterDiscount = sumBy(items, (i) =>
+    i.totalAfterDiscount ?? i.total ?? i.lineTotal ?? (num(i.price) * num(i.quantity))
+  );
+
+  // Jika pajak & service disimpan per item:
+  const totalTax = sumBy(items, (i) => i.taxAmount ?? 0);
+  const totalServiceFee = sumBy(items, (i) => i.serviceFeeAmount ?? 0);
+
+  const discounts = order.discounts || {};
+  const orderLevelDiscount =
+    num(discounts.autoPromoDiscount) + num(discounts.manualDiscount) + num(discounts.voucherDiscount);
+
+  order.totalBeforeDiscount = totalBeforeDiscount;
+  order.totalAfterDiscount = Math.max(0, itemsTotalAfterDiscount);
+  order.totalTax = totalTax;
+  order.totalServiceFee = totalServiceFee;
+  order.grandTotal = Math.max(0, order.totalAfterDiscount + order.totalTax + order.totalServiceFee - orderLevelDiscount);
+
+  return order;
+}
+// utils/toOrderDTO.js
+const toStr = (v) => (v == null ? '' : v.toString());
+
+export function toOrderDTO(orderDoc, paymentDocs = []) {
+  const o = orderDoc.toObject ? orderDoc.toObject() : orderDoc;
+
+  // ITEMS → { menuItem:{id,name,originalPrice}, selectedToppings, selectedAddons, subtotal, quantity, isPrinted, notes }
+  const items = (o.items ?? []).map((it) => {
+    // menuItem bisa ObjectId atau populated object
+    const mi = it.menuItem && typeof it.menuItem === 'object' ? it.menuItem : null;
+
+    return {
+      menuItem: {
+        id: mi ? toStr(mi._id ?? mi.id) : toStr(it.menuItem),
+        name: mi?.name ?? it.name ?? '',
+        originalPrice: Number(mi?.price ?? it.price ?? 0), // biarkan number (bisa int/float)
+      },
+      selectedToppings: Array.isArray(it.toppings)
+        ? it.toppings.map((t) => ({
+          id: toStr(t._id ?? t.id ?? ''),
+          name: t.name ?? '',
+          price: Number(t.price ?? 0),
+        }))
+        : [],
+      selectedAddons: Array.isArray(it.addons)
+        ? it.addons.map((a) => ({
+          id: toStr(a._id ?? a.id ?? ''),
+          name: a.name ?? '',
+          type: a.type ?? '',
+          options: Array.isArray(a.options)
+            ? a.options.map((op) => ({
+              id: toStr(op._id ?? op.id ?? ''),
+              label: op.label ?? op.name ?? '',
+              price: Number(op.price ?? 0),
+            }))
+            : [],
+        }))
+        : [],
+      subtotal: Number(it.subtotal ?? it.total ?? 0),
+      quantity: Number(it.quantity ?? 1),
+      isPrinted: !!it.isPrinted,
+      notes: it.notes ?? '',
+    };
+  });
+
+  // DISCOUNTS
+  const discounts = {
+    autoPromoDiscount: Number(o.discounts?.autoPromoDiscount ?? 0),
+    manualDiscount: Number(o.discounts?.manualDiscount ?? 0),
+    voucherDiscount: Number(o.discounts?.voucherDiscount ?? 0),
+  };
+
+  // TAX & SERVICE DETAILS (amount boleh float seperti contoh)
+  const taxAndServiceDetails = Array.isArray(o.taxAndServiceDetails)
+    ? o.taxAndServiceDetails.map((t) => ({
+      type: t.type ?? '',
+      name: t.name ?? '',
+      amount: Number(t.amount ?? 0),
+      _id: toStr(t._id ?? ''),
+    }))
+    : [];
+
+  // OUTLET → string id (bukan object)
+  const outlet =
+    o.outlet && typeof o.outlet === 'object'
+      ? toStr(o.outlet._id ?? '')
+      : toStr(o.outlet ?? '');
+
+  // PAYMENT DETAILS → biarkan number apa adanya (bisa float seperti 233822.6)
+  const payment_details = Array.isArray(paymentDocs)
+    ? paymentDocs.map((p) => {
+      const pp = p.toObject ? p.toObject() : p;
+      return {
+        _id: toStr(pp._id ?? ''),
+        order_id: toStr(pp.order_id ?? ''),
+        payment_code: toStr(pp.payment_code ?? ''),
+        transaction_id: toStr(pp.transaction_id ?? ''),
+        method: pp.method ?? '',
+        status: pp.status ?? '',
+        paymentType: pp.paymentType ?? '',
+        amount: Number(pp.amount ?? 0),
+        totalAmount: Number(pp.totalAmount ?? pp.amount ?? 0),
+        remainingAmount: Number(pp.remainingAmount ?? 0),
+        relatedPaymentId: pp.relatedPaymentId ? toStr(pp.relatedPaymentId) : null,
+        discount: Number(pp.discount ?? 0),
+        currency: pp.currency ?? 'IDR',
+        va_numbers: Array.isArray(pp.va_numbers) ? pp.va_numbers : [],
+        actions: Array.isArray(pp.actions) ? pp.actions : [],
+        createdAt: pp.createdAt ?? null,
+        updatedAt: pp.updatedAt ?? null,
+        __v: Number(pp.__v ?? 0),
+      };
+    })
+    : [];
+
+  return {
+    _id: toStr(o._id),
+    order_id: o.order_id ?? '',
+    user: o.user?.name ?? o.user ?? '',
+    items,
+
+    status: o.status ?? 'Pending',
+    paymentMethod: o.paymentMethod ?? '',
+    orderType: o.orderType ?? 'Dine-In',
+    tableNumber: o.tableNumber ?? '',
+    type: o.type ?? 'Indoor',
+    isOpenBill: !!o.isOpenBill,
+
+    discounts,
+    appliedPromos: Array.isArray(o.appliedPromos) ? o.appliedPromos : [],
+    appliedManualPromo: o.appliedManualPromo ?? null,
+    appliedVoucher: o.appliedVoucher ?? null,
+
+    taxAndServiceDetails,
+    totalTax: Number(o.totalTax ?? 0),
+    totalServiceFee: Number(o.totalServiceFee ?? 0),
+    outlet, // ← string id
+
+    totalBeforeDiscount: Number(o.totalBeforeDiscount ?? 0),
+    totalAfterDiscount: Number(o.totalAfterDiscount ?? 0),
+    grandTotal: Number(o.grandTotal ?? 0),
+
+    source: o.source ?? 'Web',
+    currentBatch: Number(o.currentBatch ?? 1),
+    createdAt: o.createdAt ?? null,
+    updatedAt: o.updatedAt ?? null,
+    kitchenNotifications: Array.isArray(o.kitchenNotifications) ? o.kitchenNotifications : [],
+    __v: Number(o.__v ?? 0),
+
+    paymentStatus: o.paymentStatus ?? 'pending',
+    payment_details,
+  };
+}
+
