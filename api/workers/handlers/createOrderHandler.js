@@ -24,6 +24,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       // Determine initial status based on source and payment method
       let initialStatus = 'Pending';
       if (source === 'Cashier') {
+        console.log('Source Cashier ', isOpenBill);
         // initialStatus = orderData.paymentMethod === 'Cash' ? 'Completed' : 'Pending';
         initialStatus = isOpenBill ? 'Pending' : 'Waiting';
       }

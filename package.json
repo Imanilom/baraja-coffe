@@ -41,6 +41,7 @@
     "qrcode": "^1.5.4",
     "react-datepicker": "^8.3.0",
     "socket.io": "^4.8.1",
+    "url": "^0.11.4",
     "uuid": "^11.1.0",
     "websocket": "^1.0.35"
   },

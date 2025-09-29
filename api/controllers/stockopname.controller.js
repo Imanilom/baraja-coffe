@@ -1,6 +1,7 @@
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import Warehouse from '../models/modul_market/Warehouse.model.js';
+import Assets from '../models/Asset.model.js';
 import mongoose from 'mongoose';
 
 class StockOpnameController {
@@ -567,178 +568,237 @@ class StockOpnameController {
 
   // Generate laporan neraca (balance sheet) inventory
   async generateBalanceSheet(req, res) {
-    try {
-      const { date, warehouseId } = req.query;
-      const asOfDate = date ? new Date(date) : new Date();
-      asOfDate.setHours(23, 59, 59, 999);
+        try {
+            const { date, warehouseId } = req.query;
+            const asOfDate = date ? new Date(date) : new Date();
+            asOfDate.setHours(23, 59, 59, 999);
 
-      const matchStage = {
-        ...(warehouseId && { warehouse: new mongoose.Types.ObjectId(warehouseId) })
-      };
+            const matchStageInventory = {
+                ...(warehouseId && { warehouse: new mongoose.Types.ObjectId(warehouseId) })
+            };
 
-      const balanceData = await ProductStock.aggregate([
-        { $match: matchStage },
-        {
-          $lookup: {
-            from: 'products',
-            localField: 'productId',
-            foreignField: '_id',
-            as: 'product'
-          }
-        },
-        {
-          $lookup: {
-            from: 'warehouses',
-            localField: 'warehouse',
-            foreignField: '_id',
-            as: 'warehouseInfo'
-          }
-        },
-        {
-          $unwind: '$product'
-        },
-        {
-          $unwind: '$warehouseInfo'
-        },
-        {
-          $addFields: {
-            // Hitung stock pada tanggal tertentu
-            stockAsOfDate: {
-              $subtract: [
-                '$currentStock',
+            // 1. Ambil data Inventaris (Stock Opname)
+            const balanceData = await ProductStock.aggregate([
+                { $match: matchStageInventory },
                 {
-                  $sum: {
-                    $map: {
-                      input: {
-                        $filter: {
-                          input: '$movements',
-                          cond: { $gt: ['$$this.date', asOfDate] }
-                        }
-                      },
-                      in: {
-                        $cond: {
-                          if: { $in: ['$$this.type', ['in', 'transfer']] },
-                          then: '$$this.quantity',
-                          else: { $multiply: ['$$this.quantity', -1] }
-                        }
-                      }
+                    $lookup: {
+                        from: 'products',
+                        localField: 'productId',
+                        foreignField: '_id',
+                        as: 'product'
                     }
-                  }
+                },
+                {
+                    $lookup: {
+                        from: 'warehouses',
+                        localField: 'warehouse',
+                        foreignField: '_id',
+                        as: 'warehouseInfo'
+                    }
+                },
+                {
+                    $unwind: '$product'
+                },
+                {
+                    $unwind: '$warehouseInfo'
+                },
+                {
+                    $addFields: {
+                        // Hitung stock pada tanggal tertentu
+                        stockAsOfDate: {
+                            $subtract: [
+                                '$currentStock',
+                                {
+                                    $sum: {
+                                        $map: {
+                                            input: {
+                                                $filter: {
+                                                    input: '$movements',
+                                                    cond: { $gt: ['$$this.date', asOfDate] }
+                                                }
+                                            },
+                                            in: {
+                                                $cond: {
+                                                    if: { $in: ['$$this.type', ['in', 'transfer']] },
+                                                    then: '$$this.quantity',
+                                                    else: { $multiply: ['$$this.quantity', -1] }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        estimatedPrice: {
+                            $ifNull: [
+                                { $arrayElemAt: ['$product.suppliers.price', 0] },
+                                0
+                            ]
+                        }
+                    }
+                },
+                {
+                    $addFields: {
+                        stockValue: {
+                            $multiply: ['$stockAsOfDate', '$estimatedPrice']
+                        }
+                    }
+                },
+                {
+                    $group: {
+                        _id: {
+                            category: '$product.category',
+                            warehouse: '$warehouseInfo.name'
+                        },
+                        items: {
+                            $push: {
+                                productId: '$product._id',
+                                sku: '$product.sku',
+                                name: '$product.name',
+                                unit: '$product.unit',
+                                quantity: '$stockAsOfDate',
+                                estimatedPrice: '$estimatedPrice',
+                                value: '$stockValue',
+                                minStock: '$minStock'
+                            }
+                        },
+                        totalQuantity: { $sum: '$stockAsOfDate' },
+                        totalValue: { $sum: '$stockValue' }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$_id.category',
+                        warehouses: {
+                            $push: {
+                                warehouse: '$_id.warehouse',
+                                items: '$items',
+                                totalQuantity: '$totalQuantity',
+                                totalValue: '$totalValue'
+                            }
+                        },
+                        categoryTotalValue: { $sum: '$totalValue' }
+                    }
+                },
+                {
+                    $sort: { _id: 1 }
                 }
-              ]
-            },
-            estimatedPrice: {
-              $ifNull: [
-                { $arrayElemAt: ['$product.suppliers.price', 0] },
-                0
-              ]
-            }
-          }
-        },
-        {
-          $addFields: {
-            stockValue: {
-              $multiply: ['$stockAsOfDate', '$estimatedPrice']
-            }
-          }
-        },
-        {
-          $group: {
-            _id: {
-              category: '$product.category',
-              warehouse: '$warehouseInfo.name'
-            },
-            items: {
-              $push: {
-                productId: '$product._id',
-                sku: '$product.sku',
-                name: '$product.name',
-                unit: '$product.unit',
-                quantity: '$stockAsOfDate',
-                estimatedPrice: '$estimatedPrice',
-                value: '$stockValue',
-                minStock: '$minStock'
-              }
-            },
-            totalQuantity: { $sum: '$stockAsOfDate' },
-            totalValue: { $sum: '$stockValue' }
-          }
-        },
-        {
-          $group: {
-            _id: '$_id.category',
-            warehouses: {
-              $push: {
-                warehouse: '$_id.warehouse',
-                items: '$items',
-                totalQuantity: '$totalQuantity',
-                totalValue: '$totalValue'
-              }
-            },
-            categoryTotalValue: { $sum: '$totalValue' }
-          }
-        },
-        {
-          $sort: { _id: 1 }
+            ]);
+
+            // Hitung grand total Inventaris
+            const grandTotalInventory = balanceData.reduce((acc, category) => {
+                acc.totalValue += category.categoryTotalValue;
+                return acc;
+            }, { totalValue: 0 });
+
+            // 2. Ambil data Aset (Assets)
+            // Asumsi model Assets memiliki virtual field 'totalValue' = quantity * price
+            const matchStageAssets = {
+                isActive: true, // Hanya aset yang aktif
+                ...(warehouseId && { warehouse: new mongoose.Types.ObjectId(warehouseId) })
+            };
+            
+            // Mengambil aset, populating warehouse name
+            const assetData = await Assets.find(matchStageAssets)
+                .populate('warehouse', 'name code') // Ambil info gudang
+                .lean(); // Mengubah hasil query menjadi objek JavaScript biasa
+
+            // Menghitung total nilai Aset (menggunakan totalValue dari virtual field atau perhitungan manual)
+            // Jika menggunakan .lean(), virtual field tidak otomatis ada, jadi kita hitung manual:
+            let totalAssetValue = 0;
+            const assetsByCategory = assetData.reduce((acc, asset) => {
+                const value = asset.quantity * asset.price; // Hitung totalValue manual
+                totalAssetValue += value;
+                
+                const category = asset.category || 'Uncategorized';
+                if (!acc[category]) {
+                    acc[category] = {
+                        category: category,
+                        items: [],
+                        categoryTotalValue: 0
+                    };
+                }
+
+                acc[category].items.push({
+                    name: asset.name,
+                    code: asset.code,
+                    unit: asset.unit,
+                    quantity: asset.quantity,
+                    price: asset.price,
+                    warehouseName: asset.warehouse ? asset.warehouse.name : 'N/A',
+                    value: value
+                });
+                acc[category].categoryTotalValue += value;
+                return acc;
+            }, {});
+
+            const assetsArray = Object.values(assetsByCategory).sort((a, b) => a.category.localeCompare(b.category));
+            
+            // 3. Gabungkan hasil
+            const grandTotalAssets = {
+                totalValue: totalAssetValue
+            };
+            
+            const grandTotalCombined = {
+                totalValue: grandTotalInventory.totalValue + grandTotalAssets.totalValue
+            };
+
+            // Identifikasi stock kritis (tetap dipertahankan)
+            const criticalStock = await ProductStock.aggregate([
+                { $match: matchStageInventory },
+                {
+                    $lookup: {
+                        from: 'products',
+                        localField: 'productId',
+                        foreignField: '_id',
+                        as: 'product'
+                    }
+                },
+                {
+                    $unwind: '$product'
+                },
+                {
+                    $match: {
+                        $expr: { $lte: ['$currentStock', '$minStock'] }
+                    }
+                },
+                {
+                    $project: {
+                        productName: '$product.name',
+                        sku: '$product.sku',
+                        currentStock: 1,
+                        minStock: 1,
+                        shortage: { $subtract: ['$minStock', '$currentStock'] }
+                    }
+                }
+            ]);
+
+            res.json({
+                success: true,
+                data: {
+                    asOfDate: asOfDate.toISOString().split('T')[0],
+                    inventory: {
+                        byCategory: balanceData,
+                        grandTotal: grandTotalInventory,
+                        criticalStock
+                    },
+                    assets: { // BAGIAN BARU UNTUK ASET
+                        byCategory: assetsArray,
+                        grandTotal: grandTotalAssets
+                    },
+                    grandTotalCombined: grandTotalCombined // TOTAL KESELURUHAN ASET
+                }
+            });
+
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                message: 'Error generating balance sheet',
+                error: error.message
+            });
         }
-      ]);
-
-      // Hitung grand total
-      const grandTotal = balanceData.reduce((acc, category) => {
-        acc.totalValue += category.categoryTotalValue;
-        return acc;
-      }, { totalValue: 0 });
-
-      // Identifikasi stock kritis
-      const criticalStock = await ProductStock.aggregate([
-        { $match: matchStage },
-        {
-          $lookup: {
-            from: 'products',
-            localField: 'productId',
-            foreignField: '_id',
-            as: 'product'
-          }
-        },
-        {
-          $unwind: '$product'
-        },
-        {
-          $match: {
-            $expr: { $lte: ['$currentStock', '$minStock'] }
-          }
-        },
-        {
-          $project: {
-            productName: '$product.name',
-            sku: '$product.sku',
-            currentStock: 1,
-            minStock: 1,
-            shortage: { $subtract: ['$minStock', '$currentStock'] }
-          }
-        }
-      ]);
-
-      res.json({
-        success: true,
-        data: {
-          asOfDate: asOfDate.toISOString().split('T')[0],
-          inventory: {
-            byCategory: balanceData,
-            grandTotal,
-            criticalStock
-          }
-        }
-      });
-
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error generating balance sheet',
-        error: error.message
-      });
     }
-  }
+
 
   // Generate laporan pergerakan stock (stock movement report)
   async generateStockMovementReport(req, res) {
