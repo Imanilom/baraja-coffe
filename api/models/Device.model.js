@@ -1,3 +1,4 @@
+// models/Device.model.js
 import mongoose from 'mongoose';
 
 const DeviceSchema = new mongoose.Schema({
@@ -10,29 +11,59 @@ const DeviceSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  role: {
+  deviceName: {
     type: String,
-    enum: ['cashier senior', 'cashier junior', 'inventory', 'kitchen', 'drive-thru', 'waiter'],
     required: true
+  },
+  deviceType: {
+    type: String,
+    enum: ['tablet', 'pos', 'kiosk', 'mobile'],
+    default: 'tablet'
   },
   location: {
-    type: String, // e.g., "Bar Depan", "Dapur", "Bar Belakang"
+    type: String, // e.g., "Kasir Utama", "Bar Depan", "Drive Thru"
     required: true
   },
-  deviceName: {
-    type: String
-  },
+  // ✅ KONFIGURASI AREA YANG DITANGANI
+  assignedAreas: [{
+    type: String, // ['A', 'B', 'C'] atau ['J', 'K', 'L']
+    uppercase: true
+  }],
+  assignedTables: [{
+    type: String, // Table numbers yang ditangani
+    uppercase: true
+  }],
+  // ✅ KONFIGURASI JENIS PESANAN
+  orderTypes: [{
+    type: String,
+    enum: ['food', 'beverage', 'both'],
+    default: 'both'
+  }],
   isActive: {
     type: Boolean,
     default: true
   },
-  lastLogin: {
+  isOnline: {
+    type: Boolean,
+    default: false
+  },
+  socketId: {
+    type: String,
+    default: null
+  },
+  lastMaintenance: {
     type: Date,
-    default: Date.now
+    default: null
+  },
+  notes: {
+    type: String,
+    default: ''
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true 
+});
 
-// Unik per outlet dan deviceId untuk mencegah duplikasi
+// Unik per outlet dan deviceId
 DeviceSchema.index({ outlet: 1, deviceId: 1 }, { unique: true });
 
 export const Device = mongoose.models.Device || mongoose.model('Device', DeviceSchema);
