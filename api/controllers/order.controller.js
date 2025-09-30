@@ -1923,7 +1923,7 @@ export const charge = async (req, res) => {
         expiry_time: expiryTime,
         settlement_time: null,
         currency: 'IDR',
-        merchant_id: 'G711879663',
+        merchant_id: 'G055993835',
         paymentType: paymentType,
         remainingAmount: remainingAmount,
         relatedPaymentId: relatedPaymentId,
@@ -2125,7 +2125,7 @@ export const createFinalPayment = async (req, res) => {
           expiry_time: expiryTime,
           settlement_time: null,
           currency: 'IDR',
-          merchant_id: 'G711879663',
+          merchant_id: 'G055993835',
           paymentType: 'Final Payment',
           remainingAmount: 0,
           relatedPaymentId: latestPendingPayment._id, // Reference ke pending payment
@@ -2484,7 +2484,7 @@ export const createFinalPayment = async (req, res) => {
         expiry_time: expiryTime,
         settlement_time: null,
         currency: 'IDR',
-        merchant_id: 'G711879663',
+        merchant_id: 'G055993835',
         paymentType: 'Final Payment',
         remainingAmount: 0,
         relatedPaymentId: downPayment._id,
@@ -4122,7 +4122,7 @@ export const cashierCharge = async (req, res) => {
       fraud_status: 'accept',
       transaction_time: nowStr,
       currency: 'IDR',
-      merchant_id: 'G711879663',
+      merchant_id: 'G055993835',
       paidAt: new Date(),
     });
 
@@ -4236,7 +4236,7 @@ export const cashierCharges = async (req, res) => {
         fraud_status: "accept",
         transaction_time: existingPayment.transaction_time || existingPayment.createdAt,
         currency: "IDR",
-        merchant_id: "G711879663",
+        merchant_id: "G055993835",
         createdAt: existingPayment.createdAt,
         updatedAt: existingPayment.updatedAt
       });
@@ -4281,7 +4281,7 @@ export const cashierCharges = async (req, res) => {
       fraud_status: 'accept',
       transaction_time: currentTime,
       currency: 'IDR',
-      merchant_id: 'G711879663',
+      merchant_id: 'G055993835',
       paymentType: paymentType,
       remainingAmount: remainingAmount,
       is_down_payment: is_down_payment || false
@@ -4311,7 +4311,7 @@ export const cashierCharges = async (req, res) => {
       fraud_status: 'accept',
       transaction_time: currentTime,
       currency: 'IDR',
-      merchant_id: 'G711879663',
+      merchant_id: 'G055993835',
       createdAt: savedPayment.createdAt,
       updatedAt: savedPayment.updatedAt
     };
