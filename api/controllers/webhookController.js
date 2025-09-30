@@ -109,7 +109,7 @@ export const midtransWebhook = async (req, res) => {
           // ✅ Pembayaran berhasil
           orderUpdateData = {
             paymentStatus: 'Paid',
-            status: order.status === 'Pending' ? 'Waiting' : order.status // Jangan ubah status jika sudah diproses
+            status: order.status === 'Pending' ? 'Pending' : order.status // Jangan ubah status jika sudah diproses
           };
           shouldUpdateOrder = true;
           
