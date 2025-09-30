@@ -36,6 +36,20 @@ const VoucherSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  oneTimeUse: {
+    type: Boolean,
+    default: false
+  },
+  usedBy: [{
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    usedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   applicableOutlets: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Outlet'
