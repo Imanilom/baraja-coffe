@@ -1,6 +1,7 @@
 import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
+import Table from '../models/Table.model.js'; // ✅ IMPORT MODEL TABLE
 
 export const midtransWebhook = async (req, res) => {
   let requestId = Math.random().toString(36).substr(2, 9);
@@ -109,7 +110,7 @@ export const midtransWebhook = async (req, res) => {
           // ✅ Pembayaran berhasil
           orderUpdateData = {
             paymentStatus: 'Paid',
-            status: order.status === 'Pending' ? 'Waiting' : order.status // Jangan ubah status jika sudah diproses
+            status: order.status === 'Pending' ? 'Pending' : order.status // Jangan ubah status jika sudah diproses
           };
           shouldUpdateOrder = true;
           
@@ -175,11 +176,23 @@ export const midtransWebhook = async (req, res) => {
 
     console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${order_id}`);
 
-    // ✅ PERBAIKAN 7: Jika pembayaran berhasil, broadcast ke cashier
+    // ✅ PERBAIKAN 7: Jika pembayaran berhasil, broadcast ke cashier DAN update status meja
     if (transaction_status === 'settlement' && fraud_status === 'accept') {
       const mappedOrder = mapOrderForCashier(order);
-      io.to('cashier_room').emit('new_order', { mappedOrders: mappedOrder });
-      console.log(`[WEBHOOK ${requestId}] Broadcasted order to cashier room`);
+      
+      // ✅ EDIT: Broadcast ke cashier room dengan struktur data yang benar
+      io.to('cashier_room').emit('new_order', { 
+        mappedOrders: mappedOrder // Gunakan mappedOrder (single object) bukan mappedOrders (array)
+      });
+      
+      console.log(`[WEBHOOK ${requestId}] Broadcasted order to cashier room:`, {
+        order_id: order.order_id,
+        customerName: mappedOrder.customerName,
+        totalPrice: mappedOrder.totalPrice
+      });
+
+      // ✅ NEW: Update status meja jika order memiliki tableNumber
+      await updateTableStatusAfterPayment(order);
     }
 
     console.log(`[WEBHOOK ${requestId}] Webhook processed successfully`);
@@ -205,8 +218,59 @@ export const midtransWebhook = async (req, res) => {
   }
 };
 
-// ✅ PERBAIKAN 8: Helper function yang konsisten
+// ✅ NEW: Function untuk update status meja setelah pembayaran berhasil
+export async function updateTableStatusAfterPayment(order) {
+  try {
+    // Cek apakah order memiliki tableNumber dan order type adalah dine-in
+    if (order.tableNumber && order.orderType === 'dine-in') {
+      console.log(`[TABLE UPDATE] Updating table status for table: ${order.tableNumber}, order: ${order.order_id}`);
+      
+      // Cari meja berdasarkan table_number
+      const table = await Table.findOne({ 
+        table_number: order.tableNumber.toUpperCase() 
+      }).populate('area_id');
+
+      if (!table) {
+        console.warn(`[TABLE UPDATE] Table not found: ${order.tableNumber}`);
+        return;
+      }
+
+      // Update status meja menjadi 'occupied'
+      table.status = 'occupied';
+      table.is_available = false;
+      table.updatedAt = new Date();
+
+      await table.save();
+
+      // ✅ Emit update status meja ke frontend
+      io.to('table_management_room').emit('table_status_updated', {
+        table_id: table._id,
+        table_number: table.table_number,
+        area_id: table.area_id,
+        status: table.status,
+        is_available: table.is_available,
+        order_id: order.order_id,
+        updatedAt: table.updatedAt
+      });
+
+      console.log(`[TABLE UPDATE] Emitted table status update for table: ${order.tableNumber}`);
+      
+    } else {
+      console.log(`[TABLE UPDATE] No table update needed - tableNumber: ${order.tableNumber}, orderType: ${order.orderType}`);
+    }
+  } catch (error) {
+    console.error(`[TABLE UPDATE] Error updating table status:`, {
+      error: error.message,
+      tableNumber: order.tableNumber,
+      order_id: order.order_id
+    });
+  }
+}
+
+// ✅ PERBAIKAN 8: Helper function yang konsisten dengan struktur yang Anda berikan
 function mapOrderForCashier(order) {
+  const isOpenBill = order.isOpenBill || false;
+  
   return {
     _id: order._id,
     order_id: order.order_id,
@@ -221,12 +285,8 @@ function mapOrderForCashier(order) {
       subtotal: item.subtotal,
       isPrinted: item.isPrinted || false,
       menuItem: {
-        _id: item.menuItem?._id,
-        name: item.menuItem?.name || item.name,
-        price: item.menuItem?.price || item.price,
-        image: item.menuItem?.image,
+        ...item.menuItem?.toObject?.() || item.menuItem,
         categories: item.menuItem?.category || [],
-        description: item.menuItem?.description
       },
       selectedAddons: item.addons?.length > 0 ? item.addons.map(addon => ({
         name: addon.name,
@@ -250,11 +310,12 @@ function mapOrderForCashier(order) {
     tableNumber: order.tableNumber,
     pickupTime: order.pickupTime,
     type: order.type,
-    paymentMethod: order.paymentMethod || "QRIS", // ✅ Update sesuai payment_type
+    paymentMethod: order.paymentMethod || payment_type || "QRIS",
     totalPrice: order.totalBeforeDiscount,
-    totalBeforeDiscount: order.totalBeforeDiscount,
     totalAfterDiscount: order.totalAfterDiscount,
-    taxAndService: order.taxAndService,
+    totalTax: order.totalTax,
+    totalServiceFee: order.totalServiceFee,
+    taxAndServiceDetails: order.taxAndServiceDetails,
     grandTotal: order.grandTotal,
     voucher: order.voucher || null,
     outlet: order.outlet || null,
@@ -265,6 +326,6 @@ function mapOrderForCashier(order) {
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     __v: order.__v,
-    isOpenBill: order.isOpenBill || false
+    isOpenBill: isOpenBill
   };
 }

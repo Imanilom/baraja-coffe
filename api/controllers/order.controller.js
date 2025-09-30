@@ -1115,42 +1115,42 @@ export const createUnifiedOrder = async (req, res) => {
       // Always create a pending Payment record first (tagihan), regardless of method
       const order = await Order.findOne({ order_id: orderId });
       if (!order) {
-      throw new Error(`Order ${orderId} not found after job completion`);
+        throw new Error(`Order ${orderId} not found after job completion`);
       }
       const paymentData = {
-      order_id: order.order_id,
-      payment_code: generatePaymentCode(),
-      transaction_id: generateTransactionId(),
-      method: validated.paymentDetails?.method || 'Cash',
-      status: 'pending',
-      paymentType: validated.paymentDetails?.paymentType || 'Full',
-      amount: validated.paymentDetails?.amount || order.grandTotal,
-      totalAmount: order.grandTotal,
-      remainingAmount: order.grandTotal,
+        order_id: order.order_id,
+        payment_code: generatePaymentCode(),
+        transaction_id: generateTransactionId(),
+        method: validated.paymentDetails?.method || 'Cash',
+        status: 'pending',
+        paymentType: validated.paymentDetails?.paymentType || 'Full',
+        amount: validated.paymentDetails?.amount || order.grandTotal,
+        totalAmount: order.grandTotal,
+        remainingAmount: order.grandTotal,
       };
       const payment = await Payment.create(paymentData);
 
       // If payment method is cash, do not create Midtrans Snap
       if (validated.paymentDetails.method?.toLowerCase() === 'cash') {
+        return res.status(200).json({
+          status: 'waiting_payment',
+          orderId,
+          jobId: job.id,
+          message: 'Cash payment, no Midtrans Snap required',
+        });
+      }
+      // Otherwise, create Midtrans Snap transaction
+      const midtransRes = await createMidtransSnapTransaction(
+        orderId,
+        validated.paymentDetails.amount,
+        validated.paymentDetails.method
+      );
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
         jobId: job.id,
-        message: 'Cash payment, no Midtrans Snap required',
-      });
-      }
-      // Otherwise, create Midtrans Snap transaction
-      const midtransRes = await createMidtransSnapTransaction(
-      orderId,
-      validated.paymentDetails.amount,
-      validated.paymentDetails.method
-      );
-      return res.status(200).json({
-      status: 'waiting_payment',
-      orderId,
-      jobId: job.id,
-      snapToken: midtransRes.token,
-      redirectUrl: midtransRes.redirect_url,
+        snapToken: midtransRes.token,
+        redirectUrl: midtransRes.redirect_url,
       });
     }
 
@@ -2844,23 +2844,25 @@ export const paymentNotification = async (req, res) => {
 // ! Start Kitchen sections
 export const getKitchenOrder = async (req, res) => {
   try {
-    const now = new Date();
-    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    // const now = new Date();
+    // const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
 
     // ✅ Update semua order yg masih Waiting & lebih tua dari 15 menit
-    await Order.updateMany(
-      {
-        status: 'Waiting',
-        createdAt: { $lt: fifteenMinutesAgo },
-      },
-      { $set: { status: 'Cancelled' } }
-    );
+    // await Order.updateMany(
+    //   {
+    //     status: { $in: ['Waiting'] }, // bisa Waiting atau Reserved
+    //     createdAt: { $lt: fifteenMinutesAgo },
+    //   },
+    //   { $set: { status: 'Cancelled' } }
+    // );
+
 
     // ✅ Ambil data order terbaru
     const orders = await Order.find({
-      status: { $in: ['Waiting', 'OnProcess', 'Completed', 'Cancelled'] }, // tambahin Cancelled biar kelihatan juga
+      status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Cancelled'] }, // tambahin Cancelled biar kelihatan juga
     })
       .populate('items.menuItem')
+      .populate('reservation')
       .sort({ createdAt: -1 })
       .lean();
 
