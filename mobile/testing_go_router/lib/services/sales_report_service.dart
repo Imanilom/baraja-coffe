@@ -49,7 +49,10 @@ class SalesReportService {
         ),
       );
 
-      return SalesSummary.fromJson(response.data);
+      final summary = SalesSummary.fromJson(response.data);
+
+      print('summary: ${response.data}');
+      return summary;
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {

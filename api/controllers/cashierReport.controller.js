@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Order } from "../models/order.model.js";
 // import { User } from '../models/user.model.js';
 // import { Outlet } from '../models/Outlet.model.js';
