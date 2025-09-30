@@ -1081,25 +1081,6 @@ export const createUnifiedOrder = async (req, res) => {
     try {
       result = await job.waitUntilFinished(queueEvents);
 
-      // Pastikan order sudah ada
-      const order = await Order.findOne({ order_id: orderId });
-      if (!order) {
-        throw new Error(`Order ${orderId} not found after job completion`);
-      }
-      const paymentData = {
-        order_id: order.order_id,
-        payment_code: generatePaymentCode(),
-        transaction_id: generateTransactionId(),
-        method: validated.paymentDetails?.method || 'Cash',
-        status: 'pending',
-        paymentType: validated.paymentDetails?.paymentType || 'Full',
-        amount: validated.paymentDetails?.amount || order.grandTotal,
-        totalAmount: order.grandTotal,
-        remainingAmount: order.grandTotal,
-      };
-
-      const payment = await Payment.create(paymentData);
-      console.log(`✅ Payment pending created for order ${orderId}`, payment._id);
     } catch (queueErr) {
       return res.status(500).json({
         success: false,
@@ -1131,27 +1112,45 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (source === 'Web') {
+      // Always create a pending Payment record first (tagihan), regardless of method
+      const order = await Order.findOne({ order_id: orderId });
+      if (!order) {
+      throw new Error(`Order ${orderId} not found after job completion`);
+      }
+      const paymentData = {
+      order_id: order.order_id,
+      payment_code: generatePaymentCode(),
+      transaction_id: generateTransactionId(),
+      method: validated.paymentDetails?.method || 'Cash',
+      status: 'pending',
+      paymentType: validated.paymentDetails?.paymentType || 'Full',
+      amount: validated.paymentDetails?.amount || order.grandTotal,
+      totalAmount: order.grandTotal,
+      remainingAmount: order.grandTotal,
+      };
+      const payment = await Payment.create(paymentData);
+
       // If payment method is cash, do not create Midtrans Snap
       if (validated.paymentDetails.method?.toLowerCase() === 'cash') {
-        return res.status(200).json({
-          status: 'waiting_payment',
-          orderId,
-          jobId: job.id,
-          message: 'Cash payment, no Midtrans Snap required',
-        });
-      }
-      // Otherwise, create Midtrans Snap transaction
-      const midtransRes = await createMidtransSnapTransaction(
-        orderId,
-        validated.paymentDetails.amount,
-        validated.paymentDetails.method
-      );
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
         jobId: job.id,
-        snapToken: midtransRes.token,
-        redirectUrl: midtransRes.redirect_url,
+        message: 'Cash payment, no Midtrans Snap required',
+      });
+      }
+      // Otherwise, create Midtrans Snap transaction
+      const midtransRes = await createMidtransSnapTransaction(
+      orderId,
+      validated.paymentDetails.amount,
+      validated.paymentDetails.method
+      );
+      return res.status(200).json({
+      status: 'waiting_payment',
+      orderId,
+      jobId: job.id,
+      snapToken: midtransRes.token,
+      redirectUrl: midtransRes.redirect_url,
       });
     }
 

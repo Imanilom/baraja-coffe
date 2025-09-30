@@ -8,6 +8,8 @@ import http from 'http';
 import { Server } from 'socket.io';
 import WebSocket from 'ws';
 import { initializeFirebase } from './config/firebase.js';
+import { setupStockCalibrationCron } from './jobs/stockCalibration.job.js';
+
 // Routes imports...
 import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
@@ -56,6 +58,7 @@ mongoose
   .connect(process.env.MONGO)
   .then(() => {
     console.log('Connected to MongoDB');
+    setupStockCalibrationCron();
   })
   .catch((err) => {
     console.log(err);
