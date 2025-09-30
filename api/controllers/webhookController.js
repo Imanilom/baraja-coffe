@@ -178,8 +178,17 @@ export const midtransWebhook = async (req, res) => {
     // ✅ PERBAIKAN 7: Jika pembayaran berhasil, broadcast ke cashier
     if (transaction_status === 'settlement' && fraud_status === 'accept') {
       const mappedOrder = mapOrderForCashier(order);
-      io.to('cashier_room').emit('new_order', { mappedOrders: mappedOrder });
-      console.log(`[WEBHOOK ${requestId}] Broadcasted order to cashier room`);
+      
+      // ✅ EDIT: Broadcast ke cashier room dengan struktur data yang benar
+      io.to('cashier_room').emit('new_order', { 
+        mappedOrders: mappedOrder // Gunakan mappedOrder (single object) bukan mappedOrders (array)
+      });
+      
+      console.log(`[WEBHOOK ${requestId}] Broadcasted order to cashier room:`, {
+        order_id: order.order_id,
+        customerName: mappedOrder.customerName,
+        totalPrice: mappedOrder.totalPrice
+      });
     }
 
     console.log(`[WEBHOOK ${requestId}] Webhook processed successfully`);
@@ -205,8 +214,10 @@ export const midtransWebhook = async (req, res) => {
   }
 };
 
-// ✅ PERBAIKAN 8: Helper function yang konsisten
+// ✅ PERBAIKAN 8: Helper function yang konsisten dengan struktur yang Anda berikan
 function mapOrderForCashier(order) {
+  const isOpenBill = order.isOpenBill || false;
+  
   return {
     _id: order._id,
     order_id: order.order_id,
@@ -221,12 +232,8 @@ function mapOrderForCashier(order) {
       subtotal: item.subtotal,
       isPrinted: item.isPrinted || false,
       menuItem: {
-        _id: item.menuItem?._id,
-        name: item.menuItem?.name || item.name,
-        price: item.menuItem?.price || item.price,
-        image: item.menuItem?.image,
+        ...item.menuItem?.toObject?.() || item.menuItem,
         categories: item.menuItem?.category || [],
-        description: item.menuItem?.description
       },
       selectedAddons: item.addons?.length > 0 ? item.addons.map(addon => ({
         name: addon.name,
@@ -250,11 +257,12 @@ function mapOrderForCashier(order) {
     tableNumber: order.tableNumber,
     pickupTime: order.pickupTime,
     type: order.type,
-    paymentMethod: order.paymentMethod || "QRIS", // ✅ Update sesuai payment_type
+    paymentMethod: order.paymentMethod || payment_type || "QRIS",
     totalPrice: order.totalBeforeDiscount,
-    totalBeforeDiscount: order.totalBeforeDiscount,
     totalAfterDiscount: order.totalAfterDiscount,
-    taxAndService: order.taxAndService,
+    totalTax: order.totalTax,
+    totalServiceFee: order.totalServiceFee,
+    taxAndServiceDetails: order.taxAndServiceDetails,
     grandTotal: order.grandTotal,
     voucher: order.voucher || null,
     outlet: order.outlet || null,
@@ -265,6 +273,6 @@ function mapOrderForCashier(order) {
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     __v: order.__v,
-    isOpenBill: order.isOpenBill || false
+    isOpenBill: isOpenBill
   };
 }
