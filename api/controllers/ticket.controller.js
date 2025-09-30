@@ -28,18 +28,7 @@ export const chargeTicket = async (req, res) => {
             quantity
         } = req.body;
 
-        const payment_code = generatePaymentCode();
-        const order_id = transaction_details?.order_id;
-        const gross_amount = transaction_details?.gross_amount;
-
         // === Validasi input ===
-        if (!order_id || !gross_amount) {
-            return res.status(400).json({
-                success: false,
-                message: 'Order ID and gross amount are required'
-            });
-        }
-
         if (!event_id || !user_id || !quantity) {
             return res.status(400).json({
                 success: false,
@@ -68,12 +57,21 @@ export const chargeTicket = async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
+        // === Generate order_id dengan format TICKET-KODEHARI-DATE-SEQUENCE ===
+        const order_id = await generateTicketOrderId(event_id);
+        
+        // === Generate payment code untuk Midtrans ===
+        const payment_code = generatePaymentCode();
+        
+        // Gunakan gross_amount dari event jika tidak disediakan
+        const gross_amount = transaction_details?.gross_amount || (event.ticketPrice * quantity);
+
         // === Setup payment parameters ===
         let chargeParams = {
             payment_type: payment_type,
             transaction_details: {
                 gross_amount: parseInt(gross_amount),
-                order_id: payment_code,
+                order_id: payment_code, // Midtrans menggunakan payment_code sebagai order_id
             },
         };
 
@@ -104,8 +102,8 @@ export const chargeTicket = async (req, res) => {
         // === Create Payment record ===
         const payment = new Payment({
             transaction_id: response.transaction_id,
-            order_id: order_id,
-            payment_code: payment_code,
+            order_id: order_id, // Simpan order_id custom kita di database
+            payment_code: payment_code, // Simpan juga payment_code untuk Midtrans
             amount: parseInt(gross_amount),
             totalAmount: parseInt(gross_amount),
             method: payment_type,
@@ -137,20 +135,25 @@ export const chargeTicket = async (req, res) => {
             user: user_id,
             payment_id: savedPayment._id,
             quantity: quantity,
-            totalPrice: parseInt(gross_amount)
+            totalPrice: parseInt(gross_amount),
+            order_id: order_id // Simpan order_id di ticket purchase juga
         });
 
         const savedTicketPurchase = await ticketPurchase.save();
 
-        // === Update Event with ticket purchase reference (optional) ===
-        await Event.updateOne(
-            { _id: event_id },
-            { $addToSet: { ticket_purchases: savedTicketPurchase._id } }
+        // === Update Event dengan increment soldTickets ===
+        await Event.findByIdAndUpdate(
+            event_id,
+            { 
+                $inc: { soldTickets: quantity },
+                $addToSet: { ticket_purchases: savedTicketPurchase._id }
+            }
         );
 
         // === Return response in same format as original charge function ===
         return res.status(200).json({
             ...response,
+            order_id: order_id, // Kembalikan order_id custom kita
             paymentType: 'Full',
             totalAmount: parseInt(gross_amount),
             remainingAmount: 0,
@@ -172,6 +175,60 @@ export const chargeTicket = async (req, res) => {
         });
     }
 };
+
+// Fungsi untuk generate order_id dengan format TICKET-KODEHARI-DATE-SEQUENCE
+const generateTicketOrderId = async (event_id) => {
+    const now = new Date();
+    
+    // Kode hari (M=Monday, T=Tuesday, W=Wednesday, TH=Thursday, F=Friday, S=Saturday, SU=Sunday)
+    const dayCodes = {
+        0: 'SU', // Sunday
+        1: 'M',  // Monday
+        2: 'T',  // Tuesday
+        3: 'W',  // Wednesday
+        4: 'TH', // Thursday
+        5: 'F',  // Friday
+        6: 'S'   // Saturday
+    };
+    
+    const dayCode = dayCodes[now.getDay()];
+    const dateNumber = now.getDate().toString().padStart(2, '0');
+    
+    // Format: TICKET-MD26 (Monday Date 26)
+    const baseCode = `TICKET-${dayCode}D${dateNumber}`;
+    
+    // Cari sequence number terakhir untuk event ini pada hari ini
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const lastTicket = await TicketPurchase.findOne({
+        event: event_id,
+        createdAt: {
+            $gte: startOfDay,
+            $lte: endOfDay
+        }
+    }).sort({ createdAt: -1 });
+    
+    let sequence = 1;
+    if (lastTicket && lastTicket.order_id) {
+        // Extract sequence number dari order_id terakhir
+        const lastOrderId = lastTicket.order_id;
+        const sequenceMatch = lastOrderId.match(/-(\d+)$/);
+        if (sequenceMatch) {
+            sequence = parseInt(sequenceMatch[1]) + 1;
+        }
+    }
+    
+    // Format sequence dengan leading zeros (001, 002, dst)
+    const sequenceFormatted = sequence.toString().padStart(3, '0');
+    
+    return `${baseCode}-${sequenceFormatted}`;
+};
+
+
 
 // tiket user
 export const getUserTickets = async (req, res) => {
