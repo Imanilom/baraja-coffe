@@ -4101,7 +4101,7 @@ export const cashierCharge = async (req, res) => {
         },
       });
     }
-
+    console.log('membuat payment mode non DP');
     // === MODE NON-DP (Full langsung atau pelunasan tanpa DP) ===
     // Jika tidak DP, biasakan 1 payment saja. Bisa full settlement,
     // atau kalau mau “pending” untuk non-cash, statusnya bisa diubah di sini.
