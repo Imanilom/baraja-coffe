@@ -52,17 +52,8 @@ import AccountingRoutes from './routes/accounting.routes.js';
 import socketHandler from './socket/index.js';
 import { midtransWebhook } from './controllers/webhookController.js';
 import { fileURLToPath } from "url";
-dotenv.config();
 
-mongoose
-  .connect(process.env.MONGO)
-  .then(() => {
-    console.log('Connected to MongoDB');
-    setupStockCalibrationCron();
-  })
-  .catch((err) => {
-    console.log(err);
-  });
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,6 +61,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 initializeFirebase();
 const server = http.createServer(app);
+
+// 🔹 Setup Socket.IO
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -80,32 +73,31 @@ const io = new Server(server, {
   pingInterval: 25000,
   transports: ['websocket', 'polling']
 });
-socketHandler(io);
 const { broadcastNewOrder } = socketHandler(io);
 export { io, broadcastNewOrder };
 
-// Middleware and routes setup...
+// 🔹 Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(cors({
-  origin: '*', // atau domain frontend Anda
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
     'ngrok-skip-browser-warning',
     'X-Requested-With',
-    'Accept'],
+    'Accept'
+  ],
   credentials: true,
   preflightContinue: false,
   optionsSuccessStatus: 204
-
 }));
 
 app.use("/images", express.static("api/public/images")); // supaya bisa diakses dari browser
 
-// Route definitions...
+// 🔹 Routes
 app.use('/api', orderRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/vouchers', voucherRoutes);
@@ -144,45 +136,29 @@ app.use('/api/logs', LogRoutes);
 app.use('/api/sidebar', SidebarRoutes);
 app.use('/api/analytics', AnalyticsRoutes);
 app.use('/api/assets', AssetRoutes);
-// app.post('/api/midtrans/webhook', (req, res) => {
-//   res.status(200).send('OK');
-// });
-
 app.post('/api/midtrans/webhook', midtransWebhook);
 
-// 1. Serve static assets
+// 🔹 Static files (frontend build)
 app.use(express.static(path.join(__dirname, "../client/dist")));
-
-// 2. SPA fallback — but exclude /api and static files
 app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "../client/dist/index.html"));
 });
 
-
-// Start server
-server.listen(3000, () => {
-  console.log('Socket.IO + Express server listening on port 3000');
-});
-
-
-// WebSocket server setup
+// 🔹 WebSocket server
 const wss = new WebSocket.Server({ port: 8080 });
 wss.on('connection', (ws) => {
   console.log('WebSocket client connected');
 
-  // Handle incoming messages from WebSocket clients
   ws.on('message', (message) => {
     console.log('Received message from WebSocket client:', message);
-    // Handle the message as needed
   });
 
-  // Handle client disconnection
   ws.on('close', () => {
     console.log('WebSocket client disconnected');
   });
 });
 
-// Error handling middleware
+// 🔹 Error handling middleware
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
@@ -192,3 +168,26 @@ app.use((err, req, res, next) => {
     statusCode,
   });
 });
+
+// =====================================================
+// 🔹 Start server hanya setelah MongoDB terkoneksi
+// =====================================================
+const startServer = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO, {
+      serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
+    });
+    console.log('✅ Connected to MongoDB');
+
+    setupStockCalibrationCron();
+
+    server.listen(3000, () => {
+      console.log('🚀 Socket.IO + Express server listening on port 3000');
+    });
+  } catch (err) {
+    console.error('❌ MongoDB connection error:', err.message);
+    process.exit(1); // stop process kalau gagal connect
+  }
+};
+
+startServer();
