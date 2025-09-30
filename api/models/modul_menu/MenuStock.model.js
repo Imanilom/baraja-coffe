@@ -55,4 +55,5 @@ MenuStockSchema.set('toJSON', { virtuals: true });
 MenuStockSchema.set('toObject', { virtuals: true });
 
 const MenuStock = mongoose.model('MenuStock', MenuStockSchema);
+
 export default MenuStock;
