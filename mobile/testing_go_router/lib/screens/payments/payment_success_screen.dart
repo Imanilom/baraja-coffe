@@ -272,29 +272,29 @@ class PaymentSuccessScreen extends ConsumerWidget {
     return Row(
       children: [
         // Print Receipt Button
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {
-              savedPrinter.printToPrinter(
-                orderDetail: orderDetail!,
-                printType: 'all',
-              );
-              // Implementasi print receipt
-            },
-            icon: const Icon(Icons.print),
-            label: const Text('Print Struk'),
-            style: OutlinedButton.styleFrom(
-              padding: EdgeInsets.symmetric(vertical: isLandscape ? 12 : 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              side: BorderSide(color: Colors.blue.shade300),
-              foregroundColor: Colors.blue.shade600,
-            ),
-          ),
-        ),
+        // Expanded(
+        //   child: OutlinedButton.icon(
+        //     onPressed: () {
+        //       savedPrinter.printToPrinter(
+        //         orderDetail: orderDetail!,
+        //         printType: 'all',
+        //       );
+        // Implementasi print receipt
+        //     },
+        //     icon: const Icon(Icons.print),
+        //     label: const Text('Print Struk'),
+        //     style: OutlinedButton.styleFrom(
+        //       padding: EdgeInsets.symmetric(vertical: isLandscape ? 12 : 16),
+        //       shape: RoundedRectangleBorder(
+        //         borderRadius: BorderRadius.circular(12),
+        //       ),
+        //       side: BorderSide(color: Colors.blue.shade300),
+        //       foregroundColor: Colors.blue.shade600,
+        //     ),
+        //   ),
+        // ),
 
-        const SizedBox(width: 16),
+        // const SizedBox(width: 16),
 
         // New Transaction Button
         Expanded(

@@ -16,13 +16,14 @@ export async function calculateMenuItemStock(menuItemId) {
   try {
     session.startTransaction();
 
-    // Find central warehouse
+    // Find central warehouse to exclude it from calculations
     const centralWarehouse = await Warehouse.findOne({ code: 'gudang-pusat' }).session(session);
     const centralWarehouseId = centralWarehouse?._id?.toString();
 
     // Get recipe for menu item
     const recipe = await Recipe.findOne({ menuItemId }).session(session);
     if (!recipe) {
+      console.log(`No recipe found for menu item: ${menuItemId}`);
       return 0;
     }
 
@@ -30,23 +31,100 @@ export async function calculateMenuItemStock(menuItemId) {
 
     // Calculate based on base ingredients
     for (const ingredient of recipe.baseIngredients) {
-      // Get product stock from all warehouses except central
+      // Get product stock from ALL warehouses EXCEPT central warehouse
       const productStocks = await ProductStock.find({
         productId: ingredient.productId,
         warehouse: { $ne: centralWarehouseId }
-      }).session(session);
+      })
+      .populate('warehouse')
+      .session(session);
 
-      const totalStock = productStocks.reduce((sum, stock) => sum + (stock.currentStock || 0), 0);
-      const portions = Math.floor(totalStock / ingredient.quantity);
+      // Calculate total stock from all non-central warehouses
+      const totalStock = productStocks.reduce((sum, stock) => {
+        // Only count stock from active warehouses
+        if (stock.warehouse?.is_active !== false) {
+          return sum + (stock.currentStock || 0);
+        }
+        return sum;
+      }, 0);
+
+      console.log(`Product ${ingredient.productId} total stock from non-central warehouses: ${totalStock}`);
+
+      // Calculate how many portions can be made with available stock
+      const requiredQuantity = ingredient.quantity || 1;
+      if (requiredQuantity <= 0) continue;
+
+      const portions = Math.floor(totalStock / requiredQuantity);
       
       maxPossiblePortions = Math.min(maxPossiblePortions, portions);
+      
+      console.log(`Ingredient ${ingredient.productId}: ${totalStock} stock / ${requiredQuantity} required = ${portions} portions`);
     }
 
-    // Consider toppings and addons if needed
-    // (You can add similar logic for toppings and addons here)
+    // Consider toppings if they are required in recipe
+    if (recipe.toppings && recipe.toppings.length > 0) {
+      for (const topping of recipe.toppings) {
+        if (topping.isRequired) {
+          const toppingStocks = await ProductStock.find({
+            productId: topping.productId,
+            warehouse: { $ne: centralWarehouseId }
+          })
+          .populate('warehouse')
+          .session(session);
+
+          const totalToppingStock = toppingStocks.reduce((sum, stock) => {
+            if (stock.warehouse?.is_active !== false) {
+              return sum + (stock.currentStock || 0);
+            }
+            return sum;
+          }, 0);
+
+          const requiredToppingQty = topping.quantity || 1;
+          if (requiredToppingQty <= 0) continue;
+
+          const toppingPortions = Math.floor(totalToppingStock / requiredToppingQty);
+          maxPossiblePortions = Math.min(maxPossiblePortions, toppingPortions);
+          
+          console.log(`Topping ${topping.productId}: ${totalToppingStock} stock / ${requiredToppingQty} required = ${toppingPortions} portions`);
+        }
+      }
+    }
+
+    // Consider addons if they affect stock calculation
+    if (recipe.addons && recipe.addons.length > 0) {
+      for (const addon of recipe.addons) {
+        if (addon.affectsStock) {
+          const addonStocks = await ProductStock.find({
+            productId: addon.productId,
+            warehouse: { $ne: centralWarehouseId }
+          })
+          .populate('warehouse')
+          .session(session);
+
+          const totalAddonStock = addonStocks.reduce((sum, stock) => {
+            if (stock.warehouse?.is_active !== false) {
+              return sum + (stock.currentStock || 0);
+            }
+            return sum;
+          }, 0);
+
+          const requiredAddonQty = addon.quantity || 1;
+          if (requiredAddonQty <= 0) continue;
+
+          const addonPortions = Math.floor(totalAddonStock / requiredAddonQty);
+          maxPossiblePortions = Math.min(maxPossiblePortions, addonPortions);
+          
+          console.log(`Addon ${addon.productId}: ${totalAddonStock} stock / ${requiredAddonQty} required = ${addonPortions} portions`);
+        }
+      }
+    }
+
+    const finalStock = Math.max(0, maxPossiblePortions === Infinity ? 0 : maxPossiblePortions);
+    
+    console.log(`Final calculated stock for menu item ${menuItemId}: ${finalStock}`);
 
     await session.commitTransaction();
-    return Math.max(0, maxPossiblePortions);
+    return finalStock;
 
   } catch (error) {
     await session.abortTransaction();
@@ -57,28 +135,114 @@ export async function calculateMenuItemStock(menuItemId) {
   }
 }
 
+/**
+ * Calculate max portions for specific ingredients (standalone function)
+ * @param {Array} ingredients - Array of ingredients with productId and quantity
+ * @returns {number} maximum portions possible
+ */
 export const calculateMaxPortions = async (ingredients) => {
-  let maxPortion = Infinity;
+  try {
+    // Find central warehouse to exclude
+    const centralWarehouse = await Warehouse.findOne({ code: 'gudang-pusat' });
+    const centralWarehouseId = centralWarehouse?._id?.toString();
 
-  for (const ing of ingredients) {
-    const stockDoc = await ProductStock.findOne({ productId: ing.productId });
+    let maxPortion = Infinity;
 
-    if (!stockDoc) {
-      // Tidak ada stok → tidak bisa buat sama sekali
-      return 0;
+    for (const ing of ingredients) {
+      // Get stocks from all warehouses except central
+      const stockDocs = await ProductStock.find({
+        productId: ing.productId,
+        warehouse: { $ne: centralWarehouseId }
+      }).populate('warehouse');
+
+      if (!stockDocs || stockDocs.length === 0) {
+        // Tidak ada stok di warehouse manapun (selain central) → tidak bisa buat
+        return 0;
+      }
+
+      // Calculate total available stock from all non-central warehouses
+      const availableQty = stockDocs.reduce((sum, stock) => {
+        if (stock.warehouse?.is_active !== false) {
+          return sum + (stock.currentStock || 0);
+        }
+        return sum;
+      }, 0);
+
+      const requiredPerPortion = ing.quantity || 1;
+
+      if (requiredPerPortion <= 0) continue;
+
+      const possiblePortion = Math.floor(availableQty / requiredPerPortion);
+      maxPortion = Math.min(maxPortion, possiblePortion);
+      
+      console.log(`Ingredient ${ing.productId}: ${availableQty} available / ${requiredPerPortion} required = ${possiblePortion} portions`);
     }
 
-    const availableQty = stockDoc.currentStock;
-    const requiredPerPortion = ing.quantity;
+    const result = isNaN(maxPortion) || maxPortion < 0 || maxPortion === Infinity ? 0 : maxPortion;
+    console.log(`Max portions calculated: ${result}`);
+    
+    return result;
 
-    if (requiredPerPortion <= 0) continue;
-
-    const possiblePortion = Math.floor(availableQty / requiredPerPortion);
-    maxPortion = Math.min(maxPortion, possiblePortion);
+  } catch (error) {
+    console.error('Error in calculateMaxPortions:', error);
+    return 0;
   }
-
-  return isNaN(maxPortion) || maxPortion < 0 ? 0 : maxPortion;
 };
+
+/**
+ * Get detailed stock information for a menu item
+ * @param {string} menuItemId - ID of the menu item
+ * @returns {Object} detailed stock information
+ */
+export async function getDetailedMenuItemStock(menuItemId) {
+  try {
+    const centralWarehouse = await Warehouse.findOne({ code: 'gudang-pusat' });
+    const centralWarehouseId = centralWarehouse?._id?.toString();
+
+    const recipe = await Recipe.findOne({ menuItemId });
+    if (!recipe) {
+      return { availableStock: 0, ingredients: [] };
+    }
+
+    const ingredientDetails = [];
+
+    for (const ingredient of recipe.baseIngredients) {
+      const productStocks = await ProductStock.find({
+        productId: ingredient.productId,
+        warehouse: { $ne: centralWarehouseId }
+      }).populate('warehouse');
+
+      const warehouseStocks = productStocks.map(stock => ({
+        warehouseName: stock.warehouse?.name || 'Unknown',
+        stock: stock.currentStock || 0,
+        isActive: stock.warehouse?.is_active !== false
+      }));
+
+      const totalStock = warehouseStocks.reduce((sum, ws) => ws.isActive ? sum + ws.stock : sum, 0);
+      
+      ingredientDetails.push({
+        productId: ingredient.productId,
+        productName: ingredient.productName,
+        requiredQuantity: ingredient.quantity,
+        totalAvailable: totalStock,
+        maxPortions: Math.floor(totalStock / (ingredient.quantity || 1)),
+        warehouseStocks
+      });
+    }
+
+    const availableStock = Math.min(...ingredientDetails.map(ing => ing.maxPortions));
+
+    return {
+      availableStock: Math.max(0, availableStock),
+      ingredients: ingredientDetails,
+      calculatedAt: new Date()
+    };
+
+  } catch (error) {
+    console.error('Error getting detailed menu item stock:', error);
+    return { availableStock: 0, ingredients: [] };
+  }
+}
 
 /**
  * Recalculate stock for multiple menu items
@@ -106,5 +270,24 @@ export async function recalculateMultipleMenuStocks(menuItemIds) {
 
   if (bulkOps.length > 0) {
     await MenuStock.bulkWrite(bulkOps);
+    console.log(`Updated stock for ${bulkOps.length} menu items`);
+  }
+}
+
+/**
+ * Recalculate stock for all menu items with recipes
+ */
+export async function recalculateAllMenuStocks() {
+  try {
+    const recipes = await Recipe.find().select('menuItemId');
+    const menuItemIds = recipes.map(recipe => recipe.menuItemId);
+    
+    console.log(`Recalculating stock for ${menuItemIds.length} menu items`);
+    
+    await recalculateMultipleMenuStocks(menuItemIds);
+    
+    console.log('Completed recalculating all menu stocks');
+  } catch (error) {
+    console.error('Error recalculating all menu stocks:', error);
   }
 }

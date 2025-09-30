@@ -46,12 +46,12 @@ class ProcessPaymentRequest {
 class ProcessPaymentResponse {
   final bool success;
   final String message;
-  final ProcessPaymentData data;
+  final ProcessPaymentData? data;
 
   ProcessPaymentResponse({
     required this.success,
     required this.message,
-    required this.data,
+    this.data,
   });
 
   factory ProcessPaymentResponse.fromJson(Map<String, dynamic> json) {

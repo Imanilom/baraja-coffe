@@ -12,6 +12,7 @@ import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provid
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
 import 'package:kasirbaraja/providers/payment_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 
 //provider type pelunasan enum
 final choosePaymentTypesProvider = StateProvider<PaymentTypes>((ref) {
@@ -1015,7 +1016,11 @@ class PaymentMethodScreen extends ConsumerWidget {
 
       if (success && context.mounted) {
         ref.invalidate(orderHistoryProvider);
-
+        final savedPrinter = ref.read(savedPrintersProvider.notifier);
+        savedPrinter.printToPrinter(
+          orderDetail: updatedOrder,
+          printType: 'all',
+        );
         context.goNamed(
           'payment-success',
           extra: {
