@@ -2844,8 +2844,8 @@ export const paymentNotification = async (req, res) => {
 // ! Start Kitchen sections
 export const getKitchenOrder = async (req, res) => {
   try {
-    const now = new Date();
-    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    // const now = new Date();
+    // const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
 
     // ✅ Update semua order yg masih Waiting & lebih tua dari 15 menit
     // await Order.updateMany(
