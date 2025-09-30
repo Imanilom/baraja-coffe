@@ -35,10 +35,12 @@ export const midtransWebhook = async (req, res) => {
     }
 
     // ✅ PERBAIKAN 1: Langsung cari payment berdasarkan order_id (bukan payment_code)
-    const existingPayment = await Payment.findOne({ order_id });
+    const existingPayment = await Payment.findOne({
+      payment_code: order_id
+    });
 
     if (!existingPayment) {
-      console.error(`[WEBHOOK ${requestId}] Payment record not found for order_id: ${order_id}`);
+      console.error(`[WEBHOOK ${requestId}] Payment record not found for payment_code: ${order_id}`);
       return res.status(404).json({ message: 'Payment record not found' });
     }
 
@@ -66,8 +68,8 @@ export const midtransWebhook = async (req, res) => {
     };
 
     const updatedPayment = await Payment.findOneAndUpdate(
-      { order_id },
-      { 
+      { payment_code: order_id },
+      {
         ...paymentUpdateData,
         raw_response: rawResponseUpdate
       },
@@ -75,14 +77,17 @@ export const midtransWebhook = async (req, res) => {
     );
 
     if (!updatedPayment) {
-      console.error(`[WEBHOOK ${requestId}] Failed to update payment for order_id ${order_id}`);
+      console.error(`[WEBHOOK ${requestId}] Failed to update payment for payment_code ${order_id}`);
       return res.status(404).json({ message: 'Payment update failed' });
     }
 
-    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for order_id ${order_id}`);
+    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for payment_code ${order_id}`);
 
     // ✅ PERBAIKAN 3: Cari order berdasarkan order_id
-    const order = await Order.findOne({ order_id })
+    const payment_order = await Payment.findOne({ payment_code: order_id }).select('order_id');
+    console.log("payment_order:", payment_order);
+
+    const order = await Order.findOne({ order_id: payment_order.order_id }) // <-- ambil field order_id
       .populate('user_id', 'name email phone')
       .populate('cashierId', 'name')
       .populate({
@@ -90,6 +95,9 @@ export const midtransWebhook = async (req, res) => {
         select: 'name price image category description'
       })
       .populate('outlet', 'name address');
+
+    console.log("order:", order);
+
 
     if (!order) {
       console.warn(`[WEBHOOK ${requestId}] Order with ID ${order_id} not found`);
@@ -112,7 +120,7 @@ export const midtransWebhook = async (req, res) => {
             status: order.status === 'Pending' ? 'Pending' : order.status // Jangan ubah status jika sudah diproses
           };
           shouldUpdateOrder = true;
-          
+
           console.log(`[WEBHOOK ${requestId}] Payment successful for order ${order_id}`);
 
         } else if (fraud_status === 'challenge') {
@@ -159,7 +167,7 @@ export const midtransWebhook = async (req, res) => {
 
     // ✅ PERBAIKAN 6: Emit events dengan data yang konsisten
     const emitData = {
-      order_id,
+      order_id: payment_order.order_id,
       status: order.status,
       paymentStatus: order.paymentStatus,
       transaction_status,
@@ -170,10 +178,12 @@ export const midtransWebhook = async (req, res) => {
     };
 
     // Emit ke room order yang spesifik
-    io.to(`order_${order_id}`).emit('payment_status_update', emitData);
-    io.to(`order_${order_id}`).emit('order_status_update', emitData);
+    // ✅ Emit ke room order yang sesuai dengan order_id internal
+    io.to(`order_${payment_order.order_id}`).emit('payment_status_update', emitData);
+    io.to(`order_${payment_order.order_id}`).emit('order_status_update', emitData);
 
-    console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${order_id}`);
+    console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${payment_order.order_id}`);
+
 
     // ✅ PERBAIKAN 7: Jika pembayaran berhasil, broadcast ke cashier
     if (transaction_status === 'settlement' && fraud_status === 'accept') {
@@ -183,11 +193,11 @@ export const midtransWebhook = async (req, res) => {
     }
 
     console.log(`[WEBHOOK ${requestId}] Webhook processed successfully`);
-    res.status(200).json({ 
+    res.status(200).json({
       status: 'ok',
       message: 'Webhook processed successfully',
       order_id,
-      transaction_status 
+      transaction_status
     });
 
   } catch (error) {
