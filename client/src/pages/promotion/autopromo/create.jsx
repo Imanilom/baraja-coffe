@@ -1,14 +1,11 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { FaCut, FaChevronRight } from "react-icons/fa";
+import { FaTimes } from "react-icons/fa";
 import axios from "axios";
 import Select from "react-select";
-import Header from "../../admin/header";
-import Datepicker from "react-tailwindcss-datepicker";
+import { toast } from "react-toastify";
 import BundlingForm from "./bundlingform";
 
-const CreateAutoPromo = () => {
-  const navigate = useNavigate();
+const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
   const now = new Date();
   const startOfDay = new Date(now.setHours(0, 0, 0, 0)).toISOString();
   const endOfDay = new Date(now.setHours(23, 59, 59, 999)).toISOString();
@@ -19,7 +16,7 @@ const CreateAutoPromo = () => {
     conditions: {},
     discount: 0,
     bundlePrice: "",
-    outlet: "",
+    outlet: [],
     customerType: "",
     validFrom: startOfDay,
     validTo: endOfDay,
@@ -29,9 +26,9 @@ const CreateAutoPromo = () => {
   const [outlets, setOutlets] = useState([]);
   const [products, setProducts] = useState([]);
   const [loyaltyLevels, setLoyaltyLevels] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [errors, setErrors] = useState({}); // state untuk validasi
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const customSelectStyles = {
     control: (provided, state) => ({
@@ -62,30 +59,49 @@ const CreateAutoPromo = () => {
     { value: "bundling", label: "Bundling" },
   ];
 
-  // Fetch data
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setError(null);
-        const [outletsRes, productsRes, loyaltyLevelsRes] = await Promise.all([
-          axios.get("/api/outlet"),
-          axios.get("/api/menu/menu-items"),
-          axios.get("/api/promotion/loyalty-levels"),
-        ]);
+    if (isOpen) {
+      const fetchData = async () => {
+        setLoading(true);
+        try {
+          const [outletsRes, productsRes, loyaltyLevelsRes] = await Promise.all([
+            axios.get("/api/outlet"),
+            axios.get("/api/menu/menu-items"),
+            axios.get("/api/promotion/loyalty-levels"),
+          ]);
 
-        setOutlets(outletsRes.data.data || []);
-        setProducts(productsRes.data.data || []);
-        setLoyaltyLevels(loyaltyLevelsRes.data.data || []);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load data. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
+          setOutlets(outletsRes.data.data || []);
+          setProducts(productsRes.data.data || []);
+          setLoyaltyLevels(loyaltyLevelsRes.data.data || []);
+        } catch (err) {
+          console.error(err);
+          toast.error("Gagal memuat data");
+        } finally {
+          setLoading(false);
+        }
+      };
 
-    fetchData();
-  }, []);
+      fetchData();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData({
+        name: "",
+        promoType: "discount_on_quantity",
+        conditions: {},
+        discount: 0,
+        bundlePrice: "",
+        outlet: [],
+        customerType: "",
+        validFrom: startOfDay,
+        validTo: endOfDay,
+        isActive: true,
+      });
+      setErrors({});
+    }
+  }, [isOpen]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -101,7 +117,7 @@ const CreateAutoPromo = () => {
     let newErrors = {};
 
     if (!formData.name.trim()) newErrors.name = "Nama promo wajib diisi!";
-    if (!formData.outlet) newErrors.outlet = "Pilih outlet!";
+    if (!formData.outlet.length) newErrors.outlet = "Pilih minimal satu outlet!";
     if (!formData.validFrom || !formData.validTo) newErrors.date = "Pilih tanggal mulai dan akhir!";
     if (formData.validFrom && formData.validTo && new Date(formData.validFrom) > new Date(formData.validTo))
       newErrors.date = "Tanggal mulai tidak boleh lebih besar dari tanggal akhir!";
@@ -121,10 +137,6 @@ const CreateAutoPromo = () => {
         break;
       case "bundling":
         if (!formData.conditions?.bundleProducts?.length) newErrors.bundleProducts = "Tambahkan minimal 1 produk bundel!";
-        formData.conditions?.bundleProducts?.forEach((b, i) => {
-          if (!b.product) newErrors[`bundleProduct_${i}`] = "Produk bundel wajib dipilih!";
-          if (!b.quantity) newErrors[`bundleQty_${i}`] = "Qty bundel wajib diisi!";
-        });
         if (!formData.bundlePrice || formData.bundlePrice <= 0) newErrors.bundlePrice = "Harga bundel wajib diisi!";
         break;
       default:
@@ -137,7 +149,7 @@ const CreateAutoPromo = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // if (!validate()) return;
+    if (!validate()) return;
 
     const payload = {
       name: formData.name,
@@ -152,252 +164,217 @@ const CreateAutoPromo = () => {
       isActive: formData.isActive ? 1 : 0,
     };
 
+    setSubmitting(true);
     try {
-      console.log(payload);
       const response = await axios.post("/api/promotion/autopromo-create", payload);
       if (response.data.success) {
-        alert("Promo berhasil dibuat!");
-        navigate("/admin/promo-otomatis");
-      } else {
-        alert("Gagal membuat promo. Cek kembali data Anda.");
+        toast.success("Promo berhasil dibuat!");
+
+        if (onSuccess) {
+          onSuccess(response.data);
+        }
+
+        setTimeout(() => {
+          onClose();
+        }, 1000);
       }
     } catch (err) {
       console.error(err);
-      alert("Terjadi kesalahan saat membuat promo.");
+      toast.error(err.response?.data?.message || "Gagal membuat promo");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  if (loading) return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-    </div>
-  );
-
-  if (error) return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="text-red-500 text-center">
-        <p className="text-xl font-semibold mb-2">Error</p>
-        <p>{error}</p>
-        <button onClick={() => window.location.reload()} className="mt-4 bg-[#005429] text-white px-4 py-2 rounded">Refresh</button>
-      </div>
-    </div>
-  );
+  if (!isOpen) return null;
 
   return (
-    <div className="max-w-full">
-      <Header />
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity" onClick={onClose} />
 
-      <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
-        <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-          <Link to="/admin/promotion">Promo</Link>
-          <FaChevronRight />
-          <span>Promo Otomatis</span>
-          <FaChevronRight />
-          <span>Tambah Promo</span>
-        </h1>
-      </div>
-
-      <form onSubmit={handleSubmit}>
-        <div className="max-w-3xl mx-auto p-6 md:p-10 bg-white shadow-lg rounded-lg space-y-6">
-
-          {/* Promo Name */}
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">Promo</label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="Masukan Promo"
-              className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-1 ${errors.name ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-[#005429]"
-                }`}
-            />
-            {errors.name && <p className="text-red-500 text-sm">{errors.name}</p>}
-          </div>
-
-          {/* Promo Type */}
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">Tipe Promo</label>
-            <Select
-              name="promoType"
-              value={{ value: formData.promoType, label: promoTypeOptions.find(opt => opt.value === formData.promoType)?.label }}
-              onChange={selected => setFormData(prev => ({ ...prev, promoType: selected.value, conditions: {}, discount: 0, bundlePrice: "" }))}
-              options={promoTypeOptions}
-              styles={customSelectStyles}
-            />
-          </div>
-
-          {/* Conditional Fields */}
-          {formData.promoType === "discount_on_quantity" && (
-            <>
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Minimal Pembelian</label>
-                <input
-                  type="number"
-                  name="minQuantity"
-                  value={formData.conditions?.minQuantity || ""}
-                  onChange={handleConditionChange}
-                  className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-1 ${errors.minQuantity ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-[#005429]"
-                    }`}
-                />
-                {errors.minQuantity && <p className="text-red-500 text-sm">{errors.minQuantity}</p>}
-              </div>
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Potongan (%)</label>
-                <input
-                  type="number"
-                  name="discount"
-                  value={formData.discount || ""}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-1 ${errors.discount ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-[#005429]"
-                    }`}
-                />
-                {errors.discount && <p className="text-red-500 text-sm">{errors.discount}</p>}
-              </div>
-            </>
-          )}
-
-          {formData.promoType === "discount_on_total" && (
-            <>
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Minimal Harga</label>
-                <input
-                  type="number"
-                  name="minTotal"
-                  value={formData.conditions?.minTotal || ""}
-                  onChange={handleConditionChange}
-                  className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-1 ${errors.minTotal ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-[#005429]"
-                    }`}
-                />
-                {errors.minTotal && <p className="text-red-500 text-sm">{errors.minTotal}</p>}
-              </div>
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Potongan (Rp.)</label>
-                <input
-                  type="number"
-                  name="discount"
-                  value={formData.discount || ""}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-1 ${errors.discount ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-[#005429]"
-                    }`}
-                />
-                {errors.discount && <p className="text-red-500 text-sm">{errors.discount}</p>}
-              </div>
-            </>
-          )}
-
-          {formData.promoType === "buy_x_get_y" && (
-            <>
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Pembelian Produk</label>
-                <Select
-                  value={products.map(p => ({ value: p.id, label: p.name })).find(opt => opt.value === formData.conditions?.buyProduct) || null}
-                  onChange={selected => setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, buyProduct: selected.value } }))}
-                  options={products.map(p => ({ value: p.id, label: p.name }))}
-                  styles={customSelectStyles}
-                />
-                {errors.buyProduct && <p className="text-red-500 text-sm">{errors.buyProduct}</p>}
-              </div>
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Mendapatkan Produk</label>
-                <Select
-                  value={products.map(p => ({ value: p.id, label: p.name })).find(opt => opt.value === formData.conditions?.getProduct) || null}
-                  onChange={selected => setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, getProduct: selected.value } }))}
-                  options={products.map(p => ({ value: p.id, label: p.name }))}
-                  styles={customSelectStyles}
-                />
-                {errors.getProduct && <p className="text-red-500 text-sm">{errors.getProduct}</p>}
-              </div>
-            </>
-          )}
-
-          {formData.promoType === "bundling" && (
-            <>
-              <BundlingForm
-                products={products}
-                formData={formData}
-                setFormData={setFormData}
-              />
-            </>
-          )}
-
-
-          {/* Outlet */}
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">Outlet</label>
-
-            <div className="space-y-2 p-2 max-h-48 overflow-y-auto">
-              {outlets.map((o) => (
-                <label key={o._id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={formData.outlet?.includes(o._id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        // tambahkan outlet ke array
-                        setFormData((prev) => ({
-                          ...prev,
-                          outlet: [...(prev.outlet || []), o._id],
-                        }));
-                      } else {
-                        // hapus outlet dari array
-                        setFormData((prev) => ({
-                          ...prev,
-                          outlet: (prev.outlet || []).filter((id) => id !== o._id),
-                        }));
-                      }
-                    }}
-                    className="rounded border-gray-300 text-[#005429] focus:ring-[#005429]"
-                  />
-                  {o.name}
-                </label>
-              ))}
-            </div>
-
-            {errors.outlet && (
-              <p className="text-red-500 text-sm">{errors.outlet}</p>
-            )}
-          </div>
-
-
-          {/* Valid Dates */}
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">Tanggal Promo</label>
-            <div className="flex gap-2">
-              <input
-                type="date"
-                name="validFrom"
-                value={formData.validFrom.slice(0, 10)}
-                onChange={e => setFormData(prev => ({ ...prev, validFrom: e.target.value }))}
-                className={`w-1/2 px-4 py-2 border rounded-md ${errors.date ? "border-red-500" : "border-gray-300"
-                  }`}
-              />
-              <input
-                type="date"
-                name="validTo"
-                value={formData.validTo.slice(0, 10)}
-                onChange={e => setFormData(prev => ({ ...prev, validTo: e.target.value }))}
-                className={`w-1/2 px-4 py-2 border rounded-md ${errors.date ? "border-red-500" : "border-gray-300"
-                  }`}
-              />
-            </div>
-            {errors.date && <p className="text-red-500 text-sm">{errors.date}</p>}
-          </div>
-
-          {/* Submit Buttons */}
-          <div className="flex justify-end flex-col md:flex-row gap-3">
-            <Link to="/admin/promo-otomatis" className="w-full md:w-auto text-center bg-white text-[#005429] border border-[#005429] text-sm px-5 py-2 rounded">
-              Batal
-            </Link>
-            <button type="submit" className="w-full md:w-auto bg-[#005429] text-white text-sm px-5 py-2 rounded hover:bg-[#007a3a]">
-              Tambah Promo
-            </button>
-          </div>
-
+      <div className={`fixed right-0 top-0 h-full w-full md:w-[600px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="flex justify-between items-center px-6 py-4 border-b bg-white">
+          <h2 className="text-xl font-semibold text-green-900">Tambah Promo Otomatis</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition" disabled={submitting}>
+            <FaTimes size={20} />
+          </button>
         </div>
-      </form>
-    </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {loading ? (
+            <div className="flex justify-center items-center h-full">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
+            </div>
+          ) : (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nama Promo <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="Masukkan nama promo"
+                  className={`w-full px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.name ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                />
+                {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Promo <span className="text-red-500">*</span></label>
+                <Select
+                  name="promoType"
+                  value={{ value: formData.promoType, label: promoTypeOptions.find(opt => opt.value === formData.promoType)?.label }}
+                  onChange={selected => setFormData(prev => ({ ...prev, promoType: selected.value, conditions: {}, discount: 0, bundlePrice: "" }))}
+                  options={promoTypeOptions}
+                  styles={customSelectStyles}
+                />
+              </div>
+
+              {formData.promoType === "discount_on_quantity" && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Minimal Pembelian <span className="text-red-500">*</span></label>
+                    <input
+                      type="number"
+                      name="minQuantity"
+                      value={formData.conditions?.minQuantity || ""}
+                      onChange={handleConditionChange}
+                      className={`w-full px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.minQuantity ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                    />
+                    {errors.minQuantity && <p className="text-red-500 text-xs mt-1">{errors.minQuantity}</p>}
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Potongan (%) <span className="text-red-500">*</span></label>
+                    <input
+                      type="number"
+                      name="discount"
+                      value={formData.discount || ""}
+                      onChange={handleChange}
+                      className={`w-full px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.discount ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                    />
+                    {errors.discount && <p className="text-red-500 text-xs mt-1">{errors.discount}</p>}
+                  </div>
+                </>
+              )}
+
+              {formData.promoType === "discount_on_total" && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Minimal Harga <span className="text-red-500">*</span></label>
+                    <input
+                      type="number"
+                      name="minTotal"
+                      value={formData.conditions?.minTotal || ""}
+                      onChange={handleConditionChange}
+                      className={`w-full px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.minTotal ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                    />
+                    {errors.minTotal && <p className="text-red-500 text-xs mt-1">{errors.minTotal}</p>}
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Potongan (Rp) <span className="text-red-500">*</span></label>
+                    <input
+                      type="number"
+                      name="discount"
+                      value={formData.discount || ""}
+                      onChange={handleChange}
+                      className={`w-full px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.discount ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                    />
+                    {errors.discount && <p className="text-red-500 text-xs mt-1">{errors.discount}</p>}
+                  </div>
+                </>
+              )}
+
+              {formData.promoType === "buy_x_get_y" && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Pembelian Produk <span className="text-red-500">*</span></label>
+                    <Select
+                      value={products.map(p => ({ value: p.id, label: p.name })).find(opt => opt.value === formData.conditions?.buyProduct) || null}
+                      onChange={selected => setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, buyProduct: selected.value } }))}
+                      options={products.map(p => ({ value: p.id, label: p.name }))}
+                      styles={customSelectStyles}
+                      placeholder="Pilih produk..."
+                    />
+                    {errors.buyProduct && <p className="text-red-500 text-xs mt-1">{errors.buyProduct}</p>}
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Mendapatkan Produk <span className="text-red-500">*</span></label>
+                    <Select
+                      value={products.map(p => ({ value: p.id, label: p.name })).find(opt => opt.value === formData.conditions?.getProduct) || null}
+                      onChange={selected => setFormData(prev => ({ ...prev, conditions: { ...prev.conditions, getProduct: selected.value } }))}
+                      options={products.map(p => ({ value: p.id, label: p.name }))}
+                      styles={customSelectStyles}
+                      placeholder="Pilih produk..."
+                    />
+                    {errors.getProduct && <p className="text-red-500 text-xs mt-1">{errors.getProduct}</p>}
+                  </div>
+                </>
+              )}
+
+              {formData.promoType === "bundling" && (
+                <BundlingForm products={products} formData={formData} setFormData={setFormData} />
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Outlet <span className="text-red-500">*</span></label>
+                <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                  {outlets.map((o) => (
+                    <label key={o._id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={formData.outlet?.includes(o._id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData((prev) => ({ ...prev, outlet: [...(prev.outlet || []), o._id] }));
+                          } else {
+                            setFormData((prev) => ({ ...prev, outlet: (prev.outlet || []).filter((id) => id !== o._id) }));
+                          }
+                        }}
+                        className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      {o.name}
+                    </label>
+                  ))}
+                </div>
+                {errors.outlet && <p className="text-red-500 text-xs mt-1">{errors.outlet}</p>}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Promo <span className="text-red-500">*</span></label>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    name="validFrom"
+                    value={formData.validFrom.slice(0, 10)}
+                    onChange={e => setFormData(prev => ({ ...prev, validFrom: e.target.value }))}
+                    className={`w-1/2 px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.date ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                  />
+                  <input
+                    type="date"
+                    name="validTo"
+                    value={formData.validTo.slice(0, 10)}
+                    onChange={e => setFormData(prev => ({ ...prev, validTo: e.target.value }))}
+                    className={`w-1/2 px-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 ${errors.date ? "border-red-500 focus:ring-red-500" : "border-gray-300 focus:ring-green-600"}`}
+                  />
+                </div>
+                {errors.date && <p className="text-red-500 text-xs mt-1">{errors.date}</p>}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
+          <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-100 transition" disabled={submitting}>
+            Batal
+          </button>
+          <button type="button" onClick={handleSubmit} className="px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 transition disabled:opacity-50" disabled={submitting || loading}>
+            {submitting ? 'Menyimpan...' : 'Simpan'}
+          </button>
+        </div>
+      </div>
+    </>
   );
 };
 
-export default CreateAutoPromo;
+export default CreateAutoPromoModal;

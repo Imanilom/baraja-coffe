@@ -177,22 +177,12 @@ const CustomerManagement = () => {
     }
 
     return (
-        <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
-
+        <div className="pb-[60px]">
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaUserFriends size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Pelanggan</p>
-                </div>
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Pelanggan</span>
+                </h1>
                 <div className="flex space-x-2">
                     {/* <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Impor</button> */}
                     <button className="bg-white text-[#005429] border border-[#005429] hover:bg-[#005429] hover:text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
@@ -201,11 +191,10 @@ const CustomerManagement = () => {
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-6 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-
-                    <div className="flex flex-col col-span-5">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+            <div className="px-6">
+                <div className="flex flex-wrap gap-4 md:justify-between items-center py-3">
+                    <div className=""></div>
+                    <div className="flex flex-col md:w-1/5">
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
@@ -213,16 +202,10 @@ const CustomerManagement = () => {
                                 placeholder="Nama / Email"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+                                className="text-[13px] border py-2 pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
                     </div>
-                    <button className="flex col-span-1 text-[13px] border py-[6px] pl-[5px] rounded w-full text-gray-500">
-                        <FaFilter />
-                        <button>
-                            Filter
-                        </button>
-                    </button>
                 </div>
 
                 <div className="w-full border rounded mb-[15px] bg-gradient-to-r from-[#0F4F2A] via-[#1A6B3B] to-[#267C48] py-2">
@@ -243,7 +226,7 @@ const CustomerManagement = () => {
                 </div>
 
                 {/* Table */}
-                <div className="rounded shadow-slate-200 shadow-md">
+                <div className="rounded shadow-slate-200 bg-white shadow-md">
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
@@ -364,11 +347,6 @@ const CustomerManagement = () => {
                         )}
                     </div>
                 )} */}
-            </div>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
             </div>
         </div>
     );

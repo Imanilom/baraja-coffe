@@ -141,15 +141,13 @@ const PromoList = () => {
 
   return (
     <div className="max-w-8xl mx-auto mb-[60px]">
-      {/* Header */}
-      <Header />
 
       {/* Breadcrumb */}
-      <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+      <div className="flex justify-between items-center px-6 py-3 my-3">
         <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
           <Link to="/admin/promotion">Promo</Link>
           <FaChevronRight />
-          <Link to="/admin/promo-khusus">Promo Khusus</Link>
+          <span>Promo Khusus</span>
         </h1>
         <Link
           to="/admin/promo-khusus-create"

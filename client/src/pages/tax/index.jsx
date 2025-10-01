@@ -5,6 +5,10 @@ import { Link } from "react-router-dom";
 import { FaClipboardList, FaBell, FaUser, FaTag, FaStoreAlt, FaBullseye, FaReceipt, FaSearch, FaPencilAlt, FaTrash, FaPlusCircle, FaPlus } from "react-icons/fa";
 import Header from "../admin/header";
 import Select from "react-select";
+import Paginated from "../../components/paginated";
+import CreateTax from "./create_tax";
+import CreateService from "./create_service";
+import { toast } from "react-toastify";
 
 const TaxManagementPage = () => {
     const customSelectStyles = {
@@ -40,6 +44,9 @@ const TaxManagementPage = () => {
             cursor: 'pointer',
         }),
     };
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isModalServiceOpen, setIsModalServiceOpen] = useState(false);
     const [openDropdown, setOpenDropdown] = useState(null);
     const [outlets, setOutlets] = useState([]);
     const [data, setData] = useState([]);
@@ -86,24 +93,6 @@ const TaxManagementPage = () => {
         }
     };
 
-    const handleDeleteOutlet = async (id) => {
-        try {
-            const response = await axios.delete(`/api/outlet/${id}`);
-            alert(response.data.message);
-            fetchData();
-        } catch (error) {
-            alert("Error deleting outlet.");
-        }
-    };
-
-    const outletOptions = [
-        { value: "", label: "Semua Outlet" },
-        outlets.map((outlet) => ({
-            value: outlet._id,
-            label: outlet.name,
-        })),
-    ];
-
     const typeOptions = [
         { value: "", label: "Semua Type" },
         { value: "tax", label: "Pajak" },
@@ -131,19 +120,44 @@ const TaxManagementPage = () => {
         return result;
     }, [currentPage, filteredData]);
 
+    const handleDelete = async (id) => {
+        // Konfirmasi sebelum menghapus
+        const isConfirmed = window.confirm("Apakah Anda yakin ingin menghapus data ini?");
+
+        if (!isConfirmed) {
+            return;
+        }
+
+        setIsDeleting(true);
+
+        try {
+            await axios.delete(`/api/tax-service/${id}`);
+
+            toast.success("Data berhasil dihapus");
+
+            fetchTax();
+
+        } catch (error) {
+            console.error("Error deleting data:", error);
+            const errorMessage = error.response?.data?.error ||
+                error.response?.data?.message ||
+                "Gagal menghapus data";
+            toast.error(errorMessage);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     return (
         <div className="overflow-y-auto pb-[100px]">
-            {/* Header */}
-            <Header />
-
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     Pajak & Service Charge
                 </h1>
                 <div className="flex space-x-2">
-                    <Link to="/admin/service-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2"><FaPlus />Tambah Service</Link>
-                    <Link to="/admin/tax-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2"><FaPlus />Tambah Pajak</Link>
+                    <button onClick={() => setIsModalServiceOpen(true)} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2"><FaPlus />Tambah Service</button>
+                    <button onClick={() => setIsModalOpen(true)} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2"><FaPlus />Tambah Pajak</button>
                 </div>
             </div>
 
@@ -182,7 +196,7 @@ const TaxManagementPage = () => {
             </div>
 
             <div className="p-4">
-                <table className="min-w-full text-sm text-left text-gray-500 shadow-lg">
+                <table className="min-w-full text-sm text-left bg-white text-gray-500 shadow-lg">
                     <thead className="text-[14px]">
                         <tr>
                             <th className="px-[15px] py-[21px] font-normal">Nama</th>
@@ -194,7 +208,7 @@ const TaxManagementPage = () => {
                     {paginatedData.length > 0 ? (
                         <tbody>
                             {paginatedData.map((data) => (
-                                <tr key={data._id} className="bg-white text-[14px]">
+                                <tr key={data._id} className="text-[14px]">
                                     <td className="p-[15px]">{data.name}</td>
                                     <td className="p-[15px]">{data.type}</td>
                                     <td className="p-[15px] text-right">
@@ -207,7 +221,7 @@ const TaxManagementPage = () => {
                                         {/* Dropdown Menu */}
                                         <div className="relative text-right">
                                             <button
-                                                className="px-2 bg-white border border-gray-200 hover:border-[#005429] hover:bg-[#005429] rounded-sm"
+                                                className="px-2 border border-gray-200 hover:border-[#005429] hover:bg-[#005429] rounded-sm"
                                                 onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
                                             >
                                                 <span className="text-xl text-gray-200 hover:text-white">
@@ -231,7 +245,7 @@ const TaxManagementPage = () => {
                                                         </Link>
                                                         <li className="px-4 py-4 text-sm cursor-pointer hover:bg-gray-100">
                                                             <button
-                                                                onClick={() => handleDeleteOutlet(data._id)}
+                                                                onClick={() => handleDelete(data._id)}
                                                                 className="text-red-600 flex items-center space-x-4 text-[14px]"
                                                             >
                                                                 <FaTrash size={18} />
@@ -257,41 +271,30 @@ const TaxManagementPage = () => {
                 </table>
             </div>
 
+            <CreateTax
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSuccess={(data) => {
+                    // Refresh data atau update state
+                    fetchTax();
+                }}
+            />
 
-            {/* Pagination */}
-            {paginatedData.length > 0 && (
-                <div className="flex justify-between items-center mt-4 px-[15px]">
-                    <span className="text-sm text-gray-500">
-                        Menampilkan <b>{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</b> – <b>{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}</b> dari <b>{filteredData.length}</b> data
-                    </span>
-                    {currentPage === 1 ? (
-                        <div className="flex"></div>
-                    ) : (
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
+            <CreateService
+                isOpen={isModalServiceOpen}
+                onClose={() => setIsModalServiceOpen(false)}
+                onSuccess={(data) => {
+                    // Refresh data atau update state
+                    fetchTax();
+                }}
+            />
 
+            <Paginated
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+                totalPages={totalPages}
+            />
 
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
-            </div>
         </div>
     );
 };

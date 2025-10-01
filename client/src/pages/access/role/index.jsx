@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaPlus } from "react-icons/fa";
-import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
-import Header from "../../admin/header";
 import MessageAlert from "../../../components/messageAlert";
 import RoleTable from "./table";
+import CreateRole from "./create";
 
 const RoleManagement = () => {
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
+    const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+
+    const [roles, setRole] = useState([]);
 
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
@@ -137,13 +139,10 @@ const RoleManagement = () => {
 
     return (
         <div className="">
-            {/* Header */}
-            <Header />
-
             <MessageAlert message={alertMsg} type="success" />
 
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     <Link to="/admin/access-settings">Akses</Link>
                     <FaChevronRight
@@ -153,17 +152,25 @@ const RoleManagement = () => {
                     Role
                 </h1>
                 <div className="flex items-center gap-3">
-                    <Link
-                        to="/admin/access-settings/role-create"
+                    <button
+                        onClick={() => setIsRoleModalOpen(true)}
                         className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
                     >
                         <FaPlus /> Tambah
-                    </Link>
+                    </button>
                 </div>
             </div>
 
             {/* Filters */}
             <RoleTable />
+
+            <CreateRole
+                isOpen={isRoleModalOpen}
+                onClose={() => setIsRoleModalOpen(false)}
+                onSuccess={(data) => {
+                    useNavigate("/admin/access-settings/role")
+                }}
+            />
         </div>
     );
 };

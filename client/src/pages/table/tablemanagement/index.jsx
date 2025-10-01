@@ -6,17 +6,23 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
+import Paginated from '../../../components/paginated';
+import CreateArea from "./create";
+import UpdateArea from "./update";
 
 const TableManagement = () => {
     const [areas, setAreas] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isCreateModal, setIsCreateModal] = useState(false);
+    const [isUpdateModal, setIsUpdateModal] = useState(false);
+    const [selectedAreaId, setSelectedAreaId] = useState(null);
     const [error, setError] = useState(null);
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 10;
+    const ITEMS_PER_PAGE = 20;
     const dropdownRef = useRef(null);
 
     // Fetch areas and outlets data
@@ -48,6 +54,11 @@ const TableManagement = () => {
         fetchData();
     }, []);
 
+    const handleEdit = (areaId) => {
+        setSelectedAreaId(areaId);
+        setIsUpdateModal(true);
+    };
+
     // Handle area deletion (deactivation)
     const handleDelete = async (areaId) => {
         confirmAlert({
@@ -68,7 +79,7 @@ const TableManagement = () => {
                 },
                 {
                     label: 'Tidak',
-                    onClick: () => {}
+                    onClick: () => { }
                 }
             ]
         });
@@ -76,7 +87,7 @@ const TableManagement = () => {
 
     // Filter areas based on search
     const filteredAreas = useMemo(() => {
-        return areas.filter(area => 
+        return areas.filter(area =>
             area.area_name.toLowerCase().includes(search.toLowerCase()) ||
             area.area_code.toLowerCase().includes(search.toLowerCase())
         );
@@ -121,34 +132,24 @@ const TableManagement = () => {
 
     return (
         <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Pengaturan Meja</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Atur Meja</span>
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Pengaturan Meja</span>
+                    <FaChevronRight />
+                    <span>Atur Meja</span>
                 </div>
             </div>
 
             {/* Filters and Actions */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-2 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari Area</label>
+            <div className="px-6">
+                <div className="flex flex-wrap gap-4 md:justify-between items-center py-3">
+                    <div className="flex flex-col md:w-1/5 ">
                         <div className="relative">
                             <input
                                 type="text"
-                                className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
+                                className="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded text-left"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Cari berdasarkan nama area atau kode"
@@ -157,17 +158,17 @@ const TableManagement = () => {
                     </div>
 
                     <div className="flex justify-end">
-                        <Link 
-                            to="/admin/table-management/table-create" 
+                        <button
+                            onClick={() => setIsCreateModal(true)}
                             className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
                         >
                             + Tambah Area Baru
-                        </Link>
+                        </button>
                     </div>
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md">
+                <div className="overflow-x-auto rounded bg-white shadow-slate-200 shadow-md">
                     <table className="min-w-full table-auto border">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
@@ -202,13 +203,13 @@ const TableManagement = () => {
                                     </td>
                                     <td className="border px-4 py-2">
                                         <div className="flex justify-center space-x-2">
-                                            <Link 
-                                                to={`/admin/table-management/table-update/${area._id}`}
+                                            <button
+                                                onClick={() => handleEdit(area._id)}
                                                 className="text-gray-500 hover:text-blue-500"
                                             >
                                                 <FaPencilAlt />
-                                            </Link>
-                                            <button 
+                                            </button>
+                                            <button
                                                 onClick={() => handleDelete(area._id)}
                                                 className="text-red-500 hover:text-red-700"
                                                 disabled={!area.is_active}
@@ -231,34 +232,31 @@ const TableManagement = () => {
                     </div>
                 )}
 
-                {/* Pagination Controls */}
-                {filteredAreas.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredAreas.length)} dari {filteredAreas.length} area
-                        </span>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
 
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]"></div>
+                <CreateArea
+                    isOpen={isCreateModal}
+                    onClose={() => setIsCreateModal(false)}
+                    onSuccess={(data) => {
+                        fetchData(data);
+                    }}
+                />
+
+                <UpdateArea
+                    isOpen={isUpdateModal}
+                    areaId={selectedAreaId}
+                    onClose={() => {
+                        setIsUpdateModal(false);
+                        setSelectedAreaId(null);
+                    }}
+                    onSuccess={(data) => {
+                        fetchData(data);
+                    }}
+                />
             </div>
         </div>
     );

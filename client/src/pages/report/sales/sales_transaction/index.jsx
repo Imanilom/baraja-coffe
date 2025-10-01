@@ -4,7 +4,6 @@ import dayjs from "dayjs";
 import { Link } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import ExportFilter from "../export";
-import Header from "../../../admin/header";
 import { useReactToPrint } from "react-to-print";
 import SalesTransactionTable from "./table";
 
