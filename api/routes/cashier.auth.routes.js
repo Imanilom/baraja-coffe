@@ -5,7 +5,7 @@ import { Device } from '../models/Device.model.js';
 import { DeviceSession } from '../models/DeviceSession.model.js';
 import User from "../models/user.model.js";
 import { Outlet } from '../models/Outlet.model.js';
-import { verifyToken } from '../utils/verifyUser.js';
+import { authMiddleware } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
@@ -42,7 +42,7 @@ router.post('/login-outlet', async (req, res) => {
     }
 
     // Cek apakah user memiliki akses ke outlet ini
-    const hasAccess = user.outlets.includes(outlet._id) || user.role === 'admin';
+    const hasAccess = user.outlet.includes(outlet._id) || user.role === 'admin';
     if (!hasAccess) {
       return res.status(403).json({
         success: false,
@@ -91,7 +91,7 @@ router.post('/login-outlet', async (req, res) => {
 });
 
 // ✅ STEP 2: GET AVAILABLE DEVICES FOR OUTLET
-router.get('/devices/available', verifyToken, async (req, res) => {
+router.get('/devices/available', authMiddleware, async (req, res) => {
   try {
     const { outletId } = req.user;
     
@@ -139,7 +139,7 @@ router.get('/devices/available', verifyToken, async (req, res) => {
 });
 
 // ✅ STEP 3: GET AVAILABLE CASHIERS FOR DEVICE
-router.get('/devices/:deviceId/cashiers', verifyToken, async (req, res) => {
+router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
   try {
     const { deviceId } = req.params;
     const { outletId } = req.user;
@@ -210,7 +210,7 @@ router.get('/devices/:deviceId/cashiers', verifyToken, async (req, res) => {
 });
 
 // ✅ STEP 4: LOGIN CASHIER TO DEVICE
-router.post('/devices/:deviceId/login-cashier', verifyToken, async (req, res) => {
+router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res) => {
   try {
     const { deviceId } = req.params;
     const { cashierId, role } = req.body;
@@ -323,7 +323,7 @@ router.post('/devices/:deviceId/login-cashier', verifyToken, async (req, res) =>
 });
 
 // ✅ STEP 5: LOGOUT CASHIER FROM DEVICE
-router.post('/devices/:deviceId/logout', verifyToken, async (req, res) => {
+router.post('/devices/:deviceId/logout', authMiddleware, async (req, res) => {
   try {
     const { deviceId } = req.params;
     const { outletId } = req.user;
@@ -383,7 +383,7 @@ router.post('/devices/:deviceId/logout', verifyToken, async (req, res) => {
 });
 
 // ✅ GET ACTIVE SESSIONS
-router.get('/sessions/active', verifyToken, async (req, res) => {
+router.get('/sessions/active', authMiddleware, async (req, res) => {
   try {
     const { outletId } = req.user;
 
