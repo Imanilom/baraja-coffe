@@ -1,7 +1,9 @@
 import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
-import Table from '../models/Table.model.js'; // ✅ IMPORT MODEL TABLE
+import Table from '../models/Table.model.js'; 
+import { socketManagement } from '../utils/socketManagement.js';
+import { MenuItem } from '../models/MenuItem.model.js';
 
 export const midtransWebhook = async (req, res) => {
   let requestId = Math.random().toString(36).substr(2, 9);
@@ -10,7 +12,7 @@ export const midtransWebhook = async (req, res) => {
     const notificationJson = req.body;
     let {
       transaction_status,
-      order_id, // ✅ Ini adalah order_id internal kita dari Midtrans
+      order_id,
       fraud_status,
       payment_type,
       gross_amount,
@@ -29,13 +31,13 @@ export const midtransWebhook = async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    // ✅ VALIDASI: Pastikan field required ada
+    // VALIDASI: Pastikan field required ada
     if (!order_id || !transaction_status) {
       console.warn(`[WEBHOOK ${requestId}] Invalid notification: Missing required fields`);
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // ✅ PERBAIKAN 1: Langsung cari payment berdasarkan order_id (bukan payment_code)
+    // Cari payment berdasarkan order_id
     const existingPayment = await Payment.findOne({ order_id });
 
     if (!existingPayment) {
@@ -45,7 +47,7 @@ export const midtransWebhook = async (req, res) => {
 
     console.log(`[WEBHOOK ${requestId}] Processing webhook for payment:`, existingPayment._id);
 
-    // ✅ PERBAIKAN 2: Update payment record dengan data lengkap dari Midtrans
+    // Update payment record
     const paymentUpdateData = {
       status: transaction_status,
       fraud_status: fraud_status,
@@ -59,7 +61,6 @@ export const midtransWebhook = async (req, res) => {
       updatedAt: new Date()
     };
 
-    // Update raw_response untuk menyimpan notifikasi lengkap
     const rawResponseUpdate = {
       ...existingPayment.raw_response,
       ...notificationJson,
@@ -82,13 +83,13 @@ export const midtransWebhook = async (req, res) => {
 
     console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for order_id ${order_id}`);
 
-    // ✅ PERBAIKAN 3: Cari order berdasarkan order_id
+    // Cari order berdasarkan order_id dengan populate yang lebih detail
     const order = await Order.findOne({ order_id })
       .populate('user_id', 'name email phone')
       .populate('cashierId', 'name')
       .populate({
         path: 'items.menuItem',
-        select: 'name price image category description'
+        select: 'name price image mainCategory workstation category description'
       })
       .populate('outlet', 'name address');
 
@@ -99,7 +100,7 @@ export const midtransWebhook = async (req, res) => {
 
     console.log(`[WEBHOOK ${requestId}] Order ${order_id} found. Current status: ${order.status}, Payment status: ${order.paymentStatus}`);
 
-    // ✅ PERBAIKAN 4: Handle transaction status dengan logic yang lebih robust
+    // Handle transaction status
     let orderUpdateData = {};
     let shouldUpdateOrder = false;
 
@@ -107,17 +108,13 @@ export const midtransWebhook = async (req, res) => {
       case 'capture':
       case 'settlement':
         if (fraud_status === 'accept') {
-          // ✅ Pembayaran berhasil
           orderUpdateData = {
             paymentStatus: 'Paid',
-            status: order.status === 'Pending' ? 'Pending' : order.status // Jangan ubah status jika sudah diproses
+            status: order.status === 'Pending' ? 'Pending' : order.status
           };
           shouldUpdateOrder = true;
-          
           console.log(`[WEBHOOK ${requestId}] Payment successful for order ${order_id}`);
-
         } else if (fraud_status === 'challenge') {
-          // ✅ Pembayaran butuh verifikasi
           orderUpdateData = {
             paymentStatus: 'Challenged'
           };
@@ -129,7 +126,6 @@ export const midtransWebhook = async (req, res) => {
       case 'deny':
       case 'cancel':
       case 'expire':
-        // ✅ Pembayaran gagal
         orderUpdateData = {
           paymentStatus: 'Failed',
           status: 'Canceled'
@@ -139,7 +135,6 @@ export const midtransWebhook = async (req, res) => {
         break;
 
       case 'pending':
-        // ✅ Pembayaran pending
         orderUpdateData = {
           paymentStatus: 'Pending'
         };
@@ -151,14 +146,14 @@ export const midtransWebhook = async (req, res) => {
         console.warn(`[WEBHOOK ${requestId}] Unhandled transaction status: ${transaction_status}`);
     }
 
-    // ✅ PERBAIKAN 5: Update order jika diperlukan
+    // Update order jika diperlukan
     if (shouldUpdateOrder) {
       Object.assign(order, orderUpdateData);
       await order.save();
       console.log(`[WEBHOOK ${requestId}] Order ${order_id} updated:`, orderUpdateData);
     }
 
-    // ✅ PERBAIKAN 6: Emit events dengan data yang konsisten
+    // Emit events ke customer
     const emitData = {
       order_id,
       status: order.status,
@@ -170,28 +165,21 @@ export const midtransWebhook = async (req, res) => {
       timestamp: new Date()
     };
 
-    // Emit ke room order yang spesifik
     io.to(`order_${order_id}`).emit('payment_status_update', emitData);
     io.to(`order_${order_id}`).emit('order_status_update', emitData);
 
     console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${order_id}`);
 
-    // ✅ PERBAIKAN 7: Jika pembayaran berhasil, broadcast ke cashier DAN update status meja
+    // JIKA PEMBAYARAN BERHASIL: Broadcast ke device yang sesuai
     if (transaction_status === 'settlement' && fraud_status === 'accept') {
       const mappedOrder = mapOrderForCashier(order);
       
-      // ✅ EDIT: Broadcast ke cashier room dengan struktur data yang benar
-      io.to('cashier_room').emit('new_order', { 
-        mappedOrders: mappedOrder // Gunakan mappedOrder (single object) bukan mappedOrders (array)
-      });
+      console.log(`[WEBHOOK ${requestId}] 🎯 Processing order broadcast for table: ${order.tableNumber}`);
       
-      console.log(`[WEBHOOK ${requestId}] Broadcasted order to cashier room:`, {
-        order_id: order.order_id,
-        customerName: mappedOrder.customerName,
-        totalPrice: mappedOrder.totalPrice
-      });
-
-      // ✅ NEW: Update status meja jika order memiliki tableNumber
+      // ✅ BROADCAST KE DEVICE YANG SESUAI DENGAN AREA & TABLE
+      await broadcastOrderToTargetDevices(order, mappedOrder);
+      
+      // ✅ Update status meja
       await updateTableStatusAfterPayment(order);
     }
 
@@ -218,14 +206,293 @@ export const midtransWebhook = async (req, res) => {
   }
 };
 
-// ✅ NEW: Function untuk update status meja setelah pembayaran berhasil
+// FUNCTION: BROADCAST ORDER KE TARGET DEVICES
+async function broadcastOrderToTargetDevices(order, mappedOrder) {
+  try {
+    const { tableNumber, outlet, items } = order;
+    
+    if (!tableNumber) {
+      console.log('📦 No table number, using fallback broadcast');
+      // Fallback: broadcast ke semua cashier
+      io.to('cashier_room').emit('new_order', { 
+        mappedOrders: mappedOrder,
+        broadcastType: 'fallback_all_cashiers'
+      });
+      return;
+    }
+
+    // Analisis jenis order berdasarkan mainCategory dan workstation
+    const isBeverageOrder = analyzeOrderType(items);
+    const orderType = isBeverageOrder ? 'beverage' : 'food';
+    const areaCode = getAreaCodeFromTable(tableNumber);
+
+    console.log(`🎯 Order analysis - Table: ${tableNumber}, Area: ${areaCode}, Type: ${orderType}`);
+    console.log(`📊 Order items analysis:`, items.map(item => ({
+      name: item.menuItem?.name,
+      mainCategory: item.menuItem?.mainCategory,
+      workstation: item.menuItem?.workstation,
+      isBeverage: isItemBeverage(item.menuItem)
+    })));
+
+    // Dapatkan target devices menggunakan socketManagement
+    const targetInfo = await socketManagement.getTargetDevicesForOrder({
+      tableNumber,
+      items,
+      orderType,
+      outletId: outlet?._id || outlet
+    });
+
+    if (targetInfo.targetDevices.length === 0) {
+      console.warn('⚠️ No target devices found, using fallback');
+      await fallbackBroadcast(order, mappedOrder, areaCode, orderType);
+      return;
+    }
+
+    // Broadcast ke masing-masing target device
+    let broadcastCount = 0;
+    
+    for (const device of targetInfo.targetDevices) {
+      if (device.socket && device.socket.connected) {
+        const broadcastData = {
+          order: mappedOrder,
+          targetInfo: {
+            assignedArea: areaCode,
+            orderType: orderType,
+            tableNumber: tableNumber,
+            assignedBy: 'system_auto_routing',
+            priority: getOrderPriority(orderType, items)
+          },
+          metadata: {
+            broadcastId: `broadcast_${Date.now()}`,
+            deviceTarget: device.deviceName,
+            deviceRole: device.role,
+            itemAnalysis: items.map(item => ({
+              name: item.menuItem?.name,
+              mainCategory: item.menuItem?.mainCategory,
+              workstation: item.menuItem?.workstation
+            }))
+          }
+        };
+
+        device.socket.emit('new_order', broadcastData);
+        broadcastCount++;
+        
+        console.log(`📤 Order sent to: ${device.deviceName} (${device.role}) - Area: ${areaCode}`);
+      }
+    }
+
+    // Juga broadcast ke area room untuk monitoring
+    if (areaCode) {
+      const areaRoom = `area_${areaCode}`;
+      io.to(areaRoom).emit('area_new_order', {
+        order: mappedOrder,
+        areaCode: areaCode,
+        tableNumber: tableNumber,
+        orderType: orderType,
+        targetDevices: targetInfo.targetDevices.map(d => ({
+          deviceName: d.deviceName,
+          role: d.role
+        })),
+        itemBreakdown: getOrderBreakdown(items),
+        timestamp: new Date()
+      });
+    }
+
+    // Broadcast ke system monitor
+    io.to('system_monitor').emit('order_broadcast_summary', {
+      orderId: order.order_id,
+      tableNumber: tableNumber,
+      areaCode: areaCode,
+      orderType: orderType,
+      targetDevicesCount: broadcastCount,
+      totalDevicesAvailable: targetInfo.targetDevices.length,
+      itemBreakdown: getOrderBreakdown(items),
+      timestamp: new Date()
+    });
+
+    console.log(`✅ Successfully broadcasted order to ${broadcastCount} devices`);
+
+  } catch (error) {
+    console.error('Error in broadcastOrderToTargetDevices:', error);
+    // Fallback ke legacy broadcast
+    io.to('cashier_room').emit('new_order', { 
+      mappedOrders: mappedOrder,
+      broadcastType: 'error_fallback'
+    });
+  }
+}
+
+// FUNCTION: ANALYZE ORDER TYPE - DIPERBAIKI
+function analyzeOrderType(items) {
+  if (!items || !Array.isArray(items)) return false;
+  
+  // Cek apakah ada items yang termasuk minuman berdasarkan mainCategory dan workstation
+  return items.some(item => {
+    return isItemBeverage(item.menuItem);
+  });
+}
+
+// FUNCTION: CHECK INDIVIDUAL ITEM - DIPERBAIKI
+function isItemBeverage(menuItem) {
+  if (!menuItem) return false;
+  
+  // 1. Cek berdasarkan mainCategory
+  const isBeverageByCategory = menuItem.mainCategory === 'minuman';
+  
+  // 2. Cek berdasarkan workstation
+  const isBeverageByWorkstation = menuItem.workstation === 'bar' || menuItem.workstation === 'bar-belakang';
+  
+  // 3. Cek berdasarkan nama item (fallback)
+  const itemName = menuItem.name?.toLowerCase() || '';
+  const beverageKeywords = ['minuman', 'drink', 'juice', 'soda', 'kopi', 'coffee', 'tea', 'es', 'soft drink', 'mocktail', 'cocktail', 'bir', 'beer', 'wine'];
+  const isBeverageByName = beverageKeywords.some(keyword => itemName.includes(keyword));
+  
+  return isBeverageByCategory || isBeverageByWorkstation || isBeverageByName;
+}
+
+// FUNCTION: GET ORDER BREAKDOWN
+function getOrderBreakdown(items) {
+  const breakdown = {
+    totalItems: items.length,
+    beverageItems: 0,
+    foodItems: 0,
+    mixedOrder: false,
+    beverageDetails: [],
+    foodDetails: []
+  };
+
+  items.forEach(item => {
+    const isBeverage = isItemBeverage(item.menuItem);
+    const itemInfo = {
+      name: item.menuItem?.name,
+      mainCategory: item.menuItem?.mainCategory,
+      workstation: item.menuItem?.workstation,
+      quantity: item.quantity
+    };
+
+    if (isBeverage) {
+      breakdown.beverageItems += item.quantity;
+      breakdown.beverageDetails.push(itemInfo);
+    } else {
+      breakdown.foodItems += item.quantity;
+      breakdown.foodDetails.push(itemInfo);
+    }
+  });
+
+  breakdown.mixedOrder = breakdown.beverageItems > 0 && breakdown.foodItems > 0;
+  
+  return breakdown;
+}
+
+// FUNCTION: FALLBACK BROADCAST
+async function fallbackBroadcast(order, mappedOrder, areaCode, orderType) {
+  console.log('🔄 Using fallback broadcast strategy');
+  
+  const fallbackRooms = [];
+  const orderBreakdown = getOrderBreakdown(order.items);
+  
+  // Tentukan fallback rooms berdasarkan area dan order type
+  if (areaCode && areaCode <= 'I') {
+    // Area A-I -> coba bar_depan dulu
+    fallbackRooms.push('bar_depan', 'cashier_senior', 'cashier_junior');
+  } else if (areaCode && areaCode >= 'J') {
+    // Area J-O -> coba bar_belakang dulu  
+    fallbackRooms.push('bar_belakang', 'cashier_senior');
+  } else {
+    // Unknown area -> broadcast ke semua
+    fallbackRooms.push('cashier_senior', 'cashier_junior', 'bar_depan', 'bar_belakang');
+  }
+
+  // Tambahkan berdasarkan order type dan breakdown
+  if (orderType === 'beverage' || orderBreakdown.beverageItems > 0) {
+    fallbackRooms.unshift('bar_depan', 'bar_belakang'); // Prioritize bars
+  }
+  
+  if (orderType === 'food' || orderBreakdown.foodItems > 0) {
+    fallbackRooms.unshift('cashier_senior', 'cashier_junior'); // Prioritize cashiers
+  }
+
+  // Untuk mixed orders, prioritaskan kedua-duanya
+  if (orderBreakdown.mixedOrder) {
+    fallbackRooms.unshift('cashier_senior', 'bar_depan', 'bar_belakang');
+  }
+
+  // Hapus duplikat
+  const uniqueRooms = [...new Set(fallbackRooms)];
+
+  // Broadcast ke fallback rooms
+  uniqueRooms.forEach(room => {
+    io.to(room).emit('new_order_fallback', {
+      order: mappedOrder,
+      fallbackReason: 'no_specific_device_available',
+      suggestedRoom: room,
+      areaCode: areaCode,
+      orderType: orderType,
+      orderBreakdown: orderBreakdown,
+      timestamp: new Date()
+    });
+  });
+
+  // Juga broadcast ke cashier_room legacy
+  io.to('cashier_room').emit('new_order', { 
+    mappedOrders: mappedOrder,
+    broadcastType: 'fallback_strategy',
+    orderBreakdown: orderBreakdown
+  });
+
+  console.log(`🔄 Fallback broadcast to rooms: ${uniqueRooms.join(', ')}`);
+}
+
+// FUNCTION: GET AREA CODE FROM TABLE NUMBER
+function getAreaCodeFromTable(tableNumber) {
+  if (!tableNumber) return null;
+  
+  // Extract first character from table number (e.g., "A1" -> "A")
+  const firstChar = tableNumber.charAt(0).toUpperCase();
+  
+  // Validasi area code (A-O)
+  if (firstChar >= 'A' && firstChar <= 'O') {
+    return firstChar;
+  }
+  
+  return null;
+}
+
+// FUNCTION: GET ORDER PRIORITY - DIPERBAIKI
+function getOrderPriority(orderType, items) {
+  let priority = 'normal';
+  
+  if (orderType === 'beverage') {
+    // Beverage orders biasanya lebih cepat
+    priority = 'high';
+  }
+  
+  // Cek jika ada items yang perlu segera disajikan
+  const urgentItems = items.some(item => {
+    const menuItem = item.menuItem;
+    if (!menuItem) return false;
+    
+    const itemName = menuItem.name?.toLowerCase() || '';
+    const urgentKeywords = ['hot', 'panas', 'espresso', 'fresh', 'ice cream', 'es krim', 'milkshake'];
+    
+    return urgentKeywords.some(keyword => itemName.includes(keyword)) ||
+           menuItem.workstation === 'bar' || // Minuman dari bar biasanya urgent
+           menuItem.mainCategory === 'minuman'; // Semua minuman dapat priority
+  });
+  
+  if (urgentItems) {
+    priority = 'urgent';
+  }
+  
+  return priority;
+}
+
+// FUNCTION: UPDATE TABLE STATUS AFTER PAYMENT
 export async function updateTableStatusAfterPayment(order) {
   try {
-    // Cek apakah order memiliki tableNumber dan order type adalah dine-in
     if (order.tableNumber && order.orderType === 'dine-in') {
       console.log(`[TABLE UPDATE] Updating table status for table: ${order.tableNumber}, order: ${order.order_id}`);
       
-      // Cari meja berdasarkan table_number
       const table = await Table.findOne({ 
         table_number: order.tableNumber.toUpperCase() 
       }).populate('area_id');
@@ -235,14 +502,13 @@ export async function updateTableStatusAfterPayment(order) {
         return;
       }
 
-      // Update status meja menjadi 'occupied'
       table.status = 'occupied';
       table.is_available = false;
       table.updatedAt = new Date();
 
       await table.save();
 
-      // ✅ Emit update status meja ke frontend
+      // Emit update status meja ke frontend
       io.to('table_management_room').emit('table_status_updated', {
         table_id: table._id,
         table_number: table.table_number,
@@ -267,7 +533,7 @@ export async function updateTableStatusAfterPayment(order) {
   }
 }
 
-// ✅ PERBAIKAN 8: Helper function yang konsisten dengan struktur yang Anda berikan
+// FUNCTION: MAP ORDER FOR CASHIER - DIPERBAIKI
 function mapOrderForCashier(order) {
   const isOpenBill = order.isOpenBill || false;
   
@@ -285,8 +551,13 @@ function mapOrderForCashier(order) {
       subtotal: item.subtotal,
       isPrinted: item.isPrinted || false,
       menuItem: {
-        ...item.menuItem?.toObject?.() || item.menuItem,
-        categories: item.menuItem?.category || [],
+        _id: item.menuItem?._id,
+        name: item.menuItem?.name,
+        price: item.menuItem?.price,
+        image: item.menuItem?.image,
+        mainCategory: item.menuItem?.mainCategory,
+        workstation: item.menuItem?.workstation,
+        category: item.menuItem?.category
       },
       selectedAddons: item.addons?.length > 0 ? item.addons.map(addon => ({
         name: addon.name,
@@ -310,7 +581,7 @@ function mapOrderForCashier(order) {
     tableNumber: order.tableNumber,
     pickupTime: order.pickupTime,
     type: order.type,
-    paymentMethod: order.paymentMethod || payment_type || "QRIS",
+    paymentMethod: order.paymentMethod || "QRIS",
     totalPrice: order.totalBeforeDiscount,
     totalAfterDiscount: order.totalAfterDiscount,
     totalTax: order.totalTax,
@@ -326,6 +597,8 @@ function mapOrderForCashier(order) {
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     __v: order.__v,
-    isOpenBill: isOpenBill
+    isOpenBill: isOpenBill,
+    // Tambahan field untuk analysis
+    orderAnalysis: getOrderBreakdown(order.items)
   };
 }
