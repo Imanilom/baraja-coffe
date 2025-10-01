@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import Header from "../../admin/header";
 
 const permissionsList = [
     "manage_users",
@@ -19,33 +17,45 @@ const permissionsList = [
     "manage_finance",
 ];
 
-const UpdateRole = () => {
-    const navigate = useNavigate();
-    const { id } = useParams(); // ambil id role dari URL
+const UpdateRole = ({ isOpen, onClose, onSuccess, roleId }) => {
     const [formData, setFormData] = useState({
         name: "",
         description: "",
         permissions: [],
     });
     const [loading, setLoading] = useState(false);
+    const [fetchLoading, setFetchLoading] = useState(false);
     const [message, setMessage] = useState("");
 
-    // ambil data role saat pertama kali load
+    // Fetch role data when modal opens
     useEffect(() => {
-        const fetchRole = async () => {
-            try {
-                const res = await axios.get(`/api/roles/${id}`);
-                setFormData({
-                    name: res.data.name,
-                    description: res.data.description,
-                    permissions: res.data.permissions || [],
-                });
-            } catch (err) {
-                setMessage("Gagal mengambil data role");
-            }
-        };
-        fetchRole();
-    }, [id]);
+        if (isOpen && roleId) {
+            const fetchRole = async () => {
+                setFetchLoading(true);
+                try {
+                    const res = await axios.get(`/api/roles/${roleId}`);
+                    setFormData({
+                        name: res.data.name,
+                        description: res.data.description || "",
+                        permissions: res.data.permissions || [],
+                    });
+                } catch (err) {
+                    setMessage("Gagal mengambil data role");
+                } finally {
+                    setFetchLoading(false);
+                }
+            };
+            fetchRole();
+        }
+    }, [isOpen, roleId]);
+
+    // Reset form when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            setFormData({ name: "", description: "", permissions: [] });
+            setMessage("");
+        }
+    }, [isOpen]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -67,11 +77,18 @@ const UpdateRole = () => {
         setMessage("");
 
         try {
-            const res = await axios.put(`/api/roles/${id}`, formData);
-            setMessage(res.data.message);
-            navigate("/admin/access-settings/role", {
-                state: { success: "Role berhasil diperbarui!" },
-            });
+            const res = await axios.put(`/api/roles/${roleId}`, formData);
+
+            // Call onSuccess callback
+            if (onSuccess) {
+                onSuccess(res.data);
+            }
+
+            // Close modal with delay
+            setTimeout(() => {
+                onClose();
+            }, 100);
+
         } catch (err) {
             setMessage(err.response?.data?.message || "Error updating role");
         } finally {
@@ -79,77 +96,140 @@ const UpdateRole = () => {
         }
     };
 
+    const handleClose = () => {
+        onClose();
+    };
+
+    if (!isOpen) return null;
+
     return (
-        <div className="w-full">
-            <Header />
-            <div className="p-6 max-w-3xl mx-auto">
-                <h1 className="text-2xl font-bold mb-4">Update Role</h1>
+        <>
+            {/* Overlay */}
+            <div
+                className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+                onClick={handleClose}
+            ></div>
 
-                {message && (
-                    <div className="mb-4 text-sm text-green-600">{message}</div>
-                )}
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Name */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Role</label>
-                        <input
-                            type="text"
-                            name="name"
-                            className="w-full border rounded-lg p-2 lowercase"
-                            value={formData.name}
-                            onChange={handleChange}
-                            required
-                        />
+            {/* Sidebar Modal */}
+            <div
+                className={`fixed top-0 right-0 h-full w-full md:w-[500px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isOpen ? "translate-x-0" : "translate-x-full"
+                    }`}
+            >
+                <div className="flex flex-col h-full">
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-6 border-b">
+                        <h2 className="text-xl font-bold">Update Role</h2>
+                        <button
+                            onClick={handleClose}
+                            className="text-gray-500 hover:text-gray-700 text-2xl"
+                        >
+                            ×
+                        </button>
                     </div>
 
-                    {/* Description */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Keterangan</label>
-                        <textarea
-                            name="description"
-                            className="w-full border rounded-lg p-2"
-                            rows="2"
-                            value={formData.description}
-                            onChange={handleChange}
-                        ></textarea>
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto p-6">
+                        {fetchLoading ? (
+                            <div className="flex justify-center items-center h-full">
+                                <div className="text-gray-500">Loading...</div>
+                            </div>
+                        ) : (
+                            <>
+                                {message && (
+                                    <div className={`mb-4 p-3 text-sm rounded-lg ${message.includes("Error") || message.includes("Gagal")
+                                            ? "text-red-600 bg-red-50"
+                                            : "text-green-600 bg-green-50"
+                                        }`}>
+                                        {message}
+                                    </div>
+                                )}
+
+                                <form onSubmit={handleSubmit} className="space-y-4">
+                                    {/* Name */}
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">
+                                            Role <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="name"
+                                            className="w-full border rounded-lg p-2 lowercase focus:outline-none focus:ring-2 focus:ring-[#005429]"
+                                            value={formData.name}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+
+                                    {/* Description */}
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">
+                                            Keterangan
+                                        </label>
+                                        <textarea
+                                            name="description"
+                                            className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[#005429]"
+                                            rows="3"
+                                            value={formData.description}
+                                            onChange={handleChange}
+                                        ></textarea>
+                                    </div>
+
+                                    {/* Permissions */}
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">
+                                            Hak Izin
+                                        </label>
+                                        <div className="border rounded-lg p-3 max-h-64 overflow-y-auto">
+                                            <div className="space-y-2">
+                                                {permissionsList.map((perm) => (
+                                                    <label
+                                                        key={perm}
+                                                        className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.permissions.includes(perm)}
+                                                            onChange={() => handlePermissionChange(perm)}
+                                                            className="w-4 h-4 text-[#005429] focus:ring-[#005429]"
+                                                        />
+                                                        <span className="text-sm">{perm}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            {formData.permissions.length} izin dipilih
+                                        </p>
+                                    </div>
+                                </form>
+                            </>
+                        )}
                     </div>
 
-                    {/* Permissions */}
-                    <div>
-                        <label className="block text-sm font-medium mb-2">Hak Izin</label>
-                        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border p-2 rounded-lg">
-                            {permissionsList.map((perm) => (
-                                <label key={perm} className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.permissions.includes(perm)}
-                                        onChange={() => handlePermissionChange(perm)}
-                                    />
-                                    <span className="text-sm">{perm}</span>
-                                </label>
-                            ))}
+                    {/* Footer */}
+                    <div className="p-6 border-t bg-gray-50">
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={handleSubmit}
+                                disabled={loading || fetchLoading}
+                                className="flex-1 px-4 py-2 bg-[#005429] text-white rounded-lg hover:bg-[#006633] disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? "Memperbarui..." : "Update"}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleClose}
+                                disabled={loading}
+                                className="flex-1 px-4 py-2 bg-white text-[#005429] rounded-lg border border-[#005429] hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                Batal
+                            </button>
                         </div>
                     </div>
-
-                    <div className="flex pt-4 gap-4">
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="px-4 py-2 bg-[#005429] text-white rounded-lg border border-[#005429]"
-                        >
-                            {loading ? "Updating..." : "Update"}
-                        </button>
-                        <Link
-                            to="/admin/access-settings/role"
-                            className="px-4 py-2 bg-white text-[#005429] rounded-lg border border-[#005429]"
-                        >
-                            Kembali
-                        </Link>
-                    </div>
-                </form>
+                </div>
             </div>
-        </div>
+        </>
     );
 };
 

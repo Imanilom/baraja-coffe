@@ -2,7 +2,7 @@ import React from "react";
 import { FaChevronLeft, FaChevronRight, FaPencilAlt, FaReceipt, FaTrashAlt } from "react-icons/fa";
 import Select from "react-select";
 import CategoryTabs from "./filters/categorytabs";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import MenuSkeleton from "./skeleton";
 
 export default function MenuTable({
@@ -33,6 +33,9 @@ export default function MenuTable({
     currentPage,
     loading
 }) {
+
+    const location = useLocation();
+
     const renderPageNumbers = () => {
         let pages = [];
         for (let i = 1; i <= totalPages; i++) {
@@ -57,11 +60,13 @@ export default function MenuTable({
     return (
         <>
             <div className="px-6">
-                <CategoryTabs
-                    categoryOptions={categoryOptions}
-                    selectedCategory={selectedCategory}
-                    setSelectedCategory={setSelectedCategory}
-                />
+                {location.pathname === '/admin/menu' && (
+                    <CategoryTabs
+                        categoryOptions={categoryOptions}
+                        selectedCategory={selectedCategory}
+                        setSelectedCategory={setSelectedCategory}
+                    />
+                )}
 
                 <div className="flex items-center justify-between gap-3 py-3">
                     {/* Search */}
@@ -236,13 +241,21 @@ export default function MenuTable({
                                                 </Link>
 
                                                 {/* Edit */}
-                                                <Link
+
+                                                {location.pathname === '/admin/menu' ? (<Link
                                                     to={`/admin/menu-update/${item.id}`}
                                                     className="p-2 rounded-md hover:bg-gray-100 text-green-900"
                                                     title="Edit"
                                                 >
                                                     <FaPencilAlt size={16} />
-                                                </Link>
+                                                </Link>) : (<Link
+                                                    to={`/admin/event/edit-event/${item.id}`}
+                                                    className="p-2 rounded-md hover:bg-gray-100 text-green-900"
+                                                    title="Edit"
+                                                >
+                                                    <FaPencilAlt size={16} />
+                                                </Link>)}
+
                                             </div>
                                         </td>
                                     </tr>

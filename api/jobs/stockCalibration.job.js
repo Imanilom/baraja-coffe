@@ -151,8 +151,8 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
 export const setupStockCalibrationCron = () => {
   // Jalankan setiap jam pada menit 5 (05:00, 06:00, 07:00, dst)
   // Memberi waktu 5 menit setelah jam tepat untuk hindari peak load
-  cron.schedule('5 * * * *', async () => {
-    console.log('⏰ Menjalankan scheduled stock calibration...');
+  cron.schedule('5 */3 * * *', async () => {
+    console.log(' Menjalankan scheduled stock calibration...');
     
     try {
       // Cek koneksi database sebelum mulai

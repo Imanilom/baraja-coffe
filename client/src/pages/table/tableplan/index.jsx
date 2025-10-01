@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { FaChevronRight, FaIdBadge, FaPencilAlt, FaExpand, FaCompress, FaSave, FaTimes, FaPlus, FaEdit, FaTrash } from "react-icons/fa";
+import { FaChevronRight, FaIdBadge, FaPencilAlt, FaExpand, FaCompress, FaSave, FaTimes, FaPlus, FaEdit, FaTrash, FaQrcode } from "react-icons/fa";
+import Select from "react-select";
+import QRCode from 'qrcode';
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const TablePlanManagement = () => {
     const [outlets, setOutlets] = useState([]);
@@ -135,6 +139,11 @@ const TablePlanManagement = () => {
         setDraggingTable(null);
     };
 
+    const options = areas.map(area => ({
+        value: area._id,
+        label: `${area.area_name} (${area.area_code}) - ${area.roomSize.width}x${area.roomSize.height}${area.roomSize.unit}`,
+    }));
+
     // Add drag event listeners
     useEffect(() => {
         if (draggingTable) {
@@ -197,6 +206,36 @@ const TablePlanManagement = () => {
             alert(`Gagal menyimpan posisi meja: ${err.response?.data?.message || err.message}`);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleDownloadTableQR = async (table) => {
+        try {
+            // Data QR hanya string nama meja
+            const qrData = `https://order.barajacoffee.com/auto-session?outlet=67cbc9560f025d897d69f889&table=${table.table_number}`;
+
+            // Generate QR Code
+            const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+                width: 400,
+                margin: 2,
+                color: {
+                    dark: '#005429',
+                    light: '#FFFFFF'
+                }
+            });
+
+            // Create download link
+            const link = document.createElement('a');
+            link.href = qrCodeDataURL;
+            link.download = `QR-${table.table_number}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            toast.success(`QR Code ${table.table_number} berhasil didownload`);
+        } catch (error) {
+            console.error('Error generating QR code:', error);
+            toast.error('Gagal generate QR code');
         }
     };
 
@@ -363,6 +402,40 @@ const TablePlanManagement = () => {
         }
     }, [panning, panStart]);
 
+    const customStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db',
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+            '&:hover': {
+                borderColor: '#9ca3af',
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280',
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af',
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+            cursor: 'pointer',
+        }),
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -391,34 +464,28 @@ const TablePlanManagement = () => {
     return (
         <div className="relative">
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaIdBadge size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Pengaturan Meja</p>
-                    <FaChevronRight size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Denah Meja</p>
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Pengaturan Meja</span>
+                    <FaChevronRight />
+                    <span>Denah Meja</span>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
+            <div className="px-6 pb-6">
                 {/* Area Selection */}
-                <div className="my-[13px] py-[10px] px-[15px] rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex items-center space-x-4">
-                        <div className="flex-1">
-                            <label className="text-[13px] mb-1 text-gray-500">Pilih Area</label>
-                            <select
-                                className="w-full text-[13px] border py-[6px] px-[12px] rounded"
-                                value={selectedArea?._id || ''}
-                                onChange={(e) => handleAreaChange(e.target.value)}
-                            >
-                                {areas.map(area => (
-                                    <option key={area._id} value={area._id}>
-                                        {area.area_name} ({area.area_code}) - {area.roomSize.width}x{area.roomSize.height}{area.roomSize.unit}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                <div className="flex items-center space-x-4">
+                    <div className="flex-1 flex justify-end ">
+                        <Select
+                            className="text-[13px] w-1/5"
+                            styles={customStyles}
+                            options={options}
+                            value={options.find(opt => opt.value === (selectedArea?._id || "")) || null}
+                            onChange={(selected) => handleAreaChange(selected?.value)}
+                            placeholder="Pilih Area..."
+                            isClearable
+                        />
                     </div>
                 </div>
 
@@ -448,7 +515,7 @@ const TablePlanManagement = () => {
 
                 {/* Area Visualization */}
                 {selectedArea && (
-                    <div className="mt-4 rounded shadow-slate-200 shadow-md p-4">
+                    <div className="mt-4 rounded shadow-slate-200">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-semibold">
                                 {selectedArea.area_name} ({selectedArea.area_code})
@@ -532,7 +599,7 @@ const TablePlanManagement = () => {
                                             key={table._id}
                                             className={`absolute flex flex-col items-center justify-center rounded border-2 
                                                 ${draggingTable === table._id ? 'cursor-grabbing shadow-lg' : 'cursor-move'}
-                                                ${table.status === 'available' ? 'border-green-500 bg-green-100 hover:bg-green-200' :
+                                                ${table.status === 'available' ? 'border-green-500 bg-white hover:bg-green-200' :
                                                     table.status === 'occupied' ? 'border-red-500 bg-red-100 hover:bg-red-200' :
                                                         table.status === 'reserved' ? 'border-yellow-500 bg-yellow-100 hover:bg-yellow-200' :
                                                             'border-gray-500 bg-gray-100 hover:bg-gray-200'}`}
@@ -596,7 +663,7 @@ const TablePlanManagement = () => {
                                         <div
                                             key={table._id}
                                             className={`p-3 rounded border hover:shadow-md transition-shadow
-                                                ${table.status === 'available' ? 'border-green-300 bg-green-50' :
+                                                ${table.status === 'available' ? 'border-green-300 bg-white' :
                                                     table.status === 'occupied' ? 'border-red-300 bg-red-50' :
                                                         table.status === 'reserved' ? 'border-yellow-300 bg-yellow-50' :
                                                             'border-gray-300 bg-gray-50'}`}
@@ -632,6 +699,12 @@ const TablePlanManagement = () => {
                                                     className="flex-1 px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 flex items-center justify-center gap-1"
                                                 >
                                                     <FaTrash size={10} /> Hapus
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDownloadTableQR(table)}
+                                                    className="flex-1 px-2 py-1 text-xs bg-green-900 text-white rounded hover:bg-green-600 flex items-center justify-center gap-1"
+                                                >
+                                                    <FaQrcode size={10} />
                                                 </button>
                                             </div>
                                         </div>

@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
-import { FaBoxes, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import { FaTimes } from "react-icons/fa";
 import Select from "react-select";
+import { toast } from "react-toastify";
 
-const CreateArea = () => {
-
+const CreateArea = ({ isOpen, onClose, onSuccess }) => {
     const customStyles = {
         control: (provided, state) => ({
             ...provided,
@@ -40,7 +39,6 @@ const CreateArea = () => {
         }),
     };
 
-    const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [form, setForm] = useState({
         area_code: '',
@@ -57,10 +55,7 @@ const CreateArea = () => {
     });
 
     const [outletList, setOutletList] = useState([]);
-    const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState('');
     const [selectedOutlet, setSelectedOutlet] = useState('');
-    const dropdownRef = useRef();
 
     const fetchOutlets = async () => {
         try {
@@ -68,12 +63,35 @@ const CreateArea = () => {
             setOutletList(response.data.data || []);
         } catch (error) {
             console.error('Failed to fetch outlets:', error);
+            toast.error('Gagal memuat daftar outlet');
         }
     };
 
     useEffect(() => {
-        fetchOutlets();
-    }, []);
+        if (isOpen) {
+            fetchOutlets();
+        }
+    }, [isOpen]);
+
+    // Reset form when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            setForm({
+                area_code: '',
+                area_name: '',
+                capacity: 1,
+                description: '',
+                rentfee: 0,
+                roomSize: {
+                    width: 1,
+                    height: 1,
+                    unit: 'm'
+                },
+                is_active: true
+            });
+            setSelectedOutlet('');
+        }
+    }, [isOpen]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -114,26 +132,18 @@ const CreateArea = () => {
     };
 
     const options = [
-        { value: "", label: "Semua Outlet" },
+        { value: "", label: "Pilih Outlet" },
         ...outletList.map((o) => ({ value: o._id, label: o.name })),
     ];
 
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    const filteredOutlets = outletList.filter((outlet) =>
-        outlet.name.toLowerCase().includes(search.toLowerCase())
-    );
-
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!selectedOutlet) {
+            toast.error("Harus memilih outlet");
+            return;
+        }
+
         setLoading(true);
         try {
             const response = await axios.post('/api/areas', {
@@ -143,90 +153,106 @@ const CreateArea = () => {
             });
 
             if (response.data.success) {
-                navigate('/admin/table-management');
+                toast.success("Area berhasil dibuat");
+
+                if (onSuccess) {
+                    onSuccess(response.data);
+                }
+
+                setTimeout(() => {
+                    onClose();
+                }, 100);
             }
         } catch (error) {
             console.error('Error creating area:', error);
-            alert(error.response?.data?.message || 'Error creating area');
+            const errorMessage = error.response?.data?.message || 'Gagal membuat area';
+            toast.error(errorMessage);
         } finally {
             setLoading(false);
         }
     };
 
+    if (!isOpen) return null;
+
     return (
-        <div className="">
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="flex justify-between items-center px-6 py-3 my-3">
-                    <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                        <span>
-                            Pengaturan Area
-                        </span>
-                        <FaChevronRight />
-                        <span>
-                            Tambah Area
-                        </span>
-                    </div>
+        <>
+            {/* Overlay Background */}
+            <div
+                className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+                onClick={onClose}
+            />
+
+            {/* Side Drawer - Slide from Right */}
+            <div className={`fixed right-0 top-0 h-full w-full md:w-[550px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                {/* Modal Header */}
+                <div className="flex justify-between items-center px-6 py-4 border-b bg-white">
+                    <h2 className="text-xl font-semibold text-green-900">
+                        Tambah Area
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-600 transition"
+                        disabled={loading}
+                    >
+                        <FaTimes size={20} />
+                    </button>
                 </div>
 
-                {/* Area Information */}
-                <div className="grid px-3 grid-cols-1 w-full md:w-1/2 gap-4">
+                {/* Modal Body - Scrollable */}
+                <div className="flex-1 overflow-y-auto px-6 py-4">
                     {/* Outlet Selection */}
-                    <div className="flex items-center">
-                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
-                            Outlet
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
+                            Outlet <span className="text-red-500">*</span>
                         </label>
-                        <div className="relative flex-1">
-                            <Select
-                                options={options}
-                                value={
-                                    selectedOutlet
-                                        ? options.find((opt) => opt.value === selectedOutlet)
-                                        : options[0]
-                                }
-                                onChange={(selected) => setSelectedOutlet(selected.value)}
-                                placeholder="Pilih outlet..."
-                                className="text-[13px]"
-                                classNamePrefix="react-select"
-                                styles={customStyles}
-                                isSearchable
-                            />
-                        </div>
+                        <Select
+                            options={options}
+                            value={options.find(opt => opt.value === selectedOutlet) || options[0]}
+                            onChange={(selected) => setSelectedOutlet(selected.value)}
+                            placeholder="Pilih outlet..."
+                            className="text-[13px]"
+                            classNamePrefix="react-select"
+                            styles={customStyles}
+                            isSearchable
+                        />
                     </div>
 
                     {/* Area Code */}
-                    <div className="flex items-center">
-                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
-                            Kode Area
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
+                            Kode Area <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
                             name="area_code"
                             value={form.area_code}
                             onChange={handleInputChange}
-                            className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1 uppercase"
+                            className="w-full text-[13px] border py-2 px-3 rounded focus:outline-none focus:ring-2 focus:ring-green-600 uppercase"
+                            placeholder="Masukkan kode area"
                             required
                         />
                     </div>
 
                     {/* Area Name */}
-                    <div className="flex items-center">
-                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
-                            Nama Area
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
+                            Nama Area <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
                             name="area_name"
                             value={form.area_name}
                             onChange={handleInputChange}
-                            className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
+                            className="w-full text-[13px] border py-2 px-3 rounded focus:outline-none focus:ring-2 focus:ring-green-600"
+                            placeholder="Masukkan nama area"
                             required
                         />
                     </div>
 
                     {/* Capacity */}
-                    <div className="flex items-center">
-                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
-                            Kapasitas
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
+                            Kapasitas <span className="text-red-500">*</span>
                         </label>
                         <div className="flex items-center space-x-2">
                             <button
@@ -257,30 +283,31 @@ const CreateArea = () => {
                     </div>
 
                     {/* Rent Fee */}
-                    <div className="flex items-center">
-                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
-                            Biaya Sewa
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
+                            Biaya Sewa <span className="text-red-500">*</span>
                         </label>
-                        <div className="relative flex-1">
-                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2">Rp</span>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">Rp</span>
                             <input
                                 type="number"
                                 name="rentfee"
                                 value={form.rentfee}
                                 onChange={handleInputChange}
                                 min="0"
-                                className="w-full text-[13px] border py-2 px-3 rounded text-left pl-8"
+                                className="w-full text-[13px] border py-2 px-3 rounded pl-8 focus:outline-none focus:ring-2 focus:ring-green-600"
+                                placeholder="0"
                                 required
                             />
                         </div>
                     </div>
 
                     {/* Room Size */}
-                    <div className="flex items-center">
-                        <label className="w-[140px] block text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1 text-[14px]">
-                            Ukuran Ruangan
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
+                            Ukuran Ruangan <span className="text-red-500">*</span>
                         </label>
-                        <div className="flex-1 space-y-2">
+                        <div className="space-y-2">
                             <div className="flex items-center space-x-2">
                                 <input
                                     type="number"
@@ -289,7 +316,7 @@ const CreateArea = () => {
                                     onChange={handleRoomSizeChange}
                                     min="0"
                                     step="0.1"
-                                    className="w-20 text-[13px] border py-2 px-3 rounded text-left"
+                                    className="w-24 text-[13px] border py-2 px-3 rounded focus:outline-none focus:ring-2 focus:ring-green-600"
                                     placeholder="Lebar"
                                     required
                                 />
@@ -301,14 +328,14 @@ const CreateArea = () => {
                                     onChange={handleRoomSizeChange}
                                     min="0"
                                     step="0.1"
-                                    className="w-20 text-[13px] border py-2 px-3 rounded text-left"
+                                    className="w-24 text-[13px] border py-2 px-3 rounded focus:outline-none focus:ring-2 focus:ring-green-600"
                                     placeholder="Panjang"
                                     required
                                 />
                                 <select
                                     value={form.roomSize.unit}
                                     onChange={handleUnitChange}
-                                    className="text-[13px] border py-2 px-3 rounded"
+                                    className="text-[13px] border py-2 px-3 rounded focus:outline-none focus:ring-2 focus:ring-green-600"
                                 >
                                     <option value="m">meter</option>
                                     <option value="cm">centimeter</option>
@@ -321,24 +348,24 @@ const CreateArea = () => {
                         </div>
                     </div>
 
-
                     {/* Description */}
-                    <div className="flex items-center">
-                        <label className="w-[140px] block text-[#999999] text-[14px]">
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
                             Deskripsi
                         </label>
                         <textarea
                             name="description"
                             value={form.description}
                             onChange={handleInputChange}
-                            className="w-full text-[13px] border py-2 px-3 rounded text-left relative flex-1"
+                            className="w-full text-[13px] border py-2 px-3 rounded focus:outline-none focus:ring-2 focus:ring-green-600"
                             rows="3"
+                            placeholder="Masukkan deskripsi (opsional)"
                         />
                     </div>
 
                     {/* Status */}
-                    <div className="flex items-center">
-                        <label className="w-[140px] block text-[#999999] text-[14px]">
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-medium mb-2">
                             Status
                         </label>
                         <label className="relative inline-flex items-center cursor-pointer">
@@ -357,25 +384,27 @@ const CreateArea = () => {
                     </div>
                 </div>
 
-                <div className="fixed bottom-0 left-64 right-0 flex justify-end items-center border-t px-3 py-3 bg-white z-50">
-                    <div className="flex space-x-2">
-                        <Link
-                            to="/admin/table-management"
-                            className="border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
-                        >
-                            Batal
-                        </Link>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="bg-[#005429] text-white text-sm px-3 py-1.5 rounded disabled:opacity-50"
-                        >
-                            {loading ? 'Menyimpan...' : 'Simpan'}
-                        </button>
-                    </div>
+                {/* Modal Footer - Fixed at Bottom */}
+                <div className="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-100 transition"
+                        disabled={loading}
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleSubmit}
+                        className="px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 transition disabled:opacity-50"
+                        disabled={loading}
+                    >
+                        {loading ? 'Menyimpan...' : 'Simpan'}
+                    </button>
                 </div>
-            </form>
-        </div>
+            </div>
+        </>
     );
 };
 

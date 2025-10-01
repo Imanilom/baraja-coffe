@@ -4,9 +4,17 @@ import { FaChevronLeft, FaChevronRight, FaPencilAlt, FaSearch, FaTrash } from "r
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
 import RoleTableSkeleton from "./skeleton";
+import CreateRole from "./create";
+import UpdateRole from "./update";
 
 export default function RoleTable() {
+
+    const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+    const [selectedRoleId, setSelectedRoleId] = useState(null);
+
     const [roles, setRole] = useState([]);
+    const [itemToDelete, setItemToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedItems, setSelectedItems] = useState([]);
@@ -38,9 +46,42 @@ export default function RoleTable() {
         }
     };
 
+    const handleUpdateClick = (roleId) => {
+        setSelectedRoleId(roleId);
+        setIsUpdateModalOpen(true);
+    };
+
     useEffect(() => {
         fetchData();
     }, []);
+
+    const handleDelete = async () => {
+        if (!itemToDelete) return;
+
+        setIsDeleting(true);
+        try {
+            await axios.delete(`/api/roles/${itemToDelete}`);
+
+            // Refresh data after delete
+            await fetchData();
+
+            // Close modal
+            setItemToDelete(null);
+
+            // Optional: Show success message
+            alert("Role berhasil dihapus!");
+        } catch (error) {
+            console.error("Error deleting role:", error);
+            alert(error.response?.data?.message || "Gagal menghapus role");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    // Cancel delete
+    const handleCancelDelete = () => {
+        setItemToDelete(null);
+    };
 
     // Apply filter
     const filteredData = roles.filter((role) => {
@@ -73,9 +114,9 @@ export default function RoleTable() {
                 <button
                     key={i}
                     onClick={() => setCurrentPage(i)}
-                    className={`px-3 py-1 border rounded ${currentPage === i
-                        ? "bg-green-900 text-white border-green-900"
-                        : "hover:bg-gray-100"
+                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
+                        ? "bg-green-900 text-white"
+                        : "hover:bg-green-900 hover:text-white text-green-900"
                         }`}
                 >
                     {i}
@@ -190,16 +231,12 @@ export default function RoleTable() {
                                                 : "-"}
                                         </td>
                                         <td className="px-6 py-3 text-right flex justify-end gap-3">
-                                            <Link
-                                                to={`/admin/access-settings/role-update/${data._id}`}
-                                                className="text-gray-500 hover:text-green-900 flex items-center gap-1"
-                                            >
+                                            <button onClick={() => handleUpdateClick(data._id)}>
                                                 <FaPencilAlt />
-                                            </Link>
+                                            </button>
                                             <button
                                                 onClick={() => {
                                                     setItemToDelete(data._id);
-                                                    setIsModalOpen(true);
                                                 }}
                                                 className="text-red-600 hover:text-red-800 flex items-center gap-1"
                                             >
@@ -221,14 +258,47 @@ export default function RoleTable() {
                         </tbody>
                     </table>
                 </div>
+                {itemToDelete && (
+                    <>
+                        {/* Overlay */}
+                        <div
+                            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                            onClick={handleCancelDelete}
+                        ></div>
+
+                        {/* Modal */}
+                        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl z-50 p-6 max-w-md w-full mx-4">
+                            <h3 className="text-lg font-bold mb-4">Konfirmasi Hapus</h3>
+                            <p className="text-gray-600 mb-6">
+                                Apakah Anda yakin ingin menghapus role ini? Tindakan ini tidak dapat dibatalkan.
+                            </p>
+                            <div className="flex gap-3 justify-end">
+                                <button
+                                    onClick={handleCancelDelete}
+                                    disabled={isDeleting}
+                                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
+                                >
+                                    {isDeleting ? "Menghapus..." : "Hapus"}
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 {/* Pagination tetap */}
                 {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
+                    <div className="flex justify-between items-center mt-4 text-sm text-white">
                         <button
                             onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                             disabled={currentPage === 1}
-                            className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+                            className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 bg-green-900"
                         >
                             <FaChevronLeft /> Sebelumnya
                         </button>
@@ -238,14 +308,22 @@ export default function RoleTable() {
                         <button
                             onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
                             disabled={currentPage === totalPages}
-                            className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+                            className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 bg-green-900"
                         >
                             Selanjutnya <FaChevronRight />
                         </button>
                     </div>
                 )}
-            </main>
 
+                <UpdateRole
+                    isOpen={isUpdateModalOpen}
+                    onClose={() => setIsUpdateModalOpen(false)}
+                    onSuccess={(data) => {
+                        fetchData(); // Refresh table
+                    }}
+                    roleId={selectedRoleId}
+                />
+            </main>
         </>
     )
 }

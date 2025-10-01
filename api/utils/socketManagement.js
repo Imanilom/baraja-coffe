@@ -62,13 +62,17 @@ class SocketManagement {
     }
   }
 
-  // ✅ GET TARGET DEVICES FOR ORDER
+  // ✅ GET TARGET DEVICES FOR ORDER - DIPERBAIKI
   async getTargetDevicesForOrder(orderData) {
     try {
-      const { tableNumber, items, orderType = 'both' } = orderData;
+      const { tableNumber, items, orderType = 'both', outletId } = orderData;
       
+      if (!tableNumber) {
+        throw new Error('Table number is required for device targeting');
+      }
+
       // Cari area berdasarkan table number
-      const table = await Table.findOne({ table_number: tableNumber })
+      const table = await Table.findOne({ table_number: tableNumber.toUpperCase() })
         .populate('area_id');
       
       if (!table) {
@@ -80,19 +84,25 @@ class SocketManagement {
       const targetOrderType = isBeverageOrder ? 'beverage' : 'food';
 
       console.log(`📦 Order analysis: Table ${tableNumber}, Area ${areaCode}, Type: ${targetOrderType}`);
+      console.log(`🔍 Beverage detection: ${isBeverageOrder} based on items analysis`);
 
       // Cari devices yang aktif dan terkoneksi
       const targetDevices = [];
       
       for (const [socketId, device] of this.connectedDevices.entries()) {
+        // Cek outlet match
+        if (device.outlet.toString() !== outletId.toString()) {
+          continue;
+        }
+        
         // Cek apakah device bisa handle table ini
-        if (!device.canHandleTable(tableNumber)) continue;
+        if (!this.canHandleTable(device, tableNumber)) continue;
         
         // Cek apakah device bisa handle area ini  
-        if (!device.canHandleArea(areaCode)) continue;
+        if (!this.canHandleArea(device, areaCode)) continue;
         
         // Cek apakah device bisa handle order type ini
-        if (!device.canHandleOrderType(targetOrderType) && !device.canHandleOrderType('both')) continue;
+        if (!this.canHandleOrderType(device, targetOrderType)) continue;
         
         // Cek role yang sesuai
         if (this.isEligibleRole(device.role, targetOrderType, areaCode)) {
@@ -101,6 +111,12 @@ class SocketManagement {
       }
 
       console.log(`🎯 Found ${targetDevices.length} target devices for order`);
+      console.log(`📋 Target devices:`, targetDevices.map(d => ({
+        deviceName: d.deviceName,
+        role: d.role,
+        areas: d.assignedAreas,
+        orderTypes: d.orderTypes
+      })));
       
       return {
         targetDevices,
@@ -115,27 +131,69 @@ class SocketManagement {
     }
   }
 
-  // ✅ CHECK IF ORDER IS BEVERAGE
+  // ✅ CHECK IF ORDER IS BEVERAGE - DIPERBAIKI
   isBeverageOrder(items) {
     if (!items || !Array.isArray(items)) return false;
     
-    // Asumsi: ada field category di menuItem yang menunjukkan jenis
     return items.some(item => {
-      const categories = item.menuItem?.categories || [];
-      return categories.some(cat => 
-        ['beverage', 'drink', 'minuman', 'bar'].includes(cat.toLowerCase())
-      );
+      const menuItem = item.menuItem;
+      if (!menuItem) return false;
+      
+      // Gunakan mainCategory dan workstation dari MenuItem
+      const isBeverageByCategory = menuItem.mainCategory === 'minuman';
+      const isBeverageByWorkstation = menuItem.workstation === 'bar' || menuItem.workstation === 'bar-belakang';
+      
+      return isBeverageByCategory || isBeverageByWorkstation;
     });
+  }
+
+  // ✅ HELPER: CAN HANDLE TABLE
+  canHandleTable(device, tableNumber) {
+    if (!device.assignedTables || device.assignedTables.length === 0) {
+      return true; // Jika tidak ada konfigurasi, handle semua
+    }
+    return device.assignedTables.includes(tableNumber.toUpperCase());
+  }
+
+  // ✅ HELPER: CAN HANDLE AREA
+  canHandleArea(device, areaCode) {
+    if (!device.assignedAreas || device.assignedAreas.length === 0) {
+      return true; // Jika tidak ada konfigurasi, handle semua
+    }
+    return device.assignedAreas.includes(areaCode.toUpperCase());
+  }
+
+  // ✅ HELPER: CAN HANDLE ORDER TYPE
+  canHandleOrderType(device, orderType) {
+    if (!device.orderTypes || device.orderTypes.length === 0) {
+      return true;
+    }
+    return device.orderTypes.includes(orderType) || device.orderTypes.includes('both');
   }
 
   // ✅ CHECK ELIGIBLE ROLE
   isEligibleRole(role, orderType, areaCode) {
     const roleConfig = {
-      'cashier_senior': { types: ['food', 'beverage', 'both'], areas: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'] },
-      'cashier_junior': { types: ['food', 'beverage', 'both'], areas: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] },
-      'bar_depan': { types: ['beverage'], areas: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] },
-      'bar_belakang': { types: ['beverage'], areas: ['J', 'K', 'L', 'M', 'N', 'O'] },
-      'kitchen': { types: ['food'], areas: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'] }
+      'cashier_senior': { 
+        types: ['food', 'beverage', 'both'], 
+        areas: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'] 
+      },
+      'cashier_junior': { 
+        types: ['food', 'beverage', 'both'], 
+        areas: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] 
+      },
+      'bar_depan': { 
+        types: ['beverage'], 
+        areas: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] 
+      },
+      'bar_belakang': { 
+        types: ['beverage'], 
+        areas: ['J', 'K', 'L', 'M', 'N', 'O'] 
+      },
+      'kitchen': { 
+        types: ['food'], 
+        areas: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'] 
+      }
     };
 
     const config = roleConfig[role];
@@ -173,7 +231,7 @@ class SocketManagement {
       });
 
       // Juga broadcast ke room umum untuk backup
-      const io = global.io; // Asumsikan io tersedia secara global
+      const io = global.io;
       if (io) {
         io.to('cashier_backup').emit('new_order_backup', {
           order: orderData,
@@ -235,8 +293,10 @@ class SocketManagement {
         location: device.location,
         assignedAreas: device.assignedAreas,
         assignedTables: device.assignedTables,
+        orderTypes: device.orderTypes,
         isActive: device.isActive,
-        lastLogin: device.lastLogin
+        lastLogin: device.lastLogin,
+        socketId: device.socketId
       });
     }
     
