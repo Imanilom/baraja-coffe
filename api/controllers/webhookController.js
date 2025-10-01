@@ -1,6 +1,9 @@
 import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
+import Table from '../models/Table.model.js'; 
+import { socketManagement } from '../utils/socketManagement.js';
+import { MenuItem } from '../models/MenuItem.model.js';
 
 export const midtransWebhook = async (req, res) => {
   let requestId = Math.random().toString(36).substr(2, 9);
@@ -9,9 +12,14 @@ export const midtransWebhook = async (req, res) => {
     const notificationJson = req.body;
     let {
       transaction_status,
-      order_id, // awalnya ini payment_code dari Midtrans
+      order_id,
       fraud_status,
-      payment_type
+      payment_type,
+      gross_amount,
+      transaction_time,
+      settlement_time,
+      signature_key,
+      merchant_id
     } = notificationJson;
 
     console.log(`[WEBHOOK ${requestId}] Received Midtrans notification:`, {
@@ -19,198 +27,178 @@ export const midtransWebhook = async (req, res) => {
       transaction_status,
       fraud_status,
       payment_type,
+      gross_amount,
       timestamp: new Date().toISOString()
     });
 
-    // Validate critical fields
+    // VALIDASI: Pastikan field required ada
     if (!order_id || !transaction_status) {
       console.warn(`[WEBHOOK ${requestId}] Invalid notification: Missing required fields`);
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Retry mechanism untuk menunggu payment record
-    let existingPayment = null;
-    let retryCount = 0;
-    const maxRetries = 5;
-    const retryDelay = 2000; // 2 seconds
-
-    while (retryCount < maxRetries) {
-      existingPayment = await Payment.findOne({ payment_code: order_id });
-
-      if (existingPayment) {
-        console.log(
-          `[WEBHOOK ${requestId}] Payment record found for payment_code ${order_id} after ${retryCount} retries`
-        );
-
-        // timpa order_id dengan order_id internal dari payment record
-        order_id = existingPayment.order_id;
-
-        console.log(`[WEBHOOK ${requestId}] Overriding order_id with value from Payment record: ${order_id}`);
-        break;
-      }
-
-      console.log(
-        `[WEBHOOK ${requestId}] Payment record not found for payment_code ${order_id}, retry ${retryCount + 1}/${maxRetries}`
-      );
-      retryCount++;
-
-      if (retryCount < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, retryDelay));
-      }
-    }
+    // Cari payment berdasarkan order_id
+    const existingPayment = await Payment.findOne({ order_id });
 
     if (!existingPayment) {
-      console.error(`[WEBHOOK ${requestId}] Payment record not found after retries`);
+      console.error(`[WEBHOOK ${requestId}] Payment record not found for payment_code: ${order_id}`);
       return res.status(404).json({ message: 'Payment record not found' });
     }
 
-    console.log(`[WEBHOOK ${requestId}] Processing webhook for existing payment:`, existingPayment._id);
+    console.log(`[WEBHOOK ${requestId}] Processing webhook for payment:`, existingPayment._id);
 
-    // Update payment record (gunakan payment_code dari existingPayment)
-    const paymentData = {
+    // Update payment record
+    const paymentUpdateData = {
       status: transaction_status,
       fraud_status: fraud_status,
-      paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : null,
+      payment_type: payment_type,
+      gross_amount: parseFloat(gross_amount) || existingPayment.amount,
+      transaction_time: transaction_time,
+      settlement_time: settlement_time,
+      signature_key: signature_key,
+      merchant_id: merchant_id,
+      paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : existingPayment.paidAt,
       updatedAt: new Date()
     };
 
-    // Update payment record by internal order_id
+    const rawResponseUpdate = {
+      ...existingPayment.raw_response,
+      ...notificationJson,
+      webhook_received_at: new Date()
+    };
+
     const updatedPayment = await Payment.findOneAndUpdate(
-      { order_id }, // pakai order_id yang sudah ditimpa
-      paymentData,
+      { payment_code: order_id },
+      {
+        ...paymentUpdateData,
+        raw_response: rawResponseUpdate
+      },
       { new: true, runValidators: true }
     );
 
     if (!updatedPayment) {
-      console.error(`[WEBHOOK ${requestId}] Failed to update payment for payment_code ${existingPayment.payment_code}`);
-      return res.status(404).json({ message: 'Payment record not found' });
+      console.error(`[WEBHOOK ${requestId}] Failed to update payment for payment_code ${order_id}`);
+      return res.status(404).json({ message: 'Payment update failed' });
     }
 
-    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for payment_code ${existingPayment.payment_code}`);
+    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for payment_code ${order_id}`);
 
-    // Update raw_response untuk konsistensi
-    if (updatedPayment.raw_response) {
-      updatedPayment.raw_response.transaction_status = transaction_status;
-      updatedPayment.raw_response.fraud_status = fraud_status;
-      updatedPayment.markModified('raw_response');
-      await updatedPayment.save();
-      console.log(`[WEBHOOK ${requestId}] Raw response updated`);
-    }
-
-    // ✅ PERBAIKAN: Populate order dengan data lengkap untuk mapping yang konsisten
+    // Cari order berdasarkan order_id dengan populate yang lebih detail
     const order = await Order.findOne({ order_id })
       .populate('user_id', 'name email phone')
       .populate('cashierId', 'name')
       .populate({
         path: 'items.menuItem',
-        select: 'name price image category description'
+        select: 'name price image mainCategory workstation category description'
       })
       .populate('outlet', 'name address');
+
+    console.log("order:", order);
+
 
     if (!order) {
       console.warn(`[WEBHOOK ${requestId}] Order with ID ${order_id} not found`);
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    console.log(`[WEBHOOK ${requestId}] Order ${order_id} found. Source: ${order.source}`);
+    console.log(`[WEBHOOK ${requestId}] Order ${order_id} found. Current status: ${order.status}, Payment status: ${order.paymentStatus}`);
 
     // Handle transaction status
+    let orderUpdateData = {};
+    let shouldUpdateOrder = false;
+
     switch (transaction_status) {
       case 'capture':
       case 'settlement':
         if (fraud_status === 'accept') {
-          // ✅ PERBAIKAN: Update order status untuk pembayaran berhasil
-          order.paymentStatus = 'Paid';
-          await order.save();
-
-          const paymentUpdateData = {
-            order_id,
-            status: order.status,
-            paymentStatus: 'settlement', // ✅ Update status pembayaran
-            transaction_status,
-            fraud_status,
-            timestamp: new Date()
+          orderUpdateData = {
+            paymentStatus: 'Paid',
+            status: order.status === 'Pending' ? 'Pending' : order.status
           };
-
-          // Emit ke room order yang spesifik
-          io.to(`order_${order_id}`).emit('payment_status_update', paymentUpdateData);
-          io.to(`order_${order_id}`).emit('order_status_update', paymentUpdateData);
-
-          console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${order_id}`);
-
-          // ✅ PERBAIKAN: Gunakan mapping yang konsisten dengan endpoint lain
-          const mappedOrder = mapOrderForCashier(order);
-          
-          // ✅ PERBAIKAN: Emit dengan struktur yang sama seperti endpoint lain
-          io.to('cashier_room').emit('new_order', { mappedOrders: mappedOrder });
-          console.log(`[WEBHOOK ${requestId}] Broadcasted order to cashier room with consistent mapping`);
-
+          shouldUpdateOrder = true;
+          console.log(`[WEBHOOK ${requestId}] Payment successful for order ${order_id}`);
         } else if (fraud_status === 'challenge') {
-          const challengeData = {
-            order_id,
-            status: order.status,
-            paymentStatus: order.paymentStatus,
-            transaction_status,
-            fraud_status,
-            timestamp: new Date()
+          orderUpdateData = {
+            paymentStatus: 'Challenged'
           };
-
-          io.to(`order_${order_id}`).emit('payment_status_update', challengeData);
-          io.to(`order_${order_id}`).emit('order_status_update', challengeData);
-
-          console.log(`[WEBHOOK ${requestId}] Order ${order_id} payment challenged`);
+          shouldUpdateOrder = true;
+          console.log(`[WEBHOOK ${requestId}] Payment challenged for order ${order_id}`);
         }
         break;
 
       case 'deny':
       case 'cancel':
       case 'expire':
-        order.status = 'Canceled';
-        order.paymentStatus = 'Failed';
-        await order.save();
-
-        console.log(`[WEBHOOK ${requestId}] Order ${order_id} payment failed: ${transaction_status}`);
-
-        const failedData = {
-          order_id,
-          status: order.status,
-          paymentStatus: order.paymentStatus,
-          transaction_status,
-          fraud_status,
-          timestamp: new Date()
+        orderUpdateData = {
+          paymentStatus: 'Failed',
+          status: 'Canceled'
         };
-
-        io.to(`order_${order_id}`).emit('payment_status_update', failedData);
-        io.to(`order_${order_id}`).emit('order_status_update', failedData);
+        shouldUpdateOrder = true;
+        console.log(`[WEBHOOK ${requestId}] Payment failed for order ${order_id}: ${transaction_status}`);
         break;
 
       case 'pending':
-        const pendingData = {
-          order_id,
-          status: order.status,
-          paymentStatus: order.paymentStatus,
-          transaction_status,
-          fraud_status,
-          timestamp: new Date()
+        orderUpdateData = {
+          paymentStatus: 'Pending'
         };
-
-        io.to(`order_${order_id}`).emit('payment_status_update', pendingData);
-        io.to(`order_${order_id}`).emit('order_status_update', pendingData);
-
-        console.log(`[WEBHOOK ${requestId}] Order ${order_id} is still pending`);
+        shouldUpdateOrder = true;
+        console.log(`[WEBHOOK ${requestId}] Payment pending for order ${order_id}`);
         break;
 
       default:
         console.warn(`[WEBHOOK ${requestId}] Unhandled transaction status: ${transaction_status}`);
     }
 
+    // Update order jika diperlukan
+    if (shouldUpdateOrder) {
+      Object.assign(order, orderUpdateData);
+      await order.save();
+      console.log(`[WEBHOOK ${requestId}] Order ${order_id} updated:`, orderUpdateData);
+    }
+
+    // Emit events ke customer
+    const emitData = {
+      order_id: payment_order.order_id,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      transaction_status,
+      fraud_status,
+      payment_type,
+      gross_amount,
+      timestamp: new Date()
+    };
+
+    io.to(`order_${order_id}`).emit('payment_status_update', emitData);
+    io.to(`order_${order_id}`).emit('order_status_update', emitData);
+
+    console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${order_id}`);
+
+    // JIKA PEMBAYARAN BERHASIL: Broadcast ke device yang sesuai
+    if (transaction_status === 'settlement' && fraud_status === 'accept') {
+      const mappedOrder = mapOrderForCashier(order);
+      
+      console.log(`[WEBHOOK ${requestId}] 🎯 Processing order broadcast for table: ${order.tableNumber}`);
+      
+      // ✅ BROADCAST KE DEVICE YANG SESUAI DENGAN AREA & TABLE
+      await broadcastOrderToTargetDevices(order, mappedOrder);
+      
+      // ✅ Update status meja
+      await updateTableStatusAfterPayment(order);
+    }
+
     console.log(`[WEBHOOK ${requestId}] Webhook processed successfully`);
-    res.status(200).json({ status: 'ok' });
+    res.status(200).json({
+      status: 'ok',
+      message: 'Webhook processed successfully',
+      order_id,
+      transaction_status
+    });
 
   } catch (error) {
     console.error(`[WEBHOOK ${requestId}] Webhook processing error:`, {
       error: error.message,
       stack: error.stack,
+      body: req.body,
       timestamp: new Date().toISOString()
     });
 
@@ -221,10 +209,340 @@ export const midtransWebhook = async (req, res) => {
   }
 };
 
-// ✅ PERBAIKAN: Helper function yang konsisten dengan endpoint lain
+// FUNCTION: BROADCAST ORDER KE TARGET DEVICES
+async function broadcastOrderToTargetDevices(order, mappedOrder) {
+  try {
+    const { tableNumber, outlet, items } = order;
+    
+    if (!tableNumber) {
+      console.log('📦 No table number, using fallback broadcast');
+      // Fallback: broadcast ke semua cashier
+      io.to('cashier_room').emit('new_order', { 
+        mappedOrders: mappedOrder,
+        broadcastType: 'fallback_all_cashiers'
+      });
+      return;
+    }
+
+    // Analisis jenis order berdasarkan mainCategory dan workstation
+    const isBeverageOrder = analyzeOrderType(items);
+    const orderType = isBeverageOrder ? 'beverage' : 'food';
+    const areaCode = getAreaCodeFromTable(tableNumber);
+
+    console.log(`🎯 Order analysis - Table: ${tableNumber}, Area: ${areaCode}, Type: ${orderType}`);
+    console.log(`📊 Order items analysis:`, items.map(item => ({
+      name: item.menuItem?.name,
+      mainCategory: item.menuItem?.mainCategory,
+      workstation: item.menuItem?.workstation,
+      isBeverage: isItemBeverage(item.menuItem)
+    })));
+
+    // Dapatkan target devices menggunakan socketManagement
+    const targetInfo = await socketManagement.getTargetDevicesForOrder({
+      tableNumber,
+      items,
+      orderType,
+      outletId: outlet?._id || outlet
+    });
+
+    if (targetInfo.targetDevices.length === 0) {
+      console.warn('⚠️ No target devices found, using fallback');
+      await fallbackBroadcast(order, mappedOrder, areaCode, orderType);
+      return;
+    }
+
+    // Broadcast ke masing-masing target device
+    let broadcastCount = 0;
+    
+    for (const device of targetInfo.targetDevices) {
+      if (device.socket && device.socket.connected) {
+        const broadcastData = {
+          order: mappedOrder,
+          targetInfo: {
+            assignedArea: areaCode,
+            orderType: orderType,
+            tableNumber: tableNumber,
+            assignedBy: 'system_auto_routing',
+            priority: getOrderPriority(orderType, items)
+          },
+          metadata: {
+            broadcastId: `broadcast_${Date.now()}`,
+            deviceTarget: device.deviceName,
+            deviceRole: device.role,
+            itemAnalysis: items.map(item => ({
+              name: item.menuItem?.name,
+              mainCategory: item.menuItem?.mainCategory,
+              workstation: item.menuItem?.workstation
+            }))
+          }
+        };
+
+        device.socket.emit('new_order', broadcastData);
+        broadcastCount++;
+        
+        console.log(`📤 Order sent to: ${device.deviceName} (${device.role}) - Area: ${areaCode}`);
+      }
+    }
+
+    // Juga broadcast ke area room untuk monitoring
+    if (areaCode) {
+      const areaRoom = `area_${areaCode}`;
+      io.to(areaRoom).emit('area_new_order', {
+        order: mappedOrder,
+        areaCode: areaCode,
+        tableNumber: tableNumber,
+        orderType: orderType,
+        targetDevices: targetInfo.targetDevices.map(d => ({
+          deviceName: d.deviceName,
+          role: d.role
+        })),
+        itemBreakdown: getOrderBreakdown(items),
+        timestamp: new Date()
+      });
+    }
+
+    // Broadcast ke system monitor
+    io.to('system_monitor').emit('order_broadcast_summary', {
+      orderId: order.order_id,
+      tableNumber: tableNumber,
+      areaCode: areaCode,
+      orderType: orderType,
+      targetDevicesCount: broadcastCount,
+      totalDevicesAvailable: targetInfo.targetDevices.length,
+      itemBreakdown: getOrderBreakdown(items),
+      timestamp: new Date()
+    });
+
+    console.log(`✅ Successfully broadcasted order to ${broadcastCount} devices`);
+
+  } catch (error) {
+    console.error('Error in broadcastOrderToTargetDevices:', error);
+    // Fallback ke legacy broadcast
+    io.to('cashier_room').emit('new_order', { 
+      mappedOrders: mappedOrder,
+      broadcastType: 'error_fallback'
+    });
+  }
+}
+
+// FUNCTION: ANALYZE ORDER TYPE - DIPERBAIKI
+function analyzeOrderType(items) {
+  if (!items || !Array.isArray(items)) return false;
+  
+  // Cek apakah ada items yang termasuk minuman berdasarkan mainCategory dan workstation
+  return items.some(item => {
+    return isItemBeverage(item.menuItem);
+  });
+}
+
+// FUNCTION: CHECK INDIVIDUAL ITEM - DIPERBAIKI
+function isItemBeverage(menuItem) {
+  if (!menuItem) return false;
+  
+  // 1. Cek berdasarkan mainCategory
+  const isBeverageByCategory = menuItem.mainCategory === 'minuman';
+  
+  // 2. Cek berdasarkan workstation
+  const isBeverageByWorkstation = menuItem.workstation === 'bar' || menuItem.workstation === 'bar-belakang';
+  
+  // 3. Cek berdasarkan nama item (fallback)
+  const itemName = menuItem.name?.toLowerCase() || '';
+  const beverageKeywords = ['minuman', 'drink', 'juice', 'soda', 'kopi', 'coffee', 'tea', 'es', 'soft drink', 'mocktail', 'cocktail', 'bir', 'beer', 'wine'];
+  const isBeverageByName = beverageKeywords.some(keyword => itemName.includes(keyword));
+  
+  return isBeverageByCategory || isBeverageByWorkstation || isBeverageByName;
+}
+
+// FUNCTION: GET ORDER BREAKDOWN
+function getOrderBreakdown(items) {
+  const breakdown = {
+    totalItems: items.length,
+    beverageItems: 0,
+    foodItems: 0,
+    mixedOrder: false,
+    beverageDetails: [],
+    foodDetails: []
+  };
+
+  items.forEach(item => {
+    const isBeverage = isItemBeverage(item.menuItem);
+    const itemInfo = {
+      name: item.menuItem?.name,
+      mainCategory: item.menuItem?.mainCategory,
+      workstation: item.menuItem?.workstation,
+      quantity: item.quantity
+    };
+
+    if (isBeverage) {
+      breakdown.beverageItems += item.quantity;
+      breakdown.beverageDetails.push(itemInfo);
+    } else {
+      breakdown.foodItems += item.quantity;
+      breakdown.foodDetails.push(itemInfo);
+    }
+  });
+
+  breakdown.mixedOrder = breakdown.beverageItems > 0 && breakdown.foodItems > 0;
+  
+  return breakdown;
+}
+
+// FUNCTION: FALLBACK BROADCAST
+async function fallbackBroadcast(order, mappedOrder, areaCode, orderType) {
+  console.log('🔄 Using fallback broadcast strategy');
+  
+  const fallbackRooms = [];
+  const orderBreakdown = getOrderBreakdown(order.items);
+  
+  // Tentukan fallback rooms berdasarkan area dan order type
+  if (areaCode && areaCode <= 'I') {
+    // Area A-I -> coba bar_depan dulu
+    fallbackRooms.push('bar_depan', 'cashier_senior', 'cashier_junior');
+  } else if (areaCode && areaCode >= 'J') {
+    // Area J-O -> coba bar_belakang dulu  
+    fallbackRooms.push('bar_belakang', 'cashier_senior');
+  } else {
+    // Unknown area -> broadcast ke semua
+    fallbackRooms.push('cashier_senior', 'cashier_junior', 'bar_depan', 'bar_belakang');
+  }
+
+  // Tambahkan berdasarkan order type dan breakdown
+  if (orderType === 'beverage' || orderBreakdown.beverageItems > 0) {
+    fallbackRooms.unshift('bar_depan', 'bar_belakang'); // Prioritize bars
+  }
+  
+  if (orderType === 'food' || orderBreakdown.foodItems > 0) {
+    fallbackRooms.unshift('cashier_senior', 'cashier_junior'); // Prioritize cashiers
+  }
+
+  // Untuk mixed orders, prioritaskan kedua-duanya
+  if (orderBreakdown.mixedOrder) {
+    fallbackRooms.unshift('cashier_senior', 'bar_depan', 'bar_belakang');
+  }
+
+  // Hapus duplikat
+  const uniqueRooms = [...new Set(fallbackRooms)];
+
+  // Broadcast ke fallback rooms
+  uniqueRooms.forEach(room => {
+    io.to(room).emit('new_order_fallback', {
+      order: mappedOrder,
+      fallbackReason: 'no_specific_device_available',
+      suggestedRoom: room,
+      areaCode: areaCode,
+      orderType: orderType,
+      orderBreakdown: orderBreakdown,
+      timestamp: new Date()
+    });
+  });
+
+  // Juga broadcast ke cashier_room legacy
+  io.to('cashier_room').emit('new_order', { 
+    mappedOrders: mappedOrder,
+    broadcastType: 'fallback_strategy',
+    orderBreakdown: orderBreakdown
+  });
+
+  console.log(`🔄 Fallback broadcast to rooms: ${uniqueRooms.join(', ')}`);
+}
+
+// FUNCTION: GET AREA CODE FROM TABLE NUMBER
+function getAreaCodeFromTable(tableNumber) {
+  if (!tableNumber) return null;
+  
+  // Extract first character from table number (e.g., "A1" -> "A")
+  const firstChar = tableNumber.charAt(0).toUpperCase();
+  
+  // Validasi area code (A-O)
+  if (firstChar >= 'A' && firstChar <= 'O') {
+    return firstChar;
+  }
+  
+  return null;
+}
+
+// FUNCTION: GET ORDER PRIORITY - DIPERBAIKI
+function getOrderPriority(orderType, items) {
+  let priority = 'normal';
+  
+  if (orderType === 'beverage') {
+    // Beverage orders biasanya lebih cepat
+    priority = 'high';
+  }
+  
+  // Cek jika ada items yang perlu segera disajikan
+  const urgentItems = items.some(item => {
+    const menuItem = item.menuItem;
+    if (!menuItem) return false;
+    
+    const itemName = menuItem.name?.toLowerCase() || '';
+    const urgentKeywords = ['hot', 'panas', 'espresso', 'fresh', 'ice cream', 'es krim', 'milkshake'];
+    
+    return urgentKeywords.some(keyword => itemName.includes(keyword)) ||
+           menuItem.workstation === 'bar' || // Minuman dari bar biasanya urgent
+           menuItem.mainCategory === 'minuman'; // Semua minuman dapat priority
+  });
+  
+  if (urgentItems) {
+    priority = 'urgent';
+  }
+  
+  return priority;
+}
+
+// FUNCTION: UPDATE TABLE STATUS AFTER PAYMENT
+export async function updateTableStatusAfterPayment(order) {
+  try {
+    if (order.tableNumber && order.orderType === 'dine-in') {
+      console.log(`[TABLE UPDATE] Updating table status for table: ${order.tableNumber}, order: ${order.order_id}`);
+      
+      const table = await Table.findOne({ 
+        table_number: order.tableNumber.toUpperCase() 
+      }).populate('area_id');
+
+      if (!table) {
+        console.warn(`[TABLE UPDATE] Table not found: ${order.tableNumber}`);
+        return;
+      }
+
+      table.status = 'occupied';
+      table.is_available = false;
+      table.updatedAt = new Date();
+
+      await table.save();
+
+      // Emit update status meja ke frontend
+      io.to('table_management_room').emit('table_status_updated', {
+        table_id: table._id,
+        table_number: table.table_number,
+        area_id: table.area_id,
+        status: table.status,
+        is_available: table.is_available,
+        order_id: order.order_id,
+        updatedAt: table.updatedAt
+      });
+
+      console.log(`[TABLE UPDATE] Emitted table status update for table: ${order.tableNumber}`);
+      
+    } else {
+      console.log(`[TABLE UPDATE] No table update needed - tableNumber: ${order.tableNumber}, orderType: ${order.orderType}`);
+    }
+  } catch (error) {
+    console.error(`[TABLE UPDATE] Error updating table status:`, {
+      error: error.message,
+      tableNumber: order.tableNumber,
+      order_id: order.order_id
+    });
+  }
+}
+
+// FUNCTION: MAP ORDER FOR CASHIER - DIPERBAIKI
 function mapOrderForCashier(order) {
+  const isOpenBill = order.isOpenBill || false;
+  
   return {
     _id: order._id,
+    order_id: order.order_id,
     userId: order.user_id?._id || order.user_id,
     customerName: order.user_id?.name || order.user,
     customerPhone: order.user_id?.phone || order.phoneNumber,
@@ -237,11 +555,12 @@ function mapOrderForCashier(order) {
       isPrinted: item.isPrinted || false,
       menuItem: {
         _id: item.menuItem?._id,
-        name: item.menuItem?.name || item.name,
-        price: item.menuItem?.price || item.price,
+        name: item.menuItem?.name,
+        price: item.menuItem?.price,
         image: item.menuItem?.image,
-        categories: item.menuItem?.category || [], // ✅ Konsisten dengan struktur lain
-        description: item.menuItem?.description
+        mainCategory: item.menuItem?.mainCategory,
+        workstation: item.menuItem?.workstation,
+        category: item.menuItem?.category
       },
       selectedAddons: item.addons?.length > 0 ? item.addons.map(addon => ({
         name: addon.name,
@@ -259,17 +578,18 @@ function mapOrderForCashier(order) {
       })) : []
     })),
     status: order.status,
-    paymentStatus: order.paymentStatus, // ✅ Tambahkan payment status
+    paymentStatus: order.paymentStatus,
     orderType: order.orderType,
     deliveryAddress: order.deliveryAddress,
     tableNumber: order.tableNumber,
     pickupTime: order.pickupTime,
     type: order.type,
-    paymentMethod: order.paymentMethod || "Cash",
-    totalPrice: order.totalBeforeDiscount, // ✅ Konsisten dengan nama field
-    totalBeforeDiscount: order.totalBeforeDiscount,
+    paymentMethod: order.paymentMethod || "QRIS",
+    totalPrice: order.totalBeforeDiscount,
     totalAfterDiscount: order.totalAfterDiscount,
-    taxAndService: order.taxAndService,
+    totalTax: order.totalTax,
+    totalServiceFee: order.totalServiceFee,
+    taxAndServiceDetails: order.taxAndServiceDetails,
     grandTotal: order.grandTotal,
     voucher: order.voucher || null,
     outlet: order.outlet || null,
@@ -280,12 +600,8 @@ function mapOrderForCashier(order) {
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     __v: order.__v,
-    isOpenBill: order.isOpenBill || false
+    isOpenBill: isOpenBill,
+    // Tambahan field untuk analysis
+    orderAnalysis: getOrderBreakdown(order.items)
   };
-}
-
-// ✅ TAMBAHAN: Helper function untuk backward compatibility
-function mapOrderForFrontend(order) {
-  // Gunakan mapping yang sama untuk konsistensi
-  return mapOrderForCashier(order);
 }

@@ -19,7 +19,7 @@ const MenuItemSchema = new mongoose.Schema({
   },
   mainCategory: {
     type: String, // Main category type (e.g., "food", "beverage")
-    enum: ['makanan', 'minuman', 'dessert', 'snack', 'event'],
+    enum: ['makanan', 'minuman', 'instan', 'dessert', 'snack', 'event'],
     default: 'makanan'
   },
   category: {

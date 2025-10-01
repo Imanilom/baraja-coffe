@@ -1,28 +1,41 @@
 import mongoose from 'mongoose';
 
+// Helper function untuk mendapatkan waktu WIB sekarang
+const getWIBNow = () => {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+};
+
+// Helper function untuk convert Date ke WIB
+const toWIB = (date) => {
+  return new Date(date.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+};
+
 const OrderItemSchema = new mongoose.Schema({
-  menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem', },
+  menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
   quantity: { type: Number, min: 1 },
   subtotal: { type: Number, min: 0 },
   addons: [{ name: String, price: Number }],
   toppings: [{ name: String, price: Number }],
   notes: { type: String, default: '' },
-  batchNumber: { type: Number, default: 1 }, // Batch ke berapa item ini ditambahkan
-  addedAt: { type: Date, default: Date.now }, // Kapan item ini ditambahkan
+  batchNumber: { type: Number, default: 1 },
+  addedAt: { 
+    type: Date, 
+    default: () => getWIBNow() // Simpan dalam WIB
+  },
   kitchenStatus: {
     type: String,
     enum: ['pending', 'printed', 'cooking', 'ready', 'served'],
     default: 'pending'
   },
   isPrinted: { type: Boolean, default: false },
-  printedAt: { type: Date }, // Kapan dicetak ke kitchen
-
-
-  // ✅ Tambahan untuk outlet
+  printedAt: { 
+    type: Date,
+    set: function(date) {
+      return date ? toWIB(date) : date;
+    }
+  },
   outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
   outletName: { type: String },
-
-  // ✅ Tambahan untuk paymnet
   payment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null }
 });
 
@@ -49,12 +62,12 @@ const OrderSchema = new mongoose.Schema({
   },
   deliveryAddress: { type: String },
   tableNumber: { type: String },
-  pickupTime: { type: String },
+  pickupTime: { 
+    type: String,
+    // Untuk waktu pickup, simpan sebagai string dalam format WIB
+  },
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
-
-  // ✅ NEW: Open Bill fields
   isOpenBill: { type: Boolean, default: false },
-
   originalReservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
 
   // Diskon & Promo
@@ -84,29 +97,90 @@ const OrderSchema = new mongoose.Schema({
 
   // Sumber order
   source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true },
-  currentBatch: { type: Number, default: 1 }, // Batch saat ini
-  lastItemAddedAt: { type: Date }, // Kapan terakhir ada tambahan
+  currentBatch: { type: Number, default: 1 },
+  lastItemAddedAt: { 
+    type: Date,
+    set: function(date) {
+      return date ? toWIB(date) : date;
+    }
+  },
   kitchenNotifications: [{
     batchNumber: Number,
-    sentAt: Date,
+    sentAt: { 
+      type: Date, 
+      default: () => getWIBNow() 
+    },
     type: { type: String, enum: ['new_batch', 'additional_items'] }
   }],
 
   // Reservation reference
-  reservation: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' }
+  reservation: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
 
-}, { timestamps: true });
+  // ✅ TAMBAHAN: Simpan waktu dalam WIB secara eksplisit
+  createdAtWIB: { 
+    type: Date, 
+    default: () => getWIBNow() 
+  },
+  updatedAtWIB: { 
+    type: Date, 
+    default: () => getWIBNow() 
+  }
 
-// Virtual untuk totalPrice (sebelum diskon & pajak, tetap disediakan)
+}, { 
+  timestamps: true, // Ini akan tetap menyimpan UTC
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Virtual fields untuk menampilkan waktu dalam WIB
+OrderSchema.virtual('createdAtWIBFormatted').get(function() {
+  return this.createdAt ? this.formatToWIB(this.createdAt) : null;
+});
+
+OrderSchema.virtual('updatedAtWIBFormatted').get(function() {
+  return this.updatedAt ? this.formatToWIB(this.updatedAt) : null;
+});
+
+// Method untuk format WIB
+OrderSchema.methods.formatToWIB = function(date) {
+  if (!date) return null;
+  return date.toLocaleString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+};
+
+// Method untuk mendapatkan tanggal WIB (tanpa waktu)
+OrderSchema.methods.getWIBDate = function() {
+  const date = this.createdAt || new Date();
+  return date.toLocaleDateString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+};
+
+// Pre-save middleware untuk update updatedAtWIB
+OrderSchema.pre('save', function(next) {
+  this.updatedAtWIB = getWIBNow();
+  next();
+});
+
+// Virtual untuk totalPrice
 OrderSchema.virtual('totalPrice').get(function () {
   return this.items.reduce((total, item) => total + item.subtotal, 0);
 });
 
 // Indeks untuk mempercepat pencarian pesanan aktif
 OrderSchema.index({ status: 1, createdAt: -1 });
-
-// ✅ NEW: Index for open bill orders
 OrderSchema.index({ isOpenBill: 1, originalReservationId: 1 });
 OrderSchema.index({ reservation: 1 });
+OrderSchema.index({ createdAtWIB: -1 }); // Index untuk pencarian berdasarkan WIB
 
 export const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);

@@ -215,13 +215,6 @@ class OrderDetailWidget extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            item.menuItem.description!,
-            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
           if (item.selectedToppings.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(

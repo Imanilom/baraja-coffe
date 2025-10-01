@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
@@ -1241,7 +1242,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           );
       final requestData = ref.watch(processPaymentRequestProvider);
       print('req data: $requestData');
-      final success = await ref
+      final result = await ref
           .read(paymentProcessProvider.notifier)
           .processPayment(ref, requestData!);
       // final success = true;
@@ -1249,7 +1250,12 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
       await Future.delayed(const Duration(seconds: 3));
 
       if (mounted) Navigator.pop(context);
-      if (success) {
+      if (result.success) {
+        // final savedPrinter = ref.read(savedPrintersProvider.notifier);
+        // savedPrinter.printToPrinter(
+        //   orderDetail: updatedOrder,
+        //   printType: 'all',
+        // );
         _showSuccessDialog();
       } else {
         _showErrorDialog();
