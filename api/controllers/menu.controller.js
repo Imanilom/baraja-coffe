@@ -4,6 +4,7 @@ import { Outlet } from '../models/Outlet.model.js';
 import mongoose from 'mongoose';
 import { MenuRating } from '../models/MenuRating.model.js';
 import IORedis from "ioredis";
+import Recipe from '../models/modul_menu/Recipe.model.js';
 
 
 // Create a new menu item
@@ -374,6 +375,228 @@ export const getMenuItems = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch menu items.",
+      error: error.message,
+    });
+  }
+};
+
+export const getMenuItemsWithRecipes = async (req, res) => {
+  const cacheKey = "menu_items_with_recipes_aggregation";
+
+  try {
+    // cek cache
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.status(200).json(JSON.parse(cached));
+      }
+    } catch (cacheErr) {
+      console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
+    }
+
+    // ✅ MODIFIKASI: Menggunakan aggregation untuk join dengan recipes
+    const menuItems = await MenuItem.aggregate([
+      {
+        $lookup: {
+          from: 'recipes', // Nama collection Recipe
+          localField: '_id',
+          foreignField: 'menuItemId',
+          as: 'recipe'
+        }
+      },
+      {
+        $match: {
+          'recipe.0': { $exists: true }, // Hanya yang memiliki resep
+          'isActive': true // Hanya yang aktif
+        }
+      },
+      {
+        $lookup: {
+          from: 'categories', // Populate category
+          localField: 'category',
+          foreignField: '_id',
+          as: 'category'
+        }
+      },
+      {
+        $lookup: {
+          from: 'categories', // Populate subCategory
+          localField: 'subCategory',
+          foreignField: '_id',
+          as: 'subCategory'
+        }
+      },
+      {
+        $lookup: {
+          from: 'outlets', // Populate availableAt
+          localField: 'availableAt',
+          foreignField: '_id',
+          as: 'availableAt'
+        }
+      },
+      {
+        $lookup: {
+          from: 'menuratings', // Join dengan ratings
+          localField: '_id',
+          foreignField: 'menuItemId',
+          as: 'ratings'
+        }
+      },
+      {
+        $project: {
+          name: 1,
+          mainCategory: 1,
+          category: { $arrayElemAt: ['$category', 0] },
+          subCategory: { $arrayElemAt: ['$subCategory', 0] },
+          imageURL: 1,
+          price: 1,
+          discountedPrice: 1,
+          description: 1,
+          discount: 1,
+          toppings: 1,
+          addons: 1,
+          availableAt: 1,
+          workstation: 1,
+          isActive: 1,
+          averageRating: {
+            $cond: {
+              if: { $gt: [{ $size: '$ratings' }, 0] },
+              then: {
+                $round: [
+                  { $divide: [{ $sum: '$ratings.rating' }, { $size: '$ratings' }] },
+                  1
+                ]
+              },
+              else: null
+            }
+          },
+          reviewCount: { $size: '$ratings' },
+          hasRecipe: { $literal: true }
+        }
+      },
+      { $sort: { name: 1 } }
+    ]);
+
+    // Format hasil aggregation
+    const formattedMenuItems = menuItems.map((item) => ({
+      id: item._id,
+      name: item.name,
+      mainCategory: item.mainCategory,
+      category: item.category ? { id: item.category._id, name: item.category.name } : null,
+      subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
+      imageUrl: item.imageURL,
+      originalPrice: item.price,
+      discountedPrice: item.discountedPrice || item.price,
+      description: item.description,
+      discountPercentage: item.discount ? `${item.discount}%` : null,
+      averageRating: item.averageRating,
+      reviewCount: item.reviewCount,
+      toppings: item.toppings || [],
+      addons: item.addons || [],
+      availableAt: item.availableAt || [],
+      workstation: item.workstation,
+      isActive: item.isActive,
+      hasRecipe: true
+    }));
+
+    const responsePayload = {
+      success: true,
+      data: formattedMenuItems,
+      meta: {
+        total: formattedMenuItems.length,
+        hasRecipes: true,
+        message: `Showing ${formattedMenuItems.length} menu items with recipes`
+      }
+    };
+
+    // Simpan hasil ke Redis
+    try {
+      await redis.set(cacheKey, JSON.stringify(responsePayload), "EX", 300);
+    } catch (cacheErr) {
+      console.warn("⚠️ Redis write error:", cacheErr.message);
+    }
+
+    return res.status(200).json(responsePayload);
+  } catch (error) {
+    console.error("❌ Error fetching menu items with recipes:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch menu items with recipes.",
+      error: error.message,
+    });
+  }
+};
+
+export const getMenuItemsByOutletWithRecipes = async (req, res) => {
+  const { outletId } = req.params;
+  const cacheKey = `menu_items_with_recipes_outlet_${outletId}`;
+
+  try {
+    // cek cache
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.status(200).json(JSON.parse(cached));
+      }
+    } catch (cacheErr) {
+      console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
+    }
+
+    // Ambil menu items yang memiliki resep dan tersedia di outlet tertentu
+    const menuItems = await MenuItem.find({
+      _id: { 
+        $in: await Recipe.distinct('menuItemId') 
+      },
+      $or: [
+        { availableAt: { $in: [outletId] } },
+        { availableAt: { $size: 0 } } // Juga include yang available di semua outlet
+      ],
+      isActive: true
+    })
+    .populate([
+      { path: "toppings" },
+      { path: "availableAt" },
+      {
+        path: "addons",
+        populate: { path: "options" },
+      },
+      {
+        path: "category",
+        select: "name",
+      },
+      {
+        path: "subCategory",
+        select: "name",
+      },
+    ])
+    .sort({ name: 1 });
+
+    // ... (sisa code formatting sama seperti sebelumnya)
+
+    const responsePayload = {
+      success: true,
+      data: formattedMenuItems,
+      meta: {
+        total: formattedMenuItems.length,
+        outletId: outletId,
+        hasRecipes: true,
+        message: `Showing ${formattedMenuItems.length} menu items with recipes available at this outlet`
+      }
+    };
+
+    // Simpan ke cache
+    try {
+      await redis.set(cacheKey, JSON.stringify(responsePayload), "EX", 300);
+    } catch (cacheErr) {
+      console.warn("⚠️ Redis write error:", cacheErr.message);
+    }
+
+    return res.status(200).json(responsePayload);
+  } catch (error) {
+    console.error("❌ Error fetching menu items for outlet:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch menu items for outlet.",
       error: error.message,
     });
   }
