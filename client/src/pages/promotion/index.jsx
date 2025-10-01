@@ -4,22 +4,20 @@ import Header from "../admin/header";
 const PromoPage = () => {
   return (
 
-    <div className="w-full h-screen overflow-y-auto">
-      {/* Header */}
-      <Header />
+    <div className="w-full overflow-y-auto">
 
       {/* Breadcrumb */}
-      <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+      <div className="flex justify-between items-center px-6 py-3 my-3">
         <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
           <span>Promo</span>
         </h1>
       </div>
       {/* Card Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-6">
         {/* Card 1: Promo Khusus */}
         <Link
           to="/admin/promo-khusus"
-          className="card h-[260px] text-green-900 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
+          className="card h-[260px] text-green-900 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300 bg-white"
         >
           <div className="row">
             <h2 className="text-lg font-bold pb-[15px]">Promo Khusus</h2>
@@ -31,7 +29,7 @@ const PromoPage = () => {
         {/* Card 2: Promo Otomatis */}
         <Link
           to="/admin/promo-otomatis"
-          className="card h-[260px] text-green-900 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
+          className="card h-[260px] text-green-900 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300 bg-white"
         >
           <h2 className="text-lg font-bold mb-2">Promo Otomatis</h2>
           <p className="text-sm">Merupakan promo yang akan otomatis diimplementasikan ketika konsumen mencapai kriteria tertentu</p>
@@ -41,7 +39,7 @@ const PromoPage = () => {
         {/* Card 3: Voucher */}
         <Link
           to="/admin/voucher"
-          className="card h-[260px] text-green-900 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
+          className="card h-[260px] text-green-900 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300 bg-white"
         >
           <h2 className="text-lg font-bold mb-2">Voucher</h2>
           <p className="text-sm">Merupakan promo dalam bentuk kode voucher yang dapat dibagikan ke pelanggan untuk mendapatkan potongan pembelian</p>

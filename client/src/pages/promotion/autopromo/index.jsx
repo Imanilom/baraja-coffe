@@ -8,8 +8,10 @@ import PromoTable from "./promotable";
 import Header from "../../admin/header";
 import MessageAlertPromotion from "../messageAlertPromotion";
 import PromoTabs from "./tabs";
+import CreateAutoPromoModal from "./create";
 
 const RunningAutoPromos = () => {
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
   const customSelectStyles = {
     control: (provided, state) => ({
       ...provided,
@@ -169,23 +171,20 @@ const RunningAutoPromos = () => {
 
   return (
     <div className="max-w-8xl mx-auto">
-      {/* Header */}
-      <Header />
-
       {/* Breadcrumb */}
-      <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+      <div className="flex justify-between items-center px-6 py-3 my-3">
         <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
           <Link to="/admin/promotion">Promo</Link>
           <FaChevronRight />
           <span>Promo Otomatis</span>
         </h1>
         <div className="flex items-center gap-3">
-          <Link
-            to="/admin/promo-otomatis-create"
+          <button
+            onClick={() => setIsPromoModalOpen(true)}
             className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
           >
             <FaPlus /> Tambah
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -269,7 +268,7 @@ const RunningAutoPromos = () => {
 
 
       {/* Konten Berdasarkan Tab yang Aktif */}
-      <div className="mt-6">
+      <div className="">
         {activeTab === "aktif" && (
           <div className="py-[10px] px-[15px]">
             <PromoTable filteredPromos={promosAktif} refreshPromos={fetchPromos} />
@@ -281,6 +280,15 @@ const RunningAutoPromos = () => {
           </div>
         )}
       </div>
+
+      <CreateAutoPromoModal
+        isOpen={isPromoModalOpen}
+        onClose={() => setIsPromoModalOpen(false)}
+        onSuccess={(data) => {
+          // Refresh promo list
+          fetchPromos();
+        }}
+      />
     </div>
   );
 };
