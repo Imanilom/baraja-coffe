@@ -18,6 +18,7 @@ import QRCode from 'qrcode';
 // Import FCM service di bagian atas file
 import FCMNotificationService from '../services/fcmNotificationService.js';
 import { TaxAndService } from '../models/TaxAndService.model.js';
+import { updateTableStatusAfterPayment } from './webhookController.js';
 const { ObjectId } = mongoose.Types;
 
 const queueEvents = new QueueEvents('orderQueue');
@@ -4265,6 +4266,10 @@ export const processPaymentCashier = async (req, res) => {
       await order.save({ session });
     }
 
+    if (isFullyPaid && order.orderType === 'Dine-In') {
+      updateTableStatusAfterPayment(order);
+      console.log('mejaa berhasil di ubah');
+    }
     const statusUpdateData = {
       order_id: order_id,  // Gunakan string order_id
       orderStatus: 'Waiting',

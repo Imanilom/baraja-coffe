@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
@@ -1244,6 +1245,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
 
       if (mounted) Navigator.pop(context);
       if (result.success) {
+        ref.read(pendingOrderDetailProvider.notifier).clearPendingOrderDetail();
         _showSuccessDialog();
       } else {
         _showErrorDialog();

@@ -73,6 +73,10 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
 
     // Enqueue inventory update after successful transaction
     const queueResult = await enqueueInventoryUpdate(orderResult);
+    if (orderResult.orderType === 'Dine-In') {
+      updateTableStatusAfterPayment(order);
+      console.log('mejaa berhasil di ubah');
+    }
 
 
     return {

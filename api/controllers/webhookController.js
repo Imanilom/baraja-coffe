@@ -1,7 +1,7 @@
 import { io } from '../index.js';
 import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
-import Table from '../models/Table.model.js'; 
+import Table from '../models/Table.model.js';
 import { socketManagement } from '../utils/socketManagement.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 
@@ -176,12 +176,12 @@ export const midtransWebhook = async (req, res) => {
     // JIKA PEMBAYARAN BERHASIL: Broadcast ke device yang sesuai
     if (transaction_status === 'settlement' && fraud_status === 'accept') {
       const mappedOrder = mapOrderForCashier(order);
-      
+
       console.log(`[WEBHOOK ${requestId}] 🎯 Processing order broadcast for table: ${order.tableNumber}`);
-      
+
       // ✅ BROADCAST KE DEVICE YANG SESUAI DENGAN AREA & TABLE
       await broadcastOrderToTargetDevices(order, mappedOrder);
-      
+
       // ✅ Update status meja
       await updateTableStatusAfterPayment(order);
     }
@@ -213,11 +213,11 @@ export const midtransWebhook = async (req, res) => {
 async function broadcastOrderToTargetDevices(order, mappedOrder) {
   try {
     const { tableNumber, outlet, items } = order;
-    
+
     if (!tableNumber) {
       console.log('📦 No table number, using fallback broadcast');
       // Fallback: broadcast ke semua cashier
-      io.to('cashier_room').emit('new_order', { 
+      io.to('cashier_room').emit('new_order', {
         mappedOrders: mappedOrder,
         broadcastType: 'fallback_all_cashiers'
       });
@@ -253,7 +253,7 @@ async function broadcastOrderToTargetDevices(order, mappedOrder) {
 
     // Broadcast ke masing-masing target device
     let broadcastCount = 0;
-    
+
     for (const device of targetInfo.targetDevices) {
       if (device.socket && device.socket.connected) {
         const broadcastData = {
@@ -279,7 +279,7 @@ async function broadcastOrderToTargetDevices(order, mappedOrder) {
 
         device.socket.emit('new_order', broadcastData);
         broadcastCount++;
-        
+
         console.log(`📤 Order sent to: ${device.deviceName} (${device.role}) - Area: ${areaCode}`);
       }
     }
@@ -318,7 +318,7 @@ async function broadcastOrderToTargetDevices(order, mappedOrder) {
   } catch (error) {
     console.error('Error in broadcastOrderToTargetDevices:', error);
     // Fallback ke legacy broadcast
-    io.to('cashier_room').emit('new_order', { 
+    io.to('cashier_room').emit('new_order', {
       mappedOrders: mappedOrder,
       broadcastType: 'error_fallback'
     });
@@ -328,7 +328,7 @@ async function broadcastOrderToTargetDevices(order, mappedOrder) {
 // FUNCTION: ANALYZE ORDER TYPE - DIPERBAIKI
 function analyzeOrderType(items) {
   if (!items || !Array.isArray(items)) return false;
-  
+
   // Cek apakah ada items yang termasuk minuman berdasarkan mainCategory dan workstation
   return items.some(item => {
     return isItemBeverage(item.menuItem);
@@ -338,18 +338,18 @@ function analyzeOrderType(items) {
 // FUNCTION: CHECK INDIVIDUAL ITEM - DIPERBAIKI
 function isItemBeverage(menuItem) {
   if (!menuItem) return false;
-  
+
   // 1. Cek berdasarkan mainCategory
   const isBeverageByCategory = menuItem.mainCategory === 'minuman';
-  
+
   // 2. Cek berdasarkan workstation
   const isBeverageByWorkstation = menuItem.workstation === 'bar' || menuItem.workstation === 'bar-belakang';
-  
+
   // 3. Cek berdasarkan nama item (fallback)
   const itemName = menuItem.name?.toLowerCase() || '';
   const beverageKeywords = ['minuman', 'drink', 'juice', 'soda', 'kopi', 'coffee', 'tea', 'es', 'soft drink', 'mocktail', 'cocktail', 'bir', 'beer', 'wine'];
   const isBeverageByName = beverageKeywords.some(keyword => itemName.includes(keyword));
-  
+
   return isBeverageByCategory || isBeverageByWorkstation || isBeverageByName;
 }
 
@@ -383,17 +383,17 @@ function getOrderBreakdown(items) {
   });
 
   breakdown.mixedOrder = breakdown.beverageItems > 0 && breakdown.foodItems > 0;
-  
+
   return breakdown;
 }
 
 // FUNCTION: FALLBACK BROADCAST
 async function fallbackBroadcast(order, mappedOrder, areaCode, orderType) {
   console.log('🔄 Using fallback broadcast strategy');
-  
+
   const fallbackRooms = [];
   const orderBreakdown = getOrderBreakdown(order.items);
-  
+
   // Tentukan fallback rooms berdasarkan area dan order type
   if (areaCode && areaCode <= 'I') {
     // Area A-I -> coba bar_depan dulu
@@ -410,7 +410,7 @@ async function fallbackBroadcast(order, mappedOrder, areaCode, orderType) {
   if (orderType === 'beverage' || orderBreakdown.beverageItems > 0) {
     fallbackRooms.unshift('bar_depan', 'bar_belakang'); // Prioritize bars
   }
-  
+
   if (orderType === 'food' || orderBreakdown.foodItems > 0) {
     fallbackRooms.unshift('cashier_senior', 'cashier_junior'); // Prioritize cashiers
   }
@@ -437,7 +437,7 @@ async function fallbackBroadcast(order, mappedOrder, areaCode, orderType) {
   });
 
   // Juga broadcast ke cashier_room legacy
-  io.to('cashier_room').emit('new_order', { 
+  io.to('cashier_room').emit('new_order', {
     mappedOrders: mappedOrder,
     broadcastType: 'fallback_strategy',
     orderBreakdown: orderBreakdown
@@ -449,55 +449,55 @@ async function fallbackBroadcast(order, mappedOrder, areaCode, orderType) {
 // FUNCTION: GET AREA CODE FROM TABLE NUMBER
 function getAreaCodeFromTable(tableNumber) {
   if (!tableNumber) return null;
-  
+
   // Extract first character from table number (e.g., "A1" -> "A")
   const firstChar = tableNumber.charAt(0).toUpperCase();
-  
+
   // Validasi area code (A-O)
   if (firstChar >= 'A' && firstChar <= 'O') {
     return firstChar;
   }
-  
+
   return null;
 }
 
 // FUNCTION: GET ORDER PRIORITY - DIPERBAIKI
 function getOrderPriority(orderType, items) {
   let priority = 'normal';
-  
+
   if (orderType === 'beverage') {
     // Beverage orders biasanya lebih cepat
     priority = 'high';
   }
-  
+
   // Cek jika ada items yang perlu segera disajikan
   const urgentItems = items.some(item => {
     const menuItem = item.menuItem;
     if (!menuItem) return false;
-    
+
     const itemName = menuItem.name?.toLowerCase() || '';
     const urgentKeywords = ['hot', 'panas', 'espresso', 'fresh', 'ice cream', 'es krim', 'milkshake'];
-    
+
     return urgentKeywords.some(keyword => itemName.includes(keyword)) ||
-           menuItem.workstation === 'bar' || // Minuman dari bar biasanya urgent
-           menuItem.mainCategory === 'minuman'; // Semua minuman dapat priority
+      menuItem.workstation === 'bar' || // Minuman dari bar biasanya urgent
+      menuItem.mainCategory === 'minuman'; // Semua minuman dapat priority
   });
-  
+
   if (urgentItems) {
     priority = 'urgent';
   }
-  
+
   return priority;
 }
 
 // FUNCTION: UPDATE TABLE STATUS AFTER PAYMENT
 export async function updateTableStatusAfterPayment(order) {
   try {
-    if (order.tableNumber && order.orderType === 'dine-in') {
+    if (order.tableNumber && order.orderType.toLowerCase() === 'dine-in') {
       console.log(`[TABLE UPDATE] Updating table status for table: ${order.tableNumber}, order: ${order.order_id}`);
-      
-      const table = await Table.findOne({ 
-        table_number: order.tableNumber.toUpperCase() 
+
+      const table = await Table.findOne({
+        table_number: order.tableNumber.toUpperCase()
       }).populate('area_id');
 
       if (!table) {
@@ -523,7 +523,7 @@ export async function updateTableStatusAfterPayment(order) {
       });
 
       console.log(`[TABLE UPDATE] Emitted table status update for table: ${order.tableNumber}`);
-      
+
     } else {
       console.log(`[TABLE UPDATE] No table update needed - tableNumber: ${order.tableNumber}, orderType: ${order.orderType}`);
     }
@@ -539,7 +539,7 @@ export async function updateTableStatusAfterPayment(order) {
 // FUNCTION: MAP ORDER FOR CASHIER - DIPERBAIKI
 function mapOrderForCashier(order) {
   const isOpenBill = order.isOpenBill || false;
-  
+
   return {
     _id: order._id,
     order_id: order.order_id,
