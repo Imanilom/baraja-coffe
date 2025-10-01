@@ -1235,7 +1235,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
           .addCashierId(cashier!.id!);
       final requestData = ref.watch(processPaymentRequestProvider);
       print('req data: $requestData');
-      final success = await ref
+      final result = await ref
           .read(paymentProcessProvider.notifier)
           .processPayment(ref, requestData!);
       // final success = true;
@@ -1243,7 +1243,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
       await Future.delayed(const Duration(seconds: 3));
 
       if (mounted) Navigator.pop(context);
-      if (success) {
+      if (result.success) {
         _showSuccessDialog();
       } else {
         _showErrorDialog();

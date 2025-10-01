@@ -1,14 +1,14 @@
 // voucher-routes.js
 import express from 'express';
 import mongoose from 'mongoose';
-import Voucher from '../models/voucher.model.js'; // Import model Voucher Anda
+import Voucher from '../models/voucher.model.js';
 
 const router = express.Router();
 
 // GET /api/vouchers/available - Mendapatkan voucher yang tersedia
 router.get('/available', async (req, res) => {
     try {
-        const { isActive, validNow, outletId, customerType } = req.query;
+        const { isActive, validNow, outletId, customerType, userId } = req.query;
 
         // Build query filter
         const filter = {};
@@ -30,14 +30,28 @@ router.get('/available', async (req, res) => {
         // Filter berdasarkan outlet yang berlaku
         if (outletId) {
             filter.$or = [
-                { applicableOutlets: { $size: 0 } }, // Berlaku untuk semua outlet
-                { applicableOutlets: outletId }       // Berlaku untuk outlet tertentu
+                { applicableOutlets: { $size: 0 } },
+                { applicableOutlets: outletId }
             ];
         }
 
-        const vouchers = await Voucher.find(filter)
+        let vouchers = await Voucher.find(filter)
             .populate('applicableOutlets', 'name')
             .sort({ createdAt: -1 });
+
+        // Filter voucher oneTimeUse jika userId disediakan
+        if (userId) {
+            vouchers = vouchers.filter(voucher => {
+                // Jika bukan oneTimeUse, tampilkan
+                if (!voucher.oneTimeUse) return true;
+
+                // Jika oneTimeUse, cek apakah user sudah pernah pakai
+                const hasUsed = voucher.usedBy?.some(
+                    usage => usage.userId.toString() === userId
+                );
+                return !hasUsed;
+            });
+        }
 
         res.json({
             success: true,
@@ -58,7 +72,7 @@ router.get('/available', async (req, res) => {
 // POST /api/vouchers/validate - Validasi voucher berdasarkan kode
 router.post('/validate', async (req, res) => {
     try {
-        const { code, orderAmount, outletId, customerType = 'all' } = req.body;
+        const { code, orderAmount, outletId, customerType = 'all', userId } = req.body;
 
         if (!code || orderAmount === undefined) {
             return res.status(400).json({
@@ -67,7 +81,6 @@ router.post('/validate', async (req, res) => {
             });
         }
 
-        // Cari voucher berdasarkan kode
         const voucher = await Voucher.findOne({
             code: code.toUpperCase(),
             isActive: true
@@ -78,6 +91,20 @@ router.post('/validate', async (req, res) => {
                 isValid: false,
                 message: 'Voucher not found or inactive'
             });
+        }
+
+        // Validasi oneTimeUse
+        if (voucher.oneTimeUse && userId) {
+            const hasUsed = voucher.usedBy?.some(
+                usage => usage.userId.toString() === userId
+            );
+
+            if (hasUsed) {
+                return res.status(400).json({
+                    isValid: false,
+                    message: 'You have already used this voucher'
+                });
+            }
         }
 
         // Validasi tanggal berlaku
@@ -131,21 +158,13 @@ router.post('/validate', async (req, res) => {
         let minimumSpend = 0;
 
         if (voucher.discountType === 'percentage') {
-            // Untuk percentage, discountAmount adalah nilai maksimal discount
-            const percentageValue = voucher.discountAmount / 100; // Convert to decimal
+            const percentageValue = voucher.discountAmount / 100;
             const calculatedDiscount = orderAmount * percentageValue;
-
-            // Ambil nilai minimum antara calculated discount dan maximum discount
             discountAmount = Math.min(calculatedDiscount, voucher.discountAmount);
-
-            // Set minimum spend (bisa disesuaikan dengan business logic)
-            minimumSpend = voucher.discountAmount * 5; // Contoh: 5x max discount
-
+            minimumSpend = voucher.discountAmount * 5;
         } else if (voucher.discountType === 'fixed') {
             discountAmount = voucher.discountAmount;
-
-            // Set minimum spend untuk fixed discount
-            minimumSpend = voucher.discountAmount * 3; // Contoh: 3x discount amount
+            minimumSpend = voucher.discountAmount * 3;
         }
 
         // Validasi minimum spend
@@ -175,6 +194,70 @@ router.post('/validate', async (req, res) => {
     }
 });
 
+// POST /api/vouchers/mark-used - Mark voucher sebagai sudah digunakan
+router.post('/mark-used', async (req, res) => {
+    try {
+        const { voucherCode, userId } = req.body;
+
+        console.log('Mark used request:', { voucherCode, userId }); // Debug log
+
+        if (!voucherCode || !userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Voucher ID and User ID are required'
+            });
+        }
+
+        const voucher = await Voucher.findOne({ code: voucherCode });
+
+
+        if (!voucher) {
+            return res.status(404).json({
+                success: false,
+                message: 'Voucher not found'
+            });
+        }
+
+        console.log('Before update:', voucher.usedBy); // Debug log
+
+        // Jika oneTimeUse, tambahkan user ke usedBy array
+        if (voucher.oneTimeUse) {
+            const alreadyUsed = voucher.usedBy?.some(
+                usage => usage.userId.toString() === userId
+            );
+
+            if (!alreadyUsed) {
+                voucher.usedBy.push({
+                    userId: new mongoose.Types.ObjectId(userId), // Pastikan ObjectId
+                    usedAt: new Date()
+                });
+            }
+        }
+
+        // Kurangi quota
+        if (voucher.quota > 0) {
+            voucher.quota -= 1;
+        }
+
+        await voucher.save();
+
+        console.log('After update:', voucher.usedBy); // Debug log
+
+        res.json({
+            success: true,
+            message: 'Voucher marked as used',
+            remainingQuota: voucher.quota
+        });
+
+    } catch (error) {
+        console.error('Error marking voucher as used:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error marking voucher as used',
+            error: error.message
+        });
+    }
+});
 // GET /api/vouchers/:id - Mendapatkan detail voucher berdasarkan ID
 router.get('/:id', async (req, res) => {
     try {

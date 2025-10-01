@@ -282,7 +282,7 @@ class PaymentProcessNotifier extends StateNotifier<PaymentProcessState> {
     state = PaymentProcessState();
   }
 
-  Future<bool> processPayment(
+  Future<ProcessPaymentResponse> processPayment(
     WidgetRef ref,
     ProcessPaymentRequest request,
   ) async {
@@ -291,12 +291,21 @@ class PaymentProcessNotifier extends StateNotifier<PaymentProcessState> {
 
       final apiService = ref.read(onlineOrderService);
       final response = await apiService.processPaymentOrder(request);
-
+      print('Payment Response: ${response.data?.isFullyPaid}');
       setProcessing(false);
-      return true; // Success
+      final result = {
+        "success": response.success,
+        "orderStatus": response.data?.orderStatus,
+        "isFullyPaid": response.data?.isFullyPaid,
+      };
+      print('Result Tuple: $result');
+      return response; // Success
     } catch (e) {
       setProcessing(false);
-      return false; // Failed
+      return ProcessPaymentResponse(
+        success: false,
+        message: e.toString(),
+      ); // Failed
     }
   }
 }

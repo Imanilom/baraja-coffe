@@ -41,7 +41,7 @@ export const midtransWebhook = async (req, res) => {
     const existingPayment = await Payment.findOne({ order_id });
 
     if (!existingPayment) {
-      console.error(`[WEBHOOK ${requestId}] Payment record not found for order_id: ${order_id}`);
+      console.error(`[WEBHOOK ${requestId}] Payment record not found for payment_code: ${order_id}`);
       return res.status(404).json({ message: 'Payment record not found' });
     }
 
@@ -68,8 +68,8 @@ export const midtransWebhook = async (req, res) => {
     };
 
     const updatedPayment = await Payment.findOneAndUpdate(
-      { order_id },
-      { 
+      { payment_code: order_id },
+      {
         ...paymentUpdateData,
         raw_response: rawResponseUpdate
       },
@@ -77,11 +77,11 @@ export const midtransWebhook = async (req, res) => {
     );
 
     if (!updatedPayment) {
-      console.error(`[WEBHOOK ${requestId}] Failed to update payment for order_id ${order_id}`);
+      console.error(`[WEBHOOK ${requestId}] Failed to update payment for payment_code ${order_id}`);
       return res.status(404).json({ message: 'Payment update failed' });
     }
 
-    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for order_id ${order_id}`);
+    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for payment_code ${order_id}`);
 
     // Cari order berdasarkan order_id dengan populate yang lebih detail
     const order = await Order.findOne({ order_id })
@@ -92,6 +92,9 @@ export const midtransWebhook = async (req, res) => {
         select: 'name price image mainCategory workstation category description'
       })
       .populate('outlet', 'name address');
+
+    console.log("order:", order);
+
 
     if (!order) {
       console.warn(`[WEBHOOK ${requestId}] Order with ID ${order_id} not found`);
@@ -155,7 +158,7 @@ export const midtransWebhook = async (req, res) => {
 
     // Emit events ke customer
     const emitData = {
-      order_id,
+      order_id: payment_order.order_id,
       status: order.status,
       paymentStatus: order.paymentStatus,
       transaction_status,
@@ -184,11 +187,11 @@ export const midtransWebhook = async (req, res) => {
     }
 
     console.log(`[WEBHOOK ${requestId}] Webhook processed successfully`);
-    res.status(200).json({ 
+    res.status(200).json({
       status: 'ok',
       message: 'Webhook processed successfully',
       order_id,
-      transaction_status 
+      transaction_status
     });
 
   } catch (error) {
