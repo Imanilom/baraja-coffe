@@ -6,6 +6,7 @@ import { DeviceSession } from '../models/DeviceSession.model.js';
 import User from "../models/user.model.js";
 import { Outlet } from '../models/Outlet.model.js';
 import { authMiddleware } from '../utils/verifyUser.js';
+import { Mongoose } from 'mongoose';
 
 const router = express.Router();
 
@@ -52,10 +53,10 @@ router.post('/login-outlet', async (req, res) => {
 
     // Generate token
     const token = jwt.sign(
-      { 
-        userId: user._id, 
+      {
+        userId: user._id,
         outletId: outlet._id,
-        role: user.role 
+        role: user.role
       },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
@@ -91,16 +92,24 @@ router.post('/login-outlet', async (req, res) => {
 });
 
 // ✅ STEP 2: GET AVAILABLE DEVICES FOR OUTLET
-router.get('/devices/available', authMiddleware, async (req, res) => {
+router.get('/devices-all', authMiddleware, async (req, res) => {
   try {
-    const { outletId } = req.user;
-    
-    const devices = await Device.find({ 
+    const { id } = req.user;
+    //find user dengan id di decoded.id
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(401).json({ message: 'User tidak ditemukan' });
+    }
+    //get outletId pertama dari user
+    const outletId = user.outlet[0].outletId;
+    console.log('user outlet id:', outletId);
+
+    const devices = await Device.find({
       outlet: outletId,
-      isActive: true 
+      isActive: true
     })
-    .select('deviceId deviceName deviceType location assignedAreas assignedTables orderTypes isOnline')
-    .sort({ deviceName: 1 });
+      .select('deviceId outlet deviceName deviceType location assignedAreas assignedTables orderTypes isOnline')
+      .sort({ deviceName: 1 });
 
     // Cek session aktif untuk setiap device
     const devicesWithStatus = await Promise.all(
@@ -163,8 +172,8 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
       role: { $in: ['cashier_senior', 'cashier_junior', 'bar_depan', 'bar_belakang'] },
       isActive: true
     })
-    .select('name email role profilePicture')
-    .sort({ name: 1 });
+      .select('name email role profilePicture')
+      .sort({ name: 1 });
 
     // Cek apakah cashier sudah login di device lain
     const cashiersWithStatus = await Promise.all(
@@ -391,9 +400,9 @@ router.get('/sessions/active', authMiddleware, async (req, res) => {
       outlet: outletId,
       isActive: true
     })
-    .populate('device', 'deviceName location')
-    .populate('user', 'name email role')
-    .sort({ loginTime: -1 });
+      .populate('device', 'deviceName location')
+      .populate('user', 'name email role')
+      .sort({ loginTime: -1 });
 
     res.json({
       success: true,
