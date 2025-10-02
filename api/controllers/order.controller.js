@@ -2478,8 +2478,17 @@ export const getKitchenOrder = async (req, res) => {
     const orders = await Order.find({
       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Cancelled'] },
     })
-      .populate('items.menuItem')
-      .populate('reservation')
+      .populate({
+        path: 'items.menuItem',
+        select: 'name workstation', // bisa pilih field yg diperlukan
+      })
+      .populate({
+        path: 'reservation',
+        populate: [
+          { path: 'area_id', select: 'area_name' },
+          { path: 'table_id', select: 'table_number' },
+        ],
+      })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -2487,22 +2496,25 @@ export const getKitchenOrder = async (req, res) => {
     const filteredOrders = orders
       .map((order) => ({
         ...order,
-        items: order.items.filter((item) => item.menuItem?.workstation === 'kitchen'),
+        items: order.items.filter(
+          (item) => item.menuItem?.workstation === 'kitchen'
+        ),
       }))
       .filter((order) => order.items.length > 0); // hanya order yang punya kitchen items
 
-    // Debug log
-    // filteredOrders.forEach((order) => {
-    //   console.log('Order ID:', order.order_id);
-    //   console.log('Items (Kitchen only):', JSON.stringify(order.items, null, 2));
-    // });
-
-    res.status(200).json({ success: true, data: filteredOrders });
+    res.status(200).json({
+      success: true,
+      data: filteredOrders, // sudah termasuk reservation populated
+    });
   } catch (error) {
     console.error('Error fetching kitchen orders:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch kitchen orders' });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch kitchen orders',
+    });
   }
 };
+
 
 
 export const updateKitchenOrderStatus = async (req, res) => {
