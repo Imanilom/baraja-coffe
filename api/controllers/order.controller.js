@@ -2474,34 +2474,36 @@ export const paymentNotification = async (req, res) => {
 // ! Start Kitchen sections
 export const getKitchenOrder = async (req, res) => {
   try {
-    // const now = new Date();
-    // const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
-
-    // ✅ Update semua order yg masih Waiting & lebih tua dari 15 menit
-    // await Order.updateMany(
-    //   {
-    //     status: { $in: ['Waiting'] }, // bisa Waiting atau Reserved
-    //     createdAt: { $lt: fifteenMinutesAgo },
-    //   },
-    //   { $set: { status: 'Cancelled' } }
-    // );
-
-
     // ✅ Ambil data order terbaru
     const orders = await Order.find({
-      status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Cancelled'] }, // tambahin Cancelled biar kelihatan juga
+      status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Cancelled'] },
     })
       .populate('items.menuItem')
       .populate('reservation')
       .sort({ createdAt: -1 })
       .lean();
 
-    res.status(200).json({ success: true, data: orders });
+    // 🔥 Filter items & buang order yang tidak punya workstation kitchen
+    const filteredOrders = orders
+      .map((order) => ({
+        ...order,
+        items: order.items.filter((item) => item.menuItem?.workstation === 'kitchen'),
+      }))
+      .filter((order) => order.items.length > 0); // hanya order yang punya kitchen items
+
+    // Debug log
+    // filteredOrders.forEach((order) => {
+    //   console.log('Order ID:', order.order_id);
+    //   console.log('Items (Kitchen only):', JSON.stringify(order.items, null, 2));
+    // });
+
+    res.status(200).json({ success: true, data: filteredOrders });
   } catch (error) {
     console.error('Error fetching kitchen orders:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch kitchen orders' });
   }
 };
+
 
 export const updateKitchenOrderStatus = async (req, res) => {
   const { orderId } = req.params;
