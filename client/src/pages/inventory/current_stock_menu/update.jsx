@@ -73,20 +73,25 @@
 
 // export default UpdateStockForm;
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const UpdateStockForm = ({ product, onSave, onCancel, currentUser }) => {
-    const [manualStock, setManualStock] = useState(product.availableStock || 0);
+const UpdateStockForm = ({ product, onSave, onCancel, currentUser, fetchStockCard }) => {
+    const [manualStock, setManualStock] = useState("");
     const [adjustmentNote, setAdjustmentNote] = useState("");
     const [loading, setLoading] = useState(false);
+    useEffect(() => {
+        if (product) {
+            setManualStock(product.manualStock || 0);
+        }
+    }, [product]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            const res = await axios.put(`/api/product/menu/${product._id}/update-stock`, {
+            const res = await axios.put(`/api/product/menu/${product.menuItemId}/adjust-stock`, {
                 manualStock,
                 adjustmentNote,
                 adjustedBy: currentUser._id, // bisa ambil dari user login
@@ -95,8 +100,10 @@ const UpdateStockForm = ({ product, onSave, onCancel, currentUser }) => {
             if (res.data.success) {
                 onSave({
                     ...product,
-                    availableStock: manualStock,
+                    manualStock: manualStock,
                 });
+
+                fetchStockCard();
             } else {
                 alert(res.data.message || "Gagal update stok");
             }
@@ -139,8 +146,8 @@ const UpdateStockForm = ({ product, onSave, onCancel, currentUser }) => {
                 <label className="block text-sm font-medium">Stok</label>
                 <input
                     type="number"
-                    value={product.manualStock}
-                    onChange={(e) => setManualStock(Number(e.target.value))}
+                    value={manualStock}
+                    onChange={(e) => setManualStock(e.target.value)}
                     className="w-full border rounded px-3 py-2"
                     min={0}
                     required

@@ -41,7 +41,7 @@ router.get('/', authMiddleware, async (req, res) => {
     const [devices, total] = await Promise.all([
       Device.find(filter)
         .populate('outlet', 'name code')
-        .populate('adjustedBy', 'name email')
+        // .populate('adjustedBy', 'name email')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
