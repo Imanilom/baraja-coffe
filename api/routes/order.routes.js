@@ -29,6 +29,16 @@ import {
   deleteOrderItemAtOrder,
   getOrderByIdAfterItemDelete,
 } from '../controllers/order.controller.js';
+
+import {
+  getActiveOrders,
+  getAvailableTables,
+  transferOrderTable,
+  getOrderTableHistory,
+  getTableOccupancyStatus,
+  bulkUpdateTableStatus
+} from '../controllers/gro.controller.js';
+
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
 
@@ -105,5 +115,12 @@ router.post('/order/cashier/process-payment', processPaymentCashier);
 router.post('/order/delete-order-item', deleteOrderItemAtOrder);
 
 router.get('/order/:orderId/cashier', getOrderByIdAfterItemDelete);
+
+router.get('/outlet/:outletId/active-orders', getActiveOrders);
+router.get('/tables/available', getAvailableTables);
+router.get('/table-occupancy/:outletId', getTableOccupancyStatus);
+router.post('/orders/:orderId/transfer-table', transferOrderTable);
+router.get('/orders/:orderId/table-history', getOrderTableHistory);
+router.post('/tables/bulk-update-status', bulkUpdateTableStatus);
 
 export default router;
