@@ -10,7 +10,7 @@ const adminAccess = verifyToken(['admin', 'superadmin']);
 router.get('/', verifyToken, async (req, res) => {
   try {
     const { outlet, role, isActive } = req.query;
-    
+
     let filter = {};
     if (outlet) filter.outlet = outlet;
     if (role) filter.role = role;
@@ -72,7 +72,6 @@ router.post('/', adminAccess, async (req, res) => {
     const {
       deviceId,
       outlet,
-      role,
       location,
       deviceName,
       assignedAreas,
@@ -92,7 +91,6 @@ router.post('/', adminAccess, async (req, res) => {
     const device = new Device({
       deviceId,
       outlet,
-      role,
       location,
       deviceName,
       assignedAreas: assignedAreas || [],
@@ -148,7 +146,7 @@ router.put('/:id', adminAccess, async (req, res) => {
       },
       { new: true, runValidators: true }
     ).populate('outlet', 'name code')
-     .populate('adjustedBy', 'name email');
+      .populate('adjustedBy', 'name email');
 
     if (!device) {
       return res.status(404).json({
@@ -190,7 +188,7 @@ router.patch('/:id/assignment', adminAccess, async (req, res) => {
       },
       { new: true, runValidators: true }
     ).populate('outlet', 'name code')
-     .populate('adjustedBy', 'name email');
+      .populate('adjustedBy', 'name email');
 
     if (!device) {
       return res.status(404).json({
@@ -259,7 +257,7 @@ router.delete('/:id', adminAccess, async (req, res) => {
 router.get('/status/connected', verifyToken, async (req, res) => {
   try {
     const socketManagement = req.app.get('socketManagement');
-    
+
     if (!socketManagement) {
       return res.status(503).json({
         success: false,
@@ -289,7 +287,7 @@ router.get('/status/connected', verifyToken, async (req, res) => {
 router.get('/stats/overview', verifyToken, async (req, res) => {
   try {
     const { outlet } = req.query;
-    
+
     let matchStage = {};
     if (outlet) matchStage.outlet = outlet;
 

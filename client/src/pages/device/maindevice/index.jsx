@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaTablet, FaTabletAlt } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaTablet, FaTabletAlt, FaPlus } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 
@@ -203,14 +203,6 @@ const DeviceManagement = () => {
 
     return (
         <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
 
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
@@ -218,6 +210,12 @@ const DeviceManagement = () => {
                     <FaTabletAlt size={21} className="text-gray-500 inline-block" />
                     <p className="text-[15px] text-gray-500">Perangkat</p>
                 </div>
+                <Link
+                    to="/admin/billing/device/create"
+                    className="flex justify-between items-center gap-2 bg-green-900 rounded border border-green-900 text-white px-3 py-2"
+                >
+                    <FaPlus /> Tambah
+                </Link>
             </div>
 
             {/* Filters */}
@@ -468,11 +466,6 @@ const DeviceManagement = () => {
                         )}
                     </div>
                 )}
-            </div>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
             </div>
         </div>
     );
