@@ -1,41 +1,41 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of '../addon_option.model.dart';
+part of 'addon.model.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
 // **************************************************************************
 
-class AddonOptionModelAdapter extends TypeAdapter<AddonOptionModel> {
+class AddonModelAdapter extends TypeAdapter<AddonModel> {
   @override
-  final int typeId = 0;
+  final typeId = 1;
 
   @override
-  AddonOptionModel read(BinaryReader reader) {
+  AddonModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return AddonOptionModel(
+    return AddonModel(
       id: fields[0] as String?,
-      label: fields[1] as String?,
-      isDefault: fields[2] as bool?,
-      price: (fields[3] as num?)?.toInt(),
+      name: fields[1] as String?,
+      type: fields[2] as String?,
+      options: (fields[3] as List?)?.cast<AddonOptionModel>(),
     );
   }
 
   @override
-  void write(BinaryWriter writer, AddonOptionModel obj) {
+  void write(BinaryWriter writer, AddonModel obj) {
     writer
       ..writeByte(4)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.label)
+      ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.isDefault)
+      ..write(obj.type)
       ..writeByte(3)
-      ..write(obj.price);
+      ..write(obj.options);
   }
 
   @override
@@ -44,7 +44,7 @@ class AddonOptionModelAdapter extends TypeAdapter<AddonOptionModel> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is AddonOptionModelAdapter &&
+      other is AddonModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
@@ -53,18 +53,20 @@ class AddonOptionModelAdapter extends TypeAdapter<AddonOptionModel> {
 // JsonSerializableGenerator
 // **************************************************************************
 
-_AddonOptionModel _$AddonOptionModelFromJson(Map<String, dynamic> json) =>
-    _AddonOptionModel(
-      id: json['id'] as String?,
-      label: json['label'] as String?,
-      isDefault: json['isDefault'] as bool?,
-      price: (json['price'] as num?)?.toInt(),
-    );
+_AddonModel _$AddonModelFromJson(Map<String, dynamic> json) => _AddonModel(
+  id: json['_id'] as String?,
+  name: json['name'] as String?,
+  type: json['type'] as String?,
+  options:
+      (json['options'] as List<dynamic>?)
+          ?.map((e) => AddonOptionModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+);
 
-Map<String, dynamic> _$AddonOptionModelToJson(_AddonOptionModel instance) =>
+Map<String, dynamic> _$AddonModelToJson(_AddonModel instance) =>
     <String, dynamic>{
-      'id': instance.id,
-      'label': instance.label,
-      'isDefault': instance.isDefault,
-      'price': instance.price,
+      '_id': instance.id,
+      'name': instance.name,
+      'type': instance.type,
+      'options': instance.options,
     };

@@ -29,7 +29,7 @@ export const calibrateAllMenuStocks = async () => {
       console.log(`🔧 Processing batch ${i / batchSize + 1}/${Math.ceil(menuItems.length / batchSize)}`);
 
       // Process each batch in parallel with limited concurrency
-      const batchPromises = batch.map(menuItem => 
+      const batchPromises = batch.map(menuItem =>
         calibrateSingleMenuStock(menuItem._id.toString())
           .then(() => successCount++)
           .catch(error => {
@@ -39,7 +39,7 @@ export const calibrateAllMenuStocks = async () => {
       );
 
       await Promise.allSettled(batchPromises);
-      
+
       // Small delay between batches to prevent database overload
       if (i + batchSize < menuItems.length) {
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -98,14 +98,14 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
 
     // Update MenuStock
     const menuStock = await MenuStock.findOne({ menuItemId: menuItem._id }).session(session);
-    
+
     if (menuStock) {
       // Only update calculatedStock if manualStock is not set
       if (menuStock.manualStock === null || menuStock.manualStock === undefined) {
         menuStock.calculatedStock = calculatedStock;
-        console.log(`📦 Menu ${menuItem.name}: calculatedStock updated to ${calculatedStock}`);
+        // console.log(`📦 Menu ${menuItem.name}: calculatedStock updated to ${calculatedStock}`);
       } else {
-        console.log(`📦 Menu ${menuItem.name}: using manualStock ${menuStock.manualStock}`);
+        // console.log(`📦 Menu ${menuItem.name}: using manualStock ${menuStock.manualStock}`);
       }
       menuStock.lastCalculatedAt = new Date();
       await menuStock.save({ session });
@@ -115,7 +115,7 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
         calculatedStock,
         lastCalculatedAt: new Date()
       }], { session });
-      console.log(`📦 Menu ${menuItem.name}: new stock record created with ${calculatedStock}`);
+      // console.log(`📦 Menu ${menuItem.name}: new stock record created with ${calculatedStock}`);
     }
 
     // Update availableStock di MenuItem
@@ -124,8 +124,8 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
     await menuItem.save({ session });
 
     await session.commitTransaction();
-    
-    console.log(`✅ ${menuItem.name}: stock updated to ${updatedMenuStock.effectiveStock}`);
+
+    // console.log(`✅ ${menuItem.name}: stock updated to ${updatedMenuStock.effectiveStock}`);
 
     return {
       success: true,
@@ -151,9 +151,9 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
 export const setupStockCalibrationCron = () => {
   // Jalankan setiap jam pada menit 5 (05:00, 06:00, 07:00, dst)
   // Memberi waktu 5 menit setelah jam tepat untuk hindari peak load
-  cron.schedule('5 * * * *', async () => {
-    console.log('⏰ Menjalankan scheduled stock calibration...');
-    
+  cron.schedule('5 */3 * * *', async () => {
+    console.log(' Menjalankan scheduled stock calibration...');
+
     try {
       // Cek koneksi database sebelum mulai
       if (mongoose.connection.readyState !== 1) {
@@ -162,7 +162,7 @@ export const setupStockCalibrationCron = () => {
       }
 
       const result = await calibrateAllMenuStocks();
-      
+
       if (result.success) {
         console.log('📈 Scheduled stock calibration completed successfully:', {
           processed: result.processed,
@@ -175,7 +175,7 @@ export const setupStockCalibrationCron = () => {
       }
     } catch (error) {
       console.error('❌ Scheduled stock calibration failed:', error);
-      
+
       // Log error lebih detail untuk debugging
       console.error('Error details:', {
         message: error.message,
@@ -240,19 +240,19 @@ export const calibrateSelectedMenuStocks = async (menuItemIds) => {
 // Jalankan kalibrasi manual via API
 export const manualStockCalibration = async (req, res) => {
   try {
-    console.log('🔧 Manual stock calibration triggered via API');
-    
+    // console.log('🔧 Manual stock calibration triggered via API');
+
     // Optional: parameter untuk memilih jenis kalibrasi
     const { type, menuItemIds } = req.body;
-    
+
     let result;
-    
+
     if (type === 'selected' && menuItemIds && Array.isArray(menuItemIds)) {
       result = await calibrateSelectedMenuStocks(menuItemIds);
     } else {
       result = await calibrateAllMenuStocks();
     }
-    
+
     res.status(200).json({
       success: result.success,
       message: 'Kalibrasi stok manual selesai',

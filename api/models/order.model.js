@@ -18,8 +18,8 @@ const OrderItemSchema = new mongoose.Schema({
   toppings: [{ name: String, price: Number }],
   notes: { type: String, default: '' },
   batchNumber: { type: Number, default: 1 },
-  addedAt: { 
-    type: Date, 
+  addedAt: {
+    type: Date,
     default: () => getWIBNow() // Simpan dalam WIB
   },
   kitchenStatus: {
@@ -28,9 +28,9 @@ const OrderItemSchema = new mongoose.Schema({
     default: 'pending'
   },
   isPrinted: { type: Boolean, default: false },
-  printedAt: { 
+  printedAt: {
     type: Date,
-    set: function(date) {
+    set: function (date) {
       return date ? toWIB(date) : date;
     }
   },
@@ -62,7 +62,7 @@ const OrderSchema = new mongoose.Schema({
   },
   deliveryAddress: { type: String },
   tableNumber: { type: String },
-  pickupTime: { 
+  pickupTime: {
     type: String,
     // Untuk waktu pickup, simpan sebagai string dalam format WIB
   },
@@ -98,17 +98,17 @@ const OrderSchema = new mongoose.Schema({
   // Sumber order
   source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true },
   currentBatch: { type: Number, default: 1 },
-  lastItemAddedAt: { 
+  lastItemAddedAt: {
     type: Date,
-    set: function(date) {
+    set: function (date) {
       return date ? toWIB(date) : date;
     }
   },
   kitchenNotifications: [{
     batchNumber: Number,
-    sentAt: { 
-      type: Date, 
-      default: () => getWIBNow() 
+    sentAt: {
+      type: Date,
+      default: () => getWIBNow()
     },
     type: { type: String, enum: ['new_batch', 'additional_items'] }
   }],
@@ -117,32 +117,32 @@ const OrderSchema = new mongoose.Schema({
   reservation: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
 
   // ✅ TAMBAHAN: Simpan waktu dalam WIB secara eksplisit
-  createdAtWIB: { 
-    type: Date, 
-    default: () => getWIBNow() 
+  createdAtWIB: {
+    type: Date,
+    default: () => getWIBNow()
   },
-  updatedAtWIB: { 
-    type: Date, 
-    default: () => getWIBNow() 
+  updatedAtWIB: {
+    type: Date,
+    default: () => getWIBNow()
   }
 
-}, { 
+}, {
   timestamps: true, // Ini akan tetap menyimpan UTC
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
 // Virtual fields untuk menampilkan waktu dalam WIB
-OrderSchema.virtual('createdAtWIBFormatted').get(function() {
+OrderSchema.virtual('createdAtWIBFormatted').get(function () {
   return this.createdAt ? this.formatToWIB(this.createdAt) : null;
 });
 
-OrderSchema.virtual('updatedAtWIBFormatted').get(function() {
+OrderSchema.virtual('updatedAtWIBFormatted').get(function () {
   return this.updatedAt ? this.formatToWIB(this.updatedAt) : null;
 });
 
 // Method untuk format WIB
-OrderSchema.methods.formatToWIB = function(date) {
+OrderSchema.methods.formatToWIB = function (date) {
   if (!date) return null;
   return date.toLocaleString('id-ID', {
     timeZone: 'Asia/Jakarta',
@@ -156,7 +156,7 @@ OrderSchema.methods.formatToWIB = function(date) {
 };
 
 // Method untuk mendapatkan tanggal WIB (tanpa waktu)
-OrderSchema.methods.getWIBDate = function() {
+OrderSchema.methods.getWIBDate = function () {
   const date = this.createdAt || new Date();
   return date.toLocaleDateString('id-ID', {
     timeZone: 'Asia/Jakarta',
@@ -167,13 +167,18 @@ OrderSchema.methods.getWIBDate = function() {
 };
 
 // Pre-save middleware untuk update updatedAtWIB
-OrderSchema.pre('save', function(next) {
+OrderSchema.pre('save', function (next) {
   this.updatedAtWIB = getWIBNow();
   next();
 });
 
 // Virtual untuk totalPrice
+// Virtual untuk totalPrice - PERBAIKAN
 OrderSchema.virtual('totalPrice').get(function () {
+  // Tambahkan null check
+  if (!this.items || !Array.isArray(this.items)) {
+    return 0;
+  }
   return this.items.reduce((total, item) => total + item.subtotal, 0);
 });
 

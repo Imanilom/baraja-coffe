@@ -107,8 +107,8 @@ export const authMiddleware = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // Simpan user ID ke req.user
-    // console.log('Token valid, user ID:', decoded.id); // Tambahkan log ini
+    req.user = decoded;
+    console.log('Token valid, user ID:', decoded); // Tambahkan log ini
     next();
   } catch (err) {
     console.error('Token tidak valid:', err); // Tambahkan log ini

@@ -273,6 +273,9 @@ Widget _buildStatisticsRow(
               icon: const Icon(Icons.refresh_rounded, color: Colors.grey),
               onPressed: () {
                 ref.read(pendingOrderProvider.notifier).refresh();
+                ref
+                    .read(pendingOrderDetailProvider.notifier)
+                    .clearPendingOrderDetail();
               },
               tooltip: 'Refresh Orders',
             ),
