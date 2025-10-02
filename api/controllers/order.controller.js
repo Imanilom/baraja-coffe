@@ -1040,6 +1040,7 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     const validated = validateOrderData(req.body, source);
+
     const { tableNumber, orderType, reservationData } = validated;
 
     // Generate order ID
