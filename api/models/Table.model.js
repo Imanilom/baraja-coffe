@@ -75,5 +75,18 @@ tableSchema.pre('save', async function (next) {
     }
 });
 
+tableSchema.add({
+  statusHistory: [{
+    fromStatus: String,
+    toStatus: String,
+    updatedBy: String, // Nama GRO yang mengupdate
+    notes: String,
+    updatedAt: {
+      type: Date,
+      default: () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }))
+    }
+  }]
+});
+
 const Table = mongoose.model('Table', tableSchema);
 export default Table;
