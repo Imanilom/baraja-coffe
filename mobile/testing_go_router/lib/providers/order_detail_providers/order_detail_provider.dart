@@ -284,7 +284,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   }
 
   // Kirim data orderDetail ke backend
-  Future<bool> submitOrder(PaymentState paymentData) async {
+  Future<bool> submitOrder(PaymentState paymentData, WidgetRef ref) async {
     final cashier = await HiveService.getCashier();
 
     state = state!.copyWith(cashierId: cashier!.id);
@@ -292,6 +292,10 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
     try {
       final order = await OrderService().createOrder(state!, paymentData);
+      print('Order submitted: $order');
+
+      final orderDetails = ref.read(orderDetailProvider.notifier);
+      orderDetails.addOrderIdToOrderDetail(order['orderId']);
 
       if (order.isNotEmpty) {
         return true;
@@ -364,6 +368,13 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       print('Error in recalculation: $e');
     } finally {
       _isCalculating = false;
+    }
+  }
+
+  //add orderId to orderDetail
+  void addOrderIdToOrderDetail(String orderId) {
+    if (state != null) {
+      state = state!.copyWith(orderId: orderId);
     }
   }
 }

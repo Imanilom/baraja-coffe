@@ -3,7 +3,21 @@ import 'package:dio/dio.dart';
 import 'package:kasirbaraja/configs/app_config.dart';
 
 class AuthService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
+  final Dio _dio = Dio(
+    BaseOptions(
+      baseUrl: AppConfig.baseUrl,
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 20),
+      headers: {'Content-Type': 'application/json'},
+    ),
+  );
+
+  Options _auth(String token) => Options(
+    headers: {
+      'Authorization': 'Bearer $token',
+      'ngrok-skip-browser-warning': true,
+    },
+  );
 
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
@@ -22,16 +36,75 @@ class AuthService {
         ),
         data: {"identifier": username, "password": password},
       );
-      // if (response.statusCode == 200) {
-      //   print('Login successful: ${response.data}');
-      // } else {
-      //   print('Login failed: ${response.statusCode}');
-      // }
-      // print('response awal : ${response.data}');
+
       print('response awal Login');
       return response.data;
     } on DioException catch (e) {
       print('error login: $e');
+      throw ApiResponseHandler.handleError(e);
+    }
+  }
+
+  /// GET /devices-all
+  /// Response contoh: { success, data: [...], total }
+  Future<Map<String, dynamic>> fetchAllDevices({required String token}) async {
+    try {
+      final res = await _dio.get(
+        '/api/cashierauth/devices-all',
+        options: _auth(token),
+      );
+
+      final result = Map<String, dynamic>.from(res.data);
+
+      return result;
+    } on DioException catch (e) {
+      throw ApiResponseHandler.handleError(e);
+    }
+  }
+
+  /// GET /devices/:deviceId/cashiers
+  /// Response contoh: { success, data: { device: {...}, cashiers: [...] } }
+  Future<Map<String, dynamic>> fetchCashiersByDevice({
+    required String token,
+    required String deviceId,
+  }) async {
+    try {
+      final res = await _dio.get(
+        '/api/cashierauth/devices/$deviceId/cashiers',
+        options: _auth(token),
+      );
+
+      final result = Map<String, dynamic>.from(res.data);
+
+      return result;
+    } on DioException catch (e) {
+      throw ApiResponseHandler.handleError(e);
+    }
+  }
+
+  /// POST /devices/:deviceId/login-cashier
+  /// Body: { cashierId, role? }
+  /// Response contoh: { success, message, data: { session, device, cashier } }
+  Future<Map<String, dynamic>> loginCashierToDevice({
+    required String token,
+    required String deviceId,
+    required String cashierId,
+    String? role,
+  }) async {
+    try {
+      final body = <String, dynamic>{'cashierId': cashierId};
+      if (role != null && role.isNotEmpty) body['role'] = role;
+
+      final res = await _dio.post(
+        '/api/cashierauth/devices/$deviceId/login-cashier',
+        data: body,
+        options: _auth(token),
+      );
+
+      final result = Map<String, dynamic>.from(res.data);
+
+      return result;
+    } on DioException catch (e) {
       throw ApiResponseHandler.handleError(e);
     }
   }

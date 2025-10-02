@@ -48,3 +48,29 @@ class AuthRepository {
     }
   }
 }
+
+class AuthDevice {
+  final AuthService _authService = AuthService();
+  //fetch all devices
+  Future<List<dynamic>> fetchAllDevices() async {
+    final token = await HiveService.userToken;
+
+    try {
+      final response = await _authService.fetchAllDevices(token: token);
+      return response['data'] as List<dynamic>;
+    } catch (e) {
+      throw Exception('Failed to fetch devices: $e');
+    }
+  }
+
+  //fetch cashiers by device
+  Future<Map<String, dynamic>> fetchCashiersByDevice(String deviceId) async {
+    final token = await HiveService.userToken;
+
+    final response = await _authService.fetchCashiersByDevice(
+      token: token,
+      deviceId: deviceId,
+    );
+    return response['data'] as Map<String, dynamic>;
+  }
+}

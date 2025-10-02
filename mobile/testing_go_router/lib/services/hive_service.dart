@@ -148,9 +148,15 @@ class HiveService {
   }
 
   //get outletId dari user yang sudah disimpan di hive
-  static String get outletId {
+  static Future<String> get outletId async {
     final box = Hive.box('userBox');
     final user = box.get('user') as UserModel?;
     return user?.outletId ?? '';
+  }
+
+  static Future<String> get userToken async {
+    final box = Hive.box('userBox');
+    final user = box.get('user') as UserModel?;
+    return user?.token ?? '';
   }
 }
