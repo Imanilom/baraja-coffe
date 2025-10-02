@@ -60,6 +60,7 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
 
     orderItems.push({
       menuItem: item.id,
+      menuItemName: menuItem.name,
       quantity: item.quantity,
       subtotal,
       addons,
