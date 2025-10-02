@@ -8,8 +8,7 @@ import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
 import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
-import { orderQueue } from '../queues/order.queue.js';
-import { QueueEvents } from 'bullmq';
+import { orderQueue, queueEvents  } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
 import { io, broadcastNewOrder } from '../index.js';
@@ -21,7 +20,6 @@ import { TaxAndService } from '../models/TaxAndService.model.js';
 import { updateTableStatusAfterPayment } from './webhookController.js';
 const { ObjectId } = mongoose.Types;
 
-const queueEvents = new QueueEvents('orderQueue');
 
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
@@ -1019,13 +1017,13 @@ const confirmOrderHelper = async (orderId) => {
 export const createUnifiedOrder = async (req, res) => {
   try {
     const { order_id, source } = req.body;
+    
     // Check if order already exists
     const existingOrder = await Order.findOne({ order_id: order_id });
     if (existingOrder) {
       console.log('Order already exists in the database, confirming order...');
       try {
         const result = await confirmOrderHelper(order_id);
-
         return res.status(200).json({
           status: 'Completed',
           orderId: order_id,
@@ -1040,10 +1038,10 @@ export const createUnifiedOrder = async (req, res) => {
         });
       }
     }
-    const validated = validateOrderData(req.body, source);
-    const { tableNumber, orderType, reservationData } = validated;
 
-    //check existing order
+    const validated = validateOrderData(req.body, source);
+
+    const { tableNumber, orderType, reservationData } = validated;
 
     // Generate order ID
     let orderId;
@@ -1055,7 +1053,6 @@ export const createUnifiedOrder = async (req, res) => {
 
     // Add reservation-specific processing if needed
     if (orderType === 'reservation' && reservationData) {
-      // Validate reservation data
       if (!reservationData.reservationTime || !reservationData.guestCount ||
         !reservationData.areaIds || !reservationData.tableIds) {
         return res.status(400).json({
@@ -1075,23 +1072,43 @@ export const createUnifiedOrder = async (req, res) => {
         isOpenBill: validated.isOpenBill,
         isReservation: orderType === 'reservation'
       }
-    }, { jobId: orderId });
+    }, { 
+      jobId: orderId,
+      removeOnComplete: true, // Optional: bersihkan job yang completed
+      removeOnFail: false,   // Simpan job yang failed untuk debugging
+      attempts: 3,           // Retry 3 kali
+      backoff: {
+        type: 'exponential',
+        delay: 1000
+      }
+    });
 
-    // Wait for job completion
+    console.log(`Job created: ${job.id} for order: ${orderId}`);
+
+    // Wait for job completion dengan timeout
     let result;
     try {
-      result = await job.waitUntilFinished(queueEvents);
+      // Tambahkan timeout (30 detik)
+      result = await job.waitUntilFinished(queueEvents, 30000);
+      console.log(`Job ${job.id} completed successfully`);
 
     } catch (queueErr) {
+      console.error(`Job ${job.id} failed:`, queueErr);
+      
+      // Dapatkan status job untuk informasi lebih detail
+      const jobState = await job.getState();
       return res.status(500).json({
         success: false,
-        message: `Order processing failed: ${queueErr.message}`
+        message: `Order processing failed: ${queueErr.message}`,
+        jobState: jobState,
+        orderId: orderId
       });
     }
+
     // Handle payment based on source
     if (source === 'Cashier') {
-      return res.status(202).json({
-        // status: ,
+      return res.status(200).json({
+        status: 'Completed',
         orderId,
         jobId: job.id,
         message: 'Cashier order processed and paid',
@@ -1118,6 +1135,7 @@ export const createUnifiedOrder = async (req, res) => {
       if (!order) {
         throw new Error(`Order ${orderId} not found after job completion`);
       }
+      
       const paymentData = {
         order_id: order.order_id,
         payment_code: generatePaymentCode(),
@@ -1140,12 +1158,14 @@ export const createUnifiedOrder = async (req, res) => {
           message: 'Cash payment, no Midtrans Snap required',
         });
       }
+      
       // Otherwise, create Midtrans Snap transaction
       const midtransRes = await createMidtransSnapTransaction(
         orderId,
         validated.paymentDetails.amount,
         validated.paymentDetails.method
       );
+      
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
@@ -1156,7 +1176,9 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     throw new Error('Invalid order source');
+    
   } catch (err) {
+    console.error('Error in createUnifiedOrder:', err);
     return res.status(400).json({
       success: false,
       error: err.message

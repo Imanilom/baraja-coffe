@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import Select from "react-select";
@@ -138,55 +138,6 @@ const ProductionListManagement = () => {
         }
     };
 
-    useEffect(() => {
-        fetchProducts();
-        fetchOutlets();
-        fetchSupplier();
-    }, []);
-
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
-
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
-
-    const formatDateTime = (datetime) => {
-        const date = new Date(datetime);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
-    const formatDate = (dat) => {
-        const date = new Date(dat);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
-    };
-
-    const formatTime = (time) => {
-        const date = new Date(time);
-        const pad = (n) => n.toString().padStart(2, "0");
-        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
     const capitalizeWords = (text) => {
         return text
             .toLowerCase()
@@ -195,13 +146,6 @@ const ProductionListManagement = () => {
 
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
 
     const options = [
         { value: "", label: "Semua Supplier" },
@@ -212,62 +156,76 @@ const ProductionListManagement = () => {
     ];
 
     // Apply filter function
-    const applyFilter = () => {
-        let filtered = Array.isArray(products) ? [...products] : [];
+    const applyFilter = useCallback(() => {
+        try {
+            let filtered = [...products];
 
-        // 🔍 Filter by search term (name, category, sku)
-        if (tempSearch) {
-            const searchTerm = tempSearch.toLowerCase();
-            filtered = filtered.filter(product => {
-                try {
-                    const name = (product?.name || '').toLowerCase();
-                    const sku = (product?.sku || '').toLowerCase();
-                    const category = (product?.category || '').toLowerCase();
+            // 🔍 Filter by search term (name, category, sku)
+            if (tempSearch) {
+                const searchTerm = tempSearch.toLowerCase();
+                filtered = filtered.filter(product => {
+                    try {
+                        const name = product?.name?.toLowerCase() || "";
+                        const sku = product?.sku?.toLowerCase() || "";
+                        const category = product?.category?.toLowerCase() || "";
 
-                    return (
-                        name.includes(searchTerm) ||
-                        sku.includes(searchTerm) ||
-                        category.includes(searchTerm)
-                    );
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // 🏢 Filter by supplier
-        if (tempSelectedSupplier) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!Array.isArray(product?.suppliers) || product.suppliers.length === 0) {
+                        return (
+                            name.includes(searchTerm) ||
+                            sku.includes(searchTerm) ||
+                            category.includes(searchTerm)
+                        );
+                    } catch (err) {
+                        console.error("Error filtering by search:", err);
                         return false;
                     }
+                });
+            }
 
-                    // cek apakah ada supplierId yang cocok
-                    const match = product.suppliers.some(sup => sup.supplierId === tempSelectedSupplier);
 
-                    return match;
-                } catch (err) {
-                    console.error("Error filtering by Supplier:", err);
-                    return false;
-                }
-            });
+            // 🏢 Filter by supplier
+            if (tempSelectedSupplier) {
+                filtered = filtered.filter(product => {
+                    try {
+                        if (!Array.isArray(product?.suppliers) || product.suppliers.length === 0) {
+                            return false;
+                        }
+
+                        // cek apakah ada supplierId yang cocok
+                        const match = product.suppliers.some(sup => sup.supplierId === tempSelectedSupplier);
+
+                        return match;
+                    } catch (err) {
+                        console.error("Error filtering by Supplier:", err);
+                        return false;
+                    }
+                });
+            }
+
+            setFilteredData(filtered);
+            setCurrentPage(1);
+        } catch (err) {
+            console.error("Error applying filter:", err);
+            setError("Failed to load data. Please try again later.");
+        } finally {
+            setLoading(false);
         }
+    }, [tempSearch, tempSelectedSupplier]);
 
-        setFilteredData(filtered);
-        setCurrentPage(1);
-    };
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
 
+    // Initial load
+    useEffect(() => {
+        applyFilter();
+    }, []);
 
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedSupplier("");
-        setSearch("");
-        setFilteredData(ensureArray(products));
-        setCurrentPage(1);
-    };
+    useEffect(() => {
+        fetchProducts();
+        fetchOutlets();
+        fetchSupplier();
+    }, []);
 
     // Paginate the filtered data
     const paginatedData = useMemo(() => {
@@ -358,7 +316,7 @@ const ProductionListManagement = () => {
 
             {/* Filters */}
             <div className="px-6">
-                <div className="my-3 py-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded">
+                <div className="py-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded">
 
                     {/* Cari */}
                     <div className="flex flex-col col-span-2">

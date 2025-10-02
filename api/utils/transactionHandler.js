@@ -3,50 +3,43 @@ import mongoose from 'mongoose';
 import { resetMongoSessions } from './mongoSessionReset.js';
 
 
-export async function runWithTransactionRetry(fn, maxRetries = 3) {
-  let attempts = 0;
+export async function runWithTransactionRetry(operation, session, maxRetries = 3) {
   let lastError;
   
-  while (attempts < maxRetries) {
-    const session = await mongoose.startSession();
-    
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      session.startTransaction({
-        readConcern: { level: 'snapshot' },
-        writeConcern: { w: 'majority' }
-      });
-
-      const result = await fn(session);
+      await session.startTransaction();
+      const result = await operation();
       await session.commitTransaction();
       return result;
+      
     } catch (error) {
+      await session.abortTransaction();
       lastError = error;
       
-      // Check if this is a MongoDB error with TransientTransactionError label
-      const isTransientError = (
-        error.code === 251 || // NoSuchTransaction
-        error.code === 91 || // ShutdownInProgress
-        (error.errorLabels && error.errorLabels.includes('TransientTransactionError')) ||
-        (typeof error.hasErrorLabel === 'function' && error.hasErrorLabel('TransientTransactionError'))
-      );
-
-      // Always abort if we're in a transaction
-      if (session.inTransaction()) {
-        await session.abortTransaction().catch(() => {});
+      // Retry hanya untuk transient errors
+      if (isTransientError(error) && attempt < maxRetries) {
+        console.log(`Retrying transaction, attempt ${attempt + 1}`);
+        await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+        continue;
       }
-
-      // Only retry on transient errors
-      if (!isTransientError || attempts >= maxRetries - 1) {
-        break;
-      }
-
-      attempts++;
-      const delayMs = 100 * Math.pow(2, attempts); // Exponential backoff
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-    } finally {
-      await session.endSession().catch(() => {});
+      break;
     }
   }
   
-  throw lastError || new Error(`Transaction failed after ${maxRetries} retries`);
+  throw lastError;
+}
+
+function isTransientError(error) {
+  const transientPatterns = [
+    'transaction',
+    'session',
+    'connection',
+    'timeout',
+    'lock'
+  ];
+  
+  return transientPatterns.some(pattern => 
+    error.message.toLowerCase().includes(pattern)
+  );
 }

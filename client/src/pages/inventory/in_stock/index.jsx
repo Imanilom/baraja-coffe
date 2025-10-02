@@ -320,7 +320,6 @@ const InStockManagement = () => {
                                 <th className="px-4 py-3 font-normal text-right w-[10%]">Qty</th>
                             </tr>
                         </thead>
-                        {console.log(paginatedData)}
                         {paginatedData.length > 0 ? (
                             <tbody className="text-gray-500 divide-y">
                                 {paginatedData.map((movement) => (

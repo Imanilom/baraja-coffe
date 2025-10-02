@@ -13,6 +13,7 @@ export default defineConfig({
       '/api': {
         // target: 'https://a00bc682df3b.ngrok-free.app',
         target: 'https://app.barajacoffee.site',
+        // target: 'http://localhost:3000',
         changeOrigin: true, // Tambahkan ini untuk mengatasi masalah CORS
         secure: false, // Set ke false jika menggunakan HTTP
       },
