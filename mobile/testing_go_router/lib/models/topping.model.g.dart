@@ -1,41 +1,38 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of '../addon.model.dart';
+part of 'topping.model.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
 // **************************************************************************
 
-class AddonModelAdapter extends TypeAdapter<AddonModel> {
+class ToppingModelAdapter extends TypeAdapter<ToppingModel> {
   @override
-  final int typeId = 1;
+  final typeId = 2;
 
   @override
-  AddonModel read(BinaryReader reader) {
+  ToppingModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return AddonModel(
+    return ToppingModel(
       id: fields[0] as String?,
       name: fields[1] as String?,
-      type: fields[2] as String?,
-      options: (fields[3] as List?)?.cast<AddonOptionModel>(),
+      price: (fields[2] as num?)?.toInt(),
     );
   }
 
   @override
-  void write(BinaryWriter writer, AddonModel obj) {
+  void write(BinaryWriter writer, ToppingModel obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(3)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.type)
-      ..writeByte(3)
-      ..write(obj.options);
+      ..write(obj.price);
   }
 
   @override
@@ -44,7 +41,7 @@ class AddonModelAdapter extends TypeAdapter<AddonModel> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is AddonModelAdapter &&
+      other is ToppingModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
@@ -53,20 +50,16 @@ class AddonModelAdapter extends TypeAdapter<AddonModel> {
 // JsonSerializableGenerator
 // **************************************************************************
 
-_AddonModel _$AddonModelFromJson(Map<String, dynamic> json) => _AddonModel(
-  id: json['id'] as String?,
-  name: json['name'] as String?,
-  type: json['type'] as String?,
-  options:
-      (json['options'] as List<dynamic>?)
-          ?.map((e) => AddonOptionModel.fromJson(e as Map<String, dynamic>))
-          .toList(),
-);
+_ToppingModel _$ToppingModelFromJson(Map<String, dynamic> json) =>
+    _ToppingModel(
+      id: json['_id'] as String?,
+      name: json['name'] as String?,
+      price: (json['price'] as num?)?.toInt(),
+    );
 
-Map<String, dynamic> _$AddonModelToJson(_AddonModel instance) =>
+Map<String, dynamic> _$ToppingModelToJson(_ToppingModel instance) =>
     <String, dynamic>{
-      'id': instance.id,
+      '_id': instance.id,
       'name': instance.name,
-      'type': instance.type,
-      'options': instance.options,
+      'price': instance.price,
     };

@@ -12,7 +12,7 @@ import Warehouse from '../models/modul_market/Warehouse.model.js';
  */
 export async function calculateMenuItemStock(menuItemId) {
   const session = await mongoose.startSession();
-  
+
   try {
     session.startTransaction();
 
@@ -36,8 +36,8 @@ export async function calculateMenuItemStock(menuItemId) {
         productId: ingredient.productId,
         warehouse: { $ne: centralWarehouseId }
       })
-      .populate('warehouse')
-      .session(session);
+        .populate('warehouse')
+        .session(session);
 
       // Calculate total stock from all non-central warehouses
       const totalStock = productStocks.reduce((sum, stock) => {
@@ -55,9 +55,9 @@ export async function calculateMenuItemStock(menuItemId) {
       if (requiredQuantity <= 0) continue;
 
       const portions = Math.floor(totalStock / requiredQuantity);
-      
+
       maxPossiblePortions = Math.min(maxPossiblePortions, portions);
-      
+
       console.log(`Ingredient ${ingredient.productId}: ${totalStock} stock / ${requiredQuantity} required = ${portions} portions`);
     }
 
@@ -69,8 +69,8 @@ export async function calculateMenuItemStock(menuItemId) {
             productId: topping.productId,
             warehouse: { $ne: centralWarehouseId }
           })
-          .populate('warehouse')
-          .session(session);
+            .populate('warehouse')
+            .session(session);
 
           const totalToppingStock = toppingStocks.reduce((sum, stock) => {
             if (stock.warehouse?.is_active !== false) {
@@ -84,7 +84,7 @@ export async function calculateMenuItemStock(menuItemId) {
 
           const toppingPortions = Math.floor(totalToppingStock / requiredToppingQty);
           maxPossiblePortions = Math.min(maxPossiblePortions, toppingPortions);
-          
+
           console.log(`Topping ${topping.productId}: ${totalToppingStock} stock / ${requiredToppingQty} required = ${toppingPortions} portions`);
         }
       }
@@ -98,8 +98,8 @@ export async function calculateMenuItemStock(menuItemId) {
             productId: addon.productId,
             warehouse: { $ne: centralWarehouseId }
           })
-          .populate('warehouse')
-          .session(session);
+            .populate('warehouse')
+            .session(session);
 
           const totalAddonStock = addonStocks.reduce((sum, stock) => {
             if (stock.warehouse?.is_active !== false) {
@@ -113,14 +113,14 @@ export async function calculateMenuItemStock(menuItemId) {
 
           const addonPortions = Math.floor(totalAddonStock / requiredAddonQty);
           maxPossiblePortions = Math.min(maxPossiblePortions, addonPortions);
-          
+
           console.log(`Addon ${addon.productId}: ${totalAddonStock} stock / ${requiredAddonQty} required = ${addonPortions} portions`);
         }
       }
     }
 
     const finalStock = Math.max(0, maxPossiblePortions === Infinity ? 0 : maxPossiblePortions);
-    
+
     console.log(`Final calculated stock for menu item ${menuItemId}: ${finalStock}`);
 
     await session.commitTransaction();
@@ -174,13 +174,13 @@ export const calculateMaxPortions = async (ingredients) => {
 
       const possiblePortion = Math.floor(availableQty / requiredPerPortion);
       maxPortion = Math.min(maxPortion, possiblePortion);
-      
-      console.log(`Ingredient ${ing.productId}: ${availableQty} available / ${requiredPerPortion} required = ${possiblePortion} portions`);
+
+      // console.log(`Ingredient ${ing.productId}: ${availableQty} available / ${requiredPerPortion} required = ${possiblePortion} portions`);
     }
 
     const result = isNaN(maxPortion) || maxPortion < 0 || maxPortion === Infinity ? 0 : maxPortion;
-    console.log(`Max portions calculated: ${result}`);
-    
+    // console.log(`Max portions calculated: ${result}`);
+
     return result;
 
   } catch (error) {
@@ -219,7 +219,7 @@ export async function getDetailedMenuItemStock(menuItemId) {
       }));
 
       const totalStock = warehouseStocks.reduce((sum, ws) => ws.isActive ? sum + ws.stock : sum, 0);
-      
+
       ingredientDetails.push({
         productId: ingredient.productId,
         productName: ingredient.productName,
@@ -250,10 +250,10 @@ export async function getDetailedMenuItemStock(menuItemId) {
  */
 export async function recalculateMultipleMenuStocks(menuItemIds) {
   const bulkOps = [];
-  
+
   for (const menuItemId of menuItemIds) {
     const calculatedStock = await calculateMenuItemStock(menuItemId);
-    
+
     bulkOps.push({
       updateOne: {
         filter: { menuItemId },
@@ -281,11 +281,11 @@ export async function recalculateAllMenuStocks() {
   try {
     const recipes = await Recipe.find().select('menuItemId');
     const menuItemIds = recipes.map(recipe => recipe.menuItemId);
-    
+
     console.log(`Recalculating stock for ${menuItemIds.length} menu items`);
-    
+
     await recalculateMultipleMenuStocks(menuItemIds);
-    
+
     console.log('Completed recalculating all menu stocks');
   } catch (error) {
     console.error('Error recalculating all menu stocks:', error);
