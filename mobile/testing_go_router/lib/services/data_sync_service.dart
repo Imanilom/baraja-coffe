@@ -2,6 +2,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
+import 'package:kasirbaraja/repositories/auth_repository.dart';
 import 'package:kasirbaraja/repositories/event_repository.dart';
 import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/repositories/payment_type_repository.dart';
@@ -52,6 +53,17 @@ class DataSyncService {
     int currentStep = 0;
 
     try {
+      // Step 0: Sync Menu Items
+      currentStep++;
+      onProgress(
+        DataSyncProgress(
+          currentStep: currentStep,
+          totalSteps: totalSteps,
+          currentTask: 'Downloading Device Data...',
+        ),
+      );
+      await AuthDevice().fetchAllDevices();
+
       // Step 1: Sync Menu Items
       currentStep++;
       onProgress(

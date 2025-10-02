@@ -3494,7 +3494,8 @@ export const getCashierOrderHistory = async (req, res) => {
             id: topping._id || topping.id, // fallback if structure changes
             name: topping.name,
             price: topping.price
-          })) : []
+          })) : [],
+          notes: item.notes
         }
       });
 

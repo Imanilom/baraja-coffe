@@ -324,6 +324,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                 item.selectedToppings
                     .map((topping) => {'id': topping.id})
                     .toList(),
+            'notes': item.notes ?? '',
           };
         }).toList(),
     'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
