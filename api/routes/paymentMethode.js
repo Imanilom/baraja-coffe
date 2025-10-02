@@ -125,14 +125,14 @@ router.get('/payment-methods-and-types', (req, res) => {
 
 router.get('/payment-methods', (req, res) => {
     const paymentMethods = [
-        {
-            name: 'QRIS',
-            icon: 'qris.png',
-            color: '#2196F3', // Colors.blue
-            payment_method: 'qris',
-            payment_method_name: 'E-Wallet',
-            bank_code: 'qris',
-        },
+        // {
+        //     name: 'QRIS',
+        //     icon: 'qris.png',
+        //     color: '#2196F3', // Colors.blue
+        //     payment_method: 'qris',
+        //     payment_method_name: 'E-Wallet',
+        //     bank_code: 'qris',
+        // },
         // {
         //     name: 'Gopay',
         //     icon: 'gopay.png',
