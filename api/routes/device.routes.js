@@ -10,20 +10,20 @@ const adminAccess = verifyToken(['admin', 'superadmin']);
 // ✅ OPTIMISED: GET ALL DEVICES dengan pagination dan filtering
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const { 
-      outlet, 
-      role, 
-      isActive, 
-      page = 1, 
+    const {
+      outlet,
+      role,
+      isActive,
+      page = 1,
       limit = 50,
-      search 
+      search
     } = req.query;
-    
+
     let filter = {};
     if (outlet) filter.outlet = outlet;
     if (role) filter.role = role;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
-    
+
     // Tambahkan search functionality
     if (search) {
       filter.$or = [
@@ -75,7 +75,7 @@ const deviceCache = new Map();
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const deviceId = req.params.id;
-    
+
     // Check cache first
     if (deviceCache.has(deviceId)) {
       const cached = deviceCache.get(deviceId);
@@ -130,7 +130,6 @@ router.post('/', adminAccess, async (req, res) => {
     const {
       deviceId,
       outlet,
-      role,
       location,
       deviceName,
       assignedAreas = [],
@@ -148,9 +147,9 @@ router.post('/', adminAccess, async (req, res) => {
     }
 
     // Check if device already exists
-    const existingDevice = await Device.findOne({ 
-      deviceId, 
-      outlet 
+    const existingDevice = await Device.findOne({
+      deviceId,
+      outlet
     }).session(session);
 
     if (existingDevice) {
@@ -164,7 +163,6 @@ router.post('/', adminAccess, async (req, res) => {
     const device = new Device({
       deviceId,
       outlet,
-      role,
       location,
       deviceName: deviceName || `Device-${deviceId}`,
       assignedAreas,
@@ -281,7 +279,7 @@ router.put('/:id', adminAccess, async (req, res) => {
       },
       { new: true, runValidators: true }
     ).populate('outlet', 'name code')
-     .populate('adjustedBy', 'name email');
+      .populate('adjustedBy', 'name email');
 
     if (!device) {
       return res.status(404).json({
@@ -326,7 +324,7 @@ router.patch('/:id/assignment', adminAccess, async (req, res) => {
       },
       { new: true, runValidators: true }
     ).populate('outlet', 'name code')
-     .populate('adjustedBy', 'name email');
+      .populate('adjustedBy', 'name email');
 
     if (!device) {
       return res.status(404).json({
@@ -446,7 +444,7 @@ router.delete('/:id', adminAccess, async (req, res) => {
 router.get('/status/connected', authMiddleware, async (req, res) => {
   try {
     const socketManagement = req.app.get('socketManagement');
-    
+
     if (!socketManagement) {
       return res.status(503).json({
         success: false,
@@ -478,7 +476,7 @@ router.get('/stats/overview', authMiddleware, async (req, res) => {
   try {
     const { outlet } = req.query;
     const cacheKey = `stats_${outlet || 'all'}`;
-    
+
     // Check cache (5 minute cache)
     if (statsCache.has(cacheKey)) {
       const cached = statsCache.get(cacheKey);
@@ -520,7 +518,7 @@ router.get('/stats/overview', authMiddleware, async (req, res) => {
           }
         }
       ]),
-      
+
       // Total stats
       Device.aggregate([
         { $match: matchStage },
@@ -534,7 +532,7 @@ router.get('/stats/overview', authMiddleware, async (req, res) => {
           }
         }
       ]),
-      
+
       // Recent activity
       Device.find(matchStage)
         .sort({ lastLogin: -1 })
@@ -581,10 +579,10 @@ router.get('/health/status', authMiddleware, async (req, res) => {
     const [totalDevices, connectedDevices, recentErrors] = await Promise.all([
       Device.countDocuments(),
       Device.countDocuments({ socketId: { $ne: null } }),
-      Device.countDocuments({ 
-        lastAdjustedAt: { 
-          $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) 
-        } 
+      Device.countDocuments({
+        lastAdjustedAt: {
+          $gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+        }
       })
     ]);
 
@@ -620,7 +618,7 @@ router.post('/cache/clear', adminAccess, async (req, res) => {
   try {
     const deviceCount = deviceCache.size;
     const statsCount = statsCache.size;
-    
+
     deviceCache.clear();
     statsCache.clear();
 

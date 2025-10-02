@@ -14,7 +14,7 @@ import {
   getAvailableMenuItems,
   getMenuByOutlet,
   getMenuByRating,
-  updateMenuActivated
+  updateMenuActivated,
 } from '../controllers/menu.controller.js';
 
 import { assignMenuItemsToCategory, createCategory, filterMenuByCategory, getCategories } from '../controllers/category.controller.js';

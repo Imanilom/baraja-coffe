@@ -19,6 +19,7 @@ class MenuItemRepository {
               .toList();
 
       // Urutkan data API berdasarkan nama (abjad)
+      print("Data menu yg diambil: ${menuItemsResponse['data'][3]}");
       menuItemsList.sort(
         (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
       );

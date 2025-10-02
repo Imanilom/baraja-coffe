@@ -188,4 +188,18 @@ OrderSchema.index({ isOpenBill: 1, originalReservationId: 1 });
 OrderSchema.index({ reservation: 1 });
 OrderSchema.index({ createdAtWIB: -1 }); // Index untuk pencarian berdasarkan WIB
 
+// Skema untuk riwayat pemindahan meja
+OrderSchema.add({
+  transferHistory: [{
+    fromTable: String,
+    toTable: String,
+    transferredBy: String, // Nama GRO yang mentransfer
+    reason: String,
+    transferredAt: {
+      type: Date,
+      default: () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }))
+    }
+  }]
+});
+
 export const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);
