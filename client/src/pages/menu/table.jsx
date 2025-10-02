@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { FaChevronLeft, FaChevronRight, FaPencilAlt, FaReceipt, FaTrashAlt } from "react-icons/fa";
 import Select from "react-select";
 import CategoryTabs from "./filters/categorytabs";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import MenuSkeleton from "./skeleton";
+import ConfirmationModalActive from "./confirmationModalAction";
+import axios from "axios";
 
 export default function MenuTable({
     categoryOptions,
@@ -22,19 +24,40 @@ export default function MenuTable({
     checkedItems,
     setCheckedItems,
     currentItems,
-    setSelectedMenu,
-    setNewStatus,
-    setIsConfirmOpen,
     formatCurrency,
     setCurrentPage,
     totalPages,
     handleDeleteSelected,
     customStyles,
     currentPage,
-    loading
+    loading,
+    fetchData
 }) {
 
     const location = useLocation();
+    const navigate = useNavigate();
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [newStatus, setNewStatus] = useState(null);
+    const [selectedMenu, setSelectedMenu] = useState(null);
+
+    const handleUpdate = async (itemId, newStatus) => {
+        try {
+            setTimeout(async () => {
+                try {
+                    await axios.put(`/api/menu/menu-items/activated/${itemId}`, { isActive: newStatus });
+                    navigate("/admin/menu", {
+                        state: { success: `Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
+                    });
+                    fetchData();
+                } catch (error) {
+                    console.error("Error updating menu:", error);
+                }
+            }, 2000);
+        } catch (error) {
+            console.error("Gagal update status:", error);
+            alert("Terjadi kesalahan saat update status");
+        }
+    };
 
     const renderPageNumbers = () => {
         let pages = [];
@@ -201,7 +224,6 @@ export default function MenuTable({
                                                     className={`text-xs font-medium ${item.isActive ? "text-green-900" : "text-gray-500"
                                                         }`}
                                                 >
-                                                    {item.isActive ? "Aktif" : "Tidak Aktif"}
                                                 </span>
                                                 <div className="relative inline-flex items-center">
                                                     <input
@@ -297,6 +319,23 @@ export default function MenuTable({
                     </button>
                 </div>
             )}
+
+            <ConfirmationModalActive
+                isOpen={isConfirmOpen}
+                menu={selectedMenu}
+                newStatus={newStatus}
+                onClose={() => {
+                    setIsConfirmOpen(false);
+                    setSelectedMenu(null);
+                    setNewStatus(null);
+                }}
+                onConfirm={async () => {
+                    await handleUpdate(selectedMenu.id, newStatus);
+                    setIsConfirmOpen(false);
+                    setSelectedMenu(null);
+                    setNewStatus(null);
+                }}
+            />
         </>
     )
 }

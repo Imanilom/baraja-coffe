@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaTablet, FaTabletAlt } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash, FaTablet, FaTabletAlt, FaPlus } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import { useSelector } from "react-redux";
+import Paginated from "../../../components/paginated";
 
 
 const DeviceManagement = () => {
-    const [attendances, setAttendances] = useState([]);
+    const { currentUser } = useSelector((state) => state.user);
+    const [device, setDevice] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -37,41 +40,44 @@ const DeviceManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch attendances and outlets data
+    // Fetch device and outlets data
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            // Fetch device data
+            const deviceResponse = await axios.get("/api/devices", {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
+            const deviceData = deviceResponse.data.data ? deviceResponse.data.data : [];
+            console.log(deviceData);
+            setDevice(deviceData);
+            setFilteredData(deviceData); // Initialize filtered data with all device
+
+            // Fetch outlets data
+            const outletsResponse = await axios.get('/api/outlet');
+
+            // Ensure outletsResponse.data is an array
+            const outletsData = Array.isArray(outletsResponse.data) ?
+                outletsResponse.data :
+                (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
+                    outletsResponse.data.data : [];
+
+            setOutlets(outletsData);
+
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            setError("Failed to load data. Please try again later.");
+            // Set empty arrays as fallback
+            setDevice([]);
+            setFilteredData([]);
+            setOutlets([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch attendances data
-                const attendancesResponse = [];
-
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setAttendances([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
     }, []);
 
@@ -203,29 +209,25 @@ const DeviceManagement = () => {
 
     return (
         <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
+
+            {/* Breadcrumb */}
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Perangkat</span>
+                </h1>
+                <Link
+                    to="/admin/billing/device/create"
+                    className="flex justify-between items-center gap-2 bg-green-900 rounded border border-green-900 text-white px-3 py-2"
+                >
+                    <FaPlus /> Tambah
                 </Link>
             </div>
 
-            {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2 py-[7px]">
-                    <FaTabletAlt size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Perangkat</p>
-                </div>
-            </div>
-
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-9 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
+            <div className="px-6">
+                <div className="my-[13px] py-[10px] grid grid-cols-9 gap-[10px] items-end rounded">
                     <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
+                        <div className="relative bg-white">
                             {!showInput ? (
                                 <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
                                     {tempSelectedOutlet || "Semua Outlet"}
@@ -263,8 +265,7 @@ const DeviceManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Status</label>
+                    <div className="flex flex-col col-span-3 bg-white">
                         <div className="relative">
                             {!showInput ? (
                                 <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
@@ -304,7 +305,6 @@ const DeviceManagement = () => {
                     </div>
 
                     <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
@@ -318,48 +318,16 @@ const DeviceManagement = () => {
                     </div>
                 </div>
 
-                {/* <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 py-4">
-                    <button
-                        className={`bg-white border-b-2 py-2 border-b-[#005429] focus:outline-none`}
-                        onClick={() => handleTabChange("menu")}
-                    >
-                        <Link className="flex justify-between items-center p-4">
-                            <div className="flex space-x-4">
-                                <FaTabletAlt size={24} className="text-gray-400" />
-                                <h2 className="text-gray-400 ml-2 text-sm">Perangkat Utama</h2>
-                            </div>
-                            <div className="text-sm text-gray-400">
-
-                            </div>
-                        </Link>
-                    </button>
-
-                    <div
-                        className={`bg-white border-b-2 py-2 border-b-white hover:border-b-[#005429] focus:outline-none`}
-                    >
-                        <Link className="flex justify-between items-center border-l border-l-gray-200 p-4"
-                            to={"/admin/billing/extra-device"}>
-                            <div className="flex space-x-4">
-                                <FaTabletAlt size={24} className="text-gray-400" />
-                                <h2 className="text-gray-400 ml-2 text-sm">Perangkat Tambahan</h2>
-                            </div>
-                            <div className="text-sm text-gray-400">
-
-                            </div>
-                        </Link>
-                    </div>
-                </div> */}
-
                 {/* Table */}
-                <div className="rounded shadow-slate-200 shadow-md">
+                <div className="rounded bg-white shadow-slate-200 shadow-md">
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
+                                <th className="px-4 py-3 font-normal">ID</th>
                                 <th className="px-4 py-3 font-normal">Nama Perangkat</th>
                                 <th className="px-4 py-3 font-normal">Outlet</th>
-                                <th className="px-4 py-3 font-normal">Masa Aktif</th>
+                                <th className="px-4 py-3 font-normal">Tipe</th>
                                 <th className="px-4 py-3 font-normal">Status</th>
-                                <th className="px-4 py-3 font-normal">Aktif Order Online</th>
                                 <th className="px-4 py-3 font-normal"></th>
                             </tr>
                         </thead>
@@ -369,63 +337,24 @@ const DeviceManagement = () => {
                                     try {
                                         return (
                                             <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
-                                                    {data.name || "-"}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.outlet || "-"}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.active || "-"}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.status || "-"}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.online || "-"}
-                                                </td>
-                                                <td className="px-4 py-3">
-
-                                                    {/* Dropdown Menu */}
-                                                    <div className="relative text-right">
-                                                        <button
-                                                            className="px-2 bg-white border border-gray-200 hover:bg-green-800 rounded-sm"
-                                                            onClick={() => setOpenDropdown(openDropdown === data._id ? null : data._id)}
-                                                        >
-                                                            <span className="text-xl text-gray-200 hover:text-white">
-                                                                •••
-                                                            </span>
-                                                        </button>
-                                                        {openDropdown === data._id && (
-                                                            <div className="absolute text-left text-gray-500 right-0 top-full mt-2 bg-white border rounded-md shadow-md w-[240px] z-10">
-                                                                <ul className="w-full">
-                                                                    <Link className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100"
-                                                                        to={`/admin/billing/device/${data._id}`}>
-                                                                        <FaPencilAlt size={18} />
-                                                                        <p>Edit</p>
-                                                                    </Link>
-                                                                    <li className="flex space-x-[18px] items-center px-[20px] py-[15px] text-sm cursor-pointer hover:bg-gray-100">
-                                                                        <FaTrash size={18} />
-                                                                        <button onClick={() => {
-                                                                            setItemToDelete(data._id);
-                                                                            setIsModalOpen(true);
-                                                                        }}>
-                                                                            Delete
-                                                                        </button>
-                                                                    </li>
-                                                                </ul>
-                                                            </div>
-                                                        )}
+                                                <td className="px-4 py-3">{data?.deviceId}</td>
+                                                <td className="px-4 py-3">{data?.deviceName}</td>
+                                                <td className="px-4 py-3">{data?.outlet?.name}</td>
+                                                <td className="px-4 py-3">{data?.deviceType}</td>
+                                                <td className="px-4 py-3">{data?.isActive === true ? "Aktif" : "Tidak Aktif"}</td>
+                                                <td className="px-4 py-3 flex justify-end">
+                                                    <div className="w-1/2 flex justify-center p-2 text-white bg-green-900 rounded border border-green-900">
+                                                        <FaPencilAlt />
                                                     </div>
                                                 </td>
                                             </tr>
                                         );
                                     } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, attendances);
+                                        console.error(`Error rendering product ${index}:`, err, device);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
                                                 <td colSpan="4" className="px-4 py-3 text-red-500">
-                                                    Error rendering attendances
+                                                    Error rendering device
                                                 </td>
                                             </tr>
                                         );
@@ -442,37 +371,11 @@ const DeviceManagement = () => {
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
-                {paginatedData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                        </span>
-                        {totalPages > 1 && (
-                            <div className="flex space-x-2">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Sebelumnya
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Berikutnya
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
             </div>
         </div>
     );

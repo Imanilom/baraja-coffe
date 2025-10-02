@@ -3,10 +3,14 @@ import { Order } from '../../models/order.model.js';
 import { processOrderItems } from '../../services/order.service.js';
 import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
+import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
 
 export async function createOrderHandler({ orderId, orderData, source, isOpenBill }) {
+  let session;
   try {
-    const orderResult = await runWithTransactionRetry(async (session) => {
+    session = await mongoose.startSession();
+    
+    const orderResult = await runWithTransactionRetry(async () => {
       // Process order items with inventory updates
       const processed = await processOrderItems(orderData, session);
       if (!processed) {
@@ -25,7 +29,6 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       let initialStatus = 'Pending';
       if (source === 'Cashier') {
         console.log('Source Cashier ', isOpenBill);
-        // initialStatus = orderData.paymentMethod === 'Cash' ? 'Completed' : 'Pending';
         initialStatus = isOpenBill ? 'Pending' : 'Waiting';
       }
 
@@ -62,27 +65,27 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       return {
         success: true,
         orderId: newOrder._id.toString(),
-        orderNumber: orderId, // Keep the original order ID for reference
+        orderNumber: orderId,
         processedItems: orderItems,
-        sessionInfo: {
-          id: session.id,
-          transactionId: session.transaction.id
-        }
+        // Jangan sertakan session info dalam job data
+        totals: totals
       };
-    });
+    }, session);
 
-    // Enqueue inventory update after successful transaction
+    // Enqueue inventory update setelah transaction selesai
     const queueResult = await enqueueInventoryUpdate(orderResult);
-    if (orderResult.orderType === 'Dine-In') {
-      updateTableStatusAfterPayment(order);
-      console.log('mejaa berhasil di ubah');
+    
+    if (orderData.orderType === 'Dine-In') {
+      // Panggil setelah transaction commit
+      setTimeout(() => {
+        updateTableStatusAfterPayment(orderResult.orderId);
+      }, 100);
     }
-
 
     return {
       ...queueResult,
       orderNumber: orderId,
-      grandTotal: orderResult.grandTotal
+      grandTotal: orderResult.totals.grandTotal
     };
 
   } catch (err) {
@@ -102,6 +105,10 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
     }
 
     throw err;
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
   }
 }
 
@@ -116,16 +123,16 @@ export async function enqueueInventoryUpdate(orderResult) {
       payload: {
         orderId: orderResult.orderId,
         orderNumber: orderResult.orderNumber,
-        items: orderResult.processedItems,
-        sessionInfo: orderResult.sessionInfo
+        items: orderResult.processedItems
+        // Hapus sessionInfo dari payload
       }
     };
 
     await orderQueue.add(
-      'inventory_update', // Queue name
+      'inventory_update',
       jobData,
       {
-        jobId: `inventory-update-${orderResult.orderId}`,
+        jobId: `inventory-update-${orderResult.orderId}-${Date.now()}`,
         attempts: 3,
         backoff: {
           type: 'exponential',
@@ -147,7 +154,6 @@ export async function enqueueInventoryUpdate(orderResult) {
       orderId: orderResult?.orderId
     });
 
-    // Implement fallback mechanism here if needed
     throw new Error('INVENTORY_UPDATE_ENQUEUE_FAILED');
   }
 }

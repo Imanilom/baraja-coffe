@@ -160,6 +160,7 @@ import UpdateSidebarMenu from "./pages/access/barmenu/update";
 import AnalyticsDashboard from "./pages/analytics";
 import QRCodeGenerator from "./pages/table/generateQr";
 import AssetManagement from "./pages/aset";
+import CreateDevice from "./pages/device/maindevice/create";
 
 
 export default function App() {
@@ -299,6 +300,7 @@ export default function App() {
 
                 {/* Device */}
                 <Route path="billing/device" element={<DeviceManagement />} />
+                <Route path="billing/device/create" element={<CreateDevice />} />
                 <Route path="billing/extra-device" element={<ExtraDeviceManagement />} />
                 <Route path="billing/extra-device/:id" element={<UpdateExtraDevice />} />
                 <Route path="billing/device/:id" element={<UpdateDevice />} />

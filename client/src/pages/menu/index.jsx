@@ -66,9 +66,6 @@ const Menu = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [category, setCategory] = useState([]);
   const [status, setStatus] = useState([]);
-  const [newStatus, setNewStatus] = useState(null);
-  const [selectedMenu, setSelectedMenu] = useState(null);
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [outlets, setOutlets] = useState([]);
   const [error, setError] = useState(null);
   const [checkedItems, setCheckedItems] = useState([]);
@@ -96,14 +93,14 @@ const Menu = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const menuResponse = await axios.get('/api/menu/menu-items');
+      const menuResponse = await axios.get('/api/menu/all-menu-items');
       setMenuItems(menuResponse.data.data);
 
       const outletsResponse = await axios.get('/api/outlet');
       setOutlets(outletsResponse.data.data);
 
       const categoryResponse = await axios.get('/api/menu/categories');
-      setCategory(categoryResponse.data.data.filter((cat) => !cat.parentCategory));
+      setCategory(categoryResponse.data.data.filter((cat) => !cat.parentCategory && cat.name !== "Event"));
 
       setStatus([
         { id: "ya", name: "Ya" },
@@ -174,28 +171,6 @@ const Menu = () => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
-  };
-
-  const handleUpdate = async (itemId, newStatus) => {
-    setLoading(true); // ⬅️ mulai loading
-    try {
-      setTimeout(async () => {
-        try {
-          await axios.put(`/api/menu/menu-items/activated/${itemId}`, { isActive: newStatus });
-          navigate("/admin/menu", {
-            state: { success: `Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
-          });
-          fetchData();
-        } catch (error) {
-          console.error("Error updating menu:", error);
-        } finally {
-          setLoading(false); // ⬅️ stop loading setelah selesai
-        }
-      }, 2000);
-    } catch (error) {
-      console.error("Gagal update status:", error);
-      alert("Terjadi kesalahan saat update status");
-    }
   };
 
   const handleDelete = async (itemId) => {
@@ -283,9 +258,6 @@ const Menu = () => {
         checkedItems={checkedItems}
         setCheckedItems={setCheckedItems}
         currentItems={currentItems}
-        setSelectedMenu={() => { }} // sementara kosong
-        setNewStatus={() => { }} // sementara kosong
-        setIsConfirmOpen={() => { }} // sementara kosong
         formatCurrency={formatCurrency}
         setCurrentPage={setCurrentPage}
         totalPages={totalPages}
@@ -295,6 +267,7 @@ const Menu = () => {
         customStyles={customStyles}
         currentPage={currentPage}
         loading={loading}
+        fetchData={fetchData}
       />
 
 
@@ -302,23 +275,6 @@ const Menu = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConfirm={() => handleDelete(itemToDelete)}
-      />
-
-      <ConfirmationModalActive
-        isOpen={isConfirmOpen}
-        menu={selectedMenu}
-        newStatus={newStatus}
-        onClose={() => {
-          setIsConfirmOpen(false);
-          setSelectedMenu(null);
-          setNewStatus(null);
-        }}
-        onConfirm={async () => {
-          await handleUpdate(selectedMenu.id, newStatus);
-          setIsConfirmOpen(false);
-          setSelectedMenu(null);
-          setNewStatus(null);
-        }}
       />
     </div>
   );

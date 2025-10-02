@@ -1,28 +1,30 @@
-// order.queue.js
-import { Queue, Worker } from 'bullmq';
+// queues/order/queue.js
+import { Queue, Worker, QueueEvents } from 'bullmq';
 import IORedis from 'ioredis';
 import { jobRouter } from '../workers/jobRouter.js';
 
-// const connection = new IORedis(process.env.REDIS_URL || 'redis://redis:6379', {
-//   maxRetriesPerRequest: null,
-// });
 const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
 });
 
-// ✅ Tambahkan queue instance
+// ✅ Queue instance
 export const orderQueue = new Queue('orderQueue', {
   connection
 });
 
-const worker = new Worker('orderQueue', async (job) => {
+// ✅ QueueEvents instance untuk waitUntilFinished
+export const queueEvents = new QueueEvents('orderQueue', {
+  connection
+});
+
+// ✅ Worker instance dengan retry logic
+export const orderWorker = new Worker('orderQueue', async (job) => {
   console.log(`Processing job ${job.id}`, {
     name: job.name,
     data: job.data,
     timestamp: new Date()
   });
 
-  // Ensure job data has required fields
   if (!job.data.type || !job.data.payload) {
     throw new Error(`Invalid job structure. Missing type or payload: ${JSON.stringify(job.data)}`);
   }
@@ -51,6 +53,15 @@ const worker = new Worker('orderQueue', async (job) => {
       stack: err.stack,
       timestamp: new Date()
     });
+    
+    // ✅ Tambahkan retry logic untuk transaction errors
+    if (err.message.includes('transaction') || err.message.includes('session')) {
+      if (job.attemptsMade < 3) {
+        console.log(`🔄 Retrying job ${job.id}, attempt ${job.attemptsMade + 1}`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * job.attemptsMade));
+      }
+    }
+    
     throw err;
   }
 }, {
@@ -59,18 +70,19 @@ const worker = new Worker('orderQueue', async (job) => {
   lockDuration: 30000
 });
 
-worker.on('failed', (job, err) => {
+// Event handlers
+orderWorker.on('failed', (job, err) => {
   console.error(`🚨 Job failed`, {
-    name: job.name,
-    id: job.id,
+    name: job?.name,
+    id: job?.id,
     error: err.message,
-    data: job.data,
-    failedReason: job.failedReason,
+    data: job?.data,
+    failedReason: job?.failedReason,
     timestamp: new Date()
   });
 });
 
-worker.on('completed', (job) => {
+orderWorker.on('completed', (job) => {
   console.log(`✔️ Job completed`, {
     name: job.name,
     id: job.id,
@@ -78,3 +90,9 @@ worker.on('completed', (job) => {
     timestamp: new Date()
   });
 });
+
+orderWorker.on('error', (err) => {
+  console.error('❌ Worker error:', err);
+});
+
+console.log('Order queue worker started...');
