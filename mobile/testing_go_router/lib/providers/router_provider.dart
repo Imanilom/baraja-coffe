@@ -1,4 +1,5 @@
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
@@ -287,12 +288,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/payment-process',
         pageBuilder: (context, state) {
           // Ambil PaymentModel dari state.extra
-          final PaymentModel payment = state.extra as PaymentModel;
+          // extra: {'payment': payment, 'order': orders},
+          final Map<String, dynamic> extras =
+              state.extra as Map<String, dynamic>;
+
+          final PaymentModel payment = extras['payment'] as PaymentModel;
+          final OrderDetailModel orders = extras['order'] as OrderDetailModel;
 
           return CustomTransitionPage(
             arguments: state.extra,
             child: PaymentProcessScreen(
               payment: payment,
+              order: orders,
             ), // Pass payment parameter
             transitionsBuilder: (
               context,

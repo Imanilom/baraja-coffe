@@ -213,7 +213,7 @@ class OrderDetailWidget extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  item.menuItem.name!,
+                  '${item.menuItem.name!} ${item.menuItem.workstation}',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,

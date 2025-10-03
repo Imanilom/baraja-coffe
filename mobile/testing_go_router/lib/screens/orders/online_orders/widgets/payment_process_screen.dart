@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
+import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
@@ -14,8 +15,13 @@ import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 
 class PaymentProcessScreen extends ConsumerStatefulWidget {
   final PaymentModel payment;
+  final OrderDetailModel order; // 👉 terima data order juga
 
-  const PaymentProcessScreen({super.key, required this.payment});
+  const PaymentProcessScreen({
+    super.key,
+    required this.payment,
+    required this.order,
+  });
 
   @override
   ConsumerState<PaymentProcessScreen> createState() =>
@@ -1252,11 +1258,13 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
 
       if (mounted) Navigator.pop(context);
       if (result.success) {
-        // final savedPrinter = ref.read(savedPrintersProvider.notifier);
-        // savedPrinter.printToPrinter(
-        //   orderDetail: updatedOrder,
-        //   printType: 'all',
-        // );
+        final savedPrinter = ref.read(savedPrintersProvider.notifier);
+        if (result.data?.orderType?.toLowerCase() != 'reservation') {
+          savedPrinter.printToPrinter(
+            orderDetail: widget.order,
+            printType: 'all',
+          );
+        }
         ref.read(pendingOrderDetailProvider.notifier).clearPendingOrderDetail();
         _showSuccessDialog();
       } else {

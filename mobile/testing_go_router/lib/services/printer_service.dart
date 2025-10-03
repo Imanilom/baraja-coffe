@@ -870,7 +870,9 @@ class PrinterService {
           );
         }
       }
-      if (item.notes != null && item.notes!.isNotEmpty) {
+      if (item.notes != null &&
+          item.notes!.isNotEmpty &&
+          item.notes!.trim().isNotEmpty) {
         bytes.addAll(
           generator.row([
             PosColumn(
@@ -1026,7 +1028,10 @@ class PrinterService {
           );
         }
       }
-      if (item.notes != null) {
+      //jangan tampilkan catatan jika isinya hanya spasi
+      if (item.notes != null &&
+          item.notes!.isNotEmpty &&
+          item.notes!.trim().isNotEmpty) {
         bytes.addAll(
           generator.row([
             PosColumn(
