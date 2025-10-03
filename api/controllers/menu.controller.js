@@ -458,6 +458,7 @@ export const getMenuItemsWithRecipes = async (req, res) => {
           availableAt: 1,
           workstation: 1,
           isActive: 1,
+          availableStock: 1,
           averageRating: {
             $cond: {
               if: { $gt: [{ $size: '$ratings' }, 0] },
@@ -495,6 +496,7 @@ export const getMenuItemsWithRecipes = async (req, res) => {
       addons: item.addons || [],
       availableAt: item.availableAt || [],
       workstation: item.workstation,
+      availableStock: item.availableStock,
       isActive: item.isActive,
       hasRecipe: true
     }));
@@ -544,8 +546,8 @@ export const getMenuItemsByOutletWithRecipes = async (req, res) => {
 
     // Ambil menu items yang memiliki resep dan tersedia di outlet tertentu
     const menuItems = await MenuItem.find({
-      _id: { 
-        $in: await Recipe.distinct('menuItemId') 
+      _id: {
+        $in: await Recipe.distinct('menuItemId')
       },
       $or: [
         { availableAt: { $in: [outletId] } },
@@ -553,23 +555,23 @@ export const getMenuItemsByOutletWithRecipes = async (req, res) => {
       ],
       isActive: true
     })
-    .populate([
-      { path: "toppings" },
-      { path: "availableAt" },
-      {
-        path: "addons",
-        populate: { path: "options" },
-      },
-      {
-        path: "category",
-        select: "name",
-      },
-      {
-        path: "subCategory",
-        select: "name",
-      },
-    ])
-    .sort({ name: 1 });
+      .populate([
+        { path: "toppings" },
+        { path: "availableAt" },
+        {
+          path: "addons",
+          populate: { path: "options" },
+        },
+        {
+          path: "category",
+          select: "name",
+        },
+        {
+          path: "subCategory",
+          select: "name",
+        },
+      ])
+      .sort({ name: 1 });
 
     // ... (sisa code formatting sama seperti sebelumnya)
 

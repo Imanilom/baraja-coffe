@@ -59,11 +59,10 @@ const UpdateMenu = () => {
     description: "",
     mainCategory: "",
     category: "",
-    subCategory: "",
+    subCategory: null,
     imageURL: "",
     toppings: [],
     addons: [],
-    rawMaterials: [],
     availableAt: [],
     workstation: ""
   });
@@ -77,7 +76,6 @@ const UpdateMenu = () => {
 
   const [categories, setCategories] = useState([]);
   const [allCategories, setAllCategories] = useState([]);
-  const [rawMaterials, setRawMaterials] = useState([]);
   const [outlets, setOutlets] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
   const [categoryMap, setCategoryMap] = useState({});
@@ -111,17 +109,6 @@ const UpdateMenu = () => {
       }
     };
 
-    const fetchRawMaterial = async () => {
-      try {
-        const response = await axios.get("/api/storage/raw-material");
-        setRawMaterials(response.data.data || []);
-      } catch (error) {
-        console.error("Error fetching raw materials:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     const fetchMenuItem = async () => {
       try {
         const response = await axios.get(`/api/menu/menu-items/${id}`);
@@ -139,7 +126,6 @@ const UpdateMenu = () => {
 
     fetchCategories();
     fetchOutlets();
-    fetchRawMaterial();
     fetchMenuItem(); // Fetch the menu item to update
   }, [id]);
 
@@ -162,12 +148,46 @@ const UpdateMenu = () => {
     label: category.name,
   }));
 
-  const allCategoryOptions = allCategories
-    .filter((cat) => cat.parentCategory === formData.category?.id)
-    .map((cat) => ({
-      value: cat._id,
-      label: cat.name,
-    }));
+  const allCategoryOptions = useMemo(() => {
+    // Validasi formData.category dan allCategories
+    if (!formData.category || allCategories.length === 0) return [];
+
+    // Ambil ID dari category - bisa _id atau id
+    let categoryId;
+    if (typeof formData.category === 'string') {
+      categoryId = formData.category;
+    } else if (formData.category) {
+      // Coba _id dulu, kalau tidak ada coba id
+      categoryId = formData.category._id || formData.category.id;
+    }
+
+    if (!categoryId) {
+      console.warn('Category ID tidak ditemukan:', formData.category);
+      return [];
+    }
+
+    // Filter sub-kategori yang parentCategory === categoryId
+    return allCategories
+      .filter((cat) => {
+        // Pastikan cat memiliki parentCategory
+        if (!cat.parentCategory) return false;
+
+        // Handle jika parentCategory berupa objek atau string
+        let parentId;
+        if (typeof cat.parentCategory === 'string') {
+          parentId = cat.parentCategory;
+        } else if (cat.parentCategory) {
+          // Coba _id dulu, kalau tidak ada coba id
+          parentId = cat.parentCategory._id || cat.parentCategory.id;
+        }
+
+        return parentId === categoryId;
+      })
+      .map((cat) => ({
+        value: cat._id || cat.id,
+        label: cat.name,
+      }));
+  }, [allCategories, formData.category]);
 
   const fileRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -268,11 +288,19 @@ const UpdateMenu = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    console.log(formData.category);
+
     const payload = {
       ...formData,
-      category: formData.category?.id || "",      // ambil hanya ID
-      subCategory: formData.subCategory?.id || "", // sama juga
+      category: typeof formData.category === 'string'
+        ? formData.category
+        : formData.category?._id || formData.category?.id,
+      subCategory: typeof formData.subCategory === 'string'
+        ? formData.subCategory || null
+        : formData.subCategory?._id || "",
     };
+
+    console.log(payload)
 
     try {
       await axios.put(`/api/menu/menu-items/${id}`, payload);

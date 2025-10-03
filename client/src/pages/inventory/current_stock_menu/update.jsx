@@ -150,7 +150,6 @@ const UpdateStockForm = ({ product, onSave, onCancel, currentUser, fetchStockCar
                     onChange={(e) => setManualStock(e.target.value)}
                     className="w-full border rounded px-3 py-2"
                     min={0}
-                    required
                 />
             </div>
 

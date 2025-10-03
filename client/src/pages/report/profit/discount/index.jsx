@@ -1,22 +1,61 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import Select from "react-select";
+import dayjs from "dayjs";
 
 
 const DiscountManagement = () => {
-    const [attendances, setAttendances] = useState([]);
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db', // Tailwind border-gray-300
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280', // text-gray-500
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            '&:hover': {
+                borderColor: '#9ca3af', // Tailwind border-gray-400
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500 for typed text
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af', // text-gray-400
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151', // gray-700
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            cursor: 'pointer',
+        }),
+    };
+
+    const [promo, setPromo] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
 
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 
@@ -36,16 +75,18 @@ const DiscountManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch attendances and outlets data
+    // Fetch promo and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch attendances data
-                const attendancesResponse = [];
+                // Fetch promo data
+                const promoOrderResponse = await axios.get('/api/orders');
+                const promoOrderData = [];
+                // const promoOrderData = promoOrderResponse.data.data ? promoOrderResponse.data.data : promoOrderResponse.data;
 
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
+                setPromo(promoOrderData);
+                setFilteredData(promoOrderData); // Initialize filtered data with all promo
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -63,7 +104,7 @@ const DiscountManagement = () => {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
                 // Set empty arrays as fallback
-                setAttendances([]);
+                setPromo([]);
                 setFilteredData([]);
                 setOutlets([]);
             } finally {
@@ -105,6 +146,14 @@ const DiscountManagement = () => {
         return result;
     }, [currentPage, filteredData]);
 
+    const options = [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ];
+
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
@@ -143,10 +192,10 @@ const DiscountManagement = () => {
     }, [search, uniqueOutlets]);
 
     // Apply filter function
-    const applyFilter = () => {
+    const applyFilter = useCallback(() => {
 
-        // Make sure attendances is an array before attempting to filter
-        let filtered = ensureArray([...attendances]);
+        // Make sure promo is an array before attempting to filter
+        let filtered = ensureArray([...promo]);
 
         // Filter by search term (product name, category, or SKU)
         if (tempSearch) {
@@ -228,17 +277,17 @@ const DiscountManagement = () => {
 
         setFilteredData(filtered);
         setCurrentPage(1); // Reset to first page after filter
-    };
+    }, [promo, tempSearch, tempSelectedOutlet, value])
 
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedOutlet("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(attendances));
-        setCurrentPage(1);
-    };
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
+
+    // Initial load
+    useEffect(() => {
+        applyFilter();
+    }, []);
 
     // Export current data to Excel
     const exportToExcel = () => {
@@ -300,111 +349,74 @@ const DiscountManagement = () => {
 
     return (
         <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/profit-menu" className="text-[15px] text-gray-500">Laporan Laba & Rugi</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Promo</span>
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Laporan</span>
+                    <FaChevronRight />
+                    <Link to="/admin/profit-menu">Laporan Laba & Rugi</Link>
+                    <FaChevronRight />
+                    <span>Promo</span>
                 </div>
-                <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                {/* <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button> */}
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-11 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
+            <div className="px-6">
+                <div className="py-2 flex justify-between">
+                    <div className="flex flex-col col-span-3 w-2/5">
+                        <div className="relative text-gray-500">
                             <Datepicker
                                 showFooter
                                 showShortcuts
                                 value={value}
                                 onChange={setValue}
                                 displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
                             />
-
-                            {/* Overlay untuk menyembunyikan ikon kalender */}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
                         </div>
                     </div>
 
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                    <div className="flex gap-2">
+                        <div className="flex">
+                            <div className="relative">
+                                <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Promo"
+                                    value={tempSearch}
+                                    onChange={(e) => setTempSearch(e.target.value)}
+                                    className="text-[13px] border py-2 pl-[30px] pr-[25px] rounded w-full"
+                                />
+                            </div>
+                        </div>
+
                         <div className="relative">
-                            <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Promo"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+                            <Select
+                                className="text-sm"
+                                classNamePrefix="react-select"
+                                placeholder="Pilih Outlet"
+                                options={options}
+                                isSearchable
+                                value={
+                                    options.find((opt) => opt.value === tempSelectedOutlet) || options[0]
+                                }
+                                onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                                styles={customSelectStyles}
                             />
                         </div>
                     </div>
-
+                    {/* 
                     <div className="flex justify-end space-x-2 items-end col-span-2">
                         <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
                         <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
-                    </div>
+                    </div> */}
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-slate-200 shadow-md">
+                <div className="overflow-x-auto rounded bg-white shadow-slate-200 shadow-md">
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
@@ -487,11 +499,6 @@ const DiscountManagement = () => {
                         </div>
                     </div>
                 )}
-            </div>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
             </div>
         </div>
     );

@@ -285,35 +285,38 @@ const DailyProfitManagement = () => {
 
     return (
         <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaClipboardList size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <Link to="/admin/profit-menu" className="text-[15px] text-gray-500">Laporan Laba Rugi</Link>
-                    <FaChevronRight className="text-[15px] text-gray-500" />
-                    <span className="text-[15px] text-[#005429]">Laba Harian</span>
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <p>Laporan</p>
+                    <FaChevronRight />
+                    <Link to="/admin/profit-menu">Laporan Laba Rugi</Link>
+                    <FaChevronRight />
+                    <span>Laba Harian</span>
                 </div>
-                <button
-                    // onClick={exportToExcel} 
-                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                {/* <button
+                    onClick={exportToExcel} 
+                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button> */}
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-12 gap-[10px] items-end rounded bg-gray-50 shadow-md">
-                    <div className="flex flex-col col-span-5">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
+            <div className="px-6">
+                <div className="flex justify-between">
+                    <div className="w-2/5">
+                        <div className="relative text-gray-500">
+                            <Datepicker
+                                showFooter
+                                showShortcuts
+                                value={value}
+                                onChange={setValue}
+                                displayFormat="DD-MM-YYYY"
+                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+                                popoverDirection="down"
+                            />
+                        </div>
+                    </div>
+                    <div className="w-1/5">
                         <div className="relative">
                             {!showInput ? (
                                 <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
@@ -351,33 +354,14 @@ const DailyProfitManagement = () => {
                             )}
                         </div>
                     </div>
-
-                    <div className="flex flex-col col-span-5">
-                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
-                        <div className="relative text-gray-500 after:content-['▼'] after:absolute after:right-3 after:top-1/2 after:-translate-y-1/2 after:text-[10px] after:pointer-events-none">
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
-
-                            {/* Overlay untuk menyembunyikan ikon kalender */}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 bg-white cursor-pointer"></div>
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
+                    {/* <div className="flex justify-end space-x-2 items-end col-span-2">
                         <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
                         <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
-                    </div>
+                    </div> */}
                 </div>
 
                 {/* Table */}
-                <div className="rounded shadow-md shadow-slate-200">
+                <div className="rounded shadow-md bg-white shadow-slate-200">
                     <table className="min-w-full table-auto">
                         <thead className="text-[14px] text-gray-400">
                             <tr>

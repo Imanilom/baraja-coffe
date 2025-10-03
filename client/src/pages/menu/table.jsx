@@ -199,7 +199,7 @@ export default function MenuTable({
                                         <td className="py-2 w-2/6">
                                             <div className="flex items-center">
                                                 <img
-                                                    src={item.imageUrl || "https://via.placeholder.com/100"}
+                                                    src={item.imageUrl}
                                                     alt={item.name}
                                                     className="w-10 h-10 object-cover rounded-lg border border-gray-200"
                                                 />

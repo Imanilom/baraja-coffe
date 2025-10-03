@@ -170,7 +170,7 @@ export default function App() {
         <main className="flex-grow">
           <Routes>
             {/* Halaman Umum */}
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<SignIn />} />
             <Route path="/about" element={<About />} />
             <Route path="example" element={<Example />} />
             <Route path="/download" element={<Download />} />
@@ -180,7 +180,7 @@ export default function App() {
             {/* Halaman Admin dengan Sidebar */}
             <Route element={<PrivateRoute allowedRoles={["admin", "superadmin", "qc", "inventory", "hrd", "operational", "marketing", "akuntan"]} />}>
               <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<AdminDashboard />} />
+                {/* <Route index element={<AdminDashboard />} /> */}
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="restaurant-analytics" element={<AnalyticsDashboard />} />
                 <Route path="example" element={<Example />} />

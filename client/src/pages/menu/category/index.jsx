@@ -119,6 +119,12 @@ const CategoryIndex = () => {
     fetchData();
   }, []);
 
+  const formatDateTime = (datetime) => {
+    const date = new Date(datetime);
+    const pad = (n) => n.toString().padStart(2, "0");
+    return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  };
+
   const openDeleteModal = (categoryId, categoryName) => {
     setSelectedCategoryId(categoryId);
     setSelectedCategoryName(categoryName);
@@ -232,7 +238,7 @@ const CategoryIndex = () => {
   };
 
   return (
-    <div className="">
+    <div className="pb-[60px]">
       {/* {message && (
         <div className="px-3 py-4">
           <p className="text-green-500 mb-4">{message}</p>
@@ -262,7 +268,7 @@ const CategoryIndex = () => {
 
       <div className="px-6">
         <div className="flex flex-wrap gap-4 md:justify-end items-center py-3">
-          <div className="flex flex-col col-span-5 w-2/5">
+          <div className="flex flex-col col-span-5 w-1/5">
             <div className="relative">
               <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -280,9 +286,12 @@ const CategoryIndex = () => {
             <thead className="text-gray-400">
               <tr className="text-left text-[13px]">
                 <th className="px-6 py-4 font-normal">
-                  Nama Kategori
+                  Waktu Submit
                 </th>
                 <th className="px-6 py-4 font-normal">
+                  Nama Kategori
+                </th>
+                <th className="px-6 py-4 font-normal text-right">
                   Jumlah Produk
                 </th>
                 <th className="px-6 py-4 font-normal text-right">
@@ -298,11 +307,12 @@ const CategoryIndex = () => {
 
                   return (
                     <tr className="text-sm" key={category._id}>
+                      <td className="px-6 py-4 whitespace-nowrap">{formatDateTime(category.createdAt)}</td>
                       <td className="px-6 py-4 whitespace-nowrap">{category.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{count}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">{count}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         {/* Dropdown Menu */}
-                        <div className="relative text-right">
+                        {/* <div className="relative text-right">
                           <button
                             className="px-2 bg-white border border-gray-200 hover:border-[#005429] hover:bg-[#005429] rounded-sm"
                             onClick={() =>
@@ -331,6 +341,22 @@ const CategoryIndex = () => {
                               </ul>
                             </div>
                           )}
+                        </div> */}
+                        <div className="flex justify-end items-center">
+                          <div className="flex gap-2">
+                            <Link
+                              className="p-3 text-sm bg-green-900 text-white rounded cursor-pointer flex items-center space-x-4 text-[14px]"
+                              to={`/admin/category-update/${category._id}`}
+                            >
+                              <FaPencilAlt />
+                            </Link>
+                            <button
+                              className="w-full p-3 text-sm cursor-pointer rounded hover:bg-gray-100 bg-red-600 text-white flex items-center space-x-4 text-[14px]"
+                              onClick={() => openDeleteModal(category._id, category.name)}
+                            >
+                              <FaTrash />
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
