@@ -1008,7 +1008,7 @@ class PaymentMethodScreen extends ConsumerWidget {
       // Submit order
       print('Submitting order with payment:');
       print(' - isDownPayment: $isDP');
-      final success = await orderDetailNotifier.submitOrder(state);
+      final success = await orderDetailNotifier.submitOrder(state, ref);
 
       print('Payment processed: success=$success');
 
@@ -1017,14 +1017,13 @@ class PaymentMethodScreen extends ConsumerWidget {
       if (success && context.mounted) {
         ref.invalidate(orderHistoryProvider);
         final savedPrinter = ref.read(savedPrintersProvider.notifier);
-        savedPrinter.printToPrinter(
-          orderDetail: updatedOrder,
-          printType: 'all',
-        );
+        final orderDetail = ref.watch(orderDetailProvider);
+        if (orderDetail == null) throw Exception('Order detail is null');
+        savedPrinter.printToPrinter(orderDetail: orderDetail, printType: 'all');
         context.goNamed(
           'payment-success',
           extra: {
-            'orderDetail': updatedOrder,
+            'orderDetail': orderDetail,
             'payment_method': paymentMethodName,
             'amount': amountNow,
             'change': change,

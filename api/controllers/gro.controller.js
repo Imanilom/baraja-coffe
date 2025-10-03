@@ -3,7 +3,7 @@ import { Order } from '../models/order.model.js';
 import Table from '../models/Table.model.js';
 import Area from '../models/Area.model.js';
 import { io } from '../index.js';
-
+import mongoose from "mongoose";
 /**
  * GRO Controller untuk management meja dan pesanan
  */

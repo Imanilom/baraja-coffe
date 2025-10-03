@@ -806,17 +806,89 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
+            text:
+                item.orderType != null
+                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType!)
+                    : '',
+            width: 1,
+            styles: const PosStyles(
+              align: PosAlign.left,
+              bold: true,
+              height: PosTextSize.size2,
+              width: PosTextSize.size1,
+              underline: true,
+            ),
+          ),
+          PosColumn(
             text: item.menuItem.name!,
-            width: 6,
-            styles: const PosStyles(align: PosAlign.left),
+            width: 8,
+            styles: const PosStyles(align: PosAlign.left, bold: true),
           ),
           PosColumn(
             text: 'x${item.quantity.toString()}',
-            width: 6,
+            width: 3,
             styles: const PosStyles(align: PosAlign.right),
           ),
         ]),
       );
+      if (item.selectedToppings.isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: ' ',
+              width: 2,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text:
+                  '+${item.selectedToppings.map((x) => x.name).toList().join(', ')}',
+              width: 10,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
+      }
+      if (item.selectedAddons.isNotEmpty) {
+        if (item.selectedAddons
+            .map((x) => x.options)
+            .where((element) => element != null)
+            .isNotEmpty) {
+          bytes.addAll(
+            generator.row([
+              PosColumn(
+                text: ' ',
+                width: 2,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+              PosColumn(
+                text:
+                    '+${item.selectedAddons.map((x) => x.options?.map((x) => x.label)).toList().join(', ')}',
+                width: 10,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+            ]),
+          );
+        }
+      }
+      if (item.notes != null &&
+          item.notes!.isNotEmpty &&
+          item.notes!.trim().isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: ' ',
+              width: 2,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: '  Catatan: ${item.notes}',
+              width: 10,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
+      }
+      bytes.addAll(generator.feed(1));
     }
     bytes.addAll(generator.hr());
     bytes.addAll(
@@ -888,9 +960,27 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
+            text:
+                item.orderType != null
+                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType!)
+                    : '',
+            width: 1,
+            styles: const PosStyles(
+              align: PosAlign.left,
+              bold: true,
+              height: PosTextSize.size2,
+              width: PosTextSize.size1,
+              underline: true,
+            ),
+          ),
+          PosColumn(
             text: item.menuItem.name!,
-            width: 9,
-            styles: const PosStyles(align: PosAlign.left),
+            width: 8,
+            styles: const PosStyles(
+              align: PosAlign.left,
+              bold: true,
+              underline: true,
+            ),
           ),
           PosColumn(
             text: 'x${item.quantity.toString()}',
@@ -899,6 +989,65 @@ class PrinterService {
           ),
         ]),
       );
+      if (item.selectedToppings.isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: ' ',
+              width: 2,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text:
+                  '+${item.selectedToppings.map((x) => x.name).toList().join(', ')}',
+              width: 10,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
+      }
+      if (item.selectedAddons.isNotEmpty) {
+        if (item.selectedAddons
+            .map((x) => x.options)
+            .where((element) => element != null)
+            .isNotEmpty) {
+          bytes.addAll(
+            generator.row([
+              PosColumn(
+                text: ' ',
+                width: 2,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+              PosColumn(
+                text:
+                    '+${item.selectedAddons.map((x) => x.options?.map((x) => x.label)).toList().join(', ')}',
+                width: 10,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+            ]),
+          );
+        }
+      }
+      //jangan tampilkan catatan jika isinya hanya spasi
+      if (item.notes != null &&
+          item.notes!.isNotEmpty &&
+          item.notes!.trim().isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: ' ',
+              width: 2,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: '  Catatan: ${item.notes}',
+              width: 10,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
+      }
+      bytes.addAll(generator.feed(1));
     }
     bytes.addAll(generator.hr());
     bytes.addAll(

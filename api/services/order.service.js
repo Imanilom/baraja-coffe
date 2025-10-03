@@ -9,6 +9,7 @@ import mongoose from 'mongoose';
  * Processes order items including pricing calculations and promotions
  */
 export async function processOrderItems({ items, outlet, orderType, voucherCode, customerType, source }, session) {
+  console.log({ items, outlet, orderType, voucherCode, customerType, source });
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new Error('Order items cannot be empty');
   }

@@ -66,12 +66,14 @@ class ProcessPaymentResponse {
 class ProcessPaymentData {
   final String orderId;
   final String orderStatus;
+  final String? orderType;
   final bool isFullyPaid;
   final List<ProcessedPayment> processedPayments;
 
   ProcessPaymentData({
     required this.orderId,
     required this.orderStatus,
+    this.orderType,
     required this.isFullyPaid,
     required this.processedPayments,
   });
@@ -80,6 +82,7 @@ class ProcessPaymentData {
     return ProcessPaymentData(
       orderId: json['order_id'] ?? '',
       orderStatus: json['order_status'] ?? '',
+      orderType: json['order_type'],
       isFullyPaid: json['is_fully_paid'] ?? false,
       processedPayments:
           (json['processed_payments'] as List? ?? [])

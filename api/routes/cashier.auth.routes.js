@@ -5,8 +5,9 @@ import { Device } from '../models/Device.model.js';
 import { DeviceSession } from '../models/DeviceSession.model.js';
 import User from "../models/user.model.js";
 import { Outlet } from '../models/Outlet.model.js';
-import { authMiddleware } from '../utils/verifyUser.js';
+import { authMiddleware, getUseroutlet } from '../utils/verifyUser.js';
 import { Mongoose } from 'mongoose';
+import Role from '../models/Role.model.js';
 
 const router = express.Router();
 
@@ -96,13 +97,14 @@ router.get('/devices-all', authMiddleware, async (req, res) => {
   try {
     const { id } = req.user;
     //find user dengan id di decoded.id
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(401).json({ message: 'User tidak ditemukan' });
-    }
-    //get outletId pertama dari user
-    const outletId = user.outlet[0].outletId;
-    console.log('user outlet id:', outletId);
+    const outletId = await getUseroutlet(id);
+    // const user = await User.findById(id);
+    // if (!user) {
+    //   return res.status(401).json({ message: 'User tidak ditemukan' });
+    // }
+    // //get outletId pertama dari user
+    // const outletId = user.outlet[0].outletId;
+    // console.log('user outlet id:', outletId);
 
     const devices = await Device.find({
       outlet: outletId,
@@ -151,51 +153,72 @@ router.get('/devices-all', authMiddleware, async (req, res) => {
 router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const { outletId } = req.user;
+    const userId = req.user?._id || req.user?.id; // antisipasi keduanya
 
-    // Verifikasi device milik outlet
-    const device = await Device.findOne({
-      _id: deviceId,
-      outlet: outletId
-    });
-
+    const outletId = await getUseroutlet(userId); // pastikan ini mengembalikan ObjectId / bisa di-cast
+    // validasi device milik outlet
+    const device = await Device.findOne({ _id: deviceId, outlet: outletId });
     if (!device) {
-      return res.status(404).json({
-        success: false,
-        message: 'Device tidak ditemukan'
+      return res.status(404).json({ success: false, message: 'Device tidak ditemukan' });
+    }
+
+    // 1) Ambil roleId dari nama role
+    const targetRoleNames = ['cashier senior', 'cashier junior', 'bar depan', 'bar belakang'];
+    const roles = await Role.find({ name: { $in: targetRoleNames } }).select('_id name');
+    const roleIds = roles.map(r => r._id);
+    console.log(roleIds);
+
+    // Safety: kalau roles kosong, langsung return empty
+    if (roleIds.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          device: {
+            id: device._id,
+            deviceName: device.deviceName,
+            location: device.location,
+            assignedAreas: device.assignedAreas
+          },
+          cashiers: []
+        }
       });
     }
 
-    // Get available cashiers (users dengan role cashier di outlet ini)
+    // 2) Query user: outlet.outletId (bukan 'outlets'), role pakai ObjectId
     const cashiers = await User.find({
-      outlets: outletId,
-      role: { $in: ['cashier_senior', 'cashier_junior', 'bar_depan', 'bar_belakang'] },
+      'outlet.outletId': outletId,
+      role: { $in: roleIds },
       isActive: true
     })
-      .select('name email role profilePicture')
-      .sort({ name: 1 });
-
-    // Cek apakah cashier sudah login di device lain
+      .select('username email phone role profilePicture password cashierType')
+      .sort({ name: 1 })
+      .lean(); // pakai lean untuk performa
+    console.log(cashiers);
+    // 3) Tandai kasir yg sedang login di device lain
     const cashiersWithStatus = await Promise.all(
       cashiers.map(async (cashier) => {
         const activeSession = await DeviceSession.findOne({
           user: cashier._id,
           isActive: true
-        }).populate('device', 'deviceName location');
+        })
+          .populate('device', 'deviceName location')
+          .lean();
 
         return {
-          ...cashier.toObject(),
+          ...cashier,
           isLoggedIn: !!activeSession,
-          currentDevice: activeSession ? {
-            deviceName: activeSession.device.deviceName,
-            location: activeSession.device.location,
-            loginTime: activeSession.loginTime
-          } : null
+          currentDevice: activeSession
+            ? {
+              deviceName: activeSession.device?.deviceName,
+              location: activeSession.device?.location,
+              loginTime: activeSession.loginTime,
+            }
+            : null,
         };
       })
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         device: {
@@ -204,10 +227,10 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
           location: device.location,
           assignedAreas: device.assignedAreas
         },
+        // cashiers: cashiers
         cashiers: cashiersWithStatus
       }
     });
-
   } catch (error) {
     console.error('Get available cashiers error:', error);
     res.status(500).json({
@@ -217,6 +240,7 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
     });
   }
 });
+
 
 // ✅ STEP 4: LOGIN CASHIER TO DEVICE
 router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res) => {

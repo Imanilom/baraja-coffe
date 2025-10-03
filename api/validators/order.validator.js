@@ -6,21 +6,32 @@ import { snap, coreApi } from '../utils/MidtransConfig.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+/**
+ * Validates and normalizes order data based on source
+ * @param {Object} data - order data
+ * @param {string} source - 'App' | 'Cashier' | 'Web'
+ * @returns {Object} normalized order data
+ */
 export function validateOrderData(data, source) {
-  // Common validation for all sources
-  if (!data.items || data.items.length === 0) {
+  // Basic validations
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid order data');
+  }
+  if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
     throw new Error('Order must contain at least one item');
   }
-
   if (!data.orderType) {
     throw new Error('Order type is required');
   }
 
-  // Source-specific validation
+  // Normalize orderType
+  const formattedOrderType = formatOrderType(data.orderType);
+
   switch (source) {
-    case 'App':
-      if (!data.userId) throw new Error('User ID is required');
-      if (!data.paymentDetails?.method) throw new Error('Payment method is required');
+    case 'App': {
+      if (!data.userId) throw new Error('User ID is required for App orders');
+      if (!data.paymentDetails?.method) throw new Error('Payment method is required for App orders');
 
       // Order type specific validation
       if (data.orderType === 'dineIn' && !data.tableNumber) {
@@ -38,34 +49,41 @@ export function validateOrderData(data, source) {
 
       return {
         ...data,
-        formattedOrderType: formatOrderType(data.orderType)
+        formattedOrderType
       };
+    }
 
-    case 'Cashier':
-      if (!data.items || !data.cashierId || !data.paymentMethod) {
-        throw new Error('Field wajib tidak lengkap untuk order kasir');
-      }
-      console.log("cek outlet :", data.outlet);
+    case 'Cashier': {
+      if (!data.cashierId) throw new Error('Cashier ID is required for Cashier orders');
+      if (!data.paymentMethod) throw new Error('Payment method is required for Cashier orders');
+
       return {
         items: data.items,
-        user: data.user,
+        user: data.user || null,
         cashierId: data.cashierId,
         paymentMethod: data.paymentMethod,
-        orderType: data.orderType,
-        tableNumber: data.tableNumber,
-        outlet: data.outlet,
-        isOpenBill: data.isOpenBill
+        orderType: formattedOrderType,
+        tableNumber: data.tableNumber || null,
+        outlet: data.outlet || null,
+        isOpenBill: Boolean(data.isOpenBill)
       };
+    }
 
-    case 'Web':
-      if (!data.user) throw new Error('User information is required');
-      if (!data.paymentMethod) throw new Error('Payment method is required');
-      return data;
+    case 'Web': {
+      if (!data.user) throw new Error('User information is required for Web orders');
+      if (!data.paymentMethod) throw new Error('Payment method is required for Web orders');
+
+      return {
+        ...data,
+        formattedOrderType
+      };
+    }
 
     default:
-      throw new Error('Invalid order source');
+      throw new Error(`Invalid order source: ${source}`);
   }
 }
+
 
 function formatOrderType(orderType) {
   const types = {

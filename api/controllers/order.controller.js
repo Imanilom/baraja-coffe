@@ -8,7 +8,7 @@ import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
 import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
-import { orderQueue, queueEvents  } from '../queues/order.queue.js';
+import { orderQueue, queueEvents } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
 import { io, broadcastNewOrder } from '../index.js';
@@ -1017,7 +1017,7 @@ const confirmOrderHelper = async (orderId) => {
 export const createUnifiedOrder = async (req, res) => {
   try {
     const { order_id, source } = req.body;
-    
+
     // Check if order already exists
     const existingOrder = await Order.findOne({ order_id: order_id });
     if (existingOrder) {
@@ -1040,6 +1040,7 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     const validated = validateOrderData(req.body, source);
+
     const { tableNumber, orderType, reservationData } = validated;
 
     // Generate order ID
@@ -1071,7 +1072,7 @@ export const createUnifiedOrder = async (req, res) => {
         isOpenBill: validated.isOpenBill,
         isReservation: orderType === 'reservation'
       }
-    }, { 
+    }, {
       jobId: orderId,
       removeOnComplete: true, // Optional: bersihkan job yang completed
       removeOnFail: false,   // Simpan job yang failed untuk debugging
@@ -1093,7 +1094,7 @@ export const createUnifiedOrder = async (req, res) => {
 
     } catch (queueErr) {
       console.error(`Job ${job.id} failed:`, queueErr);
-      
+
       // Dapatkan status job untuk informasi lebih detail
       const jobState = await job.getState();
       return res.status(500).json({
@@ -1134,7 +1135,7 @@ export const createUnifiedOrder = async (req, res) => {
       if (!order) {
         throw new Error(`Order ${orderId} not found after job completion`);
       }
-      
+
       const paymentData = {
         order_id: order.order_id,
         payment_code: generatePaymentCode(),
@@ -1157,14 +1158,14 @@ export const createUnifiedOrder = async (req, res) => {
           message: 'Cash payment, no Midtrans Snap required',
         });
       }
-      
+
       // Otherwise, create Midtrans Snap transaction
       const midtransRes = await createMidtransSnapTransaction(
         orderId,
         validated.paymentDetails.amount,
         validated.paymentDetails.method
       );
-      
+
       return res.status(200).json({
         status: 'waiting_payment',
         orderId,
@@ -1175,7 +1176,7 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     throw new Error('Invalid order source');
-    
+
   } catch (err) {
     console.error('Error in createUnifiedOrder:', err);
     return res.status(400).json({
@@ -2499,8 +2500,17 @@ export const getKitchenOrder = async (req, res) => {
     const orders = await Order.find({
       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Cancelled'] },
     })
-      .populate('items.menuItem')
-      .populate('reservation')
+      .populate({
+        path: 'items.menuItem',
+        select: 'name workstation', // bisa pilih field yg diperlukan
+      })
+      .populate({
+        path: 'reservation',
+        populate: [
+          { path: 'area_id', select: 'area_name' },
+          { path: 'table_id', select: 'table_number' },
+        ],
+      })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -2508,22 +2518,25 @@ export const getKitchenOrder = async (req, res) => {
     const filteredOrders = orders
       .map((order) => ({
         ...order,
-        items: order.items.filter((item) => item.menuItem?.workstation === 'kitchen'),
+        items: order.items.filter(
+          (item) => item.menuItem?.workstation === 'kitchen'
+        ),
       }))
       .filter((order) => order.items.length > 0); // hanya order yang punya kitchen items
 
-    // Debug log
-    // filteredOrders.forEach((order) => {
-    //   console.log('Order ID:', order.order_id);
-    //   console.log('Items (Kitchen only):', JSON.stringify(order.items, null, 2));
-    // });
-
-    res.status(200).json({ success: true, data: filteredOrders });
+    res.status(200).json({
+      success: true,
+      data: filteredOrders, // sudah termasuk reservation populated
+    });
   } catch (error) {
     console.error('Error fetching kitchen orders:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch kitchen orders' });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch kitchen orders',
+    });
   }
 };
+
 
 
 export const updateKitchenOrderStatus = async (req, res) => {
@@ -2757,7 +2770,8 @@ export const getPendingOrders = async (req, res) => {
           menuItem: menuItem ? {
             id: menuItem._id,
             name: menuItem.name,
-            originalPrice: menuItem.price
+            originalPrice: menuItem.price,
+            workstation: menuItem.workstation
           } : null,
           selectedToppings: item.toppings || [],
           selectedAddons: enrichedAddons,
@@ -3517,7 +3531,8 @@ export const getCashierOrderHistory = async (req, res) => {
             id: topping._id || topping.id, // fallback if structure changes
             name: topping.name,
             price: topping.price
-          })) : []
+          })) : [],
+          notes: item.notes
         }
       });
 
@@ -4379,6 +4394,7 @@ export const processPaymentCashier = async (req, res) => {
       data: {
         order_id: order.order_id,
         order_status: order.status,
+        order_type: order.orderType,
         is_fully_paid: isFullyPaid,
         processed_payments: payments.map(p => ({
           payment_id: p._id,

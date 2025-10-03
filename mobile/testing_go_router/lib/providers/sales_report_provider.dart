@@ -82,7 +82,7 @@ class SalesSummaryNotifier extends AsyncNotifier<SalesSummary> {
   Future<SalesSummary> _fetchSalesSummary(SalesFilter filter) async {
     final apiService = ref.read(salesReportServiceProvider);
     return await apiService.fetchSalesReportSummary(
-      HiveService.outletId,
+      await HiveService.outletId,
       filter.startDate,
       filter.endDate,
       filter.cashierId,
@@ -123,7 +123,7 @@ class OrderDetailReportNotifier extends AsyncNotifier<OrderDetailState> {
   Future<OrderDetailReport> _fetchOrders(SalesFilter filter, int page) async {
     final service = ref.read(salesReportServiceProvider);
     return await service.fetchOrderDetailReport(
-      outletId: HiveService.outletId,
+      outletId: await HiveService.outletId,
       startDate: filter.startDate,
       endDate: filter.endDate,
       cashierId: filter.cashierId,
@@ -196,7 +196,7 @@ class SalesAnaliticsNotifier extends AsyncNotifier<SalesAnalyticsReport> {
   Future<SalesAnalyticsReport> _fetchSalesAnalytics(SalesFilter filter) async {
     final apiService = ref.read(salesReportServiceProvider);
     return await apiService.fetchSalesAnalyticsReport(
-      outletId: HiveService.outletId,
+      outletId: await HiveService.outletId,
       startDate: filter.startDate,
       endDate: filter.endDate,
       cashierId: filter.cashierId,
@@ -234,7 +234,7 @@ class SalesPerformanceNotifier extends AsyncNotifier<PerformanceReportModel> {
   ) async {
     final apiService = ref.read(salesReportServiceProvider);
     return await apiService.fetchPerformanceReport(
-      outletId: HiveService.outletId,
+      outletId: await HiveService.outletId,
       startDate: filter.startDate,
       endDate: filter.endDate,
       cashierId: filter.cashierId,

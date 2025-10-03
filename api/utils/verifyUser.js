@@ -116,6 +116,17 @@ export const authMiddleware = (req, res, next) => {
   }
 };
 
+export const getUseroutlet = async (id) => {
+  const user = await User.findById(id);
+  if (!user) {
+    return res.status(401).json({ message: 'User tidak ditemukan' });
+  }
+  //get outletId pertama dari user
+  const outletId = user.outlet[0].outletId;
+  console.log('user outlet id:', outletId);
+  return outletId;
+};
+
 // // Middleware tambahan untuk membatasi akses peran tertentu
 // export const authorizeRole = (allowedRoles) => {
 //     return (req, res, next) => {
