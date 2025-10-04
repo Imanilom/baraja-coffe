@@ -49,7 +49,7 @@ class DataSyncService {
     required Function(DataSyncProgress) onProgress,
     // String? token,
   }) async {
-    const totalSteps = 3;
+    const totalSteps = 6;
     int currentStep = 0;
 
     try {
@@ -192,4 +192,34 @@ final dataSyncProvider =
       final dataSyncService = ref.read(dataSyncServiceProvider);
       final authState = ref.read(tryAuthProvider.notifier);
       return DataSyncNotifier(dataSyncService, authState);
+    });
+
+class UpdateDataSyncNotifier extends StateNotifier<DataSyncProgress?> {
+  final DataSyncService _dataSyncService;
+
+  UpdateDataSyncNotifier(this._dataSyncService) : super(null);
+
+  Future<void> syncData({String? token}) async {
+    try {
+      await _dataSyncService.syncAllData(
+        onProgress: (progress) {
+          state = progress;
+        },
+        // token: token,
+      );
+    } catch (e) {
+      // Error is already handled in syncAllData
+      rethrow;
+    }
+  }
+
+  void reset() {
+    state = null;
+  }
+}
+
+final updateDataSyncProvider =
+    StateNotifierProvider<UpdateDataSyncNotifier, DataSyncProgress?>((ref) {
+      final dataSyncService = ref.read(dataSyncServiceProvider);
+      return UpdateDataSyncNotifier(dataSyncService);
     });
