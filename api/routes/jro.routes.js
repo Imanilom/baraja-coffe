@@ -7,7 +7,9 @@ import {
     completeReservation,
     cancelReservation,
     closeOpenBill,
-    getTableAvailability
+    getTableAvailability,
+    checkInReservation,
+    checkOutReservation
 } from '../controllers/jro.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -26,6 +28,8 @@ router.put('/reservations/:id/confirm', confirmReservation);
 router.put('/reservations/:id/complete', completeReservation);
 router.put('/reservations/:id/cancel', cancelReservation);
 router.put('/reservations/:id/close-open-bill', closeOpenBill);
+router.put('/reservations/:id/check-in', checkInReservation);
+router.put('/reservations/:id/check-out', checkOutReservation);
 
 // Table Availability
 router.get('/tables/availability', getTableAvailability);

@@ -1,5 +1,10 @@
 import mongoose from 'mongoose';
 
+// Helper function untuk mendapatkan waktu WIB sekarang
+const getWIBNow = () => {
+    return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+};
+
 const reservationSchema = new mongoose.Schema({
     reservation_code: {
         type: String,
@@ -43,14 +48,68 @@ const reservationSchema = new mongoose.Schema({
         enum: ['pending', 'confirmed', 'cancelled', 'completed'],
         default: 'pending'
     },
+
+    // ✅ PENAMBAHAN: Penanggung jawab reservasi (untuk walk-in customer)
+    created_by: {
+        employee_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        employee_name: {
+            type: String,
+            default: null
+        },
+        created_at: {
+            type: Date,
+            default: () => getWIBNow()
+        }
+    },
+
     check_in_time: {
         type: Date,
         default: null
     },
+
+    // ✅ PENAMBAHAN: Penanggung jawab check-in
+    checked_in_by: {
+        employee_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        employee_name: {
+            type: String,
+            default: null
+        },
+        checked_in_at: {
+            type: Date,
+            default: null
+        }
+    },
+
     check_out_time: {
         type: Date,
         default: null
     },
+
+    // ✅ PENAMBAHAN: Penanggung jawab check-out
+    checked_out_by: {
+        employee_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        employee_name: {
+            type: String,
+            default: null
+        },
+        checked_out_at: {
+            type: Date,
+            default: null
+        }
+    },
+
     notes: {
         type: String,
         default: ''
@@ -69,7 +128,17 @@ const reservationSchema = new mongoose.Schema({
     },
     food_serving_time: {
         type: Date,
-        default: null // Diisi jika food_serving_option = 'scheduled'
+        default: null
+    },
+
+    // ✅ Waktu dalam WIB
+    createdAtWIB: {
+        type: Date,
+        default: () => getWIBNow()
+    },
+    updatedAtWIB: {
+        type: Date,
+        default: () => getWIBNow()
     }
 }, {
     timestamps: true
@@ -81,30 +150,40 @@ reservationSchema.index({
     reservation_time: 1,
     area_id: 1
 });
-
 reservationSchema.index({
     reservation_date: 1,
     reservation_time: 1,
     table_id: 1
 });
-
 reservationSchema.index({
     reservation_code: 1
 });
+reservationSchema.index({
+    'created_by.employee_id': 1
+});
+reservationSchema.index({
+    'checked_in_by.employee_id': 1
+});
+reservationSchema.index({
+    'checked_out_by.employee_id': 1
+});
 
-// PERBAIKAN: Generate reservation code before validation
+// Pre-save middleware untuk update updatedAtWIB
+reservationSchema.pre('save', function (next) {
+    this.updatedAtWIB = getWIBNow();
+    next();
+});
+
+// Generate reservation code before validation
 reservationSchema.pre('validate', async function (next) {
     if (!this.reservation_code) {
         try {
             const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-
-            // PERBAIKAN: Gunakan createdAt yang sesuai dengan timestamps: true
             const count = await mongoose.model('Reservation').countDocuments({
-                createdAt: { // Ubah dari created_at ke createdAt
+                createdAt: {
                     $gte: new Date(new Date().toDateString())
                 }
             });
-
             this.reservation_code = `RSV-${date}-${String(count + 1).padStart(3, '0')}`;
         } catch (error) {
             console.error('Error generating reservation code:', error);
@@ -113,6 +192,29 @@ reservationSchema.pre('validate', async function (next) {
     }
     next();
 });
+
+// Virtual fields untuk format WIB
+reservationSchema.virtual('createdAtWIBFormatted').get(function () {
+    return this.createdAt ? this.formatToWIB(this.createdAt) : null;
+});
+
+reservationSchema.virtual('updatedAtWIBFormatted').get(function () {
+    return this.updatedAt ? this.formatToWIB(this.updatedAt) : null;
+});
+
+// Method untuk format WIB
+reservationSchema.methods.formatToWIB = function (date) {
+    if (!date) return null;
+    return date.toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+};
 
 const Reservation = mongoose.model('Reservation', reservationSchema);
 export default Reservation;
