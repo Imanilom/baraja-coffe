@@ -215,9 +215,13 @@ export const getReservationDetail = async (req, res) => {
 };
 
 // PUT /api/jro/reservations/:id/confirm - Confirm reservation
+// PUT /api/jro/reservations/:id/confirm - Confirm reservation
 export const confirmReservation = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.user?.id; // Dari auth middleware
+
+        console.log('Confirming reservation ID:', id, 'by user ID:', userId);
 
         const reservation = await Reservation.findById(id);
         if (!reservation) {
@@ -241,12 +245,22 @@ export const confirmReservation = async (req, res) => {
             });
         }
 
+        // Get employee info
+        const employee = await User.findById(userId).select('username');
+
         reservation.status = 'confirmed';
+        reservation.confirm_by = {
+            employee_id: userId,
+            employee_name: employee?.username || 'Unknown',
+            confirmed_at: getWIBNow()
+        };
+
         await reservation.save();
 
         const updated = await Reservation.findById(id)
             .populate('area_id', 'area_name area_code')
-            .populate('table_id', 'table_number seats');
+            .populate('table_id', 'table_number seats')
+            .populate('confirm_by.employee_id', 'username');
 
         res.json({
             success: true,
@@ -262,7 +276,6 @@ export const confirmReservation = async (req, res) => {
         });
     }
 };
-
 // PUT /api/jro/reservations/:id/check-in - Check-in reservation
 export const checkInReservation = async (req, res) => {
     try {

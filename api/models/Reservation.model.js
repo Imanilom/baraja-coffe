@@ -66,6 +66,22 @@ const reservationSchema = new mongoose.Schema({
         }
     },
 
+    confirm_by: {
+        employee_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        employee_name: {
+            type: String,
+            default: null
+        },
+        confirmed_at: {
+            type: Date,
+            default: null
+        }
+    },
+
     check_in_time: {
         type: Date,
         default: null
