@@ -2,7 +2,7 @@ import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
-import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
+import 'package:kasirbaraja/providers/go_router_refresh.dart';
 import 'package:kasirbaraja/screens/auth/login_cashier_screen.dart';
 import 'package:kasirbaraja/screens/data_sync_screen.dart';
 import 'package:kasirbaraja/screens/main_screen.dart';
@@ -17,7 +17,6 @@ import 'package:kasirbaraja/screens/settings/widgets/detail_printer_screen.dart'
 import 'package:kasirbaraja/screens/settings/widgets/scan_network_printer_screen.dart';
 import 'package:kasirbaraja/screens/settings/widgets/scan_printer_screen.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/widgets/payment_process_screen.dart';
-import 'package:kasirbaraja/services/hive_service.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/boarding/splash_screen.dart';
 import 'package:flutter/material.dart';
@@ -25,9 +24,11 @@ import 'package:flutter/material.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(tryAuthProvider);
   // final authCashierState = ref.watch(authCashierProvider);
-  final cashierId = HiveService.getCashier();
+  // final cashierId = HiveService.getCashier();
 
   return GoRouter(
+    // Agar router refresh saat auth status berubah
+    // refreshListenable: GoRouterRefreshStream(ref.watch(tryAuthProvider.stream)),
     errorBuilder: (context, state) {
       return const Scaffold(body: Center(child: Text('Page not found')));
     },
@@ -406,63 +407,36 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
     redirect: (context, state) {
-      final authStatus = authState.value;
+      // Saat status masih loading, biarkan di splash
+      if (authState.isLoading) return null;
 
-      debugPrint('Redirect triggered for: ${state.uri.toString()}');
+      final s = authState.value;
+      if (s == null) return null;
 
-      // if (state.matchedLocation.startsWith('/settings')) {
-      //   return null;
-      // }
-      if (![
+      const guardable = {
         '/',
         '/login',
         '/data-sync',
         '/login-cashier',
         '/main',
-      ].contains(state.matchedLocation)) {
-        return null;
+      };
+      if (!guardable.contains(state.matchedLocation)) return null;
+
+      final isLogin = state.matchedLocation == '/login';
+      final isSync = state.matchedLocation == '/data-sync';
+      final isPin = state.matchedLocation == '/login-cashier';
+      final isMain = state.matchedLocation == '/main';
+
+      switch (s) {
+        case AuthStatus.unauthenticated:
+          return isLogin ? null : '/login';
+        case AuthStatus.needDataSync:
+          return isSync ? null : '/data-sync';
+        case AuthStatus.needPin:
+          return isPin ? null : '/login-cashier';
+        case AuthStatus.authenticated:
+          return isMain ? null : '/main';
       }
-
-      print('authStatus di go router 1: $authStatus');
-
-      print('state di go router: ${authStatus == null}');
-
-      if (authStatus == null) return null;
-      print('authStatus di go router 2: $authStatus');
-
-      final isGoingToAuth = state.matchedLocation == '/login';
-      final isGoingToDataSync = state.matchedLocation == '/data-sync';
-      final isGoingToPin = state.matchedLocation == '/login-cashier';
-      final isGoingToMain = state.matchedLocation == '/main';
-
-      print(
-        'isGoingToAuth: $isGoingToAuth ,'
-        'isGoingToDataSync: $isGoingToDataSync,'
-        'isGoingToPin: $isGoingToPin',
-      );
-      // Redirect rules
-      if (authStatus == AuthStatus.unauthenticated) {
-        return isGoingToAuth ? null : '/login';
-      } else if (authStatus == AuthStatus.needDataSync) {
-        return isGoingToDataSync ? null : '/data-sync';
-      } else if (authStatus == AuthStatus.needPin) {
-        return isGoingToPin ? null : '/login-cashier';
-      } else if (authStatus == AuthStatus.authenticated) {
-        if (!isGoingToMain) {
-          print('pertama disini');
-          return '/main';
-        }
-      }
-
-      print('authStatus di go router 3: $authStatus');
-      final socket = ref.read(socketServiceProvider);
-      print('sedang connect socket...');
-      if (cashierId.toString() != '') {
-        socket.connect(cashierId.toString());
-      }
-      print('connect socket di go router: ${socket.socket.connected}');
-
-      return state.uri.toString(); // Allow navigation
     },
   );
 });

@@ -4,19 +4,33 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
-import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/screens/orders/order_screen.dart';
-import 'package:kasirbaraja/screens/reports/sales_report_screen.dart';
-import 'package:kasirbaraja/screens/reservation/reservation_screen.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/order_history.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/online_order.dart';
 import 'package:kasirbaraja/screens/orders/pending_orders/pending_order_screen.dart';
+import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
 
-class MainScreen extends ConsumerWidget {
+class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
+  @override
+  ConsumerState<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends ConsumerState<MainScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final box = Hive.box('userBox');
+      final cashier = box.get('cashier') as CashierModel?;
+      if (cashier?.id != null && cashier!.id!.isNotEmpty) {
+        ref.read(socketServiceProvider).connect(cashier.id!);
+      }
+    });
+  }
 
   int _getOnlineOrderCount(WidgetRef ref) {
     final onlineOrders = ref.watch(onlineOrderProvider).valueOrNull ?? [];
@@ -57,17 +71,15 @@ class MainScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final currentPageIndex = ref.watch(currentPageIndexProvider);
     final currentWidgetIndex = ref.watch(currentWidgetIndexProvider);
     //order onlineindicator provider
     final orderOnlineIndicator = ref.watch(orderOnlineIndicatorProvider);
 
     final box = Hive.box('userBox');
-    final user = box.get('user') as UserModel;
     final cashier = box.get('cashier') as CashierModel;
 
-    //kalo true tampilkan snackbar
     if (orderOnlineIndicator) {
       ScaffoldMessenger.of(
         context,
