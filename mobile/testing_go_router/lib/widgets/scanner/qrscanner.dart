@@ -483,6 +483,7 @@ class _QRScannerOverlayState extends ConsumerState<QRScannerOverlay> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
+                Navigator.of(context).pop();
                 print(
                   'Navigating to Order Detail with orderDetail: $orderDetail',
                 );

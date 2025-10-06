@@ -209,6 +209,7 @@ Widget _buildStatisticsRow(
                       fontSize: 12,
                       color: Colors.blue.shade600,
                       fontWeight: FontWeight.w500,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -251,6 +252,7 @@ Widget _buildStatisticsRow(
                 builder:
                     (context) => QRScannerOverlay(
                       onScanned: (scannedData) {
+                        ref.read(onlineOrderProvider.notifier).refresh();
                         _handleScannedData(context, ref, scannedData);
                       },
                     ),
