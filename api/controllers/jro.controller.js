@@ -215,7 +215,7 @@ export const getReservationDetail = async (req, res) => {
 };
 
 // PUT /api/jro/reservations/:id/confirm - Confirm reservation
-// PUT /api/jro/reservations/:id/confirm - Confirm reservation
+
 export const confirmReservation = async (req, res) => {
     try {
         const { id } = req.params;
@@ -608,7 +608,7 @@ export const getTableAvailability = async (req, res) => {
         };
 
         if (time) {
-            filter.reservation_time = time;
+            filter.reservation_date = time;
         }
 
         if (area_id) {
@@ -654,6 +654,142 @@ export const getTableAvailability = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error fetching table availability',
+            error: error.message
+        });
+    }
+};
+
+// PUT /api/jro/reservations/:id/transfer-table - Transfer reservation to different table(s)
+export const transferTable = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { new_table_ids, reason } = req.body;
+        const userId = req.user?.id;
+
+        // Validasi input
+        if (!new_table_ids || !Array.isArray(new_table_ids) || new_table_ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'New table IDs are required and must be an array'
+            });
+        }
+
+        // Cari reservasi
+        const reservation = await Reservation.findById(id)
+            .populate('table_id', 'table_number')
+            .populate('area_id', 'area_name');
+
+        if (!reservation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Reservation not found'
+            });
+        }
+
+        // Validasi status reservasi
+        if (reservation.status === 'cancelled') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot transfer cancelled reservation'
+            });
+        }
+
+        if (reservation.status === 'completed') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot transfer completed reservation'
+            });
+        }
+
+        // Validasi meja baru tersedia
+        const newTables = await Table.find({
+            _id: { $in: new_table_ids },
+            is_active: true
+        }).populate('area_id', 'area_name area_code');
+
+        if (newTables.length !== new_table_ids.length) {
+            return res.status(400).json({
+                success: false,
+                message: 'Some tables are not found or inactive'
+            });
+        }
+
+        // Cek ketersediaan meja baru
+        const conflictingReservations = await Reservation.find({
+            _id: { $ne: id },
+            reservation_date: reservation.reservation_date,
+            reservation_time: reservation.reservation_time,
+            status: { $in: ['confirmed', 'pending'] },
+            table_id: { $in: new_table_ids }
+        });
+
+        if (conflictingReservations.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'One or more new tables are already reserved for this time slot'
+            });
+        }
+
+        // Get employee info
+        const employee = await User.findById(userId).select('username');
+
+        // Simpan riwayat meja lama
+        const oldTableNumbers = reservation.table_id.map(t => t.table_number).join(', ');
+        const newTableNumbers = newTables.map(t => t.table_number).join(', ');
+
+        // Update reservasi
+        reservation.table_id = new_table_ids;
+
+        // Tambahkan catatan transfer
+        const transferNote = `[${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Pindah meja dari ${oldTableNumbers} ke ${newTableNumbers} oleh ${employee?.username || 'Unknown'}${reason ? ` - Alasan: ${reason}` : ''}`;
+
+        reservation.notes = reservation.notes
+            ? `${transferNote}\n${reservation.notes}`
+            : transferNote;
+
+        // Tambahkan history transfer (opsional, jika ada field history)
+        if (!reservation.transfer_history) {
+            reservation.transfer_history = [];
+        }
+
+        reservation.transfer_history.push({
+            old_tables: reservation.table_id,
+            new_tables: new_table_ids,
+            transferred_by: {
+                employee_id: userId,
+                employee_name: employee?.username || 'Unknown'
+            },
+            transferred_at: getWIBNow(),
+            reason: reason || 'No reason provided'
+        });
+
+        await reservation.save();
+
+        // Ambil data lengkap setelah update
+        const updated = await Reservation.findById(id)
+            .populate('area_id', 'area_name area_code')
+            .populate('table_id', 'table_number seats table_type')
+            .populate('order_id', 'order_id grandTotal status');
+
+        res.json({
+            success: true,
+            message: 'Table transferred successfully',
+            data: {
+                reservation: updated,
+                transfer_info: {
+                    old_tables: oldTableNumbers,
+                    new_tables: newTableNumbers,
+                    transferred_by: employee?.username || 'Unknown',
+                    transferred_at: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+                    reason: reason || 'No reason provided'
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error transferring table:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error transferring table',
             error: error.message
         });
     }
