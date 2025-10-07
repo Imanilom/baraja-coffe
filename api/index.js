@@ -38,6 +38,7 @@ import SidebarRoutes from './routes/sidebar.routes.js';
 import AnalyticsRoutes from './routes/analytics.routes.js';
 import AssetRoutes from './routes/asset.route.js';
 import JroRoutes from './routes/jro.routes.js';
+import RefundRoutes from './routes/refund.routes.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
@@ -140,6 +141,7 @@ app.use('/api/logs', LogRoutes);
 app.use('/api/sidebar', SidebarRoutes);
 app.use('/api/analytics', AnalyticsRoutes);
 app.use('/api/assets', AssetRoutes);
+app.use('/api/refunds', RefundRoutes);
 app.post('/api/midtrans/webhook', midtransWebhook);
 
 // 🔹 Static files (frontend build)
