@@ -1,3 +1,4 @@
+// models/LoyaltyProgram.model.js
 import mongoose from 'mongoose';
 
 const LoyaltyProgramSchema = new mongoose.Schema({
@@ -9,7 +10,7 @@ const LoyaltyProgramSchema = new mongoose.Schema({
   description: {
     type: String,
   },
-  consumertype: {
+  consumerType: {
     type: String,
     required: true,
     default: 'member',
@@ -42,7 +43,7 @@ const LoyaltyProgramSchema = new mongoose.Schema({
   outlet: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Outlet',
-    required: false, // Jika ingin spesifik per-outlet
+    required: false,
   },
   isActive: {
     type: Boolean,
@@ -51,6 +52,4 @@ const LoyaltyProgramSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
-const LoyaltyProgram = mongoose.model('LoyaltyProgram', LoyaltyProgramSchema);
-
-export default LoyaltyProgram;
+export default mongoose.model('LoyaltyProgram', LoyaltyProgramSchema);

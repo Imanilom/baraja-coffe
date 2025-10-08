@@ -9,7 +9,8 @@ import {
     closeOpenBill,
     getTableAvailability,
     checkInReservation,
-    checkOutReservation
+    checkOutReservation,
+    transferTable
 } from '../controllers/jro.controller.js';
 import { authMiddleware, verifyToken } from '../utils/verifyUser.js';
 
@@ -33,5 +34,6 @@ router.put('/reservations/:id/check-out', authMiddleware, checkOutReservation);
 
 // Table Availability
 router.get('/tables/availability', authMiddleware, getTableAvailability);
+router.get('/reservations/:id/transfer-table', authMiddleware, transferTable);
 
 export default router;

@@ -241,7 +241,6 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
   }
 });
 
-
 // ✅ STEP 4: LOGIN CASHIER TO DEVICE
 router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res) => {
   try {

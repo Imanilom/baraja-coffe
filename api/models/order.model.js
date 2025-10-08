@@ -34,6 +34,11 @@ const OrderItemSchema = new mongoose.Schema({
       return date ? toWIB(date) : date;
     }
   },
+  dineType: {
+    type: String,
+    enum: ['Dine-In', 'Take Away'],
+    default: 'Dine-In'
+  },
   outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
   outletName: { type: String },
   payment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null }

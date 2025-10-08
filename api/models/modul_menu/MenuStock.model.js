@@ -1,59 +1,95 @@
-  // models/MenuStock.model.js
-  import mongoose from 'mongoose';
+// models/MenuStock.model.js - Versi diperbaiki
+import mongoose from 'mongoose';
 
-  const MenuStockSchema = new mongoose.Schema({
-    menuItemId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'MenuItem',
-      required: true,
-      unique: true, // Satu stok per menu
-    },
-    // Stok otomatis dari kalkulasi sistem
-    calculatedStock: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    // Stok manual yang bisa di-override oleh admin/staff
-    manualStock: {
-      type: Number,
-      default: null, // null = tidak ada override
-      min: 0,
-    },
-    // Catatan alasan perubahan manual (opsional)
-    adjustmentNote: {
-      type: String,
-      trim: true,
-    },
-    // Siapa yang melakukan penyesuaian (opsional)
-    adjustedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User', // Sesuaikan dengan model user Anda
-      default: null,
-    },
-    // Timestamp terakhir kali stok dihitung ulang
-    lastCalculatedAt: {
-      type: Date,
-      default: null,
-    },
-    // Timestamp terakhir kali stok di-adjust manual
-    lastAdjustedAt: {
-      type: Date,
-      default: null,
-    },
-  }, {
-    timestamps: true, // createdAt & updatedAt otomatis
-  });
+const MenuStockSchema = new mongoose.Schema({
+  menuItemId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'MenuItem',
+    required: true,
+    unique: true,
+  },
 
-  // Virtual: effectiveStock → prioritas manualStock jika ada, else calculatedStock
-  MenuStockSchema.virtual('effectiveStock').get(function () {
-    return this.manualStock !== null ? this.manualStock : this.calculatedStock;
-  });
+  type: { 
+    type: String, 
+    enum: ['waste', 'adjustment', 'sale', 'production'],
+    default: 'adjustment' // Default value
+  },
+  quantity: { 
+    type: Number, 
+    default: 0 // Default untuk initial creation
+  },
+  reason: { 
+    type: String,
+    enum: ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya', 'manual_adjustment', 'initial_setup'],
+    default: 'initial_setup'
+  },
+  previousStock: { 
+    type: Number, 
+    default: 0 
+  },
+  currentStock: { 
+    type: Number, 
+    default: 0 
+  },
+  calculatedStock: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  manualStock: {
+    type: Number,
+    default: null,
+    min: 0,
+  },
+  adjustmentNote: {
+    type: String,
+    trim: true,
+  },
+  adjustedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  handledBy: { 
+    type: String, 
+    default: 'system' // Default value
+  },
+  notes: { 
+    type: String 
+  },
+  lastCalculatedAt: {
+    type: Date,
+    default: Date.now,
+  },
+  lastAdjustedAt: {
+    type: Date,
+    default: Date.now,
+  },
+}, {
+  timestamps: true,
+});
 
-  // Pastikan virtual muncul saat toJSON / toObject
-  MenuStockSchema.set('toJSON', { virtuals: true });
-  MenuStockSchema.set('toObject', { virtuals: true });
+// Virtual: effectiveStock → prioritas manualStock jika ada, else calculatedStock
+MenuStockSchema.virtual('effectiveStock').get(function () {
+  return this.manualStock !== null && this.manualStock !== undefined 
+    ? this.manualStock 
+    : this.calculatedStock;
+});
 
-  const MenuStock = mongoose.model('MenuStock', MenuStockSchema);
+// Index untuk performa query
+MenuStockSchema.index({ menuItemId: 1 });
+MenuStockSchema.index({ lastCalculatedAt: -1 });
+MenuStockSchema.index({ type: 1 });
 
-  export default MenuStock;
+// Middleware untuk auto-update currentStock berdasarkan effectiveStock
+MenuStockSchema.pre('save', function(next) {
+  this.currentStock = this.effectiveStock;
+  next();
+});
+
+// Pastikan virtual muncul saat toJSON / toObject
+MenuStockSchema.set('toJSON', { virtuals: true });
+MenuStockSchema.set('toObject', { virtuals: true });
+
+const MenuStock = mongoose.model('MenuStock', MenuStockSchema);
+export default MenuStock;
