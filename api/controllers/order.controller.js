@@ -1016,7 +1016,23 @@ const confirmOrderHelper = async (orderId) => {
 
 export const createUnifiedOrder = async (req, res) => {
   try {
-    const { order_id, source } = req.body;
+    const { order_id, source, customerId, loyaltyPointsToRedeem } = req.body;
+
+    // Validasi customerId untuk loyalty program
+    if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid customer ID format for loyalty program'
+      });
+    }
+
+    // Validasi loyaltyPointsToRedeem
+    if (loyaltyPointsToRedeem && (!customerId || (source !== 'app' && source !== 'cashier'))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Loyalty points redemption requires valid customer ID and app/cashier source'
+      });
+    }
 
     // Check if order already exists
     const existingOrder = await Order.findOne({ order_id: order_id });
@@ -1041,6 +1057,10 @@ export const createUnifiedOrder = async (req, res) => {
 
     const validated = validateOrderData(req.body, source);
 
+    // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
+    validated.customerId = customerId;
+    validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
+
     const { tableNumber, orderType, reservationData } = validated;
 
     // Generate order ID
@@ -1062,6 +1082,16 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
+    // Log loyalty information
+    console.log('Creating Order with Loyalty Info:', {
+      orderId,
+      source,
+      customerId,
+      loyaltyPointsToRedeem,
+      hasCustomerId: !!customerId,
+      isValidCustomerId: customerId ? mongoose.Types.ObjectId.isValid(customerId) : false
+    });
+
     // Create job for order processing
     const job = await orderQueue.add('create_order', {
       type: 'create_order',
@@ -1074,9 +1104,9 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }, {
       jobId: orderId,
-      removeOnComplete: true, // Optional: bersihkan job yang completed
-      removeOnFail: false,   // Simpan job yang failed untuk debugging
-      attempts: 3,           // Retry 3 kali
+      removeOnComplete: true,
+      removeOnFail: false,
+      attempts: 3,
       backoff: {
         type: 'exponential',
         delay: 1000
@@ -1088,14 +1118,11 @@ export const createUnifiedOrder = async (req, res) => {
     // Wait for job completion dengan timeout
     let result;
     try {
-      // Tambahkan timeout (30 detik)
       result = await job.waitUntilFinished(queueEvents, 30000);
       console.log(`Job ${job.id} completed successfully`);
 
     } catch (queueErr) {
       console.error(`Job ${job.id} failed:`, queueErr);
-
-      // Dapatkan status job untuk informasi lebih detail
       const jobState = await job.getState();
       return res.status(500).json({
         success: false,
@@ -1112,6 +1139,10 @@ export const createUnifiedOrder = async (req, res) => {
         orderId,
         jobId: job.id,
         message: 'Cashier order processed and paid',
+        loyalty: {
+          pointsEarned: result.loyaltyPointsEarned || 0,
+          isEligible: result.isLoyaltyEligible || false
+        }
       });
     }
 
@@ -1126,6 +1157,10 @@ export const createUnifiedOrder = async (req, res) => {
         orderId,
         jobId: job.id,
         midtrans: midtransRes,
+        loyalty: {
+          pointsEarned: result.loyaltyPointsEarned || 0,
+          isEligible: result.isLoyaltyEligible || false
+        }
       });
     }
 
@@ -1156,6 +1191,10 @@ export const createUnifiedOrder = async (req, res) => {
           orderId,
           jobId: job.id,
           message: 'Cash payment, no Midtrans Snap required',
+          loyalty: {
+            pointsEarned: result.loyaltyPointsEarned || 0,
+            isEligible: result.isLoyaltyEligible || false
+          }
         });
       }
 
@@ -1172,6 +1211,10 @@ export const createUnifiedOrder = async (req, res) => {
         jobId: job.id,
         snapToken: midtransRes.token,
         redirectUrl: midtransRes.redirect_url,
+        loyalty: {
+          pointsEarned: result.loyaltyPointsEarned || 0,
+          isEligible: result.isLoyaltyEligible || false
+        }
       });
     }
 
@@ -1183,8 +1226,8 @@ export const createUnifiedOrder = async (req, res) => {
       success: false,
       error: err.message
     });
-  }
-};
+  };
+}
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;

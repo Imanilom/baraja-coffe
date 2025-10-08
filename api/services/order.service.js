@@ -2,14 +2,17 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import Recipe from '../models/modul_menu/Recipe.model.js';
 import { checkAutoPromos, checkManualPromo, checkVoucher } from '../helpers/promo.helper.js';
+import { calculateLoyaltyPoints, redeemLoyaltyPoints, getCustomerLoyaltyPoints } from '../helpers/loyalty.helper.js';
 import { TaxAndService } from '../models/TaxAndService.model.js';
 import mongoose from 'mongoose';
 
 /**
  * Processes order items including pricing calculations and promotions
  */
-export async function processOrderItems({ items, outlet, orderType, voucherCode, customerType, source }, session) {
-  console.log({ items, outlet, orderType, voucherCode, customerType, source });
+// services/order.service.js - Update processOrderItems function
+export async function processOrderItems({ items, outlet, orderType, voucherCode, customerType, source, customerId, loyaltyPointsToRedeem }, session) {
+  
+  
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new Error('Order items cannot be empty');
   }
@@ -21,6 +24,7 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
   const orderItems = [];
   let totalBeforeDiscount = 0;
 
+  // Process order items (existing code)
   for (const item of items) {
     if (!item.id || !item.quantity || item.quantity <= 0) {
       throw new Error(`Invalid item quantity (${item.quantity}) or missing ID for item`);
@@ -71,16 +75,87 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     });
   }
 
-  // Promotions and discounts
+  // VALIDASI: Hanya proses loyalty jika ada customerId dan source memenuhi syarat
+  let loyaltyDiscount = 0;
+  let loyaltyPointsUsed = 0;
+  let loyaltyPointsEarned = 0;
+  let loyaltyDetails = null;
+
+  const isEligibleForLoyalty = customerId && 
+    (source === 'app' || source === 'cashier') && 
+    mongoose.Types.ObjectId.isValid(customerId);
+
+  console.log('Loyalty Eligibility Check:', {
+    customerId,
+    source,
+    isEligibleForLoyalty,
+    hasCustomerId: !!customerId,
+    isValidCustomerId: mongoose.Types.ObjectId.isValid(customerId),
+    validSources: source === 'app' || source === 'cashier'
+  });
+
+  if (isEligibleForLoyalty) {
+    // Process loyalty points redemption hanya jika ada points yang akan ditukar
+    if (loyaltyPointsToRedeem && loyaltyPointsToRedeem > 0) {
+      const redemptionResult = await redeemLoyaltyPoints(
+        customerId, 
+        loyaltyPointsToRedeem, 
+        outlet, 
+        session
+      );
+      
+      loyaltyDiscount = redemptionResult.discountAmount;
+      loyaltyPointsUsed = redemptionResult.pointsUsed;
+      
+      console.log('Loyalty Points Redemption:', {
+        pointsToRedeem: loyaltyPointsToRedeem,
+        discountAmount: loyaltyDiscount,
+        pointsUsed: loyaltyPointsUsed
+      });
+    }
+
+    // Calculate loyalty points earned (based on final amount after all discounts)
+    // Ini akan diproses setelah promo lainnya
+  } else {
+    console.log('Loyalty Program Not Eligible:', {
+      reason: !customerId ? 'No customer ID' : 
+               !(source === 'app' || source === 'cashier') ? 'Invalid source' : 
+               'Invalid customer ID format'
+    });
+  }
+
+  // Calculate total after loyalty discount
+  const totalAfterLoyaltyDiscount = Math.max(0, totalBeforeDiscount - loyaltyDiscount);
+
+  // Promotions and discounts (existing code)
   const promotionResults = await processPromotions({
     orderItems,
     outlet,
     orderType,
     voucherCode,
     customerType,
-    totalBeforeDiscount,
+    totalBeforeDiscount: totalAfterLoyaltyDiscount, // Use amount after loyalty discount
     source
   });
+
+  // Calculate loyalty points earned hanya untuk yang eligible
+  if (isEligibleForLoyalty) {
+    const pointsResult = await calculateLoyaltyPoints(
+      promotionResults.totalAfterDiscount, // Points based on final payable amount
+      customerId,
+      outlet,
+      session
+    );
+    
+    loyaltyPointsEarned = pointsResult.pointsEarned;
+    loyaltyEarnedDetails = pointsResult.loyaltyDetails;
+    
+    console.log('Loyalty Points Earned:', {
+      pointsEarned: loyaltyPointsEarned,
+      transactionAmount: promotionResults.totalAfterDiscount,
+      loyaltyDetails: loyaltyEarnedDetails
+    });
+  }
 
   // Taxes and services
   const { taxAndServiceDetails, totalTax, totalServiceFee } = await calculateTaxesAndServices(
@@ -105,17 +180,24 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
       autoPromoDiscount: promotionResults.autoPromoDiscount,
       manualDiscount: promotionResults.manualDiscount,
       voucherDiscount: promotionResults.voucherDiscount,
-      total: promotionResults.totalDiscount
+      loyaltyDiscount: loyaltyDiscount,
+      total: promotionResults.totalDiscount + loyaltyDiscount
     },
     promotions: {
       appliedPromos: promotionResults.appliedPromos,
       appliedManualPromo: promotionResults.appliedPromo,
       appliedVoucher: promotionResults.voucher
     },
+    loyalty: {
+      pointsUsed: loyaltyPointsUsed,
+      pointsEarned: loyaltyPointsEarned,
+      discountAmount: loyaltyDiscount,
+      loyaltyDetails: loyaltyEarnedDetails,
+      isEligible: isEligibleForLoyalty
+    },
     taxesAndFees: taxAndServiceDetails
   };
 }
-
 /**
  * Processes all promotions for an order
  */

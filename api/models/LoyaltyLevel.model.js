@@ -1,3 +1,4 @@
+// models/LoyaltyLevel.model.js
 import mongoose from 'mongoose';
 
 const LoyaltyLevelSchema = new mongoose.Schema({
@@ -6,45 +7,33 @@ const LoyaltyLevelSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
-
   requiredPoints: {
     type: Number,
     required: true,
-    default: 0, // Minimum poin untuk mencapai level ini
+    default: 0,
   },
-
   description: {
     type: String,
   },
-
-  // Berapa poin yang didapat per total transaksi tertentu
   pointsPerCurrency: {
     type: Number,
     required: true,
-    default: 1, // contoh: 1 poin per 1000 rupiah
+    default: 1,
   },
-
   currencyUnit: {
     type: Number,
     required: true,
-    default: 1000, // contoh: setiap Rp 1.000 = 1 poin
+    default: 1000,
   },
-
-  // Bonus poin saat naik level
   levelUpBonusPoints: {
     type: Number,
     required: true,
     default: 0
   },
-
-  // Diskon atau benefit khusus level ini
   benefits: {
     type: [String],
-    default: [] // contoh: ['5% discount', 'Free drink on birthday']
+    default: []
   }
-
 }, { timestamps: true });
-  
-const LoyaltyLevel = mongoose.model('LoyaltyLevel', LoyaltyLevelSchema);
 
-export default LoyaltyLevel;
+export default mongoose.model('LoyaltyLevel', LoyaltyLevelSchema);

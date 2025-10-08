@@ -8,6 +8,23 @@
       required: true,
       unique: true, // Satu stok per menu
     },
+    type: { 
+    type: String, 
+    enum: ['waste', 'adjustment', 'sale', 'production'], 
+    required: true 
+    },
+    quantity: { 
+      type: Number, 
+      required: true 
+    },
+    reason: { 
+      type: String,
+      enum: ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya', 'manual_adjustment']
+    },
+    previousStock: { 
+      type: Number, 
+      required: true 
+    },
     // Stok otomatis dari kalkulasi sistem
     calculatedStock: {
       type: Number,
@@ -41,13 +58,23 @@
       type: Date,
       default: null,
     },
-  }, {
-    timestamps: true, // createdAt & updatedAt otomatis
+  currentStock: { 
+      type: Number, 
+      required: true 
+    },
+    handledBy: { 
+      type: String, 
+      required: true 
+    },
+    notes: { 
+      type: String 
+    }
   });
+
 
   // Virtual: effectiveStock → prioritas manualStock jika ada, else calculatedStock
   MenuStockSchema.virtual('effectiveStock').get(function () {
-    return this.manualStock !== null ? this.manualStock : this.calculatedStock;
+  return this.manualStock !== null ? this.manualStock : this.calculatedStock;
   });
 
   // Pastikan virtual muncul saat toJSON / toObject
