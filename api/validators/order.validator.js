@@ -37,25 +37,7 @@ export function validateOrderData(data, source) {
     throw new Error('Outlet is required');
   }
 
-  // Validasi loyalty program
-  if (loyaltyPointsToRedeem && loyaltyPointsToRedeem > 0) {
-    if (!customerId) {
-      throw new Error('Customer ID is required for loyalty points redemption');
-    }
-    
-    if (source !== 'app' && source !== 'cashier') {
-      throw new Error('Loyalty points redemption is only available for app and cashier orders');
-    }
 
-    if (loyaltyPointsToRedeem < 0) {
-      throw new Error('Loyalty points to redeem cannot be negative');
-    }
-  }
-
-  // Validasi customerId format jika ada
-  if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
-    throw new Error('Invalid customer ID format');
-  }
 
   // Normalize orderType
   const formattedOrderType = formatOrderType(data.orderType);

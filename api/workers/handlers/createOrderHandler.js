@@ -5,25 +5,22 @@ import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
 
-// Update createOrderHandler function
 export async function createOrderHandler({ orderId, orderData, source, isOpenBill }) {
   let session;
   try {
     session = await mongoose.startSession();
     
     const orderResult = await runWithTransactionRetry(async () => {
-      // Validasi customerId untuk loyalty program
       const { customerId, loyaltyPointsToRedeem } = orderData;
       
-      console.log('Order Handler - Loyalty Check:', {
+      console.log('Order Handler - Optional Loyalty Check:', {
         customerId,
         loyaltyPointsToRedeem,
         source,
-        hasCustomerId: !!customerId,
-        isValidCustomerId: customerId ? mongoose.Types.ObjectId.isValid(customerId) : false
+        hasCustomerId: !!customerId
       });
 
-      // Process order items dengan loyalty program
+      // Process order items dengan loyalty program opsional
       const processed = await processOrderItems(orderData, session);
       if (!processed) {
         throw new Error('Failed to process order items');
@@ -45,7 +42,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         initialStatus = isOpenBill ? 'Pending' : 'Waiting';
       }
 
-      // Build complete order document with loyalty data
+      // Build complete order document
       const fullOrderData = {
         ...orderData,
         order_id: orderId,
@@ -67,13 +64,15 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
           loyaltyDiscount: discounts.loyaltyDiscount,
           total: discounts.total
         },
-        loyalty: {
-          pointsUsed: loyalty.pointsUsed,
-          pointsEarned: loyalty.pointsEarned,
-          discountAmount: loyalty.discountAmount,
-          isEligible: loyalty.isEligible,
-          customerId: loyalty.isEligible ? customerId : null
-        },
+        // Loyalty data hanya disimpan jika applied
+        ...(loyalty.isApplied && {
+          loyalty: {
+            pointsUsed: loyalty.pointsUsed,
+            pointsEarned: loyalty.pointsEarned,
+            discountAmount: loyalty.discountAmount,
+            customerId: loyalty.customerId
+          }
+        }),
         taxAndServiceDetails: taxesAndFees,
         createdAt: new Date(),
         updatedAt: new Date()
@@ -106,8 +105,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       ...queueResult,
       orderNumber: orderId,
       grandTotal: orderResult.totals.grandTotal,
-      loyaltyPointsEarned: orderResult.loyalty?.pointsEarned || 0,
-      isLoyaltyEligible: orderResult.loyalty?.isEligible || false
+      loyalty: orderResult.loyalty
     };
 
   } catch (err) {
@@ -145,7 +143,6 @@ export async function enqueueInventoryUpdate(orderResult) {
         orderId: orderResult.orderId,
         orderNumber: orderResult.orderNumber,
         items: orderResult.processedItems
-        // Hapus sessionInfo dari payload
       }
     };
 
