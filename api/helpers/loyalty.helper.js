@@ -1,7 +1,7 @@
-// helpers/loyalty.helper.js
 import LoyaltyProgram from '../models/LoyaltyProgram.model.js';
 import LoyaltyLevel from '../models/LoyaltyLevel.model.js';
 import CustomerLoyalty from '../models/CustomerLoyalty.model.js';
+import mongoose from 'mongoose';
 
 /**
  * Calculate loyalty points for an order
