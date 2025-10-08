@@ -61,6 +61,11 @@ const PaymentSchema = new mongoose.Schema({
   }],
 
   raw_response: { type: mongoose.Schema.Types.Mixed },
+  // di PaymentSchema
+  isAdjustment: { type: Boolean, default: false },
+  direction: { type: String, enum: ['charge', 'refund'], default: undefined }, // hanya jika isAdjustment=true
+  revisionId: { type: mongoose.Schema.Types.ObjectId, ref: 'OrderRevision', default: null },
+  adjustmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'PaymentAdjustment', default: null },
 }, {
   timestamps: true,
   index: {
@@ -69,7 +74,8 @@ const PaymentSchema = new mongoose.Schema({
     status: 1,
     paymentType: 1,
     relatedPaymentId: 1, // ✅ TAMBAH index
-    createdAt: -1
+    createdAt: -1,
+    isAdjustment: 1
   }
 });
 
@@ -80,6 +86,7 @@ PaymentSchema.index({
   paymentType: 1,
   relatedPaymentId: 1,
   createdAt: -1,
+  isAdjustment: 1
 });
 
 // Supaya virtual ikut ke JSON/obj

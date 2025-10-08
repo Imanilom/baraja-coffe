@@ -55,6 +55,7 @@ import AccountingRoutes from './routes/accounting.routes.js';
 import socketHandler from './socket/index.js';
 import { midtransWebhook } from './controllers/webhookController.js';
 import { fileURLToPath } from "url";
+import revisionRoutes from './routes/orderRevision.routes.js';
 
 dotenv.config();
 
@@ -143,6 +144,7 @@ app.use('/api/analytics', AnalyticsRoutes);
 app.use('/api/assets', AssetRoutes);
 app.use('/api/refunds', RefundRoutes);
 app.post('/api/midtrans/webhook', midtransWebhook);
+app.use('/api/revision', revisionRoutes);
 
 // 🔹 Static files (frontend build)
 app.use(express.static(path.join(__dirname, "../client/dist")));
