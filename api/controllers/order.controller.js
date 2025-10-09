@@ -1019,20 +1019,21 @@ export const createUnifiedOrder = async (req, res) => {
   try {
     const { order_id, source, customerId, loyaltyPointsToRedeem } = req.body;
 
-    // Validasi customerId untuk loyalty program
+    // Loyalty program OPSIONAL - tidak perlu validasi strict
+    // Jika ada customerId tapi format invalid, cukup log warning
     if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid customer ID format for loyalty program'
-      });
+      console.warn('Invalid customer ID format for loyalty program:', customerId);
+      // Tetap lanjut proses order tanpa loyalty
     }
 
-    // Validasi loyaltyPointsToRedeem
+    // Jika ada loyaltyPointsToRedeem tapi tidak eligible, skip saja
     if (loyaltyPointsToRedeem && (!customerId || (source !== 'app' && source !== 'cashier'))) {
-      return res.status(400).json({
-        success: false,
-        message: 'Loyalty points redemption requires valid customer ID and app/cashier source'
+      console.warn('Loyalty points redemption skipped - not eligible:', {
+        customerId,
+        source,
+        loyaltyPointsToRedeem
       });
+      // Tetap lanjut proses order tanpa loyalty redemption
     }
 
     // Check if order already exists
@@ -1058,7 +1059,7 @@ export const createUnifiedOrder = async (req, res) => {
 
     const validated = validateOrderData(req.body, source);
 
-    // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
+    // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data (opsional)
     validated.customerId = customerId;
     validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
 
@@ -1083,14 +1084,13 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    // Log loyalty information
-    console.log('Creating Order with Loyalty Info:', {
+    // Log loyalty information (informational only)
+    console.log('Creating Order with Optional Loyalty:', {
       orderId,
       source,
-      customerId,
-      loyaltyPointsToRedeem,
       hasCustomerId: !!customerId,
-      isValidCustomerId: customerId ? mongoose.Types.ObjectId.isValid(customerId) : false
+      loyaltyPointsToRedeem,
+      willApplyLoyalty: customerId && (source === 'app' || source === 'cashier')
     });
 
     // Create job for order processing
@@ -1133,17 +1133,27 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
+    // Base response tanpa loyalty
+    const baseResponse = {
+      status: '',
+      orderId,
+      jobId: job.id
+    };
+
     // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(200).json({
+        ...baseResponse,
         status: 'Completed',
-        orderId,
-        jobId: job.id,
         message: 'Cashier order processed and paid',
-        loyalty: {
-          pointsEarned: result.loyaltyPointsEarned || 0,
-          isEligible: result.isLoyaltyEligible || false
-        }
+        // Loyalty info opsional - hanya tampilkan jika applied
+        ...(result.loyalty?.isApplied && {
+          loyalty: {
+            pointsEarned: result.loyalty.pointsEarned,
+            pointsUsed: result.loyalty.pointsUsed,
+            discountAmount: result.loyalty.discountAmount
+          }
+        })
       });
     }
 
@@ -1154,19 +1164,22 @@ export const createUnifiedOrder = async (req, res) => {
         validated.paymentDetails.method
       );
       return res.status(200).json({
+        ...baseResponse,
         status: 'waiting_payment',
-        orderId,
-        jobId: job.id,
         midtrans: midtransRes,
-        loyalty: {
-          pointsEarned: result.loyaltyPointsEarned || 0,
-          isEligible: result.isLoyaltyEligible || false
-        }
+        // Loyalty info opsional
+        ...(result.loyalty?.isApplied && {
+          loyalty: {
+            pointsEarned: result.loyalty.pointsEarned,
+            pointsUsed: result.loyalty.pointsUsed,
+            discountAmount: result.loyalty.discountAmount
+          }
+        })
       });
     }
 
     if (source === 'Web') {
-      // Always create a pending Payment record first (tagihan), regardless of method
+      // Always create a pending Payment record first
       const order = await Order.findOne({ order_id: orderId });
       if (!order) {
         throw new Error(`Order ${orderId} not found after job completion`);
@@ -1188,14 +1201,16 @@ export const createUnifiedOrder = async (req, res) => {
       // If payment method is cash, do not create Midtrans Snap
       if (validated.paymentDetails.method?.toLowerCase() === 'cash') {
         return res.status(200).json({
+          ...baseResponse,
           status: 'waiting_payment',
-          orderId,
-          jobId: job.id,
           message: 'Cash payment, no Midtrans Snap required',
-          loyalty: {
-            pointsEarned: result.loyaltyPointsEarned || 0,
-            isEligible: result.isLoyaltyEligible || false
-          }
+          // Web orders typically don't have loyalty, but include if exists
+          ...(result.loyalty?.isApplied && {
+            loyalty: {
+              pointsEarned: result.loyalty.pointsEarned,
+              pointsUsed: result.loyalty.pointsUsed
+            }
+          })
         });
       }
 
@@ -1207,15 +1222,17 @@ export const createUnifiedOrder = async (req, res) => {
       );
 
       return res.status(200).json({
+        ...baseResponse,
         status: 'waiting_payment',
-        orderId,
-        jobId: job.id,
         snapToken: midtransRes.token,
         redirectUrl: midtransRes.redirect_url,
-        loyalty: {
-          pointsEarned: result.loyaltyPointsEarned || 0,
-          isEligible: result.isLoyaltyEligible || false
-        }
+        // Web orders typically don't have loyalty, but include if exists
+        ...(result.loyalty?.isApplied && {
+          loyalty: {
+            pointsEarned: result.loyalty.pointsEarned,
+            pointsUsed: result.loyalty.pointsUsed
+          }
+        })
       });
     }
 
@@ -1227,8 +1244,9 @@ export const createUnifiedOrder = async (req, res) => {
       success: false,
       error: err.message
     });
-  };
-}
+  }
+};
+
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
@@ -3718,7 +3736,7 @@ export const getCashierOrderHistory = async (req, res) => {
             ...item.menuItem,
             category: item.category ? { id: item.category._id, name: item.category.name } : null,
             subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
-            originalPrice: item.menuItem.price,
+            originalPrice: item.menuItem.price ?? 0,
             discountedprice: item.menuItem.discountedPrice ?? item.menuItem.price,
             // _id: item.menuItem._id,
             // name: item.menuItem.name,

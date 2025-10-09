@@ -78,7 +78,7 @@ class _ListMenuState extends ConsumerState<ListMenu> {
           (context) => AddOrderItemDialog(
             orderItem: orderItem,
             onAddOrder: (addOrderItem) {
-              notifier.addItemsToOrder(addOrderItem);
+              notifier.addItemToOrder(addOrderItem);
             },
             onClose: () => Navigator.pop(context),
           ),

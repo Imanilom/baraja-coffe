@@ -1,4 +1,5 @@
 // lib/extensions/order_item_extensions.dart
+import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
@@ -47,7 +48,8 @@ extension OrderItemModelExtensions on OrderItemModel {
     return menuItem.id == other.menuItem.id &&
         _areToppingsEqual(selectedToppings, other.selectedToppings) &&
         _areAddonsEqual(selectedAddons, other.selectedAddons) &&
-        _areNotesEqual(notes, other.notes);
+        _areNotesEqual(notes, other.notes) &&
+        _areOrderItemOrderTypeEqual(orderType!, other.orderType!);
   }
 
   /// Mengecek apakah dua list toppings sama
@@ -80,6 +82,10 @@ extension OrderItemModelExtensions on OrderItemModel {
   /// Mengecek apakah dua notes sama
   bool _areNotesEqual(String? note1, String? note2) {
     return note1 == note2;
+  }
+
+  bool _areOrderItemOrderTypeEqual(OrderType orderType1, OrderType orderType2) {
+    return orderType1 == orderType2;
   }
 
   /// Debug helper untuk mencetak detail item ini

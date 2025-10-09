@@ -82,5 +82,6 @@ abstract class MenuItemModel with _$MenuItemModel {
     reviewCount: json['reviewCount'] as int? ?? 0,
     isAvailable: json['isAvailable'] ?? true,
     workstation: json['workstation'] ?? "",
+    stock: json['availableStock'] ?? 0,
   );
 }

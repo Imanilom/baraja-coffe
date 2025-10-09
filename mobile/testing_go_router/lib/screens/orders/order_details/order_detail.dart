@@ -334,7 +334,9 @@ class OrderDetail extends ConsumerWidget {
                             leading: CircleAvatar(
                               child: Text(orderItem.quantity.toString()),
                             ),
-                            title: Text(orderItem.menuItem.name.toString()),
+                            title: Text(
+                              '(${OrderTypeExtension.orderTypeToShortJson(orderItem.orderType!)}) ${orderItem.menuItem.name.toString()}',
+                            ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

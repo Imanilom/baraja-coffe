@@ -1,8 +1,11 @@
+import 'package:hive_ce/hive.dart';
+
 import '../models/user.model.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import '../services/hive_service.dart';
+import '../models/device.model.dart';
 
 class AuthRepository {
   final AuthService _authService;
@@ -52,12 +55,23 @@ class AuthRepository {
 class AuthDevice {
   final AuthService _authService = AuthService();
   //fetch all devices
-  Future<List<dynamic>> fetchAllDevices() async {
+  Future<List<DeviceModel>> fetchAllDevices() async {
     final token = await HiveService.userToken;
+    // final deviceBox = Hive.box<DeviceModel>('devices');
 
     try {
       final response = await _authService.fetchAllDevices(token: token);
-      return response['data'] as List<dynamic>;
+
+      final data = response['data'] as List<dynamic>;
+      final devices = data.map((json) => DeviceModel.fromJson(json)).toList();
+
+      // for (var device in devices) {
+      //   await deviceBox.put(device.id, device);
+      // }
+
+      print('get devices: $devices');
+
+      return devices;
     } catch (e) {
       throw Exception('Failed to fetch devices: $e');
     }

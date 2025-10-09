@@ -40,6 +40,7 @@ Future<void> main() async {
 
       await _safe('hive', () async {
         await HiveService.init();
+        print('init hive');
       });
 
       await _safe('intl', () async {
