@@ -81,7 +81,7 @@ export const calibrateAllMenuStocks = async () => {
 
 export const calibrateSingleMenuStock = async (menuItemId) => {
   const session = await mongoose.startSession();
-  
+
   try {
     await session.startTransaction();
 
@@ -107,19 +107,19 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
     if (menuStock) {
       // Simpan previousStock sebelum update
       const previousStock = menuStock.currentStock;
-      
+
       // Only update calculatedStock if manualStock is not set
       if (menuStock.manualStock === null || menuStock.manualStock === undefined) {
         menuStock.calculatedStock = calculatedStock;
         menuStock.currentStock = calculatedStock;
         menuStock.quantity = calculatedStock - previousStock; // Hitung perubahan quantity
-        console.log(`📦 Menu ${menuItem.name}: calculatedStock updated to ${calculatedStock}`);
+        // console.log(`📦 Menu ${menuItem.name}: calculatedStock updated to ${calculatedStock}`);
       } else {
         menuStock.currentStock = menuStock.manualStock;
         menuStock.quantity = 0; // Tidak ada perubahan untuk manual stock
-        console.log(`📦 Menu ${menuItem.name}: using manualStock ${menuStock.manualStock}`);
+        // console.log(`📦 Menu ${menuItem.name}: using manualStock ${menuStock.manualStock}`);
       }
-      
+
       menuStock.lastCalculatedAt = new Date();
       await menuStock.save({ session });
     } else {
@@ -138,7 +138,7 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
         lastCalculatedAt: new Date(),
         lastAdjustedAt: new Date()
       }], { session });
-      console.log(`📦 Menu ${menuItem.name}: new stock record created with ${calculatedStock}`);
+      // console.log(`📦 Menu ${menuItem.name}: new stock record created with ${calculatedStock}`);
     }
 
     // Update availableStock di MenuItem
@@ -147,7 +147,7 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
     await menuItem.save({ session });
 
     await session.commitTransaction();
-    console.log(`✅ ${menuItem.name}: stock updated to ${effectiveStock}`);
+    // console.log(`✅ ${menuItem.name}: stock updated to ${effectiveStock}`);
 
     return {
       success: true,
@@ -236,7 +236,7 @@ export const calibrateSelectedMenuStocks = async (menuItemIds) => {
     const concurrencyLimit = 10;
     for (let i = 0; i < menuItemIds.length; i += concurrencyLimit) {
       const batch = menuItemIds.slice(i, i + concurrencyLimit);
-      
+
       const batchPromises = batch.map(async (menuItemId) => {
         try {
           await calibrateSingleMenuStock(menuItemId);

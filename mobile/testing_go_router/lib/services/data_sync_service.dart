@@ -128,6 +128,7 @@ class DataSyncService {
       );
 
       print('Event data count: ${HiveService.eventBox.length}');
+      print('Event data count: ${HiveService.eventBox.length}');
       print('MenuItem data count: ${HiveService.menuItemsBox.length}');
       print('TaxAndService data count: ${HiveService.taxAndServiceBox.length}');
       print('PaymentType data count: ${HiveService.paymentTypeBox.length}');
