@@ -7,10 +7,14 @@ import {
   deleteContent,
 } from '../controllers/content.controller.js';
 
+import { verifyToken } from '../utils/verifyUser.js';
+
 const router = express.Router();
 
+const contentAccess = verifyToken(['superadmin', 'admin', 'marketing']);
+
 // Create a new content
-router.post('/', createContent);
+router.post('/', contentAccess, createContent);
 
 // Get all contents
 router.get('/', getContents);
@@ -19,9 +23,9 @@ router.get('/', getContents);
 router.get('/:id', getContentById);
 
 // Update a content by ID
-router.put('/:id', updateContent);
+router.put('/:id', contentAccess, updateContent);
 
 // Delete a content by ID
-router.delete('/:id', deleteContent);
+router.delete('/:id', contentAccess, deleteContent);
 
 export default router;

@@ -4,6 +4,7 @@ import Area from '../models/Area.model.js';
 import Table from '../models/Table.model.js';
 import Reservation from '../models/Reservation.model.js';
 import mongoose from 'mongoose';
+
 const router = express.Router();
 
 // TABLE CRUD OPERATIONS //

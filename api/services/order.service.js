@@ -292,7 +292,7 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
 /**
  * Calculates taxes and service fees for an order
  */
-async function calculateTaxesAndServices(outlet, totalAfterDiscount, orderItems, session) {
+export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orderItems, session) {
   const taxesAndServices = await TaxAndService.find({
     isActive: true,
     appliesToOutlets: new mongoose.Types.ObjectId(outlet)
