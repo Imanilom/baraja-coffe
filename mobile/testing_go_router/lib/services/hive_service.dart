@@ -1,6 +1,7 @@
 import 'package:kasirbaraja/models/addon.model.dart';
 import 'package:kasirbaraja/models/addon_option.model.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
+import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/models/event.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -32,6 +33,7 @@ class HiveService {
     Hive.registerAdapter(TaxAndServiceModelAdapter());
     Hive.registerAdapter(OutletInfoModelAdapter());
     Hive.registerAdapter(EventAdapter());
+    Hive.registerAdapter(DeviceModelAdapter());
 
     await _openBoxes();
   }
@@ -43,6 +45,7 @@ class HiveService {
     await Hive.openBox<TaxAndServiceModel>('taxAndService');
     await Hive.openBox<PaymentTypeModel>('paymentTypes');
     await Hive.openBox<Event>('eventsBox');
+    await Hive.openBox<DeviceModel>('devices');
   }
 
   // Helper methods to get boxes
@@ -54,6 +57,7 @@ class HiveService {
   static Box<PaymentTypeModel> get paymentTypeBox =>
       Hive.box<PaymentTypeModel>('paymentTypes');
   static Box<Event> get eventBox => Hive.box<Event>('eventsBox');
+  static Box<DeviceModel> get deviceBox => Hive.box<DeviceModel>('devices');
 
   // Clear all data (useful for logout or data refresh)
   static Future<void> clearAllData() async {
@@ -62,6 +66,7 @@ class HiveService {
     await taxAndServiceBox.clear();
     await paymentTypeBox.clear();
     await eventBox.clear();
+    await deviceBox.clear();
   }
 
   // Close all boxes (call this when app is closing)
@@ -70,6 +75,7 @@ class HiveService {
     await taxAndServiceBox.close();
     await paymentTypeBox.close();
     await eventBox.close();
+    await deviceBox.close();
   }
 
   // Check if data exists (to determine if sync is needed)
@@ -77,7 +83,8 @@ class HiveService {
     return menuItemsBox.isNotEmpty ||
         taxAndServiceBox.isNotEmpty ||
         paymentTypeBox.isNotEmpty ||
-        eventBox.isNotEmpty;
+        eventBox.isNotEmpty ||
+        deviceBox.isNotEmpty;
   }
 
   // Get data count for each type
@@ -87,6 +94,7 @@ class HiveService {
       'taxAndService': taxAndServiceBox.length,
       'paymentTypes': paymentTypeBox.length,
       'eventsBox': eventBox.length,
+      'devices': deviceBox.length,
     };
   }
 
@@ -100,6 +108,18 @@ class HiveService {
   static Future<void> saveCashier(CashierModel cashier) async {
     final box = Hive.box('userBox');
     await box.put('cashier', cashier);
+  }
+
+  //save device to cashier
+  static Future<void> saveDevice(DeviceModel device) async {
+    final box = Hive.box('userBox');
+    await box.put('device', device);
+  }
+
+  //get device from cashier
+  static Future<DeviceModel?> getDevice() async {
+    final box = Hive.box('userBox');
+    return box.get('device') as DeviceModel?;
   }
 
   static Future<UserModel?> getUser() async {

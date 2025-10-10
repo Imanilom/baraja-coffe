@@ -3,8 +3,10 @@ import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import SidebarMenuForm from "./form";
 import Header from "../../admin/header";
+import { useSelector } from "react-redux";
 
 const UpdateSidebarMenu = () => {
+    const { currentUser } = useSelector((state) => state.user);
     const { id } = useParams();
     const [formData, setFormData] = useState({
         name: "",
@@ -29,7 +31,9 @@ const UpdateSidebarMenu = () => {
 
     const fetchAllMenus = async () => {
         try {
-            const res = await axios.get("/api/sidebar/admin/menus");
+            const res = await axios.get(`/api/sidebar/admin/menus`, {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
             const allMenus = res.data.data || [];
             // hanya ambil menu utama (parentId === null)
             const parentMenus = allMenus.filter((m) => m.parentId === null);
@@ -46,7 +50,9 @@ const UpdateSidebarMenu = () => {
     useEffect(() => {
         const fetchMenu = async () => {
             try {
-                const res = await axios.get(`/api/sidebar/admin/menus`);
+                const res = await axios.get(`/api/sidebar/admin/menus`, {
+                    headers: { Authorization: `Bearer ${currentUser.token}` },
+                });
                 const menuRes = res.data.data;
                 const menu = menuRes.find((item) => item._id === id);
                 setFormData({
@@ -76,7 +82,9 @@ const UpdateSidebarMenu = () => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            await axios.put(`/api/sidebar/admin/menus/${id}`, formData);
+            await axios.put(`/api/sidebar/admin/menus/${id}`, formData, {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
             navigate("/admin/access-settings/bar-menu");
         } catch (err) {
             console.error("Error updating menu:", err);
@@ -89,7 +97,6 @@ const UpdateSidebarMenu = () => {
 
     return (
         <>
-            <Header />
             <div className="p-6">
                 <h1 className="text-lg font-bold mb-4">Update Sidebar Menu</h1>
                 <SidebarMenuForm

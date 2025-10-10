@@ -114,35 +114,26 @@ const CreateEmployee = () => {
     }
 
     return (
-        <div className="text-[#999999]">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
+        <div className="px-6">
             <form className="space-y-6 mb-[60px]" autoComplete="off">
                 {/* Breadcrumb */}
-                <div className="px-3 py-2 flex justify-between items-center border-b">
-                    <div className="flex items-center space-x-2">
-                        <FaIdBadge size={21} className="text-gray-500 inline-block" />
-                        <p className="text-[15px] text-gray-500">Karyawan</p>
-                        <FaChevronRight className="text-[15px] text-gray-500" />
-                        <span className="text-[15px] text-[#005429]">Tambah karyawan</span>
+                <div className="flex justify-between items-center py-3 my-3">
+                    <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                        <Link to="/admin/employee">Karyawan</Link>
+                        <FaChevronRight />
+                        <span>Tambah karyawan</span>
                     </div>
                     <div className="flex space-x-2">
                         <Link to="/admin/employee" className="bg-white border border-[#005429] text-[#005429] text-[13px] px-[15px] py-[7px] rounded hover:bg-[#005429] hover:border-[#005429] hover:text-white">Batal</Link>
                         <button type="submit" className="bg-[#005429] border-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Simpan</button>
                     </div>
                 </div>
-                <div className="w-full p-4">
-                    <div className='mb-4'>
-                        <div className="flex space-x-8">
+                <div className="mx-auto max-w-7xl gap-4 flex">
+                    <div className='w-1/3'>
+                        <div className="grid grid-rows-3 gap-4">
                             <div
                                 onClick={() => handleEmployeeSelect('cashier')}
-                                className={`cursor-pointer p-4 border rounded w-1/2 ${employeeType === 'cashier' ? 'bg-[#005429] border-[#005249] text-white' : 'bg-white'}`}
+                                className={`cursor-pointer p-4 border rounded ${employeeType === 'cashier' ? 'bg-[#005429] border-[#005249] text-white' : 'bg-white'}`}
                             >
                                 <h4 className="font-bold">WAITER</h4>
                                 <p className="text-sm mt-2">
@@ -151,7 +142,7 @@ const CreateEmployee = () => {
                             </div>
                             <div
                                 onClick={() => handleEmployeeSelect('gro')}
-                                className={`cursor-pointer p-4 border rounded w-1/2 ${employeeType === 'gro' ? 'bg-[#005429] border-[#005249] text-white' : 'bg-white'}`}
+                                className={`cursor-pointer p-4 border rounded ${employeeType === 'gro' ? 'bg-[#005429] border-[#005249] text-white' : 'bg-white'}`}
                             >
                                 <h4 className="font-bold">GRO</h4>
                                 <p className="text-sm mt-2">
@@ -160,7 +151,7 @@ const CreateEmployee = () => {
                             </div>
                             <div
                                 onClick={() => handleEmployeeSelect('staff')}
-                                className={`cursor-pointer p-4 border rounded w-1/2 ${employeeType === 'staff' ? 'bg-[#005429] border-[#005249] text-white' : 'bg-white'}`}
+                                className={`cursor-pointer p-4 border rounded ${employeeType === 'staff' ? 'bg-[#005429] border-[#005249] text-white' : 'bg-white'}`}
                             >
                                 <h4 className="font-bold">STAFF / MANAJER</h4>
                                 <p className="text-sm mt-2">
@@ -171,7 +162,7 @@ const CreateEmployee = () => {
                     </div>
 
                     {employeeType && (
-                        <div className="space-y-4">
+                        <div className="w-2/3 space-y-4 bg-white p-4">
                             <div className="flex space-x-8">
                                 <div className="w-1/2 space-y-4">
                                     <div>
@@ -195,20 +186,6 @@ const CreateEmployee = () => {
                                             />
                                         </div>
                                     )}
-
-                                    <div>
-                                        <label className="block text-[12px] font-medium uppercase mb-4">Pin Masuk Ke Aplikasi Kasir</label>
-                                        <div className="flex items-center space-x-4">
-                                            <input
-                                                type="password"
-                                                maxLength="4"
-                                                value={pin}
-                                                onChange={(e) => setPin(e.target.value)}
-                                                className="mt-1 block text-[12px] w-1/3 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#005429] focus:border-[#005429]"
-                                            />
-                                            <p className="text-xs text-gray-500 mt-1">PIN berupa 4 digit angka</p>
-                                        </div>
-                                    </div>
                                     {employeeType === 'staff' && (
                                         <div className="flex justify-between items-center mb-4">
                                             <label className="block text-[12px] font-medium uppercase">Super Admin</label>
@@ -225,50 +202,6 @@ const CreateEmployee = () => {
                                             </div>
                                         </div>
                                     )}
-                                </div>
-
-                                <div className="w-1/2 space-y-4">
-                                    <div className="flex space-x-4 items-start p-4 rounded-lg shadow-md">
-                                        {previewUrl ? (
-                                            <div>
-                                                <img
-                                                    src={previewUrl}
-                                                    alt="Preview"
-                                                    className="w-24 h-24 object-cover rounded"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setImage(null);
-                                                        setPreviewUrl(null);
-                                                    }}
-                                                    className="text-red-600 text-xs mt-1 block"
-                                                >
-                                                    Hapus Foto
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="w-24 h-24 rounded border border-dashed border-gray-300 flex items-center justify-center">
-                                                <FaUserPlus className='text-xs text-gray-400' />
-                                            </div>
-                                        )}
-
-                                        <div>
-                                            <h3 className='text-[14px] font font-semibold'>Upload Foto</h3>
-                                            <input
-                                                type="file"
-                                                id="fileUpload"
-                                                className="hidden"
-                                                onChange={handleImageChange}
-                                            />
-                                            <label
-                                                htmlFor="fileUpload"
-                                                className="cursor-pointer bg-white border rounded px-4 py-2 inline-block text-sm hover:bg-gray-50"
-                                            >
-                                                Unggah Foto
-                                            </label>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                             <div className="w-full space-y-4">
@@ -332,11 +265,6 @@ const CreateEmployee = () => {
                     )}
                 </div>
             </form>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
-            </div>
         </div>
     );
 };

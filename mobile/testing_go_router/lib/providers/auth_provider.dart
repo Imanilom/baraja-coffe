@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/providers/message_provider.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +20,8 @@ final authRepositoryProvider = Provider(
     ref.read(storageServiceProvider),
   ),
 );
+
+final authDeviceRepositoryProvider = Provider((ref) => AuthDevice());
 
 final authProvider =
     StateNotifierProvider<AuthNotifier, AsyncValue<UserModel?>>((ref) {
@@ -229,6 +232,7 @@ class TryAuthNotifier extends StateNotifier<AsyncValue<AuthStatus>> {
     await box.delete('cashier');
     ref.read(selectedCashierProvider.notifier).state = null;
     ref.read(messageProvider.notifier).clearMessage();
+    ref.read(selectedDeviceProvider.notifier).state = null;
 
     state = const AsyncValue.data(AuthStatus.needPin);
   }
@@ -243,3 +247,23 @@ final tryAuthProvider =
 // final currentCashierProvider = Provider<CashierModel?>((ref) {
 //   return ref.watch(authCashierProvider).valueOrNull;
 // });
+
+final selectedDeviceProvider = StateProvider<DeviceModel?>((ref) => null);
+
+// devices by outlet/cashier
+final devicesProvider = FutureProvider.autoDispose<List<DeviceModel>>((
+  ref,
+) async {
+  final repo = ref.watch(authDeviceRepositoryProvider);
+  final cashier = ref.watch(selectedCashierProvider); // depend ke kasir
+
+  if (cashier == null) return <DeviceModel>[];
+
+  try {
+    // kalau mau, kirim cashier/outlet id
+    final devices = await repo.fetchAllDevices();
+    return devices;
+  } catch (e) {
+    throw Exception('Gagal memuat device: $e');
+  }
+});

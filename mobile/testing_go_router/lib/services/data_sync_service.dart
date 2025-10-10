@@ -49,7 +49,7 @@ class DataSyncService {
     required Function(DataSyncProgress) onProgress,
     // String? token,
   }) async {
-    const totalSteps = 6;
+    const totalSteps = 5;
     int currentStep = 0;
 
     try {
@@ -75,15 +75,15 @@ class DataSyncService {
       );
       await MenuItemRepository().getMenuItem();
 
-      currentStep++;
-      onProgress(
-        DataSyncProgress(
-          currentStep: currentStep,
-          totalSteps: totalSteps,
-          currentTask: 'Downloading stock...',
-        ),
-      );
-      await MenuItemRepository().getMenuItemStock();
+      // currentStep++;
+      // onProgress(
+      //   DataSyncProgress(
+      //     currentStep: currentStep,
+      //     totalSteps: totalSteps,
+      //     currentTask: 'Downloading stock...',
+      //   ),
+      // );
+      // await MenuItemRepository().getMenuItemStock();
 
       // Step 2: Sync Tax and Service
       currentStep++;

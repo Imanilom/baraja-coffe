@@ -31,7 +31,9 @@ const IndexSidebarMenu = () => {
     const handleDelete = async (id) => {
         if (!window.confirm("Yakin ingin menghapus menu ini?")) return;
         try {
-            await axios.delete(`/api/sidebar-menus/${id}`);
+            await axios.delete(`/api/sidebar/admin/menus/${id}`, {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
             setMenus((prev) => prev.filter((m) => m._id !== id));
         } catch (err) {
             console.error("Delete error:", err);
@@ -40,7 +42,6 @@ const IndexSidebarMenu = () => {
 
     return (
         <>
-            <Header />
             <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-lg font-bold">Sidebar Menu</h1>

@@ -229,6 +229,7 @@ export const signin = async (req, res, next) => {
     const token = jwt.sign(
       {
         id: user._id,
+        rolePermission: user.role.permissions,
         role: user.role.name,
         cashierType: user.cashierType,
       },
@@ -237,7 +238,7 @@ export const signin = async (req, res, next) => {
     );
 
     const { password: hashedPassword, ...rest } = user._doc;
-    let response = { ...rest, role: user.role.name, token };
+    let response = { ...rest, role: user.role.name, rolePermission: user.role.permissions, token };
 
     // Jika admin, ambil daftar cashier
     if (user.role.name === "admin") {

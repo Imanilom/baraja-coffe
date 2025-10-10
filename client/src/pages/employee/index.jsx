@@ -1,16 +1,51 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch, FaIdBadge, FaThLarge, FaPencilAlt, FaTrash } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import { useSelector } from "react-redux";
+import Paginated from "../../components/paginated";
+import Select from "react-select";
 
 
 const EmployeeManagement = () => {
 
+    const customSelectStyles = {
+        control: (provided, state) => ({
+            ...provided,
+            borderColor: '#d1d5db', // Tailwind border-gray-300
+            minHeight: '34px',
+            fontSize: '13px',
+            color: '#6b7280', // text-gray-500
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            '&:hover': {
+                borderColor: '#9ca3af', // Tailwind border-gray-400
+            },
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500
+        }),
+        input: (provided) => ({
+            ...provided,
+            color: '#6b7280', // text-gray-500 for typed text
+        }),
+        placeholder: (provided) => ({
+            ...provided,
+            color: '#9ca3af', // text-gray-400
+            fontSize: '13px',
+        }),
+        option: (provided, state) => ({
+            ...provided,
+            fontSize: '13px',
+            color: '#374151', // gray-700
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            cursor: 'pointer',
+        }),
+    };
     const { currentUser } = useSelector((state) => state.user);
-    const [attendances, setAttendances] = useState([]);
+    const [employee, setEmployee] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -19,7 +54,8 @@ const EmployeeManagement = () => {
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
+    const [roles, setRoles] = useState([]);
+    const [tempSelectedRoles, setTempSelectedRoles] = useState("");
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
     const [openDropdown, setOpenDropdown] = useState([]);
@@ -27,7 +63,7 @@ const EmployeeManagement = () => {
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
+    const ITEMS_PER_PAGE = 10;
 
     const dropdownRef = useRef(null);
 
@@ -40,70 +76,92 @@ const EmployeeManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch attendances and outlets data
+    const fetchEmployee = async () => {
+        setLoading(true);
+        try {
+            const employeeResponse = await axios.get("/api/user/staff", {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
+
+            // handle kalau backend return object { data: [] } atau langsung array
+            const rawData = Array.isArray(employeeResponse.data)
+                ? employeeResponse.data
+                : employeeResponse.data.data || [];
+
+            // filter yang bukan customer
+            const employeeData = rawData.filter(emp => emp.role?.name !== "customer");
+
+            setEmployee(employeeData);
+            setFilteredData(employeeData);
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            setEmployee([]);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    const fetchOutlet = async () => {
+        setLoading(true);
+        try {
+            const outletsResponse = await axios.get('/api/outlet');
+
+            // Ensure outletsResponse.data is an array
+            const outletsData = Array.isArray(outletsResponse.data) ?
+                outletsResponse.data :
+                (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
+                    outletsResponse.data.data : [];
+
+            setOutlets(outletsData);
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            setOutlets([]);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    const fetchRoles = async () => {
+        setLoading(true);
+        try {
+            const roleResponse = await axios.get('/api/roles', {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
+            const getRoles = roleResponse.data.data ? roleResponse.data.data : roleResponse.data;
+
+            setRoles(getRoles);
+            setError(null);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            setRoles([]);
+        } finally {
+            setLoading(false);
+        }
+    }
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch attendances data
-                const employeeResponse = await axios.get("/api/user/staff", {
-                    headers: { Authorization: `Bearer ${currentUser.token}` },
-                });
-
-                // handle kalau backend return object { data: [] } atau langsung array
-                const rawData = Array.isArray(employeeResponse.data)
-                    ? employeeResponse.data
-                    : employeeResponse.data.data || [];
-
-                // filter yang bukan customer
-                const employeeData = rawData.filter(emp => emp.role?.name !== "customer");
-
-                setAttendances(employeeData);
-                setFilteredData(employeeData);
-                // Initialize filtered data with all attendances
-
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
-
-                setOutlets(outletsData);
-
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
-                setAttendances([]);
-                setFilteredData([]);
-                setOutlets([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
+        fetchEmployee();
+        fetchOutlet();
+        fetchRoles();
     }, []);
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
+    const options = [
+        { value: "", label: "Semua Outlet" },
+        ...outlets.map((outlet) => ({
+            value: outlet._id,
+            label: outlet.name,
+        })),
+    ];
 
-    // Handle click outside dropdown to close
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    const roleOptions = [
+        { value: "", label: "Semua Type" },
+        ...roles.map((role) => ({
+            value: role._id,
+            label: role.name,
+        })),
+    ];
 
     // Paginate the filtered data
     const paginatedData = useMemo(() => {
@@ -150,13 +208,6 @@ const EmployeeManagement = () => {
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
     // Export current data to Excel
     const exportToExcel = () => {
         // Prepare data for export
@@ -186,6 +237,74 @@ const EmployeeManagement = () => {
         XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
         XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
     };
+
+    const applyFilter = useCallback(() => {
+
+        // Make sure products is an array before attempting to filter
+        let filtered = ensureArray([...employee]);
+
+        // Filter by search term (product name, category, or SKU)
+        if (tempSearch) {
+            filtered = filtered.filter(employee => {
+                try {
+                    const searchTerm = tempSearch.toLowerCase();
+
+                    // Employee adalah object, bukan array
+                    const name = (employee.name || '').toLowerCase();
+
+                    return name.includes(searchTerm);
+                } catch (err) {
+                    console.error("Error filtering by search:", err);
+                    return false;
+                }
+            });
+        }
+
+        if (tempSelectedRoles) {
+            filtered = filtered.filter(employee => {
+                try {
+                    // Cek apakah employee punya role
+                    const employeeRoleId = employee.role?._id || employee.roleId;
+
+                    return employeeRoleId === tempSelectedRoles;
+                } catch (err) {
+                    console.error("Error filtering by role:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by outlet
+        if (tempSelectedOutlet) {
+            filtered = filtered.filter(employee => {
+                try {
+                    // Cek apakah employee punya outlet dan outlet adalah array
+                    if (!employee.outlet || !Array.isArray(employee.outlet)) {
+                        return false;
+                    }
+
+                    // Cek apakah ada outlet yang sesuai dengan tempSelectedOutlet
+                    return employee.outlet.some(outlet => outlet._id === tempSelectedOutlet);
+                } catch (err) {
+                    console.error("Error filtering by outlet:", err);
+                    return false;
+                }
+            });
+        }
+
+        setFilteredData(filtered);
+        setCurrentPage(1); // Reset to first page after filter
+    }, [employee, tempSearch, tempSelectedOutlet, tempSelectedRoles]);
+
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
+
+    // Initial load
+    useEffect(() => {
+        applyFilter();
+    }, []);
 
 
     // Show loading state
@@ -217,109 +336,20 @@ const EmployeeManagement = () => {
 
     return (
         <div className="">
-            {/* Header */}
-            <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                <FaBell size={23} className="text-gray-400" />
-                <span className="text-[14px]">Hi Baraja</span>
-                <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                    <FaUser size={30} />
-                </Link>
-            </div>
 
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex justify-between items-center border-b">
-                <div className="flex items-center space-x-2">
-                    <FaIdBadge size={21} className="text-gray-500 inline-block" />
-                    <p className="text-[15px] text-gray-500">Karyawan</p>
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Karyawan</span>
                 </div>
                 <Link to="/admin/employee-create" className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Tambah</Link>
             </div>
 
             {/* Filters */}
-            <div className="px-[15px] pb-[15px] mb-[60px]">
-                <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-9 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Outlet</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Outlet"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
+            <div className="px-6 mb-[60px]">
+                <div className="flex flex-wrap gap-2 md:justify-end items-center py-3">
 
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Jenis</label>
-                        <div className="relative">
-                            {!showInput ? (
-                                <button className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]" onClick={() => setShowInput(true)}>
-                                    {tempSelectedOutlet || "Semua Tipe"}
-                                </button>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded text-left"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    autoFocus
-                                    placeholder=""
-                                />
-                            )}
-                            {showInput && (
-                                <ul className="absolute z-10 bg-white border mt-1 w-full rounded shadow-slate-200 shadow-md max-h-48 overflow-auto" ref={dropdownRef}>
-                                    {filteredOutlets.length > 0 ? (
-                                        filteredOutlets.map((outlet, idx) => (
-                                            <li
-                                                key={idx}
-                                                onClick={() => {
-                                                    setTempSelectedOutlet(outlet);
-                                                    setShowInput(false);
-                                                }}
-                                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer"
-                                            >
-                                                {outlet}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="px-4 py-2 text-gray-500">Tidak ditemukan</li>
-                                    )}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col col-span-3">
-                        <label className="text-[13px] mb-1 text-gray-500">Cari</label>
+                    <div className="relative md:w-64 w-full">
                         <div className="relative">
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
@@ -327,14 +357,44 @@ const EmployeeManagement = () => {
                                 placeholder="Nama / Email"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
+                                className="text-[13px] border py-2 pl-[30px] pr-[25px] rounded w-full"
                             />
                         </div>
+                    </div>
+
+                    <div className="relative md:w-48 w-full">
+                        <Select
+                            className="text-sm"
+                            classNamePrefix="react-select"
+                            placeholder="Pilih Outlet"
+                            options={options}
+                            isSearchable
+                            value={
+                                options.find((opt) => opt.value === tempSelectedOutlet) || options[0]
+                            }
+                            onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                            styles={customSelectStyles}
+                        />
+                    </div>
+
+                    <div className="relative md:w-48 w-full">
+                        <Select
+                            className="text-sm"
+                            classNamePrefix="react-select"
+                            placeholder="Pilih Type"
+                            options={roleOptions}
+                            isSearchable
+                            value={
+                                roleOptions.find((opt) => opt.value === tempSelectedRoles) || options[0]
+                            }
+                            onChange={(selected) => setTempSelectedRoles(selected.value)}
+                            styles={customSelectStyles}
+                        />
                     </div>
                 </div>
 
                 {/* Table */}
-                <div className="rounded shadow-slate-200 shadow-md">
+                <div className="rounded shadow-slate-200 bg-white shadow-md">
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400">
                             <tr className="text-left text-[13px]">
@@ -420,11 +480,11 @@ const EmployeeManagement = () => {
                                             </tr>
                                         );
                                     } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, attendances);
+                                        console.error(`Error rendering product ${index}:`, err, employee);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
                                                 <td colSpan="4" className="px-4 py-3 text-red-500">
-                                                    Error rendering attendances
+                                                    Error rendering employee
                                                 </td>
                                             </tr>
                                         );
@@ -442,36 +502,11 @@ const EmployeeManagement = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                {paginatedData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                        </span>
-                        {totalPages > 1 && (
-                            <div className="flex space-x-2">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Sebelumnya
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Berikutnya
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
-                </div>
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
             </div>
         </div>
     );

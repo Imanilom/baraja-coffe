@@ -51,14 +51,12 @@ const UserManagement = () => {
     };
 
     return (
-        <div className="min-h-screen flex flex-col bg-gray-50">
-            {/* Header */}
-            <Header />
+        <div className="flex flex-col">
 
             <MessageAlert message={alertMsg} type="success" />
 
             {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3 bg-white">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     <Link to="/admin/access-settings">Akses</Link>
                     <FaChevronRight

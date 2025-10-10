@@ -6,11 +6,13 @@ import { Link } from "react-router-dom";
 import RoleTableSkeleton from "./skeleton";
 import CreateRole from "./create";
 import UpdateRole from "./update";
+import { useSelector } from "react-redux";
 
 export default function RoleTable() {
 
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const [selectedRoleId, setSelectedRoleId] = useState(null);
+    const { currentUser } = useSelector((state) => state.user);
 
     const [roles, setRole] = useState([]);
     const [itemToDelete, setItemToDelete] = useState(null);
@@ -29,7 +31,9 @@ export default function RoleTable() {
         setLoading(true);
         try {
             // Fetch roles data
-            const roleResponse = await axios.get("/api/roles");
+            const roleResponse = await axios.get("/api/roles", {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
             const roleData = roleResponse.data.data ? roleResponse.data.data : roleResponse.data;
 
             setRole(roleData);
