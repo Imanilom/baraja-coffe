@@ -2,12 +2,12 @@ import SidebarMenu from '../models/Sidebar.model.js';
 import { SidebarHelper } from '../helpers/sidebarHelper.js';
 
 export class SidebarController {
-  
+
   // Mendapatkan menu untuk user yang sedang login
   static async getUserMenus(req, res) {
     try {
       const user = req.user; // dari auth middleware
-      
+
       if (!user || !user.role) {
         return res.status(401).json({
           success: false,
@@ -16,7 +16,7 @@ export class SidebarController {
       }
 
       const menus = await SidebarHelper.getMenuForUser(user);
-      
+
       res.json({
         success: true,
         data: menus
@@ -35,7 +35,7 @@ export class SidebarController {
       const menus = await SidebarMenu.find({})
         .populate('children')
         .sort({ order: 1 });
-      
+
       res.json({
         success: true,
         data: menus
@@ -129,7 +129,7 @@ export class SidebarController {
 
       // Cek apakah menu memiliki children
       const menu = await SidebarMenu.findById(id).populate('children');
-      
+
       if (!menu) {
         return res.status(404).json({
           success: false,
@@ -139,7 +139,7 @@ export class SidebarController {
 
       // Jika ada children, hapus juga children-nya
       if (menu.children && menu.children.length > 0) {
-        await SidebarMenu.deleteMany({ 
+        await SidebarMenu.deleteMany({
           _id: { $in: menu.children.map(child => child._id) }
         });
       }

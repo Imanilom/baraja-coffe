@@ -30,7 +30,8 @@ const SidebarMenuSchema = new mongoose.Schema({
         'manage_shifts',
         'manage_operational',
         'manage_loyalty',
-        'manage_finance'
+        'manage_finance',
+        'superadmin'
       ]
     }
   ],

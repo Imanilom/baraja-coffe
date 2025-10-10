@@ -5,6 +5,7 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa"
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
+import dayjs from "dayjs";
 
 const TaxRevenueManagement = () => {
     const customSelectStyles = {
@@ -48,7 +49,10 @@ const TaxRevenueManagement = () => {
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
+    const [value, setValue] = useState({
+        startDate: dayjs(),
+        endDate: dayjs()
+    });
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 

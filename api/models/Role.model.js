@@ -28,7 +28,8 @@ const RoleSchema = new mongoose.Schema({
         'manage_operational',
         'manage_loyalty',
         'manage_finance',
-        'manage_reservations'
+        'manage_reservations',
+        'superadmin'
       ]
     }
   ]

@@ -87,7 +87,7 @@ const CreateDepartemen = () => {
                 headers: { Authorization: `Bearer ${currentUser.token}` },
             });
             setMessage("Gudang berhasil dibuat ✅");
-            navigate("/admin/warehouse", {
+            navigate("/admin/access-settings/departement", {
                 state: { success: "Gudang berhasil dibuat!" },
             });
         } catch (err) {
@@ -99,8 +99,7 @@ const CreateDepartemen = () => {
 
     return (
         <>
-            <Header />
-            <main className="p-6 md:p-10 bg-gray-50 min-h-screen">
+            <main className="p-6 md:p-10 bg-gray-50">
                 <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-xl p-6">
                     <h1 className="text-2xl font-bold text-gray-800 mb-6">
                         Tambah Departemen
