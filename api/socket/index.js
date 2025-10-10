@@ -74,6 +74,9 @@ export default function socketHandler(io) {
                 if (session.device.assignedAreas && session.device.assignedAreas.length > 0) {
                     session.device.assignedAreas.forEach(area => {
                         socket.join(`area_${area}`);
+                        socket.join(room);
+                        console.log(`Device ${session.device.deviceName} joined ${room}`);
+
                     });
                 }
 

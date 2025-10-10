@@ -3,11 +3,9 @@ import { MenuItem } from "../models/MenuItem.model.js";
 import { Order } from "../models/order.model.js";
 import User from "../models/user.model.js";
 import Voucher from "../models/voucher.model.js";
-import AutoPromo from '../models/AutoPromo.model.js';
 import { snap, coreApi } from '../utils/MidtransConfig.js';
 import mongoose from 'mongoose';
-import axios from 'axios';
-import { validateOrderData, sanitizeForRedis, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
+import { validateOrderData, createMidtransCoreTransaction, createMidtransSnapTransaction } from '../validators/order.validator.js';
 import { orderQueue, queueEvents } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
@@ -18,9 +16,10 @@ import QRCode from 'qrcode';
 import FCMNotificationService from '../services/fcmNotificationService.js';
 import { TaxAndService } from '../models/TaxAndService.model.js';
 import { updateTableStatusAfterPayment } from './webhookController.js';
-const { ObjectId } = mongoose.Types;
 import { getAreaGroup } from '../utils/areaGrouping.js';
-
+import { Outlet } from '../models/Outlet.model.js';
+import dayjs from 'dayjs'
+import { processGoSendDelivery } from '../helpers/deliveryHelper.js';
 
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
@@ -1018,23 +1017,74 @@ const confirmOrderHelper = async (orderId) => {
 
 export const createUnifiedOrder = async (req, res) => {
   try {
-    const { order_id, source, customerId, loyaltyPointsToRedeem } = req.body;
+    const { 
+      order_id, 
+      source, 
+      customerId, 
+      outletId, 
+      loyaltyPointsToRedeem,
+      // Tambahan field untuk delivery - HANYA UNTUK APP
+      delivery_option, // 'pickup' atau 'delivery'
+      recipient_data // data penerima untuk delivery
+    } = req.body;
 
-    // Loyalty program OPSIONAL - tidak perlu validasi strict
-    // Jika ada customerId tapi format invalid, cukup log warning
-    if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
-      console.warn('Invalid customer ID format for loyalty program:', customerId);
-      // Tetap lanjut proses order tanpa loyalty
+    // Cek jam buka/tutup outlet 
+    const outlet = await Outlet.findById(outletId);
+    if (!outlet) {
+      return res.status(404).json({
+        success: false,
+        message: 'Outlet tidak ditemukan'
+      });
     }
 
-    // Jika ada loyaltyPointsToRedeem tapi tidak eligible, skip saja
+    const now = dayjs();
+    const currentTime = now.format('HH:mm');
+
+    // Bandingkan dengan jam buka & tutup outlet
+    if (outlet.openTime && outlet.closeTime) {
+      if (currentTime < outlet.openTime || currentTime > outlet.closeTime) {
+        return res.status(400).json({
+          success: false,
+          message: `Outlet sedang tutup. Jam buka: ${outlet.openTime} - ${outlet.closeTime}`
+        });
+      }
+    }
+
+    // VALIDASI: Hanya App yang boleh melakukan delivery
+    if (source !== 'App' && delivery_option === 'delivery') {
+      return res.status(400).json({
+        success: false,
+        message: 'Fitur delivery hanya tersedia untuk pesanan dari App'
+      });
+    }
+
+    // Validasi data recipient untuk delivery (HANYA APP)
+    if (source === 'App' && delivery_option === 'delivery' && !recipient_data) {
+      return res.status(400).json({
+        success: false,
+        message: 'Data penerima diperlukan untuk pesanan delivery'
+      });
+    }
+
+    // Validasi koordinat untuk delivery (HANYA APP)
+    if (source === 'App' && delivery_option === 'delivery' && recipient_data && !recipient_data.coordinates) {
+      return res.status(400).json({
+        success: false,
+        message: 'Koordinat lokasi penerima diperlukan untuk delivery'
+      });
+    }
+
+    // Loyalty program OPSIONAL - tidak perlu validasi strict
+    if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
+      console.warn('Invalid customer ID format for loyalty program:', customerId);
+    }
+
     if (loyaltyPointsToRedeem && (!customerId || (source !== 'app' && source !== 'cashier'))) {
       console.warn('Loyalty points redemption skipped - not eligible:', {
         customerId,
         source,
         loyaltyPointsToRedeem
       });
-      // Tetap lanjut proses order tanpa loyalty redemption
     }
 
     // Check if order already exists
@@ -1060,9 +1110,15 @@ export const createUnifiedOrder = async (req, res) => {
 
     const validated = validateOrderData(req.body, source);
 
-    // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data (opsional)
+    // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
     validated.customerId = customerId;
     validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
+    
+    // Hanya tambahkan delivery info untuk App
+    if (source === 'App') {
+      validated.delivery_option = delivery_option;
+      validated.recipient_data = recipient_data;
+    }
 
     const { tableNumber, orderType, reservationData } = validated;
     const areaGroup = getAreaGroup(tableNumber);
@@ -1091,14 +1147,14 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    // Log loyalty information (informational only)
-    console.log('Creating Order with Optional Loyalty:', {
-      orderId,
-      source,
-      hasCustomerId: !!customerId,
-      loyaltyPointsToRedeem,
-      willApplyLoyalty: customerId && (source === 'app' || source === 'cashier')
-    });
+    // Log delivery information (HANYA UNTUK APP)
+    if (source === 'App') {
+      console.log('Creating App Order with Delivery Option:', {
+        orderId,
+        delivery_option,
+        hasRecipientData: !!recipient_data
+      });
+    }
 
     // Create job for order processing
     const job = await orderQueue.add('create_order', {
@@ -1108,7 +1164,10 @@ export const createUnifiedOrder = async (req, res) => {
         orderData: validated,
         source,
         isOpenBill: validated.isOpenBill,
-        isReservation: orderType === 'reservation'
+        isReservation: orderType === 'reservation',
+        // Tambahkan flag untuk delivery - HANYA UNTUK APP
+        requiresDelivery: source === 'App' && delivery_option === 'delivery',
+        recipientData: source === 'App' ? recipient_data : null
       }
     }, {
       jobId: orderId,
@@ -1153,7 +1212,6 @@ export const createUnifiedOrder = async (req, res) => {
         ...baseResponse,
         status: 'Completed',
         message: 'Cashier order processed and paid',
-        // Loyalty info opsional - hanya tampilkan jika applied
         ...(result.loyalty?.isApplied && {
           loyalty: {
             pointsEarned: result.loyalty.pointsEarned,
@@ -1165,12 +1223,37 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (source === 'App') {
+      // PROSES DELIVERY HANYA UNTUK APP
+      let deliveryResult = null;
+      if (delivery_option === 'delivery' && recipient_data) {
+        try {
+          deliveryResult = await processGoSendDelivery({
+            orderId,
+            outlet,
+            recipient_data,
+            orderData: validated
+          });
+          
+          console.log('GoSend delivery created for App:', deliveryResult);
+        } catch (deliveryError) {
+          console.error('Failed to create GoSend delivery for App:', deliveryError);
+          // Return error karena delivery mandatory untuk App yang pilih delivery
+          return res.status(500).json({
+            success: false,
+            message: `Gagal membuat pesanan delivery: ${deliveryError.message}`,
+            orderId: orderId
+          });
+        }
+      }
+
       const midtransRes = await createMidtransCoreTransaction(
         orderId,
         validated.paymentDetails.amount,
         validated.paymentDetails.method
       );
-      return res.status(200).json({
+
+      // Response untuk App dengan atau tanpa delivery
+      const appResponse = {
         ...baseResponse,
         status: 'waiting_payment',
         midtrans: midtransRes,
@@ -1182,7 +1265,21 @@ export const createUnifiedOrder = async (req, res) => {
             discountAmount: result.loyalty.discountAmount
           }
         })
-      });
+      };
+
+      // Tambahkan delivery info jika ada
+      if (deliveryResult) {
+        appResponse.delivery = {
+          provider: 'GoSend',
+          status: 'pending',
+          tracking_number: deliveryResult.goSend_order_no,
+          estimated_price: deliveryResult.estimated_price,
+          live_tracking_url: deliveryResult.live_tracking_url,
+          shipment_method: deliveryResult.shipment_method
+        };
+      }
+
+      return res.status(200).json(appResponse);
     }
 
     if (source === 'Web') {
@@ -1205,13 +1302,14 @@ export const createUnifiedOrder = async (req, res) => {
       };
       const payment = await Payment.create(paymentData);
 
+      // WEB TIDAK BISA DELIVERY - skip delivery processing
+
       // If payment method is cash, do not create Midtrans Snap
       if (validated.paymentDetails.method?.toLowerCase() === 'cash') {
         return res.status(200).json({
           ...baseResponse,
           status: 'waiting_payment',
           message: 'Cash payment, no Midtrans Snap required',
-          // Web orders typically don't have loyalty, but include if exists
           ...(result.loyalty?.isApplied && {
             loyalty: {
               pointsEarned: result.loyalty.pointsEarned,
@@ -1233,7 +1331,6 @@ export const createUnifiedOrder = async (req, res) => {
         status: 'waiting_payment',
         snapToken: midtransRes.token,
         redirectUrl: midtransRes.redirect_url,
-        // Web orders typically don't have loyalty, but include if exists
         ...(result.loyalty?.isApplied && {
           loyalty: {
             pointsEarned: result.loyalty.pointsEarned,
@@ -1253,7 +1350,6 @@ export const createUnifiedOrder = async (req, res) => {
     });
   }
 };
-
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
