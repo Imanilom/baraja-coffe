@@ -589,6 +589,7 @@ export const createAppOrder = async (req, res) => {
     });
   }
 };
+
 // Helper function to parse Indonesian date format
 function parseIndonesianDate(dateString) {
   const monthMap = {
@@ -1016,7 +1017,24 @@ const confirmOrderHelper = async (orderId) => {
 
 export const createUnifiedOrder = async (req, res) => {
   try {
-    const { order_id, source } = req.body;
+    const { order_id, source, customerId, loyaltyPointsToRedeem } = req.body;
+
+    // Loyalty program OPSIONAL - tidak perlu validasi strict
+    // Jika ada customerId tapi format invalid, cukup log warning
+    if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
+      console.warn('Invalid customer ID format for loyalty program:', customerId);
+      // Tetap lanjut proses order tanpa loyalty
+    }
+
+    // Jika ada loyaltyPointsToRedeem tapi tidak eligible, skip saja
+    if (loyaltyPointsToRedeem && (!customerId || (source !== 'app' && source !== 'cashier'))) {
+      console.warn('Loyalty points redemption skipped - not eligible:', {
+        customerId,
+        source,
+        loyaltyPointsToRedeem
+      });
+      // Tetap lanjut proses order tanpa loyalty redemption
+    }
 
     // Check if order already exists
     const existingOrder = await Order.findOne({ order_id: order_id });
@@ -1041,6 +1059,10 @@ export const createUnifiedOrder = async (req, res) => {
 
     const validated = validateOrderData(req.body, source);
 
+    // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data (opsional)
+    validated.customerId = customerId;
+    validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
+
     const { tableNumber, orderType, reservationData } = validated;
 
     // Generate order ID
@@ -1062,6 +1084,15 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
+    // Log loyalty information (informational only)
+    console.log('Creating Order with Optional Loyalty:', {
+      orderId,
+      source,
+      hasCustomerId: !!customerId,
+      loyaltyPointsToRedeem,
+      willApplyLoyalty: customerId && (source === 'app' || source === 'cashier')
+    });
+
     // Create job for order processing
     const job = await orderQueue.add('create_order', {
       type: 'create_order',
@@ -1074,9 +1105,9 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }, {
       jobId: orderId,
-      removeOnComplete: true, // Optional: bersihkan job yang completed
-      removeOnFail: false,   // Simpan job yang failed untuk debugging
-      attempts: 3,           // Retry 3 kali
+      removeOnComplete: true,
+      removeOnFail: false,
+      attempts: 3,
       backoff: {
         type: 'exponential',
         delay: 1000
@@ -1088,14 +1119,11 @@ export const createUnifiedOrder = async (req, res) => {
     // Wait for job completion dengan timeout
     let result;
     try {
-      // Tambahkan timeout (30 detik)
       result = await job.waitUntilFinished(queueEvents, 30000);
       console.log(`Job ${job.id} completed successfully`);
 
     } catch (queueErr) {
       console.error(`Job ${job.id} failed:`, queueErr);
-
-      // Dapatkan status job untuk informasi lebih detail
       const jobState = await job.getState();
       return res.status(500).json({
         success: false,
@@ -1105,13 +1133,27 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
+    // Base response tanpa loyalty
+    const baseResponse = {
+      status: '',
+      orderId,
+      jobId: job.id
+    };
+
     // Handle payment based on source
     if (source === 'Cashier') {
       return res.status(200).json({
+        ...baseResponse,
         status: 'Completed',
-        orderId,
-        jobId: job.id,
         message: 'Cashier order processed and paid',
+        // Loyalty info opsional - hanya tampilkan jika applied
+        ...(result.loyalty?.isApplied && {
+          loyalty: {
+            pointsEarned: result.loyalty.pointsEarned,
+            pointsUsed: result.loyalty.pointsUsed,
+            discountAmount: result.loyalty.discountAmount
+          }
+        })
       });
     }
 
@@ -1122,15 +1164,22 @@ export const createUnifiedOrder = async (req, res) => {
         validated.paymentDetails.method
       );
       return res.status(200).json({
+        ...baseResponse,
         status: 'waiting_payment',
-        orderId,
-        jobId: job.id,
         midtrans: midtransRes,
+        // Loyalty info opsional
+        ...(result.loyalty?.isApplied && {
+          loyalty: {
+            pointsEarned: result.loyalty.pointsEarned,
+            pointsUsed: result.loyalty.pointsUsed,
+            discountAmount: result.loyalty.discountAmount
+          }
+        })
       });
     }
 
     if (source === 'Web') {
-      // Always create a pending Payment record first (tagihan), regardless of method
+      // Always create a pending Payment record first
       const order = await Order.findOne({ order_id: orderId });
       if (!order) {
         throw new Error(`Order ${orderId} not found after job completion`);
@@ -1152,10 +1201,16 @@ export const createUnifiedOrder = async (req, res) => {
       // If payment method is cash, do not create Midtrans Snap
       if (validated.paymentDetails.method?.toLowerCase() === 'cash') {
         return res.status(200).json({
+          ...baseResponse,
           status: 'waiting_payment',
-          orderId,
-          jobId: job.id,
           message: 'Cash payment, no Midtrans Snap required',
+          // Web orders typically don't have loyalty, but include if exists
+          ...(result.loyalty?.isApplied && {
+            loyalty: {
+              pointsEarned: result.loyalty.pointsEarned,
+              pointsUsed: result.loyalty.pointsUsed
+            }
+          })
         });
       }
 
@@ -1167,11 +1222,17 @@ export const createUnifiedOrder = async (req, res) => {
       );
 
       return res.status(200).json({
+        ...baseResponse,
         status: 'waiting_payment',
-        orderId,
-        jobId: job.id,
         snapToken: midtransRes.token,
         redirectUrl: midtransRes.redirect_url,
+        // Web orders typically don't have loyalty, but include if exists
+        ...(result.loyalty?.isApplied && {
+          loyalty: {
+            pointsEarned: result.loyalty.pointsEarned,
+            pointsUsed: result.loyalty.pointsUsed
+          }
+        })
       });
     }
 
@@ -1185,6 +1246,7 @@ export const createUnifiedOrder = async (req, res) => {
     });
   }
 };
+
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
@@ -1659,6 +1721,170 @@ export const charge = async (req, res) => {
       }
     }
 
+    // === NEW: Cek apakah ada full payment yang masih pending ===
+    const existingFullPayment = await Payment.findOne({
+      order_id: order_id,
+      paymentType: 'Full',
+      status: { $in: ['pending', 'expire'] } // belum dibayar
+    }).sort({ createdAt: -1 });
+
+    // === NEW: Jika ada full payment pending, update dengan pesanan baru ===
+    if (existingFullPayment) {
+      // Hitung total full payment baru
+      const additionalAmount = total_order_amount || gross_amount;
+      const newFullPaymentAmount = existingFullPayment.amount + additionalAmount;
+
+      console.log("Updating existing full payment:");
+      console.log("Previous full payment amount:", existingFullPayment.amount);
+      console.log("Added order amount:", additionalAmount);
+      console.log("New full payment amount:", newFullPaymentAmount);
+
+      // === Update untuk CASH ===
+      if (payment_type === 'cash') {
+        const transactionId = generateTransactionId();
+        const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+
+        const qrData = { order_id: order._id.toString() };
+        const qrCodeBase64 = await QRCode.toDataURL(JSON.stringify(qrData));
+
+        const actions = [{
+          name: "generate-qr-code",
+          method: "GET",
+          url: qrCodeBase64,
+        }];
+
+        const rawResponse = {
+          status_code: "200",
+          status_message: "Full payment amount updated successfully",
+          transaction_id: transactionId,
+          payment_code: payment_code,
+          order_id: order_id,
+          gross_amount: newFullPaymentAmount.toString() + ".00",
+          currency: "IDR",
+          payment_type: "cash",
+          transaction_time: currentTime,
+          transaction_status: "pending",
+          fraud_status: "accept",
+          actions: actions,
+          acquirer: "cash",
+          qr_string: JSON.stringify(qrData),
+          expiry_time: expiryTime,
+        };
+
+        // Update existing full payment
+        await Payment.updateOne(
+          { _id: existingFullPayment._id },
+          {
+            $set: {
+              transaction_id: transactionId,
+              payment_code: payment_code,
+              amount: newFullPaymentAmount,
+              totalAmount: newFullPaymentAmount,
+              method: payment_type,
+              status: 'pending',
+              fraud_status: 'accept',
+              transaction_time: currentTime,
+              expiry_time: expiryTime,
+              actions: actions,
+              raw_response: rawResponse,
+              updatedAt: new Date()
+            }
+          }
+        );
+
+        const updatedPayment = await Payment.findById(existingFullPayment._id);
+
+        return res.status(200).json({
+          ...rawResponse,
+          paymentType: 'Full',
+          totalAmount: newFullPaymentAmount,
+          remainingAmount: 0,
+          is_down_payment: false,
+          relatedPaymentId: null,
+          createdAt: updatedPayment.createdAt,
+          updatedAt: updatedPayment.updatedAt,
+          isUpdated: true,
+          previousAmount: existingFullPayment.amount,
+          addedTotalAmount: additionalAmount,
+          newAmount: newFullPaymentAmount,
+          message: "Full payment updated due to additional order items"
+        });
+
+      } else {
+        // === Update untuk NON-CASH ===
+        let chargeParams = {
+          payment_type: payment_type,
+          transaction_details: {
+            gross_amount: parseInt(newFullPaymentAmount),
+            order_id: payment_code,
+          },
+        };
+
+        // Setup payment method specific params
+        if (payment_type === 'bank_transfer') {
+          if (!bank_transfer?.bank) {
+            return res.status(400).json({ success: false, message: 'Bank is required' });
+          }
+          chargeParams.bank_transfer = { bank: bank_transfer.bank };
+        } else if (payment_type === 'gopay') {
+          chargeParams.gopay = {};
+        } else if (payment_type === 'qris') {
+          chargeParams.qris = {};
+        } else if (payment_type === 'shopeepay') {
+          chargeParams.shopeepay = {};
+        } else if (payment_type === 'credit_card') {
+          chargeParams.credit_card = { secure: true };
+        }
+
+        const response = await coreApi.charge(chargeParams);
+
+        // Update existing full payment
+        await Payment.updateOne(
+          { _id: existingFullPayment._id },
+          {
+            $set: {
+              transaction_id: response.transaction_id,
+              payment_code: payment_code,
+              amount: newFullPaymentAmount,
+              totalAmount: newFullPaymentAmount,
+              method: payment_type,
+              status: response.transaction_status || 'pending',
+              fraud_status: response.fraud_status,
+              transaction_time: response.transaction_time,
+              expiry_time: response.expiry_time,
+              settlement_time: response.settlement_time || null,
+              va_numbers: response.va_numbers || [],
+              permata_va_number: response.permata_va_number || null,
+              bill_key: response.bill_key || null,
+              biller_code: response.biller_code || null,
+              pdf_url: response.pdf_url || null,
+              currency: response.currency || 'IDR',
+              merchant_id: response.merchant_id || null,
+              signature_key: response.signature_key || null,
+              actions: response.actions || [],
+              raw_response: response,
+              updatedAt: new Date()
+            }
+          }
+        );
+
+        return res.status(200).json({
+          ...response,
+          paymentType: 'Full',
+          totalAmount: newFullPaymentAmount,
+          remainingAmount: 0,
+          is_down_payment: false,
+          relatedPaymentId: null,
+          isUpdated: true,
+          previousAmount: existingFullPayment.amount,
+          addedTotalAmount: additionalAmount,
+          newAmount: newFullPaymentAmount,
+          message: "Full payment updated due to additional order items"
+        });
+      }
+    }
+
     // === NEW: Cek apakah ada final payment yang masih pending ===
     const existingFinalPayment = await Payment.findOne({
       order_id: order_id,
@@ -1791,7 +2017,7 @@ export const charge = async (req, res) => {
             {
               $set: {
                 transaction_id: response.transaction_id,
-                payment_code: payment_code,
+                payment_code: response_code,
                 amount: newFinalPaymentAmount,
                 totalAmount: newFinalPaymentAmount,
                 method: payment_type,
@@ -3510,7 +3736,7 @@ export const getCashierOrderHistory = async (req, res) => {
             ...item.menuItem,
             category: item.category ? { id: item.category._id, name: item.category.name } : null,
             subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
-            originalPrice: item.menuItem.price,
+            originalPrice: item.menuItem.price ?? 0,
             discountedprice: item.menuItem.discountedPrice ?? item.menuItem.price,
             // _id: item.menuItem._id,
             // name: item.menuItem.name,

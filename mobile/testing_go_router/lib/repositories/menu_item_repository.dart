@@ -19,7 +19,7 @@ class MenuItemRepository {
               .toList();
 
       // Urutkan data API berdasarkan nama (abjad)
-      print("Data menu yg diambil: ${menuItemsResponse['data'][3]}");
+      print("Data menu yg diambil: ${menuItemsList.first.stock}");
       menuItemsList.sort(
         (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
       );
@@ -69,10 +69,13 @@ class MenuItemRepository {
         return sortedLocalData;
       } else {
         // Jika Hive kosong, simpan semua data yang sudah diurutkan
-        print("Data menu yang diambil: ${menuItemsResponse['data'].length}");
+        print(
+          "Data menu yang diambil di api: ${menuItemsResponse['data'].length}",
+        );
         await productBox.putAll({
           for (var item in menuItemsList) item.id: item,
         });
+        print("stok data menu items: ${menuItemsList.first.stock}");
         return menuItemsList; // Sudah diurutkan di atas
       }
     } catch (e) {
@@ -101,23 +104,23 @@ class MenuItemRepository {
       print("Data stock yg diambil: ${stockResponse['data'].length}");
       // masukan kedalam data menu item
       var productBox = Hive.box<MenuItemModel>('menuItemsBox');
-      if (productBox.isNotEmpty) {
-        // input data api stock ke dalam hive menu item sesuai ID menu item
-        final stockData = stockResponse['data'] as List;
-        for (var stockItem in stockData) {
-          final menuItemId = stockItem['_id'].toString();
-          final availableStock = stockItem['availableStock'] ?? 0;
+      // if (productBox.isNotEmpty) {
+      //   // input data api stock ke dalam hive menu item sesuai ID menu item
+      //   final stockData = stockResponse['data'] as List;
+      //   for (var stockItem in stockData) {
+      //     final menuItemId = stockItem['_id'].toString();
+      //     final availableStock = stockItem['availableStock'] ?? 0;
 
-          final localItem = productBox.get(menuItemId);
-          if (localItem != null) {
-            final updatedItem = localItem.copyWith(stock: availableStock);
-            await productBox.put(menuItemId, updatedItem);
-            print(
-              "Mengupdate stock item: ${localItem.name}, Stock: $availableStock",
-            );
-          }
-        }
-      }
+      //     final localItem = productBox.get(menuItemId);
+      //     if (localItem != null) {
+      //       final updatedItem = localItem.copyWith(stock: availableStock);
+      //       await productBox.put(menuItemId, updatedItem);
+      //       print(
+      //         "Mengupdate stock item: ${localItem.name}, Stock: $availableStock",
+      //       );
+      //     }
+      //   }
+      // }
 
       return stockResponse;
     } catch (e) {
@@ -134,6 +137,8 @@ class MenuItemRepository {
     localData.sort(
       (a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()),
     );
+
+    print("ggget local data :: ${localData.first.stock}");
     return localData;
   }
 
@@ -153,7 +158,8 @@ class MenuItemRepository {
         local.isAvailable != api.isAvailable ||
         local.workstation != api.workstation ||
         _hasToppingsChanged(local.toppings, api.toppings) ||
-        _hasAddonsChanged(local.addons, api.addons);
+        _hasAddonsChanged(local.addons, api.addons) ||
+        local.stock != api.stock;
   }
 
   /// Membandingkan apakah toppings berubah

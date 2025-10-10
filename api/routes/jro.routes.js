@@ -7,9 +7,13 @@ import {
     completeReservation,
     cancelReservation,
     closeOpenBill,
-    getTableAvailability
+    getTableAvailability,
+    checkInReservation,
+    checkOutReservation,
+    transferTable,
+    createReservation
 } from '../controllers/jro.controller.js';
-import { verifyToken } from '../utils/verifyUser.js';
+import { authMiddleware, verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
@@ -20,14 +24,18 @@ const router = express.Router();
 router.get('/dashboard-stats', getDashboardStats);
 
 // Reservation Management
-router.get('/reservations', getReservations);
-router.get('/reservations/:id', getReservationDetail);
-router.put('/reservations/:id/confirm', confirmReservation);
-router.put('/reservations/:id/complete', completeReservation);
-router.put('/reservations/:id/cancel', cancelReservation);
-router.put('/reservations/:id/close-open-bill', closeOpenBill);
+router.get('/reservations', authMiddleware, getReservations);
+router.post('/reservations', createReservation); // ✅ Route baru untuk create reservation
+router.get('/reservations/:id', authMiddleware, getReservationDetail);
+router.put('/reservations/:id/confirm', authMiddleware, confirmReservation);
+router.put('/reservations/:id/complete', authMiddleware, completeReservation);
+router.put('/reservations/:id/cancel', authMiddleware, cancelReservation);
+router.put('/reservations/:id/close-open-bill', authMiddleware, closeOpenBill);
+router.put('/reservations/:id/check-in', authMiddleware, checkInReservation);
+router.put('/reservations/:id/check-out', authMiddleware, checkOutReservation);
 
 // Table Availability
-router.get('/tables/availability', getTableAvailability);
+router.get('/tables/availability', authMiddleware, getTableAvailability);
+router.get('/reservations/:id/transfer-table', authMiddleware, transferTable);
 
 export default router;

@@ -1,3 +1,5 @@
+// ignore_for_file: invalid_annotation_target
+
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
 import 'package:kasirbaraja/models/topping.model.dart';
@@ -18,7 +20,10 @@ abstract class OrderItemModel with _$OrderItemModel {
     @HiveField(3) @Default(1) int quantity,
     @HiveField(4) @Default("") String? notes,
     @HiveField(5) @Default(0) int subtotal,
-    @HiveField(6) @Default(null) OrderType? orderType,
+    @HiveField(6)
+    @JsonKey(name: 'dineType')
+    @Default(null)
+    OrderType? orderType,
   }) = _OrderItemModel;
 
   OrderItemModel._();

@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$OrderItemModel {
 
-@HiveField(0) MenuItemModel get menuItem;@HiveField(1) List<ToppingModel> get selectedToppings;@HiveField(2) List<AddonModel> get selectedAddons;@HiveField(3) int get quantity;@HiveField(4) String? get notes;@HiveField(5) int get subtotal;@HiveField(6) OrderType? get orderType;
+@HiveField(0) MenuItemModel get menuItem;@HiveField(1) List<ToppingModel> get selectedToppings;@HiveField(2) List<AddonModel> get selectedAddons;@HiveField(3) int get quantity;@HiveField(4) String? get notes;@HiveField(5) int get subtotal;@HiveField(6)@JsonKey(name: 'dineType') OrderType? get orderType;
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -49,7 +49,7 @@ abstract mixin class $OrderItemModelCopyWith<$Res>  {
   factory $OrderItemModelCopyWith(OrderItemModel value, $Res Function(OrderItemModel) _then) = _$OrderItemModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6) OrderType? orderType
+@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6)@JsonKey(name: 'dineType') OrderType? orderType
 });
 
 
@@ -95,7 +95,7 @@ $MenuItemModelCopyWith<$Res> get menuItem {
 @JsonSerializable()
 
 class _OrderItemModel extends OrderItemModel {
-   _OrderItemModel({@HiveField(0) required this.menuItem, @HiveField(1) final  List<ToppingModel> selectedToppings = const [], @HiveField(2) final  List<AddonModel> selectedAddons = const [], @HiveField(3) this.quantity = 1, @HiveField(4) this.notes = "", @HiveField(5) this.subtotal = 0, @HiveField(6) this.orderType = null}): _selectedToppings = selectedToppings,_selectedAddons = selectedAddons,super._();
+   _OrderItemModel({@HiveField(0) required this.menuItem, @HiveField(1) final  List<ToppingModel> selectedToppings = const [], @HiveField(2) final  List<AddonModel> selectedAddons = const [], @HiveField(3) this.quantity = 1, @HiveField(4) this.notes = "", @HiveField(5) this.subtotal = 0, @HiveField(6)@JsonKey(name: 'dineType') this.orderType = null}): _selectedToppings = selectedToppings,_selectedAddons = selectedAddons,super._();
   factory _OrderItemModel.fromJson(Map<String, dynamic> json) => _$OrderItemModelFromJson(json);
 
 @override@HiveField(0) final  MenuItemModel menuItem;
@@ -116,7 +116,7 @@ class _OrderItemModel extends OrderItemModel {
 @override@JsonKey()@HiveField(3) final  int quantity;
 @override@JsonKey()@HiveField(4) final  String? notes;
 @override@JsonKey()@HiveField(5) final  int subtotal;
-@override@JsonKey()@HiveField(6) final  OrderType? orderType;
+@override@HiveField(6)@JsonKey(name: 'dineType') final  OrderType? orderType;
 
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
@@ -151,7 +151,7 @@ abstract mixin class _$OrderItemModelCopyWith<$Res> implements $OrderItemModelCo
   factory _$OrderItemModelCopyWith(_OrderItemModel value, $Res Function(_OrderItemModel) _then) = __$OrderItemModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6) OrderType? orderType
+@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6)@JsonKey(name: 'dineType') OrderType? orderType
 });
 
 

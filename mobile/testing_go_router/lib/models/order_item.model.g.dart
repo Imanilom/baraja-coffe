@@ -81,7 +81,7 @@ _OrderItemModel _$OrderItemModelFromJson(
   quantity: (json['quantity'] as num?)?.toInt() ?? 1,
   notes: json['notes'] as String? ?? "",
   subtotal: (json['subtotal'] as num?)?.toInt() ?? 0,
-  orderType: $enumDecodeNullable(_$OrderTypeEnumMap, json['orderType']) ?? null,
+  orderType: $enumDecodeNullable(_$OrderTypeEnumMap, json['dineType']) ?? null,
 );
 
 Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
@@ -92,7 +92,7 @@ Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
       'quantity': instance.quantity,
       'notes': instance.notes,
       'subtotal': instance.subtotal,
-      'orderType': _$OrderTypeEnumMap[instance.orderType],
+      'dineType': _$OrderTypeEnumMap[instance.orderType],
     };
 
 const _$OrderTypeEnumMap = {

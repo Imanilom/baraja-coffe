@@ -11,7 +11,16 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
     session = await mongoose.startSession();
     
     const orderResult = await runWithTransactionRetry(async () => {
-      // Process order items with inventory updates
+      const { customerId, loyaltyPointsToRedeem } = orderData;
+      
+      console.log('Order Handler - Optional Loyalty Check:', {
+        customerId,
+        loyaltyPointsToRedeem,
+        source,
+        hasCustomerId: !!customerId
+      });
+
+      // Process order items dengan loyalty program opsional
       const processed = await processOrderItems(orderData, session);
       if (!processed) {
         throw new Error('Failed to process order items');
@@ -22,6 +31,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         totals,
         discounts,
         promotions,
+        loyalty,
         taxesAndFees
       } = processed;
 
@@ -51,8 +61,18 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
           autoPromoDiscount: discounts.autoPromoDiscount,
           manualDiscount: discounts.manualDiscount,
           voucherDiscount: discounts.voucherDiscount,
+          loyaltyDiscount: discounts.loyaltyDiscount,
           total: discounts.total
         },
+        // Loyalty data hanya disimpan jika applied
+        ...(loyalty.isApplied && {
+          loyalty: {
+            pointsUsed: loyalty.pointsUsed,
+            pointsEarned: loyalty.pointsEarned,
+            discountAmount: loyalty.discountAmount,
+            customerId: loyalty.customerId
+          }
+        }),
         taxAndServiceDetails: taxesAndFees,
         createdAt: new Date(),
         updatedAt: new Date()
@@ -67,8 +87,8 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         orderId: newOrder._id.toString(),
         orderNumber: orderId,
         processedItems: orderItems,
-        // Jangan sertakan session info dalam job data
-        totals: totals
+        totals: totals,
+        loyalty: loyalty
       };
     }, session);
 
@@ -76,7 +96,6 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
     const queueResult = await enqueueInventoryUpdate(orderResult);
     
     if (orderData.orderType === 'Dine-In') {
-      // Panggil setelah transaction commit
       setTimeout(() => {
         updateTableStatusAfterPayment(orderResult.orderId);
       }, 100);
@@ -85,7 +104,8 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
     return {
       ...queueResult,
       orderNumber: orderId,
-      grandTotal: orderResult.totals.grandTotal
+      grandTotal: orderResult.totals.grandTotal,
+      loyalty: orderResult.loyalty
     };
 
   } catch (err) {
@@ -96,7 +116,6 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       source
     });
 
-    // Handle specific error cases
     if (err.message.includes('Failed to process order items')) {
       throw new Error(`ORDER_PROCESSING_FAILED: ${err.message}`);
     }
@@ -124,7 +143,6 @@ export async function enqueueInventoryUpdate(orderResult) {
         orderId: orderResult.orderId,
         orderNumber: orderResult.orderNumber,
         items: orderResult.processedItems
-        // Hapus sessionInfo dari payload
       }
     };
 

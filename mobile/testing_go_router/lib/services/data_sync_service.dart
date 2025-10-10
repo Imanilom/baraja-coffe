@@ -49,7 +49,7 @@ class DataSyncService {
     required Function(DataSyncProgress) onProgress,
     // String? token,
   }) async {
-    const totalSteps = 3;
+    const totalSteps = 5;
     int currentStep = 0;
 
     try {
@@ -75,15 +75,15 @@ class DataSyncService {
       );
       await MenuItemRepository().getMenuItem();
 
-      currentStep++;
-      onProgress(
-        DataSyncProgress(
-          currentStep: currentStep,
-          totalSteps: totalSteps,
-          currentTask: 'Downloading stock...',
-        ),
-      );
-      await MenuItemRepository().getMenuItemStock();
+      // currentStep++;
+      // onProgress(
+      //   DataSyncProgress(
+      //     currentStep: currentStep,
+      //     totalSteps: totalSteps,
+      //     currentTask: 'Downloading stock...',
+      //   ),
+      // );
+      // await MenuItemRepository().getMenuItemStock();
 
       // Step 2: Sync Tax and Service
       currentStep++;
@@ -127,6 +127,7 @@ class DataSyncService {
         ),
       );
 
+      print('Event data count: ${HiveService.eventBox.length}');
       print('Event data count: ${HiveService.eventBox.length}');
       print('MenuItem data count: ${HiveService.menuItemsBox.length}');
       print('TaxAndService data count: ${HiveService.taxAndServiceBox.length}');
@@ -192,4 +193,34 @@ final dataSyncProvider =
       final dataSyncService = ref.read(dataSyncServiceProvider);
       final authState = ref.read(tryAuthProvider.notifier);
       return DataSyncNotifier(dataSyncService, authState);
+    });
+
+class UpdateDataSyncNotifier extends StateNotifier<DataSyncProgress?> {
+  final DataSyncService _dataSyncService;
+
+  UpdateDataSyncNotifier(this._dataSyncService) : super(null);
+
+  Future<void> syncData({String? token}) async {
+    try {
+      await _dataSyncService.syncAllData(
+        onProgress: (progress) {
+          state = progress;
+        },
+        // token: token,
+      );
+    } catch (e) {
+      // Error is already handled in syncAllData
+      rethrow;
+    }
+  }
+
+  void reset() {
+    state = null;
+  }
+}
+
+final updateDataSyncProvider =
+    StateNotifierProvider<UpdateDataSyncNotifier, DataSyncProgress?>((ref) {
+      final dataSyncService = ref.read(dataSyncServiceProvider);
+      return UpdateDataSyncNotifier(dataSyncService);
     });

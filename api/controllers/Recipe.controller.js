@@ -243,56 +243,84 @@ export const updateSingleMenuStock = async (req, res) => {
 
 // PATCH /api/menu-stocks/:menuItemId/adjust
 export const adjustMenuStock = async (req, res) => {
-  const { menuItemId } = req.params;
-  const { manualStock, adjustmentNote, adjustedBy } = req.body;
-
-  if (!mongoose.Types.ObjectId.isValid(menuItemId)) {
-    return res.status(400).json({ success: false, message: 'ID Menu tidak valid' });
-  }
-
-  // Jika manualStock kosong atau null, reset ke calculated
-  if (manualStock === '' || manualStock === null) {
-    try {
-      const menuStock = await MenuStock.findOne({ menuItemId });
-      if (!menuStock) {
-        return res.status(404).json({ success: false, message: 'Stok menu tidak ditemukan' });
-      }
-
-      // Reset manualStock ke null, sehingga menggunakan calculatedStock
-      menuStock.manualStock = null;
-      menuStock.adjustmentNote = 'Reset ke stok terhitung sistem';
-      menuStock.adjustedBy = adjustedBy || null;
-      menuStock.lastAdjustedAt = new Date();
-
-      await menuStock.save();
-
-      // Update MenuItem.availableStock
-      await MenuItem.findByIdAndUpdate(menuItemId, {
-        availableStock: menuStock.effectiveStock
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: 'Stok manual berhasil direset ke stok sistem',
-        data: menuStock
-      });
-
-    } catch (error) {
-      console.error('Error resetting manual stock:', error);
-      return res.status(500).json({ success: false, message: 'Gagal mereset stok manual' });
-    }
-  }
-
-  // Validasi untuk input manual stock
-  if (manualStock < 0) {
-    return res.status(400).json({ success: false, message: 'Stok manual harus angka ≥ 0' });
-  }
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
   try {
-    let stockDoc = await MenuStock.findOne({ menuItemId });
+    const { menuItemId } = req.params;
+    const { manualStock, adjustmentNote, adjustedBy, reason, wasteQuantity } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(menuItemId)) {
+      await session.abortTransaction();
+      return res.status(400).json({ success: false, message: 'ID Menu tidak valid' });
+    }
+
+    // Validasi untuk waste/pengurangan stok
+    if (reason && wasteQuantity) {
+      if (wasteQuantity <= 0) {
+        await session.abortTransaction();
+        return res.status(400).json({ success: false, message: 'Quantity waste harus lebih dari 0' });
+      }
+
+      const validReasons = ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya'];
+      if (!validReasons.includes(reason)) {
+        await session.abortTransaction();
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Reason tidak valid. Pilihan: busuk, tidak_bagus, kedaluwarsa, rusak, hilang, lainnya' 
+        });
+      }
+    }
+
+    // Jika manualStock kosong atau null, reset ke calculated
+    if (manualStock === '' || manualStock === null) {
+      try {
+        const menuStock = await MenuStock.findOne({ menuItemId }).session(session);
+        if (!menuStock) {
+          await session.abortTransaction();
+          return res.status(404).json({ success: false, message: 'Stok menu tidak ditemukan' });
+        }
+
+        // Reset manualStock ke null, sehingga menggunakan calculatedStock
+        menuStock.manualStock = null;
+        menuStock.adjustmentNote = 'Reset ke stok terhitung sistem';
+        menuStock.adjustedBy = adjustedBy || null;
+        menuStock.lastAdjustedAt = new Date();
+
+        await menuStock.save({ session });
+
+        // Update MenuItem.availableStock
+        await MenuItem.findByIdAndUpdate(menuItemId, {
+          availableStock: menuStock.effectiveStock
+        }, { session });
+
+        await session.commitTransaction();
+
+        return res.status(200).json({
+          success: true,
+          message: 'Stok manual berhasil direset ke stok sistem',
+          data: menuStock
+        });
+
+      } catch (error) {
+        await session.abortTransaction();
+        console.error('Error resetting manual stock:', error);
+        return res.status(500).json({ success: false, message: 'Gagal mereset stok manual' });
+      }
+    }
+
+    // Validasi untuk input manual stock
+    if (manualStock < 0) {
+      await session.abortTransaction();
+      return res.status(400).json({ success: false, message: 'Stok manual harus angka ≥ 0' });
+    }
+
+    let stockDoc = await MenuStock.findOne({ menuItemId }).session(session);
+    const previousStock = stockDoc ? stockDoc.effectiveStock : 0;
+
     if (!stockDoc) {
       // Jika belum ada, hitung calculatedStock terlebih dahulu
-      const recipe = await Recipe.findOne({ menuItemId });
+      const recipe = await Recipe.findOne({ menuItemId }).session(session);
       let calculatedStock = 0;
       
       if (recipe?.baseIngredients?.length) {
@@ -318,12 +346,28 @@ export const adjustMenuStock = async (req, res) => {
       stockDoc.lastAdjustedAt = new Date();
     }
 
-    await stockDoc.save();
+    await stockDoc.save({ session });
 
     // Update MenuItem.availableStock
     await MenuItem.findByIdAndUpdate(menuItemId, {
       availableStock: stockDoc.effectiveStock
-    });
+    }, { session });
+
+    // Handle waste/pengurangan stok dengan ProductStock Movement
+    if (reason && wasteQuantity) {
+      await handleWasteStockMovement(
+        menuItemId, 
+        wasteQuantity, 
+        reason, 
+        adjustedBy, 
+        adjustmentNote,
+        previousStock,
+        stockDoc.effectiveStock,
+        session
+      );
+    }
+
+    await session.commitTransaction();
 
     res.status(200).json({
       success: true,
@@ -332,8 +376,228 @@ export const adjustMenuStock = async (req, res) => {
     });
 
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error adjusting menu stock:', error);
     res.status(500).json({ success: false, message: 'Gagal menyesuaikan stok' });
+  } finally {
+    session.endSession();
+  }
+};
+
+/**
+ * Fungsi untuk menangani waste/pengurangan stok dan mencatat di ProductStock Movement
+ */
+const handleWasteStockMovement = async (
+  menuItemId, 
+  wasteQuantity, 
+  reason, 
+  handledBy, 
+  notes,
+  previousStock,
+  currentStock,
+  session
+) => {
+  try {
+    // Dapatkan informasi menu item
+    const menuItem = await MenuItem.findById(menuItemId).session(session);
+    if (!menuItem) {
+      throw new Error('Menu item tidak ditemukan');
+    }
+
+    // Dapatkan resep untuk mendapatkan bahan-bahan yang digunakan
+    const recipe = await Recipe.findOne({ menuItemId }).session(session);
+    if (!recipe || !recipe.baseIngredients || recipe.baseIngredients.length === 0) {
+      throw new Error('Resep tidak ditemukan untuk menu item ini');
+    }
+
+    // Hitung pengurangan bahan berdasarkan waste quantity
+    const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
+    
+    for (const ingredient of defaultIngredients) {
+      const productId = ingredient.productId;
+      const quantityPerPortion = ingredient.quantity;
+      const totalWasteQuantity = quantityPerPortion * wasteQuantity;
+
+      // Cari atau buat ProductStock untuk product ini
+      let productStock = await ProductStock.findOne({ 
+        productId: productId 
+      }).session(session);
+
+      if (!productStock) {
+        // Jika belum ada, buat baru dengan stok 0
+        productStock = new ProductStock({
+          productId: productId,
+          currentStock: 0,
+          minStock: 0,
+          warehouse: '68bfb3643cf2055fbfad6a00' 
+        });
+        await productStock.save({ session });
+      }
+
+      // Buat movement record untuk waste
+      const wasteMovement = {
+        quantity: totalWasteQuantity,
+        type: 'out',
+        referenceId: menuItemId,
+        notes: `Waste: ${reason} - ${notes || 'Pengurangan stok karena barang tidak layak'}. Menu: ${menuItem.name}, Qty: ${wasteQuantity}`,
+        sourceWarehouse: productStock.warehouse,
+        handledBy: handledBy || 'system',
+        date: new Date()
+      };
+
+      // Update current stock dan tambahkan movement
+      productStock.currentStock = Math.max(0, productStock.currentStock - totalWasteQuantity);
+      productStock.movements.push(wasteMovement);
+
+      await productStock.save({ session });
+
+      console.log(`Waste recorded for product ${productId}: ${totalWasteQuantity} ${reason}`);
+    }
+
+    // Juga catat di MenuStock Movement jika diperlukan
+    await recordMenuStockMovement(
+      menuItemId,
+      'waste',
+      wasteQuantity,
+      reason,
+      handledBy,
+      notes,
+      previousStock,
+      currentStock,
+      session
+    );
+
+  } catch (error) {
+    console.error('Error handling waste stock movement:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fungsi untuk mencatat movement di MenuStock
+ */
+const recordMenuStockMovement = async (
+  menuItemId,
+  type,
+  quantity,
+  reason,
+  handledBy,
+  notes,
+  previousStock,
+  currentStock,
+  session
+) => {
+  try {
+    // Jika Anda memiliki schema untuk MenuStockMovement, tambahkan di sini
+    // Contoh implementasi:
+    const MenuStockMovement = mongoose.model('MenuStockMovement');
+    
+    const movement = new MenuStockMovement({
+      menuItemId: menuItemId,
+      type: type,
+      quantity: quantity,
+      reason: reason,
+      previousStock: previousStock,
+      currentStock: currentStock,
+      handledBy: handledBy || 'system',
+      notes: notes,
+      date: new Date()
+    });
+
+    await movement.save({ session });
+    
+  } catch (error) {
+    console.error('Error recording menu stock movement:', error);
+    // Jangan throw error di sini agar tidak mengganggu proses utama
+  }
+};
+
+// Endpoint khusus untuk waste/pengurangan stok
+export const recordWasteStock = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { menuItemId } = req.params;
+    const { wasteQuantity, reason, notes, handledBy } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(menuItemId)) {
+      await session.abortTransaction();
+      return res.status(400).json({ success: false, message: 'ID Menu tidak valid' });
+    }
+
+    // Validasi input
+    if (!wasteQuantity || wasteQuantity <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({ success: false, message: 'Quantity waste harus lebih dari 0' });
+    }
+
+    if (!reason) {
+      await session.abortTransaction();
+      return res.status(400).json({ success: false, message: 'Reason wajib diisi' });
+    }
+
+    const validReasons = ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya'];
+    if (!validReasons.includes(reason)) {
+      await session.abortTransaction();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Reason tidak valid. Pilihan: busuk, tidak_bagus, kedaluwarsa, rusak, hilang, lainnya' 
+      });
+    }
+
+    // Dapatkan current stock
+    const menuStock = await MenuStock.findOne({ menuItemId }).session(session);
+    if (!menuStock) {
+      await session.abortTransaction();
+      return res.status(404).json({ success: false, message: 'Stok menu tidak ditemukan' });
+    }
+
+    const previousStock = menuStock.effectiveStock;
+
+    // Kurangi manual stock
+    const newManualStock = Math.max(0, (menuStock.manualStock || menuStock.calculatedStock) - wasteQuantity);
+    menuStock.manualStock = newManualStock;
+    menuStock.lastAdjustedAt = new Date();
+    
+    await menuStock.save({ session });
+
+    // Update MenuItem
+    await MenuItem.findByIdAndUpdate(menuItemId, {
+      availableStock: menuStock.effectiveStock
+    }, { session });
+
+    // Catat di ProductStock Movement
+    await handleWasteStockMovement(
+      menuItemId, 
+      wasteQuantity, 
+      reason, 
+      handledBy, 
+      notes,
+      previousStock,
+      menuStock.effectiveStock,
+      session
+    );
+
+    await session.commitTransaction();
+
+    res.status(200).json({
+      success: true,
+      message: `Waste stok berhasil dicatat: ${wasteQuantity} porsi (${reason})`,
+      data: {
+        previousStock,
+        currentStock: menuStock.effectiveStock,
+        wasteQuantity,
+        reason
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error recording waste stock:', error);
+    res.status(500).json({ success: false, message: 'Gagal mencatat waste stok' });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -415,7 +679,6 @@ export const getMenuStockDetails = async (req, res) => {
     res.status(500).json({ success: false, message: 'Gagal mengambil detail stok menu' });
   }
 };
-
 
 // 🔹 Membuat resep baru
 export const createRecipe = async (req, res) => {
@@ -588,7 +851,6 @@ export const updateRecipe = async (req, res) => {
     session.endSession();
   }
 };
-
 
 // 🔹 Hapus resep
 export const deleteRecipe = async (req, res) => {

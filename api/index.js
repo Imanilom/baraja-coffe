@@ -38,6 +38,7 @@ import SidebarRoutes from './routes/sidebar.routes.js';
 import AnalyticsRoutes from './routes/analytics.routes.js';
 import AssetRoutes from './routes/asset.route.js';
 import JroRoutes from './routes/jro.routes.js';
+import RefundRoutes from './routes/refund.routes.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
@@ -54,6 +55,7 @@ import AccountingRoutes from './routes/accounting.routes.js';
 import socketHandler from './socket/index.js';
 import { midtransWebhook } from './controllers/webhookController.js';
 import { fileURLToPath } from "url";
+import revisionRoutes from './routes/orderRevision.routes.js';
 
 dotenv.config();
 
@@ -140,7 +142,9 @@ app.use('/api/logs', LogRoutes);
 app.use('/api/sidebar', SidebarRoutes);
 app.use('/api/analytics', AnalyticsRoutes);
 app.use('/api/assets', AssetRoutes);
+app.use('/api/refunds', RefundRoutes);
 app.post('/api/midtrans/webhook', midtransWebhook);
+app.use('/api/revision', revisionRoutes);
 
 // 🔹 Static files (frontend build)
 app.use(express.static(path.join(__dirname, "../client/dist")));

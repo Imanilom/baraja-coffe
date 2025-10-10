@@ -1,3 +1,4 @@
+import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/providers/message_provider.dart';
@@ -5,10 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:bcrypt/bcrypt.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/widgets/inputs/pin_input.dart';
 
 //loading state provider
-final _isLoading = StateProvider<bool>((ref) => false);
+final isLoading = StateProvider<bool>((ref) => false);
+final isValid = StateProvider<bool>((ref) => false);
 
 class ModernLoginCashierScreen extends ConsumerWidget {
   const ModernLoginCashierScreen({super.key});
@@ -18,7 +21,7 @@ class ModernLoginCashierScreen extends ConsumerWidget {
     final box = Hive.box('userBox');
     final manager = box.get('user') as UserModel;
     final currentCashier = ref.watch(selectedCashierProvider);
-    final isValid = StateProvider<bool>((ref) => false);
+    final currentDevice = ref.watch(selectedDeviceProvider);
 
     // Menampilkan message
     ref.listen(messageProvider, (previous, next) {
@@ -52,6 +55,7 @@ class ModernLoginCashierScreen extends ConsumerWidget {
                       ref,
                       manager,
                       currentCashier,
+                      currentDevice,
                       isValid,
                       constraints,
                     ),
@@ -70,36 +74,515 @@ class ModernLoginCashierScreen extends ConsumerWidget {
     WidgetRef ref,
     UserModel manager,
     dynamic currentCashier,
+    DeviceModel? currentDevice,
     StateProvider<bool> isValid,
     BoxConstraints constraints,
   ) {
     final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
-    return isLandscape
-        ? Row(
-          children: [
-            Expanded(
-              child: _buildCashierList(context, ref, manager, currentCashier),
+    if (isLandscape) {
+      return Row(
+        children: [
+          Expanded(
+            child: _buildCashierList(context, ref, manager, currentCashier),
+          ),
+          const SizedBox(width: 24),
+          Expanded(
+            child: _buildDeviceAndPinSection(
+              context,
+              ref,
+              currentCashier,
+              currentDevice,
+              isValid,
             ),
-            const SizedBox(width: 24),
-            Expanded(
-              child: _buildPinSection(context, ref, currentCashier, isValid),
+          ),
+        ],
+      );
+    } else {
+      return Column(
+        children: [
+          Expanded(
+            child: _buildCashierList(context, ref, manager, currentCashier),
+          ),
+          const SizedBox(height: 24),
+          Expanded(
+            child: _buildDeviceAndPinSection(
+              context,
+              ref,
+              currentCashier,
+              currentDevice,
+              isValid,
             ),
-          ],
-        )
-        : Column(
-          children: [
-            Expanded(
-              child: _buildCashierList(context, ref, manager, currentCashier),
-            ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: _buildPinSection(context, ref, currentCashier, isValid),
-            ),
-          ],
-        );
+          ),
+        ],
+      );
+    }
   }
 
+  Widget _buildDeviceAndPinSection(
+    BuildContext context,
+    WidgetRef ref,
+    dynamic currentCashier,
+    DeviceModel? currentDevice,
+    StateProvider<bool> isValid,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: _buildSectionContent(
+        context,
+        ref,
+        currentCashier,
+        currentDevice,
+        isValid,
+      ),
+    );
+  }
+
+  Widget _buildSectionContent(
+    BuildContext context,
+    WidgetRef ref,
+    dynamic currentCashier,
+    DeviceModel? currentDevice,
+    StateProvider<bool> isValid,
+  ) {
+    // Step 1: Pilih Cashier
+    if (currentCashier == null) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.person_outline, size: 48, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'Pilih kasir terlebih dahulu',
+              style: TextStyle(
+                color: Color(0xFF111827),
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Step 2: Pilih Device
+    if (currentDevice == null) {
+      // final devices = ref.watch(devicesProvider);
+
+      return _buildDeviceSelection(ref, currentCashier);
+
+      // return devices.when(
+      //   data: (devices) => _buildDeviceSelection(ref, devices, currentCashier),
+      //   loading: () => const Center(child: CircularProgressIndicator()),
+      //   error: (_, __) => const Center(child: Text('Error')),
+      // );
+    }
+
+    // Step 3: Input PIN
+    return _buildPinInputSection(
+      context,
+      ref,
+      currentCashier,
+      currentDevice,
+      isValid,
+    );
+  }
+
+  Widget _buildDeviceSelection(
+    WidgetRef ref,
+    // List<DeviceModel> devices,
+    dynamic currentCashier,
+  ) {
+    final devices = ref.watch(devicesProvider);
+
+    return Column(
+      children: [
+        // Header
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              const Icon(Icons.devices, color: Colors.green),
+              const SizedBox(width: 12),
+              const Text(
+                'Pilih Device',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              const Spacer(),
+              // Tombol untuk reset pilihan cashier
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.grey),
+                onPressed: () {
+                  ref.read(selectedCashierProvider.notifier).state = null;
+                },
+                tooltip: 'Kembali ke pilihan kasir',
+              ),
+            ],
+          ),
+        ),
+        Divider(color: Colors.grey[200], thickness: 1),
+
+        // Daftar Device
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              final future = ref.refresh(devicesProvider.future);
+              await future;
+            },
+            child: devices.when(
+              loading: () => _buildSkeletonDeviceSelection(),
+              error: (_, __) => const Center(child: Text('Error')),
+              data:
+                  (devices) =>
+                      devices.isEmpty
+                          ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.devices_other_rounded,
+                                  size: 48,
+                                  color: Colors.grey,
+                                ),
+                                SizedBox(height: 16),
+                                Text(
+                                  'Tidak ada device tersedia',
+                                  style: TextStyle(
+                                    color: Color(0xFF6B7280),
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                          : ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: devices.length,
+                            itemBuilder: (context, index) {
+                              final device = devices[index];
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: ListTile(
+                                  leading: Icon(
+                                    Icons.tablet_android,
+                                    color:
+                                        device.isOnline
+                                            ? Colors.green
+                                            : Colors.grey,
+                                  ),
+                                  title: Text(
+                                    device.deviceName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF111827),
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        device.location,
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.circle,
+                                            size: 8,
+                                            color:
+                                                device.isOnline
+                                                    ? Colors.green
+                                                    : Colors.red,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            device.isOnline
+                                                ? 'Online'
+                                                : 'Offline',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color:
+                                                  device.isOnline
+                                                      ? Colors.green
+                                                      : Colors.red,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: const Icon(
+                                    Icons.arrow_forward_ios,
+                                    size: 16,
+                                  ),
+                                  onTap: () {
+                                    if (device.isAvailable) {
+                                      ref
+                                          .read(selectedDeviceProvider.notifier)
+                                          .state = device;
+                                    } else {
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: const Text(
+                                            'Device tidak tersedia',
+                                          ),
+                                          backgroundColor: Colors.orange[600],
+                                          behavior: SnackBarBehavior.floating,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSkeletonDeviceSelection() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: 3, // tampilkan 6 skeleton item
+      itemBuilder: (context, index) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ListTile(
+            leading: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            title: Container(
+              height: 14,
+              width: 120,
+              margin: const EdgeInsets.only(bottom: 6),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 10,
+                  width: 100,
+                  margin: const EdgeInsets.only(bottom: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      height: 10,
+                      width: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            trailing: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPinInputSection(
+    BuildContext context,
+    WidgetRef ref,
+    dynamic currentCashier,
+    DeviceModel currentDevice,
+    StateProvider<bool> isValid,
+  ) {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Info Device yang dipilih
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.tablet_android, color: Colors.green[700]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          currentDevice.deviceName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green[800],
+                          ),
+                        ),
+                        Text(
+                          currentDevice.location,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.green[700],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Kasir: ${currentCashier.username}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.edit, color: Colors.green[700]),
+                    onPressed: () {
+                      ref.read(selectedDeviceProvider.notifier).state = null;
+                    },
+                    tooltip: 'Ganti Device',
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            const Text(
+              'Masukkan PIN Anda',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF111827),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            ModernPinInput(
+              pinLength: 4,
+              onCompleted: (pin) async {
+                ref.read(isValid.notifier).state = BCrypt.checkpw(
+                  pin.toString(),
+                  currentCashier.password!,
+                );
+
+                if (ref.watch(isValid)) {
+                  // Set device ke provider auth sebelum login
+                  HiveService.saveDevice(currentDevice);
+                  ref.read(authCashierProvider.notifier).login(currentCashier);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('PIN salah'),
+                      backgroundColor: Colors.red[600],
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                }
+                return ref.watch(isValid);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // _buildCashierList method tetap sama seperti sebelumnya...
   Widget _buildCashierList(
     BuildContext context,
     WidgetRef ref,
@@ -122,7 +605,7 @@ class ModernLoginCashierScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header,
+          // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             child: Container(
@@ -130,7 +613,7 @@ class ModernLoginCashierScreen extends ConsumerWidget {
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.grey),
                 color: Colors.white,
-                borderRadius: BorderRadius.all(Radius.circular(12)),
+                borderRadius: const BorderRadius.all(Radius.circular(12)),
               ),
               child: Row(
                 children: [
@@ -170,7 +653,6 @@ class ModernLoginCashierScreen extends ConsumerWidget {
                     ),
                     icon: const Icon(Icons.logout_rounded, color: Colors.red),
                     onPressed: () {
-                      //confirmation dialog
                       showLogoutDialog(context, ref);
                     },
                   ),
@@ -249,6 +731,8 @@ class ModernLoginCashierScreen extends ConsumerWidget {
                     onTap: () {
                       ref.read(selectedCashierProvider.notifier).state =
                           cashier;
+                      // Reset device ketika ganti cashier
+                      ref.read(selectedDeviceProvider.notifier).state = null;
                     },
                   ),
                 );
@@ -257,86 +741,6 @@ class ModernLoginCashierScreen extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildPinSection(
-    BuildContext context,
-    WidgetRef ref,
-    dynamic currentCashier,
-    StateProvider<bool> isValid,
-  ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child:
-          currentCashier == null
-              ? const Center(
-                child: Text(
-                  'Pilih kasir terlebih dahulu',
-                  style: TextStyle(
-                    color: Color(0xFF111827),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              )
-              : SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        'Masukkan PIN Anda',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF111827),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ModernPinInput(
-                        pinLength: 4,
-                        onCompleted: (pin) async {
-                          ref.read(isValid.notifier).state = BCrypt.checkpw(
-                            pin.toString(),
-                            currentCashier.password!,
-                          );
-
-                          if (ref.watch(isValid)) {
-                            ref
-                                .read(authCashierProvider.notifier)
-                                .login(currentCashier);
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('PIN salah'),
-                                backgroundColor: Colors.red[600],
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            );
-                          }
-                          return ref.watch(isValid);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
     );
   }
 
@@ -356,14 +760,18 @@ class ModernLoginCashierScreen extends ConsumerWidget {
             ),
             TextButton(
               onPressed: () {
-                ref.watch(_isLoading)
-                    ? null
-                    : ref.read(tryAuthProvider.notifier).logout();
+                if (ref.read(isLoading)) return;
+
+                ref.read(isLoading.notifier).state = true;
+                ref.read(tryAuthProvider.notifier).logout();
+                // Reset semua state
+                ref.read(selectedCashierProvider.notifier).state = null;
+                ref.read(selectedDeviceProvider.notifier).state = null;
                 Navigator.of(context).pop();
-                ref.read(_isLoading.notifier).state = false;
+                ref.read(isLoading.notifier).state = false;
               },
               child:
-                  ref.watch(_isLoading)
+                  ref.watch(isLoading)
                       ? const CircularProgressIndicator()
                       : const Text(
                         'Ya, Keluar',

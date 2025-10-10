@@ -1,3 +1,4 @@
+// services/stockCalibration.service.js
 import cron from 'node-cron';
 import mongoose from 'mongoose';
 import Recipe from '../models/modul_menu/Recipe.model.js';
@@ -5,7 +6,6 @@ import { MenuItem } from '../models/MenuItem.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
 import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import { calculateMaxPortions } from '../utils/stockCalculator.js';
-import Warehouse from '../models/modul_market/Warehouse.model.js';
 
 /**
  * Kalibrasi stok semua menu items dengan optimasi
@@ -13,36 +13,40 @@ import Warehouse from '../models/modul_market/Warehouse.model.js';
 export const calibrateAllMenuStocks = async () => {
   let successCount = 0;
   let errorCount = 0;
-  const batchSize = 50; // Process in batches to avoid memory issues
+  const batchSize = 50;
   const startTime = Date.now();
 
   try {
     console.log('🔄 Memulai kalibrasi stok menu...');
 
-    // Ambil semua menu items yang aktif tanpa session dulu
-    const menuItems = await MenuItem.find({ isActive: true }).select('_id name');
+    // Ambil semua menu items yang aktif
+    const menuItems = await MenuItem.find({ isActive: true })
+      .select('_id name')
+      .lean(); // Gunakan lean() untuk performa lebih baik
+
     console.log(`📊 Menemukan ${menuItems.length} menu items aktif`);
 
-    // Process in batches
+    // Process in batches dengan concurrency control
     for (let i = 0; i < menuItems.length; i += batchSize) {
       const batch = menuItems.slice(i, i + batchSize);
-      console.log(`🔧 Processing batch ${i / batchSize + 1}/${Math.ceil(menuItems.length / batchSize)}`);
+      console.log(`🔧 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(menuItems.length / batchSize)}`);
 
-      // Process each batch in parallel with limited concurrency
-      const batchPromises = batch.map(menuItem =>
-        calibrateSingleMenuStock(menuItem._id.toString())
-          .then(() => successCount++)
-          .catch(error => {
-            console.error(`❌ Gagal mengkalibrasi menu item ${menuItem.name}:`, error.message);
-            errorCount++;
-          })
-      );
+      // Process batch dengan concurrency terbatas
+      const batchPromises = batch.map(async (menuItem) => {
+        try {
+          await calibrateSingleMenuStock(menuItem._id.toString());
+          successCount++;
+        } catch (error) {
+          console.error(`❌ Gagal mengkalibrasi menu item ${menuItem.name}:`, error.message);
+          errorCount++;
+        }
+      });
 
       await Promise.allSettled(batchPromises);
 
-      // Small delay between batches to prevent database overload
+      // Delay antara batch untuk menghindari overload database
       if (i + batchSize < menuItems.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
@@ -74,11 +78,12 @@ export const calibrateAllMenuStocks = async () => {
 /**
  * Kalibrasi stok untuk menu item tertentu dengan optimasi
  */
+
 export const calibrateSingleMenuStock = async (menuItemId) => {
   const session = await mongoose.startSession();
 
   try {
-    session.startTransaction();
+    await session.startTransaction();
 
     const menuItem = await MenuItem.findById(menuItemId).session(session);
     if (!menuItem) {
@@ -88,51 +93,69 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
     const recipe = await Recipe.findOne({ menuItemId: menuItem._id }).session(session);
     let calculatedStock = 0;
 
-    if (recipe?.baseIngredients?.length) {
+    // Hitung stok berdasarkan resep
+    if (recipe?.baseIngredients?.length > 0) {
       const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
-      if (defaultIngredients.length) {
-        // ✅ TAMBAHKAN AWAIT di sini
+      if (defaultIngredients.length > 0) {
         calculatedStock = await calculateMaxPortions(defaultIngredients);
       }
     }
 
-    // Update MenuStock
-    const menuStock = await MenuStock.findOne({ menuItemId: menuItem._id }).session(session);
+    // Cari atau buat MenuStock
+    let menuStock = await MenuStock.findOne({ menuItemId: menuItem._id }).session(session);
 
     if (menuStock) {
+      // Simpan previousStock sebelum update
+      const previousStock = menuStock.currentStock;
+
       // Only update calculatedStock if manualStock is not set
       if (menuStock.manualStock === null || menuStock.manualStock === undefined) {
         menuStock.calculatedStock = calculatedStock;
+        menuStock.currentStock = calculatedStock;
+        menuStock.quantity = calculatedStock - previousStock; // Hitung perubahan quantity
         // console.log(`📦 Menu ${menuItem.name}: calculatedStock updated to ${calculatedStock}`);
       } else {
+        menuStock.currentStock = menuStock.manualStock;
+        menuStock.quantity = 0; // Tidak ada perubahan untuk manual stock
         // console.log(`📦 Menu ${menuItem.name}: using manualStock ${menuStock.manualStock}`);
       }
+
       menuStock.lastCalculatedAt = new Date();
       await menuStock.save({ session });
     } else {
-      await MenuStock.create([{
+      // Buat MenuStock baru dengan semua field required
+      menuStock = await MenuStock.create([{
         menuItemId: menuItem._id,
-        calculatedStock,
-        lastCalculatedAt: new Date()
+        type: 'adjustment', // Required field
+        quantity: 0, // Required field - no change for initial creation
+        reason: 'manual_adjustment', // Required for adjustment type
+        previousStock: 0, // Required field
+        currentStock: calculatedStock, // Required field
+        calculatedStock: calculatedStock,
+        manualStock: null,
+        handledBy: 'system', // Required field
+        notes: 'Initial stock calibration by system',
+        lastCalculatedAt: new Date(),
+        lastAdjustedAt: new Date()
       }], { session });
       // console.log(`📦 Menu ${menuItem.name}: new stock record created with ${calculatedStock}`);
     }
 
     // Update availableStock di MenuItem
-    const updatedMenuStock = await MenuStock.findOne({ menuItemId: menuItem._id }).session(session);
-    menuItem.availableStock = updatedMenuStock.effectiveStock;
+    const effectiveStock = menuStock.manualStock !== null ? menuStock.manualStock : menuStock.calculatedStock;
+    menuItem.availableStock = effectiveStock;
     await menuItem.save({ session });
 
     await session.commitTransaction();
-
-    // console.log(`✅ ${menuItem.name}: stock updated to ${updatedMenuStock.effectiveStock}`);
+    // console.log(`✅ ${menuItem.name}: stock updated to ${effectiveStock}`);
 
     return {
       success: true,
-      menuItemId,
+      menuItemId: menuItem._id.toString(),
       menuItemName: menuItem.name,
       calculatedStock,
-      effectiveStock: updatedMenuStock.effectiveStock,
+      manualStock: menuStock.manualStock,
+      effectiveStock,
       timestamp: new Date()
     };
 
@@ -149,10 +172,9 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
  * Setup cron job untuk kalibrasi stok dengan optimasi
  */
 export const setupStockCalibrationCron = () => {
-  // Jalankan setiap jam pada menit 5 (05:00, 06:00, 07:00, dst)
-  // Memberi waktu 5 menit setelah jam tepat untuk hindari peak load
+  // Jalankan setiap 3 jam pada menit 5
   cron.schedule('5 */3 * * *', async () => {
-    console.log(' Menjalankan scheduled stock calibration...');
+    console.log('⏰ Menjalankan scheduled stock calibration...');
 
     try {
       // Cek koneksi database sebelum mulai
@@ -175,8 +197,6 @@ export const setupStockCalibrationCron = () => {
       }
     } catch (error) {
       console.error('❌ Scheduled stock calibration failed:', error);
-
-      // Log error lebih detail untuk debugging
       console.error('Error details:', {
         message: error.message,
         stack: error.stack
@@ -184,7 +204,7 @@ export const setupStockCalibrationCron = () => {
     }
   });
 
-  // Tambahan: Jalankan sekali saat startup untuk memastikan stok terkini
+  // Jalankan sekali saat startup dengan delay
   setTimeout(async () => {
     console.log('🚀 Running initial stock calibration on startup...');
     try {
@@ -194,7 +214,7 @@ export const setupStockCalibrationCron = () => {
     }
   }, 30000); // Delay 30 detik setelah startup
 
-  console.log('✅ Stock calibration cron job setup: Setiap jam pada menit 5');
+  console.log('✅ Stock calibration cron job setup: Setiap 3 jam pada menit 5');
 };
 
 /**
@@ -207,13 +227,31 @@ export const calibrateSelectedMenuStocks = async (menuItemIds) => {
   try {
     console.log(`🔄 Memulai kalibrasi stok untuk ${menuItemIds.length} menu items...`);
 
-    for (const menuItemId of menuItemIds) {
-      try {
-        await calibrateSingleMenuStock(menuItemId);
-        successCount++;
-      } catch (error) {
-        console.error(`❌ Gagal mengkalibrasi menu item ${menuItemId}:`, error.message);
-        errorCount++;
+    // Validasi input
+    if (!Array.isArray(menuItemIds) || menuItemIds.length === 0) {
+      throw new Error('menuItemIds harus berupa array yang tidak kosong');
+    }
+
+    // Process dengan concurrency terbatas
+    const concurrencyLimit = 10;
+    for (let i = 0; i < menuItemIds.length; i += concurrencyLimit) {
+      const batch = menuItemIds.slice(i, i + concurrencyLimit);
+
+      const batchPromises = batch.map(async (menuItemId) => {
+        try {
+          await calibrateSingleMenuStock(menuItemId);
+          successCount++;
+        } catch (error) {
+          console.error(`❌ Gagal mengkalibrasi menu item ${menuItemId}:`, error.message);
+          errorCount++;
+        }
+      });
+
+      await Promise.allSettled(batchPromises);
+
+      // Delay antara batch
+      if (i + concurrencyLimit < menuItemIds.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
@@ -237,17 +275,24 @@ export const calibrateSelectedMenuStocks = async (menuItemIds) => {
   }
 };
 
-// Jalankan kalibrasi manual via API
+/**
+ * Kalibrasi manual via API
+ */
 export const manualStockCalibration = async (req, res) => {
   try {
-    // console.log('🔧 Manual stock calibration triggered via API');
+    console.log('🔧 Manual stock calibration triggered via API');
 
-    // Optional: parameter untuk memilih jenis kalibrasi
     const { type, menuItemIds } = req.body;
 
     let result;
 
     if (type === 'selected' && menuItemIds && Array.isArray(menuItemIds)) {
+      if (menuItemIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'menuItemIds tidak boleh kosong'
+        });
+      }
       result = await calibrateSelectedMenuStocks(menuItemIds);
     } else {
       result = await calibrateAllMenuStocks();
