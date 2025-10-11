@@ -557,6 +557,10 @@ class ModernLoginCashierScreen extends ConsumerWidget {
                   currentCashier.password!,
                 );
 
+                // final loginDevice = ref.watch(
+                //   cashierLoginToDeviceProvider,
+                // ); //boolean
+
                 if (ref.watch(isValid)) {
                   // Set device ke provider auth sebelum login
                   HiveService.saveDevice(currentDevice);

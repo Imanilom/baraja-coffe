@@ -1017,11 +1017,11 @@ const confirmOrderHelper = async (orderId) => {
 
 export const createUnifiedOrder = async (req, res) => {
   try {
-    const { 
-      order_id, 
-      source, 
-      customerId, 
-      outletId, 
+    const {
+      order_id,
+      source,
+      customerId,
+      outletId,
       loyaltyPointsToRedeem,
       // Tambahan field untuk delivery - HANYA UNTUK APP
       delivery_option, // 'pickup' atau 'delivery'
@@ -1113,7 +1113,7 @@ export const createUnifiedOrder = async (req, res) => {
     // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
     validated.customerId = customerId;
     validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
-    
+
     // Hanya tambahkan delivery info untuk App
     if (source === 'App') {
       validated.delivery_option = delivery_option;
@@ -1233,7 +1233,7 @@ export const createUnifiedOrder = async (req, res) => {
             recipient_data,
             orderData: validated
           });
-          
+
           console.log('GoSend delivery created for App:', deliveryResult);
         } catch (deliveryError) {
           console.error('Failed to create GoSend delivery for App:', deliveryError);
