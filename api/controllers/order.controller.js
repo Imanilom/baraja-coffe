@@ -1042,11 +1042,49 @@ export const createUnifiedOrder = async (req, res) => {
 
     // Bandingkan dengan jam buka & tutup outlet
     if (outlet.openTime && outlet.closeTime) {
-      if (currentTime < outlet.openTime || currentTime > outlet.closeTime) {
+      const parseToMinutes = (timeStr) => {
+      if (!timeStr) return null;
+      const s = String(timeStr).trim().toUpperCase();
+      const m = s.match(/(\d{1,2}):(\d{2})/);
+      if (!m) return null;
+      let hh = parseInt(m[1], 10);
+      const mm = parseInt(m[2], 10);
+
+      // Handle AM/PM if present
+      const hasAM = /\bAM\b/.test(s);
+      const hasPM = /\bPM\b/.test(s);
+      if (hasAM || hasPM) {
+        if (hh === 12) hh = hasAM ? 0 : 12;
+        else if (hasPM) hh += 12;
+      }
+
+      return hh * 60 + mm;
+      };
+
+      const now = dayjs();
+      const currentMinutes = now.hour() * 60 + now.minute();
+
+      const openMinutes = parseToMinutes(outlet.openTime);
+      const closeMinutes = parseToMinutes(outlet.closeTime);
+
+      // If parsing failed, skip validation (defensive)
+      if (openMinutes != null && closeMinutes != null) {
+      let isOpen = false;
+
+      if (openMinutes < closeMinutes) {
+        // same-day window (e.g. 09:00 - 18:00)
+        isOpen = currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
+      } else {
+        // overnight window (e.g. 06:00 - 03:00 next day)
+        isOpen = currentMinutes >= openMinutes || currentMinutes <= closeMinutes;
+      }
+
+      if (!isOpen) {
         return res.status(400).json({
-          success: false,
-          message: `Outlet sedang tutup. Jam buka: ${outlet.openTime} - ${outlet.closeTime}`
+        success: false,
+        message: `Outlet sedang tutup. Jam buka: ${outlet.openTime} - ${outlet.closeTime}`
         });
+      }
       }
     }
 
