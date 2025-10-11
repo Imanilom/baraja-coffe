@@ -133,12 +133,12 @@ const OrderSchema = new mongoose.Schema({
   // OPSIONAL: Field delivery hanya diisi jika orderType adalah 'Delivery'
   deliveryStatus: {
     type: String,
-    enum: ['pending', 'confirmed', 'picked_up', 'on_delivery', 'delivered', 'cancelled', 'failed'],
+    // enum: ['pending', 'confirmed', 'picked_up', 'on_delivery', 'delivered', 'cancelled', 'failed'],
     default: false
   },
   deliveryProvider: {
     type: String,
-    enum: ['GoSend', 'GrabExpress', 'Manual'],
+    // enum: ['GoSend', 'GrabExpress', 'Manual'],
     default: false
   },
   deliveryTracking: {

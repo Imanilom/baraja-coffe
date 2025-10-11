@@ -13,14 +13,11 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
     const orderResult = await runWithTransactionRetry(async () => {
       const { customerId, loyaltyPointsToRedeem, orderType, delivery_option } = orderData;
       
-      console.log('Order Handler - Optional Loyalty Check:', {
-        customerId,
-        loyaltyPointsToRedeem,
-        source,
+      console.log('Order Handler - Delivery Check:', {
         orderType,
         delivery_option,
         requiresDelivery,
-        hasCustomerId: !!customerId
+        hasRecipientData: !!recipientData
       });
 
       // Process order items dengan loyalty program opsional
@@ -45,9 +42,11 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         initialStatus = isOpenBill ? 'Pending' : 'Waiting';
       }
 
-      // Build base order document
+      // Build base order document - HAPUS field delivery dari orderData
+      const { deliveryStatus, deliveryProvider, deliveryTracking, recipientInfo, ...cleanOrderData } = orderData;
+      
       const baseOrderData = {
-        ...orderData,
+        ...cleanOrderData, // Gunakan data yang sudah dibersihkan
         order_id: orderId,
         items: orderItems,
         totalBeforeDiscount: totals.beforeDiscount,
@@ -83,7 +82,10 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       }
 
       // PERBAIKAN: Handle delivery fields hanya untuk delivery orders
-      if (orderType === 'Delivery' || requiresDelivery) {
+      const isDeliveryOrder = orderType === 'Delivery' || requiresDelivery;
+      console.log('Delivery Order Check:', { isDeliveryOrder, orderType, requiresDelivery });
+
+      if (isDeliveryOrder) {
         console.log('Creating delivery order with recipient data:', recipientData);
         baseOrderData.deliveryStatus = 'pending';
         baseOrderData.deliveryProvider = 'GoSend';
@@ -97,18 +99,27 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
             note: recipientData.note || ''
           };
         }
-      } else {
-        // PERBAIKAN: Pastikan field delivery tidak ada untuk non-delivery orders
-        baseOrderData.deliveryStatus = undefined;
-        baseOrderData.deliveryProvider = undefined;
-        baseOrderData.deliveryTracking = undefined;
-        baseOrderData.recipientInfo = undefined;
+        
+        // Juga set deliveryTracking sebagai object kosong
+        baseOrderData.deliveryTracking = {};
       }
+      // PERBAIKAN: Untuk non-delivery orders, JANGAN set field delivery sama sekali
+      // Biarkan field tersebut undefined/tidak ada
 
-      // PERBAIKAN: Handle reservation data
+      // Handle reservation data
       if (isReservation && orderData.reservationData) {
         baseOrderData.reservation = orderData.reservationData._id || orderData.reservationData;
       }
+
+      // Log data sebelum save untuk debugging
+      console.log('Order data before save:', {
+        orderId,
+        orderType: baseOrderData.orderType,
+        hasDeliveryStatus: baseOrderData.deliveryStatus !== undefined,
+        hasDeliveryProvider: baseOrderData.deliveryProvider !== undefined,
+        deliveryStatus: baseOrderData.deliveryStatus,
+        deliveryProvider: baseOrderData.deliveryProvider
+      });
 
       // Create and save the order
       const newOrder = new Order(baseOrderData);
@@ -117,8 +128,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       console.log('Order created successfully:', {
         orderId: newOrder._id.toString(),
         orderType: newOrder.orderType,
-        hasDeliveryStatus: newOrder.deliveryStatus !== undefined,
-        hasDeliveryProvider: newOrder.deliveryProvider !== undefined
+        status: newOrder.status
       });
 
       return {
@@ -161,7 +171,11 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
     }
     if (err instanceof mongoose.Error.ValidationError) {
       // Log detail validation error
-      console.error('Validation Error Details:', err.errors);
+      console.error('Validation Error Details:', Object.keys(err.errors).map(key => ({
+        field: key,
+        value: err.errors[key]?.value,
+        kind: err.errors[key]?.kind
+      })));
       throw new Error(`VALIDATION_ERROR: ${err.message}`);
     }
 
