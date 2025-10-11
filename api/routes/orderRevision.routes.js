@@ -1,5 +1,5 @@
 import express from 'express';
-import { createRevision, captureAdjustment, paymentSettle } from '../controllers/OrderRevision.controller.js';
+import { createRevision, captureAdjustment, paymentSettle } from '../controllers/orderRevision.controller.js';
 
 const router = express.Router();
 
