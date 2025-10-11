@@ -44,7 +44,6 @@ const DepartementTable = () => {
 
     return (
         <>
-            <Header />
             {/* Breadcrumb */}
             <div className="px-3 py-2 flex justify-between items-center border-b">
                 <div className="flex items-center space-x-2">

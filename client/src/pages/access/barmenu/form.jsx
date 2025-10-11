@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import Select from "react-select";
+import { IconSelect } from "../../../components/iconSelect";
 
 const SidebarMenuForm = ({ formData, setFormData, onSubmit, isSubmitting, parentOptions = [] }) => {
     const customSelectStyles = {
@@ -61,6 +62,7 @@ const SidebarMenuForm = ({ formData, setFormData, onSubmit, isSubmitting, parent
         "manage_operational",
         "manage_loyalty",
         "manage_finance",
+        "superadmin"
     ];
 
     const handleChange = (e) => {
@@ -104,16 +106,13 @@ const SidebarMenuForm = ({ formData, setFormData, onSubmit, isSubmitting, parent
             </div>
 
             {/* Icon */}
-            <div>
-                <label className="block mb-1 font-medium">Icon</label>
-                <input
-                    type="text"
-                    name="icon"
-                    value={formData.icon}
-                    onChange={handleChange}
-                    className="w-full border rounded px-3 py-2"
-                />
-            </div>
+            <IconSelect
+                name="icon"
+                value={formData.icon}
+                onChange={handleChange}
+                label="Icon"
+                showPreview={true}
+            />
 
             {/* Path */}
             <div>

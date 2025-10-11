@@ -22,6 +22,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
+    "dayjs": "^1.11.18",
     "dotenv": "^16.4.7",
     "escpos": "^3.0.0-alpha.6",
     "express": "^4.18.2",

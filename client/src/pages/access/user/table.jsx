@@ -11,6 +11,7 @@ import { Link, useNavigate } from "react-router-dom";
 import ConfirmationModalActive from "./ConfirmationModalActive";
 import Select from "react-select";
 import UserTableSkeleton from "./skeleton";
+import Paginated from "../../../components/paginated";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -199,7 +200,7 @@ export default function UserTable({ currentUser, customSelectStyles }) {
                     />
                 </div>
 
-                <div className="flex flex-wrap gap-3 mb-4">
+                <div className="flex flex-wrap gap-3">
                     {/* Status Filter */}
                     <div className="w-48">
                         <Select
@@ -365,27 +366,11 @@ export default function UserTable({ currentUser, customSelectStyles }) {
                 </div>
 
                 {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
-                        >
-                            <FaChevronLeft /> Sebelumnya
-                        </button>
-
-                        <div className="flex gap-2">{renderPageNumbers()}</div>
-
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                            disabled={currentPage === totalPages}
-                            className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
-                        >
-                            Selanjutnya <FaChevronRight />
-                        </button>
-                    </div>
-                )}
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
 
                 <ConfirmationModalActive
                     isOpen={isConfirmOpen}

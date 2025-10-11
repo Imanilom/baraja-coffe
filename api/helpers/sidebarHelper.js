@@ -1,14 +1,16 @@
+import SidebarMenu from "../models/Sidebar.model.js";
+
 export class SidebarHelper {
-  
+
   // Mendapatkan menu berdasarkan user dan role
   static async getMenuForUser(user) {
     try {
       // Asumsi user sudah populate dengan role
       const userPermissions = user.role?.permissions || [];
-      
+
       // Dapatkan menu yang bisa diakses user
       const menus = await SidebarMenu.getMenuByPermissions(userPermissions);
-      
+
       return menus;
     } catch (error) {
       throw new Error(`Error getting menu for user: ${error.message}`);
@@ -19,10 +21,10 @@ export class SidebarHelper {
   static async canUserAccessPath(user, path) {
     try {
       const userPermissions = user.role?.permissions || [];
-      
+
       // Cari menu berdasarkan path
       const menu = await SidebarMenu.findOne({ path, isActive: true });
-      
+
       if (!menu) {
         return false;
       }
@@ -38,13 +40,13 @@ export class SidebarHelper {
     try {
       const menu = await SidebarMenu.findOne({ path, isActive: true })
         .populate('parentId');
-      
+
       if (!menu) {
         return [];
       }
 
       const breadcrumb = [menu];
-      
+
       // Jika ada parent, tambahkan ke breadcrumb
       if (menu.parentId) {
         breadcrumb.unshift(menu.parentId);
@@ -64,11 +66,11 @@ export class SidebarHelper {
   static async toggleMenuStatus(menuId, isActive) {
     try {
       const menu = await SidebarMenu.findByIdAndUpdate(
-        menuId, 
+        menuId,
         { isActive },
         { new: true }
       );
-      
+
       return menu;
     } catch (error) {
       throw new Error(`Error toggling menu status: ${error.message}`);
@@ -83,7 +85,7 @@ export class SidebarHelper {
         { order: newOrder },
         { new: true }
       );
-      
+
       return menu;
     } catch (error) {
       throw new Error(`Error updating menu order: ${error.message}`);
@@ -98,17 +100,17 @@ export const sidebarMiddleware = async (req, res, next) => {
     if (req.user) {
       // Dapatkan menu untuk user
       const userMenus = await SidebarHelper.getMenuForUser(req.user);
-      
+
       // Simpan di res.locals agar bisa diakses di template
       res.locals.sidebarMenus = userMenus;
-      
+
       // Dapatkan breadcrumb jika ada path
       if (req.path) {
         const breadcrumb = await SidebarHelper.getBreadcrumb(req.path);
         res.locals.breadcrumb = breadcrumb;
       }
     }
-    
+
     next();
   } catch (error) {
     console.error('Sidebar middleware error:', error);

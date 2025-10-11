@@ -5,8 +5,9 @@ import { verifyToken } from "../utils/verifyUser.js";
 const router = express.Router();
 
 const superadminAccess = verifyToken(['superadmin']);
+const access = verifyToken(['superadmin', 'admin', 'hrd', 'akuntan', 'inventory', 'marketing']);
 // Public routes (untuk user yang sudah login)
-router.get('/menus', superadminAccess, SidebarController.getUserMenus);
+router.get('/menus', access, SidebarController.getUserMenus);
 
 // Admin routes
 router.get('/admin/menus',

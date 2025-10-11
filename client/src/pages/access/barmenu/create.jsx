@@ -28,7 +28,9 @@ const CreateSidebarMenu = () => {
     const { currentUser } = useSelector((state) => state.user);
     const fetchMenus = async () => {
         try {
-            const res = await axios.get("/api/sidebar/admin/menus");
+            const res = await axios.get("/api/sidebar/admin/menus", {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
             const allMenus = res.data.data || [];
             // hanya ambil menu utama (parentId === null)
             const parentMenus = allMenus.filter((m) => m.parentId === null);
@@ -46,7 +48,9 @@ const CreateSidebarMenu = () => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            await axios.post("/api/sidebar/admin/menus", formData);
+            await axios.post("/api/sidebar/admin/menus", formData, {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
             navigate("/admin/access-settings/bar-menu");
         } catch (err) {
             console.error("Error creating menu:", err);
@@ -57,7 +61,6 @@ const CreateSidebarMenu = () => {
 
     return (
         <>
-            <Header />
             <div className="p-6">
                 <h1 className="text-lg font-bold mb-4">Tambah Sidebar Menu</h1>
                 <SidebarMenuForm

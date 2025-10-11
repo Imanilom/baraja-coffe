@@ -15,6 +15,7 @@ import AddonForm from "./opsimodal";
 import ConfirmationModal from "./confirmmodal";
 import Select from "react-select";
 import Header from "../admin/header";
+import { useSelector } from "react-redux";
 
 const UpdateMenu = () => {
   const customStyles = {
@@ -69,6 +70,7 @@ const UpdateMenu = () => {
 
 
   const [isChecked, setIsChecked] = useState(false);
+  const { currentUser } = useSelector((state) => state.user);
   const [selectedMainCategory, setSelectedMainCategory] = useState("");
 
   const [isOptional, setIsOptional] = useState([false]);
@@ -303,7 +305,9 @@ const UpdateMenu = () => {
     console.log(payload)
 
     try {
-      await axios.put(`/api/menu/menu-items/${id}`, payload);
+      await axios.put(`/api/menu/menu-items/${id}`, payload, {
+        headers: { Authorization: `Bearer ${currentUser.token}` },
+      });
       navigate("/admin/menu", { state: { success: "Menu berhasil diperbarui" } });
     } catch (error) {
       console.error("Error updating menu item:", error);

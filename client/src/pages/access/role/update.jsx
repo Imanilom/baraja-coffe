@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { useSelector } from "react-redux";
 
 const permissionsList = [
     "manage_users",
@@ -15,9 +16,11 @@ const permissionsList = [
     "manage_operational",
     "manage_loyalty",
     "manage_finance",
+    'superadmin'
 ];
 
 const UpdateRole = ({ isOpen, onClose, onSuccess, roleId }) => {
+    const { currentUser } = useSelector((state) => state.user);
     const [formData, setFormData] = useState({
         name: "",
         description: "",
@@ -33,7 +36,9 @@ const UpdateRole = ({ isOpen, onClose, onSuccess, roleId }) => {
             const fetchRole = async () => {
                 setFetchLoading(true);
                 try {
-                    const res = await axios.get(`/api/roles/${roleId}`);
+                    const res = await axios.get(`/api/roles/${roleId}`, {
+                        headers: { Authorization: `Bearer ${currentUser.token}` },
+                    });
                     setFormData({
                         name: res.data.name,
                         description: res.data.description || "",
@@ -77,7 +82,9 @@ const UpdateRole = ({ isOpen, onClose, onSuccess, roleId }) => {
         setMessage("");
 
         try {
-            const res = await axios.put(`/api/roles/${roleId}`, formData);
+            const res = await axios.put(`/api/roles/${roleId}`, formData, {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
 
             // Call onSuccess callback
             if (onSuccess) {
@@ -137,8 +144,8 @@ const UpdateRole = ({ isOpen, onClose, onSuccess, roleId }) => {
                             <>
                                 {message && (
                                     <div className={`mb-4 p-3 text-sm rounded-lg ${message.includes("Error") || message.includes("Gagal")
-                                            ? "text-red-600 bg-red-50"
-                                            : "text-green-600 bg-green-50"
+                                        ? "text-red-600 bg-red-50"
+                                        : "text-green-600 bg-green-50"
                                         }`}>
                                         {message}
                                     </div>

@@ -121,7 +121,7 @@ const OrderSchema = new mongoose.Schema({
   // Reservation reference
   reservation: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
 
-  // ✅ TAMBAHAN: Simpan waktu dalam WIB secara eksplisit
+  // TAMBAHAN: Simpan waktu dalam WIB secara eksplisit
   createdAtWIB: {
     type: Date,
     default: () => getWIBNow()
@@ -129,8 +129,33 @@ const OrderSchema = new mongoose.Schema({
   updatedAtWIB: {
     type: Date,
     default: () => getWIBNow()
+  },
+  deliveryStatus: {
+    type: String,
+    enum: ['pending', 'confirmed', 'picked_up', 'on_delivery', 'delivered', 'cancelled', 'failed'],
+    default: null
+  },
+  deliveryProvider: {
+    type: String,
+    enum: ['GoSend', 'GrabExpress', 'Manual'],
+    default: null
+  },
+  deliveryTracking: {
+    provider: String,
+    tracking_number: String,
+    status: String,
+    driver_name: String,
+    driver_phone: String,
+    live_tracking_url: String,
+    estimated_arrival: Date
+  },
+  recipientInfo: {
+    name: String,
+    phone: String,
+    address: String,
+    coordinates: String,
+    note: String
   }
-
 }, {
   timestamps: true, // Ini akan tetap menyimpan UTC
   toJSON: { virtuals: true },

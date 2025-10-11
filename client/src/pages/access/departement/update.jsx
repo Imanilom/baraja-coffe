@@ -96,7 +96,7 @@ const UpdateDepartemen = () => {
                 headers: { Authorization: `Bearer ${currentUser.token}` },
             });
             setMessage("Gudang berhasil diperbarui ✅");
-            navigate("/admin/warehouse", {
+            navigate("/admin/access-settings/departement", {
                 state: { success: "Gudang berhasil diperbarui!" },
             });
         } catch (err) {
@@ -106,10 +106,11 @@ const UpdateDepartemen = () => {
         }
     };
 
+    console.log(formData);
+
     return (
         <>
-            <Header />
-            <main className="p-6 md:p-10 bg-gray-50 min-h-screen">
+            <main className="p-6 md:p-10 bg-gray-50">
                 <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-xl p-6">
                     <h1 className="text-2xl font-bold text-gray-800 mb-6">
                         Update Gudang
@@ -189,7 +190,7 @@ const UpdateDepartemen = () => {
                                 value={
                                     formData.admin
                                         ? {
-                                            value: formData.admin._id,
+                                            value: formData.admin,
                                             label: users.find((u) => u._id === formData.admin._id)?.username,
                                         }
                                         : null

@@ -81,9 +81,9 @@ const DiscountManagement = () => {
             setLoading(true);
             try {
                 // Fetch promo data
-                const promoOrderResponse = await axios.get('/api/orders');
-                const promoOrderData = [];
-                // const promoOrderData = promoOrderResponse.data.data ? promoOrderResponse.data.data : promoOrderResponse.data;
+                const promoOrderResponse = await axios.get('/api/analytics/promo-usage');
+                // const promoOrderData = [];
+                const promoOrderData = promoOrderResponse.data.data ? promoOrderResponse.data.data : promoOrderResponse.data;
 
                 setPromo(promoOrderData);
                 setFilteredData(promoOrderData); // Initialize filtered data with all promo

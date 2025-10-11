@@ -3,6 +3,7 @@ import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
 import Table from '../models/Table.model.js';
 import { socketManagement } from '../utils/socketManagement.js';
+import GoSendBooking from '../models/GoSendBooking.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 
 export const midtransWebhook = async (req, res) => {
@@ -206,6 +207,70 @@ export const midtransWebhook = async (req, res) => {
       message: 'Failed to process webhook',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
+  }
+};
+
+export const handleGoSendWebhook = async (req, res) => {
+  try {
+    const webhookData = req.body;
+    
+    console.log('Received GoSend webhook:', webhookData);
+
+    const authHeader = req.headers['authorization'] || req.headers['x-callback-token'];
+    if (!authHeader) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const goSendBooking = await GoSendBooking.findOne({ 
+      goSend_order_no: webhookData.booking_id 
+    });
+
+    if (!goSendBooking) {
+      console.warn(`GoSend booking not found: ${webhookData.booking_id}`);
+      return res.status(200).json({ success: true });
+    }
+
+    await GoSendBooking.findOneAndUpdate(
+      { goSend_order_no: webhookData.booking_id },
+      {
+        status: webhookData.status,
+        'driver_info.driver_name': webhookData.driver_name,
+        'driver_info.driver_phone': webhookData.driver_phone,
+        'driver_info.driver_photo': webhookData.driver_photo_url,
+        live_tracking_url: webhookData.live_tracking_url
+      }
+    );
+
+    await Order.findOneAndUpdate(
+      { order_id: goSendBooking.order_id },
+      {
+        'deliveryTracking.status': webhookData.status,
+        'deliveryTracking.driver_name': webhookData.driver_name,
+        'deliveryTracking.driver_phone': webhookData.driver_phone,
+        'deliveryTracking.live_tracking_url': webhookData.live_tracking_url,
+        ...(webhookData.status === 'delivered' && {
+          deliveryStatus: 'delivered',
+          status: 'completed'
+        })
+      }
+    );
+
+    const io = req.app.get('io');
+    io.to(`order_${goSendBooking.order_id}`).emit('delivery_status_update', {
+      order_id: goSendBooking.order_id,
+      status: webhookData.status,
+      driver_info: {
+        name: webhookData.driver_name,
+        phone: webhookData.driver_phone
+      },
+      live_tracking_url: webhookData.live_tracking_url
+    });
+
+    return res.status(200).json({ success: true });
+
+  } catch (error) {
+    console.error('Error handling GoSend webhook:', error);
+    return res.status(200).json({ success: true });
   }
 };
 

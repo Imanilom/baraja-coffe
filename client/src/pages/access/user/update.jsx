@@ -10,7 +10,6 @@ import {
 import { Link, useNavigate, useParams } from "react-router-dom";
 import MessageAlert from "../../../components/messageAlert";
 import { useSelector } from "react-redux";
-import Header from "../../admin/header";
 
 const UpdateUser = () => {
     const customSelectStyles = {
@@ -69,7 +68,9 @@ const UpdateUser = () => {
     const fetchRoles = async () => {
         setLoading(true);
         try {
-            const res = await axios.get("/api/roles");
+            const res = await axios.get("/api/roles", {
+                headers: { Authorization: `Bearer ${currentUser.token}` },
+            });
             const formatted = res.data.map((role) => ({
                 value: role._id,      // gunakan _id sebagai value
                 label: role.name,     // tampilkan name sebagai label
@@ -185,9 +186,7 @@ const UpdateUser = () => {
     if (error) return <p className="text-center py-8 text-red-500">{error}</p>;
 
     return (
-        <div className="min-h-screen bg-gray-50 text-gray-700">
-            {/* Header */}
-            <Header />
+        <div className="">
 
             <MessageAlert />
 
@@ -201,9 +200,9 @@ const UpdateUser = () => {
                 <div className="flex justify-between items-center px-6 py-4 border-b bg-gray-50">
                     <div className="flex items-center text-sm text-gray-500 space-x-2">
                         <FaIdBadge />
-                        <span>Karyawan</span>
+                        <span>User</span>
                         <FaChevronRight />
-                        <span className="text-[#005429] font-medium">Edit karyawan</span>
+                        <span className="text-[#005429] font-medium">Edit User</span>
                     </div>
                     <div className="flex space-x-2">
                         <Link

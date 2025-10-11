@@ -1,10 +1,9 @@
-
 import mongoose from 'mongoose';
 
 const OutletSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  address: { type: String, required: true }, // Dipisah dari `city`
-  city: { type: String, required: true }, // Tambahan untuk penyortiran data lebih mudah
+  address: { type: String, required: true },
+  city: { type: String, required: true },
   location: { type: String, required: true },
   contactNumber: { type: String, required: true },
   admin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -13,7 +12,11 @@ const OutletSchema = new mongoose.Schema({
     type: [String],
     default: ['https://placehold.co/1920x1080/png'],
   },
-}, { timestamps: true });
 
+  // ✅ Tambahan jam buka & tutup
+  openTime: { type: String, required: true, default: '08:00' },  // format HH:mm
+  closeTime: { type: String, required: true, default: '22:00' },
+
+}, { timestamps: true });
 
 export const Outlet = mongoose.model('Outlet', OutletSchema);

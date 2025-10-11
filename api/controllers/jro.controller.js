@@ -91,6 +91,170 @@ export const getDashboardStats = async (req, res) => {
     }
 };
 
+export const createReservation = async (req, res) => {
+    try {
+        const {
+            guest_name,
+            guest_phone,
+            guest_email,
+            guest_count,
+            reservation_date,
+            reservation_time,
+            table_ids,
+            area_id,
+            notes
+        } = req.body;
+
+        const userId = req.user?.id; // GRO employee ID dari auth middleware
+
+        // Validasi input
+        if (!guest_name || !guest_phone || !guest_count || !reservation_date ||
+            !reservation_time || !table_ids || !area_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields'
+            });
+        }
+
+        if (!Array.isArray(table_ids) || table_ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'At least one table must be selected'
+            });
+        }
+
+        // Validasi area exists
+        const area = await Area.findById(area_id);
+        if (!area) {
+            return res.status(404).json({
+                success: false,
+                message: 'Area not found'
+            });
+        }
+
+        // Validasi tables exist dan active
+        const tables = await Table.find({
+            _id: { $in: table_ids },
+            area_id: area_id,
+            is_active: true
+        });
+
+        if (tables.length !== table_ids.length) {
+            return res.status(400).json({
+                success: false,
+                message: 'Some tables are not found, inactive, or not in the selected area'
+            });
+        }
+
+        // Parse reservation date dan time
+        const reservationDateTime = new Date(`${reservation_date}T${reservation_time}:00`);
+
+        // Cek konflik reservasi pada tanggal dan waktu yang sama
+        const conflictingReservations = await Reservation.find({
+            reservation_date: reservationDateTime,
+            reservation_time: reservation_time,
+            status: { $in: ['confirmed', 'pending'] },
+            table_id: { $in: table_ids }
+        });
+
+        if (conflictingReservations.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'One or more tables are already reserved for this date and time'
+            });
+        }
+
+        // Generate reservation code
+        const dateStr = moment(reservationDateTime).format('YYYYMMDD');
+        const lastReservation = await Reservation.findOne({
+            reservation_code: { $regex: `^RSV${dateStr}` }
+        }).sort({ reservation_code: -1 });
+
+        let sequence = 1;
+        if (lastReservation) {
+            const lastSequence = parseInt(lastReservation.reservation_code.slice(-4));
+            sequence = lastSequence + 1;
+        }
+
+        const reservationCode = `RSV${dateStr}${sequence.toString().padStart(4, '0')}`;
+
+        // Get employee info
+        const employee = await User.findById(userId).select('username email');
+
+        // Buat reservasi baru
+        const newReservation = new Reservation({
+            reservation_code: reservationCode,
+            guest_name,
+            guest_phone,
+            guest_email: guest_email || '',
+            guest_count,
+            reservation_date: reservationDateTime,
+            reservation_time,
+            table_id: table_ids,
+            area_id,
+            status: 'pending', // Default pending, bisa di-confirm kemudian
+            notes: notes || '',
+            created_by: {
+                employee_id: userId,
+                employee_name: employee?.username || 'Unknown GRO',
+                created_at: getWIBNow()
+            }
+        });
+
+        await newReservation.save();
+
+        // Buat order untuk reservasi (status Reserved, no payment yet)
+        const orderCode = `ORD${dateStr}${sequence.toString().padStart(4, '0')}`;
+
+        const newOrder = new Order({
+            order_id: orderCode,
+            user: guest_name, // Nama tamu sebagai user
+            user_id: null, // Tidak ada user_id karena walk-in reservation
+            cashierId: userId, // GRO yang membuat
+            items: [], // Empty items, akan diisi saat check-in atau order
+            status: 'Reserved',
+            orderType: 'Reservation',
+            tableNumber: tables.map(t => t.table_number).join(', '),
+            paymentMethod: 'No Payment',
+            totalBeforeDiscount: 0,
+            totalAfterDiscount: 0,
+            grandTotal: 0,
+            source: 'Cashier', // Dibuat dari kasir/GRO
+            reservation: newReservation._id,
+            outlet: area.outlet_id,
+            createdAtWIB: getWIBNow(),
+            updatedAtWIB: getWIBNow()
+        });
+
+        await newOrder.save();
+
+        // Update reservation dengan order_id
+        newReservation.order_id = newOrder._id;
+        await newReservation.save();
+
+        // Populate data untuk response
+        const populatedReservation = await Reservation.findById(newReservation._id)
+            .populate('area_id', 'area_name area_code capacity')
+            .populate('table_id', 'table_number seats table_type')
+            .populate('order_id', 'order_id status')
+            .populate('created_by.employee_id', 'username email');
+
+        res.status(201).json({
+            success: true,
+            message: 'Reservation created successfully',
+            data: populatedReservation
+        });
+
+    } catch (error) {
+        console.error('Error creating reservation:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating reservation',
+            error: error.message
+        });
+    }
+};
+
 // GET /api/jro/reservations - Get all reservations with filters
 export const getReservations = async (req, res) => {
     try {

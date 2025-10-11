@@ -15,6 +15,7 @@ const permissionsList = [
     "manage_operational",
     "manage_loyalty",
     "manage_finance",
+    "superadmin"
 ];
 
 const CreateRole = ({ isOpen, onClose, onSuccess }) => {
@@ -111,8 +112,8 @@ const CreateRole = ({ isOpen, onClose, onSuccess }) => {
                     <div className="flex-1 overflow-y-auto p-6">
                         {message && (
                             <div className={`mb-4 p-3 text-sm rounded-lg ${message.includes("Error")
-                                    ? "text-red-600 bg-red-50"
-                                    : "text-green-600 bg-green-50"
+                                ? "text-red-600 bg-red-50"
+                                : "text-green-600 bg-green-50"
                                 }`}>
                                 {message}
                             </div>
