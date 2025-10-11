@@ -55,7 +55,7 @@ class AuthService {
       );
 
       final result = Map<String, dynamic>.from(res.data);
-
+      print('hasil dari get device $result');
       return result;
     } on DioException catch (e) {
       throw ApiResponseHandler.handleError(e);

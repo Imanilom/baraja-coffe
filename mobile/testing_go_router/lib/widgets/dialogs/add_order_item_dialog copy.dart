@@ -11,14 +11,14 @@ class AddOrderItemDialog extends StatefulWidget {
   final OrderItemModel orderItem;
   final Function(List<OrderItemModel>) onAddOrder;
   final Function() onClose;
-  final OrderType? orderType;
+  final OrderType orderType;
 
   const AddOrderItemDialog({
     super.key,
     required this.orderItem,
     required this.onAddOrder,
     required this.onClose,
-    this.orderType,
+    required this.orderType,
   });
 
   @override
@@ -1088,7 +1088,7 @@ class AddOrderItemDialogState extends State<AddOrderItemDialog> {
           selectedToppings: unitToppings,
           selectedAddons: unitAddons,
           notes: note.isEmpty ? null : note,
-          orderType: selectedOrderType,
+          orderType: selectedOrderType!,
         );
         print('  Created new item with quantity 1');
       }

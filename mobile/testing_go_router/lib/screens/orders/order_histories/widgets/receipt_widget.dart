@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
@@ -16,7 +17,6 @@ class ReceiptWidget extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedOrder = ref.watch(historyDetailProvider);
     final isPrint = ref.watch(isPrintHistory);
-    final setIsPrint = ref.read(isPrintHistory.notifier);
 
     if (selectedOrder == null) {
       return Container(
@@ -53,7 +53,7 @@ class ReceiptWidget extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
+                      color: Colors.black12,
                       spreadRadius: 2,
                       blurRadius: 8,
                       offset: const Offset(0, 2),
@@ -115,11 +115,15 @@ class ReceiptWidget extends ConsumerWidget {
           DateFormat('dd/MM/yyyy HH:mm').format(order.createdAt!),
         ),
         _buildReceiptRow('Customer', order.user),
-        _buildReceiptRow('Order Type', order.orderType.name),
         if (order.tableNumber!.isNotEmpty)
           _buildReceiptRow('Table', order.tableNumber!),
         _buildReceiptRow('Payment', order.paymentMethod!),
 
+        const SizedBox(height: 16),
+        Text(
+          order.orderType.name,
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 16),
         _buildDivider(),
         const SizedBox(height: 16),
@@ -230,7 +234,7 @@ class ReceiptWidget extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(
-                item.menuItem.name!,
+                '(${OrderTypeExtension.orderTypeToJson(item.orderType)}) ${item.menuItem.name!}',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -272,6 +276,16 @@ class ReceiptWidget extends ConsumerWidget {
               ),
             ),
           ),
+
+        //notes
+        if (item.notes != null && item.notes != '')
+        Padding(
+          padding: const EdgeInsets.only(left: 16, top: 1),
+          child: Text(
+            'catatan: ${item.notes!}',
+            style: const TextStyle(fontSize: 10, color: Colors.grey),
+          ),
+        ),
 
         const SizedBox(height: 8),
       ],
@@ -452,7 +466,6 @@ class ReceiptWidget extends ConsumerWidget {
     } finally {
       ref.read(isPrintHistory.notifier).state = false;
     }
-    print('Print Label');
   }
 
   void _handlePrintKitchen(BuildContext context, WidgetRef ref) {
@@ -481,8 +494,6 @@ class ReceiptWidget extends ConsumerWidget {
     } finally {
       ref.read(isPrintHistory.notifier).state = false;
     }
-    print('Print Kitchen');
-    // Implementasi print kitchen
   }
 
   void _handlePrintBar(BuildContext context, WidgetRef ref) {

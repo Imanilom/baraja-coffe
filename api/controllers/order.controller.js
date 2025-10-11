@@ -3758,7 +3758,8 @@ export const getCashierOrderHistory = async (req, res) => {
             name: topping.name,
             price: topping.price
           })) : [],
-          notes: item.notes
+          notes: item.notes,
+          dineType: item.dineType
         }
       });
 

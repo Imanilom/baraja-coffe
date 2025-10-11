@@ -64,7 +64,6 @@ class AuthDevice {
 
       final data = response['data'] as List<dynamic>;
       final devices = data.map((json) => DeviceModel.fromJson(json)).toList();
-
       // for (var device in devices) {
       //   await deviceBox.put(device.id, device);
       // }
@@ -73,6 +72,7 @@ class AuthDevice {
 
       return devices;
     } catch (e) {
+      print('error saat convert to model device: $e');
       throw Exception('Failed to fetch devices: $e');
     }
   }

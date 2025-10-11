@@ -21,9 +21,13 @@ abstract class OrderItemModel with _$OrderItemModel {
     @HiveField(4) @Default("") String? notes,
     @HiveField(5) @Default(0) int subtotal,
     @HiveField(6)
-    @JsonKey(name: 'dineType')
-    @Default(null)
-    OrderType? orderType,
+    @Default(OrderType.dineIn)
+    @JsonKey(
+      name: 'dineType',
+      fromJson: OrderTypeExtension.fromString,
+      toJson: OrderTypeExtension.orderTypeToJson,
+    )
+    OrderType orderType,
   }) = _OrderItemModel;
 
   OrderItemModel._();
