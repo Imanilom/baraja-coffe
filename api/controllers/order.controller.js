@@ -19,8 +19,12 @@ import { updateTableStatusAfterPayment } from './webhookController.js';
 import { getAreaGroup } from '../utils/areaGrouping.js';
 import { Outlet } from '../models/Outlet.model.js';
 import dayjs from 'dayjs'
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
 import { processGoSendDelivery } from '../helpers/deliveryHelper.js';
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
   try {
@@ -1037,20 +1041,17 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    const now = dayjs();
-    const currentTime = now.format('HH:mm');
-
-    // Bandingkan dengan jam buka & tutup outlet
-    if (outlet.openTime && outlet.closeTime) {
-      const parseToMinutes = (timeStr) => {
+    const now = dayjs().tz("Asia/Jakarta");
+    const parseToMinutes = (timeStr) => {
       if (!timeStr) return null;
       const s = String(timeStr).trim().toUpperCase();
       const m = s.match(/(\d{1,2}):(\d{2})/);
       if (!m) return null;
+
       let hh = parseInt(m[1], 10);
       const mm = parseInt(m[2], 10);
 
-      // Handle AM/PM if present
+      // Deteksi AM/PM (kalau format 12 jam)
       const hasAM = /\bAM\b/.test(s);
       const hasPM = /\bPM\b/.test(s);
       if (hasAM || hasPM) {
@@ -1059,35 +1060,33 @@ export const createUnifiedOrder = async (req, res) => {
       }
 
       return hh * 60 + mm;
-      };
+    };
 
-      const now = dayjs();
-      const currentMinutes = now.hour() * 60 + now.minute();
+    const currentMinutes = now.hour() * 60 + now.minute();
+    const openMinutes = parseToMinutes(outlet.openTime);
+    const closeMinutes = parseToMinutes(outlet.closeTime);
 
-      const openMinutes = parseToMinutes(outlet.openTime);
-      const closeMinutes = parseToMinutes(outlet.closeTime);
-
-      // If parsing failed, skip validation (defensive)
-      if (openMinutes != null && closeMinutes != null) {
+    if (openMinutes != null && closeMinutes != null) {
       let isOpen = false;
 
       if (openMinutes < closeMinutes) {
-        // same-day window (e.g. 09:00 - 18:00)
-        isOpen = currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
+        // contoh: 06:00 - 23:00
+        isOpen =
+          currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
       } else {
-        // overnight window (e.g. 06:00 - 03:00 next day)
-        isOpen = currentMinutes >= openMinutes || currentMinutes <= closeMinutes;
+        // contoh: 18:00 - 03:00 (lewat tengah malam)
+        isOpen =
+          currentMinutes >= openMinutes || currentMinutes <= closeMinutes;
       }
 
       if (!isOpen) {
         return res.status(400).json({
-        success: false,
-        message: `Outlet sedang tutup. Jam buka: ${outlet.openTime} - ${outlet.closeTime}`
+          success: false,
+          message: `Outlet sedang tutup. Jam buka: ${outlet.openTime} - ${outlet.closeTime}`,
         });
       }
-      }
     }
-
+    
     // VALIDASI: Hanya App yang boleh melakukan delivery
     if (source !== 'App' && delivery_option === 'delivery') {
       return res.status(400).json({
