@@ -2,6 +2,11 @@
 import { socketManagement } from '../utils/socketManagement.js';
 import { Device } from '../models/Device.model.js';
 import { DeviceSession } from '../models/DeviceSession.model.js';
+import { getAreaGroup } from '../utils/areaGrouping.js';
+
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export default function socketHandler(io) {
     // Set global io instance untuk socketManagement
@@ -69,6 +74,9 @@ export default function socketHandler(io) {
                 if (session.device.assignedAreas && session.device.assignedAreas.length > 0) {
                     session.device.assignedAreas.forEach(area => {
                         socket.join(`area_${area}`);
+                        socket.join(room);
+                        console.log(`Device ${session.device.deviceName} joined ${room}`);
+
                     });
                 }
 
@@ -77,8 +85,18 @@ export default function socketHandler(io) {
 
                 // Join legacy rooms untuk compatibility
                 socket.join('cashier_room');
+                
+                // Join bar room berdasarkan role
                 if (session.role.includes('bar')) {
-                    socket.join(`bar_${session.role}`);
+                    const barType = session.role.includes('depan') ? 'depan' : 'belakang';
+                    socket.join(`bar_${barType}`);
+                    console.log(`✅ Joined bar room: bar_${barType}`);
+                }
+
+                // Join kitchen room jika role kitchen
+                if (session.role.includes('kitchen')) {
+                    socket.join('kitchen_room');
+                    socket.join(`kitchen_${session.outlet._id}`);
                 }
 
                 console.log(`✅ Device authenticated: ${session.device.deviceName} - ${session.user.name} (${session.role}) - Socket: ${socket.id}`);
@@ -147,6 +165,19 @@ export default function socketHandler(io) {
                     location,
                     deviceName
                 });
+
+                // Join rooms berdasarkan role
+                if (role.includes('bar')) {
+                    const barType = role.includes('depan') ? 'depan' : 'belakang';
+                    socket.join(`bar_${barType}`);
+                    console.log(`✅ Joined bar room: bar_${barType}`);
+                } else if (role.includes('kitchen')) {
+                    socket.join('kitchen_room');
+                    socket.join(`kitchen_${outletId}`);
+                }
+
+                socket.join('cashier_room');
+                socket.join(`outlet_${outletId}`);
 
                 const response = {
                     success: true,
@@ -230,15 +261,19 @@ export default function socketHandler(io) {
         });
 
         // ✅ JOIN SPECIFIC AREA ROOM
-        socket.on('join_area_room', (areaCode, callback) => {
-            const areaRoom = `area_${areaCode.toUpperCase()}`;
+        socket.on('join_area', (tableCode) => {
+            const areaRoom = `area_${tableCode}`;
             socket.join(areaRoom);
-            console.log(`Client ${socket.id} joined area room: ${areaRoom}`);
 
-            if (typeof callback === 'function') {
-                callback({ status: 'joined', room: areaRoom });
+            const group = getAreaGroup(tableCode);
+            if (group) {
+                socket.join(group);
+                console.log(`Device ${socket.id} joined area ${areaRoom} and group ${group}`);
+            } else {
+                console.log(`Device ${socket.id} joined area ${areaRoom} (no group found)`);
             }
         });
+
 
         // ✅ JOIN BAR ROOM
         socket.on('join_bar_room', (barType, callback) => {
@@ -349,9 +384,200 @@ export default function socketHandler(io) {
             console.log(`Kitchen completed order: ${orderId}`);
         });
 
-        // ✅ BEVERAGE ORDER HANDLERS
-        socket.on('bar_order_start', (data) => {
-            const { orderId, tableNumber, bartenderName, items } = data;
+        // === BAR/BEVERAGE HANDLERS ===
+        
+        // ✅ START BEVERAGE ORDER PREPARATION
+        socket.on('bar_order_start', async (data) => {
+            try {
+                const { orderId, bartenderName, tableNumber } = data;
+                
+                console.log(`🍹 Starting beverage order: ${orderId} by ${bartenderName}`);
+
+                // Determine which bar should handle based on table number
+                const areaCode = getAreaCodeFromTable(tableNumber);
+                const barRoom = areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
+                
+                // Call API to update order status
+                const response = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/orders/${orderId}/beverage-start`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        bartenderName: bartenderName
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to start beverage order via API');
+                }
+
+                const result = await response.json();
+
+                // Notify the specific bar room
+                socket.to(barRoom).emit('beverage_preparation_started', {
+                    orderId,
+                    tableNumber,
+                    bartenderName,
+                    assignedBar: barRoom,
+                    timestamp: new Date(),
+                    message: 'Beverage order started preparation'
+                });
+
+                // Notify cashier
+                socket.to('cashier_room').emit('beverage_preparation_started', {
+                    orderId,
+                    tableNumber,
+                    bartenderName,
+                    timestamp: new Date()
+                });
+
+                // Notify customer
+                socket.to(`order_${orderId}`).emit('beverage_preparation_started', {
+                    orderId,
+                    message: 'Your beverages are being prepared',
+                    timestamp: new Date()
+                });
+
+                console.log(`✅ Beverage order ${orderId} started by ${bartenderName} in ${barRoom}`);
+
+            } catch (error) {
+                console.error('Error starting beverage order:', error);
+                
+                // Notify client about the error
+                socket.emit('beverage_order_error', {
+                    error: 'Failed to start beverage order',
+                    message: error.message
+                });
+            }
+        });
+
+        // ✅ COMPLETE BEVERAGE ORDER (MARK AS READY)
+        socket.on('bar_order_complete', async (data) => {
+            try {
+                const { orderId, bartenderName, completedItems, tableNumber } = data;
+                
+                console.log(`🍹 Completing beverage order: ${orderId} by ${bartenderName}`);
+
+                // Call API to update order status
+                const response = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/orders/${orderId}/beverage-complete`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        bartenderName: bartenderName,
+                        completedItems: completedItems || []
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to complete beverage order via API');
+                }
+
+                const result = await response.json();
+
+                // Determine bar room for notification
+                const areaCode = getAreaCodeFromTable(tableNumber);
+                const barRoom = areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
+
+                // Notify customer
+                socket.to(`order_${orderId}`).emit('beverage_ready', {
+                    orderId,
+                    tableNumber,
+                    message: 'Your beverages are ready',
+                    preparedBy: bartenderName,
+                    completedItems: completedItems,
+                    timestamp: new Date()
+                });
+
+                // Notify cashier
+                socket.to('cashier_room').emit('beverage_ready', {
+                    orderId,
+                    tableNumber,
+                    bartenderName,
+                    completedItems: completedItems,
+                    timestamp: new Date()
+                });
+
+                // Notify waitstaff/runner
+                socket.to('waitstaff_room').emit('beverage_ready_for_serve', {
+                    orderId,
+                    tableNumber,
+                    bartenderName,
+                    completedItems: completedItems,
+                    timestamp: new Date()
+                });
+
+                // Notify bar room
+                socket.to(barRoom).emit('beverage_ready', {
+                    orderId,
+                    tableNumber,
+                    bartenderName,
+                    completedItems: completedItems,
+                    timestamp: new Date()
+                });
+
+                console.log(`✅ Beverage order ${orderId} completed by ${bartenderName}`);
+
+            } catch (error) {
+                console.error('Error completing beverage order:', error);
+                
+                socket.emit('beverage_order_error', {
+                    error: 'Failed to complete beverage order',
+                    message: error.message
+                });
+            }
+        });
+
+        // ✅ UPDATE INDIVIDUAL BEVERAGE ITEM STATUS
+        socket.on('update_beverage_item_status', async (data) => {
+            try {
+                const { orderId, itemId, status, bartenderName } = data;
+                
+                console.log(`🔄 Updating beverage item status: ${orderId} - ${itemId} to ${status}`);
+
+                const response = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/orders/${orderId}/items/${itemId}/beverage-status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        status: status,
+                        bartenderName: bartenderName
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update beverage item status via API');
+                }
+
+                const result = await response.json();
+
+                // Notify bar rooms about item status update
+                io.to('bar_depan').to('bar_belakang').emit('beverage_item_status_updated', {
+                    orderId,
+                    itemId,
+                    status,
+                    bartenderName,
+                    timestamp: new Date()
+                });
+
+                console.log(`✅ Beverage item ${itemId} in order ${orderId} updated to ${status}`);
+
+            } catch (error) {
+                console.error('Error updating beverage item status:', error);
+                
+                socket.emit('beverage_order_error', {
+                    error: 'Failed to update beverage item status',
+                    message: error.message
+                });
+            }
+        });
+
+        // ✅ BEVERAGE ORDER RECEIVED (Auto-assign to bar)
+        socket.on('beverage_order_received', (data) => {
+            const { orderId, tableNumber, items } = data;
             
             // Determine which bar should handle based on table number
             const areaCode = getAreaCodeFromTable(tableNumber);
@@ -360,35 +586,78 @@ export default function socketHandler(io) {
             socket.to(barRoom).emit('beverage_order_received', {
                 orderId,
                 tableNumber,
-                bartenderName,
                 items,
                 assignedBar: barRoom,
-                timestamp: new Date()
+                timestamp: new Date(),
+                message: 'New beverage order received'
             });
 
-            console.log(`Beverage order sent to ${barRoom} for table ${tableNumber}`);
+            console.log(`🍹 Beverage order ${orderId} assigned to ${barRoom} for table ${tableNumber}`);
         });
 
-        socket.on('bar_order_complete', (data) => {
-            const { orderId, tableNumber, bartenderName } = data;
-            
-            // Notify cashier and customer
-            socket.to(`order_${orderId}`).emit('beverage_ready', {
-                orderId,
-                tableNumber,
-                message: 'Beverages are ready',
-                preparedBy: bartenderName,
-                timestamp: new Date()
-            });
+        // ✅ UPDATE BAR ORDER STATUS (General)
+        socket.on('update_bar_order_status', async (data) => {
+            try {
+                const { orderId, status, bartenderId, bartenderName, tableNumber } = data;
 
-            socket.to('cashier_room').emit('beverage_order_completed', {
-                orderId,
-                tableNumber,
-                bartenderName,
-                timestamp: new Date()
-            });
+                console.log(`🔄 Updating bar order status: ${orderId} to ${status}`);
 
-            console.log(`Beverage order completed for table ${tableNumber}`);
+                const response = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/orders/${orderId}/bar-status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        status: status,
+                        bartenderId: bartenderId,
+                        bartenderName: bartenderName
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update bar order status via API');
+                }
+
+                const result = await response.json();
+
+                // Determine bar room
+                const areaCode = getAreaCodeFromTable(tableNumber);
+                const barRoom = areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
+
+                // Notify customer
+                socket.to(`order_${orderId}`).emit('order_status_update', {
+                    order_id: orderId,
+                    status: status,
+                    bartender: { id: bartenderId, name: bartenderName },
+                    timestamp: new Date()
+                });
+
+                // Notify cashier
+                socket.to('cashier_room').emit('beverage_order_updated', {
+                    orderId,
+                    status,
+                    updatedBy: { id: bartenderId, name: bartenderName },
+                    timestamp: new Date()
+                });
+
+                // Notify bar room
+                socket.to(barRoom).emit('beverage_order_updated', {
+                    orderId,
+                    status,
+                    updatedBy: { id: bartenderId, name: bartenderName },
+                    timestamp: new Date()
+                });
+
+                console.log(`✅ Bar order ${orderId} status updated to ${status} by ${bartenderName}`);
+
+            } catch (error) {
+                console.error('Error updating bar order status:', error);
+                
+                socket.emit('beverage_order_error', {
+                    error: 'Failed to update bar order status',
+                    message: error.message
+                });
+            }
         });
 
         // ✅ DEVICE STATUS MANAGEMENT

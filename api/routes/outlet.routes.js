@@ -11,18 +11,23 @@ import {
   getNearbyOutlets
 } from '../controllers/outlet.controller.js';
 
+import { verifyToken } from '../utils/verifyUser.js';
+
 const router = express.Router();
 
-router.post('/', createOutlet);
+const outletAccess = verifyToken(['superadmin', 'admin', 'marketing']);
+
+
+router.post('/', outletAccess, createOutlet);
 router.get('/', getAllOutlets);
 router.get('/:id', getOutletById);
-router.put('/:id', updateOutlet);
-router.patch('/:id/toggle-status', toggleOutletStatus);
-router.delete('/:id', deleteOutlet);
+router.put('/:id', outletAccess, updateOutlet);
+router.patch('/:id/toggle-status', outletAccess, toggleOutletStatus);
+router.delete('/:id', outletAccess, deleteOutlet);
 
 // Location-related routes
 router.get('/:id/locations', getOutletLocations);
-router.post('/:id/locations', addOutletLocation);
+router.post('/:id/locations', outletAccess, addOutletLocation);
 
 // Geospatial query
 router.get('/nearby/locations', getNearbyOutlets);

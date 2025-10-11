@@ -18,8 +18,6 @@ import {
   confirmOrderByCashier,
   testSocket,
   getPendingPaymentOrders,
-  getKitchenOrder,
-  updateKitchenOrderStatus,
   // chargeCash,
   cashierCharge,
   confirmOrderViaCashier,
@@ -29,6 +27,17 @@ import {
   deleteOrderItemAtOrder,
   getOrderByIdAfterItemDelete,
 } from '../controllers/order.controller.js';
+
+import {
+  completeBeverageOrder,
+  getAllBeverageOrders,
+  getBarOrder,
+  getKitchenOrder,
+  startBeverageOrder,
+  updateBarOrderStatus,
+  updateBeverageItemStatus,
+  updateKitchenOrderStatus
+} from '../controllers/operation.controller.js';
 
 import {
   getActiveOrders,
@@ -77,8 +86,15 @@ router.get('/orders', getAllOrders);
 // TODO: Start route untuk mendapatkan order yang belum dicetak di dapur
 
 router.get('/orders/kitchen', getKitchenOrder);
-
 router.put('/orders/:orderId/status', updateKitchenOrderStatus);
+
+router.put('/orders/beverage/:orderId/status', updateBeverageItemStatus);
+router.get('/orders/beverage', getAllBeverageOrders);
+router.put('/orders/bar/:orderId/status', updateBarOrderStatus);
+router.get('/orders/bar', getBarOrder);
+router.put('/orders/beverage/:orderId/complete', completeBeverageOrder);
+router.post('/orders/beverage/:orderId/start', startBeverageOrder);
+
 
 // TODO: End route untuk mendapatkan order yang belum dicetak di dapur
 

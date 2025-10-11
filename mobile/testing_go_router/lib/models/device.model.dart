@@ -20,7 +20,7 @@ abstract class DeviceModel with _$DeviceModel {
     @HiveField(7) @Default([]) List<String> assignedTables,
     @HiveField(8) @Default([]) List<String> orderTypes,
     @HiveField(9) @Default(false) bool isOnline,
-    @HiveField(10) @Default(null) String? currentUser,
+    @HiveField(10) @Default(null) Map<String, dynamic>? currentUser,
     @HiveField(11) @Default(true) bool isAvailable,
   }) = _DeviceModel;
 

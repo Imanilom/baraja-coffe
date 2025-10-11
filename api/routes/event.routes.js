@@ -15,11 +15,11 @@ import { verifyToken } from '../utils/verifyUser.js';
 const router = Router();
 const marketingAcceess = verifyToken('marketing', 'admin', 'superadmin');
 
-router.post('/', createEvent);
+router.post('/', marketingAcceess, createEvent);
 router.get('/', getEvents);
 router.get('/:id', getEventById);
-router.put('/:id', updateEvent);
-router.delete('/:id', deleteEvent);
+router.put('/:id', marketingAcceess, updateEvent);
+router.delete('/:id', marketingAcceess, deleteEvent);
 router.post('/:id/attendees', addAttendee);
 router.delete('/:id/attendees', removeAttendee);
 

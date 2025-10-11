@@ -29,7 +29,10 @@ class DeviceModelAdapter extends TypeAdapter<DeviceModel> {
           fields[7] == null ? [] : (fields[7] as List).cast<String>(),
       orderTypes: fields[8] == null ? [] : (fields[8] as List).cast<String>(),
       isOnline: fields[9] == null ? false : fields[9] as bool,
-      currentUser: fields[10] == null ? null : fields[10] as String?,
+      currentUser:
+          fields[10] == null
+              ? null
+              : (fields[10] as Map?)?.cast<String, dynamic>(),
       isAvailable: fields[11] == null ? true : fields[11] as bool,
     );
   }
@@ -102,7 +105,7 @@ _DeviceModel _$DeviceModelFromJson(Map<String, dynamic> json) => _DeviceModel(
           .toList() ??
       const [],
   isOnline: json['isOnline'] as bool? ?? false,
-  currentUser: json['currentUser'] as String? ?? null,
+  currentUser: json['currentUser'] as Map<String, dynamic>? ?? null,
   isAvailable: json['isAvailable'] as bool? ?? true,
 );
 

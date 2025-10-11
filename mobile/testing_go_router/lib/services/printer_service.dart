@@ -1020,7 +1020,9 @@ class PrinterService {
               ),
               PosColumn(
                 text:
-                    '+${item.selectedAddons.map((x) => x.options?.map((x) => x.label)).toList().join(', ')}',
+                    '+${item.selectedAddons.map((x) {
+                      return "${x.name}: ${x.options!.map((o) => o.label).join()}";
+                    }).toList().join(', ')}',
                 width: 10,
                 styles: const PosStyles(align: PosAlign.left),
               ),

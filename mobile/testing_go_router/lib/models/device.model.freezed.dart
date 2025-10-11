@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$DeviceModel {
 
-@HiveField(0)@JsonKey(name: '_id') String get id;@HiveField(1) String get outlet;@HiveField(2) String get deviceId;@HiveField(3) String get deviceName;@HiveField(4) String get deviceType;@HiveField(5) String get location;@HiveField(6) List<String> get assignedAreas;@HiveField(7) List<String> get assignedTables;@HiveField(8) List<String> get orderTypes;@HiveField(9) bool get isOnline;@HiveField(10) String? get currentUser;@HiveField(11) bool get isAvailable;
+@HiveField(0)@JsonKey(name: '_id') String get id;@HiveField(1) String get outlet;@HiveField(2) String get deviceId;@HiveField(3) String get deviceName;@HiveField(4) String get deviceType;@HiveField(5) String get location;@HiveField(6) List<String> get assignedAreas;@HiveField(7) List<String> get assignedTables;@HiveField(8) List<String> get orderTypes;@HiveField(9) bool get isOnline;@HiveField(10) Map<String, dynamic>? get currentUser;@HiveField(11) bool get isAvailable;
 /// Create a copy of DeviceModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -29,12 +29,12 @@ $DeviceModelCopyWith<DeviceModel> get copyWith => _$DeviceModelCopyWithImpl<Devi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DeviceModel&&(identical(other.id, id) || other.id == id)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.deviceName, deviceName) || other.deviceName == deviceName)&&(identical(other.deviceType, deviceType) || other.deviceType == deviceType)&&(identical(other.location, location) || other.location == location)&&const DeepCollectionEquality().equals(other.assignedAreas, assignedAreas)&&const DeepCollectionEquality().equals(other.assignedTables, assignedTables)&&const DeepCollectionEquality().equals(other.orderTypes, orderTypes)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.currentUser, currentUser) || other.currentUser == currentUser)&&(identical(other.isAvailable, isAvailable) || other.isAvailable == isAvailable));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DeviceModel&&(identical(other.id, id) || other.id == id)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.deviceName, deviceName) || other.deviceName == deviceName)&&(identical(other.deviceType, deviceType) || other.deviceType == deviceType)&&(identical(other.location, location) || other.location == location)&&const DeepCollectionEquality().equals(other.assignedAreas, assignedAreas)&&const DeepCollectionEquality().equals(other.assignedTables, assignedTables)&&const DeepCollectionEquality().equals(other.orderTypes, orderTypes)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&const DeepCollectionEquality().equals(other.currentUser, currentUser)&&(identical(other.isAvailable, isAvailable) || other.isAvailable == isAvailable));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,outlet,deviceId,deviceName,deviceType,location,const DeepCollectionEquality().hash(assignedAreas),const DeepCollectionEquality().hash(assignedTables),const DeepCollectionEquality().hash(orderTypes),isOnline,currentUser,isAvailable);
+int get hashCode => Object.hash(runtimeType,id,outlet,deviceId,deviceName,deviceType,location,const DeepCollectionEquality().hash(assignedAreas),const DeepCollectionEquality().hash(assignedTables),const DeepCollectionEquality().hash(orderTypes),isOnline,const DeepCollectionEquality().hash(currentUser),isAvailable);
 
 @override
 String toString() {
@@ -49,7 +49,7 @@ abstract mixin class $DeviceModelCopyWith<$Res>  {
   factory $DeviceModelCopyWith(DeviceModel value, $Res Function(DeviceModel) _then) = _$DeviceModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String outlet,@HiveField(2) String deviceId,@HiveField(3) String deviceName,@HiveField(4) String deviceType,@HiveField(5) String location,@HiveField(6) List<String> assignedAreas,@HiveField(7) List<String> assignedTables,@HiveField(8) List<String> orderTypes,@HiveField(9) bool isOnline,@HiveField(10) String? currentUser,@HiveField(11) bool isAvailable
+@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String outlet,@HiveField(2) String deviceId,@HiveField(3) String deviceName,@HiveField(4) String deviceType,@HiveField(5) String location,@HiveField(6) List<String> assignedAreas,@HiveField(7) List<String> assignedTables,@HiveField(8) List<String> orderTypes,@HiveField(9) bool isOnline,@HiveField(10) Map<String, dynamic>? currentUser,@HiveField(11) bool isAvailable
 });
 
 
@@ -79,7 +79,7 @@ as List<String>,assignedTables: null == assignedTables ? _self.assignedTables : 
 as List<String>,orderTypes: null == orderTypes ? _self.orderTypes : orderTypes // ignore: cast_nullable_to_non_nullable
 as List<String>,isOnline: null == isOnline ? _self.isOnline : isOnline // ignore: cast_nullable_to_non_nullable
 as bool,currentUser: freezed == currentUser ? _self.currentUser : currentUser // ignore: cast_nullable_to_non_nullable
-as String?,isAvailable: null == isAvailable ? _self.isAvailable : isAvailable // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>?,isAvailable: null == isAvailable ? _self.isAvailable : isAvailable // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -91,7 +91,7 @@ as bool,
 @JsonSerializable()
 
 class _DeviceModel implements DeviceModel {
-   _DeviceModel({@HiveField(0)@JsonKey(name: '_id') required this.id, @HiveField(1) required this.outlet, @HiveField(2) required this.deviceId, @HiveField(3) required this.deviceName, @HiveField(4) required this.deviceType, @HiveField(5) required this.location, @HiveField(6) final  List<String> assignedAreas = const [], @HiveField(7) final  List<String> assignedTables = const [], @HiveField(8) final  List<String> orderTypes = const [], @HiveField(9) this.isOnline = false, @HiveField(10) this.currentUser = null, @HiveField(11) this.isAvailable = true}): _assignedAreas = assignedAreas,_assignedTables = assignedTables,_orderTypes = orderTypes;
+   _DeviceModel({@HiveField(0)@JsonKey(name: '_id') required this.id, @HiveField(1) required this.outlet, @HiveField(2) required this.deviceId, @HiveField(3) required this.deviceName, @HiveField(4) required this.deviceType, @HiveField(5) required this.location, @HiveField(6) final  List<String> assignedAreas = const [], @HiveField(7) final  List<String> assignedTables = const [], @HiveField(8) final  List<String> orderTypes = const [], @HiveField(9) this.isOnline = false, @HiveField(10) final  Map<String, dynamic>? currentUser = null, @HiveField(11) this.isAvailable = true}): _assignedAreas = assignedAreas,_assignedTables = assignedTables,_orderTypes = orderTypes,_currentUser = currentUser;
   factory _DeviceModel.fromJson(Map<String, dynamic> json) => _$DeviceModelFromJson(json);
 
 @override@HiveField(0)@JsonKey(name: '_id') final  String id;
@@ -122,7 +122,15 @@ class _DeviceModel implements DeviceModel {
 }
 
 @override@JsonKey()@HiveField(9) final  bool isOnline;
-@override@JsonKey()@HiveField(10) final  String? currentUser;
+ final  Map<String, dynamic>? _currentUser;
+@override@JsonKey()@HiveField(10) Map<String, dynamic>? get currentUser {
+  final value = _currentUser;
+  if (value == null) return null;
+  if (_currentUser is EqualUnmodifiableMapView) return _currentUser;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(value);
+}
+
 @override@JsonKey()@HiveField(11) final  bool isAvailable;
 
 /// Create a copy of DeviceModel
@@ -138,12 +146,12 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DeviceModel&&(identical(other.id, id) || other.id == id)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.deviceName, deviceName) || other.deviceName == deviceName)&&(identical(other.deviceType, deviceType) || other.deviceType == deviceType)&&(identical(other.location, location) || other.location == location)&&const DeepCollectionEquality().equals(other._assignedAreas, _assignedAreas)&&const DeepCollectionEquality().equals(other._assignedTables, _assignedTables)&&const DeepCollectionEquality().equals(other._orderTypes, _orderTypes)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.currentUser, currentUser) || other.currentUser == currentUser)&&(identical(other.isAvailable, isAvailable) || other.isAvailable == isAvailable));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DeviceModel&&(identical(other.id, id) || other.id == id)&&(identical(other.outlet, outlet) || other.outlet == outlet)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.deviceName, deviceName) || other.deviceName == deviceName)&&(identical(other.deviceType, deviceType) || other.deviceType == deviceType)&&(identical(other.location, location) || other.location == location)&&const DeepCollectionEquality().equals(other._assignedAreas, _assignedAreas)&&const DeepCollectionEquality().equals(other._assignedTables, _assignedTables)&&const DeepCollectionEquality().equals(other._orderTypes, _orderTypes)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&const DeepCollectionEquality().equals(other._currentUser, _currentUser)&&(identical(other.isAvailable, isAvailable) || other.isAvailable == isAvailable));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,outlet,deviceId,deviceName,deviceType,location,const DeepCollectionEquality().hash(_assignedAreas),const DeepCollectionEquality().hash(_assignedTables),const DeepCollectionEquality().hash(_orderTypes),isOnline,currentUser,isAvailable);
+int get hashCode => Object.hash(runtimeType,id,outlet,deviceId,deviceName,deviceType,location,const DeepCollectionEquality().hash(_assignedAreas),const DeepCollectionEquality().hash(_assignedTables),const DeepCollectionEquality().hash(_orderTypes),isOnline,const DeepCollectionEquality().hash(_currentUser),isAvailable);
 
 @override
 String toString() {
@@ -158,7 +166,7 @@ abstract mixin class _$DeviceModelCopyWith<$Res> implements $DeviceModelCopyWith
   factory _$DeviceModelCopyWith(_DeviceModel value, $Res Function(_DeviceModel) _then) = __$DeviceModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String outlet,@HiveField(2) String deviceId,@HiveField(3) String deviceName,@HiveField(4) String deviceType,@HiveField(5) String location,@HiveField(6) List<String> assignedAreas,@HiveField(7) List<String> assignedTables,@HiveField(8) List<String> orderTypes,@HiveField(9) bool isOnline,@HiveField(10) String? currentUser,@HiveField(11) bool isAvailable
+@HiveField(0)@JsonKey(name: '_id') String id,@HiveField(1) String outlet,@HiveField(2) String deviceId,@HiveField(3) String deviceName,@HiveField(4) String deviceType,@HiveField(5) String location,@HiveField(6) List<String> assignedAreas,@HiveField(7) List<String> assignedTables,@HiveField(8) List<String> orderTypes,@HiveField(9) bool isOnline,@HiveField(10) Map<String, dynamic>? currentUser,@HiveField(11) bool isAvailable
 });
 
 
@@ -187,8 +195,8 @@ as String,assignedAreas: null == assignedAreas ? _self._assignedAreas : assigned
 as List<String>,assignedTables: null == assignedTables ? _self._assignedTables : assignedTables // ignore: cast_nullable_to_non_nullable
 as List<String>,orderTypes: null == orderTypes ? _self._orderTypes : orderTypes // ignore: cast_nullable_to_non_nullable
 as List<String>,isOnline: null == isOnline ? _self.isOnline : isOnline // ignore: cast_nullable_to_non_nullable
-as bool,currentUser: freezed == currentUser ? _self.currentUser : currentUser // ignore: cast_nullable_to_non_nullable
-as String?,isAvailable: null == isAvailable ? _self.isAvailable : isAvailable // ignore: cast_nullable_to_non_nullable
+as bool,currentUser: freezed == currentUser ? _self._currentUser : currentUser // ignore: cast_nullable_to_non_nullable
+as Map<String, dynamic>?,isAvailable: null == isAvailable ? _self.isAvailable : isAvailable // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
