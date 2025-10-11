@@ -14,7 +14,7 @@ dotenv.config();
  * @returns {Object} normalized order data
  */
 export function validateOrderData(data, source) {
-  const { items, outlet, orderType, customerId, loyaltyPointsToRedeem } = data;
+  const { items, orderType, customerId, loyaltyPointsToRedeem } = data;
 
   // Basic validations
   if (!data || typeof data !== 'object') {
@@ -32,9 +32,6 @@ export function validateOrderData(data, source) {
     throw new Error('Order items cannot be empty');
   }
 
-  if (!outlet) {
-    throw new Error('Outlet is required');
-  }
 
   // Normalize orderType
   const formattedOrderType = formatOrderType(data.orderType);
