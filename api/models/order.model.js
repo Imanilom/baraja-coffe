@@ -134,12 +134,12 @@ const OrderSchema = new mongoose.Schema({
   deliveryStatus: {
     type: String,
     enum: ['pending', 'confirmed', 'picked_up', 'on_delivery', 'delivered', 'cancelled', 'failed'],
-    default: null
+    default: false
   },
   deliveryProvider: {
     type: String,
     enum: ['GoSend', 'GrabExpress', 'Manual'],
-    default: null
+    default: false
   },
   deliveryTracking: {
     provider: String,
