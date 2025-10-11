@@ -19,12 +19,8 @@ import { updateTableStatusAfterPayment } from './webhookController.js';
 import { getAreaGroup } from '../utils/areaGrouping.js';
 import { Outlet } from '../models/Outlet.model.js';
 import dayjs from 'dayjs'
-import utc from "dayjs/plugin/utc.js";
-import timezone from "dayjs/plugin/timezone.js";
 import { processGoSendDelivery } from '../helpers/deliveryHelper.js';
 
-dayjs.extend(utc);
-dayjs.extend(timezone);
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
   try {
@@ -1027,11 +1023,41 @@ export const createUnifiedOrder = async (req, res) => {
       customerId,
       outletId,
       loyaltyPointsToRedeem,
-      // OPSIONAL: field untuk delivery - HANYA UNTUK APP
       delivery_option, // 'pickup' atau 'delivery' (opsional, default 'pickup')
       recipient_data // data penerima untuk delivery (opsional)
     } = req.body;
-  
+
+    // Validasi outletId
+    if (!outletId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Outlet ID diperlukan'
+      });
+    }
+
+    // Cek jam buka/tutup outlet 
+    const outlet = await Outlet.findById(outletId);
+    if (!outlet) {
+      return res.status(404).json({
+        success: false,
+        message: 'Outlet tidak ditemukan'
+      });
+    }
+
+    // PERBAIKAN: Pengecekan jam operasional outlet
+    const isOutletOpen = checkOutletOperatingHours(outlet);
+    if (!isOutletOpen.isOpen) {
+      return res.status(400).json({
+        success: false,
+        message: `Outlet sedang tutup. ${isOutletOpen.message}`,
+        operatingHours: {
+          openTime: outlet.openTime,
+          closeTime: outlet.closeTime,
+          timezone: 'Asia/Jakarta'
+        }
+      });
+    }
+
     // VALIDASI: Hanya App yang boleh melakukan delivery
     if (source !== 'App' && delivery_option === 'delivery') {
       return res.status(400).json({
@@ -1045,7 +1071,7 @@ export const createUnifiedOrder = async (req, res) => {
       if (!recipient_data) {
         return res.status(400).json({
           success: false,
-          message: 'Data penerima diperlukan untuk pesanan delivery'  
+          message: 'Data penerima diperlukan untuk pesanan delivery'
         });
       }
 
@@ -1092,6 +1118,8 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     const validated = validateOrderData(req.body, source);
+    validated.outletId = outletId; // Tambahkan ini
+    validated.outlet = outletId;   
 
     // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
     validated.customerId = customerId;
@@ -1162,8 +1190,6 @@ export const createUnifiedOrder = async (req, res) => {
         delay: 1000
       }
     });
-
-    console.log(`Job created: ${job.id} for order: ${orderId}`);
 
     // Wait for job completion dengan timeout
     let result;
@@ -1335,6 +1361,96 @@ export const createUnifiedOrder = async (req, res) => {
     });
   }
 };
+
+// HELPER FUNCTION UNTUK CEK JAM OPERASIONAL OUTLET
+const checkOutletOperatingHours = (outlet) => {
+  // Jika outlet tidak memiliki jam operasional, dianggap buka 24 jam
+  if (!outlet.openTime || !outlet.closeTime) {
+    return {
+      isOpen: true,
+      message: 'Outlet buka 24 jam'
+    };
+  }
+
+  const parseToMinutes = (timeStr) => {
+    if (!timeStr) return null;
+    const s = String(timeStr).trim().toUpperCase();
+    const m = s.match(/(\d{1,2}):(\d{2})/);
+    if (!m) return null;
+    
+    let hh = parseInt(m[1], 10);
+    const mm = parseInt(m[2], 10);
+
+    // Handle AM/PM if present
+    const hasAM = /\bAM\b/.test(s);
+    const hasPM = /\bPM\b/.test(s);
+    if (hasAM || hasPM) {
+      if (hh === 12) hh = hasAM ? 0 : 12;
+      else if (hasPM) hh += 12;
+    }
+
+    // Validasi jam (0-23) dan menit (0-59)
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+      return null;
+    }
+
+    return hh * 60 + mm;
+  };
+
+  // PERBAIKAN: Gunakan Date object biasa untuk WIB
+  const getWIBCurrentTime = () => {
+    const now = new Date();
+    // Convert to WIB (UTC+7)
+    const wibOffset = 7 * 60; // 7 hours in minutes
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const wibTime = new Date(utc + (3600000 * 7));
+    return wibTime;
+  };
+
+  const wibNow = getWIBCurrentTime();
+  const currentMinutes = wibNow.getHours() * 60 + wibNow.getMinutes();
+
+  const openMinutes = parseToMinutes(outlet.openTime);
+  const closeMinutes = parseToMinutes(outlet.closeTime);
+
+  // Jika parsing gagal, skip validation (defensive)
+  if (openMinutes === null || closeMinutes === null) {
+    console.warn('Invalid time format for outlet operating hours:', {
+      outletId: outlet._id,
+      openTime: outlet.openTime,
+      closeTime: outlet.closeTime
+    });
+    return {
+      isOpen: true,
+      message: 'Format jam operasional tidak valid, dianggap buka'
+    };
+  }
+
+  let isOpen = false;
+  let message = '';
+
+  if (openMinutes < closeMinutes) {
+    // same-day window (e.g. 09:00 - 18:00)
+    isOpen = currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
+    message = `Jam operasional: ${outlet.openTime} - ${outlet.closeTime}`;
+  } else {
+    // overnight window (e.g. 06:00 - 03:00 next day)
+    isOpen = currentMinutes >= openMinutes || currentMinutes <= closeMinutes;
+    message = `Jam operasional: ${outlet.openTime} - ${outlet.closeTime} (buka semalam)`;
+  }
+
+  // Tambahkan informasi waktu saat ini dalam response untuk debugging
+  const currentTimeFormatted = `${String(wibNow.getHours()).padStart(2, '0')}:${String(wibNow.getMinutes()).padStart(2, '0')}`;
+  
+  return {
+    isOpen,
+    message: isOpen ? 
+      `Outlet buka. ${message} (Waktu sekarang: ${currentTimeFormatted})` : 
+      `Outlet tutup. ${message} (Waktu sekarang: ${currentTimeFormatted})`
+  };
+};
+
+
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;

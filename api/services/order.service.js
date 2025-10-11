@@ -15,9 +15,7 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     throw new Error('Order items cannot be empty');
   }
 
-  if (!mongoose.Types.ObjectId.isValid(outlet)) {
-    throw new Error('Invalid outlet ID');
-  }
+  
 
   const orderItems = [];
   let totalBeforeDiscount = 0;
