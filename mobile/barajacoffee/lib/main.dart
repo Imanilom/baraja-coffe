@@ -1,14 +1,16 @@
 import 'package:barajacoffee/widgets/bottom_nav_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:hive_flutter/hive_flutter.dart';
 import 'pages/login.dart';
 import 'pages/register.dart';
-// Tambahkan ini
 
-void main() {
-  runApp(BarajaCoffeeApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter(); // Inisialisasi Hive
+  await Hive.openBox('session'); // Membuka box untuk menyimpan sesi login
+
+  runApp(const BarajaCoffeeApp());
 }
 
 class BarajaCoffeeApp extends StatelessWidget {
@@ -20,7 +22,7 @@ class BarajaCoffeeApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Baraja Coffee',
       theme: ThemeData(
-        primaryColor: Color(0xFF076A3B),
+        primaryColor: const Color(0xFF076A3B),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: Colors.white,
@@ -29,17 +31,17 @@ class BarajaCoffeeApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
           focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Color(0xFF076A3B)),
+            borderSide: const BorderSide(color: Color(0xFF076A3B)),
             borderRadius: BorderRadius.circular(8),
           ),
-          labelStyle: TextStyle(color: Color(0xFF076A3B)),
+          labelStyle: const TextStyle(color: Color(0xFF076A3B)),
         ),
       ),
-      home: SplashScreen(), // Mulai dari SplashScreen
+      home: const SplashScreen(), // Mulai dari SplashScreen
       routes: {
-        '/login': (context) => LoginScreen(),
-        '/register': (context) => RegisterScreen(),
-        '/main': (context) => BottomNavScreen(), // Wrapper dengan BottomNavigation
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/main': (context) => const BottomNavScreen(), // Wrapper dengan BottomNavigation
       },
     );
   }
@@ -60,10 +62,10 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _checkSession() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    var box = Hive.box('session');
+    bool isLoggedIn = box.get('isLoggedIn', defaultValue: false);
 
-    Timer(Duration(seconds: 3), () {
+    Timer(const Duration(seconds: 3), () {
       if (isLoggedIn) {
         Navigator.pushReplacementNamed(context, '/main'); // Pergi ke halaman utama
       } else {
@@ -75,14 +77,14 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF076A3B),
+      backgroundColor: const Color(0xFF076A3B),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset('../lib/assets/images/splash.png', width: 180, height: 180),
-            SizedBox(height: 20),
-            CircularProgressIndicator(
+            const SizedBox(height: 20),
+            const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ],
