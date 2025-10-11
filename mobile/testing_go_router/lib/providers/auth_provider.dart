@@ -267,3 +267,14 @@ final devicesProvider = FutureProvider.autoDispose<List<DeviceModel>>((
     throw Exception('Gagal memuat device: $e');
   }
 });
+
+final cashierLoginToDeviceProvider = FutureProvider<bool>((ref) async {
+  final repo = ref.watch(authDeviceRepositoryProvider);
+  try {
+    final result = await repo.loginCashierToDevice();
+
+    return result;
+  } catch (e) {
+    return false;
+  }
+});

@@ -1,4 +1,5 @@
 import 'package:hive_ce/hive.dart';
+import 'package:kasirbaraja/models/cashier.model.dart';
 
 import '../models/user.model.dart';
 import '../services/auth_service.dart';
@@ -86,5 +87,48 @@ class AuthDevice {
       deviceId: deviceId,
     );
     return response['data'] as Map<String, dynamic>;
+  }
+
+  //login cashier to device
+  Future<bool> loginCashierToDevice() async {
+    try {
+      final token = await HiveService.userToken;
+      final device = HiveService.getDevice as DeviceModel;
+      final cashier = HiveService.getCashier as CashierModel;
+
+      if (device.id.isEmpty) throw Exception('Device tidak valid');
+      if (cashier.id == null || cashier.id!.isEmpty) {
+        throw Exception('Cashier tidak valid');
+      }
+
+      final response = await _authService.loginCashierToDevice(
+        token: token,
+        deviceId: device.id,
+        cashierId: cashier.id!,
+      );
+
+      return response['success'] ?? false;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<bool> logoutCashierFromDevice() async {
+    try {
+      final token = await HiveService.userToken;
+      final device = HiveService.getDevice() as DeviceModel;
+      if (device.id.isEmpty) throw Exception('Device tidak valid');
+
+      // final response = await _authService.logoutCashierFromDevice(
+      //   token: token,
+      //   deviceId: device.id,
+      // );
+      final response = false;
+
+      // return response['success'] ?? false;
+      return response;
+    } catch (e) {
+      rethrow;
+    }
   }
 }
