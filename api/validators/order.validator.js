@@ -83,15 +83,28 @@ export function validateOrderData(data, source) {
       if (!data.cashierId) throw new Error('Cashier ID is required for Cashier orders');
       if (!data.paymentMethod) throw new Error('Payment method is required for Cashier orders');
 
+      // PERBAIKAN KRITIS: Hapus semua field delivery dari data cashier
+      const { 
+        delivery_option, 
+        recipient_data, 
+        deliveryStatus, 
+        deliveryProvider, 
+        deliveryTracking, 
+        recipientInfo,
+        ...cashierData 
+      } = data;
+
       return {
-        items: data.items,
-        user: data.user || null,
-        cashierId: data.cashierId,
-        paymentMethod: data.paymentMethod,
+        items: cashierData.items,
+        user: cashierData.user || null,
+        cashierId: cashierData.cashierId,
+        paymentMethod: cashierData.paymentMethod,
         orderType: formattedOrderType,
-        tableNumber: data.tableNumber || null,
-        outlet: data.outlet || null,
-        isOpenBill: Boolean(data.isOpenBill)
+        tableNumber: cashierData.tableNumber || null,
+        outlet: cashierData.outlet || null,
+        isOpenBill: Boolean(cashierData.isOpenBill),
+        // Pastikan tidak ada field delivery yang terbawa
+        formattedOrderType
       };
     }
 
