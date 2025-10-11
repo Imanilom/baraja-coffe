@@ -1023,9 +1023,9 @@ export const createUnifiedOrder = async (req, res) => {
       customerId, 
       outletId, 
       loyaltyPointsToRedeem,
-      // Tambahan field untuk delivery - HANYA UNTUK APP
-      delivery_option, // 'pickup' atau 'delivery'
-      recipient_data // data penerima untuk delivery
+      // OPSIONAL: field untuk delivery - HANYA UNTUK APP
+      delivery_option, // 'pickup' atau 'delivery' (opsional, default 'pickup')
+      recipient_data // data penerima untuk delivery (opsional)
     } = req.body;
 
     // Cek jam buka/tutup outlet 
@@ -1058,20 +1058,21 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    // Validasi data recipient untuk delivery (HANYA APP)
-    if (source === 'App' && delivery_option === 'delivery' && !recipient_data) {
-      return res.status(400).json({
-        success: false,
-        message: 'Data penerima diperlukan untuk pesanan delivery'
-      });
-    }
-
-    // Validasi koordinat untuk delivery (HANYA APP)
-    if (source === 'App' && delivery_option === 'delivery' && recipient_data && !recipient_data.coordinates) {
-      return res.status(400).json({
-        success: false,
-        message: 'Koordinat lokasi penerima diperlukan untuk delivery'
-      });
+    // Validasi data recipient HANYA JIKA delivery_option adalah 'delivery'
+    if (source === 'App' && delivery_option === 'delivery') {
+      if (!recipient_data) {
+        return res.status(400).json({
+          success: false,
+          message: 'Data penerima diperlukan untuk pesanan delivery'
+        });
+      }
+      
+      if (!recipient_data.coordinates) {
+        return res.status(400).json({
+          success: false,
+          message: 'Koordinat lokasi penerima diperlukan untuk delivery'
+        });
+      }
     }
 
     // Loyalty program OPSIONAL - tidak perlu validasi strict
@@ -1114,9 +1115,9 @@ export const createUnifiedOrder = async (req, res) => {
     validated.customerId = customerId;
     validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
     
-    // Hanya tambahkan delivery info untuk App
+    // Hanya tambahkan delivery info untuk App JIKA delivery_option ada
     if (source === 'App') {
-      validated.delivery_option = delivery_option;
+      validated.delivery_option = delivery_option || 'pickup'; // default ke pickup
       validated.recipient_data = recipient_data;
     }
 
@@ -1147,8 +1148,8 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    // Log delivery information (HANYA UNTUK APP)
-    if (source === 'App') {
+    // Log delivery information (HANYA UNTUK APP JIKA DELIVERY)
+    if (source === 'App' && delivery_option === 'delivery') {
       console.log('Creating App Order with Delivery Option:', {
         orderId,
         delivery_option,
@@ -1165,9 +1166,9 @@ export const createUnifiedOrder = async (req, res) => {
         source,
         isOpenBill: validated.isOpenBill,
         isReservation: orderType === 'reservation',
-        // Tambahkan flag untuk delivery - HANYA UNTUK APP
+        // Tambahkan flag untuk delivery - HANYA UNTUK APP JIKA DELIVERY
         requiresDelivery: source === 'App' && delivery_option === 'delivery',
-        recipientData: source === 'App' ? recipient_data : null
+        recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null
       }
     }, {
       jobId: orderId,
@@ -1223,7 +1224,7 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (source === 'App') {
-      // PROSES DELIVERY HANYA UNTUK APP
+      // PROSES DELIVERY HANYA JIKA orderType adalah 'delivery'
       let deliveryResult = null;
       if (delivery_option === 'delivery' && recipient_data) {
         try {
@@ -1257,6 +1258,8 @@ export const createUnifiedOrder = async (req, res) => {
         ...baseResponse,
         status: 'waiting_payment',
         midtrans: midtransRes,
+        // Tambahkan delivery_option ke response
+        delivery_option: delivery_option || 'pickup',
         // Loyalty info opsional
         ...(result.loyalty?.isApplied && {
           loyalty: {
@@ -1267,7 +1270,7 @@ export const createUnifiedOrder = async (req, res) => {
         })
       };
 
-      // Tambahkan delivery info jika ada
+      // Tambahkan delivery info hanya jika ada deliveryResult
       if (deliveryResult) {
         appResponse.delivery = {
           provider: 'GoSend',
