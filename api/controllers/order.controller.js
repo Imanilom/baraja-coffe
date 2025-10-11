@@ -1031,62 +1031,7 @@ export const createUnifiedOrder = async (req, res) => {
       delivery_option, // 'pickup' atau 'delivery' (opsional, default 'pickup')
       recipient_data // data penerima untuk delivery (opsional)
     } = req.body;
-
-    // Cek jam buka/tutup outlet 
-    const outlet = await Outlet.findById(outletId);
-    if (!outlet) {
-      return res.status(404).json({
-        success: false,
-        message: 'Outlet tidak ditemukan'
-      });
-    }
-
-    const now = dayjs().tz("Asia/Jakarta");
-    const parseToMinutes = (timeStr) => {
-      if (!timeStr) return null;
-      const s = String(timeStr).trim().toUpperCase();
-      const m = s.match(/(\d{1,2}):(\d{2})/);
-      if (!m) return null;
-
-      let hh = parseInt(m[1], 10);
-      const mm = parseInt(m[2], 10);
-
-      // Deteksi AM/PM (kalau format 12 jam)
-      const hasAM = /\bAM\b/.test(s);
-      const hasPM = /\bPM\b/.test(s);
-      if (hasAM || hasPM) {
-        if (hh === 12) hh = hasAM ? 0 : 12;
-        else if (hasPM) hh += 12;
-      }
-
-      return hh * 60 + mm;
-    };
-
-    const currentMinutes = now.hour() * 60 + now.minute();
-    const openMinutes = parseToMinutes(outlet.openTime);
-    const closeMinutes = parseToMinutes(outlet.closeTime);
-
-    if (openMinutes != null && closeMinutes != null) {
-      let isOpen = false;
-
-      if (openMinutes < closeMinutes) {
-        // contoh: 06:00 - 23:00
-        isOpen =
-          currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
-      } else {
-        // contoh: 18:00 - 03:00 (lewat tengah malam)
-        isOpen =
-          currentMinutes >= openMinutes || currentMinutes <= closeMinutes;
-      }
-
-      if (!isOpen) {
-        return res.status(400).json({
-          success: false,
-          message: `Outlet sedang tutup. Jam buka: ${outlet.openTime} - ${outlet.closeTime}`,
-        });
-      }
-    }
-    
+  
     // VALIDASI: Hanya App yang boleh melakukan delivery
     if (source !== 'App' && delivery_option === 'delivery') {
       return res.status(400).json({
@@ -1100,7 +1045,7 @@ export const createUnifiedOrder = async (req, res) => {
       if (!recipient_data) {
         return res.status(400).json({
           success: false,
-          message: 'Data penerima diperlukan untuk pesanan delivery'
+          message: 'Data penerima diperlukan untuk pesanan delivery'  
         });
       }
 
