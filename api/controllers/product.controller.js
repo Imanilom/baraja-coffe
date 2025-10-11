@@ -66,7 +66,7 @@ export const createProduct = async (req, res) => {
 
     // === LOGGING ===
     for (const product of savedProducts) {
-      await logActivity.create({
+      await logActivity({
         user: req.user?._id,
         identifier: req.user?.email || req.user?.username,
         action: 'CREATE',
@@ -84,7 +84,7 @@ export const createProduct = async (req, res) => {
       return res.status(400).json({ message: 'SKU atau Barcode sudah terdaftar pada salah satu produk.' });
     }
     res.status(400).json({ message: error.message });
-        await logActivity.create({
+        await logActivity({
         user: req.user?._id,
         identifier: req.user?.email || req.user?.username,
         action: 'CREATE',
@@ -148,7 +148,7 @@ export const updateProduct = async (req, res) => {
     const updatedProduct = await product.save();
 
     // === LOGGING ===
-    await logActivity.create({
+    await logActivity({
       user: req.user?._id,
       action: 'UPDATE',
       module: 'Product',
@@ -164,7 +164,7 @@ export const updateProduct = async (req, res) => {
       return res.status(400).json({ message: 'SKU atau Barcode sudah digunakan' });
     }
     res.status(400).json({ message: error.message });
-    await logActivity.create({
+    await logActivity({
       user: req.user?._id,
       action: 'UPDATE',
       module: 'Product',
@@ -212,7 +212,7 @@ export const updateProductPrice = async (req, res) => {
     await product.save();
 
     // === LOGGING ===
-    await logActivity.create({
+    await logActivity({
       user: req.user?._id,
       action: 'UPDATE',
       module: 'Product',
@@ -239,7 +239,7 @@ export const updateProductPrice = async (req, res) => {
       message: 'Terjadi kesalahan server',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
-    await logActivity.create({
+    await logActivity({
       user: req.user?._id,
       action: 'UPDATE',
       module: 'Product',
@@ -261,7 +261,7 @@ export const deleteProduct = async (req, res) => {
     if (!result) return res.status(404).json({ message: 'Produk tidak ditemukan' });
 
     // === LOGGING ===
-    await logActivity.create({
+    await logActivity({
       user: req.user?._id,
       action: 'DELETE',
       module: 'Product',
@@ -273,7 +273,7 @@ export const deleteProduct = async (req, res) => {
     res.json({ message: 'Produk berhasil dihapus' });
   } catch (error) {
     res.status(500).json({ message: 'Gagal menghapus produk', error: error.message });
-    await logActivity.create({
+    await logActivity({
       user: req.user?._id,
       action: 'DELETE',
       module: 'Product',

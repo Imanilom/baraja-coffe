@@ -66,12 +66,10 @@ const OrderSchema = new mongoose.Schema({
     enum: ['Dine-In', 'Pickup', 'Delivery', 'Take Away', 'Reservation', 'Event'],
     required: true
   },
+  // OPSIONAL: Hanya diisi jika orderType adalah 'Delivery'
   deliveryAddress: { type: String },
   tableNumber: { type: String },
-  pickupTime: {
-    type: String,
-    // Untuk waktu pickup, simpan sebagai string dalam format WIB
-  },
+  pickupTime: { type: String },
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
   isOpenBill: { type: Boolean, default: false },
   originalReservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
@@ -131,6 +129,8 @@ const OrderSchema = new mongoose.Schema({
     type: Date,
     default: () => getWIBNow()
   },
+  
+  // OPSIONAL: Field delivery hanya diisi jika orderType adalah 'Delivery'
   deliveryStatus: {
     type: String,
     enum: ['pending', 'confirmed', 'picked_up', 'on_delivery', 'delivered', 'cancelled', 'failed'],
@@ -158,7 +158,7 @@ const OrderSchema = new mongoose.Schema({
     note: String
   }
 }, {
-  timestamps: true, // Ini akan tetap menyimpan UTC
+  timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
