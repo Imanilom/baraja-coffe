@@ -90,13 +90,14 @@ class AuthDevice {
   }
 
   //login cashier to device
-  Future<bool> loginCashierToDevice() async {
+  Future<bool> loginCashierToDevice(CashierModel cashier) async {
     try {
       final token = await HiveService.userToken;
-      final device = HiveService.getDevice as DeviceModel;
-      final cashier = HiveService.getCashier as CashierModel;
+      final device = await HiveService.getDevice();
 
-      if (device.id.isEmpty) throw Exception('Device tidak valid');
+      if (device == null || device.id.isEmpty) {
+        throw Exception('Device tidak valid');
+      }
       if (cashier.id == null || cashier.id!.isEmpty) {
         throw Exception('Cashier tidak valid');
       }
@@ -107,7 +108,7 @@ class AuthDevice {
         cashierId: cashier.id!,
       );
 
-      return response['success'] ?? false;
+      return response['success'] == true;
     } catch (e) {
       rethrow;
     }
@@ -116,17 +117,18 @@ class AuthDevice {
   Future<bool> logoutCashierFromDevice() async {
     try {
       final token = await HiveService.userToken;
-      final device = HiveService.getDevice() as DeviceModel;
-      if (device.id.isEmpty) throw Exception('Device tidak valid');
+      final device = await HiveService.getDevice();
 
-      // final response = await _authService.logoutCashierFromDevice(
-      //   token: token,
-      //   deviceId: device.id,
-      // );
-      final response = false;
+      if (device == null || device.id.isEmpty) {
+        throw Exception('Device tidak valid');
+      }
 
-      // return response['success'] ?? false;
-      return response;
+      final res = await _authService.logoutCashierFromDevice(
+        token: token,
+        deviceId: device.id,
+      );
+
+      return res['success'] == true;
     } catch (e) {
       rethrow;
     }

@@ -4,6 +4,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
+import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
@@ -1430,6 +1431,9 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
                   onPressed: () {
                     Navigator.pop(context);
                     Navigator.pop(context);
+                    ref
+                        .read(onlineOrderDetailProvider.notifier)
+                        .clearOnlineOrderDetail();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(

@@ -40,6 +40,40 @@ class ModernLoginCashierScreen extends ConsumerWidget {
       ref.read(messageProvider.notifier).clearMessage();
     });
 
+    // Di dalam build method, tambahkan listener untuk loading state
+    ref.listen<AsyncValue<bool>>(cashierLoginToDeviceProvider, (
+      previous,
+      next,
+    ) {
+      next.whenOrNull(
+        loading: () {
+          // Tampilkan loading indicator
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder:
+                (context) => const AlertDialog(
+                  content: Row(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(width: 16),
+                      Text('Login ke device...'),
+                    ],
+                  ),
+                ),
+          );
+        },
+        data: (success) {
+          // Sembunyikan loading indicator
+          Navigator.of(context).pop();
+        },
+        error: (error, stack) {
+          // Sembunyikan loading indicator
+          Navigator.of(context).pop();
+        },
+      );
+    });
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       body: SafeArea(
@@ -552,20 +586,15 @@ class ModernLoginCashierScreen extends ConsumerWidget {
             ModernPinInput(
               pinLength: 4,
               onCompleted: (pin) async {
-                ref.read(isValid.notifier).state = BCrypt.checkpw(
+                // 1. Validasi PIN
+                final isValidPin = BCrypt.checkpw(
                   pin.toString(),
                   currentCashier.password!,
                 );
 
-                // final loginDevice = ref.watch(
-                //   cashierLoginToDeviceProvider,
-                // ); //boolean
+                ref.read(isValidProvider.notifier).state = isValidPin;
 
-                if (ref.watch(isValid)) {
-                  // Set device ke provider auth sebelum login
-                  HiveService.saveDevice(currentDevice);
-                  ref.read(authCashierProvider.notifier).login(currentCashier);
-                } else {
+                if (!isValidPin) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: const Text('PIN salah'),
@@ -576,8 +605,77 @@ class ModernLoginCashierScreen extends ConsumerWidget {
                       ),
                     ),
                   );
+                  return false;
                 }
-                return ref.watch(isValid);
+
+                try {
+                  // 3. Login ke device
+                  print('Login ke device...');
+                  await ref
+                      .read(cashierLoginToDeviceProvider.notifier)
+                      .loginCashierToDevice(currentCashier);
+                  print('Login ke device selesai');
+                  // 4. Check hasil login device
+                  print('Check hasil login device...');
+                  final loginState = ref.read(cashierLoginToDeviceProvider);
+
+                  return loginState.when(
+                    data: (success) {
+                      if (success) {
+                        // 5. Jika berhasil, login cashier
+                        ref
+                            .read(authCashierProvider.notifier)
+                            .login(currentCashier);
+                        return true;
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Gagal login ke device'),
+                            backgroundColor: Colors.orange[600],
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        );
+                        return false;
+                      }
+                    },
+                    loading: () {
+                      // Tetap return false, nanti handle loading di UI
+                      return false;
+                    },
+                    error: (error, stack) {
+                      print('Error: $error');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: ${error.toString()}'),
+                          backgroundColor: Colors.red[600],
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      );
+                      return false;
+                    },
+                  );
+                } catch (e) {
+                  if (context.mounted) {
+                    print('Terjadi kesalahan: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Terjadi kesalahan: $e'),
+                        backgroundColor: Colors.red[600],
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    );
+                  }
+                  return false;
+                }
               },
             ),
           ],

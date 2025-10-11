@@ -268,13 +268,50 @@ final devicesProvider = FutureProvider.autoDispose<List<DeviceModel>>((
   }
 });
 
-final cashierLoginToDeviceProvider = FutureProvider<bool>((ref) async {
-  final repo = ref.watch(authDeviceRepositoryProvider);
-  try {
-    final result = await repo.loginCashierToDevice();
+// === STATE NOTIFIER PROVIDER ===
+final cashierLoginToDeviceProvider =
+    StateNotifierProvider<CashierLoginToDeviceNotifier, AsyncValue<bool>>(
+      (ref) => CashierLoginToDeviceNotifier(ref),
+    );
 
-    return result;
-  } catch (e) {
-    return false;
+class CashierLoginToDeviceNotifier extends StateNotifier<AsyncValue<bool>> {
+  final Ref ref;
+
+  CashierLoginToDeviceNotifier(this.ref) : super(const AsyncValue.data(false));
+
+  Future<void> loginCashierToDevice(CashierModel cashier) async {
+    state = const AsyncValue.loading();
+
+    try {
+      final repository = ref.read(authDeviceRepositoryProvider);
+      final success = await repository.loginCashierToDevice(cashier);
+
+      state = AsyncValue.data(success);
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
   }
+
+  void reset() {
+    state = const AsyncValue.data(false);
+  }
+
+  //logoutCashierFromDevice
+  Future<void> logoutCashierFromDevice() async {
+    final repository = ref.read(authDeviceRepositoryProvider);
+    await repository.logoutCashierFromDevice();
+  }
+}
+
+// === COMPOSED PROVIDER ===
+final canProceedToLoginProvider = Provider<bool>((ref) {
+  final pinValid = ref.watch(isValidProvider);
+  final deviceLoginState = ref.watch(cashierLoginToDeviceProvider);
+
+  return pinValid &&
+      !deviceLoginState.isLoading &&
+      deviceLoginState.hasValue &&
+      deviceLoginState.value == true;
 });
+
+final isValidProvider = StateProvider<bool>((ref) => false);
