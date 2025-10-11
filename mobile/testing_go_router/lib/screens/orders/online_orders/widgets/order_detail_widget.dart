@@ -180,12 +180,17 @@ class OrderDetailWidget extends ConsumerWidget {
                   style: TextStyle(color: Colors.red),
                 ),
                 onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (ctx) => DeleteOrderItemSheet(order: order),
+                  //snackbar fitur blm jadi
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Maaf Fitur Belum Jadi!!')),
                   );
+
+                  // showModalBottomSheet(
+                  //   context: context,
+                  //   isScrollControlled: true,
+                  //   backgroundColor: Colors.transparent,
+                  //   builder: (ctx) => DeleteOrderItemSheet(order: order),
+                  // );
                 },
               ),
             ],

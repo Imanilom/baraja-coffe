@@ -101,9 +101,29 @@ class AuthService {
         options: _auth(token),
       );
 
+      if (!res.data['success']) {
+        throw Exception(res.data['message']);
+      }
+
       final result = Map<String, dynamic>.from(res.data);
 
       return result;
+    } on DioException catch (e) {
+      throw ApiResponseHandler.handleError(e);
+    }
+  }
+
+  //logoutCashierFromDevice
+  Future<Map<String, dynamic>> logoutCashierFromDevice({
+    required String token,
+    required String deviceId,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '/api/cashierauth/devices/$deviceId/logout',
+        options: _auth(token),
+      );
+      return res.data;
     } on DioException catch (e) {
       throw ApiResponseHandler.handleError(e);
     }
