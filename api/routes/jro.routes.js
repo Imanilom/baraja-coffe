@@ -25,7 +25,7 @@ router.get('/dashboard-stats', getDashboardStats);
 
 // Reservation Management
 router.get('/reservations', authMiddleware, getReservations);
-router.post('/reservations', createReservation); // ✅ Route baru untuk create reservation
+router.post('/reservations', authMiddleware, createReservation); // ✅ Route baru untuk create reservation
 router.get('/reservations/:id', authMiddleware, getReservationDetail);
 router.put('/reservations/:id/confirm', authMiddleware, confirmReservation);
 router.put('/reservations/:id/complete', authMiddleware, completeReservation);

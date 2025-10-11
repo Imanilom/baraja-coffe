@@ -4,6 +4,9 @@ import Area from '../models/Area.model.js';
 import Table from '../models/Table.model.js';
 import User from '../models/user.model.js';
 import moment from 'moment-timezone';
+import Voucher from '../models/voucher.model.js';
+import { MenuItem } from '../models/MenuItem.model.js';
+import { db } from '../utils/mongo.js';
 
 // Helper: Get WIB date range for today
 const getTodayWIBRange = () => {
@@ -16,6 +19,102 @@ const getTodayWIBRange = () => {
 const getWIBNow = () => {
     return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
 };
+
+const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
+    try {
+        // Fetch tax and service data
+        const taxAndServices = await TaxAndService.find({
+            isActive: true,
+            appliesToOutlets: outlet
+        });
+
+        console.log('Found tax and service items:', taxAndServices);
+
+        let totalTax = 0;
+        let totalServiceFee = 0;
+        const taxAndServiceDetails = [];
+
+        for (const item of taxAndServices) {
+            console.log(`Processing item: ${item.name}, type: ${item.type}, percentage: ${item.percentage}`);
+
+            if (item.type === 'tax') {
+                // Apply PPN to all orders (including open bill)
+                if (item.name.toLowerCase().includes('ppn') || item.name.toLowerCase() === 'tax') {
+                    const amount = subtotal * (item.percentage / 100);
+                    totalTax += amount;
+                    taxAndServiceDetails.push({
+                        id: item._id,
+                        name: item.name,
+                        type: item.type,
+                        percentage: item.percentage,
+                        amount: amount
+                    });
+                    console.log(`Applied tax: ${item.name}, amount: ${amount}`);
+                }
+            } else if (item.type === 'service') {
+                // Apply service fees to all orders (including open bill if needed)
+                const amount = subtotal * (item.percentage / 100);
+                totalServiceFee += amount;
+                taxAndServiceDetails.push({
+                    id: item._id,
+                    name: item.name,
+                    type: item.type,
+                    percentage: item.percentage,
+                    amount: amount
+                });
+                console.log(`Applied service fee: ${item.name}, amount: ${amount}`);
+            }
+        }
+
+        console.log('Tax calculation result:', { totalTax, totalServiceFee, taxAndServiceDetails });
+
+        return {
+            totalTax,
+            totalServiceFee,
+            taxAndServiceDetails
+        };
+    } catch (error) {
+        console.error('Error calculating tax and service:', error);
+        return {
+            totalTax: 0,
+            totalServiceFee: 0,
+            taxAndServiceDetails: []
+        };
+    }
+};
+
+export async function generateOrderId(tableNumber) {
+    // Dapatkan tanggal sekarang
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}${month}${day}`; // misal "20250605"
+
+    // Jika tidak ada tableNumber, gunakan hari dan tanggal
+    let tableOrDayCode = tableNumber;
+    if (!tableNumber) {
+        const days = ['MD', 'TU', 'WD', 'TH', 'FR', 'ST', 'SN'];
+        // getDay: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+        const dayCode = days[now.getDay()];
+        tableOrDayCode = `${dayCode}${day}`;
+    }
+
+    // Kunci sequence unik per tableOrDayCode dan tanggal
+    const key = `order_seq_${tableOrDayCode}_${dateStr}`;
+
+    // Atomic increment dengan upsert dan reset setiap hari
+    const result = await db.collection('counters').findOneAndUpdate(
+        { _id: key },
+        { $inc: { seq: 1 } },
+        { upsert: true, returnDocument: 'after' }
+    );
+
+    const seq = result.value.seq;
+
+    // Format orderId
+    return `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
+}
 
 // GET /api/jro/dashboard-stats - Get dashboard statistics
 export const getDashboardStats = async (req, res) => {
@@ -96,16 +195,25 @@ export const createReservation = async (req, res) => {
         const {
             guest_name,
             guest_phone,
-            guest_email,
             guest_count,
             reservation_date,
             reservation_time,
             table_ids,
             area_id,
-            notes
+            notes,
+            items = [], // Optional menu items
+            voucherCode,
+            outlet,
+            reservation_type = 'nonBlocking',
+            serving_food = false,
+            equipment = [],
+            food_serving_option = 'immediate',
+            food_serving_time = null
         } = req.body;
 
         const userId = req.user?.id; // GRO employee ID dari auth middleware
+
+        console.log('Received createReservation request:', req.body);
 
         // Validasi input
         if (!guest_name || !guest_phone || !guest_count || !reservation_date ||
@@ -176,73 +284,338 @@ export const createReservation = async (req, res) => {
             sequence = lastSequence + 1;
         }
 
-        const reservationCode = `RSV${dateStr}${sequence.toString().padStart(4, '0')}`;
-
         // Get employee info
         const employee = await User.findById(userId).select('username email');
 
-        // Buat reservasi baru
+        // Find voucher if provided
+        let voucherId = null;
+        let voucherAmount = 0;
+        let discountType = null;
+        if (voucherCode) {
+            const voucher = await Voucher.findOneAndUpdate(
+                { code: voucherCode, isActive: true },
+                { $inc: { quota: -1 } },
+                { new: true }
+            );
+            if (voucher) {
+                voucherId = voucher._id;
+                voucherAmount = voucher.discountAmount;
+                discountType = voucher.discountType;
+            }
+        }
+
+        // Process items (jika ada)
+        const orderItems = [];
+        if (items && items.length > 0) {
+            for (const item of items) {
+                const menuItem = await MenuItem.findById(item.productId).populate('availableAt');
+                if (!menuItem) {
+                    return res.status(404).json({
+                        success: false,
+                        message: `Menu item not found: ${item.productId}`
+                    });
+                }
+
+                const processedAddons = item.addons?.map(addon => ({
+                    name: addon.name,
+                    price: addon.price
+                })) || [];
+
+                const processedToppings = item.toppings?.map(topping => ({
+                    name: topping.name,
+                    price: topping.price
+                })) || [];
+
+                const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
+                const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
+                const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
+
+                orderItems.push({
+                    menuItem: menuItem._id,
+                    quantity: item.quantity,
+                    subtotal: itemSubtotal,
+                    addons: processedAddons,
+                    toppings: processedToppings,
+                    notes: item.notes || '',
+                    batchNumber: 1,
+                    addedAt: getWIBNow(),
+                    kitchenStatus: 'pending',
+                    isPrinted: false,
+                    dineType: 'Dine-In',
+                    outletId: menuItem.availableAt?.[0]?._id || null,
+                    outletName: menuItem.availableAt?.[0]?.name || null,
+                    payment_id: null,
+                });
+            }
+        }
+
+        // Perhitungan konsisten dengan createAppOrder
+        let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+        // Jika tidak ada item, set minimal reservasi (opsional, bisa 0 atau nilai tertentu)
+        if (orderItems.length === 0) {
+            totalBeforeDiscount = 0; // Atau 25000 jika ada biaya minimal
+        }
+
+        let totalAfterDiscount = totalBeforeDiscount;
+        let voucherDiscount = 0;
+
+        if (voucherAmount > 0) {
+            if (discountType === 'percentage') {
+                voucherDiscount = totalBeforeDiscount * (voucherAmount / 100);
+                totalAfterDiscount = totalBeforeDiscount - voucherDiscount;
+            } else if (discountType === 'fixed') {
+                voucherDiscount = voucherAmount;
+                totalAfterDiscount = totalBeforeDiscount - voucherAmount;
+                if (totalAfterDiscount < 0) totalAfterDiscount = 0;
+            }
+        }
+
+        // Calculate tax and service fees (sesuai dengan createAppOrder)
+        const isReservationOrder = true;
+        const isOpenBillOrder = false;
+
+        console.log('Tax calculation parameters:', {
+            totalAfterDiscount,
+            outlet: outlet || area.outlet_id || "67cbc9560f025d897d69f889",
+            isReservationOrder,
+            isOpenBillOrder
+        });
+
+        const taxServiceCalculation = await calculateTaxAndService(
+            totalAfterDiscount,
+            outlet || area.outlet_id || "67cbc9560f025d897d69f889",
+            isReservationOrder,
+            isOpenBillOrder
+        );
+
+        console.log('Backend tax calculation result:', taxServiceCalculation);
+
+        // Calculate grand total including tax and service
+        const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
+
+        console.log('Final totals:', {
+            totalBeforeDiscount,
+            voucherDiscount,
+            totalAfterDiscount,
+            taxAmount: taxServiceCalculation.totalTax,
+            serviceAmount: taxServiceCalculation.totalServiceFee,
+            grandTotal
+        });
+
+
+
+        // Buat reservasi baru sesuai model
         const newReservation = new Reservation({
-            reservation_code: reservationCode,
-            guest_name,
-            guest_phone,
-            guest_email: guest_email || '',
-            guest_count,
             reservation_date: reservationDateTime,
-            reservation_time,
+            reservation_time: reservation_time,
+            area_id: area_id,
             table_id: table_ids,
-            area_id,
-            status: 'pending', // Default pending, bisa di-confirm kemudian
+            guest_count: guest_count,
+            reservation_type: reservation_type,
+            status: 'pending',
             notes: notes || '',
+            serving_food: serving_food,
+            equipment: equipment,
+            food_serving_option: food_serving_option,
+            food_serving_time: food_serving_time ? new Date(food_serving_time) : null,
             created_by: {
                 employee_id: userId,
                 employee_name: employee?.username || 'Unknown GRO',
                 created_at: getWIBNow()
-            }
-        });
-
-        await newReservation.save();
-
-        // Buat order untuk reservasi (status Reserved, no payment yet)
-        const orderCode = `ORD${dateStr}${sequence.toString().padStart(4, '0')}`;
-
-        const newOrder = new Order({
-            order_id: orderCode,
-            user: guest_name, // Nama tamu sebagai user
-            user_id: null, // Tidak ada user_id karena walk-in reservation
-            cashierId: userId, // GRO yang membuat
-            items: [], // Empty items, akan diisi saat check-in atau order
-            status: 'Reserved',
-            orderType: 'Reservation',
-            tableNumber: tables.map(t => t.table_number).join(', '),
-            paymentMethod: 'No Payment',
-            totalBeforeDiscount: 0,
-            totalAfterDiscount: 0,
-            grandTotal: 0,
-            source: 'Cashier', // Dibuat dari kasir/GRO
-            reservation: newReservation._id,
-            outlet: area.outlet_id,
+            },
             createdAtWIB: getWIBNow(),
             updatedAtWIB: getWIBNow()
         });
 
+        await newReservation.save();
+
+        console.log('Reservation created:', {
+            id: newReservation._id,
+            code: newReservation.reservation_code
+        });
+
+        // Buat order untuk reservasi dengan format sesuai Order model
+        const generatedOrderId = await generateOrderId(tables.map(t => t.table_number).join(', ') || tables.map(t => t.table_number).join(', ') || '');
+
+        const newOrder = new Order({
+            order_id: generatedOrderId,
+            user_id: null, // Tidak ada user_id karena walk-in reservation
+            user: guest_name, // Nama tamu sebagai user
+            cashierId: null, // Tidak ada kasir untuk reservasi GRO
+            groId: userId, // GRO yang handle
+            items: orderItems,
+            status: 'Reserved',
+            paymentMethod: 'No Payment',
+            orderType: 'Reservation',
+            deliveryAddress: '',
+            tableNumber: tables.map(t => t.table_number).join(', '),
+            pickupTime: null,
+            type: 'Indoor',
+            isOpenBill: false,
+            originalReservationId: null,
+
+            // Diskon & Promo
+            discounts: {
+                autoPromoDiscount: 0,
+                manualDiscount: 0,
+                voucherDiscount: voucherDiscount
+            },
+            appliedPromos: [],
+            appliedManualPromo: null,
+            appliedVoucher: voucherId,
+
+            // Pajak dan Service Fee
+            taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails || [],
+            totalTax: taxServiceCalculation.totalTax || 0,
+            totalServiceFee: taxServiceCalculation.totalServiceFee || 0,
+            outlet: outlet || area.outlet_id || "67cbc9560f025d897d69f889",
+
+            // Total akhir
+            totalBeforeDiscount: totalBeforeDiscount,
+            totalAfterDiscount: totalAfterDiscount,
+            grandTotal: grandTotal,
+
+            // Sumber order
+            source: 'Cashier', // Tetap 'Cashier' karena dibuat dari sistem internal GRO
+            currentBatch: 1,
+            lastItemAddedAt: orderItems.length > 0 ? getWIBNow() : null,
+            kitchenNotifications: [],
+
+            // Reservation reference
+            reservation: newReservation._id,
+
+            // Waktu WIB
+            createdAtWIB: getWIBNow(),
+            updatedAtWIB: getWIBNow(),
+
+            // Transfer history (empty initially)
+            transferHistory: []
+        });
+
         await newOrder.save();
+
+        console.log('Order created with tax:', {
+            orderId: newOrder._id,
+            generatedOrderId: newOrder.order_id,
+            totalTax: newOrder.totalTax,
+            totalServiceFee: newOrder.totalServiceFee,
+            grandTotal: newOrder.grandTotal
+        });
 
         // Update reservation dengan order_id
         newReservation.order_id = newOrder._id;
         await newReservation.save();
 
+        // Verify order was saved with tax data
+        const savedOrder = await Order.findById(newOrder._id);
+        console.log('Verified saved order tax data:', {
+            orderId: savedOrder._id,
+            totalTax: savedOrder.totalTax,
+            totalServiceFee: savedOrder.totalServiceFee,
+            taxAndServiceDetails: savedOrder.taxAndServiceDetails,
+            grandTotal: savedOrder.grandTotal
+        });
+
         // Populate data untuk response
         const populatedReservation = await Reservation.findById(newReservation._id)
             .populate('area_id', 'area_name area_code capacity')
             .populate('table_id', 'table_number seats table_type')
-            .populate('order_id', 'order_id status')
+            .populate({
+                path: 'order_id',
+                populate: {
+                    path: 'items.menuItem',
+                    select: 'name price imageURL category'
+                }
+            })
             .populate('created_by.employee_id', 'username email');
+
+        // Enhanced mapping untuk response (konsisten dengan createAppOrder)
+        const mappedOrder = {
+            _id: newOrder._id,
+            userId: newOrder.user_id,
+            customerName: newOrder.user,
+            cashierId: null, // Tidak ada kasir untuk reservasi GRO
+            groId: newOrder.groId,
+            items: newOrder.items.map(item => ({
+                _id: item._id,
+                quantity: item.quantity,
+                subtotal: item.subtotal,
+                kitchenStatus: item.kitchenStatus,
+                isPrinted: item.isPrinted,
+                dineType: item.dineType,
+                batchNumber: item.batchNumber,
+                addedAt: item.addedAt,
+                menuItem: item.menuItem,
+                notes: item.notes,
+                selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
+                    name: addon.name,
+                    _id: addon._id,
+                    options: [{
+                        id: addon._id,
+                        label: addon.name,
+                        price: addon.price
+                    }]
+                })) : [],
+                selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
+                    id: topping._id || topping.id,
+                    name: topping.name,
+                    price: topping.price
+                })) : []
+            })),
+            status: newOrder.status,
+            orderType: newOrder.orderType,
+            deliveryAddress: newOrder.deliveryAddress,
+            tableNumber: newOrder.tableNumber,
+            pickupTime: newOrder.pickupTime,
+            type: newOrder.type,
+            paymentMethod: newOrder.paymentMethod,
+            isOpenBill: newOrder.isOpenBill,
+
+            // Financial details
+            totalPrice: newOrder.totalBeforeDiscount,
+            totalBeforeDiscount: newOrder.totalBeforeDiscount,
+            totalAfterDiscount: newOrder.totalAfterDiscount,
+            totalTax: newOrder.totalTax,
+            totalServiceFee: newOrder.totalServiceFee,
+            taxAndServiceDetails: newOrder.taxAndServiceDetails,
+            grandTotal: newOrder.grandTotal,
+
+            // Discounts
+            discounts: newOrder.discounts,
+            appliedPromos: newOrder.appliedPromos,
+            appliedManualPromo: newOrder.appliedManualPromo,
+            appliedVoucher: newOrder.appliedVoucher,
+
+            voucher: newOrder.appliedVoucher || null,
+            outlet: newOrder.outlet || null,
+            promotions: newOrder.appliedPromos || [],
+            source: newOrder.source,
+            currentBatch: newOrder.currentBatch,
+            reservation: newOrder.reservation,
+
+            createdAt: newOrder.createdAt,
+            updatedAt: newOrder.updatedAt,
+            createdAtWIB: newOrder.createdAtWIB,
+            updatedAtWIB: newOrder.updatedAtWIB,
+            __v: newOrder.__v
+        };
+
+        // Emit ke GRO application (bukan cashier)
+        if (typeof io !== 'undefined' && io) {
+            io.to('gro_room').emit('new_reservation', {
+                reservation: populatedReservation,
+                order: mappedOrder,
+                message: 'New reservation created'
+            });
+            console.log('Emitted new_reservation to gro_room');
+        }
 
         res.status(201).json({
             success: true,
             message: 'Reservation created successfully',
-            data: populatedReservation
+            data: populatedReservation,
+            order: mappedOrder
         });
 
     } catch (error) {
