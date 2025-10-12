@@ -460,6 +460,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
+                ref
+                    .read(cashierLoginToDeviceProvider.notifier)
+                    .logoutCashierFromDevice();
                 ref.read(tryAuthProvider.notifier).logoutCashier();
               },
               child: const Text(
