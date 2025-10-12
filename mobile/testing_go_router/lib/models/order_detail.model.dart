@@ -78,8 +78,8 @@ abstract class OrderDetailModel with _$OrderDetailModel {
 
     // Metadata
     @HiveField(22) @Default('Cashier') String source,
-    @HiveField(23) DateTime? createdAt,
-    @HiveField(24) DateTime? updatedAt,
+    @HiveField(23) @JsonKey(name: 'createdAtWIB') DateTime? createdAt,
+    @HiveField(24) @JsonKey(name: 'updatedAtWIB') DateTime? updatedAt,
     @HiveField(25)
     @JsonKey(name: 'payment_details')
     @Default(null)
@@ -87,6 +87,10 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(26) @Default('') String? paymentStatus,
     @HiveField(27) @Default(null) @JsonKey(name: '_id') String? id,
     @HiveField(28) @Default(false) bool isOpenBill,
+    //nominal pembayaran,
+    @HiveField(29) @Default(0) int paymentAmount,
+    @HiveField(30) @Default(0) int changeAmount,
+    @HiveField(31) @Default(null) String? paymentType,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>

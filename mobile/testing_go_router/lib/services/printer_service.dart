@@ -737,6 +737,53 @@ class PrinterService {
     );
     bytes.addAll(generator.hr());
 
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Metode',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
+          text: orderDetail.paymentType ?? "-",
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Bibayar',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: formatPrice(orderDetail.paymentAmount).toString(),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(generator.hr());
+
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Kembalian',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: formatPrice(orderDetail.changeAmount).toString(),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(generator.hr());
     //footer
     await generateFooterBytes(generator, paperSize).then((footerBytes) {
       bytes.addAll(footerBytes);
@@ -808,7 +855,7 @@ class PrinterService {
           PosColumn(
             text:
                 item.orderType != null
-                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType!)
+                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType)
                     : '',
             width: 1,
             styles: const PosStyles(
@@ -962,7 +1009,7 @@ class PrinterService {
           PosColumn(
             text:
                 item.orderType != null
-                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType!)
+                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType)
                     : '',
             width: 1,
             styles: const PosStyles(

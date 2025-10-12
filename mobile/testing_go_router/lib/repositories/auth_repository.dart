@@ -90,12 +90,11 @@ class AuthDevice {
   }
 
   //login cashier to device
-  Future<bool> loginCashierToDevice(CashierModel cashier) async {
+  Future<bool> loginCashierToDevice(CashierModel cashier, DeviceModel device) async {
     try {
       final token = await HiveService.userToken;
-      final device = await HiveService.getDevice();
 
-      if (device == null || device.id.isEmpty) {
+      if (device.id.isEmpty) {
         throw Exception('Device tidak valid');
       }
       if (cashier.id == null || cashier.id!.isEmpty) {
@@ -107,6 +106,9 @@ class AuthDevice {
         deviceId: device.id,
         cashierId: cashier.id!,
       );
+
+      //simpan device ke hive
+      await HiveService.saveDevice(device);
 
       return response['success'] == true;
     } catch (e) {

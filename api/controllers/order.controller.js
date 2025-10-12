@@ -1086,7 +1086,7 @@ export const createUnifiedOrder = async (req, res) => {
         });
       }
     }
-    
+
     // VALIDASI: Hanya App yang boleh melakukan delivery
     if (source !== 'App' && delivery_option === 'delivery') {
       return res.status(400).json({
@@ -3883,10 +3883,14 @@ export const getCashierOrderHistory = async (req, res) => {
 // test socket
 export const testSocket = async (req, res) => {
   console.log('Emitting order created to cashier room...');
-  const cashierRoom = io.to('cashier_room').emit('order_created', { message: 'Order created' });
+  // const cashierRoom = io.to('cashier_room').emit('order_created', { message: 'Order created' });
+  const areaRoom = io.to('group_1').emit('order_created', { message: 'Order created' });
+  const areaRoom2 = io.to('group_2').emit('order_created', { message: 'Order created' });
   console.log('Emitting order created to cashier room success.');
 
-  res.status(200).json({ success: cashierRoom });
+  res.status(200).json({ success: { areaRoom, areaRoom2 } });
+  // res.status(200).json({ success: { cashierRoom } });
+  // res.status(200).json({ success: { cashierRoom, areaRoom } });
 }
 
 

@@ -613,7 +613,7 @@ class ModernLoginCashierScreen extends ConsumerWidget {
                   print('Login ke device...');
                   await ref
                       .read(cashierLoginToDeviceProvider.notifier)
-                      .loginCashierToDevice(currentCashier);
+                      .loginCashierToDevice(currentCashier, currentDevice);
                   print('Login ke device selesai');
                   // 4. Check hasil login device
                   print('Check hasil login device...');

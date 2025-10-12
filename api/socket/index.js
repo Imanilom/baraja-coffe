@@ -36,9 +36,9 @@ export default function socketHandler(io) {
                     device: deviceId,
                     isActive: true
                 })
-                .populate('device')
-                .populate('user')
-                .populate('outlet');
+                    .populate('device')
+                    .populate('user')
+                    .populate('outlet');
 
                 if (!session) {
                     throw new Error('Session tidak valid atau sudah logout');
@@ -70,7 +70,7 @@ export default function socketHandler(io) {
 
                 // Join rooms berdasarkan role dan area
                 socket.join(session.role);
-                
+
                 if (session.device.assignedAreas && session.device.assignedAreas.length > 0) {
                     session.device.assignedAreas.forEach(area => {
                         socket.join(`area_${area}`);
@@ -85,7 +85,7 @@ export default function socketHandler(io) {
 
                 // Join legacy rooms untuk compatibility
                 socket.join('cashier_room');
-                
+
                 // Join bar room berdasarkan role
                 if (session.role.includes('bar')) {
                     const barType = session.role.includes('depan') ? 'depan' : 'belakang';
@@ -137,7 +137,7 @@ export default function socketHandler(io) {
 
             } catch (error) {
                 console.error('Device session authentication error:', error);
-                
+
                 const response = {
                     success: false,
                     error: error.message
@@ -146,7 +146,7 @@ export default function socketHandler(io) {
                 if (typeof callback === 'function') {
                     callback(response);
                 }
-                
+
                 socket.disconnect();
             }
         });
@@ -155,7 +155,7 @@ export default function socketHandler(io) {
         socket.on('device_authenticate', async (data, callback) => {
             try {
                 const { deviceId, outletId, role, location, deviceName } = data;
-                
+
                 console.log(`🔐 Legacy device authentication: ${deviceId}, Role: ${role}`);
 
                 const device = await socketManagement.registerDevice(socket, {
@@ -207,7 +207,7 @@ export default function socketHandler(io) {
 
             } catch (error) {
                 console.error('Device authentication failed:', error);
-                
+
                 const response = {
                     success: false,
                     error: error.message
@@ -290,10 +290,10 @@ export default function socketHandler(io) {
         socket.on('new_order_created', async (orderData) => {
             try {
                 console.log('🆕 New order received:', orderData.order_id);
-                
+
                 // Gunakan sistem management baru untuk broadcast
                 await socketManagement.broadcastOrder(orderData);
-                
+
                 // Juga broadcast legacy untuk compatibility
                 broadcastNewOrderLegacy(orderData.outlet?._id || orderData.outlet, orderData);
 
@@ -385,18 +385,18 @@ export default function socketHandler(io) {
         });
 
         // === BAR/BEVERAGE HANDLERS ===
-        
+
         // ✅ START BEVERAGE ORDER PREPARATION
         socket.on('bar_order_start', async (data) => {
             try {
                 const { orderId, bartenderName, tableNumber } = data;
-                
+
                 console.log(`🍹 Starting beverage order: ${orderId} by ${bartenderName}`);
 
                 // Determine which bar should handle based on table number
                 const areaCode = getAreaCodeFromTable(tableNumber);
                 const barRoom = areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
-                
+
                 // Call API to update order status
                 const response = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/orders/${orderId}/beverage-start`, {
                     method: 'PUT',
@@ -443,7 +443,7 @@ export default function socketHandler(io) {
 
             } catch (error) {
                 console.error('Error starting beverage order:', error);
-                
+
                 // Notify client about the error
                 socket.emit('beverage_order_error', {
                     error: 'Failed to start beverage order',
@@ -456,7 +456,7 @@ export default function socketHandler(io) {
         socket.on('bar_order_complete', async (data) => {
             try {
                 const { orderId, bartenderName, completedItems, tableNumber } = data;
-                
+
                 console.log(`🍹 Completing beverage order: ${orderId} by ${bartenderName}`);
 
                 // Call API to update order status
@@ -522,7 +522,7 @@ export default function socketHandler(io) {
 
             } catch (error) {
                 console.error('Error completing beverage order:', error);
-                
+
                 socket.emit('beverage_order_error', {
                     error: 'Failed to complete beverage order',
                     message: error.message
@@ -534,7 +534,7 @@ export default function socketHandler(io) {
         socket.on('update_beverage_item_status', async (data) => {
             try {
                 const { orderId, itemId, status, bartenderName } = data;
-                
+
                 console.log(`🔄 Updating beverage item status: ${orderId} - ${itemId} to ${status}`);
 
                 const response = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/orders/${orderId}/items/${itemId}/beverage-status`, {
@@ -567,7 +567,7 @@ export default function socketHandler(io) {
 
             } catch (error) {
                 console.error('Error updating beverage item status:', error);
-                
+
                 socket.emit('beverage_order_error', {
                     error: 'Failed to update beverage item status',
                     message: error.message
@@ -578,11 +578,11 @@ export default function socketHandler(io) {
         // ✅ BEVERAGE ORDER RECEIVED (Auto-assign to bar)
         socket.on('beverage_order_received', (data) => {
             const { orderId, tableNumber, items } = data;
-            
+
             // Determine which bar should handle based on table number
             const areaCode = getAreaCodeFromTable(tableNumber);
             const barRoom = areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';
-            
+
             socket.to(barRoom).emit('beverage_order_received', {
                 orderId,
                 tableNumber,
@@ -652,7 +652,7 @@ export default function socketHandler(io) {
 
             } catch (error) {
                 console.error('Error updating bar order status:', error);
-                
+
                 socket.emit('beverage_order_error', {
                     error: 'Failed to update bar order status',
                     message: error.message
@@ -663,7 +663,7 @@ export default function socketHandler(io) {
         // ✅ DEVICE STATUS MANAGEMENT
         socket.on('get_connected_devices', (callback) => {
             const status = socketManagement.getConnectedDevicesStatus();
-            
+
             if (typeof callback === 'function') {
                 callback(status);
             }
@@ -672,12 +672,12 @@ export default function socketHandler(io) {
         socket.on('update_device_assignment', async (data, callback) => {
             try {
                 const { deviceId, assignedAreas, assignedTables, orderTypes } = data;
-                
+
                 const updatedDevice = await Device.findOneAndUpdate(
                     { deviceId },
-                    { 
+                    {
                         assignedAreas,
-                        assignedTables, 
+                        assignedTables,
                         orderTypes
                     },
                     { new: true }
@@ -705,7 +705,7 @@ export default function socketHandler(io) {
 
             } catch (error) {
                 console.error('Error updating device assignment:', error);
-                
+
                 if (typeof callback === 'function') {
                     callback({ success: false, error: error.message });
                 }
@@ -716,7 +716,7 @@ export default function socketHandler(io) {
         socket.on('force_logout_device', async (data, callback) => {
             try {
                 const { deviceId, reason } = data;
-                
+
                 // Cari session aktif untuk device
                 const activeSession = await DeviceSession.findOne({
                     device: deviceId,
@@ -765,7 +765,7 @@ export default function socketHandler(io) {
 
             } catch (error) {
                 console.error('Force logout error:', error);
-                
+
                 if (typeof callback === 'function') {
                     callback({ success: false, error: error.message });
                 }
@@ -778,11 +778,33 @@ export default function socketHandler(io) {
             console.log(`Client ${socket.id} left room: ${roomName}`);
         });
 
+        socket.on('device:leaveAll', (cb) => {
+            try {
+                // Lepas semua room kecuali room pribadi socket.id
+                for (const room of socket.rooms) {
+                    if (room !== socket.id) socket.leave(room);
+                }
+                cb?.({ ok: true });
+            } catch (e) {
+                cb?.({ ok: false, error: e?.message });
+            }
+        });
+
+        socket.on('leave_area_room', (tableCode) => {
+            const group = getAreaGroup(tableCode);
+            if (group) {
+                socket.leave(group);
+                console.log(`Device ${socket.id} left area ${areaRoom} and group ${group}`);
+            } else {
+                console.log('Area room not found');
+            }
+        });
+
         // ✅ HANDLE DISCONNECTION
         socket.on('disconnect', async () => {
             console.log('❌ Client disconnected:', socket.id);
             clearInterval(pingInterval);
-            
+
             try {
                 // Cari session berdasarkan socketId
                 const session = await DeviceSession.findOne({
@@ -827,7 +849,7 @@ export default function socketHandler(io) {
     // ✅ AREA-SPECIFIC NOTIFICATION
     const notifyAreaSpecificUpdate = (orderId, status, updatedBy, tableNumber = null) => {
         if (!tableNumber) return;
-        
+
         const areaCode = getAreaCodeFromTable(tableNumber);
         if (areaCode) {
             const areaRoom = `area_${areaCode}`;
@@ -845,7 +867,7 @@ export default function socketHandler(io) {
     // ✅ GET AREA CODE FROM TABLE NUMBER
     const getAreaCodeFromTable = (tableNumber) => {
         if (!tableNumber) return null;
-        
+
         // Extract first character from table number (e.g., "A1" -> "A")
         const firstChar = tableNumber.charAt(0).toUpperCase();
         return firstChar;

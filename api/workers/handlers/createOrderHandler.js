@@ -9,10 +9,10 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
   let session;
   try {
     session = await mongoose.startSession();
-    
+
     const orderResult = await runWithTransactionRetry(async () => {
       const { customerId, loyaltyPointsToRedeem, orderType } = orderData;
-      
+
       console.log('Order Handler - Delivery Check:', {
         orderType,
         requiresDelivery,
@@ -43,16 +43,16 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       }
 
       // PERBAIKAN: Cleanup menyeluruh - hapus SEMUA field delivery
-      const { 
-        delivery_option, 
-        recipient_data, 
-        deliveryStatus, 
-        deliveryProvider, 
-        deliveryTracking, 
+      const {
+        delivery_option,
+        recipient_data,
+        deliveryStatus,
+        deliveryProvider,
+        deliveryTracking,
         recipientInfo,
-        ...cleanOrderData 
+        ...cleanOrderData
       } = orderData;
-      
+
       const baseOrderData = {
         ...cleanOrderData, // Gunakan data yang sudah dibersihkan
         order_id: orderId,
@@ -76,7 +76,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         },
         taxAndServiceDetails: taxesAndFees,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
 
       // PERBAIKAN: Hanya tambahkan loyalty data jika applied
@@ -91,18 +91,18 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
 
       // PERBAIKAN: Handle delivery fields hanya untuk delivery orders
       const isDeliveryOrder = (orderType === 'Delivery' || requiresDelivery) && source === 'App';
-      console.log('Delivery Order Check:', { 
-        isDeliveryOrder, 
-        orderType, 
-        requiresDelivery, 
-        source 
+      console.log('Delivery Order Check:', {
+        isDeliveryOrder,
+        orderType,
+        requiresDelivery,
+        source
       });
 
       if (isDeliveryOrder) {
         console.log('Creating delivery order with recipient data:', recipientData);
         baseOrderData.deliveryStatus = 'pending';
         baseOrderData.deliveryProvider = 'GoSend';
-        
+
         if (recipientData) {
           baseOrderData.recipientInfo = {
             name: recipientData.name || '',
@@ -112,7 +112,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
             note: recipientData.note || ''
           };
         }
-        
+
         // Set deliveryTracking sebagai object kosong
         baseOrderData.deliveryTracking = {};
       } else {
@@ -141,14 +141,14 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
 
       // Create and save the order
       const newOrder = new Order(baseOrderData);
-      
+
       // PERBAIKAN: Validasi manual sebelum save
       const validationError = newOrder.validateSync();
       if (validationError) {
         console.error('Validation error before save:', validationError.errors);
         throw new Error(`VALIDATION_ERROR: ${validationError.message}`);
       }
-      
+
       await newOrder.save({ session });
 
       console.log('Order created successfully:', {
@@ -171,7 +171,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
 
     // Enqueue inventory update setelah transaction selesai
     const queueResult = await enqueueInventoryUpdate(orderResult);
-    
+
     if (orderData.orderType === 'Dine-In') {
       setTimeout(() => {
         updateTableStatusAfterPayment(orderResult.orderId);
