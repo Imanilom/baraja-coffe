@@ -1021,6 +1021,8 @@ export const createUnifiedOrder = async (req, res) => {
     const {
       order_id,
       source,
+      tableNumber,
+      orderType,
       customerId,
       outletId,
       loyaltyPointsToRedeem,
@@ -1132,8 +1134,8 @@ export const createUnifiedOrder = async (req, res) => {
       validated.recipient_data = recipient_data;
     }
 
-    const { tableNumber, orderType, reservationData } = validated;
-    const areaGroup = getAreaGroup(tableNumber);
+    const areaCode = tableNumber?.charAt(0).toUpperCase();
+    const areaGroup = getAreaGroup(areaCode); // Pass areaCode, bukan tableNumber
 
     // Generate order ID
     let orderId;
@@ -1145,8 +1147,31 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (areaGroup) {
-      io.to(areaGroup).emit('new_order', { orderId });
+        // Broadcast ke area group
+        io.to(areaGroup).emit('new_order_created', { 
+            orderId,
+            tableNumber,
+            areaCode,
+            areaGroup,
+            source,
+            timestamp: new Date()
+        });
+        
+        // Juga broadcast ke area room spesifik
+        const areaRoom = `area_${areaCode}`;
+        io.to(areaRoom).emit('new_order_in_area', {
+            orderId,
+            tableNumber,
+            areaCode,
+            source,
+            timestamp: new Date()
+        });
+        
+        console.log(`📢 Order ${orderId} broadcasted to ${areaGroup} and ${areaRoom}`);
+    } else {
+        console.warn(`⚠️ No area group found for table ${tableNumber}, area code: ${areaCode}`);
     }
+
 
     // Add reservation-specific processing if needed
     if (orderType === 'reservation' && reservationData) {
