@@ -1198,6 +1198,15 @@ export const createUnifiedOrder = async (req, res) => {
       result = await job.waitUntilFinished(queueEvents, 30000);
       console.log(`Job ${job.id} completed successfully`);
 
+      await broadcastOrderCreation(orderId, {
+        ...validated,
+        tableNumber,
+        source,
+        outletId,
+        paymentDetails: validated.paymentDetails
+      });
+
+
     } catch (queueErr) {
       console.error(`Job ${job.id} failed:`, queueErr);
       const jobState = await job.getState();
