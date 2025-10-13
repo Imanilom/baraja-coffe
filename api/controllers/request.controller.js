@@ -129,10 +129,6 @@ async approveAndFulfillRequest(req, res) {
     const user = await User.findById(req.user._id).populate("role").session(session);
     if (!user) throw new Error("User tidak ditemukan");
 
-    if (!user.role.permissions.includes("manage_inventory")) {
-      throw new Error("Tidak memiliki izin untuk approve request");
-    }
-
     const { requestId, items, notes } = req.body;
     const request = await Request.findById(requestId).session(session);
 

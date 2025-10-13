@@ -11,31 +11,40 @@ export default function socketHandler(io) {
     global.io = io;
 
     io.on('connection', (socket) => {
-        console.log('🔌 Client connected:', socket.id);
+        console.log(' Client connected:', socket.id);
 
         // Ping interval
         const pingInterval = setInterval(() => {
             socket.emit('ping', { message: 'Keep alive', timestamp: new Date().toISOString() });
         }, 30000);
 
-        // ✅ OPTIMIZED: SINGLE AUTHENTICATION HANDLER
+        //  OPTIMIZED: SINGLE AUTHENTICATION HANDLER
         socket.on('device_authenticate_session', async (data, callback) => {
             try {
                 const { sessionId, deviceId } = data;
-                console.log(`🔐 Device session authentication: ${sessionId}, Device: ${deviceId}`);
+                console.log(` Device session authentication: ${sessionId}, Device: ${deviceId}`);
 
                 const session = await DeviceSession.findOne({
-                    _id: sessionId, device: deviceId, isActive: true
-                }).populate('device').populate('user').populate('outlet');
+                    _id: sessionId, 
+                    device: deviceId, 
+                    isActive: true
+                })
+                .populate('device')
+                .populate('user')
+                .populate('outlet');
 
                 if (!session) throw new Error('Session tidak valid atau sudah logout');
 
-                // Update session & device
+                // Update session & device dengan socketId
                 session.socketId = socket.id;
                 await session.save();
-                await Device.findByIdAndUpdate(deviceId, { socketId: socket.id, isOnline: true });
+                
+                await Device.findByIdAndUpdate(deviceId, { 
+                    socketId: socket.id, 
+                    isOnline: true 
+                });
 
-                // Register device
+                // Register device ke socket management
                 const deviceData = {
                     deviceId: session.device.deviceId,
                     outletId: session.outlet._id,
@@ -46,26 +55,47 @@ export default function socketHandler(io) {
                     assignedTables: session.device.assignedTables,
                     orderTypes: session.device.orderTypes
                 };
+                
                 await socketManagement.registerDevice(socket, deviceData);
 
-                // ✅ OPTIMIZED: SINGLE ROOM JOINING FUNCTION
-                await joinDeviceRooms(socket, session);
+                //    PERBAIKAN: AUTO-JOIN ROOMS BERDASARKAN DEVICE CONFIG
+                const joinResult = await joinDeviceRooms(socket, session);
 
-                console.log(`✅ Device authenticated: ${session.device.deviceName} - ${session.user.name} (${session.role})`);
+                console.log(` Device authenticated: ${session.device.deviceName} - ${session.user.name} (${session.role})`);
+                console.log(` Auto-joined ${joinResult.totalRooms} rooms for areas: ${session.device.assignedAreas?.join(', ') || 'None'}`);
 
                 const response = {
                     success: true,
-                    session: { id: session._id, user: session.user, device: session.device, outlet: session.outlet, role: session.role },
-                    device: { deviceName: session.device.deviceName, role: session.role, assignedAreas: session.device.assignedAreas, assignedTables: session.device.assignedTables, orderTypes: session.device.orderTypes, location: session.device.location },
+                    session: { 
+                        id: session._id, 
+                        user: session.user, 
+                        device: session.device, 
+                        outlet: session.outlet, 
+                        role: session.role 
+                    },
+                    device: { 
+                        deviceName: session.device.deviceName, 
+                        role: session.role, 
+                        assignedAreas: session.device.assignedAreas,
+                        assignedTables: session.device.assignedTables, 
+                        orderTypes: session.device.orderTypes, 
+                        location: session.device.location 
+                    },
+                    joinedRooms: joinResult.joinedRooms,
                     message: 'Device authenticated successfully'
                 };
 
                 callback?.(response);
 
-                // Broadcast device online
+                // Broadcast device online status
                 socket.to(`outlet_${session.outlet._id}`).emit('device_online', {
-                    deviceId: session.device._id, deviceName: session.device.deviceName,
-                    userName: session.user.name, role: session.role, socketId: socket.id, timestamp: new Date()
+                    deviceId: session.device._id, 
+                    deviceName: session.device.deviceName,
+                    userName: session.user.name, 
+                    role: session.role, 
+                    socketId: socket.id, 
+                    assignedAreas: session.device.assignedAreas,
+                    timestamp: new Date()
                 });
 
             } catch (error) {
@@ -75,11 +105,11 @@ export default function socketHandler(io) {
             }
         });
 
-        // ✅ OPTIMIZED: LEGACY AUTHENTICATION (simplified)
+        //  OPTIMIZED: LEGACY AUTHENTICATION (simplified)
         socket.on('device_authenticate', async (data, callback) => {
             try {
                 const { deviceId, outletId, role, location, deviceName } = data;
-                console.log(`🔐 Legacy device authentication: ${deviceId}, Role: ${role}`);
+                console.log(` Legacy device authentication: ${deviceId}, Role: ${role}`);
 
                 const device = await socketManagement.registerDevice(socket, { deviceId, outletId, role, location, deviceName });
                 
@@ -96,7 +126,7 @@ export default function socketHandler(io) {
             }
         });
 
-        // ✅ OPTIMIZED: ROOM MANAGEMENT
+        //  OPTIMIZED: ROOM MANAGEMENT
         socket.on('join_order_room', (orderId, callback) => {
             const roomName = `order_${orderId}`;
             socket.join(roomName);
@@ -112,7 +142,7 @@ export default function socketHandler(io) {
             callback?.({ status: 'joined', rooms });
         });
 
-        // ✅ OPTIMIZED: SINGLE AREA MANAGEMENT HANDLER
+        //  OPTIMIZED: SINGLE AREA MANAGEMENT HANDLER
         socket.on('manage_area_monitoring', async (data, callback) => {
             try {
                 const { action, areaCode, tableNumbers } = data;
@@ -142,10 +172,10 @@ export default function socketHandler(io) {
             }
         });
 
-        // ✅ OPTIMIZED: ORDER HANDLING
+        //  OPTIMIZED: ORDER HANDLING
         socket.on('new_order_created', async (orderData) => {
             try {
-                console.log('🆕 New order received:', orderData.order_id);
+                console.log(' New order received:', orderData.order_id);
                 
                 // Single broadcast function
                 await broadcastOrderEfficiently(orderData, io);
@@ -155,7 +185,7 @@ export default function socketHandler(io) {
             }
         });
 
-        // ✅ OPTIMIZED: ORDER STATUS UPDATES
+        //  OPTIMIZED: ORDER STATUS UPDATES
         socket.on('update_order_status', (data) => {
             const { orderId, status, cashierId, cashierName, tableNumber } = data;
             
@@ -164,7 +194,7 @@ export default function socketHandler(io) {
             console.log(`Order status updated: ${orderId} -> ${status}`);
         });
 
-        // ✅ OPTIMIZED: KITCHEN HANDLERS
+        //  OPTIMIZED: KITCHEN HANDLERS
         socket.on('kitchen_order_action', (data) => {
             const { action, orderId, kitchenId, kitchenName, tableNumber, ...rest } = data;
             
@@ -177,7 +207,7 @@ export default function socketHandler(io) {
             handlers[action]?.();
         });
 
-        // ✅ OPTIMIZED: BAR HANDLERS
+        //  OPTIMIZED: BAR HANDLERS
         socket.on('bar_order_action', async (data) => {
             try {
                 const { action, orderId, bartenderName, tableNumber, ...rest } = data;
@@ -197,7 +227,7 @@ export default function socketHandler(io) {
             }
         });
 
-        // ✅ OPTIMIZED: DEVICE MANAGEMENT
+        //  OPTIMIZED: DEVICE MANAGEMENT
         socket.on('device_management', async (data, callback) => {
             try {
                 const { action, deviceId, ...rest } = data;
@@ -223,9 +253,9 @@ export default function socketHandler(io) {
             console.log(`Client ${socket.id} left room: ${roomName}`);
         });
 
-        // ✅ OPTIMIZED: DISCONNECTION HANDLER
+        //  OPTIMIZED: DISCONNECTION HANDLER
         socket.on('disconnect', async () => {
-            console.log('❌ Client disconnected:', socket.id);
+            console.log('Client disconnected:', socket.id);
             clearInterval(pingInterval);
             await handleDisconnection(socket.id);
         });
@@ -234,44 +264,90 @@ export default function socketHandler(io) {
 
     // ==================== HELPER FUNCTIONS ====================
 
-    // ✅ OPTIMIZED: ROOM JOINING LOGIC
+    //  OPTIMIZED: ROOM JOINING LOGIC
     const joinDeviceRooms = async (socket, session) => {
-        const rooms = new Set();
+        const joinedRooms = {
+            basic: [],
+            role: [],
+            areas: [],
+            groups: [],
+            tables: []
+        };
+
+        //  BASIC ROOMS
+        const basicRooms = [
+            session.role,
+            `outlet_${session.outlet._id}`,
+            'system_monitor'
+        ];
         
-        // Basic rooms
-        rooms.add(session.role);
-        rooms.add(`outlet_${session.outlet._id}`);
-        
-        // Role-specific rooms
+        socket.join(basicRooms);
+        joinedRooms.basic = basicRooms;
+
+        //  ROLE-SPECIFIC ROOMS
         if (session.role.includes('cashier') || session.role.includes('bar')) {
-            rooms.add('cashier_room');
-            rooms.add(`cashiers_${session.outlet._id}`);
-            rooms.add('system_monitor');
+            const cashierRooms = ['cashier_room', `cashiers_${session.outlet._id}`];
+            socket.join(cashierRooms);
+            joinedRooms.role.push(...cashierRooms);
         }
+
         if (session.role.includes('bar')) {
             const barType = session.role.includes('depan') ? 'depan' : 'belakang';
-            rooms.add(`bar_${barType}`);
+            const barRoom = `bar_${barType}`;
+            socket.join(barRoom);
+            joinedRooms.role.push(barRoom);
         }
+
         if (session.role.includes('kitchen')) {
-            rooms.add('kitchen_room');
-            rooms.add(`kitchen_${session.outlet._id}`);
+            const kitchenRooms = ['kitchen_room', `kitchen_${session.outlet._id}`];
+            socket.join(kitchenRooms);
+            joinedRooms.role.push(...kitchenRooms);
         }
-        
-        // Area rooms
-        if (session.device.assignedAreas?.length > 0) {
+
+        //    AREA ROOMS BERDASARKAN assignedAreas DI DEVICE
+        if (session.device.assignedAreas && session.device.assignedAreas.length > 0) {
+            console.log(` Auto-joining areas for ${session.device.deviceName}:`, session.device.assignedAreas);
+            
             session.device.assignedAreas.forEach(area => {
-                rooms.add(`area_${area}`);
+                const areaRoom = `area_${area}`;
+                socket.join(areaRoom);
+                joinedRooms.areas.push(areaRoom);
+                
+                // Join area group
                 const areaGroup = getAreaGroup(area);
-                if (areaGroup) rooms.add(areaGroup);
+                if (areaGroup) {
+                    socket.join(areaGroup);
+                    joinedRooms.groups.push(areaGroup);
+                }
             });
         }
-        
-        // Join all rooms at once
-        socket.join([...rooms]);
-        console.log(`📍 ${session.device.deviceName} joined ${rooms.size} rooms:`, [...rooms]);
+
+        //  TABLE ROOMS BERDASARKAN assignedTables (OPSIONAL)
+        if (session.device.assignedTables && session.device.assignedTables.length > 0) {
+            // Batasi jumlah table rooms untuk menghindari performance issue
+            const tableRooms = session.device.assignedTables.slice(0, 50).map(table => `table_${table}`);
+            socket.join(tableRooms);
+            joinedRooms.tables = tableRooms;
+        }
+
+        // Hitung total rooms
+        const allRooms = [
+            ...joinedRooms.basic,
+            ...joinedRooms.role, 
+            ...joinedRooms.areas,
+            ...joinedRooms.groups,
+            ...joinedRooms.tables
+        ];
+
+        return {
+            totalRooms: allRooms.length,
+            joinedRooms: allRooms,
+            details: joinedRooms
+        };
     };
 
-    // ✅ OPTIMIZED: AREA MANAGEMENT
+
+    //  OPTIMIZED: AREA MANAGEMENT
     const joinArea = (socket, areaCode, tableNumbers = []) => {
         const rooms = [`area_${areaCode}`];
         const areaGroup = getAreaGroup(areaCode);
@@ -309,11 +385,11 @@ export default function socketHandler(io) {
         return { deviceName: session.device.deviceName, assignedAreas: session.device.assignedAreas, areaStatus };
     };
 
-    // ✅ OPTIMIZED: ORDER BROADCASTING
+    //  OPTIMIZED: ORDER BROADCASTING
     const broadcastOrderEfficiently = async (orderData, io) => {
         const tableNumber = orderData.tableNumber;
         if (!tableNumber) {
-            console.log('⚠️ No table number, skipping broadcast');
+            console.log(' No table number, skipping broadcast');
             return;
         }
 
@@ -337,14 +413,14 @@ export default function socketHandler(io) {
         rooms.forEach(room => {
             io.to(room).emit('new_order', {
                 ...baseData,
-                message: room === 'cashier_room' ? `Order baru - Meja ${tableNumber}` : `🆕 ORDER BARU - Area ${areaCode}, Meja ${tableNumber}`
+                message: room === 'cashier_room' ? `Order baru - Meja ${tableNumber}` : ` ORDER BARU - Area ${areaCode}, Meja ${tableNumber}`
             });
         });
 
-        console.log(`✅ Order ${orderData.order_id} broadcasted to ${rooms.length} rooms`);
+        console.log(` Order ${orderData.order_id} broadcasted to ${rooms.length} rooms`);
     };
 
-    // ✅ OPTIMIZED: NOTIFICATION FUNCTIONS
+    //  OPTIMIZED: NOTIFICATION FUNCTIONS
     const notifyOrderStatusUpdate = (orderId, status, updatedBy, tableNumber = null) => {
         const updateData = { orderId, status, updatedBy, timestamp: new Date() };
         
@@ -359,7 +435,7 @@ export default function socketHandler(io) {
         }
     };
 
-    // ✅ OPTIMIZED: KITCHEN HANDLERS
+    //  OPTIMIZED: KITCHEN HANDLERS
     const handleKitchenConfirm = (orderId, kitchenId, kitchenName, tableNumber) => {
         const data = { orderId, orderStatus: 'Cooking', kitchen: { id: kitchenId, name: kitchenName }, timestamp: new Date() };
         io.to([`order_${orderId}`, 'cashier_room', 'kitchen_room']).emit('kitchen_order_confirmed', data);
@@ -372,7 +448,7 @@ export default function socketHandler(io) {
         if (tableNumber) notifyAreaSpecificUpdate(orderId, 'Ready', 'Kitchen', tableNumber);
     };
 
-    // ✅ OPTIMIZED: BAR HANDLERS
+    //  OPTIMIZED: BAR HANDLERS
     const handleBarOrderStart = async (orderId, bartenderName, tableNumber) => {
         const barRoom = getBarRoomFromTable(tableNumber);
         await callOrderAPI(`/api/orders/${orderId}/beverage-start`, { bartenderName });
@@ -391,7 +467,7 @@ export default function socketHandler(io) {
         });
     };
 
-    // ✅ OPTIMIZED: UTILITY FUNCTIONS
+    //  OPTIMIZED: UTILITY FUNCTIONS
     const getBarRoomFromTable = (tableNumber) => {
         const areaCode = tableNumber?.charAt(0).toUpperCase();
         return areaCode && areaCode <= 'I' ? 'bar_depan' : 'bar_belakang';

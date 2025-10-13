@@ -10,6 +10,7 @@ import { orderQueue, queueEvents } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
 import { io, broadcastNewOrder } from '../index.js';
+import {broadcastCashOrderToKitchen, broadcastNewOrderToAreas, broadcastOrderCreation } from '../helpers/broadcast.helper.js';
 import Reservation from '../models/Reservation.model.js';
 import QRCode from 'qrcode';
 // Import FCM service di bagian atas file
@@ -110,7 +111,7 @@ export const createAppOrder = async (req, res) => {
 
     console.log('Received createAppOrder request:', req.body);
 
-    // ✅ Validasi items, kecuali reservasi tanpa open bill
+    //  Validasi items, kecuali reservasi tanpa open bill
     if ((!items || items.length === 0) && !(orderType === 'reservation' && !isOpenBill)) {
       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
     }
@@ -149,7 +150,7 @@ export const createAppOrder = async (req, res) => {
       }
     }
 
-    // ✅ Format orderType
+    //  Format orderType
     let formattedOrderType = '';
     switch (orderType) {
       case 'dineIn':
@@ -172,7 +173,7 @@ export const createAppOrder = async (req, res) => {
         break;
       case 'takeAway':
         formattedOrderType = 'Take Away';
-        // ✅ Tidak perlu validasi tambahan
+        //  Tidak perlu validasi tambahan
         break;
       case 'reservation':
         formattedOrderType = 'Reservation';
@@ -265,7 +266,7 @@ export const createAppOrder = async (req, res) => {
       }
     }
 
-    // ✅ Perhitungan konsisten
+    //  Perhitungan konsisten
     let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
     if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0) {
       totalBeforeDiscount = 25000; // minimal reservasi tanpa menu
@@ -1138,7 +1139,7 @@ export const createUnifiedOrder = async (req, res) => {
     let orderId;
     if (tableNumber) {
       orderId = await generateOrderId(String(tableNumber));
-      io.to(`area_${tableNumber}`).emit('new_order', { orderId });
+
     } else {
       orderId = `${source.toUpperCase()}-${Date.now()}`;
     }
@@ -1215,8 +1216,16 @@ export const createUnifiedOrder = async (req, res) => {
       jobId: job.id
     };
 
-    // Handle payment based on source
+     // Handle payment based on source
     if (source === 'Cashier') {
+      //  BROADCAST UNTUK CASHIER CASH PAYMENT
+      await broadcastCashOrderToKitchen({
+        orderId,
+        tableNumber,
+        orderData: validated,
+        outletId
+      });
+
       return res.status(200).json({
         ...baseResponse,
         status: 'Completed',
@@ -1232,7 +1241,6 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (source === 'App') {
-      // PROSES DELIVERY HANYA JIKA orderType adalah 'delivery'
       let deliveryResult = null;
       if (delivery_option === 'delivery' && recipient_data) {
         try {
@@ -1242,11 +1250,9 @@ export const createUnifiedOrder = async (req, res) => {
             recipient_data,
             orderData: validated
           });
-
           console.log('GoSend delivery created for App:', deliveryResult);
         } catch (deliveryError) {
           console.error('Failed to create GoSend delivery for App:', deliveryError);
-          // Return error karena delivery mandatory untuk App yang pilih delivery
           return res.status(500).json({
             success: false,
             message: `Gagal membuat pesanan delivery: ${deliveryError.message}`,
@@ -1255,42 +1261,75 @@ export const createUnifiedOrder = async (req, res) => {
         }
       }
 
-      const midtransRes = await createMidtransCoreTransaction(
-        orderId,
-        validated.paymentDetails.amount,
-        validated.paymentDetails.method
-      );
+      //  CHECK PAYMENT METHOD UNTUK APP
+      const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
+      
+      if (isCashPayment) {
+        //  BROADCAST UNTUK APP CASH PAYMENT
+        await broadcastCashOrderToKitchen({
+          orderId,
+          tableNumber,
+          orderData: validated,
+          outletId,
+          isAppOrder: true,
+          deliveryOption: delivery_option
+        });
 
-      // Response untuk App dengan atau tanpa delivery
-      const appResponse = {
-        ...baseResponse,
-        status: 'waiting_payment',
-        midtrans: midtransRes,
-        // Tambahkan delivery_option ke response
-        delivery_option: delivery_option || 'pickup',
-        // Loyalty info opsional
-        ...(result.loyalty?.isApplied && {
-          loyalty: {
-            pointsEarned: result.loyalty.pointsEarned,
-            pointsUsed: result.loyalty.pointsUsed,
-            discountAmount: result.loyalty.discountAmount
-          }
-        })
-      };
+        return res.status(200).json({
+          ...baseResponse,
+          status: 'Pending',
+          message: 'App cash order processed and paid',
+          delivery_option: delivery_option || 'pickup',
+          ...(result.loyalty?.isApplied && {
+            loyalty: {
+              pointsEarned: result.loyalty.pointsEarned,
+              pointsUsed: result.loyalty.pointsUsed,
+              discountAmount: result.loyalty.discountAmount
+            }
+          }),
+          ...(deliveryResult && {
+            delivery: {
+              provider: 'GoSend',
+              status: 'Pending',
+              tracking_number: deliveryResult.goSend_order_no,
+              estimated_price: deliveryResult.estimated_price,
+              live_tracking_url: deliveryResult.live_tracking_url,
+              shipment_method: deliveryResult.shipment_method
+            }
+          })
+        });
+      } else {
+        // Non-cash payment (Midtrans)
+        const midtransRes = await createMidtransCoreTransaction(
+          orderId,
+          validated.paymentDetails.amount,
+          validated.paymentDetails.method
+        );
 
-      // Tambahkan delivery info hanya jika ada deliveryResult
-      if (deliveryResult) {
-        appResponse.delivery = {
-          provider: 'GoSend',
-          status: 'pending',
-          tracking_number: deliveryResult.goSend_order_no,
-          estimated_price: deliveryResult.estimated_price,
-          live_tracking_url: deliveryResult.live_tracking_url,
-          shipment_method: deliveryResult.shipment_method
-        };
+        return res.status(200).json({
+          ...baseResponse,
+          status: 'waiting_payment',
+          midtrans: midtransRes,
+          delivery_option: delivery_option || 'pickup',
+          ...(result.loyalty?.isApplied && {
+            loyalty: {
+              pointsEarned: result.loyalty.pointsEarned,
+              pointsUsed: result.loyalty.pointsUsed,
+              discountAmount: result.loyalty.discountAmount
+            }
+          }),
+          ...(deliveryResult && {
+            delivery: {
+              provider: 'GoSend',
+              status: 'Pending',
+              tracking_number: deliveryResult.goSend_order_no,
+              estimated_price: deliveryResult.estimated_price,
+              live_tracking_url: deliveryResult.live_tracking_url,
+              shipment_method: deliveryResult.shipment_method
+            }
+          })
+        });
       }
-
-      return res.status(200).json(appResponse);
     }
 
     if (source === 'Web') {
@@ -1313,14 +1352,43 @@ export const createUnifiedOrder = async (req, res) => {
       };
       const payment = await Payment.create(paymentData);
 
-      // WEB TIDAK BISA DELIVERY - skip delivery processing
+      //  CHECK PAYMENT METHOD UNTUK WEB
+      const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
+      
+      if (isCashPayment) {
+        //  BROADCAST UNTUK WEB CASH PAYMENT
+        await broadcastCashOrderToKitchen({
+          orderId,
+          tableNumber,
+          orderData: validated,
+          outletId,
+          isWebOrder: true
+        });
 
-      // If payment method is cash, do not create Midtrans Snap
-      if (validated.paymentDetails.method?.toLowerCase() === 'cash') {
+        return res.status(200).json({
+          ...baseResponse,
+          status: 'pending',
+          message: 'Web cash order processed and paid',
+          ...(result.loyalty?.isApplied && {
+            loyalty: {
+              pointsEarned: result.loyalty.pointsEarned,
+              pointsUsed: result.loyalty.pointsUsed
+            }
+          })
+        });
+      } else {
+        // Non-cash payment (Midtrans Snap)
+        const midtransRes = await createMidtransSnapTransaction(
+          orderId,
+          validated.paymentDetails.amount,
+          validated.paymentDetails.method
+        );
+
         return res.status(200).json({
           ...baseResponse,
           status: 'waiting_payment',
-          message: 'Cash payment, no Midtrans Snap required',
+          snapToken: midtransRes.token,
+          redirectUrl: midtransRes.redirect_url,
           ...(result.loyalty?.isApplied && {
             loyalty: {
               pointsEarned: result.loyalty.pointsEarned,
@@ -1329,26 +1397,6 @@ export const createUnifiedOrder = async (req, res) => {
           })
         });
       }
-
-      // Otherwise, create Midtrans Snap transaction
-      const midtransRes = await createMidtransSnapTransaction(
-        orderId,
-        validated.paymentDetails.amount,
-        validated.paymentDetails.method
-      );
-
-      return res.status(200).json({
-        ...baseResponse,
-        status: 'waiting_payment',
-        snapToken: midtransRes.token,
-        redirectUrl: midtransRes.redirect_url,
-        ...(result.loyalty?.isApplied && {
-          loyalty: {
-            pointsEarned: result.loyalty.pointsEarned,
-            pointsUsed: result.loyalty.pointsUsed
-          }
-        })
-      });
     }
 
     throw new Error('Invalid order source');
@@ -1627,7 +1675,7 @@ export const confirmOrderByCashier = async (req, res) => {
         timestamp: new Date()
       });
 
-      // ✅ EMIT SOCKET EVENTS FOR ORDER STATUS CHANGE
+      //  EMIT SOCKET EVENTS FOR ORDER STATUS CHANGE
       const statusUpdateData = {
         order_id: orderId, // Use string order_id for consistency
         status: 'OnProcess',
@@ -2516,7 +2564,7 @@ export const createFinalPayment = async (req, res) => {
       status: 'pending'
     }).sort({ createdAt: -1 });
 
-    // ✅ JIKA ADA PENDING, UPDATE SAJA
+    //  JIKA ADA PENDING, UPDATE SAJA
     if (pendingFinalPayment) {
       console.log("Found existing pending Final Payment, updating...");
 
@@ -2557,7 +2605,7 @@ export const createFinalPayment = async (req, res) => {
           expiry_time: expiryTime,
         };
 
-        // ✅ UPDATE existing payment
+        //  UPDATE existing payment
         await Payment.updateOne(
           { _id: pendingFinalPayment._id },
           {
@@ -2615,7 +2663,7 @@ export const createFinalPayment = async (req, res) => {
 
       const response = await coreApi.charge(chargeParams);
 
-      // ✅ UPDATE existing payment
+      //  UPDATE existing payment
       await Payment.updateOne(
         { _id: pendingFinalPayment._id },
         {
@@ -2658,7 +2706,7 @@ export const createFinalPayment = async (req, res) => {
       });
     }
 
-    // ✅ JIKA TIDAK ADA PENDING, LANJUT KE LOGIKA BUAT BARU
+    //  JIKA TIDAK ADA PENDING, LANJUT KE LOGIKA BUAT BARU
     // ... sisanya tetap sama seperti kode original Anda
     // (kode untuk cari downPayment, create Final Payment baru, dll)
 
@@ -3593,7 +3641,7 @@ export const getOrderById = async (req, res) => {
     console.log('Total Amount Remaining:', totalAmountRemaining);
     console.log('Total Amount Remaining (amount):', totalAmountRemaining?.amount || 'N/A');
 
-    // ✅ TAMBAHAN: Payment details untuk down payment
+    //  TAMBAHAN: Payment details untuk down payment
     const paymentDetails = {
       totalAmount: totalAmountRemaining?.amount || payment?.totalAmount || order.grandTotal || 0,
       paidAmount: payment?.amount || 0,
@@ -3607,7 +3655,7 @@ export const getOrderById = async (req, res) => {
       status: paymentStatus,
     };
 
-    // ✅ DEBUG: Log semua data order untuk melihat struktur sebenarnya
+    //  DEBUG: Log semua data order untuk melihat struktur sebenarnya
     console.log('=== DEBUGGING ORDER DATA ===');
     console.log('Order keys:', Object.keys(order.toObject()));
     console.log('Applied Voucher:', JSON.stringify(order.appliedVoucher, null, 2));
@@ -3618,7 +3666,7 @@ export const getOrderById = async (req, res) => {
     console.log('Total Tax:', order.totalTax);
     console.log('============================');
 
-    // ✅ TAMBAHAN: Format voucher data - sekarang sudah ter-populate
+    //  TAMBAHAN: Format voucher data - sekarang sudah ter-populate
     let voucherData = null;
 
     if (order.appliedVoucher && typeof order.appliedVoucher === 'object') {
@@ -3669,7 +3717,7 @@ export const getOrderById = async (req, res) => {
       }
     }
 
-    // ✅ TAMBAHAN: Format tax and service details - sekarang sudah ter-populate  
+    //  TAMBAHAN: Format tax and service details - sekarang sudah ter-populate  
     let taxAndServiceDetails = [];
 
     if (order.taxAndServiceDetails && Array.isArray(order.taxAndServiceDetails)) {
@@ -3715,13 +3763,13 @@ export const getOrderById = async (req, res) => {
       totalAfterDiscount: order.totalAfterDiscount || 0,
       grandTotal: order.grandTotal || 0,
 
-      // ✅ TAMBAHAN: Detail pembayaran yang lebih lengkap
+      //  TAMBAHAN: Detail pembayaran yang lebih lengkap
       paymentDetails: paymentDetails,
 
-      // ✅ TAMBAHAN: Data voucher
+      //  TAMBAHAN: Data voucher
       voucher: voucherData,
 
-      // ✅ TAMBAHAN: Data tax dan service details
+      //  TAMBAHAN: Data tax dan service details
       taxAndServiceDetails: taxAndServiceDetails,
       totalTax: totalTax,
 
