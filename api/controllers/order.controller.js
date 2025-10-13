@@ -1148,7 +1148,7 @@ export const createUnifiedOrder = async (req, res) => {
 
     if (areaGroup) {
         // Broadcast ke area group
-        io.to('group_1').emit('new_order_created', { 
+        io.to(areaGroup).emit('new_order_created', { 
             orderId,
             tableNumber,
             areaCode,

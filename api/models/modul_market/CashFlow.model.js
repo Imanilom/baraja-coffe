@@ -6,39 +6,49 @@ const cashFlowSchema = new mongoose.Schema({
   description: String,
   
   // Cash In
-  cashIn: { type: Number, default: 0 },
-  cashInPhysical: { type: Number, default: 0 },      // Uang fisik yang masuk
-  cashInNonPhysical: { type: Number, default: 0 },   // Uang non-fisik yang masuk
+  cashIn: { type: Number, default: 0, min: 0 },
+  cashInPhysical: { type: Number, default: 0, min: 0 },      // Uang fisik yang masuk
+  cashInNonPhysical: { type: Number, default: 0, min: 0 },   // Uang non-fisik yang masuk
   
   // Cash Out
-  cashOut: { type: Number, default: 0 },
-  cashOutPhysical: { type: Number, default: 0 },     // Uang fisik yang keluar
-  cashOutNonPhysical: { type: Number, default: 0 },  // Uang non-fisik yang keluar
+  cashOut: { type: Number, default: 0, min: 0 },
+  cashOutPhysical: { type: Number, default: 0, min: 0 },     // Uang fisik yang keluar
+  cashOutNonPhysical: { type: Number, default: 0, min: 0 },  // Uang non-fisik yang keluar
   
   // Saldo
-  balance: Number,
-  balancePhysical: { type: Number, default: 0 },     // Saldo uang fisik
-  balanceNonPhysical: { type: Number, default: 0 },  // Saldo uang non-fisik
+  balance: { type: Number, default: 0 },
+  balancePhysical: { type: Number, default: 0, min: 0 },     // Saldo uang fisik
+  balanceNonPhysical: { type: Number, default: 0, min: 0 },  // Saldo uang non-fisik
   
   // Informasi tambahan
   source: { type: String },
   destination: { type: String },
-  paymentMethod: { type: String, enum: ['physical', 'non-physical', 'mixed'], default: 'physical' }, // Metode pembayaran
+  paymentMethod: { type: String, enum: ['physical', 'non-physical', 'mixed'], default: 'physical' },
   relatedMarketList: { type: mongoose.Schema.Types.ObjectId, ref: 'MarketList' },
   proof: String,
   createdBy: String,
+}, {
+  timestamps: true
 });
 
-const Cashflow = mongoose.model('CashFlow', cashFlowSchema);
+// Middleware untuk validasi sebelum save
+cashFlowSchema.pre('save', function(next) {
+  // Pastikan semua nilai numerik tidak NaN
+  const numericFields = [
+    'cashIn', 'cashInPhysical', 'cashInNonPhysical',
+    'cashOut', 'cashOutPhysical', 'cashOutNonPhysical',
+    'balance', 'balancePhysical', 'balanceNonPhysical'
+  ];
   
-export default Cashflow;
+  for (const field of numericFields) {
+    if (isNaN(this[field]) || this[field] === null || this[field] === undefined) {
+      this[field] = 0;
+    }
+  }
+  
+  next();
+});
 
-// Fungsi untuk mendapatkan saldo terakhir
-export const getLastBalance = async () => {
-  const lastEntry = await Cashflow.findOne().sort({ date: -1 });
-  return lastEntry ? {
-    balance: lastEntry.balance,
-    balancePhysical: lastEntry.balancePhysical,
-    balanceNonPhysical: lastEntry.balanceNonPhysical
-  } : { balance: 0, balancePhysical: 0, balanceNonPhysical: 0 };
-};
+const CashFlow = mongoose.model('CashFlow', cashFlowSchema);
+  
+export default CashFlow;
