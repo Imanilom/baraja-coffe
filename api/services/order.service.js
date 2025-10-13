@@ -252,6 +252,7 @@ async function processToppings(item, menuItem, recipe, toppings, addPriceCallbac
     }
 
     toppings.push({
+      _id: topping.id,
       name: toppingInfo.name,
       price: toppingInfo.price || 0
     });
@@ -280,8 +281,15 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
         }
 
         addons.push({
-          name: `${addonInfo.name}: ${optionInfo.label}`,
-          price: optionInfo.price || 0
+          _id: addon.id,
+          name: `${addonInfo.name}`,
+          options: [
+            {
+              _id: option.id,
+              label: optionInfo.label,
+              price: optionInfo.price || 0
+            }
+          ]
         });
 
         addPriceCallback(optionInfo.price || 0);

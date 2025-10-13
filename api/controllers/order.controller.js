@@ -3794,15 +3794,7 @@ export const getCashierOrderHistory = async (req, res) => {
             // workstation: item.menuItem.workstation,
             // categories: item.menuItem.category, // renamed
           },
-          selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
-            name: addon.name,
-            _id: addon._id,
-            options: [{
-              id: addon._id, // assuming _id as id for options
-              label: addon.label || addon.name, // fallback
-              price: addon.price
-            }]
-          })) : [],
+          selectedAddons: item.addons.length > 0 ? item.addons : [],
           selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
             id: topping._id || topping.id, // fallback if structure changes
             name: topping.name,
