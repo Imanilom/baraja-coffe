@@ -1235,35 +1235,30 @@ export const getWeeklyReport = async (req, res) => {
     const startDate = new Date(start);
     const endDate = new Date(end);
 
-    // Get cash flows within date range
-    const cashFlows = await CashFlow.find({
+    // Ambil entri terakhir SEBELUM periode (sebelum startDate)
+    const lastBeforeStart = await CashFlow.findOne({
+      date: { $lt: startDate }
+    }).sort({ date: -1, createdAt: -1 });
+
+    // Tentukan saldo awal berdasarkan entri terakhir sebelum periode
+    const startingBalance = lastBeforeStart ? Number(lastBeforeStart.balance) || 0 : 0;
+    const startingPhysical = lastBeforeStart ? Number(lastBeforeStart.balancePhysical) || 0 : 0;
+    const startingNonPhysical = lastBeforeStart ? Number(lastBeforeStart.balanceNonPhysical) || 0 : 0;
+
+    // Ambil transaksi dalam periode
+    const periodCashFlows = await CashFlow.find({
       date: { $gte: startDate, $lte: endDate }
-    }).sort({ date: 1 });
+    }).sort({ date: 1, createdAt: 1 }); // Urutkan juga berdasarkan createdAt untuk kepastian urutan
 
-    // Calculate starting balances (sum of all transactions before start date)
-    const initialFlows = await CashFlow.find({ date: { $lt: startDate } });
-    
-    const startingBalance = initialFlows.reduce((sum, f) => sum + (f.cashIn - f.cashOut), 0);
-    const startingPhysical = initialFlows.reduce((sum, f) => sum + (f.cashInPhysical - f.cashOutPhysical), 0);
-    const startingNonPhysical = initialFlows.reduce((sum, f) => sum + (f.cashInNonPhysical - f.cashOutNonPhysical), 0);
-
-    // Initialize categorized data
+    // Inisialisasi hasil
     const result = {
       summary: {
         period: { start, end },
         startingBalance,
         startingPhysical,
         startingNonPhysical,
-        physical: { 
-          in: 0, 
-          out: 0, 
-          balance: startingPhysical 
-        },
-        nonPhysical: { 
-          in: 0, 
-          out: 0, 
-          balance: startingNonPhysical 
-        },
+        physical: { in: 0, out: 0, balance: startingPhysical },
+        nonPhysical: { in: 0, out: 0, balance: startingNonPhysical },
         totalIn: 0,
         totalOut: 0,
         endingBalance: startingBalance,
@@ -1278,35 +1273,27 @@ export const getWeeklyReport = async (req, res) => {
       }
     };
 
+    // Gunakan saldo awal sebagai titik awal
     let currentBalance = startingBalance;
     let currentPhysical = startingPhysical;
     let currentNonPhysical = startingNonPhysical;
 
-    // Process each cash flow
-    for (const flow of cashFlows) {
-      currentBalance += flow.cashIn - flow.cashOut;
-      currentPhysical += flow.cashInPhysical - flow.cashOutPhysical;
-      currentNonPhysical += flow.cashInNonPhysical - flow.cashOutNonPhysical;
-      
-      // Build transaction object
+    for (const flow of periodCashFlows) {
+      // Gunakan nilai yang tersimpan di database sebagai saldo akhir transaksi ini
       const transaction = {
         _id: flow._id,
         date: flow.date,
         day: flow.day,
         description: flow.description,
-        // Total amounts
         cashIn: flow.cashIn,
         cashOut: flow.cashOut,
-        balance: currentBalance,
-        // Physical amounts
+        balance: flow.balance,
         cashInPhysical: flow.cashInPhysical,
         cashOutPhysical: flow.cashOutPhysical,
-        balancePhysical: currentPhysical,
-        // Non-physical amounts
+        balancePhysical: flow.balancePhysical,
         cashInNonPhysical: flow.cashInNonPhysical,
         cashOutNonPhysical: flow.cashOutNonPhysical,
-        balanceNonPhysical: currentNonPhysical,
-        // Additional info
+        balanceNonPhysical: flow.balanceNonPhysical,
         paymentMethod: flow.paymentMethod,
         source: flow.source,
         destination: flow.destination,
@@ -1315,18 +1302,17 @@ export const getWeeklyReport = async (req, res) => {
         relatedMarketList: flow.relatedMarketList
       };
 
-      // Categorize by payment method
+      // Akumulasi total berdasarkan paymentMethod
       if (flow.paymentMethod === 'physical') {
         result.summary.physical.in += flow.cashIn;
         result.summary.physical.out += flow.cashOut;
         result.transactions.physical.push(transaction);
-      } 
-      else if (flow.paymentMethod === 'non-physical') {
+      } else if (flow.paymentMethod === 'non-physical') {
         result.summary.nonPhysical.in += flow.cashIn;
         result.summary.nonPhysical.out += flow.cashOut;
         result.transactions.nonPhysical.push(transaction);
-      }
-      else if (flow.paymentMethod === 'mixed') {
+      } else if (flow.paymentMethod === 'mixed') {
+        // Untuk mixed, gunakan nilai fisik & non-fisik secara terpisah
         result.summary.physical.in += flow.cashInPhysical;
         result.summary.physical.out += flow.cashOutPhysical;
         result.summary.nonPhysical.in += flow.cashInNonPhysical;
@@ -1339,14 +1325,23 @@ export const getWeeklyReport = async (req, res) => {
       result.summary.totalOut += flow.cashOut;
     }
 
-    // Calculate final balances
-    result.summary.endingBalance = currentBalance;
-    result.summary.endingPhysical = currentPhysical;
-    result.summary.endingNonPhysical = currentNonPhysical;
-    
-    result.summary.physical.balance = currentPhysical;
-    result.summary.nonPhysical.balance = currentNonPhysical;
-    
+    // Ambil saldo akhir dari transaksi terakhir dalam periode
+    if (periodCashFlows.length > 0) {
+      const lastInPeriod = periodCashFlows[periodCashFlows.length - 1];
+      result.summary.endingBalance = Number(lastInPeriod.balance) || 0;
+      result.summary.endingPhysical = Number(lastInPeriod.balancePhysical) || 0;
+      result.summary.endingNonPhysical = Number(lastInPeriod.balanceNonPhysical) || 0;
+    } else {
+      // Jika tidak ada transaksi dalam periode, saldo akhir = saldo awal
+      result.summary.endingBalance = startingBalance;
+      result.summary.endingPhysical = startingPhysical;
+      result.summary.endingNonPhysical = startingNonPhysical;
+    }
+
+    // Update balance di summary
+    result.summary.physical.balance = result.summary.endingPhysical;
+    result.summary.nonPhysical.balance = result.summary.endingNonPhysical;
+
     res.json({
       success: true,
       data: result
