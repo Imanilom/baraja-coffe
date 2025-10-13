@@ -75,7 +75,7 @@ class OrderService {
       print('response status code create order: ${response.statusCode}');
       return response.data;
     } on DioException catch (e) {
-      print('error create order: ${e.response?.data}');
+      print('error create order: ${e}');
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -299,7 +299,8 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
 
   final box = Hive.box('userBox');
   final user = box.get('user') as UserModel;
-
+  final now = DateTime.now().toUtc().add(Duration(hours: 7));
+  print(now);
   return {
     'order_id': order.orderId,
     'user_id': order.userId ?? "",
@@ -336,6 +337,8 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'totalPrice': order.grandTotal,
     'source': "Cashier",
     'isOpenBill': order.isOpenBill,
+    // 'createdAtWIB': now,
+    // 'updatedAtWIB' : now
   };
 }
 

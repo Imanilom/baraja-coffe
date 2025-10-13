@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/providers/message_provider.dart';
+import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
@@ -279,12 +280,12 @@ class CashierLoginToDeviceNotifier extends StateNotifier<AsyncValue<bool>> {
 
   CashierLoginToDeviceNotifier(this.ref) : super(const AsyncValue.data(false));
 
-  Future<void> loginCashierToDevice(CashierModel cashier) async {
+  Future<void> loginCashierToDevice(CashierModel cashier, DeviceModel device) async {
     state = const AsyncValue.loading();
 
     try {
       final repository = ref.read(authDeviceRepositoryProvider);
-      final success = await repository.loginCashierToDevice(cashier);
+      final success = await repository.loginCashierToDevice(cashier, device);
 
       state = AsyncValue.data(success);
     } catch (error, stackTrace) {
@@ -299,7 +300,10 @@ class CashierLoginToDeviceNotifier extends StateNotifier<AsyncValue<bool>> {
   //logoutCashierFromDevice
   Future<void> logoutCashierFromDevice() async {
     final repository = ref.read(authDeviceRepositoryProvider);
+    final socketRoom = ref.read(socketServiceProvider);
+    await socketRoom.logout();
     await repository.logoutCashierFromDevice();
+    print('behasil logout device dan leave socket rooms');
   }
 }
 

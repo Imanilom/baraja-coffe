@@ -32,8 +32,9 @@ class SocketService {
       print('CONNECTED: ${socket.id}');
       socket.emit('join_cashier_room', {'id': cashierId});
       final device = await HiveService.getDevice();
-
+      print('bersiap join area');
       if (device != null && device.assignedAreas.isNotEmpty) {
+        print('mencoba join area');
         joinArea(device.assignedAreas[0]);
       }
     });
@@ -65,6 +66,10 @@ class SocketService {
     });
 
     socket.on('new_order_created', (data) {
+      NotificationService.showSystemNotification(
+        'Pesanan Baru dari area room',
+        "test"
+      );
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 500), () {
         ref.invalidate(onlineOrderProvider);
@@ -79,6 +84,18 @@ class SocketService {
     print('join_area_group: $tableCode');
   }
 
+  // Tambahkan method untuk meninggalkan area
+  void leaveArea(String tableCode) {
+    socket.emit('leave_area', tableCode);
+    print('leave_area: $tableCode');
+  }
+
+  // Tambahkan method untuk meninggalkan cashier room
+  void leaveCashierRoom(String cashierId) {
+    socket.emit('leave_cashier_room', {'id': cashierId});
+    print('leave_cashier_room: $cashierId');
+  }
+
   void disconnect() {
     _debounce?.cancel();
     socket.disconnect();
@@ -89,6 +106,46 @@ class SocketService {
     socket.off('new_order');
     socket.offAny();
     socket.dispose();
+  }
+
+  Future<void> logout() async {
+    final device  = await HiveService.getDevice();
+    final cashier = await HiveService.getCashier();
+
+    // 1) Minta server lepas semua room (lebih aman & ringkas)
+    try {
+      // Ack pattern (kalau versi lib mendukung Future)
+      // ignore: deprecated_member_use
+      socket.emitWithAck('device:leaveAll', null, ack: (res) {
+        print('leaveAll ack: $res');
+      });
+      // Kalau versi package kamu belum ada Future-nya, cara di atas sudah cukup.
+    } catch (_) {}
+
+    // 2) (Opsional) fallback granular kalau kamu masih butuh
+    // if (device != null) {
+    //   for (final area in device.assignedAreas) {
+    //     leaveAreaByLetter(area);
+    //   }
+    // }
+    // if (cashier?.id != null) {
+    //   leaveCashierRoom(cashier!.id!);
+    // }
+
+    // 3) Lepas listeners supaya tidak double saat login berikutnya
+    socket.off('order_created');
+    socket.off('new_order');
+    socket.offAny();
+
+    // 4) Putus koneksi
+    _debounce?.cancel();
+    if (socket.connected) {
+      // beri sedikit jeda biar ack sempat terkirim
+      await Future.delayed(const Duration(milliseconds: 200));
+      socket.disconnect();
+    }
+
+    print('Left all rooms & disconnected');
   }
 
   IO.Socket get instance => socket;

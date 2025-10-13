@@ -129,7 +129,7 @@ const OrderSchema = new mongoose.Schema({
     type: Date,
     default: () => getWIBNow()
   },
-  
+
   // OPSIONAL: Field delivery hanya diisi jika orderType adalah 'Delivery'
   deliveryStatus: {
     type: String,

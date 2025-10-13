@@ -55,13 +55,16 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       paymentStatus: fields[26] == null ? '' : fields[26] as String?,
       id: fields[27] == null ? null : fields[27] as String?,
       isOpenBill: fields[28] == null ? false : fields[28] as bool,
+      paymentAmount: fields[29] == null ? 0 : (fields[29] as num).toInt(),
+      changeAmount: fields[30] == null ? 0 : (fields[30] as num).toInt(),
+      paymentType: fields[31] == null ? null : fields[31] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderDetailModel obj) {
     writer
-      ..writeByte(29)
+      ..writeByte(32)
       ..writeByte(0)
       ..write(obj.orderId)
       ..writeByte(1)
@@ -119,7 +122,13 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..writeByte(27)
       ..write(obj.id)
       ..writeByte(28)
-      ..write(obj.isOpenBill);
+      ..write(obj.isOpenBill)
+      ..writeByte(29)
+      ..write(obj.paymentAmount)
+      ..writeByte(30)
+      ..write(obj.changeAmount)
+      ..writeByte(31)
+      ..write(obj.paymentType);
   }
 
   @override
@@ -186,13 +195,13 @@ _OrderDetailModel _$OrderDetailModelFromJson(
   grandTotal: (json['grandTotal'] as num?)?.toInt() ?? 0,
   source: json['source'] as String? ?? 'Cashier',
   createdAt:
-      json['createdAt'] == null
+      json['createdAtWIB'] == null
           ? null
-          : DateTime.parse(json['createdAt'] as String),
+          : DateTime.parse(json['createdAtWIB'] as String),
   updatedAt:
-      json['updatedAt'] == null
+      json['updatedAtWIB'] == null
           ? null
-          : DateTime.parse(json['updatedAt'] as String),
+          : DateTime.parse(json['updatedAtWIB'] as String),
   payment:
       (json['payment_details'] as List<dynamic>?)
           ?.map((e) => PaymentModel.fromJson(e as Map<String, dynamic>))
@@ -201,6 +210,9 @@ _OrderDetailModel _$OrderDetailModelFromJson(
   paymentStatus: json['paymentStatus'] as String? ?? '',
   id: json['_id'] as String? ?? null,
   isOpenBill: json['isOpenBill'] as bool? ?? false,
+  paymentAmount: (json['paymentAmount'] as num?)?.toInt() ?? 0,
+  changeAmount: (json['changeAmount'] as num?)?.toInt() ?? 0,
+  paymentType: json['paymentType'] as String? ?? null,
 );
 
 Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
@@ -228,10 +240,13 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'totalAfterDiscount': instance.totalAfterDiscount,
       'grandTotal': instance.grandTotal,
       'source': instance.source,
-      'createdAt': instance.createdAt?.toIso8601String(),
-      'updatedAt': instance.updatedAt?.toIso8601String(),
+      'createdAtWIB': instance.createdAt?.toIso8601String(),
+      'updatedAtWIB': instance.updatedAt?.toIso8601String(),
       'payment_details': instance.payment,
       'paymentStatus': instance.paymentStatus,
       '_id': instance.id,
       'isOpenBill': instance.isOpenBill,
+      'paymentAmount': instance.paymentAmount,
+      'changeAmount': instance.changeAmount,
+      'paymentType': instance.paymentType,
     };
