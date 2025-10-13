@@ -1235,90 +1235,103 @@ export const getWeeklyReport = async (req, res) => {
     const startDate = new Date(start);
     const endDate = new Date(end);
 
-    // Get cash flows with populated market lists
+    // Get cash flows within date range
     const cashFlows = await CashFlow.find({
       date: { $gte: startDate, $lte: endDate }
-    }).populate({
-      path: 'relatedMarketList',
-      populate: {
-        path: 'items additionalExpenses',
-        select: 'productName quantityPurchased pricePerUnit paymentMethod paymentStatus name amount'
-      }
     }).sort({ date: 1 });
 
-    // Calculate starting balance (sum of all transactions before start date)
+    // Calculate starting balances (sum of all transactions before start date)
     const initialFlows = await CashFlow.find({ date: { $lt: startDate } });
+    
     const startingBalance = initialFlows.reduce((sum, f) => sum + (f.cashIn - f.cashOut), 0);
+    const startingPhysical = initialFlows.reduce((sum, f) => sum + (f.cashInPhysical - f.cashOutPhysical), 0);
+    const startingNonPhysical = initialFlows.reduce((sum, f) => sum + (f.cashInNonPhysical - f.cashOutNonPhysical), 0);
 
     // Initialize categorized data
     const result = {
       summary: {
+        period: { start, end },
         startingBalance,
-        cash: { in: 0, out: 0, balance: 0 },
-        transfer: { in: 0, out: 0, balance: 0 },
-        credit: { in: 0, out: 0, balance: 0 },
+        startingPhysical,
+        startingNonPhysical,
+        physical: { 
+          in: 0, 
+          out: 0, 
+          balance: startingPhysical 
+        },
+        nonPhysical: { 
+          in: 0, 
+          out: 0, 
+          balance: startingNonPhysical 
+        },
         totalIn: 0,
         totalOut: 0,
-        endingBalance: startingBalance
+        endingBalance: startingBalance,
+        endingPhysical: startingPhysical,
+        endingNonPhysical: startingNonPhysical
       },
       transactions: {
-        cash: [],
-        transfer: [],
-        credit: [],
+        physical: [],
+        nonPhysical: [],
+        mixed: [],
         all: []
       }
     };
 
     let currentBalance = startingBalance;
+    let currentPhysical = startingPhysical;
+    let currentNonPhysical = startingNonPhysical;
 
     // Process each cash flow
     for (const flow of cashFlows) {
       currentBalance += flow.cashIn - flow.cashOut;
+      currentPhysical += flow.cashInPhysical - flow.cashOutPhysical;
+      currentNonPhysical += flow.cashInNonPhysical - flow.cashOutNonPhysical;
       
-      // Determine payment method from related market list
-      let paymentMethod = 'cash'; // default
-      if (flow.relatedMarketList) {
-        // Check items for payment methods
-        const methods = flow.relatedMarketList.items.map(i => i.paymentMethod);
-        if (methods.includes('transfer')) paymentMethod = 'transfer';
-        if (methods.includes('credit')) paymentMethod = 'credit';
-      }
-
       // Build transaction object
       const transaction = {
+        _id: flow._id,
         date: flow.date,
         day: flow.day,
         description: flow.description,
+        // Total amounts
         cashIn: flow.cashIn,
         cashOut: flow.cashOut,
         balance: currentBalance,
-        paymentMethod,
-        purchasedItems: flow.relatedMarketList?.items?.map(item => ({
-          name: item.productName,
-          quantity: item.quantityPurchased,
-          price: item.pricePerUnit,
-          total: item.quantityPurchased * item.pricePerUnit,
-          paymentMethod: item.paymentMethod,
-          paymentStatus: item.paymentStatus
-        })) || [],
-        additionalExpenses: flow.relatedMarketList?.additionalExpenses || []
+        // Physical amounts
+        cashInPhysical: flow.cashInPhysical,
+        cashOutPhysical: flow.cashOutPhysical,
+        balancePhysical: currentPhysical,
+        // Non-physical amounts
+        cashInNonPhysical: flow.cashInNonPhysical,
+        cashOutNonPhysical: flow.cashOutNonPhysical,
+        balanceNonPhysical: currentNonPhysical,
+        // Additional info
+        paymentMethod: flow.paymentMethod,
+        source: flow.source,
+        destination: flow.destination,
+        createdBy: flow.createdBy,
+        proof: flow.proof,
+        relatedMarketList: flow.relatedMarketList
       };
 
       // Categorize by payment method
-      if (paymentMethod === 'cash') {
-        result.summary.cash.in += flow.cashIn;
-        result.summary.cash.out += flow.cashOut;
-        result.transactions.cash.push(transaction);
+      if (flow.paymentMethod === 'physical') {
+        result.summary.physical.in += flow.cashIn;
+        result.summary.physical.out += flow.cashOut;
+        result.transactions.physical.push(transaction);
       } 
-      else if (paymentMethod === 'transfer') {
-        result.summary.transfer.in += flow.cashIn;
-        result.summary.transfer.out += flow.cashOut;
-        result.transactions.transfer.push(transaction);
-      } 
-      else if (paymentMethod === 'credit') {
-        result.summary.credit.in += flow.cashIn;
-        result.summary.credit.out += flow.cashOut;
-        result.transactions.credit.push(transaction);
+      else if (flow.paymentMethod === 'non-physical') {
+        result.summary.nonPhysical.in += flow.cashIn;
+        result.summary.nonPhysical.out += flow.cashOut;
+        result.transactions.nonPhysical.push(transaction);
+      }
+      else if (flow.paymentMethod === 'mixed') {
+        result.summary.physical.in += flow.cashInPhysical;
+        result.summary.physical.out += flow.cashOutPhysical;
+        result.summary.nonPhysical.in += flow.cashInNonPhysical;
+        result.summary.nonPhysical.out += flow.cashOutNonPhysical;
+        result.transactions.mixed.push(transaction);
       }
 
       result.transactions.all.push(transaction);
@@ -1328,17 +1341,15 @@ export const getWeeklyReport = async (req, res) => {
 
     // Calculate final balances
     result.summary.endingBalance = currentBalance;
-    result.summary.cash.balance = result.summary.cash.in - result.summary.cash.out;
-    result.summary.transfer.balance = result.summary.transfer.in - result.summary.transfer.out;
-    result.summary.credit.balance = result.summary.credit.in - result.summary.credit.out;
+    result.summary.endingPhysical = currentPhysical;
+    result.summary.endingNonPhysical = currentNonPhysical;
+    
+    result.summary.physical.balance = currentPhysical;
+    result.summary.nonPhysical.balance = currentNonPhysical;
     
     res.json({
       success: true,
-      data: {
-        start,
-        end,
-        ...result
-      }
+      data: result
     });
 
   } catch (error) {
