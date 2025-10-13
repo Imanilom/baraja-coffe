@@ -15,8 +15,8 @@ router.get('/stock/all', getAllStock);
 
 router.get('/menu-stock', updateMenuAvailableStock);
 router.get('/menu-stock/manual-stock', getMenuStocks);
-router.put('/menu/:menuItemId/update-stock', inventoryAccess, updateSingleMenuStock);
-router.put('/menu/:menuItemId/adjust-stock', inventoryAccess, adjustMenuStock);
+router.put('/menu/:menuItemId/update-stock', updateSingleMenuStock);
+router.put('/menu/:menuItemId/adjust-stock', adjustMenuStock);
 router.get('/menu/:menuItemId/details', getMenuStockDetails);
 
 router.post('/recipes', inventoryAccess, createRecipe);
