@@ -80,7 +80,7 @@ router.post('/cashflow/in', inventoryAccess, addCashIn);
 
 router.post('/cashflow/out', inventoryAccess, withdrawCash);
 
-router.post('/cashflow/balance', inventoryAccess, getBalanceSummary);
+router.get('/cashflow/balance', inventoryAccess, getBalanceSummary);
 
 router.get('/cashflow', allAuthenticated, getCashFlow);
 

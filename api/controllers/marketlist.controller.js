@@ -962,6 +962,9 @@ export const getCashFlow = async (req, res) => {
 };
 
 export const addCashIn = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { 
       date, 
@@ -974,18 +977,30 @@ export const addCashIn = async (req, res) => {
       proof 
     } = req.body;
     
-    const day = getDayName(date);
-    
-    // Validasi input
-    if (!day || !date || !description || typeof cashIn !== 'number' || cashIn <= 0) {
+    // Validasi input dasar
+    if (!date || !description) {
+      await session.abortTransaction();
       return res.status(400).json({
-        message: 'Semua field harus diisi dan jumlah kas masuk harus > 0'
+        message: 'Tanggal dan deskripsi harus diisi'
+      });
+    }
+
+    // Parse dan validasi nilai numerik
+    const cashInValue = parseFloat(cashIn) || 0;
+    const cashInPhysicalValue = parseFloat(cashInPhysical) || 0;
+    const cashInNonPhysicalValue = parseFloat(cashInNonPhysical) || 0;
+
+    if (cashInValue <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        message: 'Jumlah kas masuk harus lebih dari 0'
       });
     }
 
     // Validasi konsistensi jumlah
-    const totalIn = (cashInPhysical || 0) + (cashInNonPhysical || 0);
-    if (totalIn !== cashIn) {
+    const totalIn = cashInPhysicalValue + cashInNonPhysicalValue;
+    if (Math.abs(totalIn - cashInValue) > 0.01) { // Tolerance for floating point
+      await session.abortTransaction();
       return res.status(400).json({
         message: 'Total cashInPhysical + cashInNonPhysical harus sama dengan cashIn'
       });
@@ -993,48 +1008,93 @@ export const addCashIn = async (req, res) => {
 
     const user = await User.findById(req.user._id);
     if (!user) {
+      await session.abortTransaction();
       return res.status(401).json({ message: 'User tidak ditemukan' });
     }
 
-    // Ambil saldo terakhir
+    const day = getDayName(date);
+    
+    // Ambil saldo terakhir dengan validasi
     const lastBalance = await getLastBalance();
     
-    // Hitung saldo baru
-    const newBalance = lastBalance.balance + cashIn;
-    const newBalancePhysical = lastBalance.balancePhysical + (cashInPhysical || 0);
-    const newBalanceNonPhysical = lastBalance.balanceNonPhysical + (cashInNonPhysical || 0);
+    // Pastikan semua nilai balance valid
+    const lastBalanceValue = Number(lastBalance.balance) || 0;
+    const lastBalancePhysical = Number(lastBalance.balancePhysical) || 0;
+    const lastBalanceNonPhysical = Number(lastBalance.balanceNonPhysical) || 0;
+
+    // Hitung saldo baru dengan validasi
+    const newBalance = lastBalanceValue + cashInValue;
+    const newBalancePhysical = lastBalancePhysical + cashInPhysicalValue;
+    const newBalanceNonPhysical = lastBalanceNonPhysical + cashInNonPhysicalValue;
+
+    // Final validation - pastikan tidak ada NaN
+    if (isNaN(newBalance) || isNaN(newBalancePhysical) || isNaN(newBalanceNonPhysical)) {
+      await session.abortTransaction();
+      console.error('NaN detected in balance calculation:', {
+        lastBalance,
+        cashInValue,
+        cashInPhysicalValue,
+        cashInNonPhysicalValue
+      });
+      return res.status(500).json({ 
+        message: 'Terjadi kesalahan dalam perhitungan saldo' 
+      });
+    }
+
+    // Tentukan payment method
+    let paymentMethod = 'physical';
+    if (cashInPhysicalValue > 0 && cashInNonPhysicalValue > 0) {
+      paymentMethod = 'mixed';
+    } else if (cashInNonPhysicalValue > 0) {
+      paymentMethod = 'non-physical';
+    }
 
     // Simpan ke database
     const cashFlow = new CashFlow({
       day,
-      date,
+      date: new Date(date),
       description,
-      cashIn,
-      cashInPhysical: cashInPhysical || 0,
-      cashInNonPhysical: cashInNonPhysical || 0,
+      cashIn: cashInValue,
+      cashInPhysical: cashInPhysicalValue,
+      cashInNonPhysical: cashInNonPhysicalValue,
       cashOut: 0,
       cashOutPhysical: 0,
       cashOutNonPhysical: 0,
       balance: newBalance,
       balancePhysical: newBalancePhysical,
       balanceNonPhysical: newBalanceNonPhysical,
-      source,
-      destination,
-      proof,
+      source: source || '',
+      destination: destination || '',
+      paymentMethod,
+      proof: proof || '',
       createdBy: user.username
     });
 
-    await cashFlow.save();
+    await cashFlow.save({ session });
+    await session.commitTransaction();
 
-    res.status(201).json(cashFlow);
+    res.status(201).json({
+      success: true,
+      message: 'Kas masuk berhasil dicatat',
+      data: cashFlow
+    });
 
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error menambahkan kas masuk:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  } finally {
+    session.endSession();
   }
 };
 
 export const withdrawCash = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { 
       date, 
@@ -1044,39 +1104,67 @@ export const withdrawCash = async (req, res) => {
       proof 
     } = req.body;
     
-    const day = getDayName(date);
-    
     // Validasi input
-    if (!day || !date || !description || typeof amount !== 'number' || amount <= 0) {
+    if (!date || !description) {
+      await session.abortTransaction();
       return res.status(400).json({
-        message: 'Semua field harus diisi dan jumlah penarikan harus > 0'
+        message: 'Tanggal dan deskripsi harus diisi'
+      });
+    }
+
+    const amountValue = parseFloat(amount) || 0;
+    if (amountValue <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        message: 'Jumlah penarikan harus lebih dari 0'
       });
     }
 
     const user = await User.findById(req.user._id);
     if (!user) {
+      await session.abortTransaction();
       return res.status(401).json({ message: 'User tidak ditemukan' });
     }
 
-    // Ambil saldo terakhir
+    const day = getDayName(date);
+    
+    // Ambil saldo terakhir dengan validasi
     const lastBalance = await getLastBalance();
     
+    // Pastikan semua nilai balance valid
+    const lastBalanceValue = Number(lastBalance.balance) || 0;
+    const lastBalancePhysical = Number(lastBalance.balancePhysical) || 0;
+    const lastBalanceNonPhysical = Number(lastBalance.balanceNonPhysical) || 0;
+    
     // Validasi saldo non-fisik mencukupi
-    if (lastBalance.balanceNonPhysical < amount) {
+    if (lastBalanceNonPhysical < amountValue) {
+      await session.abortTransaction();
       return res.status(400).json({
-        message: 'Saldo non-fisik tidak mencukupi untuk penarikan'
+        message: `Saldo non-fisik tidak mencukupi. Dibutuhkan: ${amountValue}, Tersedia: ${lastBalanceNonPhysical}`
       });
     }
 
     // Hitung saldo baru (perpindahan dari non-fisik ke fisik)
-    const newBalance = lastBalance.balance; // Total balance tetap
-    const newBalancePhysical = lastBalance.balancePhysical + amount;
-    const newBalanceNonPhysical = lastBalance.balanceNonPhysical - amount;
+    const newBalance = lastBalanceValue; // Total balance tetap
+    const newBalancePhysical = lastBalancePhysical + amountValue;
+    const newBalanceNonPhysical = lastBalanceNonPhysical - amountValue;
+
+    // Final validation - pastikan tidak ada NaN
+    if (isNaN(newBalance) || isNaN(newBalancePhysical) || isNaN(newBalanceNonPhysical)) {
+      await session.abortTransaction();
+      console.error('NaN detected in balance calculation:', {
+        lastBalance,
+        amountValue
+      });
+      return res.status(500).json({ 
+        message: 'Terjadi kesalahan dalam perhitungan saldo' 
+      });
+    }
 
     // Simpan transaksi penarikan tunai
     const cashFlow = new CashFlow({
       day,
-      date,
+      date: new Date(date),
       description: `Penarikan Tunai: ${description}`,
       cashIn: 0,
       cashInPhysical: 0,
@@ -1088,19 +1176,30 @@ export const withdrawCash = async (req, res) => {
       balancePhysical: newBalancePhysical,
       balanceNonPhysical: newBalanceNonPhysical,
       source: 'Penarikan Tunai',
-      destination,
+      destination: destination || '',
       paymentMethod: 'mixed',
-      proof,
+      proof: proof || '',
       createdBy: user.username
     });
 
-    await cashFlow.save();
+    await cashFlow.save({ session });
+    await session.commitTransaction();
 
-    res.status(201).json(cashFlow);
+    res.status(201).json({
+      success: true,
+      message: 'Penarikan tunai berhasil dicatat',
+      data: cashFlow
+    });
 
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error melakukan penarikan tunai:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -1255,9 +1354,10 @@ export const getWeeklyReport = async (req, res) => {
 // Fungsi untuk mendapatkan saldo terakhir
 export const getLastBalance = async () => {
   try {
-    const lastEntry = await CashFlow.findOne().sort({ date: -1 });
+    const lastEntry = await CashFlow.findOne().sort({ date: -1, createdAt: -1 });
     
     if (!lastEntry) {
+      console.log('No previous cashflow entry found, using default balances');
       return { 
         balance: 0, 
         balancePhysical: 0, 
@@ -1265,12 +1365,21 @@ export const getLastBalance = async () => {
       };
     }
 
-    // Pastikan nilai tidak NaN
-    return {
-      balance: parseFloat(lastEntry.balance) || 0,
-      balancePhysical: parseFloat(lastEntry.balancePhysical) || 0,
-      balanceNonPhysical: parseFloat(lastEntry.balanceNonPhysical) || 0
+    // Validasi ketat untuk memastikan tidak ada NaN
+    const balance = Number(lastEntry.balance);
+    const balancePhysical = Number(lastEntry.balancePhysical);
+    const balanceNonPhysical = Number(lastEntry.balanceNonPhysical);
+
+    // Jika ada nilai yang invalid, gunakan default 0
+    const result = {
+      balance: isNaN(balance) ? 0 : balance,
+      balancePhysical: isNaN(balancePhysical) ? 0 : balancePhysical,
+      balanceNonPhysical: isNaN(balanceNonPhysical) ? 0 : balanceNonPhysical
     };
+
+    
+    return result;
+
   } catch (error) {
     console.error("Error getting last balance:", error);
     return { 
