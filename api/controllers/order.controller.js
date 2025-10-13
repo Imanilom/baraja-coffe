@@ -10,6 +10,7 @@ import { orderQueue, queueEvents } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
 import { io, broadcastNewOrder } from '../index.js';
+import {broadcastCashOrderToKitchen, broadcastNewOrderToAreas, broadcastOrderCreation } from '../helpers/broadcast.helper.js';
 import Reservation from '../models/Reservation.model.js';
 import QRCode from 'qrcode';
 // Import FCM service di bagian atas file
@@ -19,12 +20,8 @@ import { updateTableStatusAfterPayment } from './webhookController.js';
 import { getAreaGroup } from '../utils/areaGrouping.js';
 import { Outlet } from '../models/Outlet.model.js';
 import dayjs from 'dayjs'
-import utc from "dayjs/plugin/utc.js";
-import timezone from "dayjs/plugin/timezone.js";
 import { processGoSendDelivery } from '../helpers/deliveryHelper.js';
 
-dayjs.extend(utc);
-dayjs.extend(timezone);
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
   try {
@@ -114,7 +111,7 @@ export const createAppOrder = async (req, res) => {
 
     console.log('Received createAppOrder request:', req.body);
 
-    // ✅ Validasi items, kecuali reservasi tanpa open bill
+    //  Validasi items, kecuali reservasi tanpa open bill
     if ((!items || items.length === 0) && !(orderType === 'reservation' && !isOpenBill)) {
       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
     }
@@ -153,7 +150,7 @@ export const createAppOrder = async (req, res) => {
       }
     }
 
-    // ✅ Format orderType
+    //  Format orderType
     let formattedOrderType = '';
     switch (orderType) {
       case 'dineIn':
@@ -176,7 +173,7 @@ export const createAppOrder = async (req, res) => {
         break;
       case 'takeAway':
         formattedOrderType = 'Take Away';
-        // ✅ Tidak perlu validasi tambahan
+        //  Tidak perlu validasi tambahan
         break;
       case 'reservation':
         formattedOrderType = 'Reservation';
@@ -269,7 +266,7 @@ export const createAppOrder = async (req, res) => {
       }
     }
 
-    // ✅ Perhitungan konsisten
+    //  Perhitungan konsisten
     let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
     if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0) {
       totalBeforeDiscount = 25000; // minimal reservasi tanpa menu
@@ -1024,13 +1021,22 @@ export const createUnifiedOrder = async (req, res) => {
     const {
       order_id,
       source,
+      tableNumber,
+      orderType,
       customerId,
       outletId,
       loyaltyPointsToRedeem,
-      // OPSIONAL: field untuk delivery - HANYA UNTUK APP
       delivery_option, // 'pickup' atau 'delivery' (opsional, default 'pickup')
       recipient_data // data penerima untuk delivery (opsional)
     } = req.body;
+
+    // Validasi outletId
+    if (!outletId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Outlet ID diperlukan'
+      });
+    }
 
     // Cek jam buka/tutup outlet 
     const outlet = await Outlet.findById(outletId);
@@ -1041,50 +1047,18 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    const now = dayjs().tz("Asia/Jakarta");
-    const parseToMinutes = (timeStr) => {
-      if (!timeStr) return null;
-      const s = String(timeStr).trim().toUpperCase();
-      const m = s.match(/(\d{1,2}):(\d{2})/);
-      if (!m) return null;
-
-      let hh = parseInt(m[1], 10);
-      const mm = parseInt(m[2], 10);
-
-      // Deteksi AM/PM (kalau format 12 jam)
-      const hasAM = /\bAM\b/.test(s);
-      const hasPM = /\bPM\b/.test(s);
-      if (hasAM || hasPM) {
-        if (hh === 12) hh = hasAM ? 0 : 12;
-        else if (hasPM) hh += 12;
-      }
-
-      return hh * 60 + mm;
-    };
-
-    const currentMinutes = now.hour() * 60 + now.minute();
-    const openMinutes = parseToMinutes(outlet.openTime);
-    const closeMinutes = parseToMinutes(outlet.closeTime);
-
-    if (openMinutes != null && closeMinutes != null) {
-      let isOpen = false;
-
-      if (openMinutes < closeMinutes) {
-        // contoh: 06:00 - 23:00
-        isOpen =
-          currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
-      } else {
-        // contoh: 18:00 - 03:00 (lewat tengah malam)
-        isOpen =
-          currentMinutes >= openMinutes || currentMinutes <= closeMinutes;
-      }
-
-      if (!isOpen) {
-        return res.status(400).json({
-          success: false,
-          message: `Outlet sedang tutup. Jam buka: ${outlet.openTime} - ${outlet.closeTime}`,
-        });
-      }
+    // PERBAIKAN: Pengecekan jam operasional outlet
+    const isOutletOpen = checkOutletOperatingHours(outlet);
+    if (!isOutletOpen.isOpen) {
+      return res.status(400).json({
+        success: false,
+        message: `Outlet sedang tutup. ${isOutletOpen.message}`,
+        operatingHours: {
+          openTime: outlet.openTime,
+          closeTime: outlet.closeTime,
+          timezone: 'Asia/Jakarta'
+        }
+      });
     }
 
     // VALIDASI: Hanya App yang boleh melakukan delivery
@@ -1147,6 +1121,8 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     const validated = validateOrderData(req.body, source);
+    validated.outletId = outletId; // Tambahkan ini
+    validated.outlet = outletId;   
 
     // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
     validated.customerId = customerId;
@@ -1158,21 +1134,44 @@ export const createUnifiedOrder = async (req, res) => {
       validated.recipient_data = recipient_data;
     }
 
-    const { tableNumber, orderType, reservationData } = validated;
-    const areaGroup = getAreaGroup(tableNumber);
+    const areaCode = tableNumber?.charAt(0).toUpperCase();
+    const areaGroup = getAreaGroup(areaCode); // Pass areaCode, bukan tableNumber
 
     // Generate order ID
     let orderId;
     if (tableNumber) {
       orderId = await generateOrderId(String(tableNumber));
-      io.to(`area_${tableNumber}`).emit('new_order', { orderId });
+
     } else {
       orderId = `${source.toUpperCase()}-${Date.now()}`;
     }
 
     if (areaGroup) {
-      io.to(areaGroup).emit('new_order', { orderId });
+        // Broadcast ke area group
+        io.to(areaGroup).emit('new_order_created', { 
+            orderId,
+            tableNumber,
+            areaCode,
+            areaGroup,
+            source,
+            timestamp: new Date()
+        });
+        
+        // Juga broadcast ke area room spesifik
+        const areaRoom = `area_${areaCode}`;
+        io.to(areaRoom).emit('new_order_in_area', {
+            orderId,
+            tableNumber,
+            areaCode,
+            source,
+            timestamp: new Date()
+        });
+        
+        console.log(`📢 Order ${orderId} broadcasted to ${areaGroup} and ${areaRoom}`);
+    } else {
+        console.warn(`⚠️ No area group found for table ${tableNumber}, area code: ${areaCode}`);
     }
+
 
     // Add reservation-specific processing if needed
     if (orderType === 'reservation' && reservationData) {
@@ -1218,13 +1217,20 @@ export const createUnifiedOrder = async (req, res) => {
       }
     });
 
-    console.log(`Job created: ${job.id} for order: ${orderId}`);
-
     // Wait for job completion dengan timeout
     let result;
     try {
       result = await job.waitUntilFinished(queueEvents, 30000);
       console.log(`Job ${job.id} completed successfully`);
+
+      await broadcastOrderCreation(orderId, {
+        ...validated,
+        tableNumber,
+        source,
+        outletId,
+        paymentDetails: validated.paymentDetails
+      });
+
 
     } catch (queueErr) {
       console.error(`Job ${job.id} failed:`, queueErr);
@@ -1244,8 +1250,16 @@ export const createUnifiedOrder = async (req, res) => {
       jobId: job.id
     };
 
-    // Handle payment based on source
+     // Handle payment based on source
     if (source === 'Cashier') {
+      //  BROADCAST UNTUK CASHIER CASH PAYMENT
+      await broadcastCashOrderToKitchen({
+        orderId,
+        tableNumber,
+        orderData: validated,
+        outletId
+      });
+
       return res.status(200).json({
         ...baseResponse,
         status: 'Completed',
@@ -1261,7 +1275,6 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (source === 'App') {
-      // PROSES DELIVERY HANYA JIKA orderType adalah 'delivery'
       let deliveryResult = null;
       if (delivery_option === 'delivery' && recipient_data) {
         try {
@@ -1271,11 +1284,9 @@ export const createUnifiedOrder = async (req, res) => {
             recipient_data,
             orderData: validated
           });
-
           console.log('GoSend delivery created for App:', deliveryResult);
         } catch (deliveryError) {
           console.error('Failed to create GoSend delivery for App:', deliveryError);
-          // Return error karena delivery mandatory untuk App yang pilih delivery
           return res.status(500).json({
             success: false,
             message: `Gagal membuat pesanan delivery: ${deliveryError.message}`,
@@ -1284,42 +1295,75 @@ export const createUnifiedOrder = async (req, res) => {
         }
       }
 
-      const midtransRes = await createMidtransCoreTransaction(
-        orderId,
-        validated.paymentDetails.amount,
-        validated.paymentDetails.method
-      );
+      //  CHECK PAYMENT METHOD UNTUK APP
+      const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
+      
+      if (isCashPayment) {
+        //  BROADCAST UNTUK APP CASH PAYMENT
+        await broadcastCashOrderToKitchen({
+          orderId,
+          tableNumber,
+          orderData: validated,
+          outletId,
+          isAppOrder: true,
+          deliveryOption: delivery_option
+        });
 
-      // Response untuk App dengan atau tanpa delivery
-      const appResponse = {
-        ...baseResponse,
-        status: 'waiting_payment',
-        midtrans: midtransRes,
-        // Tambahkan delivery_option ke response
-        delivery_option: delivery_option || 'pickup',
-        // Loyalty info opsional
-        ...(result.loyalty?.isApplied && {
-          loyalty: {
-            pointsEarned: result.loyalty.pointsEarned,
-            pointsUsed: result.loyalty.pointsUsed,
-            discountAmount: result.loyalty.discountAmount
-          }
-        })
-      };
+        return res.status(200).json({
+          ...baseResponse,
+          status: 'Pending',
+          message: 'App cash order processed and paid',
+          delivery_option: delivery_option || 'pickup',
+          ...(result.loyalty?.isApplied && {
+            loyalty: {
+              pointsEarned: result.loyalty.pointsEarned,
+              pointsUsed: result.loyalty.pointsUsed,
+              discountAmount: result.loyalty.discountAmount
+            }
+          }),
+          ...(deliveryResult && {
+            delivery: {
+              provider: 'GoSend',
+              status: 'Pending',
+              tracking_number: deliveryResult.goSend_order_no,
+              estimated_price: deliveryResult.estimated_price,
+              live_tracking_url: deliveryResult.live_tracking_url,
+              shipment_method: deliveryResult.shipment_method
+            }
+          })
+        });
+      } else {
+        // Non-cash payment (Midtrans)
+        const midtransRes = await createMidtransCoreTransaction(
+          orderId,
+          validated.paymentDetails.amount,
+          validated.paymentDetails.method
+        );
 
-      // Tambahkan delivery info hanya jika ada deliveryResult
-      if (deliveryResult) {
-        appResponse.delivery = {
-          provider: 'GoSend',
-          status: 'pending',
-          tracking_number: deliveryResult.goSend_order_no,
-          estimated_price: deliveryResult.estimated_price,
-          live_tracking_url: deliveryResult.live_tracking_url,
-          shipment_method: deliveryResult.shipment_method
-        };
+        return res.status(200).json({
+          ...baseResponse,
+          status: 'waiting_payment',
+          midtrans: midtransRes,
+          delivery_option: delivery_option || 'pickup',
+          ...(result.loyalty?.isApplied && {
+            loyalty: {
+              pointsEarned: result.loyalty.pointsEarned,
+              pointsUsed: result.loyalty.pointsUsed,
+              discountAmount: result.loyalty.discountAmount
+            }
+          }),
+          ...(deliveryResult && {
+            delivery: {
+              provider: 'GoSend',
+              status: 'Pending',
+              tracking_number: deliveryResult.goSend_order_no,
+              estimated_price: deliveryResult.estimated_price,
+              live_tracking_url: deliveryResult.live_tracking_url,
+              shipment_method: deliveryResult.shipment_method
+            }
+          })
+        });
       }
-
-      return res.status(200).json(appResponse);
     }
 
     if (source === 'Web') {
@@ -1342,14 +1386,43 @@ export const createUnifiedOrder = async (req, res) => {
       };
       const payment = await Payment.create(paymentData);
 
-      // WEB TIDAK BISA DELIVERY - skip delivery processing
+      //  CHECK PAYMENT METHOD UNTUK WEB
+      const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
+      
+      if (isCashPayment) {
+        //  BROADCAST UNTUK WEB CASH PAYMENT
+        await broadcastCashOrderToKitchen({
+          orderId,
+          tableNumber,
+          orderData: validated,
+          outletId,
+          isWebOrder: true
+        });
 
-      // If payment method is cash, do not create Midtrans Snap
-      if (validated.paymentDetails.method?.toLowerCase() === 'cash') {
+        return res.status(200).json({
+          ...baseResponse,
+          status: 'pending',
+          message: 'Web cash order processed and paid',
+          ...(result.loyalty?.isApplied && {
+            loyalty: {
+              pointsEarned: result.loyalty.pointsEarned,
+              pointsUsed: result.loyalty.pointsUsed
+            }
+          })
+        });
+      } else {
+        // Non-cash payment (Midtrans Snap)
+        const midtransRes = await createMidtransSnapTransaction(
+          orderId,
+          validated.paymentDetails.amount,
+          validated.paymentDetails.method
+        );
+
         return res.status(200).json({
           ...baseResponse,
           status: 'waiting_payment',
-          message: 'Cash payment, no Midtrans Snap required',
+          snapToken: midtransRes.token,
+          redirectUrl: midtransRes.redirect_url,
           ...(result.loyalty?.isApplied && {
             loyalty: {
               pointsEarned: result.loyalty.pointsEarned,
@@ -1358,26 +1431,6 @@ export const createUnifiedOrder = async (req, res) => {
           })
         });
       }
-
-      // Otherwise, create Midtrans Snap transaction
-      const midtransRes = await createMidtransSnapTransaction(
-        orderId,
-        validated.paymentDetails.amount,
-        validated.paymentDetails.method
-      );
-
-      return res.status(200).json({
-        ...baseResponse,
-        status: 'waiting_payment',
-        snapToken: midtransRes.token,
-        redirectUrl: midtransRes.redirect_url,
-        ...(result.loyalty?.isApplied && {
-          loyalty: {
-            pointsEarned: result.loyalty.pointsEarned,
-            pointsUsed: result.loyalty.pointsUsed
-          }
-        })
-      });
     }
 
     throw new Error('Invalid order source');
@@ -1390,6 +1443,96 @@ export const createUnifiedOrder = async (req, res) => {
     });
   }
 };
+
+// HELPER FUNCTION UNTUK CEK JAM OPERASIONAL OUTLET
+const checkOutletOperatingHours = (outlet) => {
+  // Jika outlet tidak memiliki jam operasional, dianggap buka 24 jam
+  if (!outlet.openTime || !outlet.closeTime) {
+    return {
+      isOpen: true,
+      message: 'Outlet buka 24 jam'
+    };
+  }
+
+  const parseToMinutes = (timeStr) => {
+    if (!timeStr) return null;
+    const s = String(timeStr).trim().toUpperCase();
+    const m = s.match(/(\d{1,2}):(\d{2})/);
+    if (!m) return null;
+    
+    let hh = parseInt(m[1], 10);
+    const mm = parseInt(m[2], 10);
+
+    // Handle AM/PM if present
+    const hasAM = /\bAM\b/.test(s);
+    const hasPM = /\bPM\b/.test(s);
+    if (hasAM || hasPM) {
+      if (hh === 12) hh = hasAM ? 0 : 12;
+      else if (hasPM) hh += 12;
+    }
+
+    // Validasi jam (0-23) dan menit (0-59)
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+      return null;
+    }
+
+    return hh * 60 + mm;
+  };
+
+  // PERBAIKAN: Gunakan Date object biasa untuk WIB
+  const getWIBCurrentTime = () => {
+    const now = new Date();
+    // Convert to WIB (UTC+7)
+    const wibOffset = 7 * 60; // 7 hours in minutes
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const wibTime = new Date(utc + (3600000 * 7));
+    return wibTime;
+  };
+
+  const wibNow = getWIBCurrentTime();
+  const currentMinutes = wibNow.getHours() * 60 + wibNow.getMinutes();
+
+  const openMinutes = parseToMinutes(outlet.openTime);
+  const closeMinutes = parseToMinutes(outlet.closeTime);
+
+  // Jika parsing gagal, skip validation (defensive)
+  if (openMinutes === null || closeMinutes === null) {
+    console.warn('Invalid time format for outlet operating hours:', {
+      outletId: outlet._id,
+      openTime: outlet.openTime,
+      closeTime: outlet.closeTime
+    });
+    return {
+      isOpen: true,
+      message: 'Format jam operasional tidak valid, dianggap buka'
+    };
+  }
+
+  let isOpen = false;
+  let message = '';
+
+  if (openMinutes < closeMinutes) {
+    // same-day window (e.g. 09:00 - 18:00)
+    isOpen = currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
+    message = `Jam operasional: ${outlet.openTime} - ${outlet.closeTime}`;
+  } else {
+    // overnight window (e.g. 06:00 - 03:00 next day)
+    isOpen = currentMinutes >= openMinutes || currentMinutes <= closeMinutes;
+    message = `Jam operasional: ${outlet.openTime} - ${outlet.closeTime} (buka semalam)`;
+  }
+
+  // Tambahkan informasi waktu saat ini dalam response untuk debugging
+  const currentTimeFormatted = `${String(wibNow.getHours()).padStart(2, '0')}:${String(wibNow.getMinutes()).padStart(2, '0')}`;
+  
+  return {
+    isOpen,
+    message: isOpen ? 
+      `Outlet buka. ${message} (Waktu sekarang: ${currentTimeFormatted})` : 
+      `Outlet tutup. ${message} (Waktu sekarang: ${currentTimeFormatted})`
+  };
+};
+
+
 
 export const confirmOrder = async (req, res) => {
   const { orderId } = req.params;
@@ -1566,7 +1709,7 @@ export const confirmOrderByCashier = async (req, res) => {
         timestamp: new Date()
       });
 
-      // ✅ EMIT SOCKET EVENTS FOR ORDER STATUS CHANGE
+      //  EMIT SOCKET EVENTS FOR ORDER STATUS CHANGE
       const statusUpdateData = {
         order_id: orderId, // Use string order_id for consistency
         status: 'OnProcess',
@@ -2455,7 +2598,7 @@ export const createFinalPayment = async (req, res) => {
       status: 'pending'
     }).sort({ createdAt: -1 });
 
-    // ✅ JIKA ADA PENDING, UPDATE SAJA
+    //  JIKA ADA PENDING, UPDATE SAJA
     if (pendingFinalPayment) {
       console.log("Found existing pending Final Payment, updating...");
 
@@ -2496,7 +2639,7 @@ export const createFinalPayment = async (req, res) => {
           expiry_time: expiryTime,
         };
 
-        // ✅ UPDATE existing payment
+        //  UPDATE existing payment
         await Payment.updateOne(
           { _id: pendingFinalPayment._id },
           {
@@ -2554,7 +2697,7 @@ export const createFinalPayment = async (req, res) => {
 
       const response = await coreApi.charge(chargeParams);
 
-      // ✅ UPDATE existing payment
+      //  UPDATE existing payment
       await Payment.updateOne(
         { _id: pendingFinalPayment._id },
         {
@@ -2597,7 +2740,7 @@ export const createFinalPayment = async (req, res) => {
       });
     }
 
-    // ✅ JIKA TIDAK ADA PENDING, LANJUT KE LOGIKA BUAT BARU
+    //  JIKA TIDAK ADA PENDING, LANJUT KE LOGIKA BUAT BARU
     // ... sisanya tetap sama seperti kode original Anda
     // (kode untuk cari downPayment, create Final Payment baru, dll)
 
@@ -3532,7 +3675,7 @@ export const getOrderById = async (req, res) => {
     console.log('Total Amount Remaining:', totalAmountRemaining);
     console.log('Total Amount Remaining (amount):', totalAmountRemaining?.amount || 'N/A');
 
-    // ✅ TAMBAHAN: Payment details untuk down payment
+    //  TAMBAHAN: Payment details untuk down payment
     const paymentDetails = {
       totalAmount: totalAmountRemaining?.amount || payment?.totalAmount || order.grandTotal || 0,
       paidAmount: payment?.amount || 0,
@@ -3546,7 +3689,7 @@ export const getOrderById = async (req, res) => {
       status: paymentStatus,
     };
 
-    // ✅ DEBUG: Log semua data order untuk melihat struktur sebenarnya
+    //  DEBUG: Log semua data order untuk melihat struktur sebenarnya
     console.log('=== DEBUGGING ORDER DATA ===');
     console.log('Order keys:', Object.keys(order.toObject()));
     console.log('Applied Voucher:', JSON.stringify(order.appliedVoucher, null, 2));
@@ -3557,7 +3700,7 @@ export const getOrderById = async (req, res) => {
     console.log('Total Tax:', order.totalTax);
     console.log('============================');
 
-    // ✅ TAMBAHAN: Format voucher data - sekarang sudah ter-populate
+    //  TAMBAHAN: Format voucher data - sekarang sudah ter-populate
     let voucherData = null;
 
     if (order.appliedVoucher && typeof order.appliedVoucher === 'object') {
@@ -3608,7 +3751,7 @@ export const getOrderById = async (req, res) => {
       }
     }
 
-    // ✅ TAMBAHAN: Format tax and service details - sekarang sudah ter-populate  
+    //  TAMBAHAN: Format tax and service details - sekarang sudah ter-populate  
     let taxAndServiceDetails = [];
 
     if (order.taxAndServiceDetails && Array.isArray(order.taxAndServiceDetails)) {
@@ -3654,13 +3797,13 @@ export const getOrderById = async (req, res) => {
       totalAfterDiscount: order.totalAfterDiscount || 0,
       grandTotal: order.grandTotal || 0,
 
-      // ✅ TAMBAHAN: Detail pembayaran yang lebih lengkap
+      //  TAMBAHAN: Detail pembayaran yang lebih lengkap
       paymentDetails: paymentDetails,
 
-      // ✅ TAMBAHAN: Data voucher
+      //  TAMBAHAN: Data voucher
       voucher: voucherData,
 
-      // ✅ TAMBAHAN: Data tax dan service details
+      //  TAMBAHAN: Data tax dan service details
       taxAndServiceDetails: taxAndServiceDetails,
       totalTax: totalTax,
 
@@ -3794,15 +3937,7 @@ export const getCashierOrderHistory = async (req, res) => {
             // workstation: item.menuItem.workstation,
             // categories: item.menuItem.category, // renamed
           },
-          selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
-            name: addon.name,
-            _id: addon._id,
-            options: [{
-              id: addon._id, // assuming _id as id for options
-              label: addon.label || addon.name, // fallback
-              price: addon.price
-            }]
-          })) : [],
+          selectedAddons: item.addons.length > 0 ? item.addons : [],
           selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
             id: topping._id || topping.id, // fallback if structure changes
             name: topping.name,

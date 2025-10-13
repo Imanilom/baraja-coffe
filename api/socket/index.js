@@ -30,31 +30,28 @@ export default function socketHandler(io) {
 
                 console.log(`🔐 Device session authentication: ${sessionId}, Device: ${deviceId}`);
 
-                // Verifikasi session
                 const session = await DeviceSession.findOne({
                     _id: sessionId,
                     device: deviceId,
                     isActive: true
                 })
-                    .populate('device')
-                    .populate('user')
-                    .populate('outlet');
+                .populate('device')
+                .populate('user')
+                .populate('outlet');
 
                 if (!session) {
                     throw new Error('Session tidak valid atau sudah logout');
                 }
 
-                // Update session dengan socketId
+                // Update session & device
                 session.socketId = socket.id;
                 await session.save();
-
-                // Update device dengan socketId dan status online
                 await Device.findByIdAndUpdate(deviceId, {
                     socketId: socket.id,
                     isOnline: true
                 });
 
-                // Register device ke socket management system
+                // Register device
                 const deviceData = {
                     deviceId: session.device.deviceId,
                     outletId: session.outlet._id,
@@ -65,41 +62,56 @@ export default function socketHandler(io) {
                     assignedTables: session.device.assignedTables,
                     orderTypes: session.device.orderTypes
                 };
-
                 await socketManagement.registerDevice(socket, deviceData);
 
-                // Join rooms berdasarkan role dan area
-                socket.join(session.role);
+                // ✅ ✅ ✅ PERBAIKAN: AUTO-JOIN AREAS YANG BENAR
+                const joinedRooms = [];
 
+                // Basic rooms
+                socket.join(session.role);
+                joinedRooms.push(session.role);
+                
+                socket.join(`outlet_${session.outlet._id}`);
+                joinedRooms.push(`outlet_${session.outlet._id}`);
+
+                socket.join('cashier_room');
+                joinedRooms.push('cashier_room');
+
+                // ✅ AUTO-JOIN AREA ROOMS BERDASARKAN assignedAreas
                 if (session.device.assignedAreas && session.device.assignedAreas.length > 0) {
                     session.device.assignedAreas.forEach(area => {
-                        socket.join(`area_${area}`);
-                        socket.join(room);
-                        console.log(`Device ${session.device.deviceName} joined ${room}`);
-
+                        const areaRoom = `area_${area}`;
+                        socket.join(areaRoom);
+                        joinedRooms.push(areaRoom);
+                        console.log(`📍 Device ${session.device.deviceName} joined area room: ${areaRoom}`);
+                        
+                        // Join area group
+                        const areaGroup = getAreaGroup(area);
+                        if (areaGroup) {
+                            socket.join(areaGroup);
+                            joinedRooms.push(areaGroup);
+                            console.log(`📍 Device ${session.device.deviceName} joined area group: ${areaGroup}`);
+                        }
                     });
                 }
 
-                // Join outlet room
-                socket.join(`outlet_${session.outlet._id}`);
-
-                // Join legacy rooms untuk compatibility
-                socket.join('cashier_room');
-
-                // Join bar room berdasarkan role
+                // Role-specific rooms
                 if (session.role.includes('bar')) {
                     const barType = session.role.includes('depan') ? 'depan' : 'belakang';
                     socket.join(`bar_${barType}`);
-                    console.log(`✅ Joined bar room: bar_${barType}`);
+                    joinedRooms.push(`bar_${barType}`);
+                    console.log(`🍹 Joined bar room: bar_${barType}`);
                 }
 
-                // Join kitchen room jika role kitchen
                 if (session.role.includes('kitchen')) {
                     socket.join('kitchen_room');
                     socket.join(`kitchen_${session.outlet._id}`);
+                    joinedRooms.push('kitchen_room', `kitchen_${session.outlet._id}`);
+                    console.log(`👨‍🍳 Joined kitchen rooms`);
                 }
 
-                console.log(`✅ Device authenticated: ${session.device.deviceName} - ${session.user.name} (${session.role}) - Socket: ${socket.id}`);
+                console.log(`✅ Device authenticated: ${session.device.deviceName} - ${session.user.name} (${session.role})`);
+                console.log(`📍 Total joined rooms: ${joinedRooms.length}`);
 
                 const response = {
                     success: true,
@@ -118,6 +130,7 @@ export default function socketHandler(io) {
                         orderTypes: session.device.orderTypes,
                         location: session.device.location
                     },
+                    joinedRooms: joinedRooms,
                     message: 'Device authenticated successfully'
                 };
 
@@ -132,12 +145,13 @@ export default function socketHandler(io) {
                     userName: session.user.name,
                     role: session.role,
                     socketId: socket.id,
+                    assignedAreas: session.device.assignedAreas,
                     timestamp: new Date()
                 });
 
             } catch (error) {
                 console.error('Device session authentication error:', error);
-
+                
                 const response = {
                     success: false,
                     error: error.message
@@ -146,7 +160,7 @@ export default function socketHandler(io) {
                 if (typeof callback === 'function') {
                     callback(response);
                 }
-
+                
                 socket.disconnect();
             }
         });

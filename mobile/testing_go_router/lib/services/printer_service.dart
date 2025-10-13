@@ -650,19 +650,19 @@ class PrinterService {
     final List<int> bytes = [];
 
     // Header
-    bytes.addAll(await generateHeadersBytes(generator, paperSize));
+    // bytes.addAll(await generateHeadersBytes(generator, paperSize));
 
     // Bill Data
-    bytes.addAll(
-      await generateBillDataBytes(
-        generator,
-        paperSize,
-        orderDetail.orderId,
-        orderDetail.user,
-        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
-        orderDetail.tableNumber,
-      ),
-    );
+    // bytes.addAll(
+    //   await generateBillDataBytes(
+    //     generator,
+    //     paperSize,
+    //     orderDetail.orderId,
+    //     orderDetail.user,
+    //     OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+    //     orderDetail.tableNumber,
+    //   ),
+    // );
 
     bytes.addAll(generator.hr());
 
@@ -671,9 +671,95 @@ class PrinterService {
     //list order Items
     for (var item in orderdetail) {
       bytes.addAll(
+        generator.text(
+          item.menuItem.name!,
+          styles: PosStyles(bold: true, align: PosAlign.left),
+        ),
+      );
+      if (item.selectedAddons.isNotEmpty) {
+        if (item.selectedAddons
+            .map((x) => x.options)
+            .where((element) => element != null)
+            .isNotEmpty) {
+          bytes.addAll(
+            generator.row([
+              PosColumn(
+                text: '',
+                width: 1,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+              PosColumn(
+                text: item.selectedAddons
+                    .map((x) {
+                      final addon =
+                          "${x.name}: ${x.options!.map((x) => x.label).join(', ')}";
+                      return addon;
+                    })
+                    .join(', '),
+                width: 8,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+              PosColumn(
+                text: ' ',
+                width: 3,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+            ]),
+          );
+        }
+      }
+
+      if (item.selectedToppings.isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: '',
+              width: 1,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text:
+                  '+${item.selectedToppings.map((x) {
+                    final topping = "${x.name}${x.price != 0 ? '(+${x.price})' : ''}";
+                    return topping;
+                  }).join(', ')}',
+              width: 8,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: ' ',
+              width: 3,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
+      }
+
+      if (item.notes != null &&
+          item.notes!.isNotEmpty &&
+          item.notes!.trim().isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: '',
+              width: 1,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: '"${item.notes}" ',
+              width: 11,
+              styles: const PosStyles(
+                align: PosAlign.left,
+                fontType: PosFontType.fontB,
+              ),
+            ),
+          ]),
+        );
+      }
+      bytes.addAll(
         generator.row([
           PosColumn(
-            text: item.menuItem.name!,
+            text: item.menuItem.originalPrice.toString(),
             width: 5,
             styles: const PosStyles(align: PosAlign.left),
           ),
@@ -689,105 +775,106 @@ class PrinterService {
           ),
         ]),
       );
+      bytes.addAll(generator.feed(1));
     }
     bytes.addAll(generator.hr());
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Sub Total Harga',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: formatPrice(orderDetail.totalAfterDiscount).toString(),
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Tax 10%',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: formatPrice(orderDetail.totalTax).toString(),
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
+    // bytes.addAll(
+    //   generator.row([
+    //     PosColumn(
+    //       text: 'Sub Total Harga',
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.left),
+    //     ),
+    //     PosColumn(
+    //       text: formatPrice(orderDetail.totalAfterDiscount).toString(),
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.right),
+    //     ),
+    //   ]),
+    // );
+    // bytes.addAll(
+    //   generator.row([
+    //     PosColumn(
+    //       text: 'Tax 10%',
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.left),
+    //     ),
+    //     PosColumn(
+    //       text: formatPrice(orderDetail.totalTax).toString(),
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.right),
+    //     ),
+    //   ]),
+    // );
 
-    bytes.addAll(generator.hr());
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Total Harga',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: formatPrice(orderDetail.grandTotal).toString(),
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-    bytes.addAll(generator.hr());
+    // bytes.addAll(generator.hr());
+    // bytes.addAll(
+    //   generator.row([
+    //     PosColumn(
+    //       text: 'Total Harga',
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.left),
+    //     ),
+    //     PosColumn(
+    //       text: formatPrice(orderDetail.grandTotal).toString(),
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.right),
+    //     ),
+    //   ]),
+    // );
+    // bytes.addAll(generator.hr());
 
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Metode',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
-          text: orderDetail.paymentType ?? "-",
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
+    // bytes.addAll(
+    //   generator.row([
+    //     PosColumn(
+    //       text: 'Metode',
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.left),
+    //     ),
+    //     PosColumn(
+    //       //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
+    //       text: orderDetail.paymentType ?? "-",
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.right),
+    //     ),
+    //   ]),
+    // );
 
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Bibayar',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: formatPrice(orderDetail.paymentAmount).toString(),
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-    bytes.addAll(generator.hr());
+    // bytes.addAll(
+    //   generator.row([
+    //     PosColumn(
+    //       text: 'Bibayar',
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.left),
+    //     ),
+    //     PosColumn(
+    //       text: formatPrice(orderDetail.paymentAmount).toString(),
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.right),
+    //     ),
+    //   ]),
+    // );
+    // bytes.addAll(generator.hr());
 
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Kembalian',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: formatPrice(orderDetail.changeAmount).toString(),
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-    bytes.addAll(generator.hr());
-    //footer
-    await generateFooterBytes(generator, paperSize).then((footerBytes) {
-      bytes.addAll(footerBytes);
-    });
+    // bytes.addAll(
+    //   generator.row([
+    //     PosColumn(
+    //       text: 'Kembalian',
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.left),
+    //     ),
+    //     PosColumn(
+    //       text: formatPrice(orderDetail.changeAmount).toString(),
+    //       width: 6,
+    //       styles: const PosStyles(align: PosAlign.right),
+    //     ),
+    //   ]),
+    // );
+    // bytes.addAll(generator.hr());
+    // //footer
+    // await generateFooterBytes(generator, paperSize).then((footerBytes) {
+    //   bytes.addAll(footerBytes);
+    // });
 
     //feed and cut
     // bytes.addAll(generator.feed(2));
@@ -878,23 +965,6 @@ class PrinterService {
           ),
         ]),
       );
-      if (item.selectedToppings.isNotEmpty) {
-        bytes.addAll(
-          generator.row([
-            PosColumn(
-              text: ' ',
-              width: 2,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-            PosColumn(
-              text:
-                  '+${item.selectedToppings.map((x) => x.name).toList().join(', ')}',
-              width: 10,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-          ]),
-        );
-      }
       if (item.selectedAddons.isNotEmpty) {
         if (item.selectedAddons
             .map((x) => x.options)
@@ -908,14 +978,39 @@ class PrinterService {
                 styles: const PosStyles(align: PosAlign.left),
               ),
               PosColumn(
-                text:
-                    '+${item.selectedAddons.map((x) => x.options?.map((x) => x.label)).toList().join(', ')}',
+                text: item.selectedAddons
+                    .map((x) {
+                      final addon =
+                          "${x.name}: ${x.options!.map((x) => x.label).join(', ')}";
+                      return addon;
+                    })
+                    .join(', '),
                 width: 10,
                 styles: const PosStyles(align: PosAlign.left),
               ),
             ]),
           );
         }
+      }
+      if (item.selectedToppings.isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: ' ',
+              width: 2,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text:
+                  '+${item.selectedToppings.map((x) {
+                    final topping = "${x.name}${x.price != 0 ? '(+${x.price})' : ''}";
+                    return topping;
+                  }).join(', ')}',
+              width: 10,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
       }
       if (item.notes != null &&
           item.notes!.isNotEmpty &&
@@ -1036,23 +1131,6 @@ class PrinterService {
           ),
         ]),
       );
-      if (item.selectedToppings.isNotEmpty) {
-        bytes.addAll(
-          generator.row([
-            PosColumn(
-              text: ' ',
-              width: 2,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-            PosColumn(
-              text:
-                  '+${item.selectedToppings.map((x) => x.name).toList().join(', ')}',
-              width: 10,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-          ]),
-        );
-      }
       if (item.selectedAddons.isNotEmpty) {
         if (item.selectedAddons
             .map((x) => x.options)
@@ -1066,16 +1144,39 @@ class PrinterService {
                 styles: const PosStyles(align: PosAlign.left),
               ),
               PosColumn(
-                text:
-                    '+${item.selectedAddons.map((x) {
-                      return "${x.name}: ${x.options!.map((o) => o.label).join()}";
-                    }).toList().join(', ')}',
+                text: item.selectedAddons
+                    .map((x) {
+                      final addon =
+                          "${x.name}: ${x.options!.map((x) => x.label).join(', ')}";
+                      return addon;
+                    })
+                    .join(', '),
                 width: 10,
                 styles: const PosStyles(align: PosAlign.left),
               ),
             ]),
           );
         }
+      }
+      if (item.selectedToppings.isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: ' ',
+              width: 2,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text:
+                  '+${item.selectedToppings.map((x) {
+                    final topping = "${x.name}${x.price != 0 ? '(+${x.price})' : ''}";
+                    return topping;
+                  }).join(', ')}',
+              width: 10,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
       }
       //jangan tampilkan catatan jika isinya hanya spasi
       if (item.notes != null &&

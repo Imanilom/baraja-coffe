@@ -363,6 +363,10 @@ export const createMarketList = async (req, res) => {
     const relatedRequestIds = new Set();
     let totalCharged = 0;
     let totalPaid = 0;
+    
+    // Variabel untuk tracking pembayaran berdasarkan metode
+    let totalPhysical = 0;
+    let totalNonPhysical = 0;
 
     for (const item of items) {
       if (!item.warehouse) {
@@ -371,9 +375,28 @@ export const createMarketList = async (req, res) => {
 
       const amountCharged = item.quantityPurchased * item.pricePerUnit;
       const amountPaid = item.amountPaid || 0;
+      const paymentMethod = item.paymentMethod || 'physical'; // Default physical
 
       if (amountPaid > amountCharged) {
         throw new Error(`Jumlah dibayar tidak boleh lebih besar dari jumlah yang dibebankan untuk produk ${item.productName}`);
+      }
+
+      // Hitung pembagian berdasarkan metode pembayaran
+      if (paymentMethod === 'physical') {
+        totalPhysical += amountPaid;
+      } else if (paymentMethod === 'non-physical') {
+        totalNonPhysical += amountPaid;
+      } else if (paymentMethod === 'mixed') {
+        // Jika mixed, gunakan amountPhysical dan amountNonPhysical dari item
+        const amountPhysical = item.amountPhysical || 0;
+        const amountNonPhysical = item.amountNonPhysical || 0;
+        
+        if (amountPhysical + amountNonPhysical !== amountPaid) {
+          throw new Error(`Untuk metode pembayaran mixed, total amountPhysical + amountNonPhysical harus sama dengan amountPaid untuk produk ${item.productName}`);
+        }
+        
+        totalPhysical += amountPhysical;
+        totalNonPhysical += amountNonPhysical;
       }
 
       processedItems.push({
@@ -381,12 +404,26 @@ export const createMarketList = async (req, res) => {
         amountCharged,
         amountPaid,
         remainingBalance: Math.max(0, amountCharged - amountPaid),
+        paymentMethod,
+        amountPhysical: item.amountPhysical || 0,
+        amountNonPhysical: item.amountNonPhysical || 0,
       });
 
       totalCharged += amountCharged;
       totalPaid += amountPaid;
 
       if (item.requestId) relatedRequestIds.add(item.requestId);
+    }
+
+    // Validasi saldo cukup sebelum transaksi
+    const lastBalance = await getLastBalance();
+    
+    if (totalPhysical > lastBalance.balancePhysical) {
+      throw new Error(`Saldo fisik tidak mencukupi. Dibutuhkan: ${totalPhysical}, Tersedia: ${lastBalance.balancePhysical}`);
+    }
+    
+    if (totalNonPhysical > lastBalance.balanceNonPhysical) {
+      throw new Error(`Saldo non-fisik tidak mencukupi. Dibutuhkan: ${totalNonPhysical}, Tersedia: ${lastBalance.balanceNonPhysical}`);
     }
 
     const marketListDoc = new MarketList({
@@ -489,25 +526,39 @@ export const createMarketList = async (req, res) => {
       await request.save({ session });
     }
 
-    // Catat cashflow & hutang (opsional, sesuai kebutuhan)
-    const lastBalance = await getLastBalance(); // ← pastikan fungsi ini ada
-    let newBalance = lastBalance;
-
+    // Catat cashflow dengan pembagian fisik/non-fisik
     if (totalPaid > 0) {
+      const newBalance = lastBalance.balance - totalPaid;
+      const newBalancePhysical = lastBalance.balancePhysical - totalPhysical;
+      const newBalanceNonPhysical = lastBalance.balanceNonPhysical - totalNonPhysical;
+
+      // Tentukan metode pembayaran overall
+      let overallPaymentMethod = 'physical';
+      if (totalPhysical > 0 && totalNonPhysical > 0) {
+        overallPaymentMethod = 'mixed';
+      } else if (totalNonPhysical > 0) {
+        overallPaymentMethod = 'non-physical';
+      }
+
       const cashflow = new CashFlow({
         date,
         day,
         description: `Belanja harian - ${savedMarketList._id}`,
         cashOut: totalPaid,
-        balance: lastBalance - totalPaid,
+        cashOutPhysical: totalPhysical,
+        cashOutNonPhysical: totalNonPhysical,
+        balance: newBalance,
+        balancePhysical: newBalancePhysical,
+        balanceNonPhysical: newBalanceNonPhysical,
         destination: "Supplier",
+        paymentMethod: overallPaymentMethod,
         relatedMarketList: savedMarketList._id,
         createdBy: user.username,
       });
       await cashflow.save({ session });
-      newBalance = lastBalance - totalPaid;
     }
 
+    // Catat hutang untuk jumlah yang belum dibayar
     for (const item of processedItems) {
       const unpaidAmount = item.amountCharged - item.amountPaid;
       if (unpaidAmount > 0) {
@@ -536,12 +587,21 @@ export const createMarketList = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
+    // Dapatkan saldo terbaru setelah transaksi
+    const updatedBalance = await getLastBalance();
+
     res.status(201).json({
       success: true,
       marketList: savedMarketList,
-      cashBalance: newBalance,
+      cashBalance: updatedBalance.balance,
+      physicalBalance: updatedBalance.balancePhysical,
+      nonPhysicalBalance: updatedBalance.balanceNonPhysical,
       totalCharged,
       totalPaid,
+      paymentBreakdown: {
+        physical: totalPhysical,
+        nonPhysical: totalNonPhysical
+      },
       message: "Belanja berhasil disimpan. Stok masuk, dan request otomatis terpenuhi jika ada referensi.",
     });
   } catch (error) {
@@ -827,12 +887,31 @@ export const getCashFlow = async (req, res) => {
 
 export const addCashIn = async (req, res) => {
   try {
-    const { date, description, cashIn, source, destination, proof} = req.body;
+    const { 
+      date, 
+      description, 
+      cashIn, 
+      cashInPhysical, 
+      cashInNonPhysical, 
+      source, 
+      destination, 
+      proof 
+    } = req.body;
+    
     const day = getDayName(date);
+    
     // Validasi input
     if (!day || !date || !description || typeof cashIn !== 'number' || cashIn <= 0) {
       return res.status(400).json({
         message: 'Semua field harus diisi dan jumlah kas masuk harus > 0'
+      });
+    }
+
+    // Validasi konsistensi jumlah
+    const totalIn = (cashInPhysical || 0) + (cashInNonPhysical || 0);
+    if (totalIn !== cashIn) {
+      return res.status(400).json({
+        message: 'Total cashInPhysical + cashInNonPhysical harus sama dengan cashIn'
       });
     }
 
@@ -843,7 +922,11 @@ export const addCashIn = async (req, res) => {
 
     // Ambil saldo terakhir
     const lastBalance = await getLastBalance();
-    const newBalance = lastBalance + cashIn;
+    
+    // Hitung saldo baru
+    const newBalance = lastBalance.balance + cashIn;
+    const newBalancePhysical = lastBalance.balancePhysical + (cashInPhysical || 0);
+    const newBalanceNonPhysical = lastBalance.balanceNonPhysical + (cashInNonPhysical || 0);
 
     // Simpan ke database
     const cashFlow = new CashFlow({
@@ -851,8 +934,14 @@ export const addCashIn = async (req, res) => {
       date,
       description,
       cashIn,
+      cashInPhysical: cashInPhysical || 0,
+      cashInNonPhysical: cashInNonPhysical || 0,
       cashOut: 0,
+      cashOutPhysical: 0,
+      cashOutNonPhysical: 0,
       balance: newBalance,
+      balancePhysical: newBalancePhysical,
+      balanceNonPhysical: newBalanceNonPhysical,
       source,
       destination,
       proof,
@@ -865,6 +954,76 @@ export const addCashIn = async (req, res) => {
 
   } catch (error) {
     console.error('Error menambahkan kas masuk:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const withdrawCash = async (req, res) => {
+  try {
+    const { 
+      date, 
+      description, 
+      amount, 
+      destination, 
+      proof 
+    } = req.body;
+    
+    const day = getDayName(date);
+    
+    // Validasi input
+    if (!day || !date || !description || typeof amount !== 'number' || amount <= 0) {
+      return res.status(400).json({
+        message: 'Semua field harus diisi dan jumlah penarikan harus > 0'
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(401).json({ message: 'User tidak ditemukan' });
+    }
+
+    // Ambil saldo terakhir
+    const lastBalance = await getLastBalance();
+    
+    // Validasi saldo non-fisik mencukupi
+    if (lastBalance.balanceNonPhysical < amount) {
+      return res.status(400).json({
+        message: 'Saldo non-fisik tidak mencukupi untuk penarikan'
+      });
+    }
+
+    // Hitung saldo baru (perpindahan dari non-fisik ke fisik)
+    const newBalance = lastBalance.balance; // Total balance tetap
+    const newBalancePhysical = lastBalance.balancePhysical + amount;
+    const newBalanceNonPhysical = lastBalance.balanceNonPhysical - amount;
+
+    // Simpan transaksi penarikan tunai
+    const cashFlow = new CashFlow({
+      day,
+      date,
+      description: `Penarikan Tunai: ${description}`,
+      cashIn: 0,
+      cashInPhysical: 0,
+      cashInNonPhysical: 0,
+      cashOut: 0, // Tidak ada pengurangan total
+      cashOutPhysical: 0,
+      cashOutNonPhysical: 0,
+      balance: newBalance,
+      balancePhysical: newBalancePhysical,
+      balanceNonPhysical: newBalanceNonPhysical,
+      source: 'Penarikan Tunai',
+      destination,
+      paymentMethod: 'mixed',
+      proof,
+      createdBy: user.username
+    });
+
+    await cashFlow.save();
+
+    res.status(201).json(cashFlow);
+
+  } catch (error) {
+    console.error('Error melakukan penarikan tunai:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -1021,6 +1180,24 @@ const getLastBalance = async () => {
   const lastEntry = await CashFlow.findOne().sort({ date: -1 });
   return lastEntry ? lastEntry.balance : 0;
 };
+
+export const getBalanceSummary = async (req, res) => {
+  try {
+    const lastBalance = await getLastBalance();
+    
+    res.json({
+      totalBalance: lastBalance.balance,
+      physicalBalance: lastBalance.balancePhysical,
+      nonPhysicalBalance: lastBalance.balanceNonPhysical,
+      lastUpdated: new Date()
+    });
+    
+  } catch (error) {
+    console.error('Error mendapatkan summary saldo:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 
 export const getMarketListReportByDate = async (req, res, next) => {
   try {
