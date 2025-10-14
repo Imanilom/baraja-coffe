@@ -2,6 +2,7 @@
 import { Order } from '../models/order.model.js';
 import Table from '../models/Table.model.js';
 import Area from '../models/Area.model.js';
+import Payment from '../models/Payment.model.js'; 
 import { io } from '../index.js';
 import mongoose from "mongoose";
 
@@ -21,7 +22,6 @@ export const getActiveOrders = async (req, res) => {
       });
     }
 
-    // Hitung waktu 4 jam lalu dalam WIB
     const nowWIB = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
     const fourHoursAgo = new Date(nowWIB.getTime() - 4 * 60 * 60 * 1000);
 
@@ -30,7 +30,7 @@ export const getActiveOrders = async (req, res) => {
       status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
       orderType: 'Dine-In',
       tableNumber: { $exists: true, $ne: null },
-      createdAtWIB: { $gte: fourHoursAgo } // 🔥 Filter hanya 4 jam terakhir
+      createdAtWIB: { $gte: fourHoursAgo }
     })
     .populate('user_id', 'name phone')
     .populate('cashierId', 'name')
@@ -40,24 +40,55 @@ export const getActiveOrders = async (req, res) => {
     })
     .sort({ createdAt: -1 });
 
-    const formattedOrders = activeOrders.map(order => ({
-      id: order._id,
-      order_id: order.order_id,
-      customerName: order.user_id?.name || order.user,
-      customerPhone: order.user_id?.phone,
-      tableNumber: order.tableNumber,
-      status: order.status,
-      orderType: order.orderType,
-      items: order.items.map(item => ({
-        name: item.menuItem?.name,
-        quantity: item.quantity,
-        mainCategory: item.menuItem?.mainCategory,
-        workstation: item.menuItem?.workstation
-      })),
-      totalPrice: order.grandTotal,
-      createdAt: order.createdAtWIB,
-      isOpenBill: order.isOpenBill
-    }));
+    // Ambil semua order_id untuk query pembayaran sekaligus (lebih efisien)
+    const orderIds = activeOrders.map(order => order.order_id);
+    const payments = await Payment.find({ order_id: { $in: orderIds } });
+
+    // Group payments by order_id
+    const paymentMap = {};
+    payments.forEach(payment => {
+      if (!paymentMap[payment.order_id]) {
+        paymentMap[payment.order_id] = [];
+      }
+      paymentMap[payment.order_id].push(payment);
+    });
+
+    const formattedOrders = activeOrders.map(order => {
+      const orderPayments = paymentMap[order.order_id] || [];
+      
+      // Hitung total yang sudah dibayar (status settlement/paid)
+      const totalPaid = orderPayments
+        .filter(p => p.status === 'settlement' || p.status === 'paid')
+        .reduce((sum, p) => sum + p.amount, 0);
+
+      // Tentukan payment status
+      let paymentStatus = 'unpaid'; // default
+      if (totalPaid >= order.grandTotal) {
+        paymentStatus = 'paid';
+      } else if (totalPaid > 0) {
+        paymentStatus = 'partial';
+      }
+
+      return {
+        id: order._id,
+        order_id: order.order_id,
+        customerName: order.user_id?.name || order.user,
+        customerPhone: order.user_id?.phone,
+        tableNumber: order.tableNumber,
+        status: paymentStatus, // ✅ 'unpaid' | 'partial' | 'paid'
+        orderType: order.orderType,
+        items: order.items.map(item => ({
+          name: item.menuItem?.name,
+          quantity: item.quantity,
+          mainCategory: item.menuItem?.mainCategory,
+          workstation: item.menuItem?.workstation
+        })),
+        totalPrice: order.grandTotal,
+        totalPaid, // opsional: tampilkan jumlah sudah dibayar
+        createdAt: order.createdAtWIB,
+        isOpenBill: order.isOpenBill
+      };
+    });
 
     res.json({
       success: true,
