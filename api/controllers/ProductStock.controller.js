@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
 import StockMovement from '../models/modul_menu/StockMovement.model.js';
+import Warehouse from '../models/modul_market/Warehouse.model.js';
 import Product from '../models/modul_market/Product.model.js';
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 100; // 100ms delay antara retry
@@ -124,12 +125,19 @@ export const insertInitialStocks = async (req, res) => {
 
 export const getProductStock = async (req, res) => {
   try {
-    const { productId } = req.query;
+    const { productId, warehouseId } = req.query;
     if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
       return res.status(400).json({ success: false, message: 'ID Produk tidak valid' });
     }
 
-    const productStock = await ProductStock.findOne({ productId }).populate('productId', 'name sku unit');
+    if (warehouseId && !mongoose.Types.ObjectId.isValid(warehouseId)) {
+      return res.status(400).json({ success: false, message: 'ID Warehouse tidak valid' });
+    }
+
+    const query = { productId: new mongoose.Types.ObjectId(productId) };
+    if (warehouseId) query.warehouse = new mongoose.Types.ObjectId(warehouseId);
+
+    const productStock = await ProductStock.findOne(query).populate('productId', 'name sku unit');
     if (!productStock) {
       return res.status(404).json({
         success: true,
