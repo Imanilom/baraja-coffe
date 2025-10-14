@@ -129,18 +129,15 @@ export const getProductStock = async (req, res) => {
       productId, 
       warehouseId, 
       page = 1, 
-      limit = 25, 
+      limit = 25,
       search 
     } = req.query;
 
-    // Validasi dan konversi page & limit
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 25));
 
-    // Bangun query dasar
     const query = {};
 
-    // Filter berdasarkan productId (opsional)
     if (productId) {
       if (!mongoose.Types.ObjectId.isValid(productId)) {
         return res.status(400).json({ success: false, message: 'ID Produk tidak valid' });
@@ -148,7 +145,6 @@ export const getProductStock = async (req, res) => {
       query.productId = new mongoose.Types.ObjectId(productId);
     }
 
-    // Filter berdasarkan warehouseId (opsional)
     if (warehouseId) {
       if (!mongoose.Types.ObjectId.isValid(warehouseId)) {
         return res.status(400).json({ success: false, message: 'ID Warehouse tidak valid' });
@@ -156,33 +152,56 @@ export const getProductStock = async (req, res) => {
       query.warehouse = new mongoose.Types.ObjectId(warehouseId);
     }
 
-    // Search berdasarkan nama produk atau SKU (jika ada populate)
-    let searchQuery = {};
-    if (search) {
-      const searchRegex = new RegExp(search.trim(), 'i');
-      // Karena kita populate productId, kita bisa cari di field `name` atau `sku`
-      // Tapi karena populate tidak bisa langsung di-search di query utama,
-      // kita akan lakukan populate dulu, lalu filter di aplikasi — atau gunakan $lookup.
-      // Untuk sementara, abaikan search jika tidak ada productId/warehouseId spesifik.
-      // Alternatif: tambahkan field `productName` ke ProductStock (tidak disarankan).
-      // Jadi, kita hanya izinkan search jika ada productId atau warehouseId.
-    }
-
-    // Hitung total dokumen
     const total = await ProductStock.countDocuments(query);
 
-    // Ambil data dengan populate
+    // Ambil data ProductStock
     const stocks = await ProductStock.find(query)
       .populate('productId', 'name sku unit category')
-      .populate('warehouse', 'name code')
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum);
 
-    // Jika tidak ada filter dan tidak ada data, kembalikan array kosong (bukan error)
+    // Ambil semua warehouseId yang unik dari hasil
+    const warehouseIds = [...new Set(
+      stocks
+        .map(stock => stock.warehouse?.toString())
+        .filter(id => mongoose.Types.ObjectId.isValid(id))
+    )];
+
+    // Ambil semua warehouse yang valid sekaligus (1 query)
+    const validWarehouses = {};
+    if (warehouseIds.length > 0) {
+      const warehouses = await Warehouse.find({
+        _id: { $in: warehouseIds.map(id => new mongoose.Types.ObjectId(id)) }
+      }).select('name code');
+
+      warehouses.forEach(wh => {
+        validWarehouses[wh._id.toString()] = wh;
+      });
+    }
+
+    // Gabungkan data: tambahkan info warehouse jika ada, jika tidak, tampilkan ID
+    const result = stocks.map(stock => {
+      const stockObj = stock.toObject();
+      
+      const whId = stock.warehouse?.toString();
+      if (whId && validWarehouses[whId]) {
+        stockObj.warehouse = validWarehouses[whId];
+      } else {
+        // Fallback: tampilkan ID dan info default
+        stockObj.warehouse = {
+          _id: stock.warehouse || whId,
+          name: whId ? 'Gudang tidak ditemukan' : 'Tidak tersedia',
+          code: 'invalid'
+        };
+      }
+
+      return stockObj;
+    });
+
     res.status(200).json({
       success: true,
-      data: stocks,
+      data: result,
       pagination: {
         currentPage: pageNum,
         totalPages: Math.ceil(total / limitNum),
@@ -193,7 +212,10 @@ export const getProductStock = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching product stock:', error);
-    res.status(500).json({ success: false, message: 'Gagal mengambil data stok', error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Gagal mengambil data stok'
+    });
   }
 };
 
