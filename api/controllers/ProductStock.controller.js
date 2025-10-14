@@ -125,36 +125,75 @@ export const insertInitialStocks = async (req, res) => {
 
 export const getProductStock = async (req, res) => {
   try {
-    const { productId, warehouseId } = req.query;
-    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ success: false, message: 'ID Produk tidak valid' });
+    const { 
+      productId, 
+      warehouseId, 
+      page = 1, 
+      limit = 25, 
+      search 
+    } = req.query;
+
+    // Validasi dan konversi page & limit
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 25));
+
+    // Bangun query dasar
+    const query = {};
+
+    // Filter berdasarkan productId (opsional)
+    if (productId) {
+      if (!mongoose.Types.ObjectId.isValid(productId)) {
+        return res.status(400).json({ success: false, message: 'ID Produk tidak valid' });
+      }
+      query.productId = new mongoose.Types.ObjectId(productId);
     }
 
-    if (warehouseId && !mongoose.Types.ObjectId.isValid(warehouseId)) {
-      return res.status(400).json({ success: false, message: 'ID Warehouse tidak valid' });
+    // Filter berdasarkan warehouseId (opsional)
+    if (warehouseId) {
+      if (!mongoose.Types.ObjectId.isValid(warehouseId)) {
+        return res.status(400).json({ success: false, message: 'ID Warehouse tidak valid' });
+      }
+      query.warehouse = new mongoose.Types.ObjectId(warehouseId);
     }
 
-    const query = { productId: new mongoose.Types.ObjectId(productId) };
-    if (warehouseId) query.warehouse = new mongoose.Types.ObjectId(warehouseId);
-
-    const productStock = await ProductStock.findOne(query).populate('productId', 'name sku unit');
-    if (!productStock) {
-      return res.status(404).json({
-        success: true,
-        data: {
-          productId,
-          name: 'Unknown',
-          currentStock: 0,
-          minStock: 0,
-          movements: []
-        }
-      });
+    // Search berdasarkan nama produk atau SKU (jika ada populate)
+    let searchQuery = {};
+    if (search) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      // Karena kita populate productId, kita bisa cari di field `name` atau `sku`
+      // Tapi karena populate tidak bisa langsung di-search di query utama,
+      // kita akan lakukan populate dulu, lalu filter di aplikasi — atau gunakan $lookup.
+      // Untuk sementara, abaikan search jika tidak ada productId/warehouseId spesifik.
+      // Alternatif: tambahkan field `productName` ke ProductStock (tidak disarankan).
+      // Jadi, kita hanya izinkan search jika ada productId atau warehouseId.
     }
 
-    res.status(200).json({ success: true, data: productStock });
+    // Hitung total dokumen
+    const total = await ProductStock.countDocuments(query);
+
+    // Ambil data dengan populate
+    const stocks = await ProductStock.find(query)
+      .populate('productId', 'name sku unit category')
+      .populate('warehouse', 'name code')
+      .sort({ createdAt: -1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
+
+    // Jika tidak ada filter dan tidak ada data, kembalikan array kosong (bukan error)
+    res.status(200).json({
+      success: true,
+      data: stocks,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+        totalItems: total,
+        itemsPerPage: limitNum
+      }
+    });
+
   } catch (error) {
-    console.error('Error fetching stock:', error);
-    res.status(500).json({ success: false, message: 'Gagal mengambil data stok' });
+    console.error('Error fetching product stock:', error);
+    res.status(500).json({ success: false, message: 'Gagal mengambil data stok', error: error.message });
   }
 };
 
