@@ -239,7 +239,7 @@ export const getOrderDetails = async (req, res) => {
             orderId: order.order_id,
             createdAt: order.createdAt,
             customerName: order.user,
-            cashier: order.cashierId?.name || 'Unknown',
+            cashier: order.cashierId?.username || 'Unknown',
             outlet: order.outlet?.name || 'Unknown',
             orderType: order.orderType,
             tableNumber: order.tableNumber || '',
@@ -558,7 +558,7 @@ export const getCashierPerformance = async (req, res) => {
             return {
                 cashier: {
                     id: item._id,
-                    name: item.cashier?.name || 'Unknown Cashier',
+                    name: item.cashier?.username || 'Unknown Cashier',
                     email: item.cashier?.email || 'No email'
                 },
                 performance: {

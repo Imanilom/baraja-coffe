@@ -176,6 +176,11 @@ class SalesReportService {
       }
       queryParams['outletId'] = outletId;
 
+      print('cashier Id: $cashierId');
+      if (cashierId != null && cashierId.isNotEmpty) {
+        queryParams['cashierId'] = cashierId;
+      }
+
       Response response = await _dio.get(
         '/api/report/sales/performance',
         queryParameters: queryParams,
