@@ -687,6 +687,632 @@ export const createMarketList = async (req, res) => {
   }
 };
 
+// Controller untuk mengedit transaksi marketlist
+export const updateMarketList = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi tidak valid'
+      });
+    }
+
+    // Cari transaksi yang akan diupdate
+    const existingMarketList = await MarketList.findById(id);
+    if (!existingMarketList) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Update data
+    const updatedMarketList = await MarketList.findByIdAndUpdate(
+      id,
+      { 
+        ...updateData,
+        // Pastikan date di-update jika ada perubahan date
+        ...(updateData.date && { date: new Date(updateData.date) })
+      },
+      { 
+        new: true, // Mengembalikan dokumen yang sudah diupdate
+        runValidators: true // Menjalankan validasi schema
+      }
+    ).populate('items.productId').populate('relatedRequests');
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaksi marketlist berhasil diupdate',
+      data: updatedMarketList
+    });
+
+  } catch (error) {
+    console.error('Error updating marketlist:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
+// Controller untuk mengedit item tertentu dalam transaksi
+export const updateMarketListItem = async (req, res) => {
+  try {
+    const { id, itemId } = req.params;
+    const itemUpdateData = req.body;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(itemId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi atau item tidak valid'
+      });
+    }
+
+    // Cari transaksi
+    const marketList = await MarketList.findById(id);
+    if (!marketList) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Cari item dalam transaksi
+    const itemIndex = marketList.items.findIndex(
+      item => item._id.toString() === itemId
+    );
+
+    if (itemIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item tidak ditemukan dalam transaksi'
+      });
+    }
+
+    // Update item
+    marketList.items[itemIndex] = {
+      ...marketList.items[itemIndex].toObject(),
+      ...itemUpdateData
+    };
+
+    // Simpan perubahan (middleware pre-save akan terpanggil)
+    const updatedMarketList = await marketList.save();
+    
+    // Populate data yang diperlukan
+    await updatedMarketList.populate('items.productId');
+    await updatedMarketList.populate('relatedRequests');
+
+    res.status(200).json({
+      success: true,
+      message: 'Item berhasil diupdate',
+      data: updatedMarketList
+    });
+
+  } catch (error) {
+    console.error('Error updating marketlist item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
+// Controller untuk mengedit pengeluaran tambahan
+export const updateAdditionalExpense = async (req, res) => {
+  try {
+    const { id, expenseId } = req.params;
+    const expenseUpdateData = req.body;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(expenseId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi atau pengeluaran tidak valid'
+      });
+    }
+
+    // Cari transaksi
+    const marketList = await MarketList.findById(id);
+    if (!marketList) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Cari pengeluaran tambahan
+    const expenseIndex = marketList.additionalExpenses.findIndex(
+      expense => expense._id.toString() === expenseId
+    );
+
+    if (expenseIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pengeluaran tambahan tidak ditemukan'
+      });
+    }
+
+    // Update pengeluaran tambahan
+    marketList.additionalExpenses[expenseIndex] = {
+      ...marketList.additionalExpenses[expenseIndex].toObject(),
+      ...expenseUpdateData
+    };
+
+    const updatedMarketList = await marketList.save();
+    await updatedMarketList.populate('items.productId');
+    await updatedMarketList.populate('relatedRequests');
+
+    res.status(200).json({
+      success: true,
+      message: 'Pengeluaran tambahan berhasil diupdate',
+      data: updatedMarketList
+    });
+
+  } catch (error) {
+    console.error('Error updating additional expense:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
+// Controller untuk partial update (PATCH) - hanya update field tertentu
+export const partialUpdateMarketList = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi tidak valid'
+      });
+    }
+
+    const existingMarketList = await MarketList.findById(id);
+    if (!existingMarketList) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Update hanya field yang ada dalam request body
+    const updatedMarketList = await MarketList.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { 
+        new: true,
+        runValidators: true
+      }
+    ).populate('items.productId').populate('relatedRequests');
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaksi marketlist berhasil diupdate secara parsial',
+      data: updatedMarketList
+    });
+
+  } catch (error) {
+    console.error('Error partial updating marketlist:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
+// Controller untuk menghapus transaksi marketlist
+export const deleteMarketList = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    session.startTransaction();
+    
+    const { id } = req.params;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi tidak valid'
+      });
+    }
+
+    // Cari transaksi yang akan dihapus
+    const marketList = await MarketList.findById(id).session(session);
+    if (!marketList) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Cek status request terkait
+    if (marketList.relatedRequests && marketList.relatedRequests.length > 0) {
+      const relatedRequests = await Request.find({
+        _id: { $in: marketList.relatedRequests }
+      }).session(session);
+
+      // Cek jika ada request yang sudah approve atau reject
+      const blockedRequests = relatedRequests.filter(request => 
+        request.status === 'approved' || request.status === 'rejected'
+      );
+
+      if (blockedRequests.length > 0) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Tidak dapat menghapus transaksi karena terdapat request yang sudah diapprove atau reject',
+          blockedRequests: blockedRequests.map(req => ({
+            id: req._id,
+            status: req.status,
+            requester: req.requester
+          }))
+        });
+      }
+    }
+
+    // Hapus entri arus kas terkait
+    await deleteRelatedCashFlow(marketList._id, session);
+
+    // Update status request yang terkait (jika ada)
+    await updateRelatedRequests(marketList.relatedRequests, session);
+
+    // Hapus transaksi marketlist
+    await MarketList.findByIdAndDelete(id).session(session);
+
+    await session.commitTransaction();
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaksi marketlist berhasil dihapus',
+      data: {
+        deletedMarketList: marketList._id,
+        deletedCashFlowEntries: true,
+        updatedRequests: marketList.relatedRequests || []
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error deleting marketlist:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Fungsi untuk menghapus entri arus kas terkait
+const deleteRelatedCashFlow = async (marketListId, session) => {
+  try {
+    // Cari semua entri arus kas yang terkait dengan marketlist ini
+    const relatedCashFlows = await CashFlow.find({ 
+      relatedMarketList: marketListId 
+    }).session(session);
+
+    if (relatedCashFlows.length === 0) {
+      return { deleted: 0, message: 'Tidak ada entri arus kas terkait' };
+    }
+
+    // Simpan informasi untuk recalculate balance
+    const cashFlowDates = [...new Set(relatedCashFlows.map(cf => cf.date))].sort();
+    const firstAffectedDate = cashFlowDates[0];
+
+    // Hapus entri arus kas terkait
+    const deleteResult = await CashFlow.deleteMany({ 
+      relatedMarketList: marketListId 
+    }).session(session);
+
+    // Recalculate balance mulai dari tanggal pertama yang terpengaruh
+    await recalculateCashFlowBalanceFromDate(firstAffectedDate, session);
+
+    return { 
+      deleted: deleteResult.deletedCount, 
+      affectedDates: cashFlowDates 
+    };
+
+  } catch (error) {
+    console.error('Error deleting related cash flow:', error);
+    throw new Error(`Gagal menghapus entri arus kas: ${error.message}`);
+  }
+};
+
+// Fungsi untuk recalculate balance arus kas mulai dari tanggal tertentu
+const recalculateCashFlowBalanceFromDate = async (startDate, session) => {
+  try {
+    // Dapatkan saldo terakhir sebelum tanggal startDate
+    const lastBalanceBefore = await CashFlow.findOne({
+      date: { $lt: startDate }
+    }).sort({ date: -1, createdAt: -1 }).session(session);
+
+    let runningBalance = {
+      balance: lastBalanceBefore ? Number(lastBalanceBefore.balance) || 0 : 0,
+      balancePhysical: lastBalanceBefore ? Number(lastBalanceBefore.balancePhysical) || 0 : 0,
+      balanceNonPhysical: lastBalanceBefore ? Number(lastBalanceBefore.balanceNonPhysical) || 0 : 0
+    };
+
+    // Dapatkan semua entri arus kas mulai dari startDate, diurutkan berdasarkan tanggal
+    const cashFlowsFromDate = await CashFlow.find({
+      date: { $gte: startDate }
+    }).sort({ date: 1, createdAt: 1 }).session(session);
+
+    // Recalculate balance untuk setiap entri
+    for (const cashFlow of cashFlowsFromDate) {
+      // Hitung saldo baru
+      const cashIn = Number(cashFlow.cashIn) || 0;
+      const cashOut = Number(cashFlow.cashOut) || 0;
+      const cashInPhysical = Number(cashFlow.cashInPhysical) || 0;
+      const cashOutPhysical = Number(cashFlow.cashOutPhysical) || 0;
+      const cashInNonPhysical = Number(cashFlow.cashInNonPhysical) || 0;
+      const cashOutNonPhysical = Number(cashFlow.cashOutNonPhysical) || 0;
+
+      runningBalance.balance += (cashIn - cashOut);
+      runningBalance.balancePhysical += (cashInPhysical - cashOutPhysical);
+      runningBalance.balanceNonPhysical += (cashInNonPhysical - cashOutNonPhysical);
+
+      // Pastikan saldo non-fisik tidak negatif
+      runningBalance.balanceNonPhysical = Math.max(0, runningBalance.balanceNonPhysical);
+
+      // Update entri arus kas dengan saldo yang baru
+      await CashFlow.findByIdAndUpdate(
+        cashFlow._id,
+        {
+          balance: runningBalance.balance,
+          balancePhysical: runningBalance.balancePhysical,
+          balanceNonPhysical: runningBalance.balanceNonPhysical
+        },
+        { session }
+      );
+    }
+
+    return { 
+      recalculatedEntries: cashFlowsFromDate.length,
+      finalBalance: runningBalance 
+    };
+
+  } catch (error) {
+    console.error('Error recalculating cash flow balance:', error);
+    throw new Error(`Gagal recalculate balance arus kas: ${error.message}`);
+  }
+};
+
+// Fungsi untuk update request yang terkait
+const updateRelatedRequests = async (relatedRequestIds, session) => {
+  if (!relatedRequestIds || relatedRequestIds.length === 0) {
+    return { updated: 0 };
+  }
+
+  try {
+    // Reset status fulfillment untuk request yang terkait
+    const updateResult = await Request.updateMany(
+      {
+        _id: { $in: relatedRequestIds },
+        status: 'pending' // Hanya update request yang masih pending
+      },
+      {
+        $set: {
+          fulfillmentStatus: 'pending',
+          'transferItems.$[].status': 'pending',
+          'transferItems.$[].fulfilledQuantity': 0,
+          'purchaseItems.$[].status': 'pending',
+          'purchaseItems.$[].fulfilledQuantity': 0,
+          processedAt: null,
+          processedBy: null
+        }
+      },
+      { session }
+    );
+
+    return { updated: updateResult.modifiedCount };
+
+  } catch (error) {
+    console.error('Error updating related requests:', error);
+    throw new Error(`Gagal update request terkait: ${error.message}`);
+  }
+};
+
+// Controller untuk menghapus item tertentu dari marketlist
+export const deleteMarketListItem = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    session.startTransaction();
+    
+    const { id, itemId } = req.params;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(itemId)) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi atau item tidak valid'
+      });
+    }
+
+    // Cari transaksi
+    const marketList = await MarketList.findById(id).session(session);
+    if (!marketList) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Cari item yang akan dihapus
+    const itemToDelete = marketList.items.id(itemId);
+    if (!itemToDelete) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Item tidak ditemukan dalam transaksi'
+      });
+    }
+
+    // Hapus entri arus kas terkait dengan item ini (jika ada pembayaran)
+    if (itemToDelete.amountPaid > 0) {
+      await deleteItemRelatedCashFlow(marketList._id, itemToDelete, session);
+    }
+
+    // Hapus item dari array
+    marketList.items.pull({ _id: itemId });
+
+    // Simpan perubahan
+    const updatedMarketList = await marketList.save({ session });
+    await updatedMarketList.populate('items.productId');
+    await updatedMarketList.populate('relatedRequests');
+
+    await session.commitTransaction();
+
+    res.status(200).json({
+      success: true,
+      message: 'Item berhasil dihapus dari transaksi',
+      data: {
+        deletedItem: itemToDelete,
+        updatedMarketList: updatedMarketList
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error deleting marketlist item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Fungsi untuk menghapus entri arus kas terkait item
+const deleteItemRelatedCashFlow = async (marketListId, item, session) => {
+  try {
+    // Hapus entri arus kas yang terkait dengan item ini
+    // Asumsi: description mengandung informasi tentang item
+    const deleteResult = await CashFlow.deleteMany({
+      relatedMarketList: marketListId,
+      description: { $regex: item.productName, $options: 'i' }
+    }).session(session);
+
+    return { deleted: deleteResult.deletedCount };
+
+  } catch (error) {
+    console.error('Error deleting item related cash flow:', error);
+    throw new Error(`Gagal menghapus entri arus kas item: ${error.message}`);
+  }
+};
+
+// Controller untuk menghapus pengeluaran tambahan
+export const deleteAdditionalExpense = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    session.startTransaction();
+    
+    const { id, expenseId } = req.params;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(expenseId)) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi atau pengeluaran tidak valid'
+      });
+    }
+
+    // Cari transaksi
+    const marketList = await MarketList.findById(id).session(session);
+    if (!marketList) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Cari pengeluaran tambahan yang akan dihapus
+    const expenseToDelete = marketList.additionalExpenses.id(expenseId);
+    if (!expenseToDelete) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Pengeluaran tambahan tidak ditemukan'
+      });
+    }
+
+    // Hapus entri arus kas terkait dengan pengeluaran tambahan ini (jika ada pembayaran)
+    if (expenseToDelete.amount > 0) {
+      await deleteExpenseRelatedCashFlow(marketList._id, expenseToDelete, session);
+    }
+
+    // Hapus pengeluaran tambahan dari array
+    marketList.additionalExpenses.pull({ _id: expenseId });
+
+    // Simpan perubahan
+    const updatedMarketList = await marketList.save({ session });
+    await updatedMarketList.populate('items.productId');
+    await updatedMarketList.populate('relatedRequests');
+
+    await session.commitTransaction();
+
+    res.status(200).json({
+      success: true,
+      message: 'Pengeluaran tambahan berhasil dihapus',
+      data: {
+        deletedExpense: expenseToDelete,
+        updatedMarketList: updatedMarketList
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error deleting additional expense:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Fungsi untuk menghapus entri arus kas terkait pengeluaran tambahan
+const deleteExpenseRelatedCashFlow = async (marketListId, expense, session) => {
+  try {
+    // Hapus entri arus kas yang terkait dengan pengeluaran tambahan ini
+    const deleteResult = await CashFlow.deleteMany({
+      relatedMarketList: marketListId,
+      description: { $regex: expense.name, $options: 'i' }
+    }).session(session);
+
+    return { deleted: deleteResult.deletedCount };
+
+  } catch (error) {
+    console.error('Error deleting expense related cash flow:', error);
+    throw new Error(`Gagal menghapus entri arus kas pengeluaran: ${error.message}`);
+  }
+};
+
 
 // Controller untuk mendapatkan semua data debts
 export const getAllDebts = async (req, res) => {
