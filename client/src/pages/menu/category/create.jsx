@@ -3,8 +3,43 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useSelector } from 'react-redux';
+import Select from 'react-select';
 
 const AddCategory = () => {
+
+  const customSelectStyles = {
+    control: (provided, state) => ({
+      ...provided,
+      borderColor: '#d1d5db', // Tailwind border-gray-300
+      minHeight: '34px',
+      fontSize: '13px',
+      color: '#6b7280', // text-gray-500
+      boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+      '&:hover': {
+        borderColor: '#9ca3af', // Tailwind border-gray-400
+      },
+    }),
+    singleValue: (provided) => ({
+      ...provided,
+      color: '#6b7280', // text-gray-500
+    }),
+    input: (provided) => ({
+      ...provided,
+      color: '#6b7280', // text-gray-500 for typed text
+    }),
+    placeholder: (provided) => ({
+      ...provided,
+      color: '#9ca3af', // text-gray-400
+      fontSize: '13px',
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      fontSize: '13px',
+      color: '#374151', // gray-700
+      backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+      cursor: 'pointer',
+    }),
+  };
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -15,6 +50,14 @@ const AddCategory = () => {
   const [type, setType] = useState(''); // 'product' atau 'menu'
   const [parentCategory, setParentCategory] = useState(''); // Optional
   const { currentUser } = useSelector((state) => state.user);
+
+  const categoryOptions = [
+    { value: 'food', label: 'Food' },
+    { value: 'beverage', label: 'Beverage' },
+    { value: 'instan', label: 'Instan' },
+    { value: 'event', label: 'Event' }
+  ];
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -90,11 +133,15 @@ const AddCategory = () => {
 
       <div>
         <label className="block mb-2">Tipe Kategori *</label>
-        <input
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          className="w-full px-3 py-2 border rounded"
-          required
+        <Select
+          value={categoryOptions.find(option => option.value === type)}
+          onChange={(selectedOption) => setType(selectedOption?.value || '')}
+          options={categoryOptions}
+          className="react-select-container"
+          classNamePrefix="react-select"
+          placeholder="Pilih tipe kategori..."
+          isClearable
+          styles={customSelectStyles}
         />
       </div>
 

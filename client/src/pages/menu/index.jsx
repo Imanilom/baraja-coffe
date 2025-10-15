@@ -93,7 +93,7 @@ const Menu = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const menuResponse = await axios.get('/api/menu/all-menu-items');
+      const menuResponse = await axios.get('/api/menu/all-menu-items-backoffice');
       setMenuItems(menuResponse.data.data);
 
       const outletsResponse = await axios.get('/api/outlet');

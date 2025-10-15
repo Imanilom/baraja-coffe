@@ -257,6 +257,106 @@ const redis = new IORedis({
   port: 6379,
 });
 
+export const getMenuItemsBackOffice = async (req, res) => {
+  try {
+    // Ambil semua menu items
+    const menuItems = await MenuItem.find()
+      .populate([
+        { path: "toppings" },
+        { path: "availableAt" },
+        {
+          path: "addons",
+          populate: { path: "options" },
+        },
+        {
+          path: "category",
+          select: "name",
+        },
+        {
+          path: "subCategory",
+          select: "name",
+        },
+      ])
+      .sort({ name: 1 });
+
+    // Ambil semua rating aktif
+    const ratings = await MenuRating.find({ isActive: true });
+
+    const ratingMap = {};
+    ratings.forEach((rating) => {
+      const menuId = rating.menuItemId.toString();
+      if (!ratingMap[menuId]) ratingMap[menuId] = [];
+      ratingMap[menuId].push(rating.rating);
+    });
+
+    const formattedMenuItems = menuItems.map((item) => {
+      const itemId = item._id.toString();
+      const itemRatings = ratingMap[itemId] || [];
+
+      const averageRating =
+        itemRatings.length > 0
+          ? Math.round(
+            (itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) *
+            10
+          ) / 10
+          : null;
+
+      const reviewCount = itemRatings.length;
+
+      return {
+        id: item._id,
+        name: item.name,
+        mainCategory: item.mainCategory,
+        category: item.category
+          ? { id: item.category._id, name: item.category.name }
+          : null,
+        subCategory: item.subCategory
+          ? { id: item.subCategory._id, name: item.subCategory.name }
+          : null,
+        imageUrl: item.imageURL,
+        originalPrice: item.price,
+        discountedPrice: item.discountedPrice || item.price,
+        description: item.description,
+        discountPercentage: item.discount ? `${item.discount}%` : null,
+        averageRating,
+        reviewCount,
+        toppings: item.toppings.map((topping) => ({
+          id: topping._id,
+          name: topping.name,
+          price: topping.price,
+        })),
+        addons: item.addons.map((addon) => ({
+          id: addon._id,
+          name: addon.name,
+          options: addon.options.map((opt) => ({
+            id: opt._id,
+            label: opt.label,
+            price: opt.price,
+            isDefault: opt.isDefault,
+          })),
+        })),
+        availableAt: item.availableAt,
+        workstation: item.workstation,
+        isActive: item.isActive,
+      };
+    });
+
+    const responsePayload = {
+      success: true,
+      data: formattedMenuItems,
+    };
+
+    return res.status(200).json(responsePayload);
+  } catch (error) {
+    console.error("❌ Error fetching menu items:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch menu items.",
+      error: error.message,
+    });
+  }
+};
+
 export const getMenuItems = async (req, res) => {
   const cacheKey = "menu_items_full";
 
