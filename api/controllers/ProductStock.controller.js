@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
 import StockMovement from '../models/modul_menu/StockMovement.model.js';
+import Warehouse from '../models/modul_market/Warehouse.model.js';
 import Product from '../models/modul_market/Product.model.js';
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 100; // 100ms delay antara retry
@@ -124,29 +125,97 @@ export const insertInitialStocks = async (req, res) => {
 
 export const getProductStock = async (req, res) => {
   try {
-    const { productId } = req.query;
-    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ success: false, message: 'ID Produk tidak valid' });
+    const { 
+      productId, 
+      warehouseId, 
+      page = 1, 
+      limit = 25,
+      search 
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 25));
+
+    const query = {};
+
+    if (productId) {
+      if (!mongoose.Types.ObjectId.isValid(productId)) {
+        return res.status(400).json({ success: false, message: 'ID Produk tidak valid' });
+      }
+      query.productId = new mongoose.Types.ObjectId(productId);
     }
 
-    const productStock = await ProductStock.findOne({ productId }).populate('productId', 'name sku unit');
-    if (!productStock) {
-      return res.status(404).json({
-        success: true,
-        data: {
-          productId,
-          name: 'Unknown',
-          currentStock: 0,
-          minStock: 0,
-          movements: []
-        }
+    if (warehouseId) {
+      if (!mongoose.Types.ObjectId.isValid(warehouseId)) {
+        return res.status(400).json({ success: false, message: 'ID Warehouse tidak valid' });
+      }
+      query.warehouse = new mongoose.Types.ObjectId(warehouseId);
+    }
+
+    const total = await ProductStock.countDocuments(query);
+
+    // Ambil data ProductStock
+    const stocks = await ProductStock.find(query)
+      .populate('productId', 'name sku unit category')
+      .sort({ createdAt: -1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
+
+    // Ambil semua warehouseId yang unik dari hasil
+    const warehouseIds = [...new Set(
+      stocks
+        .map(stock => stock.warehouse?.toString())
+        .filter(id => mongoose.Types.ObjectId.isValid(id))
+    )];
+
+    // Ambil semua warehouse yang valid sekaligus (1 query)
+    const validWarehouses = {};
+    if (warehouseIds.length > 0) {
+      const warehouses = await Warehouse.find({
+        _id: { $in: warehouseIds.map(id => new mongoose.Types.ObjectId(id)) }
+      }).select('name code');
+
+      warehouses.forEach(wh => {
+        validWarehouses[wh._id.toString()] = wh;
       });
     }
 
-    res.status(200).json({ success: true, data: productStock });
+    // Gabungkan data: tambahkan info warehouse jika ada, jika tidak, tampilkan ID
+    const result = stocks.map(stock => {
+      const stockObj = stock.toObject();
+      
+      const whId = stock.warehouse?.toString();
+      if (whId && validWarehouses[whId]) {
+        stockObj.warehouse = validWarehouses[whId];
+      } else {
+        // Fallback: tampilkan ID dan info default
+        stockObj.warehouse = {
+          _id: stock.warehouse || whId,
+          name: whId ? 'Gudang tidak ditemukan' : 'Tidak tersedia',
+          code: 'invalid'
+        };
+      }
+
+      return stockObj;
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+        totalItems: total,
+        itemsPerPage: limitNum
+      }
+    });
+
   } catch (error) {
-    console.error('Error fetching stock:', error);
-    res.status(500).json({ success: false, message: 'Gagal mengambil data stok' });
+    console.error('Error fetching product stock:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Gagal mengambil data stok'
+    });
   }
 };
 
