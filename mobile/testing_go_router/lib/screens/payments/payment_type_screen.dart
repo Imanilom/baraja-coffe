@@ -517,6 +517,7 @@ class PaymentMethodScreen extends ConsumerWidget {
     final paymentType = ref.watch(choosePaymentTypesProvider);
     final notifier = ref.read(choosePaymentTypesProvider.notifier);
     final paymentNotifier = ref.read(paymentProvider.notifier);
+    final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -546,6 +547,7 @@ class PaymentMethodScreen extends ConsumerWidget {
                     notifier.state = PaymentTypes.fullPayment;
                     paymentNotifier.setSettlementMode(false);
                     paymentNotifier.clearDownPayment();
+                    orderDetailNotifier.updateIsSplitPayment(false);
                   }
                 },
                 selectedColor: const Color(0xFF2E7D4F),
@@ -567,6 +569,7 @@ class PaymentMethodScreen extends ConsumerWidget {
                   if (selected) {
                     notifier.state = PaymentTypes.downPayment;
                     paymentNotifier.setSettlementMode(true);
+                    orderDetailNotifier.updateIsSplitPayment(true);
                   }
                 },
                 selectedColor: const Color(0xFF2E7D4F),

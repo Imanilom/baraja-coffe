@@ -55,6 +55,10 @@ class PaymentState {
   // Calculate change (for cash payments)
   int? get change {
     if (selectedPaymentType?.id == 'cash' && selectedCashAmount != null) {
+      if (isDownPayment) {
+        final changeAmount = selectedCashAmount! - (selectedDownPayment ?? 0);
+        return changeAmount >= 0 ? changeAmount : 0;
+      }
       final changeAmount = selectedCashAmount! - totalAmount;
       return changeAmount >= 0 ? changeAmount : 0;
     }

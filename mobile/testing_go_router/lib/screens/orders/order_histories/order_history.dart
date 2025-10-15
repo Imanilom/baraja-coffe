@@ -30,70 +30,74 @@ class OrderHistoryScreen extends ConsumerWidget {
       //     ),
       //   ],
       // ),
-      body: orderHistoryAsync.when(
-        data:
-            (orders) => Row(
-              children: [
-                // Left Section - Order List
-                Expanded(
-                  flex: 3,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        right: BorderSide(color: Colors.grey[300]!),
-                      ),
-                    ),
-                    child: OrderListWidget(orders: orders),
-                  ),
-                ),
-                // Middle Section - Order Detail
-                Expanded(
-                  flex: 3,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        right: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      //color,
-                      color: Colors.grey[50],
-                    ),
-                    child: const OrderDetailWidget(),
-                  ),
-                ),
-                // Right Section - Receipt
-                Expanded(flex: 3, child: const ReceiptWidget()),
-              ],
-            ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stackTrace) => Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        // 'Base Price: Rp ${items.menuItem.price}',
-                        'Base Price: Rp 0000',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      ),
-                      Text(
-                        'Subtotal: Rp 0000',
-                        // 'Subtotal: Rp ${item.subtotal}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+      body: Row(
+        children: [
+          // Left Section - Order List
+          Expanded(
+            flex: 3,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border(right: BorderSide(color: Colors.grey[300]!)),
+              ),
+              // child: OrderListWidget(orders: orders),
+              child: orderHistoryAsync.when(
+                data: (orders) => OrderListWidget(orders: orders),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error:
+                    (error, stackTrace) =>
+                        _buildErrorState(error.toString(), ref),
               ),
             ),
+          ),
+          // Middle Section - Order Detail
+          Expanded(
+            flex: 3,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border(right: BorderSide(color: Colors.grey[300]!)),
+                //color,
+                color: Colors.grey[50],
+              ),
+              child: const OrderDetailWidget(),
+            ),
+          ),
+          // Right Section - Receipt
+          Expanded(flex: 3, child: const ReceiptWidget()),
+        ],
       ),
+      // body: orderHistoryAsync.when(
+      //   data:
+      //       (orders) =>
+      //   loading: () => const Center(child: CircularProgressIndicator()),
+      //   error:
+      //       (error, stackTrace) => Center(
+      //         child: Column(
+      //           mainAxisAlignment: MainAxisAlignment.center,
+      //           children: [
+      //             Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+      //             const SizedBox(height: 8),
+      //             Row(
+      //               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      //               children: [
+      //                 Text(
+      //                   // 'Base Price: Rp ${items.menuItem.price}',
+      //                   'Base Price: Rp 0000',
+      //                   style: TextStyle(color: Colors.grey[600], fontSize: 12),
+      //                 ),
+      //                 Text(
+      //                   'Subtotal: Rp 0000',
+      //                   // 'Subtotal: Rp ${item.subtotal}',
+      //                   style: const TextStyle(
+      //                     fontWeight: FontWeight.bold,
+      //                     fontSize: 12,
+      //                   ),
+      //                 ),
+      //               ],
+      //             ),
+      //           ],
+      //         ),
+      //       ),
+      // ),
     );
   }
 
@@ -181,4 +185,72 @@ class OrderHistoryScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+Widget _buildErrorState(dynamic error, WidgetRef ref) {
+  return Container(
+    padding: const EdgeInsets.all(32),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.error_outline_rounded,
+            size: 48,
+            color: Colors.red,
+          ),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Something went wrong',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Unable to load history. Please try again.',
+          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton.icon(
+          onPressed: () {
+            ref.read(orderHistoryProvider.notifier).refreshHistory();
+          },
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          label: const Text('Try Again'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 4,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Error: ${error.toString()}',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade500,
+            fontFamily: 'monospace',
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    ),
+  );
 }

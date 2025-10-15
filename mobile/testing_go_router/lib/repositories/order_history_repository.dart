@@ -23,7 +23,9 @@ class OrderHistoryRepository {
       }
 
       final orders = response['orders'] as List;
-      print('konversi json ke model ${orders.first.length}');
+      print(
+        'konversi json ke model ${response['orders'][0]['payment_details']}',
+      );
       final orderHistory =
           orders.map((json) => OrderDetailModel.fromJson(json)).toList();
 
