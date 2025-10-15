@@ -54,7 +54,7 @@ const PromoTable = ({ vouchers, fetchVouchers, currentPage, setCurrentPage }) =>
             <table className="min-w-full text-[14px] text-[#999999] bg-white shadow-md text-sm">
                 <thead className="border-b">
                     <tr>
-                        <th className="px-4 py-3 text-left">Nama Voucher</th>
+                        <th className="px-4 py-3 text-left">Nama Vouchera</th>
                         <th className="px-4 py-3 text-right">Kuota</th>
                         <th className="px-4 py-3 text-right">Nilai</th>
                         <th className="px-4 py-3 text-left">Tanggal Berlaku</th>
