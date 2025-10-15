@@ -15,6 +15,7 @@ import {
   getMenuByOutlet,
   getMenuByRating,
   updateMenuActivated,
+  getMenuItemsBackOffice,
 } from '../controllers/menu.controller.js';
 
 import { assignMenuItemsToCategory, createCategory, filterMenuByCategory, getCategories } from '../controllers/category.controller.js';
@@ -28,6 +29,7 @@ const adminAccess = verifyToken(['admin', 'superadmin', 'marketing', 'operationa
 router.post('/menu-items', upload.single('images'), createMenuItem); // Create a new MenuItem
 router.get('/menu-items', getMenuItemsWithRecipes); // Get all MenuItems with Recipes
 router.get('/all-menu-items', getMenuItems); // Get all MenuItems
+router.get('/all-menu-items-backoffice', getMenuItemsBackOffice); // Get all MenuItems
 router.get('/with-recipes/outlet/:outletId', getMenuItemsByOutletWithRecipes); // Get MenuItems by Outlet ID with Recipes
 router.get('/menu-items/category/:categoryId', getMenuItemsByCategory); // Get MenuItems by Category ID
 router.get('/menu-items/:id', getMenuItemById); // Get a specific MenuItem by ID

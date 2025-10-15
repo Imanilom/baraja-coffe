@@ -12,98 +12,98 @@ import mongoose from 'mongoose';
 
 export const createRequest = async (req, res) => {
   const session = await mongoose.startSession();
-    session.startTransaction();
+  session.startTransaction();
 
-    try {
-      const user = await User.findById(req.user._id).session(session);
-      if (!user || !['staff', 'admin', 'superadmin'].includes(user.role)) {
+  try {
+    const user = await User.findById(req.user._id).session(session);
+    if (!user || !['staff', 'admin', 'superadmin'].includes(user.role)) {
+      await session.abortTransaction();
+      return res.status(403).json({ message: 'Akses ditolak' });
+    }
+
+    const { department, items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: 'Items wajib diisi' });
+    }
+
+    const requestItems = [];
+
+    for (const item of items) {
+      const { productId, quantity, notes } = item;
+      if (!productId || !quantity || quantity <= 0) {
         await session.abortTransaction();
-        return res.status(403).json({ message: 'Akses ditolak' });
-      }
-
-      const { department, items } = req.body;
-      if (!Array.isArray(items) || items.length === 0) {
-        await session.abortTransaction();
-        return res.status(400).json({ message: 'Items wajib diisi' });
-      }
-
-      const requestItems = [];
-      
-      for (const item of items) {
-        const { productId, quantity, notes } = item;
-        if (!productId || !quantity || quantity <= 0) {
-          await session.abortTransaction();
-          return res.status(400).json({ 
-            message: 'Data item tidak lengkap atau quantity <= 0' 
-          });
-        }
-
-        const productDoc = await Product.findById(productId).session(session);
-        if (!productDoc) {
-          await session.abortTransaction();
-          return res.status(404).json({ 
-            message: `Produk dengan ID ${productId} tidak ditemukan` 
-          });
-        }
-
-        if (quantity < productDoc.minimumrequest) {
-          await session.abortTransaction();
-          return res.status(400).json({
-            message: `Permintaan minimal ${productDoc.minimumrequest} ${productDoc.unit} untuk ${productDoc.name}`
-          });
-        }
-
-        // Cek stok yang tersedia di gudang pusat
-        const stockDoc = await ProductStock.findOne({ 
-          productId, 
-          category: 'Gudang Pusat' 
-        }).session(session);
-        
-        const availableStock = stockDoc ? stockDoc.currentStock : 0;
-
-        requestItems.push({
-          productId,
-          productName: productDoc.name,
-          productSku: productDoc.sku,
-          category: productDoc.category,
-          quantity,
-          unit: productDoc.unit,
-          notes: notes || '',
-          status: 'pending',
-          fulfilledQuantity: 0,
-          availableStock, // untuk reference
-          minimumRequest: productDoc.minimumrequest
+        return res.status(400).json({
+          message: 'Data item tidak lengkap atau quantity <= 0'
         });
       }
 
-      // Buat request tanpa mengubah stok dulu
-      const newRequest = new Request({
-        department,
-        requester: user.username,
-        items: requestItems,
+      const productDoc = await Product.findById(productId).session(session);
+      if (!productDoc) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          message: `Produk dengan ID ${productId} tidak ditemukan`
+        });
+      }
+
+      if (quantity < productDoc.minimumrequest) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          message: `Permintaan minimal ${productDoc.minimumrequest} ${productDoc.unit} untuk ${productDoc.name}`
+        });
+      }
+
+      // Cek stok yang tersedia di gudang pusat
+      const stockDoc = await ProductStock.findOne({
+        productId,
+        category: 'Gudang Pusat'
+      }).session(session);
+
+      const availableStock = stockDoc ? stockDoc.currentStock : 0;
+
+      requestItems.push({
+        productId,
+        productName: productDoc.name,
+        productSku: productDoc.sku,
+        category: productDoc.category,
+        quantity,
+        unit: productDoc.unit,
+        notes: notes || '',
         status: 'pending',
-        fulfillmentStatus: 'pending'
+        fulfilledQuantity: 0,
+        availableStock, // untuk reference
+        minimumRequest: productDoc.minimumrequest
       });
-
-      await newRequest.save({ session });
-      await session.commitTransaction();
-
-      res.status(201).json({
-        success: true,
-        message: 'Request berhasil dibuat, menunggu approval',
-        data: newRequest
-      });
-
-    } catch (error) {
-      await session.abortTransaction();
-      console.error('Error creating request:', error);
-      res.status(500).json({ 
-        success: false,
-        message: error.message || 'Terjadi kesalahan server.' 
-      });
-    } finally {
-      session.endSession();
     }
+
+    // Buat request tanpa mengubah stok dulu
+    const newRequest = new Request({
+      department,
+      requester: user.username,
+      items: requestItems,
+      status: 'pending',
+      fulfillmentStatus: 'pending'
+    });
+
+    await newRequest.save({ session });
+    await session.commitTransaction();
+
+    res.status(201).json({
+      success: true,
+      message: 'Request berhasil dibuat, menunggu approval',
+      data: newRequest
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error creating request:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Terjadi kesalahan server.'
+    });
+  } finally {
+    session.endSession();
+  }
 };
 
 // Ambil semua request (hanya untuk role inventory)
@@ -256,7 +256,7 @@ export const approveRequestItems = async (req, res) => {
     request.reviewedBy = reviewedBy || 'anonymous';
     request.reviewedAt = new Date();
     request.status = 'approved'; // Set status ke approved
-    request.fulfillmentStatus='dibeli';
+    request.fulfillmentStatus = 'dibeli';
 
     await request.save();
 
@@ -268,7 +268,7 @@ export const approveRequestItems = async (req, res) => {
 };
 
 // Tolak request dengan alasan tertentu
-export const rejectRequest = async (req, res) => {  
+export const rejectRequest = async (req, res) => {
   try {
     const { requestId, rejectedBy, reason } = req.body;
 
@@ -556,29 +556,29 @@ export const createMarketList = async (req, res) => {
 export const getAllDebts = async (req, res) => {
   try {
     const { status, supplierId, startDate, endDate } = req.query;
-    
+
     let query = {};
-    
+
     if (status) {
       query.status = status;
     }
-    
+
     if (supplierId) {
       query.supplierId = supplierId;
     }
-    
+
     if (startDate && endDate) {
       query.date = {
         $gte: new Date(startDate),
         $lte: new Date(endDate)
       };
     }
-    
+
     const debts = await Debt.find(query)
       .populate('supplierId', 'name')
       .populate('productId', 'name sku')
       .sort({ date: -1 });
-      
+
     res.status(200).json(debts);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -591,11 +591,11 @@ export const getDebtById = async (req, res) => {
     const debt = await Debt.findById(req.params.id)
       .populate('supplierId', 'name')
       .populate('productId', 'name sku');
-      
+
     if (!debt) {
       return res.status(404).json({ message: 'Debt not found' });
     }
-    
+
     res.status(200).json(debt);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -606,27 +606,27 @@ export const getDebtById = async (req, res) => {
 export const payDebt = async (req, res) => {
   try {
     const { paidAmount, paymentMethod, notes } = req.body;
-    
+
     const debt = await Debt.findById(req.params.id);
-    
+
     if (!debt) {
       return res.status(404).json({ message: 'Debt not found' });
     }
-    
+
     // Validasi jumlah pembayaran
     if (paidAmount <= 0) {
       return res.status(400).json({ message: 'Jumlah pembayaran harus lebih dari 0' });
     }
-    
+
     if (paidAmount > (debt.amount - debt.paidAmount)) {
       return res.status(400).json({ message: 'Jumlah pembayaran melebihi sisa hutang' });
     }
-    
+
     // Update data pembayaran
     debt.paidAmount += paidAmount;
     debt.paymentMethod = paymentMethod || debt.paymentMethod;
     debt.notes = notes || debt.notes;
-    
+
     // Update status berdasarkan jumlah pembayaran
     if (debt.paidAmount === debt.amount) {
       debt.status = 'paid';
@@ -634,7 +634,7 @@ export const payDebt = async (req, res) => {
     } else if (debt.paidAmount > 0) {
       debt.status = 'partial';
     }
-    
+
     const updatedDebt = await debt.save();
     res.status(200).json(updatedDebt);
   } catch (error) {
@@ -647,18 +647,18 @@ export const updateDebt = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     // Pastikan paidAmount tidak diupdate melalui endpoint ini
     if ('paidAmount' in updateData) {
       return res.status(400).json({ message: 'Gunakan endpoint pembayaran untuk update paidAmount' });
     }
-    
+
     const updatedDebt = await Debt.findByIdAndUpdate(id, updateData, { new: true });
-    
+
     if (!updatedDebt) {
       return res.status(404).json({ message: 'Debt not found' });
     }
-    
+
     res.status(200).json(updatedDebt);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -669,11 +669,11 @@ export const updateDebt = async (req, res) => {
 export const deleteDebt = async (req, res) => {
   try {
     const deletedDebt = await Debt.findByIdAndDelete(req.params.id);
-    
+
     if (!deletedDebt) {
       return res.status(404).json({ message: 'Debt not found' });
     }
-    
+
     res.status(200).json({ message: 'Debt deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -685,7 +685,7 @@ export const getDebtSummaryBySupplier = async (req, res) => {
   try {
     // First validate all supplier references
     const invalidDebts = await Debt.find({
-      supplierId: { 
+      supplierId: {
         $exists: true,
         $not: { $type: 'objectId' } // Find non-ObjectId values
       }
@@ -700,7 +700,7 @@ export const getDebtSummaryBySupplier = async (req, res) => {
       {
         $match: {
           status: { $in: ['unpaid', 'partial'] },
-          supplierId: { 
+          supplierId: {
             $exists: true,
             $ne: null,
             $type: 'objectId' // Only proper ObjectIds
@@ -827,7 +827,7 @@ export const getCashFlow = async (req, res) => {
 
 export const addCashIn = async (req, res) => {
   try {
-    const { date, description, cashIn, source, destination, proof} = req.body;
+    const { date, description, cashIn, source, destination, proof } = req.body;
     const day = getDayName(date);
     // Validasi input
     if (!day || !date || !description || typeof cashIn !== 'number' || cashIn <= 0) {
@@ -940,7 +940,7 @@ export const getWeeklyReport = async (req, res) => {
     // Process each cash flow
     for (const flow of cashFlows) {
       currentBalance += flow.cashIn - flow.cashOut;
-      
+
       // Determine payment method from related market list
       let paymentMethod = 'cash'; // default
       if (flow.relatedMarketList) {
@@ -975,12 +975,12 @@ export const getWeeklyReport = async (req, res) => {
         result.summary.cash.in += flow.cashIn;
         result.summary.cash.out += flow.cashOut;
         result.transactions.cash.push(transaction);
-      } 
+      }
       else if (paymentMethod === 'transfer') {
         result.summary.transfer.in += flow.cashIn;
         result.summary.transfer.out += flow.cashOut;
         result.transactions.transfer.push(transaction);
-      } 
+      }
       else if (paymentMethod === 'credit') {
         result.summary.credit.in += flow.cashIn;
         result.summary.credit.out += flow.cashOut;
@@ -997,7 +997,7 @@ export const getWeeklyReport = async (req, res) => {
     result.summary.cash.balance = result.summary.cash.in - result.summary.cash.out;
     result.summary.transfer.balance = result.summary.transfer.in - result.summary.transfer.out;
     result.summary.credit.balance = result.summary.credit.in - result.summary.credit.out;
-    
+
     res.json({
       success: true,
       data: {
@@ -1030,7 +1030,7 @@ export const getMarketListReportByDate = async (req, res, next) => {
       return res.status(400).json({ error: 'Parameter "start" dan "end" harus diisi (YYYY-MM-DD).' });
     }
 
-    const startDate = new Date(start);  
+    const startDate = new Date(start);
     const endDate = new Date(end);
     endDate.setHours(23, 59, 59, 999); // Sertakan semua data hingga akhir hari
 

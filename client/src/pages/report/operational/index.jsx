@@ -4,35 +4,20 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaPoll, FaShoppingBag,
 
 const OperationalMenu = () => {
     return (
-        <div className="min-h-screen bg-gray-100">
-            <div className="">
-                <div className="flex justify-end px-3 items-center py-4 space-x-2 border-b">
-                    <FaBell size={23} className="text-gray-400" />
-                    <span className="text-[14px]">Hi Baraja</span>
-                    <Link to="/admin/menu" className="text-gray-400 inline-block text-2xl">
-                        <FaUser size={30} />
-                    </Link>
-                </div>
-                <div className="px-3 py-2 flex justify-between items-center border-b">
-                    <div className="flex items-center space-x-2">
-                        <FaClipboardList className="text-gray-400 inline-block" />
-                        <p className="text-gray-400 inline-block">Laporan</p>
-                        <FaChevronRight className="text-gray-400 inline-block" />
-                        <Link
-                            to="/admin/operational-menu"
-                            className="text-[#005429] inline-block"
-                        >
-                            Laporan Operational
-                        </Link>
-                    </div>
+        <div className="">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <span>Laporan</span>
+                    <FaChevronRight />
+                    <span>Laporan Operational</span>
                 </div>
             </div>
-            <div className="max-w-7xl mx-auto my-2 p-4">
+            <div className="w-full mx-auto my-2 p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {/* Rekap Kas */}
                     <Link
                         to="/admin/operational/reconciliation"
-                        className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaPoll size={24} />
@@ -43,7 +28,7 @@ const OperationalMenu = () => {
                     {/* Stok */}
                     <Link
                         to="/admin/operational/stock"
-                        className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaThLarge className='' size={24} />
@@ -54,7 +39,7 @@ const OperationalMenu = () => {
                     {/* Absensi */}
                     <Link
                         to="/admin/operational/user-attendances"
-                        className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaRegClock className='' size={24} />
@@ -65,7 +50,7 @@ const OperationalMenu = () => {
                     {/* Hutang */}
                     <Link
                         to="/admin/operational/installment"
-                        className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaFileInvoiceDollar size={24} />
@@ -76,7 +61,7 @@ const OperationalMenu = () => {
                     {/* Pengeluaran */}
                     <Link
                         to="/admin/operational/expenditure"
-                        className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaCoins className='' size={24} />
@@ -87,7 +72,7 @@ const OperationalMenu = () => {
                     {/* Komisi */}
                     <Link
                         to="/admin/operational/commission"
-                        className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaHandshake className='' size={24} />
@@ -98,7 +83,7 @@ const OperationalMenu = () => {
                     {/* Laporan Meja */}
                     <Link
                         to="/admin/operational/table"
-                        className="p-4 bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] text-gray-700 hover:text-white transition-shadow"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
                     >
                         <div className="flex items-center space-x-2">
                             <FaTag className='' size={24} />
@@ -106,11 +91,6 @@ const OperationalMenu = () => {
                         </div>
                     </Link>
 
-                </div>
-            </div>
-
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]">
                 </div>
             </div>
         </div>

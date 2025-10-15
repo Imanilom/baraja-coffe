@@ -340,7 +340,6 @@ const SalesTransaction = () => {
             </div>
 
             {/* Filters */}
-
             <SalesTransactionTable
                 paginatedData={paginatedData}
                 grandTotalFinal={grandTotalFinal}
