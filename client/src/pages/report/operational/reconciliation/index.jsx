@@ -7,22 +7,17 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Header from "../../../admin/header";
 import dayjs from "dayjs";
+import Paginated from "../../../../components/paginated";
 
 const Reconciliation = () => {
     const { currentUser } = useSelector((state) => state.user);
     const [cashflow, setCashflow] = useState([]);
-    const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    const [showInput, setShowInput] = useState(false);
-    const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [value, setValue] = useState({
         startDate: dayjs(),
         endDate: dayjs()
     });
-    const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 
     // Safety function to ensure we're always working with arrays
@@ -89,29 +84,85 @@ const Reconciliation = () => {
         }).format(amount);
     };
 
-    const totalCashIn = filteredData.reduce((sum, item) => sum + item.cashIn, 0);
-    const totalCashOut = filteredData.reduce((sum, item) => sum + item.cashOut, 0);
+    const totalCashIn = filteredData.reduce((sum, item) => sum + (item.cashIn || 0), 0);
+    const totalCashOut = filteredData.reduce((sum, item) => {
+        const items = item.relatedMarketList?.items || [];
+        const expenses = item.relatedMarketList?.additionalExpenses || [];
+        const itemsTotal = items.reduce((s, itm) => s + (itm.amountCharged || 0), 0);
+        const expensesTotal = expenses.reduce((s, exp) => s + (exp.amount || 0), 0);
+        return sum + itemsTotal + expensesTotal;
+    }, 0);
 
+    const paginatedData = useMemo(() => {
+
+        // Ensure filteredData is an array before calling slice
+        if (!Array.isArray(filteredData)) {
+            console.error('filteredData is not an array:', filteredData);
+            return [];
+        }
+
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        const result = filteredData.slice(startIndex, endIndex);
+        return result;
+    }, [currentPage, filteredData]);
+
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
     // Apply filter function
     const applyFilter = async () => {
+        console.log("=== APPLY FILTER STARTED ===");
+        console.log("Current value:", value);
+
         try {
             if (value && value.startDate && value.endDate) {
-                const start = new Date(value.startDate).toISOString().split("T")[0]; // YYYY-MM-DD
-                const end = new Date(value.endDate).toISOString().split("T")[0]; // YYYY-MM-DD
+                // Format tanggal untuk backend
+                const start = new Date(value.startDate).toISOString().split("T")[0];
+                const end = new Date(value.endDate).toISOString().split("T")[0];
+
+                console.log("Filter dates:", { start, end });
+                console.log("API URL:", `/api/marketlist/cashflow?start=${start}&end=${end}`);
 
                 // Kirim request ke endpoint API dengan query parameter
                 const res = await axios.get(`/api/marketlist/cashflow`, {
-                    params: { start, end },
+                    params: {
+                        start,
+                        end
+                    },
                     headers: {
                         Authorization: `Bearer ${currentUser.token}`,
                     },
                 });
 
-                // Respon dari API langsung dipakai untuk data
-                setFilteredData(res.data);
-                setCurrentPage(1); // reset ke halaman pertama
+                console.log("API Response status:", res.status);
+                console.log("Response data:", res.data);
+
+                // Konsisten dengan fetchCashflow - handle res.data.data atau res.data
+                const cashflowData = res.data.data ? res.data.data : res.data;
+                console.log("Processed cashflowData length:", cashflowData?.length);
+                console.log("Data before filter:", cashflow.length);
+                console.log("Data after filter:", cashflowData?.length);
+
+                // Tampilkan beberapa sample data untuk debugging
+                if (cashflowData && cashflowData.length > 0) {
+                    console.log("First item:", {
+                        date: cashflowData[0]?.date,
+                        day: cashflowData[0]?.day,
+                        cashIn: cashflowData[0]?.cashIn
+                    });
+                    console.log("Last item:", {
+                        date: cashflowData[cashflowData.length - 1]?.date,
+                        day: cashflowData[cashflowData.length - 1]?.day,
+                        cashIn: cashflowData[cashflowData.length - 1]?.cashIn
+                    });
+                }
+
+                setFilteredData(cashflowData || []);
+                setCurrentPage(1);
+                console.log("✅ Filter applied successfully");
             } else {
+                console.log("⚠️ No date range selected, fetching all data");
+
                 // fallback kalau tidak ada filter
                 const res = await axios.get(`/api/marketlist/cashflow`, {
                     headers: {
@@ -119,49 +170,67 @@ const Reconciliation = () => {
                     },
                 });
 
-                setFilteredData(res.data);
+                const cashflowData = res.data.data ? res.data.data : res.data;
+                console.log("Fetched all data, length:", cashflowData?.length);
+
+                setFilteredData(cashflowData || []);
                 setCurrentPage(1);
+                console.log("✅ All data fetched successfully");
             }
         } catch (err) {
-            console.error("Error fetching filtered data:", err);
+            console.error("❌ Error fetching filtered data:", err);
+            console.error("Error details:", {
+                message: err.message,
+                response: err.response?.data,
+                status: err.response?.status
+            });
+            setFilteredData([]);
         }
-    };
 
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedOutlet("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(cashflow));
-        setCurrentPage(1);
+        console.log("=== APPLY FILTER ENDED ===\n");
     };
 
     // Export current data to Excel
     const exportToExcel = () => {
         // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-            const addonsPrice = item.addons?.reduce((sum, addon) => sum + (addon?.price || 0), 0) || 0;
+        const dataToExport = filteredData.flatMap(cf => {
+            const rows = [];
 
-            return {
-                "Produk": menuItem.name || 'N/A',
-                "Kategori": menuItem.category?.join(', ') || 'N/A',
-                "SKU": menuItem._id || 'N/A',
-                "Terjual": item.quantity || 0,
-                "Penjualan Kotor": item.subtotal || 0,
-                "Diskon Produk": addonsPrice || 0,
-                "Total": (item.subtotal || 0) + addonsPrice,
-                "Outlet": product.cashier?.outlet?.[0]?.outletId?.name || 'N/A',
-                "Tanggal": new Date(product.createdAt).toLocaleDateString('id-ID')
-            };
+            // Add CashIn row if exists
+            if (cf.cashIn > 0) {
+                rows.push({
+                    "Waktu": `${cf.day}, ${formatDateTime(cf.date)}`,
+                    "Uang Masuk": cf.cashIn,
+                    "Uang Keluar": 0,
+                    "Keterangan": cf.description,
+                    "Status": "-"
+                });
+            }
+
+            // Add CashOut rows
+            const items = cf.relatedMarketList?.items?.map((itm) => ({
+                "Waktu": `${cf.day}, ${formatDateTime(cf.date)}`,
+                "Uang Masuk": 0,
+                "Uang Keluar": itm.amountCharged,
+                "Keterangan": `Belanja: ${itm.productName}`,
+                "Status": itm.payment?.status || "-"
+            })) || [];
+
+            const expenses = cf.relatedMarketList?.additionalExpenses?.map((exp) => ({
+                "Waktu": `${cf.day}, ${formatDateTime(cf.date)}`,
+                "Uang Masuk": 0,
+                "Uang Keluar": exp.amount,
+                "Keterangan": `Pengeluaran Lain: ${exp.name}`,
+                "Status": exp.payment?.status || "-"
+            })) || [];
+
+            return [...rows, ...items, ...expenses];
         });
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
-        XLSX.writeFile(wb, "Penjualan_Produk.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Rekap Kas");
+        XLSX.writeFile(wb, "Rekap_Kas.xlsx");
     };
 
     // Show loading state
@@ -192,25 +261,22 @@ const Reconciliation = () => {
     }
 
     return (
-        <div className="min-h-screen flex flex-col">
-            {/* Header */}
-            <Header />
-
+        <div className="">
             {/* Breadcrumb */}
-            <div className="px-3 py-2 flex flex-col sm:flex-row sm:justify-between sm:items-center border-b gap-2">
-                <div className="flex items-center flex-wrap gap-1 text-sm">
-                    <FaClipboardList size={18} className="text-gray-500" />
-                    <p className="text-gray-500">Laporan</p>
-                    <FaChevronRight className="text-gray-400" />
-                    <Link to="/admin/operational-menu" className="text-gray-500">
+            <div className="flex justify-between items-center px-6 py-3 my-3">
+                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+                    <p>Laporan</p>
+                    <FaChevronRight />
+                    <Link to="/admin/operational-menu">
                         Laporan Operasional
                     </Link>
-                    <FaChevronRight className="text-gray-400" />
-                    <Link to="/Reconciliationummary" className="text-[#005429]">
+                    <FaChevronRight />
+                    <span>
                         Rekap Kas
-                    </Link>
+                    </span>
                 </div>
                 <button
+                    onClick={exportToExcel}
                     className="bg-[#005429] text-white text-sm px-4 py-2 rounded w-full sm:w-auto"
                 >
                     Ekspor
@@ -218,12 +284,11 @@ const Reconciliation = () => {
             </div>
 
             {/* Filters */}
-            <div className="px-3 pb-4 mb-[60px]">
-                <div className="my-3 py-3 px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 items-end rounded bg-slate-50 shadow-md shadow-slate-200">
+            <div className="px-6">
+                <div className="flex flex-wrap gap-4 md:justify-between items-center py-3">
 
                     {/* Tanggal */}
-                    <div className="flex flex-col col-span-2">
-                        <label className="text-[13px] mb-1 text-gray-500">Tanggal</label>
+                    <div className="flex flex-col col-span-2 w-2/5">
                         <div className="relative text-gray-500">
                             <Datepicker
                                 showFooter
@@ -249,16 +314,25 @@ const Reconciliation = () => {
                         >
                             Terapkan
                         </button>
-                        <button className="w-full sm:w-auto text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded">
+                        <button
+                            onClick={() => {
+                                setValue({
+                                    startDate: dayjs(),
+                                    endDate: dayjs()
+                                });
+                                fetchCashflow();
+                            }}
+                            className="w-full sm:w-auto text-[#005429] hover:text-white hover:bg-[#005429] border border-[#005429] text-[13px] px-[15px] py-[8px] rounded"
+                        >
                             Reset
                         </button>
                     </div>
                 </div>
 
                 {/* Table */}
-                <div className="rounded shadow-md shadow-slate-200 overflow-x-auto">
+                <div className="rounded shadow-md bg-white shadow-slate-200 overflow-x-auto">
                     <table className="min-w-full table-auto">
-                        <thead className="text-sm text-gray-400 bg-gray-50">
+                        <thead className="text-sm text-gray-400">
                             <tr>
                                 <th className="px-4 py-3 text-left font-normal">Waktu</th>
                                 <th className="px-4 py-3 text-right font-normal">Uang Masuk</th>
@@ -291,7 +365,7 @@ const Reconciliation = () => {
                                     const allCashOuts = [...items, ...expenses];
 
                                     return (
-                                        <>
+                                        <React.Fragment key={cf._id}>
                                             {/* Baris CashIn hanya muncul kalau > 0 */}
                                             {cf.cashIn > 0 && (
                                                 <tr className="hover:bg-gray-50 text-gray-600 font-medium bg-gray-100">
@@ -324,7 +398,7 @@ const Reconciliation = () => {
                                                     <td className="px-4 py-3">{out.status || "-"}</td>
                                                 </tr>
                                             ))}
-                                        </>
+                                        </React.Fragment>
                                     );
                                 })}
                             </tbody>
@@ -357,11 +431,13 @@ const Reconciliation = () => {
                         </tfoot>
                     </table>
                 </div>
-            </div>
 
-            {/* Bottom bar */}
-            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
-                <div className="w-full h-[2px] bg-[#005429]"></div>
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
+
             </div>
         </div>
     );

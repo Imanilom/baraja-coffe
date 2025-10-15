@@ -2,7 +2,9 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Select from "react-select";
 import { FaPercent, FaTrashAlt } from "react-icons/fa";
-import Datepicker from "react-tailwindcss-datepicker";
+import DatePicker from "react-datepicker";
+import "../../../style/Datepicker.css";
+// import "react-datepicker/dist/react-datepicker.css";
 
 const CreateVoucher = ({ onClose, fetchVouchers }) => {
     const [loading, setLoading] = useState(false); // ⬅️ state baru
@@ -11,14 +13,12 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
         description: "",
         discountAmount: "",
         minimumOrder: "",
-        date: {
-            startDate: "",
-            endDate: "",
-        },
         isActive: true,
         maxClaims: "",
         printOnReceipt: true, // ⬅️ default value
     });
+    const [validFrom, setValidFrom] = useState(null);
+    const [validTo, setValidTo] = useState(null);
     const [outlets, setOutlets] = useState([]);
 
     const [amountType, setAmountType] = useState("rupiah"); // or 'percentage'
@@ -48,13 +48,6 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
         setFormData({ ...formData, [name]: value });
     };
 
-    const handleDateRangeChange = (value) => {
-        setFormData((prev) => ({
-            ...prev,
-            date: value, // { startDate, endDate }
-        }));
-    };
-
     const handleSubmit = async (e) => {
         setLoading(true); // ⬅️ mulai loading
         e.preventDefault();
@@ -69,8 +62,8 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
                 description: formData.description,
                 discountAmount: formData.discountAmount,
                 discountType: amountType === "rupiah" ? "fixed" : "percentage", // mapping ke backend
-                validFrom: formData.date?.startDate,
-                validTo: formData.date?.endDate,
+                validFrom: validFrom?.toISOString(), // ✅ langsung ke ISO string
+                validTo: validTo?.toISOString(),     // ✅ langsung ke ISO string
                 quota: formData.maxClaims,
                 applicableOutlets,
                 customerType: "all", // kalau belum ada pilihan customer type
@@ -81,6 +74,8 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
             onClose();
         } catch (error) {
             console.error("Error creating voucher:", error);
+        } finally {
+            setLoading(false); // ✅ jangan lupa stop loading
         }
     };
 
@@ -193,19 +188,93 @@ const CreateVoucher = ({ onClose, fetchVouchers }) => {
                         </div>
 
                         {/* Masa Berlaku */}
+                        {/* <div className="mb-6">
+                            <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                Masa Berlaku
+                                <span className="text-red-500 ml-1">*</span>
+                            </label>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-2">
+                                        Tanggal Mulai
+                                    </label>
+                                    <DatePicker
+                                        selected={validFrom}
+                                        onChange={(date) => setValidFrom(date)}
+                                        showTimeSelect
+                                        timeFormat="HH:mm"
+                                        timeIntervals={15}
+                                        dateFormat="dd/MM/yyyy HH:mm"
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#005429] focus:border-transparent"
+                                        placeholderText="Pilih tanggal & waktu mulai"
+                                        wrapperClassName="w-full"
+                                        calendarClassName="custom-calendar"
+                                        popperClassName="custom-popper"
+                                        showPopperArrow={false}
+                                        popperPlacement="bottom-start"
+                                        portalId="root-portal"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-2">
+                                        Tanggal Berakhir
+                                    </label>
+                                    <DatePicker
+                                        selected={validTo}
+                                        onChange={(date) => setValidTo(date)}
+                                        showTimeSelect
+                                        timeFormat="HH:mm"
+                                        timeIntervals={15}
+                                        dateFormat="dd/MM/yyyy HH:mm"
+                                        minDate={validFrom}
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#005429] focus:border-transparent"
+                                        placeholderText="Pilih tanggal & waktu berakhir"
+                                        wrapperClassName="w-full"
+                                        calendarClassName="custom-calendar"
+                                        popperClassName="custom-popper"
+                                        showPopperArrow={false}
+                                        popperPlacement="bottom-start"
+                                        portalId="root-portal"
+                                    />
+                                </div>
+                            </div>
+                        </div> */}
                         <div className="mb-4 z-[70]">
-                            <label className="block text-sm font-medium text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1">Masa Berlaku</label>
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={formData.date}
-                                onChange={handleDateRangeChange}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="mt-1 w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#005429] cursor-pointer"
-                                popoverPosition="fixed"
-                                containerClassName="relative z-[80]"
-                                popoverClassName="max-w-[10px] text-xs"
-                            />
+                            <label className="block text-sm font-medium text-[#999999] after:content-['*'] after:text-red-500 after:text-lg after:ml-1">
+                                Masa Berlaku
+                            </label>
+                            <div className="flex gap-4">
+                                {/* Valid From */}
+                                <div className="w-full">
+                                    <DatePicker
+                                        selected={validFrom}
+                                        onChange={(date) => setValidFrom(date)}
+                                        showTimeSelect
+                                        timeFormat="HH:mm"
+                                        timeIntervals={15}
+                                        dateFormat="dd-MM-yyyy HH:mm"
+                                        className="mt-1 w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#005429] cursor-pointer"
+                                        placeholderText="Dari"
+                                    />
+                                </div>
+
+                                {/* Valid To */}
+                                <div className="w-full">
+                                    <DatePicker
+                                        selected={validTo}
+                                        onChange={(date) => setValidTo(date)}
+                                        showTimeSelect
+                                        timeFormat="HH:mm"
+                                        timeIntervals={15}
+                                        dateFormat="dd-MM-yyyy HH:mm"
+                                        minDate={validFrom} // ⬅️ tidak bisa pilih sebelum validFrom
+                                        className="mt-1 w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#005429] cursor-pointer"
+                                        placeholderText="Sampai"
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         {/* Kuota */}

@@ -90,6 +90,7 @@ const UpdateMenu = () => {
         const res = await axios.get("/api/menu/categories");
         const data = res.data.data;
 
+        console.log(data);
         setAllCategories(data);
         const main = data.filter((cat) => !cat.parentCategory);
         setCategories(main);

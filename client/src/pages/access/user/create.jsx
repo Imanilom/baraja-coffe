@@ -84,7 +84,7 @@ const CreateUser = () => {
     };
 
     // Fetch outlet list
-    const fetchData = async () => {
+    const fetchOutlets = async () => {
         setLoading(true);
         try {
             const res = await axios.get("/api/outlet");
@@ -104,7 +104,8 @@ const CreateUser = () => {
     };
 
     useEffect(() => {
-        fetchData();
+        fetchOutlets();
+        fetchRoles();
     }, []);
 
     const filteredOutlets = outlets.filter((o) =>
@@ -152,7 +153,7 @@ const CreateUser = () => {
             });
 
             if (submitAction === "exit") {
-                fetchData();
+                fetchOutlets();
                 navigate("/admin/access-settings/user", {
                     state: { success: "Karyawan berhasil dibuat!" },
                 });

@@ -108,15 +108,6 @@ const Sidebar = ({ isSidebarOpen }) => {
     }));
   };
 
-  const handleSignOut = async () => {
-    try {
-      await fetch('/api/auth/signout');
-      dispatch(signOut());
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
   if (loading) {
     return (
       <div className={`h-screen bg-green-900 text-white fixed top-0 left-0 flex items-center justify-center transition-all duration-300 z-40 shadow-lg ${isSidebarOpen ? "w-72" : "w-16"}`}>

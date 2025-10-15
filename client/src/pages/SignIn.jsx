@@ -123,7 +123,6 @@ export default function SignIn() {
                   className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-900"
                 />
               </div>
-
               <button
                 type="submit"
                 disabled={loading}
@@ -132,6 +131,13 @@ export default function SignIn() {
                 {loading ? "Signing In..." : "Sign In"}
               </button>
             </form>
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm text-center">
+                {typeof error === "object"
+                  ? error.message || "Something went wrong!"
+                  : error}
+              </div>
+            )}
           </>
         </div>
       </div>

@@ -156,6 +156,10 @@ const OrderSchema = new mongoose.Schema({
     address: String,
     coordinates: String,
     note: String
+  },
+  isSplitPayment: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true,

@@ -1,20 +1,20 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Select from 'react-select';
 import axios from "axios";
-// Firebase imports - COMMENTED OUT
-// import {
-//   getDownloadURL,
-//   getStorage,
-//   ref,
-//   uploadBytesResumable,
-// } from 'firebase/storage';
-// import { app } from '../../firebase';
+import {
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytesResumable,
+} from 'firebase/storage';
+import { app } from '../../firebase';
 import { Link } from "react-router-dom";
-import { FaChevronRight } from "react-icons/fa";
+import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import ConfirmationModal from "./confirmmodal";
 import ToppingForm from "./varianmodal";
 import AddonForm from "./opsimodal";
+import Header from "../admin/header";
 
 const CreateMenu = () => {
   const [allCategories, setAllCategories] = useState([]);
@@ -25,22 +25,31 @@ const CreateMenu = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [outlets, setOutlets] = useState([]);
+  const [file, setFile] = useState(null);
+  const [isVariationOpen, setIsVariationOpen] = useState(false);
+  const [isOpsiOpen, setIsOpsiOpen] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
 
+  const [selectedOutlet, setSelectedOutlet] = useState('');
   const [selectedMainCategory, setSelectedMainCategory] = useState("");
   const [searchTermMainCategories, setSearchTermMainCategories] = useState("");
   const [searchTermCategories, setSearchTermCategories] = useState("");
   const [searchTermSub, setSearchTermSub] = useState("");
 
+  const [showMainDropdown, setShowMainDropdown] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showSubDropdown, setShowSubDropdown] = useState(false);
   const fileRef = useRef(null);
   const navigate = useNavigate();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isOptional, setIsOptional] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   const [imageFile, setImageFile] = useState(null);
-  const [compressedImageURL, setCompressedImageURL] = useState(null);
 
+  const [compressedImageURL, setCompressedImageURL] = useState(null);
+  const [imageError, setImageError] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     price: "",
@@ -58,20 +67,6 @@ const CreateMenu = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    // Validasi tipe file
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      alert('Format file tidak didukung. Gunakan JPG, PNG, GIF, atau WebP');
-      return;
-    }
-
-    // Validasi ukuran file (max 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
-      alert('Ukuran file terlalu besar. Maksimal 5MB');
-      return;
-    }
 
     setImageFile(file);
     setCompressedImageURL(URL.createObjectURL(file)); // tampilkan preview
@@ -113,92 +108,54 @@ const CreateMenu = () => {
     });
   };
 
-  // ===== FIREBASE UPLOAD - COMMENTED OUT =====
-  // const uploadToFirebase = (file) => {
-  //   return new Promise((resolve, reject) => {
-  //     const storage = getStorage(app);
-  //     const fileRef = ref(storage, `menu/${Date.now()}-${file.name}`);
-  //     const uploadTask = uploadBytesResumable(fileRef, file);
+  const uploadToFirebase = (file) => {
+    return new Promise((resolve, reject) => {
+      const storage = getStorage(app);
+      const fileRef = ref(storage, `menu/${Date.now()}-${file.name}`);
+      const uploadTask = uploadBytesResumable(fileRef, file);
 
-  //     uploadTask.on(
-  //       "state_changed",
-  //       null,
-  //       (err) => reject(err),
-  //       async () => {
-  //         const url = await getDownloadURL(uploadTask.snapshot.ref);
-  //         resolve(url);
-  //       }
-  //     );
-  //   });
-  // };
-
-  // ===== NEW: UPLOAD KE PHP SERVER =====
-  const uploadToPHP = async (file) => {
-    try {
-      setUploading(true);
-
-      // Compress image terlebih dahulu
-      const compressedBlob = await compressImage(file);
-
-      // Buat FormData untuk kirim file
-      const formData = new FormData();
-      formData.append('image', compressedBlob, file.name);
-      formData.append('kategori', 'menu'); // kategori untuk organize file
-
-      // Upload ke PHP backend
-      // GANTI URL ini dengan URL PHP upload.php Anda
-      const response = await axios.post('https://img.barajacoffee.com/api.php', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      // Response format: { success: true, imageURL: "http://..." }
-      if (response.data.success) {
-        return response.data.imageURL;
-      } else {
-        throw new Error(response.data.message || 'Upload gagal');
-      }
-
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      alert('Gagal upload gambar: ' + (error.response?.data?.message || error.message));
-      throw error;
-    } finally {
-      setUploading(false);
-    }
+      uploadTask.on(
+        "state_changed",
+        null,
+        (err) => reject(err),
+        async () => {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(url);
+        }
+      );
+    });
   };
 
   const customSelectStyles = {
     control: (provided, state) => ({
       ...provided,
-      borderColor: '#d1d5db',
+      borderColor: '#d1d5db', // Tailwind border-gray-300
       minHeight: '34px',
       fontSize: '13px',
-      color: '#6b7280',
-      boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
+      color: '#6b7280', // text-gray-500
+      boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
       '&:hover': {
-        borderColor: '#9ca3af',
+        borderColor: '#9ca3af', // Tailwind border-gray-400
       },
     }),
     singleValue: (provided) => ({
       ...provided,
-      color: '#6b7280',
+      color: '#6b7280', // text-gray-500
     }),
     input: (provided) => ({
       ...provided,
-      color: '#6b7280',
+      color: '#6b7280', // text-gray-500 for typed text
     }),
     placeholder: (provided) => ({
       ...provided,
-      color: '#9ca3af',
+      color: '#9ca3af', // text-gray-400
       fontSize: '13px',
     }),
     option: (provided, state) => ({
       ...provided,
       fontSize: '13px',
-      color: '#374151',
-      backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
+      color: '#374151', // gray-700
+      backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
       cursor: 'pointer',
     }),
   };
@@ -218,7 +175,9 @@ const CreateMenu = () => {
     try {
       const res = await axios.get("/api/menu/categories");
       const data = res.data.data;
+
       setAllCategories(data);
+      console.log(data);
       const main = data.filter((cat) => !cat.parentCategory);
       setCategories(main);
     } catch (error) {
@@ -233,6 +192,7 @@ const CreateMenu = () => {
     try {
       const res = await axios.get("/api/outlet");
       const data = res.data.data;
+
       setOutlets(data);
     } catch (error) {
       console.error("Gagal fetch outlet:", error);
@@ -244,25 +204,22 @@ const CreateMenu = () => {
   const handleSubmit = async (e) => {
     const valueToSend = isChecked ? "kitchen" : "bar";
     e.preventDefault();
-
     try {
       let imageURL = "";
-
-      // Upload image ke PHP jika ada
       if (imageFile) {
-        imageURL = await uploadToPHP(imageFile); // Upload ke PHP, dapat URL
+        imageURL = await uploadToFirebase(imageFile);
       }
 
-      // Payload untuk database Anda sendiri
       const payload = {
         name: formData.name,
         description: formData.description,
         price: Number(formData.price),
-        imageURL: imageURL || "", // HANYA URL/LINK gambar yang disimpan
+        // discountedPrice: Number(formData.price), // bisa ubah sesuai diskon
+        imageURL: imageURL || "",
         mainCat: selectedMainCategory,
         category: formData.category,
         subCategory: formData.subCategory || null,
-        availableAt: formData.availableAt,
+        availableAt: formData.availableAt, // array of outlet ids
         rawMaterials: formData.rawMaterials || [],
         toppings: toppings.map((top) => ({
           name: top.name,
@@ -279,20 +236,17 @@ const CreateMenu = () => {
         workstation: valueToSend
       };
 
-      console.log('Payload yang dikirim ke database:', payload);
+      console.log(payload);
 
-      // Simpan ke database Anda (data + URL gambar)
       await axios.post("/api/menu/menu-items", payload);
-
-      alert('Menu berhasil disimpan!');
       navigate("/admin/menu");
-
+      // alert("Berhasil");
     } catch (err) {
       console.error("Gagal kirim data:", err);
-      alert("Gagal menyimpan menu. Silakan coba lagi.");
     }
   };
 
+  // Show loading state
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -304,11 +258,17 @@ const CreateMenu = () => {
   return (
     <div className="">
       <form onSubmit={handleSubmit}>
+        {/* Header */}
+
         <div className="flex justify-between items-center px-6 py-3 my-3">
           <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-            <Link to="/admin/menu">Menu</Link>
+            <Link to="/admin/menu">
+              Menu
+            </Link>
             <FaChevronRight />
-            <span>Tambah Menu</span>
+            <span>
+              Tambah Menu
+            </span>
           </h1>
           <div className="flex items-center gap-3">
             <span
@@ -319,14 +279,14 @@ const CreateMenu = () => {
             </span>
             <button
               type="submit"
-              disabled={uploading}
-              className="block bg-[#005429] text-white text-sm px-3 py-1.5 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              className="block bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
             >
-              {uploading ? 'Uploading...' : 'Simpan'}
+              Simpan
             </button>
           </div>
         </div>
 
+        {/* Modal */}
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-2">
             <div className="bg-white p-6 rounded shadow-md text-center space-y-4 w-full max-w-md">
@@ -349,9 +309,12 @@ const CreateMenu = () => {
           </div>
         )}
 
+        {/* Form Container */}
         <div className="px-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 shadow-md p-4 sm:p-6 md:p-12 rounded-lg bg-white">
+            {/* grid 1 */}
             <div className="text-green-900 space-y-4">
+              {/* Nama Menu */}
               <div>
                 <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">
                   NAMA MENU
@@ -362,10 +325,10 @@ const CreateMenu = () => {
                   value={formData.name}
                   onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg"
-                  required
                 />
               </div>
 
+              {/* Main Kategori */}
               <div>
                 <label className="my-2.5 text-xs block font-medium">
                   MAIN KATEGORI
@@ -394,6 +357,7 @@ const CreateMenu = () => {
                 />
               </div>
 
+              {/* Kategori */}
               <div>
                 <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
                 <Select
@@ -428,6 +392,7 @@ const CreateMenu = () => {
                 />
               </div>
 
+              {/* Sub Kategori */}
               {subCategories.length > 0 && (
                 <div>
                   <label className="my-2.5 text-xs block font-medium">
@@ -452,6 +417,7 @@ const CreateMenu = () => {
                 </div>
               )}
 
+              {/* Price */}
               <div>
                 <label className="my-2.5 text-xs block font-medium">HARGA</label>
                 <input
@@ -460,15 +426,53 @@ const CreateMenu = () => {
                   value={formData.price}
                   onChange={handleInputChange}
                   className="w-full py-2 px-3 border rounded-lg"
-                  required
                 />
               </div>
 
+              {/* SKU */}
+              {/* <div>
+                <label className="my-2.5 text-xs block font-medium">SKU</label>
+                <input
+                  type="text"
+                  name="sku"
+                  value={formData.sku}
+                  onChange={handleInputChange}
+                  className="w-full py-2 px-3 border rounded-lg"
+                />
+              </div> */}
+
+              {/* Barcode */}
+              {/* <div>
+                <label className="my-2.5 text-xs block font-medium">BARCODE</label>
+                <input
+                  type="text"
+                  name="barcode"
+                  value={formData.barcode}
+                  onChange={handleInputChange}
+                  className="w-full py-2 px-3 border rounded-lg"
+                />
+              </div> */}
+
+              {/* Stock Unit */}
+              {/* <div>
+                <label className="my-2.5 text-xs block font-medium">
+                  SATUAN STOK
+                </label>
+                <input
+                  type="text"
+                  name="stock"
+                  value={formData.stock}
+                  onChange={handleInputChange}
+                  className="w-full py-2 px-3 border rounded-lg"
+                />
+              </div> */}
+
+              {/* Image Input */}
               <div className="flex items-center space-x-4 py-4">
                 {compressedImageURL ? (
                   <img
                     src={compressedImageURL}
-                    alt="Preview"
+                    alt="Compressed Preview"
                     className="h-24 w-24 object-cover rounded cursor-pointer"
                     onClick={() => fileRef.current.click()}
                   />
@@ -482,23 +486,11 @@ const CreateMenu = () => {
                 )}
                 <input
                   type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  accept="image/*"
                   ref={fileRef}
                   className="hidden"
                   onChange={handleImageChange}
                 />
-                {compressedImageURL && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImageFile(null);
-                      setCompressedImageURL(null);
-                    }}
-                    className="text-red-500 text-sm hover:underline"
-                  >
-                    Hapus gambar
-                  </button>
-                )}
               </div>
 
               <div>
@@ -512,10 +504,13 @@ const CreateMenu = () => {
               </div>
             </div>
 
+            {/* grid 2 */}
             <div className="text-[14px] text-green-900 space-y-4">
+
               <ToppingForm toppings={toppings} setToppings={setToppings} />
               <AddonForm addons={addons} setAddons={setAddons} />
 
+              {/* Outlet */}
               <div>
                 <label className="block mb-1 text-sm font-medium">Pilih Outlet</label>
                 <div className="grid gap-2">
@@ -546,6 +541,7 @@ const CreateMenu = () => {
                 </div>
               </div>
 
+              {/* Switch */}
               <div className="flex justify-between items-center">
                 <span>Apakah menu ini berada di dapur?</span>
                 <label className="inline-flex items-center cursor-pointer space-x-3">
@@ -566,6 +562,8 @@ const CreateMenu = () => {
         </div>
       </form>
 
+
+      {/* Modal Slide */}
       <ConfirmationModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
