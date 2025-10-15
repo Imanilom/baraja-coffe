@@ -963,7 +963,6 @@ class PaymentMethodScreen extends ConsumerWidget {
     final onlineOrderDetailNotifier = ref.watch(
       onlineOrderDetailProvider.notifier,
     );
-
     if (state.selectedPaymentType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1048,9 +1047,13 @@ class PaymentMethodScreen extends ConsumerWidget {
       if (context.mounted) Navigator.pop(context);
 
       if (success && context.mounted) {
-        ref.invalidate(orderHistoryProvider);
-        final savedPrinter = ref.read(savedPrintersProvider.notifier);
-        savedPrinter.printToPrinter(orderDetail: orders, printType: 'all');
+        final choosePaymentType = ref.watch(choosePaymentTypesProvider);
+        print('choosePaymentType: $choosePaymentType');
+        if (choosePaymentType != PaymentTypes.downPayment) {
+          ref.invalidate(orderHistoryProvider);
+          final savedPrinter = ref.read(savedPrintersProvider.notifier);
+          savedPrinter.printToPrinter(orderDetail: orders, printType: 'all');
+        }
         context.goNamed(
           'payment-success',
           extra: {

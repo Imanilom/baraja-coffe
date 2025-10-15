@@ -233,11 +233,12 @@ class SalesPerformanceNotifier extends AsyncNotifier<PerformanceReportModel> {
     SalesFilter filter,
   ) async {
     final apiService = ref.read(salesReportServiceProvider);
+    final cashier = await HiveService.getCashier();
     return await apiService.fetchPerformanceReport(
       outletId: await HiveService.outletId,
       startDate: filter.startDate,
       endDate: filter.endDate,
-      cashierId: filter.cashierId,
+      cashierId: cashier!.id,
       // paymentMethod: filter.paymentMethod,
       // orderType: filter.orderType,
     );

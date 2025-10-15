@@ -54,10 +54,10 @@ class SocketService {
     });
 
     socket.on('new_order', (data) {
-      print('new_order: $data');
+      print('new_order at my device: $data');
       NotificationService.showSystemNotification(
         'Pesanan Baru',
-        'Pelanggan: ${data['customerName']} • Rp ${data['totalPrice']}',
+        'Hello World! new_order',
       );
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 500), () {
@@ -66,9 +66,10 @@ class SocketService {
     });
 
     socket.on('new_order_created', (data) {
+      print('new_order_created at my device: $data');
       NotificationService.showSystemNotification(
-        'Pesanan Baru dari area room',
-        "test"
+        'Pesanan Baru dari area device anda,',
+        "cek detail di menu 'pesanan online'",
       );
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 500), () {
@@ -109,16 +110,20 @@ class SocketService {
   }
 
   Future<void> logout() async {
-    final device  = await HiveService.getDevice();
+    final device = await HiveService.getDevice();
     final cashier = await HiveService.getCashier();
 
     // 1) Minta server lepas semua room (lebih aman & ringkas)
     try {
       // Ack pattern (kalau versi lib mendukung Future)
       // ignore: deprecated_member_use
-      socket.emitWithAck('device:leaveAll', null, ack: (res) {
-        print('leaveAll ack: $res');
-      });
+      socket.emitWithAck(
+        'device:leaveAll',
+        null,
+        ack: (res) {
+          print('leaveAll ack: $res');
+        },
+      );
       // Kalau versi package kamu belum ada Future-nya, cara di atas sudah cukup.
     } catch (_) {}
 

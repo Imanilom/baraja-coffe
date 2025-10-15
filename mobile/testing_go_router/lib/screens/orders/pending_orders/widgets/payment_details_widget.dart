@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
@@ -256,7 +257,11 @@ class PaymentDetailsWidget extends ConsumerWidget {
                   child: ElevatedButton(
                     onPressed:
                         selectedPayment != null
-                            ? () => _processPayment(context, selectedPayment)
+                            ? () => _processPayment(
+                              context,
+                              selectedPayment,
+                              orders!,
+                            )
                             : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
@@ -740,7 +745,11 @@ class PaymentDetailsWidget extends ConsumerWidget {
     }
   }
 
-  void _processPayment(BuildContext context, PaymentModel payment) {
+  void _processPayment(
+    BuildContext context,
+    PaymentModel payment,
+    OrderDetailModel orderDetail,
+  ) {
     // Tampilkan dialog konfirmasi
     showDialog(
       context: context,
@@ -776,7 +785,7 @@ class PaymentDetailsWidget extends ConsumerWidget {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _navigateToPaymentProcess(context, payment);
+                _navigateToPaymentProcess(context, payment, orderDetail);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
@@ -790,8 +799,15 @@ class PaymentDetailsWidget extends ConsumerWidget {
     );
   }
 
-  void _navigateToPaymentProcess(BuildContext context, PaymentModel payment) {
+  void _navigateToPaymentProcess(
+    BuildContext context,
+    PaymentModel payment,
+    OrderDetailModel orders,
+  ) {
     // Navigasi ke halaman proses pembayaran dengan membawa data payment
-    GoRouter.of(context).pushNamed('payment-process', extra: payment);
+    GoRouter.of(context).pushNamed(
+      'payment-process',
+      extra: {'payment': payment, 'order': orders},
+    );
   }
 }
