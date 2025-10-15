@@ -61,6 +61,13 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     }
   }
 
+  //update paymentType
+  void updatePaymentType(String paymentType) {
+    if (state != null) {
+      state = state!.copyWith(paymentType: paymentType);
+    }
+  }
+
   void updatePayment(OrderDetailModel updatedOrder) {
     state = updatedOrder;
   }
@@ -289,6 +296,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     final cashier = await HiveService.getCashier();
 
     state = state!.copyWith(cashierId: cashier!.id);
+    print('statedtdt: $state');
     if (state == null) return false;
 
     try {
@@ -302,6 +310,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
         return true;
       }
     } catch (e) {
+      print('error apa? $e');
       return false;
     }
     return false; // Return false if state is null
@@ -376,6 +385,24 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   void addOrderIdToOrderDetail(String orderId) {
     if (state != null) {
       state = state!.copyWith(orderId: orderId);
+      print('success add Order ID: $orderId');
+    }
+  }
+
+  void updatePaymentAmount(int paymentAmount) {
+    if (state != null) {
+      if (state?.paymentType?.toLowerCase() == 'cash' ||
+          state?.paymentType?.toLowerCase() == 'tunai') {
+        state = state!.copyWith(paymentAmount: paymentAmount);
+      } else {
+        state = state!.copyWith(paymentAmount: state!.grandTotal);
+      }
+    }
+  }
+
+  void updateChangeAmount(int changeAmount) {
+    if (state != null) {
+      state = state!.copyWith(changeAmount: changeAmount);
     }
   }
 }

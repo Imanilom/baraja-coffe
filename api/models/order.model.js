@@ -50,6 +50,7 @@ const OrderSchema = new mongoose.Schema({
   user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   user: { type: String, required: true, default: 'Guest' },
   cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  groId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [OrderItemSchema],
   status: {
     type: String,
@@ -65,12 +66,10 @@ const OrderSchema = new mongoose.Schema({
     enum: ['Dine-In', 'Pickup', 'Delivery', 'Take Away', 'Reservation', 'Event'],
     required: true
   },
+  // OPSIONAL: Hanya diisi jika orderType adalah 'Delivery'
   deliveryAddress: { type: String },
   tableNumber: { type: String },
-  pickupTime: {
-    type: String,
-    // Untuk waktu pickup, simpan sebagai string dalam format WIB
-  },
+  pickupTime: { type: String },
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
   isOpenBill: { type: Boolean, default: false },
   originalReservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
@@ -121,7 +120,7 @@ const OrderSchema = new mongoose.Schema({
   // Reservation reference
   reservation: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
 
-  // ✅ TAMBAHAN: Simpan waktu dalam WIB secara eksplisit
+  // TAMBAHAN: Simpan waktu dalam WIB secara eksplisit
   createdAtWIB: {
     type: Date,
     default: () => getWIBNow()
@@ -129,10 +128,37 @@ const OrderSchema = new mongoose.Schema({
   updatedAtWIB: {
     type: Date,
     default: () => getWIBNow()
-  }
+  },
 
+  // OPSIONAL: Field delivery hanya diisi jika orderType adalah 'Delivery'
+  deliveryStatus: {
+    type: String,
+    // enum: ['pending', 'confirmed', 'picked_up', 'on_delivery', 'delivered', 'cancelled', 'failed'],
+    default: false
+  },
+  deliveryProvider: {
+    type: String,
+    // enum: ['GoSend', 'GrabExpress', 'Manual'],
+    default: false
+  },
+  deliveryTracking: {
+    provider: String,
+    tracking_number: String,
+    status: String,
+    driver_name: String,
+    driver_phone: String,
+    live_tracking_url: String,
+    estimated_arrival: Date
+  },
+  recipientInfo: {
+    name: String,
+    phone: String,
+    address: String,
+    coordinates: String,
+    note: String
+  }
 }, {
-  timestamps: true, // Ini akan tetap menyimpan UTC
+  timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });

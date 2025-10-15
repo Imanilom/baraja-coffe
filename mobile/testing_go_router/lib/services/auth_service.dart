@@ -55,7 +55,7 @@ class AuthService {
       );
 
       final result = Map<String, dynamic>.from(res.data);
-
+      print('hasil dari get device $result');
       return result;
     } on DioException catch (e) {
       throw ApiResponseHandler.handleError(e);
@@ -89,21 +89,47 @@ class AuthService {
     required String token,
     required String deviceId,
     required String cashierId,
-    String? role,
   }) async {
     try {
       final body = <String, dynamic>{'cashierId': cashierId};
-      if (role != null && role.isNotEmpty) body['role'] = role;
-
+      // if (role != null && role.isNotEmpty) body['role'] = role;
+      print("body login cashier to device: $body");
       final res = await _dio.post(
         '/api/cashierauth/devices/$deviceId/login-cashier',
         data: body,
         options: _auth(token),
       );
 
+      if (!res.data['success']) {
+        throw Exception(res.data['message']);
+      }
+      print("result login cashier to device: ${res.data}");
       final result = Map<String, dynamic>.from(res.data);
+      print("result login cashier to device: $result");
 
       return result;
+    } on DioException catch (e) {
+      throw ApiResponseHandler.handleError(e);
+    }
+  }
+
+  //logoutCashierFromDevice
+  Future<Map<String, dynamic>> logoutCashierFromDevice({
+    required String token,
+    required String deviceId,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '/api/cashierauth/devices/$deviceId/logout',
+        options: _auth(token),
+      );
+
+      if (!res.data['success']) {
+        throw Exception(res.data['message']);
+      }
+
+      print('result logout cashier from device: ${res.data}');
+      return res.data;
     } on DioException catch (e) {
       throw ApiResponseHandler.handleError(e);
     }

@@ -1,4 +1,5 @@
 import 'package:hive_ce/hive.dart';
+import 'package:kasirbaraja/models/cashier.model.dart';
 
 import '../models/user.model.dart';
 import '../services/auth_service.dart';
@@ -64,7 +65,6 @@ class AuthDevice {
 
       final data = response['data'] as List<dynamic>;
       final devices = data.map((json) => DeviceModel.fromJson(json)).toList();
-
       // for (var device in devices) {
       //   await deviceBox.put(device.id, device);
       // }
@@ -73,6 +73,7 @@ class AuthDevice {
 
       return devices;
     } catch (e) {
+      print('error saat convert to model device: $e');
       throw Exception('Failed to fetch devices: $e');
     }
   }
@@ -86,5 +87,52 @@ class AuthDevice {
       deviceId: deviceId,
     );
     return response['data'] as Map<String, dynamic>;
+  }
+
+  //login cashier to device
+  Future<bool> loginCashierToDevice(CashierModel cashier, DeviceModel device) async {
+    try {
+      final token = await HiveService.userToken;
+
+      if (device.id.isEmpty) {
+        throw Exception('Device tidak valid');
+      }
+      if (cashier.id == null || cashier.id!.isEmpty) {
+        throw Exception('Cashier tidak valid');
+      }
+
+      final response = await _authService.loginCashierToDevice(
+        token: token,
+        deviceId: device.id,
+        cashierId: cashier.id!,
+      );
+
+      //simpan device ke hive
+      await HiveService.saveDevice(device);
+
+      return response['success'] == true;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<bool> logoutCashierFromDevice() async {
+    try {
+      final token = await HiveService.userToken;
+      final device = await HiveService.getDevice();
+
+      if (device == null || device.id.isEmpty) {
+        throw Exception('Device tidak valid');
+      }
+
+      final res = await _authService.logoutCashierFromDevice(
+        token: token,
+        deviceId: device.id,
+      );
+
+      return res['success'] == true;
+    } catch (e) {
+      rethrow;
+    }
   }
 }

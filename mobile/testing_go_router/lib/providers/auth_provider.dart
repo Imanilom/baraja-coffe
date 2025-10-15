@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/providers/message_provider.dart';
+import 'package:kasirbaraja/providers/sockets/connect_to_socket.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
@@ -267,3 +268,54 @@ final devicesProvider = FutureProvider.autoDispose<List<DeviceModel>>((
     throw Exception('Gagal memuat device: $e');
   }
 });
+
+// === STATE NOTIFIER PROVIDER ===
+final cashierLoginToDeviceProvider =
+    StateNotifierProvider<CashierLoginToDeviceNotifier, AsyncValue<bool>>(
+      (ref) => CashierLoginToDeviceNotifier(ref),
+    );
+
+class CashierLoginToDeviceNotifier extends StateNotifier<AsyncValue<bool>> {
+  final Ref ref;
+
+  CashierLoginToDeviceNotifier(this.ref) : super(const AsyncValue.data(false));
+
+  Future<void> loginCashierToDevice(CashierModel cashier, DeviceModel device) async {
+    state = const AsyncValue.loading();
+
+    try {
+      final repository = ref.read(authDeviceRepositoryProvider);
+      final success = await repository.loginCashierToDevice(cashier, device);
+
+      state = AsyncValue.data(success);
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  void reset() {
+    state = const AsyncValue.data(false);
+  }
+
+  //logoutCashierFromDevice
+  Future<void> logoutCashierFromDevice() async {
+    final repository = ref.read(authDeviceRepositoryProvider);
+    final socketRoom = ref.read(socketServiceProvider);
+    await socketRoom.logout();
+    await repository.logoutCashierFromDevice();
+    print('behasil logout device dan leave socket rooms');
+  }
+}
+
+// === COMPOSED PROVIDER ===
+final canProceedToLoginProvider = Provider<bool>((ref) {
+  final pinValid = ref.watch(isValidProvider);
+  final deviceLoginState = ref.watch(cashierLoginToDeviceProvider);
+
+  return pinValid &&
+      !deviceLoginState.isLoading &&
+      deviceLoginState.hasValue &&
+      deviceLoginState.value == true;
+});
+
+final isValidProvider = StateProvider<bool>((ref) => false);

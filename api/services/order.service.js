@@ -10,14 +10,12 @@ import mongoose from 'mongoose';
  * Processes order items including pricing calculations and promotions
  */
 export async function processOrderItems({ items, outlet, orderType, voucherCode, customerType, source, customerId, loyaltyPointsToRedeem }, session) {
-  
+
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new Error('Order items cannot be empty');
   }
 
-  if (!mongoose.Types.ObjectId.isValid(outlet)) {
-    throw new Error('Invalid outlet ID');
-  }
+  
 
   const orderItems = [];
   let totalBeforeDiscount = 0;
@@ -68,7 +66,8 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
       addons,
       toppings,
       notes: item.notes || '',
-      isPrinted: false
+      isPrinted: false,
+      dineType: item.dineType,
     });
   }
 
@@ -78,8 +77,8 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
   let loyaltyPointsEarned = 0;
   let loyaltyDetails = null;
 
-  const isEligibleForLoyalty = customerId && 
-    mongoose.Types.ObjectId.isValid(customerId) && 
+  const isEligibleForLoyalty = customerId &&
+    mongoose.Types.ObjectId.isValid(customerId) &&
     (source === 'app' || source === 'cashier');
 
   console.log('Loyalty Program Optional Check:', {
@@ -95,15 +94,15 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     if (loyaltyPointsToRedeem && loyaltyPointsToRedeem > 0) {
       try {
         const redemptionResult = await redeemLoyaltyPoints(
-          customerId, 
-          loyaltyPointsToRedeem, 
-          outlet, 
+          customerId,
+          loyaltyPointsToRedeem,
+          outlet,
           session
         );
-        
+
         loyaltyDiscount = redemptionResult.discountAmount;
         loyaltyPointsUsed = redemptionResult.pointsUsed;
-        
+
         console.log('Loyalty Points Redeemed Successfully:', {
           pointsToRedeem: loyaltyPointsToRedeem,
           discountAmount: loyaltyDiscount,
@@ -143,10 +142,10 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
         outlet,
         session
       );
-      
+
       loyaltyPointsEarned = pointsResult.pointsEarned;
       loyaltyDetails = pointsResult.loyaltyDetails;
-      
+
       console.log('Loyalty Points Earned:', {
         pointsEarned: loyaltyPointsEarned,
         transactionAmount: promotionResults.totalAfterDiscount,
@@ -251,6 +250,7 @@ async function processToppings(item, menuItem, recipe, toppings, addPriceCallbac
     }
 
     toppings.push({
+      _id: topping.id,
       name: toppingInfo.name,
       price: toppingInfo.price || 0
     });
@@ -279,8 +279,15 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
         }
 
         addons.push({
-          name: `${addonInfo.name}: ${optionInfo.label}`,
-          price: optionInfo.price || 0
+          _id: addon.id,
+          name: `${addonInfo.name}`,
+          options: [
+            {
+              _id: option.id,
+              label: optionInfo.label,
+              price: optionInfo.price || 0
+            }
+          ]
         });
 
         addPriceCallback(optionInfo.price || 0);
@@ -292,7 +299,7 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
 /**
  * Calculates taxes and service fees for an order
  */
-async function calculateTaxesAndServices(outlet, totalAfterDiscount, orderItems, session) {
+export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orderItems, session) {
   const taxesAndServices = await TaxAndService.find({
     isActive: true,
     appliesToOutlets: new mongoose.Types.ObjectId(outlet)
@@ -305,10 +312,10 @@ async function calculateTaxesAndServices(outlet, totalAfterDiscount, orderItems,
   for (const charge of taxesAndServices) {
     const applicableItems = charge.appliesToMenuItems?.length > 0
       ? orderItems.filter(item =>
-          charge.appliesToMenuItems.some(menuId =>
-            menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
-          )
+        charge.appliesToMenuItems.some(menuId =>
+          menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
         )
+      )
       : orderItems;
 
     const applicableSubtotal = applicableItems.reduce((sum, item) => sum + item.subtotal, 0);

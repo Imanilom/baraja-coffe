@@ -37,7 +37,7 @@ import LogRoutes from './routes/log.routes.js';
 import SidebarRoutes from './routes/sidebar.routes.js';
 import AnalyticsRoutes from './routes/analytics.routes.js';
 import AssetRoutes from './routes/asset.route.js';
-import JroRoutes from './routes/jro.routes.js';
+import GroRoutes from './routes/gro.routes.js';
 import RefundRoutes from './routes/refund.routes.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
@@ -56,6 +56,7 @@ import socketHandler from './socket/index.js';
 import { midtransWebhook } from './controllers/webhookController.js';
 import { fileURLToPath } from "url";
 import revisionRoutes from './routes/orderRevision.routes.js';
+import { generateWebhookSecret } from './utils/tokenGenerator.js';
 
 dotenv.config();
 
@@ -122,7 +123,7 @@ app.use('/api/outlet', outletRoutes);
 app.use('/api/workstation', posRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/history', historyRoutes);
-app.use('/api/jro', JroRoutes);
+app.use('/api/gro', GroRoutes);
 // app.use('/api/table-layout', tableLayoutRoutes);
 app.use('/api/tables', tableRoutes);
 app.use('/api/reservations', reservationRoutes);
@@ -188,6 +189,8 @@ const startServer = async () => {
     console.log('✅ Connected to MongoDB');
 
     setupStockCalibrationCron();
+    // Jalankan sekali untuk generate secret
+    // console.log('Webhook Secret:', generateWebhookSecret());
 
     server.listen(3000, () => {
       console.log('🚀 Socket.IO + Express server listening on port 3000');

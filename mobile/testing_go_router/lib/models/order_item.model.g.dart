@@ -25,7 +25,7 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       quantity: fields[3] == null ? 1 : (fields[3] as num).toInt(),
       notes: fields[4] == null ? '' : fields[4] as String?,
       subtotal: fields[5] == null ? 0 : (fields[5] as num).toInt(),
-      orderType: fields[6] == null ? null : fields[6] as OrderType?,
+      orderType: fields[6] == null ? OrderType.dineIn : fields[6] as OrderType,
     );
   }
 
@@ -64,25 +64,29 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
 // JsonSerializableGenerator
 // **************************************************************************
 
-_OrderItemModel _$OrderItemModelFromJson(
-  Map<String, dynamic> json,
-) => _OrderItemModel(
-  menuItem: MenuItemModel.fromJson(json['menuItem'] as Map<String, dynamic>),
-  selectedToppings:
-      (json['selectedToppings'] as List<dynamic>?)
-          ?.map((e) => ToppingModel.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
-  selectedAddons:
-      (json['selectedAddons'] as List<dynamic>?)
-          ?.map((e) => AddonModel.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
-  quantity: (json['quantity'] as num?)?.toInt() ?? 1,
-  notes: json['notes'] as String? ?? "",
-  subtotal: (json['subtotal'] as num?)?.toInt() ?? 0,
-  orderType: $enumDecodeNullable(_$OrderTypeEnumMap, json['dineType']) ?? null,
-);
+_OrderItemModel _$OrderItemModelFromJson(Map<String, dynamic> json) =>
+    _OrderItemModel(
+      menuItem: MenuItemModel.fromJson(
+        json['menuItem'] as Map<String, dynamic>,
+      ),
+      selectedToppings:
+          (json['selectedToppings'] as List<dynamic>?)
+              ?.map((e) => ToppingModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      selectedAddons:
+          (json['selectedAddons'] as List<dynamic>?)
+              ?.map((e) => AddonModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      notes: json['notes'] as String? ?? "",
+      subtotal: (json['subtotal'] as num?)?.toInt() ?? 0,
+      orderType:
+          json['dineType'] == null
+              ? OrderType.dineIn
+              : OrderTypeExtension.fromString(json['dineType'] as String),
+    );
 
 Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
     <String, dynamic>{
@@ -92,14 +96,5 @@ Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
       'quantity': instance.quantity,
       'notes': instance.notes,
       'subtotal': instance.subtotal,
-      'dineType': _$OrderTypeEnumMap[instance.orderType],
+      'dineType': OrderTypeExtension.orderTypeToJson(instance.orderType),
     };
-
-const _$OrderTypeEnumMap = {
-  OrderType.dineIn: 'dineIn',
-  OrderType.pickup: 'pickup',
-  OrderType.delivery: 'delivery',
-  OrderType.takeAway: 'takeAway',
-  OrderType.reservation: 'reservation',
-  OrderType.unknown: 'unknown',
-};

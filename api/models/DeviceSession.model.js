@@ -18,13 +18,13 @@ const DeviceSessionSchema = new mongoose.Schema({
     required: true
   },
   role: {
-    type: String,
-    enum: ['cashier_senior', 'cashier_junior', 'bar_depan', 'bar_belakang', 'kitchen', 'supervisor'],
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Role',
     required: true
   },
   socketId: {
     type: String,
-    required: true
+    default: ''
   },
   loginTime: {
     type: Date,

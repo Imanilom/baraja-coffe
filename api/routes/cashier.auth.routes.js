@@ -245,8 +245,11 @@ router.get('/devices/:deviceId/cashiers', authMiddleware, async (req, res) => {
 router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const { cashierId, role } = req.body;
-    const { outletId, userId: adminId } = req.user;
+    // const { cashierId, role } = req.body;
+    const { cashierId } = req.body;
+    const userId = req.user?._id || req.user?.id; // antisipasi keduanya
+
+    const outletId = await getUseroutlet(userId); // pastikan ini mengembalikan ObjectId / bisa di-cast
 
     // Verifikasi device
     const device = await Device.findOne({
@@ -264,8 +267,9 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
     // Verifikasi cashier
     const cashier = await User.findOne({
       _id: cashierId,
-      outlets: outletId,
-      role: { $in: ['cashier_senior', 'cashier_junior', 'bar_depan', 'bar_belakang'] }
+      //mencari outletId pada array outlet
+      'outlet.outletId': outletId,
+      // role: { $in: ['cashier_senior', 'cashier_junior', 'bar_depan', 'bar_belakang'] }
     });
 
     if (!cashier) {
@@ -284,7 +288,7 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
     if (existingSession) {
       return res.status(400).json({
         success: false,
-        message: `Device sedang digunakan oleh ${existingSession.user.name}`
+        message: `Device sedang digunakan oleh ${existingSession.user.username}`
       });
     }
 
@@ -306,7 +310,7 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
       device: deviceId,
       user: cashierId,
       outlet: outletId,
-      role: role || cashier.role,
+      role: cashier.role,
       socketId: '', // Akan diupdate ketika socket connect
       ipAddress: req.ip,
       userAgent: req.get('User-Agent'),
@@ -321,12 +325,12 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
     await device.save();
 
     // Populate data untuk response
-    await deviceSession.populate('user', 'name email role');
+    await deviceSession.populate('user', 'username email role');
     await deviceSession.populate('device', 'deviceName location');
 
     res.json({
       success: true,
-      message: `Kasir ${cashier.name} berhasil login ke ${device.deviceName}`,
+      message: `Kasir ${cashier.username} berhasil login ke ${device.deviceName}`,
       data: {
         session: deviceSession,
         device: {
@@ -337,7 +341,7 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
         },
         cashier: {
           id: cashier._id,
-          name: cashier.name,
+          name: cashier.username,
           email: cashier.email,
           role: cashier.role
         }
@@ -358,7 +362,11 @@ router.post('/devices/:deviceId/login-cashier', authMiddleware, async (req, res)
 router.post('/devices/:deviceId/logout', authMiddleware, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const { outletId } = req.user;
+    const userId = req.user?._id || req.user?.id; // antisipasi keduanya
+
+    const outletId = await getUseroutlet(userId); // pastikan ini mengembalikan ObjectId / bisa di-cast
+
+    //
 
     // Cari session aktif
     const activeSession = await DeviceSession.findOne({

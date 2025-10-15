@@ -14,8 +14,7 @@ dotenv.config();
  * @returns {Object} normalized order data
  */
 export function validateOrderData(data, source) {
-
-  const { items, outlet, orderType, customerId, loyaltyPointsToRedeem } = data;
+  const { items, orderType, customerId, loyaltyPointsToRedeem } = data;
 
   // Basic validations
   if (!data || typeof data !== 'object') {
@@ -28,19 +27,24 @@ export function validateOrderData(data, source) {
     throw new Error('Order type is required');
   }
 
-   // Validasi dasar
+  // Validasi dasar
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new Error('Order items cannot be empty');
   }
 
-  if (!outlet) {
-    throw new Error('Outlet is required');
-  }
-
-
 
   // Normalize orderType
   const formattedOrderType = formatOrderType(data.orderType);
+
+  // Validasi khusus untuk delivery order
+  if (formattedOrderType === 'Delivery') {
+    if (!data.recipient_data) {
+      throw new Error('Recipient data is required for delivery orders');
+    }
+    if (!data.recipient_data.coordinates) {
+      throw new Error('Coordinates are required for delivery orders');
+    }
+  }
 
   switch (source) {
     case 'App': {
@@ -51,8 +55,13 @@ export function validateOrderData(data, source) {
       if (data.orderType === 'dineIn' && !data.tableNumber) {
         throw new Error('Table number is required for dine-in orders');
       }
-      if (data.orderType === 'delivery' && !data.deliveryAddress) {
-        throw new Error('Delivery address is required for delivery orders');
+      if (data.orderType === 'delivery') {
+        if (!data.recipient_data) {
+          throw new Error('Recipient data is required for delivery orders');
+        }
+        if (!data.recipient_data.name || !data.recipient_data.phone || !data.recipient_data.address) {
+          throw new Error('Complete recipient information (name, phone, address) is required for delivery orders');
+        }
       }
       if (data.orderType === 'pickup' && !data.pickupTime) {
         throw new Error('Pickup time is required for pickup orders');
@@ -71,21 +80,39 @@ export function validateOrderData(data, source) {
       if (!data.cashierId) throw new Error('Cashier ID is required for Cashier orders');
       if (!data.paymentMethod) throw new Error('Payment method is required for Cashier orders');
 
+      // PERBAIKAN KRITIS: Hapus semua field delivery dari data cashier
+      const { 
+        delivery_option, 
+        recipient_data, 
+        deliveryStatus, 
+        deliveryProvider, 
+        deliveryTracking, 
+        recipientInfo,
+        ...cashierData 
+      } = data;
+
       return {
-        items: data.items,
-        user: data.user || null,
-        cashierId: data.cashierId,
-        paymentMethod: data.paymentMethod,
+        items: cashierData.items,
+        user: cashierData.user || null,
+        cashierId: cashierData.cashierId,
+        paymentMethod: cashierData.paymentMethod,
         orderType: formattedOrderType,
-        tableNumber: data.tableNumber || null,
-        outlet: data.outlet || null,
-        isOpenBill: Boolean(data.isOpenBill)
+        tableNumber: cashierData.tableNumber || null,
+        outlet: cashierData.outlet || null,
+        isOpenBill: Boolean(cashierData.isOpenBill),
+        // Pastikan tidak ada field delivery yang terbawa
+        formattedOrderType
       };
     }
 
     case 'Web': {
       if (!data.user) throw new Error('User information is required for Web orders');
       if (!data.paymentMethod) throw new Error('Payment method is required for Web orders');
+
+      // Web tidak mendukung delivery
+      if (formattedOrderType === 'Delivery') {
+        throw new Error('Delivery orders are not supported for Web source');
+      }
 
       return {
         ...data,

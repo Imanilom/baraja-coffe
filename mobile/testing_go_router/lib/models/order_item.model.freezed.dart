@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$OrderItemModel {
 
-@HiveField(0) MenuItemModel get menuItem;@HiveField(1) List<ToppingModel> get selectedToppings;@HiveField(2) List<AddonModel> get selectedAddons;@HiveField(3) int get quantity;@HiveField(4) String? get notes;@HiveField(5) int get subtotal;@HiveField(6)@JsonKey(name: 'dineType') OrderType? get orderType;
+@HiveField(0) MenuItemModel get menuItem;@HiveField(1) List<ToppingModel> get selectedToppings;@HiveField(2) List<AddonModel> get selectedAddons;@HiveField(3) int get quantity;@HiveField(4) String? get notes;@HiveField(5) int get subtotal;@HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType get orderType;
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -49,7 +49,7 @@ abstract mixin class $OrderItemModelCopyWith<$Res>  {
   factory $OrderItemModelCopyWith(OrderItemModel value, $Res Function(OrderItemModel) _then) = _$OrderItemModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6)@JsonKey(name: 'dineType') OrderType? orderType
+@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType
 });
 
 
@@ -66,7 +66,7 @@ class _$OrderItemModelCopyWithImpl<$Res>
 
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? notes = freezed,Object? subtotal = null,Object? orderType = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? notes = freezed,Object? subtotal = null,Object? orderType = null,}) {
   return _then(_self.copyWith(
 menuItem: null == menuItem ? _self.menuItem : menuItem // ignore: cast_nullable_to_non_nullable
 as MenuItemModel,selectedToppings: null == selectedToppings ? _self.selectedToppings : selectedToppings // ignore: cast_nullable_to_non_nullable
@@ -74,8 +74,8 @@ as List<ToppingModel>,selectedAddons: null == selectedAddons ? _self.selectedAdd
 as List<AddonModel>,quantity: null == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
 as int,notes: freezed == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
 as String?,subtotal: null == subtotal ? _self.subtotal : subtotal // ignore: cast_nullable_to_non_nullable
-as int,orderType: freezed == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
-as OrderType?,
+as int,orderType: null == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
+as OrderType,
   ));
 }
 /// Create a copy of OrderItemModel
@@ -95,7 +95,7 @@ $MenuItemModelCopyWith<$Res> get menuItem {
 @JsonSerializable()
 
 class _OrderItemModel extends OrderItemModel {
-   _OrderItemModel({@HiveField(0) required this.menuItem, @HiveField(1) final  List<ToppingModel> selectedToppings = const [], @HiveField(2) final  List<AddonModel> selectedAddons = const [], @HiveField(3) this.quantity = 1, @HiveField(4) this.notes = "", @HiveField(5) this.subtotal = 0, @HiveField(6)@JsonKey(name: 'dineType') this.orderType = null}): _selectedToppings = selectedToppings,_selectedAddons = selectedAddons,super._();
+   _OrderItemModel({@HiveField(0) required this.menuItem, @HiveField(1) final  List<ToppingModel> selectedToppings = const [], @HiveField(2) final  List<AddonModel> selectedAddons = const [], @HiveField(3) this.quantity = 1, @HiveField(4) this.notes = "", @HiveField(5) this.subtotal = 0, @HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) this.orderType = OrderType.dineIn}): _selectedToppings = selectedToppings,_selectedAddons = selectedAddons,super._();
   factory _OrderItemModel.fromJson(Map<String, dynamic> json) => _$OrderItemModelFromJson(json);
 
 @override@HiveField(0) final  MenuItemModel menuItem;
@@ -116,7 +116,7 @@ class _OrderItemModel extends OrderItemModel {
 @override@JsonKey()@HiveField(3) final  int quantity;
 @override@JsonKey()@HiveField(4) final  String? notes;
 @override@JsonKey()@HiveField(5) final  int subtotal;
-@override@HiveField(6)@JsonKey(name: 'dineType') final  OrderType? orderType;
+@override@HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) final  OrderType orderType;
 
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
@@ -151,7 +151,7 @@ abstract mixin class _$OrderItemModelCopyWith<$Res> implements $OrderItemModelCo
   factory _$OrderItemModelCopyWith(_OrderItemModel value, $Res Function(_OrderItemModel) _then) = __$OrderItemModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6)@JsonKey(name: 'dineType') OrderType? orderType
+@HiveField(0) MenuItemModel menuItem,@HiveField(1) List<ToppingModel> selectedToppings,@HiveField(2) List<AddonModel> selectedAddons,@HiveField(3) int quantity,@HiveField(4) String? notes,@HiveField(5) int subtotal,@HiveField(6)@JsonKey(name: 'dineType', fromJson: OrderTypeExtension.fromString, toJson: OrderTypeExtension.orderTypeToJson) OrderType orderType
 });
 
 
@@ -168,7 +168,7 @@ class __$OrderItemModelCopyWithImpl<$Res>
 
 /// Create a copy of OrderItemModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? notes = freezed,Object? subtotal = null,Object? orderType = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? menuItem = null,Object? selectedToppings = null,Object? selectedAddons = null,Object? quantity = null,Object? notes = freezed,Object? subtotal = null,Object? orderType = null,}) {
   return _then(_OrderItemModel(
 menuItem: null == menuItem ? _self.menuItem : menuItem // ignore: cast_nullable_to_non_nullable
 as MenuItemModel,selectedToppings: null == selectedToppings ? _self._selectedToppings : selectedToppings // ignore: cast_nullable_to_non_nullable
@@ -176,8 +176,8 @@ as List<ToppingModel>,selectedAddons: null == selectedAddons ? _self._selectedAd
 as List<AddonModel>,quantity: null == quantity ? _self.quantity : quantity // ignore: cast_nullable_to_non_nullable
 as int,notes: freezed == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
 as String?,subtotal: null == subtotal ? _self.subtotal : subtotal // ignore: cast_nullable_to_non_nullable
-as int,orderType: freezed == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
-as OrderType?,
+as int,orderType: null == orderType ? _self.orderType : orderType // ignore: cast_nullable_to_non_nullable
+as OrderType,
   ));
 }
 

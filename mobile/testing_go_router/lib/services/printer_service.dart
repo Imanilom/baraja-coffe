@@ -288,6 +288,7 @@ class PrinterService {
       // 1. Buat generator
       final profile = await CapabilityProfile.load();
       PaperSize paperSize;
+      print('Paper Size: ${printer.paperSize}');
       if (printer.paperSize == 'mm58') {
         paperSize = PaperSize.mm58;
       } else if (printer.paperSize == 'mm80') {
@@ -671,9 +672,92 @@ class PrinterService {
     //list order Items
     for (var item in orderdetail) {
       bytes.addAll(
+        generator.text(
+          item.menuItem.name!,
+          styles: PosStyles(bold: true, align: PosAlign.left),
+        ),
+      );
+      if (item.selectedAddons.isNotEmpty) {
+        if (item.selectedAddons
+            .map((x) => x.options)
+            .where((element) => element != null)
+            .isNotEmpty) {
+          bytes.addAll(
+            generator.row([
+              PosColumn(
+                text: '',
+                width: 1,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+              PosColumn(
+                text: item.selectedAddons
+                    .map((x) {
+                      final addon =
+                          "${x.name}: ${x.options!.map((x) => x.label).join(', ')}";
+                      return addon;
+                    })
+                    .join(', '),
+                width: 8,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+              PosColumn(
+                text: ' ',
+                width: 3,
+                styles: const PosStyles(align: PosAlign.left),
+              ),
+            ]),
+          );
+        }
+      }
+
+      if (item.selectedToppings.isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: '',
+              width: 1,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text:
+                  '+${item.selectedToppings.map((x) {
+                    final topping = "${x.name}${x.price != 0 ? '(+${x.price})' : ''}";
+                    return topping;
+                  }).join(', ')}',
+              width: 8,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: ' ',
+              width: 3,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
+      }
+
+      if (item.notes != null &&
+          item.notes!.isNotEmpty &&
+          item.notes!.trim().isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: '',
+              width: 1,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: '"${item.notes}" ',
+              width: 11,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
+      }
+      bytes.addAll(
         generator.row([
           PosColumn(
-            text: item.menuItem.name!,
+            text: item.menuItem.originalPrice.toString(),
             width: 5,
             styles: const PosStyles(align: PosAlign.left),
           ),
@@ -689,6 +773,7 @@ class PrinterService {
           ),
         ]),
       );
+      bytes.addAll(generator.feed(1));
     }
     bytes.addAll(generator.hr());
     bytes.addAll(
@@ -737,6 +822,53 @@ class PrinterService {
     );
     bytes.addAll(generator.hr());
 
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Metode',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
+          text: orderDetail.paymentType ?? "-",
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Bibayar',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: formatPrice(orderDetail.paymentAmount).toString(),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(generator.hr());
+
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Kembalian',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: formatPrice(orderDetail.changeAmount).toString(),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(generator.hr());
     //footer
     await generateFooterBytes(generator, paperSize).then((footerBytes) {
       bytes.addAll(footerBytes);
@@ -808,7 +940,7 @@ class PrinterService {
           PosColumn(
             text:
                 item.orderType != null
-                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType!)
+                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType)
                     : '',
             width: 1,
             styles: const PosStyles(
@@ -831,23 +963,6 @@ class PrinterService {
           ),
         ]),
       );
-      if (item.selectedToppings.isNotEmpty) {
-        bytes.addAll(
-          generator.row([
-            PosColumn(
-              text: ' ',
-              width: 2,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-            PosColumn(
-              text:
-                  '+${item.selectedToppings.map((x) => x.name).toList().join(', ')}',
-              width: 10,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-          ]),
-        );
-      }
       if (item.selectedAddons.isNotEmpty) {
         if (item.selectedAddons
             .map((x) => x.options)
@@ -861,14 +976,39 @@ class PrinterService {
                 styles: const PosStyles(align: PosAlign.left),
               ),
               PosColumn(
-                text:
-                    '+${item.selectedAddons.map((x) => x.options?.map((x) => x.label)).toList().join(', ')}',
+                text: item.selectedAddons
+                    .map((x) {
+                      final addon =
+                          "${x.name}: ${x.options!.map((x) => x.label).join(', ')}";
+                      return addon;
+                    })
+                    .join(', '),
                 width: 10,
                 styles: const PosStyles(align: PosAlign.left),
               ),
             ]),
           );
         }
+      }
+      if (item.selectedToppings.isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: ' ',
+              width: 2,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text:
+                  '+${item.selectedToppings.map((x) {
+                    final topping = "${x.name}${x.price != 0 ? '(+${x.price})' : ''}";
+                    return topping;
+                  }).join(', ')}',
+              width: 10,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
       }
       if (item.notes != null &&
           item.notes!.isNotEmpty &&
@@ -960,27 +1100,18 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
-            text:
-                item.orderType != null
-                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType!)
-                    : '',
+            text: OrderTypeExtension.orderTypeToShortJson(item.orderType),
             width: 1,
             styles: const PosStyles(
               align: PosAlign.left,
               bold: true,
-              height: PosTextSize.size2,
-              width: PosTextSize.size1,
               underline: true,
             ),
           ),
           PosColumn(
             text: item.menuItem.name!,
             width: 8,
-            styles: const PosStyles(
-              align: PosAlign.left,
-              bold: true,
-              underline: true,
-            ),
+            styles: const PosStyles(align: PosAlign.left, bold: true),
           ),
           PosColumn(
             text: 'x${item.quantity.toString()}',
@@ -989,23 +1120,6 @@ class PrinterService {
           ),
         ]),
       );
-      if (item.selectedToppings.isNotEmpty) {
-        bytes.addAll(
-          generator.row([
-            PosColumn(
-              text: ' ',
-              width: 2,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-            PosColumn(
-              text:
-                  '+${item.selectedToppings.map((x) => x.name).toList().join(', ')}',
-              width: 10,
-              styles: const PosStyles(align: PosAlign.left),
-            ),
-          ]),
-        );
-      }
       if (item.selectedAddons.isNotEmpty) {
         if (item.selectedAddons
             .map((x) => x.options)
@@ -1019,14 +1133,39 @@ class PrinterService {
                 styles: const PosStyles(align: PosAlign.left),
               ),
               PosColumn(
-                text:
-                    '+${item.selectedAddons.map((x) => x.options?.map((x) => x.label)).toList().join(', ')}',
+                text: item.selectedAddons
+                    .map((x) {
+                      final addon =
+                          "${x.name}: ${x.options!.map((x) => x.label).join(', ')}";
+                      return addon;
+                    })
+                    .join(', '),
                 width: 10,
                 styles: const PosStyles(align: PosAlign.left),
               ),
             ]),
           );
         }
+      }
+      if (item.selectedToppings.isNotEmpty) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: ' ',
+              width: 2,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text:
+                  '+${item.selectedToppings.map((x) {
+                    final topping = "${x.name}${x.price != 0 ? '(+${x.price})' : ''}";
+                    return topping;
+                  }).join(', ')}',
+              width: 10,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+          ]),
+        );
       }
       //jangan tampilkan catatan jika isinya hanya spasi
       if (item.notes != null &&

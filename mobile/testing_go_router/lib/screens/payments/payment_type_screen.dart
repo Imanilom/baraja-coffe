@@ -206,6 +206,7 @@ class PaymentMethodScreen extends ConsumerWidget {
     OrderDetailModel orderdetail,
   ) {
     final choosePaymentType = ref.watch(choosePaymentTypesProvider);
+    final orderDetailNotifier = ref.read(orderDetailProvider.notifier);
 
     return Row(
       children: [
@@ -227,6 +228,7 @@ class PaymentMethodScreen extends ConsumerWidget {
                           paymentTypes,
                           state,
                           notifier,
+                          orderDetailNotifier,
                         ),
                       ),
 
@@ -265,6 +267,7 @@ class PaymentMethodScreen extends ConsumerWidget {
                             state,
                             notifier,
                             total,
+                            orderDetailNotifier,
                           ),
                         ),
                       ] else ...[
@@ -587,6 +590,7 @@ class PaymentMethodScreen extends ConsumerWidget {
     List<PaymentTypeModel> paymentTypes,
     PaymentState state,
     PaymentNotifier notifier,
+    OrderDetailNotifier orderDetailNotifier,
   ) {
     final activeTypes = paymentTypes.where((type) => type.isActive).toList();
 
@@ -713,6 +717,7 @@ class PaymentMethodScreen extends ConsumerWidget {
     PaymentState state,
     PaymentNotifier notifier,
     int total,
+    OrderDetailNotifier orderDetailNotifier,
   ) {
     final paymentType = state.selectedPaymentType!;
 
@@ -733,7 +738,12 @@ class PaymentMethodScreen extends ConsumerWidget {
         Expanded(
           child:
               paymentType.id == 'cash'
-                  ? _buildCashOptions(total, notifier, state)
+                  ? _buildCashOptions(
+                    total,
+                    notifier,
+                    state,
+                    orderDetailNotifier,
+                  )
                   : _buildPaymentMethodOptions(paymentType, notifier, state),
         ),
       ],
@@ -744,6 +754,7 @@ class PaymentMethodScreen extends ConsumerWidget {
     int total,
     PaymentNotifier notifier,
     PaymentState state,
+    OrderDetailNotifier orderDetailNotifier,
   ) {
     final basis =
         state.isDownPayment
@@ -769,8 +780,11 @@ class PaymentMethodScreen extends ConsumerWidget {
             final isSelected = state.selectedCashAmount == amount;
 
             return GestureDetector(
-              onTap:
-                  () => notifier.selectCashAmount(amount, state.isDownPayment),
+              onTap: () {
+                // orderDetailNotifier.updatePaymentAmount(amount);
+                notifier.selectCashAmount(amount, state.isDownPayment);
+                //update order detail cash amount
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 decoration: BoxDecoration(
@@ -949,7 +963,6 @@ class PaymentMethodScreen extends ConsumerWidget {
     final onlineOrderDetailNotifier = ref.watch(
       onlineOrderDetailProvider.notifier,
     );
-
     if (state.selectedPaymentType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -966,6 +979,7 @@ class PaymentMethodScreen extends ConsumerWidget {
     final info = ref
         .read(paymentProvider.notifier)
         .getPaymentInfoComputed(total);
+
     final isDP = info['isDownPayment'] == true;
     final amountNow = info['amount'] as int; // dibayar sekarang (full/DP)
     final tendered =
@@ -1010,16 +1024,36 @@ class PaymentMethodScreen extends ConsumerWidget {
       print(' - isDownPayment: $isDP');
       final success = await orderDetailNotifier.submitOrder(state, ref);
 
+      print('mengecek statenya terlebih dahulu ${state.selectedCashAmount}');
+      print(
+        'mengecek statenya terlebih dahulu ${state.selectedPaymentMethod?.name}',
+      );
+      print('mengecek statenya terlebih dahulu ${state.selectedPaymentType}');
+      orderDetailNotifier.updatePaymentType(
+        state.selectedPaymentMethod?.name ?? state.selectedPaymentType!.name,
+      );
+      orderDetailNotifier.updateChangeAmount(info['change']);
+      orderDetailNotifier.updatePaymentAmount(state.selectedCashAmount ?? 0);
+
+      // final finalOrderData = ref.read(orderDetailProvider);
+      final orders = ref.watch(orderDetailProvider);
+
+      print(
+        'Updated order before submiting semuanya: ${orders!.paymentAmount} - ${orders.changeAmount} - ${orders.paymentMethod}',
+      );
+
       print('Payment processed: success=$success');
 
       if (context.mounted) Navigator.pop(context);
 
       if (success && context.mounted) {
-        ref.invalidate(orderHistoryProvider);
-        final savedPrinter = ref.read(savedPrintersProvider.notifier);
-        final orderDetail = ref.watch(orderDetailProvider);
-        if (orderDetail == null) throw Exception('Order detail is null');
-        savedPrinter.printToPrinter(orderDetail: orderDetail, printType: 'all');
+        final choosePaymentType = ref.watch(choosePaymentTypesProvider);
+        print('choosePaymentType: $choosePaymentType');
+        if (choosePaymentType != PaymentTypes.downPayment) {
+          ref.invalidate(orderHistoryProvider);
+          final savedPrinter = ref.read(savedPrintersProvider.notifier);
+          savedPrinter.printToPrinter(orderDetail: orders, printType: 'all');
+        }
         context.goNamed(
           'payment-success',
           extra: {

@@ -75,7 +75,7 @@ class OrderService {
       print('response status code create order: ${response.statusCode}');
       return response.data;
     } on DioException catch (e) {
-      print('error create order: ${e.response?.data}');
+      print('error create order: ${e}');
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -299,7 +299,8 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
 
   final box = Hive.box('userBox');
   final user = box.get('user') as UserModel;
-
+  final now = DateTime.now().toUtc().add(Duration(hours: 7));
+  print(now);
   return {
     'order_id': order.orderId,
     'user_id': order.userId ?? "",
@@ -324,16 +325,20 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
                 item.selectedToppings
                     .map((topping) => {'id': topping.id})
                     .toList(),
-            'notes': item.notes ?? '',
+            'notes': item.notes,
+            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
           };
         }).toList(),
     'orderType': OrderTypeExtension.orderTypeToJson(order.orderType),
     'tableNumber': order.tableNumber ?? 1,
     'paymentMethod': order.paymentMethod ?? 'Cash',
+    'outletId': user.outletId,
     'outlet': user.outletId,
     'totalPrice': order.grandTotal,
     'source': "Cashier",
     'isOpenBill': order.isOpenBill,
+    // 'createdAtWIB': now,
+    // 'updatedAtWIB' : now
   };
 }
 

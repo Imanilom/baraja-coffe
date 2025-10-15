@@ -12,7 +12,7 @@ const adminAccess = verifyToken(['admin', 'superadmin', 'inventory']);
 // Category Routes
 router.get('/categories', getAllCategories); // Get all categories
 router.get('/categories/:id', getCategoryById); // Get category by ID
-router.post('/categories', createCategory); // Create a new category
+router.post('/categories', adminAccess, createCategory); // Create a new category
 router.put('/categories/:id', adminAccess, updateCategory); // Update a category
 router.delete('/categories/:id', adminAccess, deleteCategory); // Delete a category
 

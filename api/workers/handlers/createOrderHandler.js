@@ -5,19 +5,19 @@ import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
 
-export async function createOrderHandler({ orderId, orderData, source, isOpenBill }) {
+export async function createOrderHandler({ orderId, orderData, source, isOpenBill, isReservation, requiresDelivery, recipientData }) {
   let session;
   try {
     session = await mongoose.startSession();
-    
+
     const orderResult = await runWithTransactionRetry(async () => {
-      const { customerId, loyaltyPointsToRedeem } = orderData;
-      
-      console.log('Order Handler - Optional Loyalty Check:', {
-        customerId,
-        loyaltyPointsToRedeem,
-        source,
-        hasCustomerId: !!customerId
+      const { customerId, loyaltyPointsToRedeem, orderType } = orderData;
+
+      console.log('Order Handler - Delivery Check:', {
+        orderType,
+        requiresDelivery,
+        hasRecipientData: !!recipientData,
+        source
       });
 
       // Process order items dengan loyalty program opsional
@@ -42,9 +42,19 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         initialStatus = isOpenBill ? 'Pending' : 'Waiting';
       }
 
-      // Build complete order document
-      const fullOrderData = {
-        ...orderData,
+      // PERBAIKAN: Cleanup menyeluruh - hapus SEMUA field delivery
+      const {
+        delivery_option,
+        recipient_data,
+        deliveryStatus,
+        deliveryProvider,
+        deliveryTracking,
+        recipientInfo,
+        ...cleanOrderData
+      } = orderData;
+
+      const baseOrderData = {
+        ...cleanOrderData, // Gunakan data yang sudah dibersihkan
         order_id: orderId,
         items: orderItems,
         totalBeforeDiscount: totals.beforeDiscount,
@@ -64,23 +74,90 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
           loyaltyDiscount: discounts.loyaltyDiscount,
           total: discounts.total
         },
-        // Loyalty data hanya disimpan jika applied
-        ...(loyalty.isApplied && {
-          loyalty: {
-            pointsUsed: loyalty.pointsUsed,
-            pointsEarned: loyalty.pointsEarned,
-            discountAmount: loyalty.discountAmount,
-            customerId: loyalty.customerId
-          }
-        }),
         taxAndServiceDetails: taxesAndFees,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
 
+      // PERBAIKAN: Hanya tambahkan loyalty data jika applied
+      if (loyalty.isApplied) {
+        baseOrderData.loyalty = {
+          pointsUsed: loyalty.pointsUsed,
+          pointsEarned: loyalty.pointsEarned,
+          discountAmount: loyalty.discountAmount,
+          customerId: loyalty.customerId
+        };
+      }
+
+      // PERBAIKAN: Handle delivery fields hanya untuk delivery orders
+      const isDeliveryOrder = (orderType === 'Delivery' || requiresDelivery) && source === 'App';
+      console.log('Delivery Order Check:', {
+        isDeliveryOrder,
+        orderType,
+        requiresDelivery,
+        source
+      });
+
+      if (isDeliveryOrder) {
+        console.log('Creating delivery order with recipient data:', recipientData);
+        baseOrderData.deliveryStatus = 'pending';
+        baseOrderData.deliveryProvider = 'GoSend';
+
+        if (recipientData) {
+          baseOrderData.recipientInfo = {
+            name: recipientData.name || '',
+            phone: recipientData.phone || '',
+            address: recipientData.address || '',
+            coordinates: recipientData.coordinates || '',
+            note: recipientData.note || ''
+          };
+        }
+
+        // Set deliveryTracking sebagai object kosong
+        baseOrderData.deliveryTracking = {};
+      } else {
+        // PERBAIKAN: Pastikan field delivery TIDAK ADA untuk non-delivery orders
+        // Dengan tidak menyetel field tersebut, mereka akan menjadi undefined
+        console.log('Non-delivery order - skipping delivery fields');
+      }
+
+      // Handle reservation data
+      if (isReservation && orderData.reservationData) {
+        baseOrderData.reservation = orderData.reservationData._id || orderData.reservationData;
+      }
+
+      // Log data sebelum save untuk debugging
+      console.log('Order data before save:', {
+        orderId,
+        orderType: baseOrderData.orderType,
+        source: baseOrderData.source,
+        hasDeliveryStatus: baseOrderData.deliveryStatus !== undefined,
+        hasDeliveryProvider: baseOrderData.deliveryProvider !== undefined,
+        deliveryStatus: baseOrderData.deliveryStatus,
+        deliveryProvider: baseOrderData.deliveryProvider,
+        // Log semua keys untuk memastikan tidak ada field delivery yang tidak diinginkan
+        keys: Object.keys(baseOrderData)
+      });
+
       // Create and save the order
-      const newOrder = new Order(fullOrderData);
+      const newOrder = new Order(baseOrderData);
+
+      // PERBAIKAN: Validasi manual sebelum save
+      const validationError = newOrder.validateSync();
+      if (validationError) {
+        console.error('Validation error before save:', validationError.errors);
+        throw new Error(`VALIDATION_ERROR: ${validationError.message}`);
+      }
+
       await newOrder.save({ session });
+
+      console.log('Order created successfully:', {
+        orderId: newOrder._id.toString(),
+        orderType: newOrder.orderType,
+        status: newOrder.status,
+        deliveryStatus: newOrder.deliveryStatus,
+        deliveryProvider: newOrder.deliveryProvider
+      });
 
       return {
         success: true,
@@ -94,7 +171,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
 
     // Enqueue inventory update setelah transaction selesai
     const queueResult = await enqueueInventoryUpdate(orderResult);
-    
+
     if (orderData.orderType === 'Dine-In') {
       setTimeout(() => {
         updateTableStatusAfterPayment(orderResult.orderId);
@@ -113,13 +190,21 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       error: err.message,
       stack: err.stack,
       orderId,
-      source
+      source,
+      orderType: orderData?.orderType
     });
 
     if (err.message.includes('Failed to process order items')) {
       throw new Error(`ORDER_PROCESSING_FAILED: ${err.message}`);
     }
     if (err instanceof mongoose.Error.ValidationError) {
+      // Log detail validation error
+      console.error('Validation Error Details:', Object.keys(err.errors).map(key => ({
+        field: key,
+        value: err.errors[key]?.value,
+        kind: err.errors[key]?.kind,
+        message: err.errors[key]?.message
+      })));
       throw new Error(`VALIDATION_ERROR: ${err.message}`);
     }
 

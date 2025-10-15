@@ -9,15 +9,17 @@ final socketServiceProvider = Provider<SocketService>((ref) {
 });
 
 final realtimeOrderProvider = StreamProvider<OrderDetailModel>((ref) {
-  final socketService = ref.read(socketServiceProvider);
+  final socket = ref.read(socketServiceProvider).instance;
   final controller = StreamController<OrderDetailModel>();
 
-  socketService.instance.on('order:new', (data) {
-    final order = OrderDetailModel.fromJson(data);
-    controller.add(order);
-  });
+  void handler(dynamic data) {
+    controller.add(OrderDetailModel.fromJson(data));
+  }
+  //
+  socket.on('order:new', handler); 
 
   ref.onDispose(() {
+    socket.off('order:new', handler); // ✅ penting
     controller.close();
   });
 

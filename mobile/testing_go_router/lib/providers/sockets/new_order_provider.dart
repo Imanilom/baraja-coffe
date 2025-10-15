@@ -14,6 +14,12 @@ final realtimeOrderProvider = StreamProvider<OrderDetailModel>((ref) {
     controller.add(order);
   });
 
+  // dengarkan event dari socket new_order_created
+  socketService.instance.on('new_order_created', (data) {
+    final order = OrderDetailModel.fromJson(data['order']);
+    controller.add(order);
+  });
+
   ref.onDispose(() {
     controller.close();
   });

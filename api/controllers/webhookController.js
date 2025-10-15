@@ -3,6 +3,7 @@ import Payment from '../models/Payment.model.js';
 import { Order } from '../models/order.model.js';
 import Table from '../models/Table.model.js';
 import { socketManagement } from '../utils/socketManagement.js';
+import GoSendBooking from '../models/GoSendBooking.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 
 export const midtransWebhook = async (req, res) => {
@@ -207,6 +208,167 @@ export const midtransWebhook = async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
+};
+
+export const handleGoSendWebhook = async (req, res) => {
+  try {
+    const webhookData = req.body;
+    
+    console.log('📩 Received GoSend webhook:', {
+      booking_id: webhookData.booking_id,
+      status: webhookData.status,
+      timestamp: new Date().toISOString()
+    });
+
+    // 1. VALIDASI X-CALLBACK-TOKEN - IMPORTANT!
+    const receivedToken = req.headers['x-callback-token'];
+    const expectedToken = process.env.GOSEND_WEBHOOK_SECRET;
+
+    if (!receivedToken) {
+      console.warn('❌ X-Callback-Token header missing');
+      return res.status(401).json({ 
+        success: false, 
+        message: 'X-Callback-Token header required' 
+      });
+    }
+
+    if (receivedToken !== expectedToken) {
+      console.warn('❌ Invalid X-Callback-Token received:', receivedToken);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid token' 
+      });
+    }
+
+    console.log('✅ X-Callback-Token validation passed');
+
+    // 2. VALIDASI PAYLOAD WAJIB
+    if (!webhookData.booking_id || !webhookData.status) {
+      console.warn('⚠️ Incomplete webhook payload:', webhookData);
+      // Tetap return 200 ke GoSend tapi log warning
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Webhook received but missing required fields' 
+      });
+    }
+
+    // 3. CARI BOOKING DI DATABASE
+    const goSendBooking = await GoSendBooking.findOne({ 
+      goSend_order_no: webhookData.booking_id 
+    });
+
+    if (!goSendBooking) {
+      console.warn(`❌ GoSend booking not found: ${webhookData.booking_id}`);
+      // Tetap return 200 ke GoSend untuk avoid retry
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Booking not found in system' 
+      });
+    }
+
+    console.log(`✅ Found booking: ${goSendBooking.order_id}`);
+
+    // 4. UPDATE GOSEND BOOKING RECORD
+    const updateData = {
+      status: webhookData.status,
+      ...(webhookData.driver_name && {
+        'driver_info.driver_name': webhookData.driver_name
+      }),
+      ...(webhookData.driver_phone && {
+        'driver_info.driver_phone': webhookData.driver_phone
+      }),
+      ...(webhookData.driver_photo_url && {
+        'driver_info.driver_photo': webhookData.driver_photo_url
+      }),
+      ...(webhookData.live_tracking_url && {
+        live_tracking_url: webhookData.live_tracking_url
+      })
+    };
+
+    await GoSendBooking.findOneAndUpdate(
+      { goSend_order_no: webhookData.booking_id },
+      updateData
+    );
+
+    // 5. UPDATE ORDER STATUS
+    const orderUpdateData = {
+      'deliveryTracking.status': webhookData.status,
+      ...(webhookData.driver_name && {
+        'deliveryTracking.driver_name': webhookData.driver_name
+      }),
+      ...(webhookData.driver_phone && {
+        'deliveryTracking.driver_phone': webhookData.driver_phone
+      }),
+      ...(webhookData.live_tracking_url && {
+        'deliveryTracking.live_tracking_url': webhookData.live_tracking_url
+      })
+    };
+
+    // Map GoSend status ke internal delivery status
+    const deliveryStatus = mapGoSendStatus(webhookData.status);
+    if (deliveryStatus) {
+      orderUpdateData.deliveryStatus = deliveryStatus;
+    }
+
+    // Jika delivered, update order status jadi completed
+    if (webhookData.status === 'delivered') {
+      orderUpdateData.status = 'completed';
+    }
+
+    await Order.findOneAndUpdate(
+      { order_id: goSendBooking.order_id },
+      orderUpdateData
+    );
+
+    // 6. REALTIME NOTIFICATION
+    const io = req.app.get('io');
+    io.to(`order_${goSendBooking.order_id}`).emit('delivery_status_update', {
+      order_id: goSendBooking.order_id,
+      status: webhookData.status,
+      driver_info: {
+        name: webhookData.driver_name,
+        phone: webhookData.driver_phone
+      },
+      live_tracking_url: webhookData.live_tracking_url,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`✅ Webhook processed successfully for ${webhookData.booking_id}`);
+
+    // 7. SELALU RETURN 200 KE GOSEND
+    return res.status(200).json({ 
+      success: true,
+      message: 'Webhook processed successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error handling GoSend webhook:', error);
+    
+    // IMPORTANT: Tetap return 200 ke GoSend meskipun error
+    // Untuk menghindari retry mechanism GoSend
+    return res.status(200).json({ 
+      success: true,
+      message: 'Webhook received (error logged internally)'
+    });
+  }
+};
+
+// Helper function untuk mapping status
+const mapGoSendStatus = (goSendStatus) => {
+  const statusMap = {
+    'confirmed': 'pending',
+    'allocated': 'driver_assigned', 
+    'out_for_pickup': 'pickup_started',
+    'picked': 'picked_up',
+    'out_for_delivery': 'on_delivery',
+    'on_hold': 'on_hold',
+    'delivered': 'delivered',
+    'cancelled': 'cancelled',
+    'rejected': 'failed',
+    'no_driver': 'failed'
+  };
+  
+  return statusMap[goSendStatus];
 };
 
 // FUNCTION: BROADCAST ORDER KE TARGET DEVICES
