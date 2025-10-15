@@ -57,6 +57,8 @@ class OrderService {
                 ? orderDetail.grandTotal -
                     (paymentData.selectedDownPayment ?? 0)
                 : 0,
+            0,
+            0,
           ),
           options: Options(
             headers: {
@@ -75,7 +77,7 @@ class OrderService {
       print('response status code create order: ${response.statusCode}');
       return response.data;
     } on DioException catch (e) {
-      print('error create order: ${e}');
+      print('error create order: $e');
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -349,6 +351,8 @@ Map<String, dynamic> createChargeRequest(
   bool isDownPayment,
   int downPaymentAmount,
   int remainingPayment,
+  int tenderedAmount,
+  int changeAmount,
 ) {
   print(
     'create charge orderId: $orderId, grandTotal: $grandTotal, paymentType: $paymentType',
@@ -361,5 +365,7 @@ Map<String, dynamic> createChargeRequest(
     'remaining_payment': remainingPayment,
     'order_id': orderId,
     'gross_amount': grandTotal,
+    'tendered_amount': tenderedAmount,
+    'change_amount': changeAmount,
   };
 }

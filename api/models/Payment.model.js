@@ -66,6 +66,10 @@ const PaymentSchema = new mongoose.Schema({
   direction: { type: String, enum: ['charge', 'refund'], default: undefined }, // hanya jika isAdjustment=true
   revisionId: { type: mongoose.Schema.Types.ObjectId, ref: 'OrderRevision', default: null },
   adjustmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'PaymentAdjustment', default: null },
+
+  //untuk di struk
+  tendered_amount: { type: Number, default: 0 },
+  change_amount: { type: Number, default: 0 },
 }, {
   timestamps: true,
   index: {

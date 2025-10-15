@@ -18,7 +18,7 @@ class PaymentModelAdapter extends TypeAdapter<PaymentModel> {
     };
     return PaymentModel(
       orderId: fields[0] == null ? null : fields[0] as String?,
-      transactionId: fields[1] as String?,
+      transactionId: fields[1] == null ? null : fields[1] as String?,
       method: fields[2] == null ? '' : fields[2] as String?,
       status: fields[3] == null ? '' : fields[3] as String?,
       paymentType: fields[4] == null ? '' : fields[4] as String?,
@@ -53,13 +53,15 @@ class PaymentModelAdapter extends TypeAdapter<PaymentModel> {
               : (fields[24] as Map?)?.cast<String, dynamic>(),
       createdAt: fields[25] as DateTime?,
       updatedAt: fields[26] as DateTime?,
+      tenderedAmount: fields[27] == null ? null : (fields[27] as num?)?.toInt(),
+      changeAmount: fields[28] == null ? null : (fields[28] as num?)?.toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, PaymentModel obj) {
     writer
-      ..writeByte(27)
+      ..writeByte(29)
       ..writeByte(0)
       ..write(obj.orderId)
       ..writeByte(1)
@@ -113,7 +115,11 @@ class PaymentModelAdapter extends TypeAdapter<PaymentModel> {
       ..writeByte(25)
       ..write(obj.createdAt)
       ..writeByte(26)
-      ..write(obj.updatedAt);
+      ..write(obj.updatedAt)
+      ..writeByte(27)
+      ..write(obj.tenderedAmount)
+      ..writeByte(28)
+      ..write(obj.changeAmount);
   }
 
   @override
@@ -134,7 +140,7 @@ class PaymentModelAdapter extends TypeAdapter<PaymentModel> {
 _PaymentModel _$PaymentModelFromJson(Map<String, dynamic> json) =>
     _PaymentModel(
       orderId: json['order_id'] as String? ?? null,
-      transactionId: json['transaction_id'] as String?,
+      transactionId: json['transaction_id'] as String? ?? null,
       method: json['method'] as String? ?? '',
       status: json['status'] as String? ?? '',
       paymentType: json['paymentType'] as String? ?? '',
@@ -176,6 +182,8 @@ _PaymentModel _$PaymentModelFromJson(Map<String, dynamic> json) =>
           json['updatedAt'] == null
               ? null
               : DateTime.parse(json['updatedAt'] as String),
+      tenderedAmount: (json['tendered_amount'] as num?)?.toInt() ?? null,
+      changeAmount: (json['change_amount'] as num?)?.toInt() ?? null,
     );
 
 Map<String, dynamic> _$PaymentModelToJson(_PaymentModel instance) =>
@@ -207,4 +215,6 @@ Map<String, dynamic> _$PaymentModelToJson(_PaymentModel instance) =>
       'raw_response': instance.rawResponse,
       'createdAt': instance.createdAt?.toIso8601String(),
       'updatedAt': instance.updatedAt?.toIso8601String(),
+      'tendered_amount': instance.tenderedAmount,
+      'change_amount': instance.changeAmount,
     };
