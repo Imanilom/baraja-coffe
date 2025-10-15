@@ -15,8 +15,8 @@ final realtimeOrderProvider = StreamProvider<OrderDetailModel>((ref) {
   void handler(dynamic data) {
     controller.add(OrderDetailModel.fromJson(data));
   }
-
-  socket.on('order:new', handler);
+  //
+  socket.on('order:new', handler); 
 
   ref.onDispose(() {
     socket.off('order:new', handler); // ✅ penting

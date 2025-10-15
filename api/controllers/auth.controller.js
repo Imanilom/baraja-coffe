@@ -169,7 +169,7 @@ export const signin = async (req, res, next) => {
         "akuntan",
         "inventory",
         "operational",
-        "jro",
+        "gro",
         "qc",
         "hrd",
         "staff",

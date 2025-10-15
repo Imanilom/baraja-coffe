@@ -26,6 +26,7 @@ import {
   processPaymentCashier,
   deleteOrderItemAtOrder,
   getOrderByIdAfterItemDelete,
+  patchEditOrder,
 } from '../controllers/order.controller.js';
 
 import {
@@ -138,5 +139,7 @@ router.get('/table-occupancy/:outletId', getTableOccupancyStatus);
 router.post('/orders/:orderId/transfer-table', transferOrderTable);
 router.get('/orders/:orderId/table-history', getOrderTableHistory);
 router.post('/tables/bulk-update-status', bulkUpdateTableStatus);
+
+router.patch('/orders/:orderId/edit', patchEditOrder);
 
 export default router;

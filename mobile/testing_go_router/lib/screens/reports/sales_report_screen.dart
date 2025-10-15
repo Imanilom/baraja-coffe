@@ -25,7 +25,7 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -99,9 +99,9 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
           unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
           tabs: const [
-            Tab(text: 'Ringkasan'),
+            // Tab(text: 'Ringkasan'),
             Tab(text: 'Detail Order'),
-            Tab(text: 'Analisis'),
+            // Tab(text: 'Analisis'),
             Tab(text: 'Performa'),
           ],
         ),
@@ -109,9 +109,9 @@ class _SalesReportScreenState extends ConsumerState<SalesReportScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildSummaryTab(),
+          // _buildSummaryTab(),
           _buildDetailTab(),
-          _buildAnalysisTab(),
+          // _buildAnalysisTab(),
           _buildPerformanceTab(),
         ],
       ),

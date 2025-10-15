@@ -116,7 +116,7 @@ export async function generateOrderId(tableNumber) {
     return `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
 }
 
-// GET /api/jro/dashboard-stats - Get dashboard statistics
+// GET /api/gro/dashboard-stats - Get dashboard statistics
 export const getDashboardStats = async (req, res) => {
     try {
         const now = new Date();
@@ -628,7 +628,7 @@ export const createReservation = async (req, res) => {
     }
 };
 
-// GET /api/jro/reservations - Get all reservations with filters
+// GET /api/gro/reservations - Get all reservations with filters
 export const getReservations = async (req, res) => {
     try {
         const {
@@ -710,7 +710,7 @@ export const getReservations = async (req, res) => {
     }
 };
 
-// GET /api/jro/reservations/:id - Get single reservation detail
+// GET /api/gro/reservations/:id - Get single reservation detail
 export const getReservationDetail = async (req, res) => {
     try {
         const { id } = req.params;
@@ -751,7 +751,7 @@ export const getReservationDetail = async (req, res) => {
     }
 };
 
-// PUT /api/jro/reservations/:id/confirm - Confirm reservation
+// PUT /api/gro/reservations/:id/confirm - Confirm reservation
 
 export const confirmReservation = async (req, res) => {
     try {
@@ -813,7 +813,7 @@ export const confirmReservation = async (req, res) => {
         });
     }
 };
-// PUT /api/jro/reservations/:id/check-in - Check-in reservation
+// PUT /api/gro/reservations/:id/check-in - Check-in reservation
 export const checkInReservation = async (req, res) => {
     try {
         const { id } = req.params;
@@ -874,7 +874,7 @@ export const checkInReservation = async (req, res) => {
     }
 };
 
-// PUT /api/jro/reservations/:id/check-out - Check-out reservation
+// PUT /api/gro/reservations/:id/check-out - Check-out reservation
 export const checkOutReservation = async (req, res) => {
     try {
         const { id } = req.params;
@@ -934,7 +934,7 @@ export const checkOutReservation = async (req, res) => {
     }
 };
 
-// PUT /api/jro/reservations/:id/complete - Complete reservation
+// PUT /api/gro/reservations/:id/complete - Complete reservation
 export const completeReservation = async (req, res) => {
     try {
         const { id } = req.params;
@@ -1007,7 +1007,7 @@ export const completeReservation = async (req, res) => {
     }
 };
 
-// PUT /api/jro/reservations/:id/cancel - Cancel reservation
+// PUT /api/gro/reservations/:id/cancel - Cancel reservation
 export const cancelReservation = async (req, res) => {
     try {
         const { id } = req.params;
@@ -1066,7 +1066,7 @@ export const cancelReservation = async (req, res) => {
     }
 };
 
-// PUT /api/jro/reservations/:id/close-open-bill - Close open bill status
+// PUT /api/gro/reservations/:id/close-open-bill - Close open bill status
 export const closeOpenBill = async (req, res) => {
     try {
         const { id } = req.params;
@@ -1124,7 +1124,7 @@ export const closeOpenBill = async (req, res) => {
     }
 };
 
-// GET /api/jro/tables/availability - Get real-time table availability
+// GET /api/gro/tables/availability - Get real-time table availability
 export const getTableAvailability = async (req, res) => {
     try {
         const { date, time, area_id } = req.query;
@@ -1196,7 +1196,7 @@ export const getTableAvailability = async (req, res) => {
     }
 };
 
-// PUT /api/jro/reservations/:id/transfer-table - Transfer reservation to different table(s)
+// PUT /api/gro/reservations/:id/transfer-table - Transfer reservation to different table(s)
 export const transferTable = async (req, res) => {
     try {
         const { id } = req.params;
