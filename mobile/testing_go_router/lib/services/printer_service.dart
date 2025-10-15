@@ -288,6 +288,7 @@ class PrinterService {
       // 1. Buat generator
       final profile = await CapabilityProfile.load();
       PaperSize paperSize;
+      print('Paper Size: ${printer.paperSize}');
       if (printer.paperSize == 'mm58') {
         paperSize = PaperSize.mm58;
       } else if (printer.paperSize == 'mm80') {
@@ -650,19 +651,19 @@ class PrinterService {
     final List<int> bytes = [];
 
     // Header
-    // bytes.addAll(await generateHeadersBytes(generator, paperSize));
+    bytes.addAll(await generateHeadersBytes(generator, paperSize));
 
     // Bill Data
-    // bytes.addAll(
-    //   await generateBillDataBytes(
-    //     generator,
-    //     paperSize,
-    //     orderDetail.orderId,
-    //     orderDetail.user,
-    //     OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
-    //     orderDetail.tableNumber,
-    //   ),
-    // );
+    bytes.addAll(
+      await generateBillDataBytes(
+        generator,
+        paperSize,
+        orderDetail.orderId,
+        orderDetail.user,
+        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+        orderDetail.tableNumber,
+      ),
+    );
 
     bytes.addAll(generator.hr());
 
@@ -748,10 +749,7 @@ class PrinterService {
             PosColumn(
               text: '"${item.notes}" ',
               width: 11,
-              styles: const PosStyles(
-                align: PosAlign.left,
-                fontType: PosFontType.fontB,
-              ),
+              styles: const PosStyles(align: PosAlign.left),
             ),
           ]),
         );
@@ -778,103 +776,103 @@ class PrinterService {
       bytes.addAll(generator.feed(1));
     }
     bytes.addAll(generator.hr());
-    // bytes.addAll(
-    //   generator.row([
-    //     PosColumn(
-    //       text: 'Sub Total Harga',
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.left),
-    //     ),
-    //     PosColumn(
-    //       text: formatPrice(orderDetail.totalAfterDiscount).toString(),
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.right),
-    //     ),
-    //   ]),
-    // );
-    // bytes.addAll(
-    //   generator.row([
-    //     PosColumn(
-    //       text: 'Tax 10%',
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.left),
-    //     ),
-    //     PosColumn(
-    //       text: formatPrice(orderDetail.totalTax).toString(),
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.right),
-    //     ),
-    //   ]),
-    // );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Sub Total Harga',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: formatPrice(orderDetail.totalAfterDiscount).toString(),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Tax 10%',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: formatPrice(orderDetail.totalTax).toString(),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
 
-    // bytes.addAll(generator.hr());
-    // bytes.addAll(
-    //   generator.row([
-    //     PosColumn(
-    //       text: 'Total Harga',
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.left),
-    //     ),
-    //     PosColumn(
-    //       text: formatPrice(orderDetail.grandTotal).toString(),
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.right),
-    //     ),
-    //   ]),
-    // );
-    // bytes.addAll(generator.hr());
+    bytes.addAll(generator.hr());
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Total Harga',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: formatPrice(orderDetail.grandTotal).toString(),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(generator.hr());
 
-    // bytes.addAll(
-    //   generator.row([
-    //     PosColumn(
-    //       text: 'Metode',
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.left),
-    //     ),
-    //     PosColumn(
-    //       //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
-    //       text: orderDetail.paymentType ?? "-",
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.right),
-    //     ),
-    //   ]),
-    // );
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Metode',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
+          text: orderDetail.paymentType ?? "-",
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
 
-    // bytes.addAll(
-    //   generator.row([
-    //     PosColumn(
-    //       text: 'Bibayar',
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.left),
-    //     ),
-    //     PosColumn(
-    //       text: formatPrice(orderDetail.paymentAmount).toString(),
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.right),
-    //     ),
-    //   ]),
-    // );
-    // bytes.addAll(generator.hr());
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Bibayar',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: formatPrice(orderDetail.paymentAmount).toString(),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(generator.hr());
 
-    // bytes.addAll(
-    //   generator.row([
-    //     PosColumn(
-    //       text: 'Kembalian',
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.left),
-    //     ),
-    //     PosColumn(
-    //       text: formatPrice(orderDetail.changeAmount).toString(),
-    //       width: 6,
-    //       styles: const PosStyles(align: PosAlign.right),
-    //     ),
-    //   ]),
-    // );
-    // bytes.addAll(generator.hr());
-    // //footer
-    // await generateFooterBytes(generator, paperSize).then((footerBytes) {
-    //   bytes.addAll(footerBytes);
-    // });
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Kembalian',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left),
+        ),
+        PosColumn(
+          text: formatPrice(orderDetail.changeAmount).toString(),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]),
+    );
+    bytes.addAll(generator.hr());
+    //footer
+    await generateFooterBytes(generator, paperSize).then((footerBytes) {
+      bytes.addAll(footerBytes);
+    });
 
     //feed and cut
     // bytes.addAll(generator.feed(2));
@@ -1102,27 +1100,18 @@ class PrinterService {
       bytes.addAll(
         generator.row([
           PosColumn(
-            text:
-                item.orderType != null
-                    ? OrderTypeExtension.orderTypeToShortJson(item.orderType)
-                    : '',
+            text: OrderTypeExtension.orderTypeToShortJson(item.orderType),
             width: 1,
             styles: const PosStyles(
               align: PosAlign.left,
               bold: true,
-              height: PosTextSize.size2,
-              width: PosTextSize.size1,
               underline: true,
             ),
           ),
           PosColumn(
             text: item.menuItem.name!,
             width: 8,
-            styles: const PosStyles(
-              align: PosAlign.left,
-              bold: true,
-              underline: true,
-            ),
+            styles: const PosStyles(align: PosAlign.left, bold: true),
           ),
           PosColumn(
             text: 'x${item.quantity.toString()}',
