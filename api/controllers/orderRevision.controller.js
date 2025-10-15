@@ -1,8 +1,8 @@
 // controllers/orderRevision.controller.js
 import mongoose from 'mongoose';
 import { Order } from '../models/order.model.js';
-import { OrderRevision } from '../models/OrderRevision.model.js';
-import { PaymentAdjustment } from '../models/PaymentAdjustment.model.js';
+import OrderRevision from '../models/OrderRevision.model.js';
+import PaymentAdjustment from '../models/PaymentAdjustment.model.js';
 import Payment from '../models/Payment.model.js';
 import { calcItemSubtotal, recalcTotals } from '../helpers/billing.helper.js';
 import { MenuItem } from '../models/MenuItem.model.js';

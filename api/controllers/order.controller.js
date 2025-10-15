@@ -10,7 +10,7 @@ import { orderQueue, queueEvents } from '../queues/order.queue.js';
 import { db } from '../utils/mongo.js';
 //io
 import { io, broadcastNewOrder } from '../index.js';
-import {broadcastCashOrderToKitchen, broadcastNewOrderToAreas, broadcastOrderCreation } from '../helpers/broadcast.helper.js';
+import { broadcastCashOrderToKitchen, broadcastNewOrderToAreas, broadcastOrderCreation } from '../helpers/broadcast.helper.js';
 import Reservation from '../models/Reservation.model.js';
 import QRCode from 'qrcode';
 // Import FCM service di bagian atas file
@@ -21,6 +21,7 @@ import { getAreaGroup } from '../utils/areaGrouping.js';
 import { Outlet } from '../models/Outlet.model.js';
 import dayjs from 'dayjs'
 import { processGoSendDelivery } from '../helpers/deliveryHelper.js';
+import { editOrderAndAllocate } from '../services/orderEdit.service.js';
 
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
@@ -1021,6 +1022,8 @@ export const createUnifiedOrder = async (req, res) => {
     const {
       order_id,
       source,
+      tableNumber,
+      orderType,
       customerId,
       outletId,
       loyaltyPointsToRedeem,
@@ -1120,7 +1123,7 @@ export const createUnifiedOrder = async (req, res) => {
 
     const validated = validateOrderData(req.body, source);
     validated.outletId = outletId; // Tambahkan ini
-    validated.outlet = outletId;   
+    validated.outlet = outletId;
 
     // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
     validated.customerId = customerId;
@@ -1132,8 +1135,8 @@ export const createUnifiedOrder = async (req, res) => {
       validated.recipient_data = recipient_data;
     }
 
-    const { tableNumber, orderType, reservationData } = validated;
-    const areaGroup = getAreaGroup(tableNumber);
+    const areaCode = tableNumber?.charAt(0).toUpperCase();
+    const areaGroup = getAreaGroup(areaCode); // Pass areaCode, bukan tableNumber
 
     // Generate order ID
     let orderId;
@@ -1145,8 +1148,31 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (areaGroup) {
-      io.to(areaGroup).emit('new_order', { orderId });
+      // Broadcast ke area group
+      io.to(areaGroup).emit('new_order_created', {
+        orderId,
+        tableNumber,
+        areaCode,
+        areaGroup,
+        source,
+        timestamp: new Date()
+      });
+
+      // Juga broadcast ke area room spesifik
+      const areaRoom = `area_${areaCode}`;
+      io.to(areaRoom).emit('new_order_in_area', {
+        orderId,
+        tableNumber,
+        areaCode,
+        source,
+        timestamp: new Date()
+      });
+
+      console.log(`📢 Order ${orderId} broadcasted to ${areaGroup} and ${areaRoom}`);
+    } else {
+      console.warn(`⚠️ No area group found for table ${tableNumber}, area code: ${areaCode}`);
     }
+
 
     // Add reservation-specific processing if needed
     if (orderType === 'reservation' && reservationData) {
@@ -1225,7 +1251,7 @@ export const createUnifiedOrder = async (req, res) => {
       jobId: job.id
     };
 
-     // Handle payment based on source
+    // Handle payment based on source
     if (source === 'Cashier') {
       //  BROADCAST UNTUK CASHIER CASH PAYMENT
       await broadcastCashOrderToKitchen({
@@ -1272,7 +1298,7 @@ export const createUnifiedOrder = async (req, res) => {
 
       //  CHECK PAYMENT METHOD UNTUK APP
       const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
-      
+
       if (isCashPayment) {
         //  BROADCAST UNTUK APP CASH PAYMENT
         await broadcastCashOrderToKitchen({
@@ -1363,7 +1389,7 @@ export const createUnifiedOrder = async (req, res) => {
 
       //  CHECK PAYMENT METHOD UNTUK WEB
       const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
-      
+
       if (isCashPayment) {
         //  BROADCAST UNTUK WEB CASH PAYMENT
         await broadcastCashOrderToKitchen({
@@ -1434,7 +1460,7 @@ const checkOutletOperatingHours = (outlet) => {
     const s = String(timeStr).trim().toUpperCase();
     const m = s.match(/(\d{1,2}):(\d{2})/);
     if (!m) return null;
-    
+
     let hh = parseInt(m[1], 10);
     const mm = parseInt(m[2], 10);
 
@@ -1498,11 +1524,11 @@ const checkOutletOperatingHours = (outlet) => {
 
   // Tambahkan informasi waktu saat ini dalam response untuk debugging
   const currentTimeFormatted = `${String(wibNow.getHours()).padStart(2, '0')}:${String(wibNow.getMinutes()).padStart(2, '0')}`;
-  
+
   return {
     isOpen,
-    message: isOpen ? 
-      `Outlet buka. ${message} (Waktu sekarang: ${currentTimeFormatted})` : 
+    message: isOpen ?
+      `Outlet buka. ${message} (Waktu sekarang: ${currentTimeFormatted})` :
       `Outlet tutup. ${message} (Waktu sekarang: ${currentTimeFormatted})`
   };
 };
@@ -3912,15 +3938,7 @@ export const getCashierOrderHistory = async (req, res) => {
             // workstation: item.menuItem.workstation,
             // categories: item.menuItem.category, // renamed
           },
-          selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
-            name: addon.name,
-            _id: addon._id,
-            options: [{
-              id: addon._id, // assuming _id as id for options
-              label: addon.label || addon.name, // fallback
-              price: addon.price
-            }]
-          })) : [],
+          selectedAddons: item.addons.length > 0 ? item.addons : [],
           selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
             id: topping._id || topping.id, // fallback if structure changes
             name: topping.name,
@@ -5019,5 +5037,34 @@ export function toOrderDTO(orderDoc, paymentDocs = []) {
     paymentStatus: o.paymentStatus ?? 'pending',
     payment_details,
   };
+}
+
+export async function patchEditOrder(req, res) {
+  try {
+    const { orderId } = req.params;
+    const { operations, reason } = req.body || {};
+    if (!Array.isArray(operations) || operations.length === 0) {
+      return res.status(400).json({ message: 'operations required (array)' });
+    }
+
+    const idempotencyKey = req.header('Idempotency-Key') || null;
+    const userId = req.user?._id || null;
+
+    const result = await editOrderAndAllocate({
+      orderId,
+      operations,
+      reason,
+      userId,
+      idempotencyKey,
+    });
+
+    return res.status(result.reused ? 200 : 201).json({
+      message: result.reused ? 'idempotent: revision reused' : 'order edited',
+      revision: result.revision,
+    });
+  } catch (err) {
+    console.error('patchEditOrder error:', err);
+    return res.status(500).json({ message: err.message || 'internal error' });
+  }
 }
 
