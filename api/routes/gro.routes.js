@@ -12,13 +12,13 @@ import {
     checkOutReservation,
     transferTable,
     createReservation
-} from '../controllers/jro.controller.js';
+} from '../controllers/gro.controller.js';
 import { authMiddleware, verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
-// Middleware untuk JRO, Admin, dan SuperAdmin
-// const JROAccess = verifyToken(['jro', 'admin', 'superadmin']);
+// Middleware untuk gro, Admin, dan SuperAdmin
+// const groAccess = verifyToken(['gro', 'admin', 'superadmin']);
 
 // Dashboard Statistics
 router.get('/dashboard-stats', getDashboardStats);
