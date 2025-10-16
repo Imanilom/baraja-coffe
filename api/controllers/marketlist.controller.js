@@ -4,10 +4,12 @@ import Request from '../models/modul_market/Request.model.js';
 import Warehouse from '../models/modul_market/Warehouse.model.js';
 import Product from '../models/modul_market/Product.model.js';
 import ProductStock from '../models/modul_menu/ProductStock.model.js';
+import DeliveryTracking from '../models/modul_market/DeliveryTracking.model.js';
 import CashFlow from '../models/modul_market/CashFlow.model.js';
 import Debt from '../models/modul_market/Debt.model.js';
 import User from '../models/user.model.js';
 import { getDayName } from '../services/getDay.js';
+import { recordStockMovement } from '../utils/stockMovement.js';
 import mongoose from 'mongoose';
 
 export const createRequest = async (req, res) => {
@@ -219,51 +221,402 @@ export const getAllRequestWithSuppliers = async (req, res) => {
 };
 
 // Setujui beberapa item dalam request
+// export const approveRequestItems = async (req, res) => {
+//   try {
+//     const { requestId, items, reviewedBy } = req.body;
+
+//     if (!requestId || !Array.isArray(items) || items.length === 0) {
+//       return res.status(400).json({ message: 'Request ID dan daftar item harus disediakan' });
+//     }
+
+//     const request = await Request.findById(requestId);
+//     if (!request) {
+//       return res.status(404).json({ message: 'Request tidak ditemukan' });
+//     }
+
+//     // Validasi dan update status item
+//     for (const updatedItem of items) {
+//       const item = request.items.id(updatedItem.itemId);
+//       if (!item) continue; // Lewati jika item tidak ditemukan
+
+//       if (updatedItem.status) item.status = updatedItem.status;
+//       if (updatedItem.fulfilledQuantity !== undefined) item.fulfilledQuantity = updatedItem.fulfilledQuantity;
+
+//       // Jika status "dibeli", isi fulfilledQuantity otomatis jika belum ada
+//       if (updatedItem.status === 'dibeli' && item.fulfilledQuantity === undefined) {
+//         item.fulfilledQuantity = item.quantity;
+//       }
+
+//       // Jika status "tidak tersedia", set fulfilledQuantity ke 0
+//       if (updatedItem.status === 'tidak tersedia') {
+//         item.fulfilledQuantity = 0;
+//       }
+//     }
+
+//     // Tandai bahwa request sudah direview
+//     request.reviewed = true;
+//     request.reviewedBy = reviewedBy || 'anonymous';
+//     request.reviewedAt = new Date();
+//     request.status = 'approved'; // Set status ke approved
+//     request.fulfillmentStatus = 'dibeli';
+
+//     await request.save();
+
+//     res.status(200).json({ message: 'Request berhasil direview', request });
+//   } catch (error) {
+//     console.error('Gagal mereview request:', error);
+//     res.status(500).json({ message: 'Terjadi kesalahan saat mereview request' });
+//   }
+// };
+
 export const approveRequestItems = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { requestId, items, reviewedBy } = req.body;
+    const { requestId, items, reviewedBy, sourceWarehouse } = req.body;
 
     if (!requestId || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: 'Request ID dan daftar item harus disediakan' });
+      await session.abortTransaction();
+      return res.status(400).json({ message: 'Request ID, items, dan source warehouse harus disediakan' });
     }
 
-    const request = await Request.findById(requestId);
+    const request = await Request.findById(requestId).session(session);
     if (!request) {
+      await session.abortTransaction();
       return res.status(404).json({ message: 'Request tidak ditemukan' });
     }
 
-    // Validasi dan update status item
+    // Cari warehouse tujuan berdasarkan department
+    const destinationWarehouse = await Warehouse.findOne({ 
+      name: request.department 
+    }).session(session);
+
+    if (!destinationWarehouse) {
+      await session.abortTransaction();
+      return res.status(404).json({ 
+        message: `Warehouse untuk department ${request.department} tidak ditemukan` 
+      });
+    }
+
+    // Proses setiap item yang diapprove
     for (const updatedItem of items) {
       const item = request.items.id(updatedItem.itemId);
-      if (!item) continue; // Lewati jika item tidak ditemukan
+      if (!item) continue;
 
-      if (updatedItem.status) item.status = updatedItem.status;
-      if (updatedItem.fulfilledQuantity !== undefined) item.fulfilledQuantity = updatedItem.fulfilledQuantity;
+      const quantityToApprove = updatedItem.quantity || item.quantity;
 
-      // Jika status "dibeli", isi fulfilledQuantity otomatis jika belum ada
-      if (updatedItem.status === 'dibeli' && item.fulfilledQuantity === undefined) {
-        item.fulfilledQuantity = item.quantity;
-      }
+      // Record stock movement (transfer dari gudang pusat ke department)
+      await recordStockMovement(session, {
+        productId: item.productId,
+        quantity: quantityToApprove,
+        type: 'transfer',
+        referenceId: requestId,
+        notes: `Request approval - ${item.productName}`,
+        sourceWarehouse: sourceWarehouse, // Gudang pusat
+        destinationWarehouse: destinationWarehouse._id, // Department warehouse
+        handledBy: reviewedBy
+      });
 
-      // Jika status "tidak tersedia", set fulfilledQuantity ke 0
-      if (updatedItem.status === 'tidak tersedia') {
-        item.fulfilledQuantity = 0;
+      // Update item status
+      item.status = 'approved';
+      item.fulfilledFromStock = quantityToApprove;
+      item.deliveredQuantity = quantityToApprove;
+    }
+
+    // Update request status
+    request.reviewed = true;
+    request.reviewedBy = reviewedBy;
+    request.reviewedAt = new Date();
+    request.status = 'approved';
+    request.fulfillmentStatus = 'in_progress';
+
+    await request.save({ session });
+    await session.commitTransaction();
+
+    res.status(200).json({ 
+      success: true,
+      message: 'Request berhasil diapprove dan stok ditransfer', 
+      data: request 
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Gagal approve request:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message || 'Terjadi kesalahan saat approve request' 
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+export const receiveItems = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { requestId, receivedBy, proofOfDelivery, destinationWarehouse } = req.body;
+
+    const request = await Request.findById(requestId).session(session);
+    if (!request) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Request tidak ditemukan' });
+    }
+
+    const deliveryTracking = await DeliveryTracking.findOne({ 
+      requestId: requestId 
+    }).session(session);
+
+    if (!deliveryTracking) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Data pengiriman tidak ditemukan' });
+    }
+
+    // Proses setiap item yang diterima
+    for (const item of request.items) {
+      if (item.status === 'approved' && item.deliveredQuantity > 0) {
+        
+        // Record stock movement (in ke warehouse tujuan)
+        await recordStockMovement(session, {
+          productId: item.productId,
+          quantity: item.deliveredQuantity,
+          type: 'in',
+          referenceId: requestId,
+          notes: `Penerimaan barang dari pembelian - ${item.productName}`,
+          destinationWarehouse: destinationWarehouse,
+          handledBy: receivedBy
+        });
+
+        // Update item status
+        item.status = 'received';
+        item.receivedQuantity = item.deliveredQuantity;
       }
     }
 
-    // Tandai bahwa request sudah direview
-    request.reviewed = true;
-    request.reviewedBy = reviewedBy || 'anonymous';
-    request.reviewedAt = new Date();
-    request.status = 'approved'; // Set status ke approved
-    request.fulfillmentStatus = 'dibeli';
+    // Update delivery tracking
+    deliveryTracking.status = 'received';
+    deliveryTracking.receivedBy = receivedBy;
+    deliveryTracking.receivedDate = new Date();
+    deliveryTracking.proofOfDelivery = proofOfDelivery;
 
-    await request.save();
+    // Update request status
+    request.status = 'received';
+    request.fulfillmentStatus = 'completed';
 
-    res.status(200).json({ message: 'Request berhasil direview', request });
+    await deliveryTracking.save({ session });
+    await request.save({ session });
+    await session.commitTransaction();
+
+    res.status(200).json({
+      success: true,
+      message: 'Barang berhasil diterima dan stok diperbarui',
+      data: {
+        request,
+        delivery: deliveryTracking
+      }
+    });
+
   } catch (error) {
-    console.error('Gagal mereview request:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan saat mereview request' });
+    await session.abortTransaction();
+    console.error('Error receiving items:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Terjadi kesalahan server.'
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+export const recordPurchaseStockIn = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { requestId, purchaseItems, destinationWarehouse, handledBy } = req.body;
+
+    const request = await Request.findById(requestId).session(session);
+    if (!request) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Request tidak ditemukan' });
+    }
+
+    const marketListItems = [];
+
+    for (const purchaseItem of purchaseItems) {
+      const { itemId, pricePerUnit, supplierId, supplierName, quantityPurchased } = purchaseItem;
+      
+      const item = request.items.id(itemId);
+      if (!item) continue;
+
+      // Record stock movement untuk barang yang dibeli
+      await recordStockMovement(session, {
+        productId: item.productId,
+        quantity: quantityPurchased,
+        type: 'in',
+        referenceId: requestId,
+        notes: `Pembelian dari supplier ${supplierName} - ${item.productName}`,
+        destinationWarehouse: destinationWarehouse,
+        handledBy: handledBy
+      });
+
+      // Update data pembelian di request
+      item.purchaseData = {
+        pricePerUnit,
+        supplierId,
+        supplierName,
+        purchasedAt: new Date(),
+        quantityPurchased
+      };
+
+      // Siapkan data untuk market list
+      marketListItems.push({
+        productId: item.productId,
+        productName: item.productName,
+        productSku: item.productSku,
+        category: item.category,
+        unit: item.unit,
+        quantityRequested: item.quantity,
+        quantityPurchased: quantityPurchased,
+        pricePerUnit: pricePerUnit,
+        supplierId: supplierId,
+        supplierName: supplierName,
+        amountCharged: quantityPurchased * pricePerUnit,
+        amountPaid: quantityPurchased * pricePerUnit,
+        remainingBalance: 0,
+        payment: {
+          method: 'cash',
+          status: 'paid',
+          amount: quantityPurchased * pricePerUnit,
+          date: new Date()
+        }
+      });
+
+      // Update product supplier data
+      await Product.findByIdAndUpdate(
+        item.productId,
+        {
+          $push: {
+            suppliers: {
+              supplierId: supplierId,
+              supplierName: supplierName,
+              price: pricePerUnit,
+              lastPurchaseDate: new Date()
+            }
+          }
+        },
+        { session }
+      );
+    }
+
+    // Buat market list untuk arsip pembelian
+    const marketList = new MarketList({
+      date: new Date(),
+      day: new Date().toLocaleDateString('id-ID', { weekday: 'long' }),
+      items: marketListItems,
+      relatedRequests: [requestId],
+      createdBy: handledBy
+    });
+
+    await marketList.save({ session });
+    await request.save({ session });
+    await session.commitTransaction();
+
+    res.status(200).json({
+      success: true,
+      message: 'Data pembelian berhasil diinput dan stok diperbarui',
+      data: {
+        request,
+        marketList
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error recording purchase stock:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Terjadi kesalahan server.'
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+export const getStockMovementHistory = async (req, res) => {
+  try {
+    const { 
+      productId, 
+      warehouse, 
+      type, 
+      startDate, 
+      endDate,
+      page = 1, 
+      limit = 50 
+    } = req.query;
+
+    const filter = {};
+    
+    if (productId) filter.productId = productId;
+    if (warehouse) filter.warehouse = warehouse;
+    if (type) filter['movements.type'] = type;
+    
+    if (startDate || endDate) {
+      filter['movements.date'] = {};
+      if (startDate) filter['movements.date'].$gte = new Date(startDate);
+      if (endDate) filter['movements.date'].$lte = new Date(endDate);
+    }
+
+    const stockRecords = await ProductStock.find(filter)
+      .populate('productId', 'name sku category unit')
+      .populate('warehouse', 'name location')
+      .populate('movements.sourceWarehouse', 'name')
+      .populate('movements.destinationWarehouse', 'name')
+      .sort({ 'movements.date': -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    // Extract dan flatten movements
+    const movements = [];
+    stockRecords.forEach(record => {
+      record.movements.forEach(movement => {
+        movements.push({
+          product: record.productId,
+          warehouse: record.warehouse,
+          movement: {
+            ...movement.toObject(),
+            stockAfter: record.currentStock
+          },
+          date: movement.date
+        });
+      });
+    });
+
+    // Sort by date descending
+    movements.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const total = await ProductStock.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        movements: movements.slice(0, limit),
+        pagination: {
+          current: page,
+          pages: Math.ceil(total / limit),
+          total
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting stock movement history:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Terjadi kesalahan server.'
+    });
   }
 };
 
@@ -384,7 +737,6 @@ export const createMarketList = async (req, res) => {
         throw new Error(`Jumlah dibayar tidak boleh lebih besar dari jumlah yang dibebankan untuk produk ${item.productName}`);
       }
 
-<<<<<<< HEAD
       let itemPhysical = 0;
       let itemNonPhysical = 0;
 
@@ -419,24 +771,6 @@ export const createMarketList = async (req, res) => {
         // Default jika tidak ada payment method
         itemPhysical = amountPaid;
         itemNonPhysical = 0;
-=======
-      // Hitung pembagian berdasarkan metode pembayaran
-      if (paymentMethod === 'physical') {
-        totalPhysical += amountPaid;
-      } else if (paymentMethod === 'non-physical') {
-        totalNonPhysical += amountPaid;
-      } else if (paymentMethod === 'mixed') {
-        // Jika mixed, gunakan amountPhysical dan amountNonPhysical dari item
-        const amountPhysical = item.amountPhysical || 0;
-        const amountNonPhysical = item.amountNonPhysical || 0;
-
-        if (amountPhysical + amountNonPhysical !== amountPaid) {
-          throw new Error(`Untuk metode pembayaran mixed, total amountPhysical + amountNonPhysical harus sama dengan amountPaid untuk produk ${item.productName}`);
-        }
-
-        totalPhysical += amountPhysical;
-        totalNonPhysical += amountNonPhysical;
->>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
       }
 
       totalPhysical += itemPhysical;
@@ -497,7 +831,6 @@ export const createMarketList = async (req, res) => {
 
     // Validasi saldo cukup sebelum transaksi
     const lastBalance = await getLastBalance();
-<<<<<<< HEAD
     
     // Pastikan nilai balance valid
     const lastBalancePhysical = parseFloat(lastBalance.balancePhysical) || 0;
@@ -509,15 +842,6 @@ export const createMarketList = async (req, res) => {
     
     if (grandTotalNonPhysical > lastBalanceNonPhysical) {
       throw new Error(`Saldo non-fisik tidak mencukupi. Dibutuhkan: ${grandTotalNonPhysical}, Tersedia: ${lastBalanceNonPhysical}`);
-=======
-
-    if (totalPhysical > lastBalance.balancePhysical) {
-      throw new Error(`Saldo fisik tidak mencukupi. Dibutuhkan: ${totalPhysical}, Tersedia: ${lastBalance.balancePhysical}`);
-    }
-
-    if (totalNonPhysical > lastBalance.balanceNonPhysical) {
-      throw new Error(`Saldo non-fisik tidak mencukupi. Dibutuhkan: ${totalNonPhysical}, Tersedia: ${lastBalance.balanceNonPhysical}`);
->>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
     }
 
     const marketListDoc = new MarketList({
@@ -1631,18 +1955,10 @@ export const addCashIn = async (req, res) => {
       destination,
       proof
     } = req.body;
-<<<<<<< HEAD
     
     // Validasi input dasar
     if (!date || !description) {
       await session.abortTransaction();
-=======
-
-    const day = getDayName(date);
-
-    // Validasi input
-    if (!day || !date || !description || typeof cashIn !== 'number' || cashIn <= 0) {
->>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
       return res.status(400).json({
         message: 'Tanggal dan deskripsi harus diisi'
       });
@@ -1679,7 +1995,6 @@ export const addCashIn = async (req, res) => {
     
     // Ambil saldo terakhir dengan validasi
     const lastBalance = await getLastBalance();
-<<<<<<< HEAD
     
     // Pastikan semua nilai balance valid
     const lastBalanceValue = Number(lastBalance.balance) || 0;
@@ -1712,13 +2027,6 @@ export const addCashIn = async (req, res) => {
     } else if (cashInNonPhysicalValue > 0) {
       paymentMethod = 'non-physical';
     }
-=======
-
-    // Hitung saldo baru
-    const newBalance = lastBalance.balance + cashIn;
-    const newBalancePhysical = lastBalance.balancePhysical + (cashInPhysical || 0);
-    const newBalanceNonPhysical = lastBalance.balanceNonPhysical + (cashInNonPhysical || 0);
->>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
 
     // Simpan ke database
     const cashFlow = new CashFlow({
@@ -1774,13 +2082,7 @@ export const withdrawCash = async (req, res) => {
       destination,
       proof
     } = req.body;
-<<<<<<< HEAD
     
-=======
-
-    const day = getDayName(date);
-
->>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
     // Validasi input
     if (!date || !description) {
       await session.abortTransaction();
@@ -1807,16 +2109,12 @@ export const withdrawCash = async (req, res) => {
     
     // Ambil saldo terakhir dengan validasi
     const lastBalance = await getLastBalance();
-<<<<<<< HEAD
     
     // Pastikan semua nilai balance valid
     const lastBalanceValue = Number(lastBalance.balance) || 0;
     const lastBalancePhysical = Number(lastBalance.balancePhysical) || 0;
     const lastBalanceNonPhysical = Number(lastBalance.balanceNonPhysical) || 0;
     
-=======
-
->>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
     // Validasi saldo non-fisik mencukupi
     if (lastBalanceNonPhysical < amountValue) {
       await session.abortTransaction();
@@ -1959,25 +2257,8 @@ export const getWeeklyReport = async (req, res) => {
     let currentPhysical = startingPhysical;
     let currentNonPhysical = startingNonPhysical;
 
-<<<<<<< HEAD
     for (const flow of periodCashFlows) {
       // Gunakan nilai yang tersimpan di database sebagai saldo akhir transaksi ini
-=======
-    // Process each cash flow
-    for (const flow of cashFlows) {
-      currentBalance += flow.cashIn - flow.cashOut;
-
-      // Determine payment method from related market list
-      let paymentMethod = 'cash'; // default
-      if (flow.relatedMarketList) {
-        // Check items for payment methods
-        const methods = flow.relatedMarketList.items.map(i => i.paymentMethod);
-        if (methods.includes('transfer')) paymentMethod = 'transfer';
-        if (methods.includes('credit')) paymentMethod = 'credit';
-      }
-
-      // Build transaction object
->>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
       const transaction = {
         _id: flow._id,
         date: flow.date,
@@ -2000,7 +2281,6 @@ export const getWeeklyReport = async (req, res) => {
         relatedMarketList: flow.relatedMarketList
       };
 
-<<<<<<< HEAD
       // Akumulasi total berdasarkan paymentMethod
       if (flow.paymentMethod === 'physical') {
         result.summary.physical.in += flow.cashIn;
@@ -2017,23 +2297,6 @@ export const getWeeklyReport = async (req, res) => {
         result.summary.nonPhysical.in += flow.cashInNonPhysical;
         result.summary.nonPhysical.out += flow.cashOutNonPhysical;
         result.transactions.mixed.push(transaction);
-=======
-      // Categorize by payment method
-      if (paymentMethod === 'cash') {
-        result.summary.cash.in += flow.cashIn;
-        result.summary.cash.out += flow.cashOut;
-        result.transactions.cash.push(transaction);
-      }
-      else if (paymentMethod === 'transfer') {
-        result.summary.transfer.in += flow.cashIn;
-        result.summary.transfer.out += flow.cashOut;
-        result.transactions.transfer.push(transaction);
-      }
-      else if (paymentMethod === 'credit') {
-        result.summary.credit.in += flow.cashIn;
-        result.summary.credit.out += flow.cashOut;
-        result.transactions.credit.push(transaction);
->>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
       }
 
       result.transactions.all.push(transaction);
@@ -2041,7 +2304,6 @@ export const getWeeklyReport = async (req, res) => {
       result.summary.totalOut += flow.cashOut;
     }
 
-<<<<<<< HEAD
     // Ambil saldo akhir dari transaksi terakhir dalam periode
     if (periodCashFlows.length > 0) {
       const lastInPeriod = periodCashFlows[periodCashFlows.length - 1];
@@ -2058,13 +2320,6 @@ export const getWeeklyReport = async (req, res) => {
     // Update balance di summary
     result.summary.physical.balance = result.summary.endingPhysical;
     result.summary.nonPhysical.balance = result.summary.endingNonPhysical;
-=======
-    // Calculate final balances
-    result.summary.endingBalance = currentBalance;
-    result.summary.cash.balance = result.summary.cash.in - result.summary.cash.out;
-    result.summary.transfer.balance = result.summary.transfer.in - result.summary.transfer.out;
-    result.summary.credit.balance = result.summary.credit.in - result.summary.credit.out;
->>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
 
     res.json({
       success: true,

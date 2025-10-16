@@ -98,7 +98,7 @@ const OrderSchema = new mongoose.Schema({
   totalBeforeDiscount: { type: Number, required: true },
   totalAfterDiscount: { type: Number, required: true },
   grandTotal: { type: Number, required: true },
-
+  change: { type: Number, default: 0 },
   // Sumber order
   source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true },
   currentBatch: { type: Number, default: 1 },

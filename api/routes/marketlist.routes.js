@@ -25,7 +25,12 @@ import {
   getDebtSummaryBySupplier,
   payDebt,
   updateDebt,
-  deleteDebt
+  deleteDebt,
+  approveRequestItems,
+  receiveItems,
+  recordPurchaseStockIn,
+  getStockMovementHistory
+
 } from '../controllers/marketlist.controller.js';
 
 import {
@@ -73,6 +78,11 @@ router.get('/requests-with-suppliers', getAllRequestWithSuppliers);
 router.get('/pending-requests', staffAccess, getRequests);
 
 router.post('/marketlist', inventoryAccess, createMarketList);
+
+router.post('/approve-with-stock', approveRequestItems);
+router.post('/receive-with-stock', receiveItems);
+router.post('/record-purchase-stock', recordPurchaseStockIn);
+router.get('/stock-movement-history', getStockMovementHistory);
 
 // Update seluruh transaksi marketlist
 router.put('marketlist/:id', updateMarketList);
