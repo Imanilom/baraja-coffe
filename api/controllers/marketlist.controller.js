@@ -12,6 +12,7 @@ import { getDayName } from '../services/getDay.js';
 import { recordStockMovement } from '../utils/stockMovement.js';
 import mongoose from 'mongoose';
 
+
 export const createRequest = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -23,16 +24,26 @@ export const createRequest = async (req, res) => {
       return res.status(403).json({ message: 'Akses ditolak' });
     }
 
-    const { department, items } = req.body;
+    const { requestedWarehouse, items } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       await session.abortTransaction();
       return res.status(400).json({ message: 'Items wajib diisi' });
     }
 
-    const requestItems = [];
+    const transferItems = [];
+    const purchaseItems = [];
+    const stockUpdates = [];
+
+    // Cari gudang pusat (asumsi ada warehouse dengan nama 'Gudang Pusat')
+    const centralWarehouse = await Warehouse.findOne({ name: 'Gudang Pusat' }).session(session);
+    if (!centralWarehouse) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Gudang Pusat tidak ditemukan' });
+    }
 
     for (const item of items) {
-      const { productId, quantity, notes } = item;
+      const { productId, quantity, notes, type = 'transfer' } = item;
+      
       if (!productId || !quantity || quantity <= 0) {
         await session.abortTransaction();
         return res.status(400).json({
@@ -56,14 +67,14 @@ export const createRequest = async (req, res) => {
       }
 
       // Cek stok yang tersedia di gudang pusat
-      const stockDoc = await ProductStock.findOne({
+      const centralStock = await ProductStock.findOne({
         productId,
-        category: 'Gudang Pusat'
+        warehouse: centralWarehouse._id
       }).session(session);
 
-      const availableStock = stockDoc ? stockDoc.currentStock : 0;
-
-      requestItems.push({
+      const availableStock = centralStock ? centralStock.currentStock : 0;
+      
+      const requestItem = {
         productId,
         productName: productDoc.name,
         productSku: productDoc.sku,
@@ -71,29 +82,114 @@ export const createRequest = async (req, res) => {
         quantity,
         unit: productDoc.unit,
         notes: notes || '',
-        status: 'pending',
-        fulfilledQuantity: 0,
-        availableStock, // untuk reference
-        minimumRequest: productDoc.minimumrequest
-      });
+        status: 'approved',
+        fulfilledQuantity: type === 'transfer' ? quantity : 0, // Langsung terpenuhi untuk transfer
+        availableStock,
+        minimumRequest: productDoc.minimumrequest,
+        sourceWarehouse: type === 'transfer' ? centralWarehouse._id : null,
+        destinationWarehouse: requestedWarehouse,
+        processedAt: new Date(),
+        processedBy: user.username,
+        type
+      };
+
+      if (type === 'purchase') {
+        purchaseItems.push(requestItem);
+      } else {
+        transferItems.push(requestItem);
+      }
+
+      // **STOK LANGSUNG BERPINDAH MESKI MINUS**
+      if (type === 'transfer') {
+        // 1. Kurangi stok gudang pusat (bisa minus)
+        stockUpdates.push({
+          updateOne: {
+            filter: { 
+              productId, 
+              warehouse: centralWarehouse._id 
+            },
+            update: {
+              $inc: { currentStock: -quantity },
+              $push: { 
+                movements: {
+                  quantity: -quantity,
+                  type: 'out',
+                  referenceId: null, // Akan diupdate setelah request dibuat
+                  notes: `Transfer ke ${requestedWarehouse}`,
+                  destinationWarehouse: requestedWarehouse,
+                  handledBy: user.username,
+                  date: new Date()
+                }
+              }
+            },
+            upsert: true
+          }
+        });
+
+        // 2. Tambah stok gudang tujuan
+        stockUpdates.push({
+          updateOne: {
+            filter: { 
+              productId, 
+              warehouse: requestedWarehouse 
+            },
+            update: {
+              $inc: { currentStock: quantity },
+              $push: { 
+                movements: {
+                  quantity: quantity,
+                  type: 'in',
+                  referenceId: null, // Akan diupdate setelah request dibuat
+                  notes: `Transfer dari Gudang Pusat`,
+                  sourceWarehouse: centralWarehouse._id,
+                  handledBy: user.username,
+                  date: new Date()
+                }
+              },
+              $setOnInsert: {
+                category: productDoc.category,
+                productName: productDoc.name,
+                productSku: productDoc.sku
+              }
+            },
+            upsert: true
+          }
+        });
+      }
     }
 
-    // Buat request tanpa mengubah stok dulu
+    // Buat request
     const newRequest = new Request({
-      department,
+      requestedWarehouse,
       requester: user.username,
-      items: requestItems,
-      status: 'pending',
-      fulfillmentStatus: 'pending'
+      transferItems,
+      purchaseItems,
+      status: 'approved', // Langsung approved
+      fulfillmentStatus: transferItems.length > 0 ? 'fulfilled' : 'pending',
+      processedBy: user.username,
+      processedAt: new Date()
     });
 
-    await newRequest.save({ session });
+    const savedRequest = await newRequest.save({ session });
+
+    // Update referenceId di stock movements dengan ID request yang baru
+    for (const update of stockUpdates) {
+      if (update.updateOne.$push && update.updateOne.$push.movements) {
+        update.updateOne.$push.movements.$each[0].referenceId = savedRequest._id;
+      }
+    }
+
+    // Eksekusi update stok
+    if (stockUpdates.length > 0) {
+      await ProductStock.bulkWrite(stockUpdates, { session });
+    }
+
     await session.commitTransaction();
 
     res.status(201).json({
       success: true,
-      message: 'Request berhasil dibuat, menunggu approval',
-      data: newRequest
+      message: 'Request berhasil dibuat dan langsung diproses',
+      data: savedRequest
     });
 
   } catch (error) {
@@ -682,6 +778,7 @@ export const getRequests = async (req, res) => {
   }
 };
 
+
 export const createMarketList = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -694,7 +791,7 @@ export const createMarketList = async (req, res) => {
       return res.status(403).json({ message: 'Tidak memiliki izin untuk melakukan operasi ini' });
     }
 
-    const { date, items = [], additionalExpenses = [] } = req.body;
+    const { date, items = [], additionalExpenses = [], purpose = 'direct_purchase' } = req.body;
     if (!date) throw new Error("Tanggal belanja harus diisi");
     if (items.length === 0 && additionalExpenses.length === 0) {
       throw new Error("Harus ada setidaknya satu item atau pengeluaran tambahan");
@@ -716,8 +813,6 @@ export const createMarketList = async (req, res) => {
     const relatedRequestIds = new Set();
     let totalCharged = 0;
     let totalPaid = 0;
-
-    // Variabel untuk tracking pembayaran berdasarkan metode
     let totalPhysical = 0;
     let totalNonPhysical = 0;
 
@@ -743,18 +838,15 @@ export const createMarketList = async (req, res) => {
       if (item.payment && item.payment.method) {
         switch (item.payment.method) {
           case 'cash':
-            // Cash = semua fisik
             itemPhysical = amountPaid;
             itemNonPhysical = 0;
             break;
           case 'card':
           case 'transfer':
-            // Card/Transfer = semua non-fisik
             itemPhysical = 0;
             itemNonPhysical = amountPaid;
             break;
           case 'mixed':
-            // Mixed = gunakan amountPhysical dan amountNonPhysical dari item
             itemPhysical = parseFloat(item.payment.amountPhysical) || 0;
             itemNonPhysical = parseFloat(item.payment.amountNonPhysical) || 0;
             
@@ -763,12 +855,10 @@ export const createMarketList = async (req, res) => {
             }
             break;
           default:
-            // Default = semua fisik
             itemPhysical = amountPaid;
             itemNonPhysical = 0;
         }
       } else {
-        // Default jika tidak ada payment method
         itemPhysical = amountPaid;
         itemNonPhysical = 0;
       }
@@ -783,9 +873,12 @@ export const createMarketList = async (req, res) => {
         amountCharged,
         amountPaid,
         remainingBalance: Math.max(0, amountCharged - amountPaid),
-        paymentMethod: item.payment?.method || 'cash',
-        amountPhysical: itemPhysical,
-        amountNonPhysical: itemNonPhysical,
+        payment: item.payment ? {
+          ...item.payment,
+          amountPhysical: itemPhysical,
+          amountNonPhysical: itemNonPhysical
+        } : undefined,
+        purpose
       });
 
       totalCharged += amountCharged;
@@ -802,7 +895,6 @@ export const createMarketList = async (req, res) => {
       const amount = parseFloat(expense.amount) || 0;
       additionalTotal += amount;
 
-      // Tentukan pembagian fisik/non-fisik untuk pengeluaran tambahan
       if (expense.payment && expense.payment.method) {
         switch (expense.payment.method) {
           case 'cash':
@@ -824,7 +916,7 @@ export const createMarketList = async (req, res) => {
       }
     }
 
-    // TOTAL KESELURUHAN (belanja + pengeluaran tambahan)
+    // TOTAL KESELURUHAN
     const grandTotalPhysical = totalPhysical + additionalPhysical;
     const grandTotalNonPhysical = totalNonPhysical + additionalNonPhysical;
     const grandTotalPaid = totalPaid + additionalTotal;
@@ -832,7 +924,6 @@ export const createMarketList = async (req, res) => {
     // Validasi saldo cukup sebelum transaksi
     const lastBalance = await getLastBalance();
     
-    // Pastikan nilai balance valid
     const lastBalancePhysical = parseFloat(lastBalance.balancePhysical) || 0;
     const lastBalanceNonPhysical = parseFloat(lastBalance.balanceNonPhysical) || 0;
     
@@ -851,6 +942,11 @@ export const createMarketList = async (req, res) => {
       additionalExpenses,
       relatedRequests: Array.from(relatedRequestIds),
       createdBy: user.username,
+      purpose,
+      totalCharged,
+      totalPaid,
+      totalPhysical,
+      totalNonPhysical
     });
 
     const savedMarketList = await marketListDoc.save({ session });
@@ -858,11 +954,15 @@ export const createMarketList = async (req, res) => {
     // Update stok produk
     const productStockUpdates = [];
     for (const item of processedItems) {
+      const notes = purpose === 'replenish' 
+        ? `Replenish stok oleh ${user.username}`
+        : `Pembelian oleh ${user.username}`;
+
       const purchaseMovement = {
         quantity: item.quantityPurchased,
         type: "in",
         referenceId: savedMarketList._id,
-        notes: `Pembelian oleh ${user.username}`,
+        notes: notes,
         destinationWarehouse: item.warehouse,
         handledBy: user.username,
         date: new Date(date),
@@ -884,27 +984,23 @@ export const createMarketList = async (req, res) => {
         },
       });
 
-      // Jika item ini untuk memenuhi request, update request item
-      if (item.requestId && item.requestItemId) {
+      // Update request hanya untuk direct_purchase yang terkait request
+      if (purpose === 'direct_purchase' && item.requestId && item.requestItemId) {
         const request = await Request.findById(item.requestId).session(session);
         if (!request) continue;
 
-        // Cari di transferItems atau purchaseItems
-        let targetArray = null;
         let itemToUpdate = null;
-
-        if (request.transferItems.id(item.requestItemId)) {
-          targetArray = 'transferItems';
-          itemToUpdate = request.transferItems.id(item.requestItemId);
-        } else if (request.purchaseItems.id(item.requestItemId)) {
-          targetArray = 'purchaseItems';
+        
+        // Cari di transferItems
+        itemToUpdate = request.transferItems.id(item.requestItemId);
+        if (!itemToUpdate) {
+          // Cari di purchaseItems
           itemToUpdate = request.purchaseItems.id(item.requestItemId);
         }
 
         if (itemToUpdate) {
-          // Tambahkan fulfilled quantity
           const newFulfilled = (parseFloat(itemToUpdate.fulfilledQuantity) || 0) + item.quantityPurchased;
-          const finalFulfilled = Math.min(newFulfilled, itemToUpdate.quantity); // jangan melebihi permintaan
+          const finalFulfilled = Math.min(newFulfilled, itemToUpdate.quantity);
 
           itemToUpdate.fulfilledQuantity = finalFulfilled;
           itemToUpdate.processedAt = new Date(date);
@@ -912,16 +1008,10 @@ export const createMarketList = async (req, res) => {
 
           if (finalFulfilled >= itemToUpdate.quantity) {
             itemToUpdate.status = "fulfilled";
-          } else {
+          } else if (finalFulfilled > 0) {
             itemToUpdate.status = "partial";
           }
 
-          // Update fulfillmentStatus request
-          const allItems = [...request.transferItems, ...request.purchaseItems];
-          const isFullyFulfilled = allItems.every(i => (parseFloat(i.fulfilledQuantity) || 0) >= i.quantity);
-          const hasPartial = allItems.some(i => (parseFloat(i.fulfilledQuantity) || 0) > 0);
-
-          request.fulfillmentStatus = isFullyFulfilled ? "fulfilled" : hasPartial ? "partial" : "pending";
           await request.save({ session });
         }
       }
@@ -931,34 +1021,33 @@ export const createMarketList = async (req, res) => {
       await ProductStock.bulkWrite(productStockUpdates, { session });
     }
 
-    // Update status request overall (jika belum fully fulfilled)
-    for (const requestId of relatedRequestIds) {
-      const request = await Request.findById(requestId).session(session);
-      if (!request) continue;
+    // Update status request overall untuk direct_purchase
+    if (purpose === 'direct_purchase') {
+      for (const requestId of relatedRequestIds) {
+        const request = await Request.findById(requestId).session(session);
+        if (!request) continue;
 
-      const allItems = [...request.transferItems, ...request.purchaseItems];
-      const isFullyFulfilled = allItems.every(i => (parseFloat(i.fulfilledQuantity) || 0) >= i.quantity);
-      const hasPartial = allItems.some(i => (parseFloat(i.fulfilledQuantity) || 0) > 0);
+        const allItems = [...request.transferItems, ...request.purchaseItems];
+        const isFullyFulfilled = allItems.every(i => (parseFloat(i.fulfilledQuantity) || 0) >= i.quantity);
+        const hasPartial = allItems.some(i => (parseFloat(i.fulfilledQuantity) || 0) > 0);
 
-      request.fulfillmentStatus = isFullyFulfilled ? "fulfilled" : hasPartial ? "partial" : "pending";
-      await request.save({ session });
+        request.fulfillmentStatus = isFullyFulfilled ? "fulfilled" : hasPartial ? "partial" : "pending";
+        await request.save({ session });
+      }
     }
 
-    // Catat cashflow dengan pembagian fisik/non-fisik
+    // Catat cashflow
     if (totalPaid > 0 || additionalTotal > 0) {
-      // Hitung saldo baru dengan memastikan tidak ada NaN
       const lastBalanceTotal = parseFloat(lastBalance.balance) || 0;
       const newBalance = lastBalanceTotal - grandTotalPaid;
       
       const newBalancePhysical = lastBalancePhysical - grandTotalPhysical;
       const newBalanceNonPhysical = lastBalanceNonPhysical - grandTotalNonPhysical;
 
-      // Validasi saldo tidak negatif (jika perlu)
       if (newBalancePhysical < 0 || newBalanceNonPhysical < 0) {
         throw new Error("Saldo tidak boleh negatif setelah transaksi");
       }
 
-      // Tentukan metode pembayaran overall
       let overallPaymentMethod = 'physical';
       if (grandTotalPhysical > 0 && grandTotalNonPhysical > 0) {
         overallPaymentMethod = 'mixed';
@@ -966,10 +1055,14 @@ export const createMarketList = async (req, res) => {
         overallPaymentMethod = 'non-physical';
       }
 
+      const cashflowDescription = purpose === 'replenish' 
+        ? `Replenish stok - ${savedMarketList._id}`
+        : `Belanja harian - ${savedMarketList._id}`;
+
       const cashflow = new CashFlow({
         date,
         day,
-        description: `Belanja harian - ${savedMarketList._id}`,
+        description: cashflowDescription,
         cashOut: grandTotalPaid,
         cashOutPhysical: grandTotalPhysical,
         cashOutNonPhysical: grandTotalNonPhysical,
@@ -1003,7 +1096,7 @@ export const createMarketList = async (req, res) => {
           paymentMethod: item.payment?.method || "cash",
           marketListId: savedMarketList._id,
           status: item.amountPaid > 0 ? 'partial' : 'unpaid',
-          notes: `Hutang belanja - ${date}`,
+          notes: purpose === 'replenish' ? `Hutang replenish - ${date}` : `Hutang belanja - ${date}`,
           createdBy: user.username,
         });
         await debt.save({ session });
@@ -1013,8 +1106,11 @@ export const createMarketList = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    // Dapatkan saldo terbaru setelah transaksi
     const updatedBalance = await getLastBalance();
+
+    const successMessage = purpose === 'replenish' 
+      ? "Stok berhasil di-replenish."
+      : "Belanja berhasil disimpan. Stok masuk, dan request otomatis terpenuhi jika ada referensi.";
 
     res.status(201).json({
       success: true,
@@ -1030,7 +1126,7 @@ export const createMarketList = async (req, res) => {
         physical: grandTotalPhysical,
         nonPhysical: grandTotalNonPhysical
       },
-      message: "Belanja berhasil disimpan. Stok masuk, dan request otomatis terpenuhi jika ada referensi.",
+      message: successMessage,
     });
   } catch (error) {
     await session.abortTransaction();
@@ -1039,6 +1135,7 @@ export const createMarketList = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 // Controller untuk mengedit transaksi marketlist
 export const updateMarketList = async (req, res) => {
