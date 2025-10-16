@@ -418,6 +418,7 @@ export const createReservation = async (req, res) => {
       area_id: area_id,
       table_id: table_ids,
       guest_count: guest_count,
+      guest_number: guest_phone,
       reservation_type: reservation_type,
       status: 'pending',
       notes: notes || '',

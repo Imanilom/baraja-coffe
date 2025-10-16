@@ -405,6 +405,12 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       state = state!.copyWith(changeAmount: changeAmount);
     }
   }
+
+  void updateIsSplitPayment(bool isSplitPayment) {
+    if (state != null) {
+      state = state!.copyWith(isSplitPayment: isSplitPayment);
+    }
+  }
 }
 
 // Provider untuk OrderDetailNotifier

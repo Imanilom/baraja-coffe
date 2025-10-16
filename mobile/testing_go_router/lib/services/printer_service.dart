@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
@@ -191,6 +192,15 @@ class PrinterService {
 
     if (supportedPrinters.isEmpty) {
       print('⚠️ Tidak ada printer yang mendukung $jobType');
+      ScaffoldMessenger.of(
+        GlobalKey<NavigatorState>().currentState!.context,
+      ).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Tidak ada printer yang mendukung untuk print ke $jobType',
+          ),
+        ),
+      );
       return;
     }
 
@@ -820,55 +830,127 @@ class PrinterService {
         ),
       ]),
     );
-    bytes.addAll(generator.hr());
+    bytes.addAll(generator.hr(ch: '='));
+    print('bersiap untuk menulis pembayaran');
+    if (isOrderDetailSplitPayment(orderDetail)) {
+      print('isSplitPayment: ${orderDetail.isSplitPayment}');
+      bytes.addAll(generator.feed(1));
+      for (var payment in orderDetail.payment!) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: 'Metode',
+              width: 6,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
+              text: payment.method ?? "-",
+              width: 6,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
 
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Metode',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
-          text: orderDetail.paymentType ?? "-",
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: 'Tagihan',
+              width: 6,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: formatPrice(payment.amount).toString(),
+              width: 6,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
 
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Bibayar',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: formatPrice(orderDetail.paymentAmount).toString(),
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-    bytes.addAll(generator.hr());
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: 'Diterima',
+              width: 6,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: formatPrice(payment.tenderedAmount ?? 0).toString(),
+              width: 6,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
+        bytes.addAll(generator.hr());
 
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Kembalian',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: formatPrice(orderDetail.changeAmount).toString(),
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-    bytes.addAll(generator.hr());
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: 'Kembalian',
+              width: 6,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: formatPrice(payment.changeAmount ?? 0).toString(),
+              width: 6,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
+        bytes.addAll(generator.feed(1));
+      }
+    } else {
+      print('brarti tidak ada order detail');
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Metode',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
+            text: orderDetail.paymentType ?? "-",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Diterima',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: formatPrice(orderDetail.paymentAmount).toString(),
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(generator.hr());
+
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Kembalian',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: formatPrice(orderDetail.changeAmount).toString(),
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    bytes.addAll(generator.hr(ch: '='));
+
     //footer
     await generateFooterBytes(generator, paperSize).then((footerBytes) {
       bytes.addAll(footerBytes);
@@ -1322,5 +1404,14 @@ class PrinterService {
     bytes.addAll(generator.feed(2));
 
     return bytes;
+  }
+
+  //membuat method untuk mengtahui orderdetail split payment atau tidak
+  static bool isOrderDetailSplitPayment(OrderDetailModel orderDetail) {
+    print(orderDetail.payment);
+    if (orderDetail.payment == null) return false;
+    if (orderDetail.payment!.isEmpty) return false;
+
+    return true; //orderdetail
   }
 }

@@ -3918,8 +3918,63 @@ export const getCashierOrderHistory = async (req, res) => {
       return res.status(200).json({ message: 'No order history found for this cashier.', orders });
     }
 
+    const orderIds = orders.map(order => order.order_id);
+
+    // Enhanced: Ambil semua payment details untuk orders
+    const payments = await Payment.find({
+      order_id: { $in: orderIds }
+    })
+      .lean()
+      .sort({ createdAt: -1 });
+
+    // console.log('Found payments:', payments);
+
+    // 🔧 Enhanced Payment Processing with Full Details
+    const paymentDetailsMap = new Map();
+    const paymentStatusMap = new Map();
+
+    payments.forEach(payment => {
+      const orderId = payment.order_id.toString();
+
+      // Determine payment status with DP logic
+      let status = payment?.status || 'Unpaid';
+      if (payment?.paymentType === 'Down Payment') {
+        if (payment?.status === 'settlement' && payment?.remainingAmount !== 0) {
+          status = 'partial';
+        } else if (payment?.status === 'settlement' && payment?.remainingAmount === 0) {
+          status = 'settlement';
+        }
+      }
+
+      // Store payment status
+      paymentStatusMap.set(orderId, status);
+
+      // Store complete payment details
+      if (!paymentDetailsMap.has(orderId)) {
+        paymentDetailsMap.set(orderId, []);
+      }
+      paymentDetailsMap.get(orderId).push(payment);
+    });
+
+    // Identify successful payments
+    // const successfulPaymentOrderIds = new Set(
+    //   payments
+    //     .filter(p =>
+    //       p.status === 'Success' ||
+    //       p.status === 'settlement'
+    //     )
+    //     .map(p => p.order_id.toString())
+    // );
+
+    // Filter unpaid orders (optional - you might want to include all for admin view)
+    // const unpaidOrders = orders.filter(
+    //   order => !successfulPaymentOrderIds.has(order._id.toString())
+    // );
+
+
     // Mapping data sesuai kebutuhan frontend
     const mappedOrders = orders.map(order => {
+      const orderIdString = order.order_id.toString();
       const updatedItems = order.items.map(item => {
         return {
           _id: item._id,
@@ -3949,63 +4004,14 @@ export const getCashierOrderHistory = async (req, res) => {
         }
       });
 
+      const paymentDetails = paymentDetailsMap.get(orderIdString) || [];
+
       return {
         ...order,
         items: updatedItems,
-        // userId: order.user_id,
-        // cashierId: order.cashierId,
-        // customerName: order.user,
-        // user: undefined,
-        // user_id: undefined,
-        // cashier: undefined,
+        payment_details: paymentDetails,
+        payment_status: paymentStatusMap.get(orderIdString)
       };
-      // _id: order._id,
-      // userId: order.user_id, // renamed
-      // user: order.user, // renamed
-      // cashierId: order.cashierId, // renamed
-      // items: order.items.map(item => ({
-      //   _id: item._id,
-      //   quantity: item.quantity,
-      //   subtotal: item.subtotal,
-      //   isPrinted: item.isPrinted,
-      //   menuItem: {
-      //     // ...item.menuItem.toObject(),
-      //     _id: item.menuItem._id,
-      //     name: item.menuItem.name,
-      //     originalPrice: item.menuItem.price,
-      //     discountedprice: item.menuItem.discountedPrice,
-      //     description: item.menuItem.description,
-      //     workstation: item.menuItem.workstation,
-      //     categories: item.menuItem.category, // renamed
-      //   },
-      //   selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
-      //     name: addon.name,
-      //     _id: addon._id,
-      //     options: [{
-      //       id: addon._id, // assuming _id as id for options
-      //       label: addon.label || addon.name, // fallback
-      //       price: addon.price
-      //     }]
-      //   })) : [],
-      //   selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
-      //     id: topping._id || topping.id, // fallback if structure changes
-      //     name: topping.name,
-      //     price: topping.price
-      //   })) : []
-      // })),
-      // status: order.status,
-      // orderType: order.orderType,
-      // deliveryAddress: order.deliveryAddress,
-      // tableNumber: order.tableNumber,
-      // type: order.type,
-      // paymentMethod: order.paymentMethod, // default value
-      // totalPrice: order.items.reduce((total, item) => total + item.subtotal, 0), // dihitung dari item subtotal
-      // voucher: order.voucher,
-      // outlet: order.outlet,
-      // promotions: order.promotions || [],
-      // createdAt: order.createdAt,
-      // updatedAt: order.updatedAt,
-      // __v: order.__v
     });
     // console.log(mappedOrders);
     res.status(200).json({ orders: mappedOrders });
@@ -4041,7 +4047,9 @@ export const cashierCharge = async (req, res) => {
       gross_amount,         // total yang dibayarkan saat ini (atau total order untuk full)
       is_down_payment,      // boolean
       down_payment_amount,  // optional
-      remaining_payment     // optional (tidak dipakai, kita hitung ulang agar konsisten)
+      remaining_payment,    // optional (tidak dipakai, kita hitung ulang agar konsisten)
+      tendered_amount,       // optional
+      change_amount,        // optional
     } = req.body;
 
     if (!order_id) {
@@ -4117,6 +4125,8 @@ export const cashierCharge = async (req, res) => {
         currency: 'IDR',
         merchant_id: merchantId,
         paidAt: new Date(),
+        tendered_amount: tendered_amount,
+        change_amount: change_amount
       });
 
       const savedDP = await dpPayment.save({ session });
@@ -4211,6 +4221,8 @@ export const cashierCharge = async (req, res) => {
       currency: 'IDR',
       merchant_id: 'G055993835',
       paidAt: new Date(),
+      tendered_amount: tendered_amount,
+      change_amount: change_amount
     });
 
     const saved = await paymentDoc.save({ session });
