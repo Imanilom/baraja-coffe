@@ -58,13 +58,14 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       paymentAmount: fields[29] == null ? 0 : (fields[29] as num).toInt(),
       changeAmount: fields[30] == null ? 0 : (fields[30] as num).toInt(),
       paymentType: fields[31] == null ? null : fields[31] as String?,
+      isSplitPayment: fields[32] == null ? false : fields[32] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderDetailModel obj) {
     writer
-      ..writeByte(32)
+      ..writeByte(33)
       ..writeByte(0)
       ..write(obj.orderId)
       ..writeByte(1)
@@ -128,7 +129,9 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..writeByte(30)
       ..write(obj.changeAmount)
       ..writeByte(31)
-      ..write(obj.paymentType);
+      ..write(obj.paymentType)
+      ..writeByte(32)
+      ..write(obj.isSplitPayment);
   }
 
   @override
@@ -213,6 +216,7 @@ _OrderDetailModel _$OrderDetailModelFromJson(
   paymentAmount: (json['paymentAmount'] as num?)?.toInt() ?? 0,
   changeAmount: (json['changeAmount'] as num?)?.toInt() ?? 0,
   paymentType: json['paymentType'] as String? ?? null,
+  isSplitPayment: json['isSplitPayment'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
@@ -249,4 +253,5 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'paymentAmount': instance.paymentAmount,
       'changeAmount': instance.changeAmount,
       'paymentType': instance.paymentType,
+      'isSplitPayment': instance.isSplitPayment,
     };

@@ -88,5 +88,60 @@ tableSchema.add({
   }]
 });
 
+
+// 🔁 Sinkronisasi status meja berdasarkan pesanan aktif (<4 jam)
+tableSchema.statics.syncTableStatusWithActiveOrders = async function(outletId) {
+  const nowWIB = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+  const fourHoursAgo = new Date(nowWIB.getTime() - 4 * 60 * 60 * 1000);
+
+  // Ambil semua nomor meja yang punya pesanan aktif <4 jam
+  const activeOrders = await mongoose.model('Order').find({
+    outlet: outletId,
+    status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
+    orderType: 'Dine-In',
+    tableNumber: { $exists: true, $ne: null },
+    createdAtWIB: { $gte: fourHoursAgo }
+  }).select('tableNumber');
+
+  const occupiedTableNumbers = activeOrders
+    .map(order => order.tableNumber?.toUpperCase())
+    .filter(Boolean);
+
+  // 1. Set meja dengan pesanan aktif → 'occupied'
+  if (occupiedTableNumbers.length > 0) {
+    await this.updateMany(
+      {
+        table_number: { $in: occupiedTableNumbers },
+        is_active: true,
+        status: { $ne: 'occupied' } // hanya update jika belum occupied
+      },
+      { 
+        status: 'occupied',
+        updatedAt: new Date()
+      }
+    );
+  }
+
+  // 2. Set meja TANPA pesanan aktif → 'available'
+  const filterForAvailable = {
+    is_active: true,
+    status: { $ne: 'available' }, // hindari update berlebihan
+    table_number: { $nin: occupiedTableNumbers }
+  };
+
+  // Jika tidak ada occupiedTableNumbers, pastikan filter tetap valid
+  if (occupiedTableNumbers.length === 0) {
+    delete filterForAvailable.table_number;
+  }
+
+  await this.updateMany(
+    filterForAvailable,
+    { 
+      status: 'available',
+      updatedAt: new Date()
+    }
+  );
+};
+
 const Table = mongoose.model('Table', tableSchema);
 export default Table;

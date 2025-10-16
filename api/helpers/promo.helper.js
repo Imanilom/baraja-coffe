@@ -10,7 +10,11 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
     isActive: true,
     validFrom: { $lte: now },
     validTo: { $gte: now }
-  }).populate('conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
+  })
+  .populate('conditions.buyProduct')
+  .populate('conditions.getProduct')
+  .populate('conditions.bundleProducts.product')
+  .populate('conditions.products'); // <-- Tambahkan ini untuk product_specific
 
   let totalDiscount = 0;
   let appliedPromos = [];
@@ -56,6 +60,9 @@ async function applyAutoPromo(promo, orderItems, orderType) {
       
     case 'bundling':
       return applyBundling(promo, orderItems);
+      
+    case 'product_specific':
+      return applyProductSpecific(promo, orderItems);
       
     default:
       return { applied: false, discount: 0, affectedItems: [] };
@@ -236,6 +243,38 @@ function applyBundling(promo, orderItems) {
     applied: true,
     discount: discount,
     affectedItems: affectedItems
+  };
+}
+
+// 5. Product Specific Discount
+function applyProductSpecific(promo, orderItems) {
+  const { conditions, discount } = promo;
+  const promoProducts = (conditions.products || []).map(p => p._id?.toString() || p.toString());
+  let totalDiscount = 0;
+  const affectedItems = [];
+
+  for (const item of orderItems) {
+    const itemId = item.menuItem?._id?.toString() || item.menuItem?.toString() || '';
+    
+    if (promoProducts.includes(itemId)) {
+      // Asumsi: discount adalah persentase (misal: 20 = 20%)
+      const itemTotal = (item.price || 0) * (item.quantity || 1);
+      const itemDiscount = (discount / 100) * itemTotal;
+      
+      totalDiscount += itemDiscount;
+      affectedItems.push({
+        menuItemId: itemId,
+        quantity: item.quantity,
+        originalPrice: item.price,
+        discountAmount: itemDiscount
+      });
+    }
+  }
+
+  return {
+    applied: affectedItems.length > 0,
+    discount: totalDiscount,
+    affectedItems
   };
 }
 

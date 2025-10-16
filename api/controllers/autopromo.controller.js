@@ -1,33 +1,38 @@
 import AutoPromo from '../models/AutoPromo.model.js';
 import { logActivity } from '../helpers/logActivity.js';
 
+// Helper: populate paths yang konsisten
+const PROMO_POPULATE = [
+  { path: 'outlet', select: 'name _id' },
+  { path: 'conditions.buyProduct', select: 'name _id' },
+  { path: 'conditions.getProduct', select: 'name _id' },
+  { path: 'conditions.bundleProducts.product', select: 'name _id' },
+  { path: 'conditions.products', select: 'name _id' } 
+];
+
 // =============================
 // Get all automatic promos
 // =============================
 export const getAutoPromos = async (req, res) => {
   try {
-    const promos = await AutoPromo.find();
     const now = new Date();
 
-    const expiredIds = promos
-      .filter(promo => promo.isActive && promo.validTo < now)
-      .map(promo => promo._id);
+    // Nonaktifkan promo yang sudah expired
+    const expiredPromos = await AutoPromo.find({
+      isActive: true,
+      validTo: { $lt: now }
+    });
 
-    if (expiredIds.length > 0) {
+    if (expiredPromos.length > 0) {
+      const expiredIds = expiredPromos.map(p => p._id);
       await AutoPromo.updateMany(
         { _id: { $in: expiredIds } },
         { $set: { isActive: false } }
       );
     }
 
-    const autoPromos = await AutoPromo.find()
-      .populate('outlet', 'name _id')
-      .populate('conditions.buyProduct', 'name _id')
-      .populate('conditions.getProduct', 'name _id')
-      .populate({
-        path: 'conditions.bundleProducts.product',
-        select: 'name _id',
-      });
+    // Ambil semua promo dengan populate lengkap
+    const autoPromos = await AutoPromo.find().populate(PROMO_POPULATE);
 
     if (!autoPromos || autoPromos.length === 0) {
       return res.status(404).json({ message: "No auto promos found." });
@@ -45,11 +50,11 @@ export const getAutoPromos = async (req, res) => {
 // =============================
 export const getAutoPromoById = async (req, res) => {
   try {
-    const autoPromo = await AutoPromo.findById(req.params.id)
-      .populate('outlet conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
+    const autoPromo = await AutoPromo.findById(req.params.id).populate(PROMO_POPULATE);
     if (!autoPromo) return res.status(404).json({ message: 'Promo not found' });
     res.status(200).json(autoPromo);
   } catch (error) {
+    console.error("Error fetching promo by ID:", error.message);
     res.status(500).json({ message: error.message });
   }
 };
@@ -93,7 +98,9 @@ export const createAutoPromo = async (req, res) => {
       req,
     });
 
-    res.status(201).json(autoPromo);
+    // Return dengan populate
+    const populatedPromo = await AutoPromo.findById(autoPromo._id).populate(PROMO_POPULATE);
+    res.status(201).json(populatedPromo);
   } catch (error) {
     console.error("Error saving promo:", error.message);
 
@@ -117,11 +124,12 @@ export const createAutoPromo = async (req, res) => {
 // =============================
 export const updateAutoPromo = async (req, res) => {
   try {
+    // Gunakan findByIdAndUpdate dengan populate
     const autoPromo = await AutoPromo.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true }
-    ).populate('outlet conditions.buyProduct conditions.getProduct conditions.bundleProducts.product');
+      { new: true, runValidators: true }
+    ).populate(PROMO_POPULATE);
 
     if (!autoPromo) {
       await logActivity({
@@ -149,6 +157,8 @@ export const updateAutoPromo = async (req, res) => {
 
     res.status(200).json(autoPromo);
   } catch (error) {
+    console.error("Error updating promo:", error.message);
+
     // ✅ Log gagal update
     await logActivity({
       userId: req.user?._id,
@@ -169,8 +179,7 @@ export const updateAutoPromo = async (req, res) => {
 // =============================
 export const deleteAutoPromo = async (req, res) => {
   try {
-    const autoPromo = await AutoPromo.findByIdAndDelete(req.params.id);
-
+    const autoPromo = await AutoPromo.findById(req.params.id);
     if (!autoPromo) {
       await logActivity({
         userId: req.user._id,
@@ -183,6 +192,8 @@ export const deleteAutoPromo = async (req, res) => {
       });
       return res.status(404).json({ message: 'Promo not found' });
     }
+
+    await AutoPromo.findByIdAndDelete(req.params.id);
 
     // ✅ Log delete sukses
     await logActivity({
@@ -197,6 +208,8 @@ export const deleteAutoPromo = async (req, res) => {
 
     res.status(200).json({ message: 'Promo deleted successfully' });
   } catch (error) {
+    console.error("Error deleting promo:", error.message);
+
     // ✅ Log gagal delete
     await logActivity({
       userId: req.user?._id,

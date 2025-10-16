@@ -52,4 +52,6 @@ router.get('/stock-movement', stockOpnameController.generateStockMovementReport)
 // Inventory aging report
 router.get('/inventory-aging', stockOpnameController.generateInventoryAgingReport);
 
+router.post('/stock-opname', stockOpnameController.performStockOpname); // Perform stock opname
+
 export default router;

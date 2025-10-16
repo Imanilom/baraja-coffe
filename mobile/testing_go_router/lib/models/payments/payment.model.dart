@@ -15,7 +15,10 @@ abstract class PaymentModel with _$PaymentModel {
   factory PaymentModel({
     // Basic payment info
     @HiveField(0) @Default(null) @JsonKey(name: 'order_id') String? orderId,
-    @HiveField(1) @JsonKey(name: 'transaction_id') String? transactionId,
+    @HiveField(1)
+    @Default(null)
+    @JsonKey(name: 'transaction_id')
+    String? transactionId,
     @HiveField(2) @Default('') String? method,
     @HiveField(3) @Default('') String? status,
     @HiveField(4) @Default('') String? paymentType,
@@ -87,6 +90,14 @@ abstract class PaymentModel with _$PaymentModel {
     // Timestamps
     @HiveField(25) DateTime? createdAt,
     @HiveField(26) DateTime? updatedAt,
+    @HiveField(27)
+    @JsonKey(name: 'tendered_amount')
+    @Default(null)
+    int? tenderedAmount,
+    @HiveField(28)
+    @JsonKey(name: 'change_amount')
+    @Default(null)
+    int? changeAmount,
   }) = _PaymentModel;
 
   factory PaymentModel.fromJson(Map<String, dynamic> json) =>

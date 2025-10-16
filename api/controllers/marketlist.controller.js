@@ -373,14 +373,53 @@ export const createMarketList = async (req, res) => {
         throw new Error(`Warehouse wajib diisi untuk produk ${item.productName}`);
       }
 
-      const amountCharged = item.quantityPurchased * item.pricePerUnit;
-      const amountPaid = item.amountPaid || 0;
-      const paymentMethod = item.paymentMethod || 'physical'; // Default physical
+      // Validasi dan konversi nilai numerik
+      const quantityPurchased = parseFloat(item.quantityPurchased) || 0;
+      const pricePerUnit = parseFloat(item.pricePerUnit) || 0;
+      const amountPaid = parseFloat(item.amountPaid) || 0;
+      
+      const amountCharged = quantityPurchased * pricePerUnit;
 
       if (amountPaid > amountCharged) {
         throw new Error(`Jumlah dibayar tidak boleh lebih besar dari jumlah yang dibebankan untuk produk ${item.productName}`);
       }
 
+<<<<<<< HEAD
+      let itemPhysical = 0;
+      let itemNonPhysical = 0;
+
+      if (item.payment && item.payment.method) {
+        switch (item.payment.method) {
+          case 'cash':
+            // Cash = semua fisik
+            itemPhysical = amountPaid;
+            itemNonPhysical = 0;
+            break;
+          case 'card':
+          case 'transfer':
+            // Card/Transfer = semua non-fisik
+            itemPhysical = 0;
+            itemNonPhysical = amountPaid;
+            break;
+          case 'mixed':
+            // Mixed = gunakan amountPhysical dan amountNonPhysical dari item
+            itemPhysical = parseFloat(item.payment.amountPhysical) || 0;
+            itemNonPhysical = parseFloat(item.payment.amountNonPhysical) || 0;
+            
+            if (itemPhysical + itemNonPhysical !== amountPaid) {
+              throw new Error(`Untuk metode pembayaran mixed, total amountPhysical + amountNonPhysical harus sama dengan amountPaid untuk produk ${item.productName}`);
+            }
+            break;
+          default:
+            // Default = semua fisik
+            itemPhysical = amountPaid;
+            itemNonPhysical = 0;
+        }
+      } else {
+        // Default jika tidak ada payment method
+        itemPhysical = amountPaid;
+        itemNonPhysical = 0;
+=======
       // Hitung pembagian berdasarkan metode pembayaran
       if (paymentMethod === 'physical') {
         totalPhysical += amountPaid;
@@ -397,16 +436,22 @@ export const createMarketList = async (req, res) => {
 
         totalPhysical += amountPhysical;
         totalNonPhysical += amountNonPhysical;
+>>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
       }
+
+      totalPhysical += itemPhysical;
+      totalNonPhysical += itemNonPhysical;
 
       processedItems.push({
         ...item,
+        quantityPurchased,
+        pricePerUnit,
         amountCharged,
         amountPaid,
         remainingBalance: Math.max(0, amountCharged - amountPaid),
-        paymentMethod,
-        amountPhysical: item.amountPhysical || 0,
-        amountNonPhysical: item.amountNonPhysical || 0,
+        paymentMethod: item.payment?.method || 'cash',
+        amountPhysical: itemPhysical,
+        amountNonPhysical: itemNonPhysical,
       });
 
       totalCharged += amountCharged;
@@ -415,8 +460,56 @@ export const createMarketList = async (req, res) => {
       if (item.requestId) relatedRequestIds.add(item.requestId);
     }
 
+    let additionalPhysical = 0;
+    let additionalNonPhysical = 0;
+    let additionalTotal = 0;
+
+    for (const expense of additionalExpenses) {
+      const amount = parseFloat(expense.amount) || 0;
+      additionalTotal += amount;
+
+      // Tentukan pembagian fisik/non-fisik untuk pengeluaran tambahan
+      if (expense.payment && expense.payment.method) {
+        switch (expense.payment.method) {
+          case 'cash':
+            additionalPhysical += amount;
+            break;
+          case 'card':
+          case 'transfer':
+            additionalNonPhysical += amount;
+            break;
+          case 'mixed':
+            additionalPhysical += parseFloat(expense.payment.amountPhysical) || 0;
+            additionalNonPhysical += parseFloat(expense.payment.amountNonPhysical) || 0;
+            break;
+          default:
+            additionalPhysical += amount;
+        }
+      } else {
+        additionalPhysical += amount;
+      }
+    }
+
+    // TOTAL KESELURUHAN (belanja + pengeluaran tambahan)
+    const grandTotalPhysical = totalPhysical + additionalPhysical;
+    const grandTotalNonPhysical = totalNonPhysical + additionalNonPhysical;
+    const grandTotalPaid = totalPaid + additionalTotal;
+
     // Validasi saldo cukup sebelum transaksi
     const lastBalance = await getLastBalance();
+<<<<<<< HEAD
+    
+    // Pastikan nilai balance valid
+    const lastBalancePhysical = parseFloat(lastBalance.balancePhysical) || 0;
+    const lastBalanceNonPhysical = parseFloat(lastBalance.balanceNonPhysical) || 0;
+    
+    if (grandTotalPhysical > lastBalancePhysical) {
+      throw new Error(`Saldo fisik tidak mencukupi. Dibutuhkan: ${grandTotalPhysical}, Tersedia: ${lastBalancePhysical}`);
+    }
+    
+    if (grandTotalNonPhysical > lastBalanceNonPhysical) {
+      throw new Error(`Saldo non-fisik tidak mencukupi. Dibutuhkan: ${grandTotalNonPhysical}, Tersedia: ${lastBalanceNonPhysical}`);
+=======
 
     if (totalPhysical > lastBalance.balancePhysical) {
       throw new Error(`Saldo fisik tidak mencukupi. Dibutuhkan: ${totalPhysical}, Tersedia: ${lastBalance.balancePhysical}`);
@@ -424,6 +517,7 @@ export const createMarketList = async (req, res) => {
 
     if (totalNonPhysical > lastBalance.balanceNonPhysical) {
       throw new Error(`Saldo non-fisik tidak mencukupi. Dibutuhkan: ${totalNonPhysical}, Tersedia: ${lastBalance.balanceNonPhysical}`);
+>>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
     }
 
     const marketListDoc = new MarketList({
@@ -485,7 +579,7 @@ export const createMarketList = async (req, res) => {
 
         if (itemToUpdate) {
           // Tambahkan fulfilled quantity
-          const newFulfilled = itemToUpdate.fulfilledQuantity + item.quantityPurchased;
+          const newFulfilled = (parseFloat(itemToUpdate.fulfilledQuantity) || 0) + item.quantityPurchased;
           const finalFulfilled = Math.min(newFulfilled, itemToUpdate.quantity); // jangan melebihi permintaan
 
           itemToUpdate.fulfilledQuantity = finalFulfilled;
@@ -500,8 +594,8 @@ export const createMarketList = async (req, res) => {
 
           // Update fulfillmentStatus request
           const allItems = [...request.transferItems, ...request.purchaseItems];
-          const isFullyFulfilled = allItems.every(i => i.fulfilledQuantity >= i.quantity);
-          const hasPartial = allItems.some(i => i.fulfilledQuantity > 0);
+          const isFullyFulfilled = allItems.every(i => (parseFloat(i.fulfilledQuantity) || 0) >= i.quantity);
+          const hasPartial = allItems.some(i => (parseFloat(i.fulfilledQuantity) || 0) > 0);
 
           request.fulfillmentStatus = isFullyFulfilled ? "fulfilled" : hasPartial ? "partial" : "pending";
           await request.save({ session });
@@ -519,24 +613,32 @@ export const createMarketList = async (req, res) => {
       if (!request) continue;
 
       const allItems = [...request.transferItems, ...request.purchaseItems];
-      const isFullyFulfilled = allItems.every(i => i.fulfilledQuantity >= i.quantity);
-      const hasPartial = allItems.some(i => i.fulfilledQuantity > 0);
+      const isFullyFulfilled = allItems.every(i => (parseFloat(i.fulfilledQuantity) || 0) >= i.quantity);
+      const hasPartial = allItems.some(i => (parseFloat(i.fulfilledQuantity) || 0) > 0);
 
       request.fulfillmentStatus = isFullyFulfilled ? "fulfilled" : hasPartial ? "partial" : "pending";
       await request.save({ session });
     }
 
     // Catat cashflow dengan pembagian fisik/non-fisik
-    if (totalPaid > 0) {
-      const newBalance = lastBalance.balance - totalPaid;
-      const newBalancePhysical = lastBalance.balancePhysical - totalPhysical;
-      const newBalanceNonPhysical = lastBalance.balanceNonPhysical - totalNonPhysical;
+    if (totalPaid > 0 || additionalTotal > 0) {
+      // Hitung saldo baru dengan memastikan tidak ada NaN
+      const lastBalanceTotal = parseFloat(lastBalance.balance) || 0;
+      const newBalance = lastBalanceTotal - grandTotalPaid;
+      
+      const newBalancePhysical = lastBalancePhysical - grandTotalPhysical;
+      const newBalanceNonPhysical = lastBalanceNonPhysical - grandTotalNonPhysical;
+
+      // Validasi saldo tidak negatif (jika perlu)
+      if (newBalancePhysical < 0 || newBalanceNonPhysical < 0) {
+        throw new Error("Saldo tidak boleh negatif setelah transaksi");
+      }
 
       // Tentukan metode pembayaran overall
       let overallPaymentMethod = 'physical';
-      if (totalPhysical > 0 && totalNonPhysical > 0) {
+      if (grandTotalPhysical > 0 && grandTotalNonPhysical > 0) {
         overallPaymentMethod = 'mixed';
-      } else if (totalNonPhysical > 0) {
+      } else if (grandTotalNonPhysical > 0) {
         overallPaymentMethod = 'non-physical';
       }
 
@@ -544,9 +646,9 @@ export const createMarketList = async (req, res) => {
         date,
         day,
         description: `Belanja harian - ${savedMarketList._id}`,
-        cashOut: totalPaid,
-        cashOutPhysical: totalPhysical,
-        cashOutNonPhysical: totalNonPhysical,
+        cashOut: grandTotalPaid,
+        cashOutPhysical: grandTotalPhysical,
+        cashOutNonPhysical: grandTotalNonPhysical,
         balance: newBalance,
         balancePhysical: newBalancePhysical,
         balanceNonPhysical: newBalanceNonPhysical,
@@ -574,7 +676,7 @@ export const createMarketList = async (req, res) => {
           pricePerUnit: item.pricePerUnit,
           amount: unpaidAmount,
           paidAmount: item.amountPaid,
-          paymentMethod: item.paymentMethod || "cash",
+          paymentMethod: item.payment?.method || "cash",
           marketListId: savedMarketList._id,
           status: item.amountPaid > 0 ? 'partial' : 'unpaid',
           notes: `Hutang belanja - ${date}`,
@@ -598,9 +700,11 @@ export const createMarketList = async (req, res) => {
       nonPhysicalBalance: updatedBalance.balanceNonPhysical,
       totalCharged,
       totalPaid,
+      additionalTotal,
+      grandTotal: totalCharged + additionalTotal,
       paymentBreakdown: {
-        physical: totalPhysical,
-        nonPhysical: totalNonPhysical
+        physical: grandTotalPhysical,
+        nonPhysical: grandTotalNonPhysical
       },
       message: "Belanja berhasil disimpan. Stok masuk, dan request otomatis terpenuhi jika ada referensi.",
     });
@@ -611,6 +715,633 @@ export const createMarketList = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// Controller untuk mengedit transaksi marketlist
+export const updateMarketList = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi tidak valid'
+      });
+    }
+
+    // Cari transaksi yang akan diupdate
+    const existingMarketList = await MarketList.findById(id);
+    if (!existingMarketList) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Update data
+    const updatedMarketList = await MarketList.findByIdAndUpdate(
+      id,
+      { 
+        ...updateData,
+        // Pastikan date di-update jika ada perubahan date
+        ...(updateData.date && { date: new Date(updateData.date) })
+      },
+      { 
+        new: true, // Mengembalikan dokumen yang sudah diupdate
+        runValidators: true // Menjalankan validasi schema
+      }
+    ).populate('items.productId').populate('relatedRequests');
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaksi marketlist berhasil diupdate',
+      data: updatedMarketList
+    });
+
+  } catch (error) {
+    console.error('Error updating marketlist:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
+// Controller untuk mengedit item tertentu dalam transaksi
+export const updateMarketListItem = async (req, res) => {
+  try {
+    const { id, itemId } = req.params;
+    const itemUpdateData = req.body;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(itemId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi atau item tidak valid'
+      });
+    }
+
+    // Cari transaksi
+    const marketList = await MarketList.findById(id);
+    if (!marketList) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Cari item dalam transaksi
+    const itemIndex = marketList.items.findIndex(
+      item => item._id.toString() === itemId
+    );
+
+    if (itemIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item tidak ditemukan dalam transaksi'
+      });
+    }
+
+    // Update item
+    marketList.items[itemIndex] = {
+      ...marketList.items[itemIndex].toObject(),
+      ...itemUpdateData
+    };
+
+    // Simpan perubahan (middleware pre-save akan terpanggil)
+    const updatedMarketList = await marketList.save();
+    
+    // Populate data yang diperlukan
+    await updatedMarketList.populate('items.productId');
+    await updatedMarketList.populate('relatedRequests');
+
+    res.status(200).json({
+      success: true,
+      message: 'Item berhasil diupdate',
+      data: updatedMarketList
+    });
+
+  } catch (error) {
+    console.error('Error updating marketlist item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
+// Controller untuk mengedit pengeluaran tambahan
+export const updateAdditionalExpense = async (req, res) => {
+  try {
+    const { id, expenseId } = req.params;
+    const expenseUpdateData = req.body;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(expenseId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi atau pengeluaran tidak valid'
+      });
+    }
+
+    // Cari transaksi
+    const marketList = await MarketList.findById(id);
+    if (!marketList) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Cari pengeluaran tambahan
+    const expenseIndex = marketList.additionalExpenses.findIndex(
+      expense => expense._id.toString() === expenseId
+    );
+
+    if (expenseIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pengeluaran tambahan tidak ditemukan'
+      });
+    }
+
+    // Update pengeluaran tambahan
+    marketList.additionalExpenses[expenseIndex] = {
+      ...marketList.additionalExpenses[expenseIndex].toObject(),
+      ...expenseUpdateData
+    };
+
+    const updatedMarketList = await marketList.save();
+    await updatedMarketList.populate('items.productId');
+    await updatedMarketList.populate('relatedRequests');
+
+    res.status(200).json({
+      success: true,
+      message: 'Pengeluaran tambahan berhasil diupdate',
+      data: updatedMarketList
+    });
+
+  } catch (error) {
+    console.error('Error updating additional expense:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
+// Controller untuk partial update (PATCH) - hanya update field tertentu
+export const partialUpdateMarketList = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi tidak valid'
+      });
+    }
+
+    const existingMarketList = await MarketList.findById(id);
+    if (!existingMarketList) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Update hanya field yang ada dalam request body
+    const updatedMarketList = await MarketList.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { 
+        new: true,
+        runValidators: true
+      }
+    ).populate('items.productId').populate('relatedRequests');
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaksi marketlist berhasil diupdate secara parsial',
+      data: updatedMarketList
+    });
+
+  } catch (error) {
+    console.error('Error partial updating marketlist:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  }
+};
+
+// Controller untuk menghapus transaksi marketlist
+export const deleteMarketList = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    session.startTransaction();
+    
+    const { id } = req.params;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi tidak valid'
+      });
+    }
+
+    // Cari transaksi yang akan dihapus
+    const marketList = await MarketList.findById(id).session(session);
+    if (!marketList) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Cek status request terkait
+    if (marketList.relatedRequests && marketList.relatedRequests.length > 0) {
+      const relatedRequests = await Request.find({
+        _id: { $in: marketList.relatedRequests }
+      }).session(session);
+
+      // Cek jika ada request yang sudah approve atau reject
+      const blockedRequests = relatedRequests.filter(request => 
+        request.status === 'approved' || request.status === 'rejected'
+      );
+
+      if (blockedRequests.length > 0) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Tidak dapat menghapus transaksi karena terdapat request yang sudah diapprove atau reject',
+          blockedRequests: blockedRequests.map(req => ({
+            id: req._id,
+            status: req.status,
+            requester: req.requester
+          }))
+        });
+      }
+    }
+
+    // Hapus entri arus kas terkait
+    await deleteRelatedCashFlow(marketList._id, session);
+
+    // Update status request yang terkait (jika ada)
+    await updateRelatedRequests(marketList.relatedRequests, session);
+
+    // Hapus transaksi marketlist
+    await MarketList.findByIdAndDelete(id).session(session);
+
+    await session.commitTransaction();
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaksi marketlist berhasil dihapus',
+      data: {
+        deletedMarketList: marketList._id,
+        deletedCashFlowEntries: true,
+        updatedRequests: marketList.relatedRequests || []
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error deleting marketlist:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Fungsi untuk menghapus entri arus kas terkait
+const deleteRelatedCashFlow = async (marketListId, session) => {
+  try {
+    // Cari semua entri arus kas yang terkait dengan marketlist ini
+    const relatedCashFlows = await CashFlow.find({ 
+      relatedMarketList: marketListId 
+    }).session(session);
+
+    if (relatedCashFlows.length === 0) {
+      return { deleted: 0, message: 'Tidak ada entri arus kas terkait' };
+    }
+
+    // Simpan informasi untuk recalculate balance
+    const cashFlowDates = [...new Set(relatedCashFlows.map(cf => cf.date))].sort();
+    const firstAffectedDate = cashFlowDates[0];
+
+    // Hapus entri arus kas terkait
+    const deleteResult = await CashFlow.deleteMany({ 
+      relatedMarketList: marketListId 
+    }).session(session);
+
+    // Recalculate balance mulai dari tanggal pertama yang terpengaruh
+    await recalculateCashFlowBalanceFromDate(firstAffectedDate, session);
+
+    return { 
+      deleted: deleteResult.deletedCount, 
+      affectedDates: cashFlowDates 
+    };
+
+  } catch (error) {
+    console.error('Error deleting related cash flow:', error);
+    throw new Error(`Gagal menghapus entri arus kas: ${error.message}`);
+  }
+};
+
+// Fungsi untuk recalculate balance arus kas mulai dari tanggal tertentu
+const recalculateCashFlowBalanceFromDate = async (startDate, session) => {
+  try {
+    // Dapatkan saldo terakhir sebelum tanggal startDate
+    const lastBalanceBefore = await CashFlow.findOne({
+      date: { $lt: startDate }
+    }).sort({ date: -1, createdAt: -1 }).session(session);
+
+    let runningBalance = {
+      balance: lastBalanceBefore ? Number(lastBalanceBefore.balance) || 0 : 0,
+      balancePhysical: lastBalanceBefore ? Number(lastBalanceBefore.balancePhysical) || 0 : 0,
+      balanceNonPhysical: lastBalanceBefore ? Number(lastBalanceBefore.balanceNonPhysical) || 0 : 0
+    };
+
+    // Dapatkan semua entri arus kas mulai dari startDate, diurutkan berdasarkan tanggal
+    const cashFlowsFromDate = await CashFlow.find({
+      date: { $gte: startDate }
+    }).sort({ date: 1, createdAt: 1 }).session(session);
+
+    // Recalculate balance untuk setiap entri
+    for (const cashFlow of cashFlowsFromDate) {
+      // Hitung saldo baru
+      const cashIn = Number(cashFlow.cashIn) || 0;
+      const cashOut = Number(cashFlow.cashOut) || 0;
+      const cashInPhysical = Number(cashFlow.cashInPhysical) || 0;
+      const cashOutPhysical = Number(cashFlow.cashOutPhysical) || 0;
+      const cashInNonPhysical = Number(cashFlow.cashInNonPhysical) || 0;
+      const cashOutNonPhysical = Number(cashFlow.cashOutNonPhysical) || 0;
+
+      runningBalance.balance += (cashIn - cashOut);
+      runningBalance.balancePhysical += (cashInPhysical - cashOutPhysical);
+      runningBalance.balanceNonPhysical += (cashInNonPhysical - cashOutNonPhysical);
+
+      // Pastikan saldo non-fisik tidak negatif
+      runningBalance.balanceNonPhysical = Math.max(0, runningBalance.balanceNonPhysical);
+
+      // Update entri arus kas dengan saldo yang baru
+      await CashFlow.findByIdAndUpdate(
+        cashFlow._id,
+        {
+          balance: runningBalance.balance,
+          balancePhysical: runningBalance.balancePhysical,
+          balanceNonPhysical: runningBalance.balanceNonPhysical
+        },
+        { session }
+      );
+    }
+
+    return { 
+      recalculatedEntries: cashFlowsFromDate.length,
+      finalBalance: runningBalance 
+    };
+
+  } catch (error) {
+    console.error('Error recalculating cash flow balance:', error);
+    throw new Error(`Gagal recalculate balance arus kas: ${error.message}`);
+  }
+};
+
+// Fungsi untuk update request yang terkait
+const updateRelatedRequests = async (relatedRequestIds, session) => {
+  if (!relatedRequestIds || relatedRequestIds.length === 0) {
+    return { updated: 0 };
+  }
+
+  try {
+    // Reset status fulfillment untuk request yang terkait
+    const updateResult = await Request.updateMany(
+      {
+        _id: { $in: relatedRequestIds },
+        status: 'pending' // Hanya update request yang masih pending
+      },
+      {
+        $set: {
+          fulfillmentStatus: 'pending',
+          'transferItems.$[].status': 'pending',
+          'transferItems.$[].fulfilledQuantity': 0,
+          'purchaseItems.$[].status': 'pending',
+          'purchaseItems.$[].fulfilledQuantity': 0,
+          processedAt: null,
+          processedBy: null
+        }
+      },
+      { session }
+    );
+
+    return { updated: updateResult.modifiedCount };
+
+  } catch (error) {
+    console.error('Error updating related requests:', error);
+    throw new Error(`Gagal update request terkait: ${error.message}`);
+  }
+};
+
+// Controller untuk menghapus item tertentu dari marketlist
+export const deleteMarketListItem = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    session.startTransaction();
+    
+    const { id, itemId } = req.params;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(itemId)) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi atau item tidak valid'
+      });
+    }
+
+    // Cari transaksi
+    const marketList = await MarketList.findById(id).session(session);
+    if (!marketList) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Cari item yang akan dihapus
+    const itemToDelete = marketList.items.id(itemId);
+    if (!itemToDelete) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Item tidak ditemukan dalam transaksi'
+      });
+    }
+
+    // Hapus entri arus kas terkait dengan item ini (jika ada pembayaran)
+    if (itemToDelete.amountPaid > 0) {
+      await deleteItemRelatedCashFlow(marketList._id, itemToDelete, session);
+    }
+
+    // Hapus item dari array
+    marketList.items.pull({ _id: itemId });
+
+    // Simpan perubahan
+    const updatedMarketList = await marketList.save({ session });
+    await updatedMarketList.populate('items.productId');
+    await updatedMarketList.populate('relatedRequests');
+
+    await session.commitTransaction();
+
+    res.status(200).json({
+      success: true,
+      message: 'Item berhasil dihapus dari transaksi',
+      data: {
+        deletedItem: itemToDelete,
+        updatedMarketList: updatedMarketList
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error deleting marketlist item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Fungsi untuk menghapus entri arus kas terkait item
+const deleteItemRelatedCashFlow = async (marketListId, item, session) => {
+  try {
+    // Hapus entri arus kas yang terkait dengan item ini
+    // Asumsi: description mengandung informasi tentang item
+    const deleteResult = await CashFlow.deleteMany({
+      relatedMarketList: marketListId,
+      description: { $regex: item.productName, $options: 'i' }
+    }).session(session);
+
+    return { deleted: deleteResult.deletedCount };
+
+  } catch (error) {
+    console.error('Error deleting item related cash flow:', error);
+    throw new Error(`Gagal menghapus entri arus kas item: ${error.message}`);
+  }
+};
+
+// Controller untuk menghapus pengeluaran tambahan
+export const deleteAdditionalExpense = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    session.startTransaction();
+    
+    const { id, expenseId } = req.params;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(expenseId)) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi atau pengeluaran tidak valid'
+      });
+    }
+
+    // Cari transaksi
+    const marketList = await MarketList.findById(id).session(session);
+    if (!marketList) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi marketlist tidak ditemukan'
+      });
+    }
+
+    // Cari pengeluaran tambahan yang akan dihapus
+    const expenseToDelete = marketList.additionalExpenses.id(expenseId);
+    if (!expenseToDelete) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Pengeluaran tambahan tidak ditemukan'
+      });
+    }
+
+    // Hapus entri arus kas terkait dengan pengeluaran tambahan ini (jika ada pembayaran)
+    if (expenseToDelete.amount > 0) {
+      await deleteExpenseRelatedCashFlow(marketList._id, expenseToDelete, session);
+    }
+
+    // Hapus pengeluaran tambahan dari array
+    marketList.additionalExpenses.pull({ _id: expenseId });
+
+    // Simpan perubahan
+    const updatedMarketList = await marketList.save({ session });
+    await updatedMarketList.populate('items.productId');
+    await updatedMarketList.populate('relatedRequests');
+
+    await session.commitTransaction();
+
+    res.status(200).json({
+      success: true,
+      message: 'Pengeluaran tambahan berhasil dihapus',
+      data: {
+        deletedExpense: expenseToDelete,
+        updatedMarketList: updatedMarketList
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error deleting additional expense:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan server',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Fungsi untuk menghapus entri arus kas terkait pengeluaran tambahan
+const deleteExpenseRelatedCashFlow = async (marketListId, expense, session) => {
+  try {
+    // Hapus entri arus kas yang terkait dengan pengeluaran tambahan ini
+    const deleteResult = await CashFlow.deleteMany({
+      relatedMarketList: marketListId,
+      description: { $regex: expense.name, $options: 'i' }
+    }).session(session);
+
+    return { deleted: deleteResult.deletedCount };
+
+  } catch (error) {
+    console.error('Error deleting expense related cash flow:', error);
+    throw new Error(`Gagal menghapus entri arus kas pengeluaran: ${error.message}`);
+  }
+};
+
 
 // Controller untuk mendapatkan semua data debts
 export const getAllDebts = async (req, res) => {
@@ -886,6 +1617,9 @@ export const getCashFlow = async (req, res) => {
 };
 
 export const addCashIn = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const {
       date,
@@ -897,19 +1631,39 @@ export const addCashIn = async (req, res) => {
       destination,
       proof
     } = req.body;
+<<<<<<< HEAD
+    
+    // Validasi input dasar
+    if (!date || !description) {
+      await session.abortTransaction();
+=======
 
     const day = getDayName(date);
 
     // Validasi input
     if (!day || !date || !description || typeof cashIn !== 'number' || cashIn <= 0) {
+>>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
       return res.status(400).json({
-        message: 'Semua field harus diisi dan jumlah kas masuk harus > 0'
+        message: 'Tanggal dan deskripsi harus diisi'
+      });
+    }
+
+    // Parse dan validasi nilai numerik
+    const cashInValue = parseFloat(cashIn) || 0;
+    const cashInPhysicalValue = parseFloat(cashInPhysical) || 0;
+    const cashInNonPhysicalValue = parseFloat(cashInNonPhysical) || 0;
+
+    if (cashInValue <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        message: 'Jumlah kas masuk harus lebih dari 0'
       });
     }
 
     // Validasi konsistensi jumlah
-    const totalIn = (cashInPhysical || 0) + (cashInNonPhysical || 0);
-    if (totalIn !== cashIn) {
+    const totalIn = cashInPhysicalValue + cashInNonPhysicalValue;
+    if (Math.abs(totalIn - cashInValue) > 0.01) { // Tolerance for floating point
+      await session.abortTransaction();
       return res.status(400).json({
         message: 'Total cashInPhysical + cashInNonPhysical harus sama dengan cashIn'
       });
@@ -917,48 +1671,101 @@ export const addCashIn = async (req, res) => {
 
     const user = await User.findById(req.user._id);
     if (!user) {
+      await session.abortTransaction();
       return res.status(401).json({ message: 'User tidak ditemukan' });
     }
 
-    // Ambil saldo terakhir
+    const day = getDayName(date);
+    
+    // Ambil saldo terakhir dengan validasi
     const lastBalance = await getLastBalance();
+<<<<<<< HEAD
+    
+    // Pastikan semua nilai balance valid
+    const lastBalanceValue = Number(lastBalance.balance) || 0;
+    const lastBalancePhysical = Number(lastBalance.balancePhysical) || 0;
+    const lastBalanceNonPhysical = Number(lastBalance.balanceNonPhysical) || 0;
+
+    // Hitung saldo baru dengan validasi
+    const newBalance = lastBalanceValue + cashInValue;
+    const newBalancePhysical = lastBalancePhysical + cashInPhysicalValue;
+    const newBalanceNonPhysical = lastBalanceNonPhysical + cashInNonPhysicalValue;
+
+    // Final validation - pastikan tidak ada NaN
+    if (isNaN(newBalance) || isNaN(newBalancePhysical) || isNaN(newBalanceNonPhysical)) {
+      await session.abortTransaction();
+      console.error('NaN detected in balance calculation:', {
+        lastBalance,
+        cashInValue,
+        cashInPhysicalValue,
+        cashInNonPhysicalValue
+      });
+      return res.status(500).json({ 
+        message: 'Terjadi kesalahan dalam perhitungan saldo' 
+      });
+    }
+
+    // Tentukan payment method
+    let paymentMethod = 'physical';
+    if (cashInPhysicalValue > 0 && cashInNonPhysicalValue > 0) {
+      paymentMethod = 'mixed';
+    } else if (cashInNonPhysicalValue > 0) {
+      paymentMethod = 'non-physical';
+    }
+=======
 
     // Hitung saldo baru
     const newBalance = lastBalance.balance + cashIn;
     const newBalancePhysical = lastBalance.balancePhysical + (cashInPhysical || 0);
     const newBalanceNonPhysical = lastBalance.balanceNonPhysical + (cashInNonPhysical || 0);
+>>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
 
     // Simpan ke database
     const cashFlow = new CashFlow({
       day,
-      date,
+      date: new Date(date),
       description,
-      cashIn,
-      cashInPhysical: cashInPhysical || 0,
-      cashInNonPhysical: cashInNonPhysical || 0,
+      cashIn: cashInValue,
+      cashInPhysical: cashInPhysicalValue,
+      cashInNonPhysical: cashInNonPhysicalValue,
       cashOut: 0,
       cashOutPhysical: 0,
       cashOutNonPhysical: 0,
       balance: newBalance,
       balancePhysical: newBalancePhysical,
       balanceNonPhysical: newBalanceNonPhysical,
-      source,
-      destination,
-      proof,
+      source: source || '',
+      destination: destination || '',
+      paymentMethod,
+      proof: proof || '',
       createdBy: user.username
     });
 
-    await cashFlow.save();
+    await cashFlow.save({ session });
+    await session.commitTransaction();
 
-    res.status(201).json(cashFlow);
+    res.status(201).json({
+      success: true,
+      message: 'Kas masuk berhasil dicatat',
+      data: cashFlow
+    });
 
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error menambahkan kas masuk:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  } finally {
+    session.endSession();
   }
 };
 
 export const withdrawCash = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const {
       date,
@@ -967,40 +1774,78 @@ export const withdrawCash = async (req, res) => {
       destination,
       proof
     } = req.body;
+<<<<<<< HEAD
+    
+=======
 
     const day = getDayName(date);
 
+>>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
     // Validasi input
-    if (!day || !date || !description || typeof amount !== 'number' || amount <= 0) {
+    if (!date || !description) {
+      await session.abortTransaction();
       return res.status(400).json({
-        message: 'Semua field harus diisi dan jumlah penarikan harus > 0'
+        message: 'Tanggal dan deskripsi harus diisi'
+      });
+    }
+
+    const amountValue = parseFloat(amount) || 0;
+    if (amountValue <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        message: 'Jumlah penarikan harus lebih dari 0'
       });
     }
 
     const user = await User.findById(req.user._id);
     if (!user) {
+      await session.abortTransaction();
       return res.status(401).json({ message: 'User tidak ditemukan' });
     }
 
-    // Ambil saldo terakhir
+    const day = getDayName(date);
+    
+    // Ambil saldo terakhir dengan validasi
     const lastBalance = await getLastBalance();
+<<<<<<< HEAD
+    
+    // Pastikan semua nilai balance valid
+    const lastBalanceValue = Number(lastBalance.balance) || 0;
+    const lastBalancePhysical = Number(lastBalance.balancePhysical) || 0;
+    const lastBalanceNonPhysical = Number(lastBalance.balanceNonPhysical) || 0;
+    
+=======
 
+>>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
     // Validasi saldo non-fisik mencukupi
-    if (lastBalance.balanceNonPhysical < amount) {
+    if (lastBalanceNonPhysical < amountValue) {
+      await session.abortTransaction();
       return res.status(400).json({
-        message: 'Saldo non-fisik tidak mencukupi untuk penarikan'
+        message: `Saldo non-fisik tidak mencukupi. Dibutuhkan: ${amountValue}, Tersedia: ${lastBalanceNonPhysical}`
       });
     }
 
     // Hitung saldo baru (perpindahan dari non-fisik ke fisik)
-    const newBalance = lastBalance.balance; // Total balance tetap
-    const newBalancePhysical = lastBalance.balancePhysical + amount;
-    const newBalanceNonPhysical = lastBalance.balanceNonPhysical - amount;
+    const newBalance = lastBalanceValue; // Total balance tetap
+    const newBalancePhysical = lastBalancePhysical + amountValue;
+    const newBalanceNonPhysical = lastBalanceNonPhysical - amountValue;
+
+    // Final validation - pastikan tidak ada NaN
+    if (isNaN(newBalance) || isNaN(newBalancePhysical) || isNaN(newBalanceNonPhysical)) {
+      await session.abortTransaction();
+      console.error('NaN detected in balance calculation:', {
+        lastBalance,
+        amountValue
+      });
+      return res.status(500).json({ 
+        message: 'Terjadi kesalahan dalam perhitungan saldo' 
+      });
+    }
 
     // Simpan transaksi penarikan tunai
     const cashFlow = new CashFlow({
       day,
-      date,
+      date: new Date(date),
       description: `Penarikan Tunai: ${description}`,
       cashIn: 0,
       cashInPhysical: 0,
@@ -1012,19 +1857,30 @@ export const withdrawCash = async (req, res) => {
       balancePhysical: newBalancePhysical,
       balanceNonPhysical: newBalanceNonPhysical,
       source: 'Penarikan Tunai',
-      destination,
+      destination: destination || '',
       paymentMethod: 'mixed',
-      proof,
+      proof: proof || '',
       createdBy: user.username
     });
 
-    await cashFlow.save();
+    await cashFlow.save({ session });
+    await session.commitTransaction();
 
-    res.status(201).json(cashFlow);
+    res.status(201).json({
+      success: true,
+      message: 'Penarikan tunai berhasil dicatat',
+      data: cashFlow
+    });
 
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error melakukan penarikan tunai:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -1060,42 +1916,53 @@ export const getWeeklyReport = async (req, res) => {
     const startDate = new Date(start);
     const endDate = new Date(end);
 
-    // Get cash flows with populated market lists
-    const cashFlows = await CashFlow.find({
+    // Ambil entri terakhir SEBELUM periode (sebelum startDate)
+    const lastBeforeStart = await CashFlow.findOne({
+      date: { $lt: startDate }
+    }).sort({ date: -1, createdAt: -1 });
+
+    // Tentukan saldo awal berdasarkan entri terakhir sebelum periode
+    const startingBalance = lastBeforeStart ? Number(lastBeforeStart.balance) || 0 : 0;
+    const startingPhysical = lastBeforeStart ? Number(lastBeforeStart.balancePhysical) || 0 : 0;
+    const startingNonPhysical = lastBeforeStart ? Number(lastBeforeStart.balanceNonPhysical) || 0 : 0;
+
+    // Ambil transaksi dalam periode
+    const periodCashFlows = await CashFlow.find({
       date: { $gte: startDate, $lte: endDate }
-    }).populate({
-      path: 'relatedMarketList',
-      populate: {
-        path: 'items additionalExpenses',
-        select: 'productName quantityPurchased pricePerUnit paymentMethod paymentStatus name amount'
-      }
-    }).sort({ date: 1 });
+    }).sort({ date: 1, createdAt: 1 }); // Urutkan juga berdasarkan createdAt untuk kepastian urutan
 
-    // Calculate starting balance (sum of all transactions before start date)
-    const initialFlows = await CashFlow.find({ date: { $lt: startDate } });
-    const startingBalance = initialFlows.reduce((sum, f) => sum + (f.cashIn - f.cashOut), 0);
-
-    // Initialize categorized data
+    // Inisialisasi hasil
     const result = {
       summary: {
+        period: { start, end },
         startingBalance,
-        cash: { in: 0, out: 0, balance: 0 },
-        transfer: { in: 0, out: 0, balance: 0 },
-        credit: { in: 0, out: 0, balance: 0 },
+        startingPhysical,
+        startingNonPhysical,
+        physical: { in: 0, out: 0, balance: startingPhysical },
+        nonPhysical: { in: 0, out: 0, balance: startingNonPhysical },
         totalIn: 0,
         totalOut: 0,
-        endingBalance: startingBalance
+        endingBalance: startingBalance,
+        endingPhysical: startingPhysical,
+        endingNonPhysical: startingNonPhysical
       },
       transactions: {
-        cash: [],
-        transfer: [],
-        credit: [],
+        physical: [],
+        nonPhysical: [],
+        mixed: [],
         all: []
       }
     };
 
+    // Gunakan saldo awal sebagai titik awal
     let currentBalance = startingBalance;
+    let currentPhysical = startingPhysical;
+    let currentNonPhysical = startingNonPhysical;
 
+<<<<<<< HEAD
+    for (const flow of periodCashFlows) {
+      // Gunakan nilai yang tersimpan di database sebagai saldo akhir transaksi ini
+=======
     // Process each cash flow
     for (const flow of cashFlows) {
       currentBalance += flow.cashIn - flow.cashOut;
@@ -1110,25 +1977,47 @@ export const getWeeklyReport = async (req, res) => {
       }
 
       // Build transaction object
+>>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
       const transaction = {
+        _id: flow._id,
         date: flow.date,
         day: flow.day,
         description: flow.description,
         cashIn: flow.cashIn,
         cashOut: flow.cashOut,
-        balance: currentBalance,
-        paymentMethod,
-        purchasedItems: flow.relatedMarketList?.items?.map(item => ({
-          name: item.productName,
-          quantity: item.quantityPurchased,
-          price: item.pricePerUnit,
-          total: item.quantityPurchased * item.pricePerUnit,
-          paymentMethod: item.paymentMethod,
-          paymentStatus: item.paymentStatus
-        })) || [],
-        additionalExpenses: flow.relatedMarketList?.additionalExpenses || []
+        balance: flow.balance,
+        cashInPhysical: flow.cashInPhysical,
+        cashOutPhysical: flow.cashOutPhysical,
+        balancePhysical: flow.balancePhysical,
+        cashInNonPhysical: flow.cashInNonPhysical,
+        cashOutNonPhysical: flow.cashOutNonPhysical,
+        balanceNonPhysical: flow.balanceNonPhysical,
+        paymentMethod: flow.paymentMethod,
+        source: flow.source,
+        destination: flow.destination,
+        createdBy: flow.createdBy,
+        proof: flow.proof,
+        relatedMarketList: flow.relatedMarketList
       };
 
+<<<<<<< HEAD
+      // Akumulasi total berdasarkan paymentMethod
+      if (flow.paymentMethod === 'physical') {
+        result.summary.physical.in += flow.cashIn;
+        result.summary.physical.out += flow.cashOut;
+        result.transactions.physical.push(transaction);
+      } else if (flow.paymentMethod === 'non-physical') {
+        result.summary.nonPhysical.in += flow.cashIn;
+        result.summary.nonPhysical.out += flow.cashOut;
+        result.transactions.nonPhysical.push(transaction);
+      } else if (flow.paymentMethod === 'mixed') {
+        // Untuk mixed, gunakan nilai fisik & non-fisik secara terpisah
+        result.summary.physical.in += flow.cashInPhysical;
+        result.summary.physical.out += flow.cashOutPhysical;
+        result.summary.nonPhysical.in += flow.cashInNonPhysical;
+        result.summary.nonPhysical.out += flow.cashOutNonPhysical;
+        result.transactions.mixed.push(transaction);
+=======
       // Categorize by payment method
       if (paymentMethod === 'cash') {
         result.summary.cash.in += flow.cashIn;
@@ -1144,6 +2033,7 @@ export const getWeeklyReport = async (req, res) => {
         result.summary.credit.in += flow.cashIn;
         result.summary.credit.out += flow.cashOut;
         result.transactions.credit.push(transaction);
+>>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
       }
 
       result.transactions.all.push(transaction);
@@ -1151,19 +2041,34 @@ export const getWeeklyReport = async (req, res) => {
       result.summary.totalOut += flow.cashOut;
     }
 
+<<<<<<< HEAD
+    // Ambil saldo akhir dari transaksi terakhir dalam periode
+    if (periodCashFlows.length > 0) {
+      const lastInPeriod = periodCashFlows[periodCashFlows.length - 1];
+      result.summary.endingBalance = Number(lastInPeriod.balance) || 0;
+      result.summary.endingPhysical = Number(lastInPeriod.balancePhysical) || 0;
+      result.summary.endingNonPhysical = Number(lastInPeriod.balanceNonPhysical) || 0;
+    } else {
+      // Jika tidak ada transaksi dalam periode, saldo akhir = saldo awal
+      result.summary.endingBalance = startingBalance;
+      result.summary.endingPhysical = startingPhysical;
+      result.summary.endingNonPhysical = startingNonPhysical;
+    }
+
+    // Update balance di summary
+    result.summary.physical.balance = result.summary.endingPhysical;
+    result.summary.nonPhysical.balance = result.summary.endingNonPhysical;
+=======
     // Calculate final balances
     result.summary.endingBalance = currentBalance;
     result.summary.cash.balance = result.summary.cash.in - result.summary.cash.out;
     result.summary.transfer.balance = result.summary.transfer.in - result.summary.transfer.out;
     result.summary.credit.balance = result.summary.credit.in - result.summary.credit.out;
+>>>>>>> 20587537936f71ac2da4a6025cc9bc3b464f1938
 
     res.json({
       success: true,
-      data: {
-        start,
-        end,
-        ...result
-      }
+      data: result
     });
 
   } catch (error) {
@@ -1176,9 +2081,43 @@ export const getWeeklyReport = async (req, res) => {
   }
 };
 
-const getLastBalance = async () => {
-  const lastEntry = await CashFlow.findOne().sort({ date: -1 });
-  return lastEntry ? lastEntry.balance : 0;
+// Fungsi untuk mendapatkan saldo terakhir
+export const getLastBalance = async () => {
+  try {
+    const lastEntry = await CashFlow.findOne().sort({ date: -1, createdAt: -1 });
+    
+    if (!lastEntry) {
+      console.log('No previous cashflow entry found, using default balances');
+      return { 
+        balance: 0, 
+        balancePhysical: 0, 
+        balanceNonPhysical: 0 
+      };
+    }
+
+    // Validasi ketat untuk memastikan tidak ada NaN
+    const balance = Number(lastEntry.balance);
+    const balancePhysical = Number(lastEntry.balancePhysical);
+    const balanceNonPhysical = Number(lastEntry.balanceNonPhysical);
+
+    // Jika ada nilai yang invalid, gunakan default 0
+    const result = {
+      balance: isNaN(balance) ? 0 : balance,
+      balancePhysical: isNaN(balancePhysical) ? 0 : balancePhysical,
+      balanceNonPhysical: isNaN(balanceNonPhysical) ? 0 : balanceNonPhysical
+    };
+
+    
+    return result;
+
+  } catch (error) {
+    console.error("Error getting last balance:", error);
+    return { 
+      balance: 0, 
+      balancePhysical: 0, 
+      balanceNonPhysical: 0 
+    };
+  }
 };
 
 export const getBalanceSummary = async (req, res) => {
