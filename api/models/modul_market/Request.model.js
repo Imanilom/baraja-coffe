@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const RequestItemSchema = new mongoose.Schema({
-  _id: { type: mongoose.Schema.Types.ObjectId, auto: true }, // penting untuk update spesifik
+  _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   productName: String,
   productSku: String,
@@ -9,34 +9,40 @@ const RequestItemSchema = new mongoose.Schema({
   quantity: { type: Number, required: true, min: 1 },
   unit: String,
   notes: String,
-  status: { type: String, default: 'pending', enum: ['pending', 'approved', 'fulfilled', 'partial', 'rejected'] },
+  status: { type: String, default: 'approved', enum: ['approved', 'fulfilled', 'partial', 'rejected'] },
   fulfilledQuantity: { type: Number, default: 0, min: 0 },
   availableStock: { type: Number, default: 0 },
   minimumRequest: { type: Number, default: 0 },
-  sourceWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' }, // dari mana stok diambil
+  sourceWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
+  destinationWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
   processedAt: Date,
-  processedBy: String
+  processedBy: String,
+  type: { type: String, enum: ['transfer', 'purchase'], default: 'transfer' }
 });
 
 const RequestSchema = new mongoose.Schema({
-  requestedWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true }, // = departemen
+  requestedWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   requester: { type: String, required: true },
   transferItems: [RequestItemSchema],
   purchaseItems: [RequestItemSchema],
   status: { 
     type: String, 
-    default: 'pending', 
-    enum: ['pending', 'approved', 'rejected'] // approval oleh kepala departemen
+    default: 'approved', 
+    enum: ['approved', 'rejected']
   },
   fulfillmentStatus: { 
     type: String, 
     default: 'pending', 
-    enum: ['pending', 'partial', 'fulfilled', 'excess'] // status pemenuhan oleh gudang
+    enum: ['pending', 'partial', 'fulfilled', 'excess']
   },
   processedBy: String,
   processedAt: Date,
   date: { type: Date, default: Date.now }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
 
 // Virtual: hitung persentase terpenuhi
 RequestSchema.virtual('fulfillmentPercentage').get(function() {
@@ -55,10 +61,23 @@ RequestSchema.pre('save', function(next) {
   this.totalItems = allItems.length;
   this.totalQuantity = allItems.reduce((sum, item) => sum + item.quantity, 0);
   this.fulfilledItems = allItems.filter(item => (item.fulfilledQuantity || 0) > 0).length;
+  
+  // Auto-update fulfillmentStatus berdasarkan items
+  const allFulfilled = allItems.every(item => (item.fulfilledQuantity || 0) >= item.quantity);
+  const someFulfilled = allItems.some(item => (item.fulfilledQuantity || 0) > 0);
+  
+  if (allFulfilled) {
+    this.fulfillmentStatus = 'fulfilled';
+  } else if (someFulfilled) {
+    this.fulfillmentStatus = 'partial';
+  } else {
+    this.fulfillmentStatus = 'pending';
+  }
+  
   next();
 });
 
-// Index
+// Indexes
 RequestSchema.index({ date: -1 });
 RequestSchema.index({ requestedWarehouse: 1, status: 1 });
 RequestSchema.index({ requester: 1, date: -1 });
