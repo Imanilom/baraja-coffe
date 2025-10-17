@@ -1,4 +1,4 @@
-  // controllers/groController.js
+// controllers/groController.js
 import { Order } from '../models/order.model.js';
 import Table from '../models/Table.model.js';
 import Area from '../models/Area.model.js';
@@ -121,6 +121,270 @@ export async function generateOrderId(tableNumber) {
   // Format orderId
   return `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
 }
+
+// GET /api/gro/tables/:tableNumber/order - Get active order detail for specific table
+export const getTableOrderDetail = async (req, res) => {
+  try {
+    const { tableNumber } = req.params;
+    const { date } = req.query;
+
+    if (!tableNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Table number is required'
+      });
+    }
+
+    // Build query
+    const query = {
+      tableNumber: tableNumber.toUpperCase(),
+      status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
+      orderType: 'Dine-In'
+    };
+
+    // If date provided, filter by date
+    if (date) {
+      const targetDate = new Date(date);
+      query.createdAtWIB = {
+        $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
+        $lte: new Date(targetDate.setHours(23, 59, 59, 999))
+      };
+    }
+
+    // Find active order for this table
+    const order = await Order.findOne(query)
+      .populate('user_id', 'name phone email')
+      .populate({
+        path: 'items.menuItem',
+        select: 'name price imageURL category mainCategory'
+      })
+      .sort({ createdAtWIB: -1 });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active order found for this table'
+      });
+    }
+
+    // Format response
+    const formattedOrder = {
+      _id: order._id,
+      order_id: order.order_id,
+      customerName: order.user_id?.name || order.user,
+      customerPhone: order.user_id?.phone,
+      customerEmail: order.user_id?.email,
+      tableNumber: order.tableNumber,
+      status: order.status,
+      orderType: order.orderType,
+      items: order.items.map(item => ({
+        _id: item._id,
+        menuItem: {
+          _id: item.menuItem?._id,
+          name: item.menuItem?.name,
+          price: item.menuItem?.price,
+          imageURL: item.menuItem?.imageURL,
+          category: item.menuItem?.category,
+          mainCategory: item.menuItem?.mainCategory
+        },
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        addons: item.addons || [],
+        toppings: item.toppings || [],
+        notes: item.notes || '',
+        kitchenStatus: item.kitchenStatus,
+        batchNumber: item.batchNumber
+      })),
+      totalBeforeDiscount: order.totalBeforeDiscount,
+      totalAfterDiscount: order.totalAfterDiscount,
+      totalTax: order.totalTax,
+      totalServiceFee: order.totalServiceFee,
+      grandTotal: order.grandTotal,
+      discounts: order.discounts,
+      appliedVoucher: order.appliedVoucher,
+      paymentMethod: order.paymentMethod,
+      isOpenBill: order.isOpenBill,
+      createdAt: order.createdAt,
+      createdAtWIB: order.createdAtWIB,
+      updatedAt: order.updatedAt,
+      updatedAtWIB: order.updatedAtWIB
+    };
+
+    res.json({
+      success: true,
+      data: formattedOrder
+    });
+
+  } catch (error) {
+    console.error('Error fetching table order detail:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching table order detail',
+      error: error.message
+    });
+  }
+};
+
+// PUT /api/gro/orders/:orderId/complete - Complete order and free up table
+export const completeTableOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const { orderId } = req.params;
+    const userId = req.user?.id; // GRO employee ID
+
+    // Find the order
+    const order = await Order.findById(orderId).session(session);
+
+    if (!order) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Validate order type
+    if (order.orderType !== 'Dine-In') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Only Dine-In orders can be completed through this endpoint'
+      });
+    }
+
+    // Check if order is already completed
+    if (order.status === 'Completed' || order.status === 'Canceled') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Order is already ${order.status.toLowerCase()}`
+      });
+    }
+
+    // Get employee info
+    const employee = await User.findById(userId).select('username');
+
+    // Update order status
+    order.status = 'Completed';
+    order.updatedAtWIB = getWIBNow();
+
+    // Add completion info to notes
+    const completionNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Order diselesaikan oleh GRO: ${employee?.username || 'Unknown'}`;
+    order.notes = (order.notes || '') + completionNote;
+
+    await order.save({ session });
+
+    // Update table status to available
+    if (order.tableNumber) {
+      const table = await Table.findOne({
+        table_number: order.tableNumber.toUpperCase()
+      }).session(session);
+
+      if (table) {
+        table.status = 'available';
+        table.updatedAt = new Date();
+
+        // Add to status history
+        if (!table.statusHistory) {
+          table.statusHistory = [];
+        }
+
+        table.statusHistory.push({
+          fromStatus: 'occupied',
+          toStatus: 'available',
+          updatedBy: employee?.username || 'GRO System',
+          notes: `Order ${order.order_id} completed`,
+          updatedAt: getWIBNow()
+        });
+
+        await table.save({ session });
+
+        // Emit socket event for table status update
+        if (typeof io !== 'undefined' && io) {
+          io.to(`area_${table.area_id?.area_code}`).emit('table_status_updated', {
+            tableId: table._id,
+            tableNumber: table.table_number,
+            oldStatus: 'occupied',
+            newStatus: 'available',
+            updatedBy: employee?.username || 'GRO System',
+            timestamp: getWIBNow()
+          });
+        }
+      }
+    }
+
+    // If there's a related reservation, update it too
+    if (order.reservation) {
+      const reservation = await Reservation.findById(order.reservation).session(session);
+      if (reservation && reservation.status !== 'completed') {
+
+        // Auto check-out if not already done
+        if (!reservation.check_out_time) {
+          reservation.check_out_time = getWIBNow();
+          reservation.checked_out_by = {
+            employee_id: userId,
+            employee_name: employee?.username || 'Unknown',
+            checked_out_at: getWIBNow()
+          };
+        }
+
+        reservation.status = 'completed';
+        await reservation.save({ session });
+      }
+    }
+
+    await session.commitTransaction();
+
+    // Emit socket event for order completion
+    if (typeof io !== 'undefined' && io) {
+      io.to('gro_room').emit('order_completed', {
+        orderId: order._id,
+        order_id: order.order_id,
+        tableNumber: order.tableNumber,
+        completedBy: employee?.username || 'GRO',
+        timestamp: getWIBNow()
+      });
+
+      io.to('cashier_room').emit('order_status_updated', {
+        orderId: order._id,
+        order_id: order.order_id,
+        status: 'Completed',
+        timestamp: getWIBNow()
+      });
+    }
+
+    console.log(`✅ Order ${order.order_id} completed by GRO. Table ${order.tableNumber} is now available.`);
+
+    res.json({
+      success: true,
+      message: `Order ${order.order_id} berhasil diselesaikan. Meja ${order.tableNumber} sekarang tersedia.`,
+      data: {
+        order: {
+          id: order._id,
+          order_id: order.order_id,
+          status: order.status,
+          tableNumber: order.tableNumber
+        },
+        completedBy: employee?.username || 'GRO',
+        completedAt: getWIBNow()
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error completing table order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error completing table order',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
 
 // GET /api/gro/dashboard-stats - Get dashboard statistics
 export const getDashboardStats = async (req, res) => {
@@ -1846,7 +2110,7 @@ export const getOrderTableHistory = async (req, res) => {
   }
 };
 
- // ✅ BULK TABLE STATUS UPDATE (Untuk GRO yang keliling)
+// ✅ BULK TABLE STATUS UPDATE (Untuk GRO yang keliling)
 export const bulkUpdateTableStatus = async (req, res) => {
   const session = await mongoose.startSession();
   try {
