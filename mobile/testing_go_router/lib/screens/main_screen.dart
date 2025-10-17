@@ -378,8 +378,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                 if (currentPageIndex != 0) {
                   ref.read(currentPageIndexProvider.notifier).setIndex(0);
                 }
-                if (currentWidgetIndex != 3) {
-                  ref.read(currentWidgetIndexProvider.notifier).setIndex(3);
+                if (currentWidgetIndex != 1) {
+                  ref.read(currentWidgetIndexProvider.notifier).setIndex(1);
                 }
               },
             ),

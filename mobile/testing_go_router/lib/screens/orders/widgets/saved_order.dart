@@ -10,6 +10,8 @@ class SavedOrder extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final savedOrderDetail = ref.watch(savedOrderProvider);
 
+    print('savedOrderDetail: $savedOrderDetail');
+
     return savedOrderDetail.isEmpty
         ? const Center(child: Text('No saved orders available'))
         : ListView.builder(
@@ -18,9 +20,12 @@ class SavedOrder extends ConsumerWidget {
             final savedOrder = savedOrderDetail[index];
             return ListTile(
               dense: true,
-              title: Text(savedOrder!.user.toString()),
+              title: Text(
+                "${savedOrder!.user.toString()} - ${savedOrder.tableNumber}",
+                style: const TextStyle(color: Colors.black),
+              ),
               subtitle: Text(
-                savedOrder.items.map((x) => x.menuItem.name).join(', '),
+                "${savedOrder.orderId}",
                 style: const TextStyle(color: Colors.black),
               ),
               leading: CircleAvatar(
