@@ -3204,7 +3204,19 @@ export const getPendingOrders = async (req, res) => {
 
       // Get payment details for this order
       const paymentDetails = paymentDetailsMap.get(orderIdString) || [];
-      const paymentStatus = paymentStatusMap.get(orderIdString) || 'pending';
+      //get payment status jika payment detail ada 2 dan salah satunya belum lunas atau settlement beri satatus "partial", dan jika ada satu atau lebih yang lunas beri status "settlement" dan jika hanya ada satu yang lunas namun lebih kecil dari grand total beri status "partial"
+
+      const paymentStatus = paymentDetails.length > 1
+        ? paymentDetails.every(p => p.status === 'Success' || p.status === 'settlement')
+          ? 'Settlement'
+          : paymentDetails.some(p => p.status === 'Success' || p.status === 'settlement')
+            ? 'Partial'
+            : 'Pending'
+        : paymentDetails.length === 1
+          ? paymentDetails[0].status === 'Success' || paymentDetails[0].status === 'settlement'
+            ? 'Settlement'
+            : 'Partial'
+          : 'Pending';
 
       // Calculate payment summary
       const totalPaid = paymentDetails.reduce((sum, payment) =>

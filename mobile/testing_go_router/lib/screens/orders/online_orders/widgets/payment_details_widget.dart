@@ -141,7 +141,8 @@ class PaymentDetailsWidget extends ConsumerWidget {
                   width: double.infinity,
                   height: 48,
                   child: ConfirmOrderButton(
-                    orderId: orders!.orderId ?? '',
+                    orderDetail: orders,
+                    orderId: orders!.id ?? '',
                     cashierId: '',
                     source: orders.source,
                   ),

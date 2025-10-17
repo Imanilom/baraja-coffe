@@ -2,17 +2,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/online_order/confirm_order.model.dart';
+import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/orders/order_history_provider.dart';
+import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 
 class ConfirmOrderButton extends ConsumerStatefulWidget {
+  final OrderDetailModel? orderDetail;
   final String orderId;
   final String cashierId;
   final String source;
 
   const ConfirmOrderButton({
     super.key,
+    this.orderDetail,
     required this.orderId,
     required this.cashierId,
     required this.source,
@@ -136,9 +140,11 @@ class _ConfirmOrderButtonState extends ConsumerState<ConfirmOrderButton> {
                         setState(() => _isLoading = true);
 
                         final request = ConfirmOrderRequest(
-                          orderId: widget.orderId,
-                          cashierId: widget.cashierId,
-                          source: widget.source,
+                          orderId:
+                              widget.orderDetail?.orderId ?? widget.orderId,
+                          cashierId:
+                              widget.orderDetail?.cashierId ?? widget.cashierId,
+                          source: widget.orderDetail?.source ?? widget.source,
                         );
 
                         await ref
@@ -146,6 +152,15 @@ class _ConfirmOrderButtonState extends ConsumerState<ConfirmOrderButton> {
                             .confirmOrder(ref, request);
                         // Tutup dialog setelah proses konfirmasi
                         if (context.mounted) {
+                          // printer all
+                          final savedPrinter = ref.read(
+                            savedPrintersProvider.notifier,
+                          );
+                          savedPrinter.printToPrinter(
+                            orderDetail: widget.orderDetail!,
+                            printType: 'all',
+                          );
+
                           Navigator.of(context).pop();
                         }
                       },
