@@ -144,7 +144,6 @@ app.use('/api/sidebar', SidebarRoutes);
 app.use('/api/analytics', AnalyticsRoutes);
 app.use('/api/assets', AssetRoutes);
 app.use('/api/refunds', RefundRoutes);
-app.post('/api/midtrans/webhook', midtransWebhook);
 app.use('/api/revision', revisionRoutes);
 
 // 🔹 Static files (frontend build)
