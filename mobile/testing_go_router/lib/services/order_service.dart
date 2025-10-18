@@ -1,6 +1,7 @@
 import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
+import 'package:kasirbaraja/models/edit_order_ops.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
@@ -293,6 +294,35 @@ class OrderService {
     } catch (e) {
       throw Exception('Failed to delete order item: $e');
     }
+  }
+
+  Future<OrderDetailModel> editOrder({
+    required String orderMongoId, // _id (ObjectId string, bukan order_id)
+    required EditOrderOpsRequest body,
+    String? idempotencyKey,
+    String? bearer,
+  }) async {
+    final resp = await _dio.patch(
+      '/orders/$orderMongoId/edit',
+      data: body.toJson(),
+      options: Options(
+        headers: {
+          if (idempotencyKey != null) 'Idempotency-Key': idempotencyKey,
+          if (bearer != null) 'Authorization': 'Bearer $bearer',
+        },
+      ),
+    );
+
+    // Backend mengembalikan "revision" + kamu bisa tarik order terbaru
+    // Lebih aman: GET /orders/:id sesudah patch → sinkron penuh
+    final refreshed = await _dio.get(
+      '/orders/$orderMongoId',
+      options: Options(
+        headers: {if (bearer != null) 'Authorization': 'Bearer $bearer'},
+      ),
+    );
+
+    return OrderDetailModel.fromJson(refreshed.data);
   }
 }
 
