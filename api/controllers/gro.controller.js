@@ -1412,11 +1412,16 @@ export const getTableAvailability = async (req, res) => {
         $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
         $lt: new Date(targetDate.setHours(23, 59, 59, 999))
       },
+      status: { $in: ['confirmed', 'pending'] },
+      reservation_time: {
+        $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
+        $lt: new Date(targetDate.setHours(23, 59, 59, 999))
+      },
       status: { $in: ['confirmed', 'pending'] }
     };
 
     if (time) {
-      filter.reservation_date = time;
+      filter.reservation_time = time;
     }
 
     if (area_id) {
