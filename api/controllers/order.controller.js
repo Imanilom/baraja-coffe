@@ -3215,7 +3215,7 @@ export const getPendingOrders = async (req, res) => {
         : paymentDetails.length === 1
           ? paymentDetails[0].status === 'Success' || paymentDetails[0].status === 'settlement'
             ? 'Settlement'
-            : 'Partial'
+            : paymentDetails[0].payment_type === 'Down Payment' ? 'Partial' : 'Pending'
           : 'Pending';
 
       // Calculate payment summary
