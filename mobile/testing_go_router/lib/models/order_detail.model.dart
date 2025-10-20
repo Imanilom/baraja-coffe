@@ -91,6 +91,9 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(29) @Default(0) int paymentAmount,
     @HiveField(30) @Default(0) int changeAmount,
     @HiveField(31) @Default(null) String? paymentType,
+    @HiveField(32) @Default(false) bool isSplitPayment,
+    @HiveField(33) @Default(0) int printSequence,
+    @HiveField(34) @Default([]) List<String> printHistory,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>

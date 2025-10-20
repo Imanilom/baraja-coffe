@@ -230,35 +230,35 @@ Widget _buildStatisticsRow(
         Container(width: 1, height: 40, color: Colors.blue.withOpacity(0.2)),
 
         // Scan Qr code button,
-        Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: IconButton(
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.blue.withOpacity(0.1),
-              padding: const EdgeInsets.all(12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            icon: Icon(
-              Icons.qr_code_scanner_rounded,
-              size: 24,
-              color: Colors.blue.shade600,
-            ),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder:
-                    (context) => QRScannerOverlay(
-                      onScanned: (scannedData) {
-                        _handleScannedData(context, ref, scannedData);
-                      },
-                    ),
-              );
-            },
-            tooltip: 'Scan QR Code',
-          ),
-        ),
+        // Padding(
+        //   padding: const EdgeInsets.only(left: 16),
+        //   child: IconButton(
+        //     style: IconButton.styleFrom(
+        //       backgroundColor: Colors.blue.withOpacity(0.1),
+        //       padding: const EdgeInsets.all(12),
+        //       shape: RoundedRectangleBorder(
+        //         borderRadius: BorderRadius.circular(10),
+        //       ),
+        //     ),
+        //     icon: Icon(
+        //       Icons.qr_code_scanner_rounded,
+        //       size: 24,
+        //       color: Colors.blue.shade600,
+        //     ),
+        //     onPressed: () {
+        //       showDialog(
+        //         context: context,
+        //         builder:
+        //             (context) => QRScannerOverlay(
+        //               onScanned: (scannedData) {
+        //                 _handleScannedData(context, ref, scannedData);
+        //               },
+        //             ),
+        //       );
+        //     },
+        //     tooltip: 'Scan QR Code',
+        //   ),
+        // ),
         const SizedBox(width: 8),
         Padding(
           padding: const EdgeInsets.only(left: 0),

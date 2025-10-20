@@ -4,12 +4,14 @@ import {
   createMarketList,
   getUnpaidMarketLists,
   payMarketList,
-  getAllRequests,
-  getRequestById,
   getAllRequestWithSuppliers,
-  createRequest,
-  approveRequestItems,
-  rejectRequest,
+  updateMarketList,
+  updateMarketListItem,
+  updateAdditionalExpense,
+  partialUpdateMarketList,
+  deleteMarketList,
+  deleteMarketListItem,
+  deleteAdditionalExpense,
   getRequests,
   getCashFlow,
   addCashIn,
@@ -23,7 +25,12 @@ import {
   getDebtSummaryBySupplier,
   payDebt,
   updateDebt,
-  deleteDebt
+  deleteDebt,
+  approveRequestItems,
+  receiveItems,
+  recordPurchaseStockIn,
+  getStockMovementHistory
+
 } from '../controllers/marketlist.controller.js';
 
 import {
@@ -72,6 +79,33 @@ router.get('/pending-requests', staffAccess, getRequests);
 
 router.post('/marketlist', inventoryAccess, createMarketList);
 
+router.post('/approve-with-stock', approveRequestItems);
+router.post('/receive-with-stock', receiveItems);
+router.post('/record-purchase-stock', recordPurchaseStockIn);
+router.get('/stock-movement-history', getStockMovementHistory);
+
+// Update seluruh transaksi marketlist
+router.put('marketlist/:id', updateMarketList);
+
+// Partial update transaksi marketlist
+router.patch('marketlist/:id', partialUpdateMarketList);
+
+// Update item tertentu dalam transaksi
+router.put('marketlist/:id/items/:itemId', updateMarketListItem);
+
+// Update pengeluaran tambahan
+router.put('marketlist/:id/expenses/:expenseId', updateAdditionalExpense);
+
+// Delete seluruh transaksi marketlist
+router.delete('marketlist/:id', deleteMarketList);
+
+// Delete item tertentu dalam transaksi
+router.delete('marketlist/:id/items/:itemId', deleteMarketListItem);
+
+// Delete pengeluaran tambahan
+router.delete('marketlist/:id/expenses/:expenseId', deleteAdditionalExpense);
+
+
 router.get('/unpaid', getUnpaidMarketLists);
 
 router.post('/pay/:id', payMarketList);
@@ -80,7 +114,7 @@ router.post('/cashflow/in', inventoryAccess, addCashIn);
 
 router.post('/cashflow/out', inventoryAccess, withdrawCash);
 
-router.post('/cashflow/balance', inventoryAccess, getBalanceSummary);
+router.get('/cashflow/balance', inventoryAccess, getBalanceSummary);
 
 router.get('/cashflow', allAuthenticated, getCashFlow);
 

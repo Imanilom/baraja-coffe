@@ -15,6 +15,8 @@ import 'package:kasirbaraja/services/order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:barajapos/models/menu_item_model.dart';
 import 'package:collection/collection.dart';
+import 'package:kasirbaraja/utils/generate_order_id.dart';
+import 'package:uuid/uuid.dart';
 
 class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   OrderDetailNotifier() : super(null);
@@ -403,6 +405,29 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
   void updateChangeAmount(int changeAmount) {
     if (state != null) {
       state = state!.copyWith(changeAmount: changeAmount);
+    }
+  }
+
+  void updateIsSplitPayment(bool isSplitPayment) {
+    if (state != null) {
+      state = state!.copyWith(isSplitPayment: isSplitPayment);
+    }
+  }
+
+  // Future<void> updateOrderId() async {
+  //   final orderId = await generateOrderId(tableNumber: state?.tableNumber);
+  //   print('sedang update Order ID: $orderId');
+  //   print('state: $state');
+  //   if (state != null) {
+  //     state = state!.copyWith(orderId: orderId);
+  //     print('success update Order ID: ${state?.orderId}');
+  //   }
+  // }
+
+  void updateOrderId() {
+    if (state != null) {
+      //isis orderid menggunakan UUID
+      state = state!.copyWith(orderId: Uuid().v1());
     }
   }
 }

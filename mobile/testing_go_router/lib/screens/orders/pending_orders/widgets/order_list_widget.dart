@@ -331,6 +331,7 @@ class OrderListWidget extends ConsumerWidget {
                         children: [
                           Icon(
                             _getStatusIcon(order.paymentStatus!),
+                            // Icons.check_rounded,
                             size: 14,
                             color: Colors.white,
                           ),
@@ -401,9 +402,10 @@ class OrderListWidget extends ConsumerWidget {
     switch (status.toLowerCase()) {
       case 'pending':
         return Icons.schedule_rounded;
-      case 'completed':
-      case 'paid':
+      case 'settlement':
         return Icons.check_circle_rounded;
+      case 'partial':
+        return Icons.schedule_rounded;
       case 'cancelled':
         return Icons.cancel_rounded;
       case 'processing':

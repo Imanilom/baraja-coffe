@@ -1,6 +1,7 @@
 import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
+import 'package:kasirbaraja/models/edit_order_ops.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
@@ -45,6 +46,9 @@ class OrderService {
         // print(
         //   'start charge request: ${createChargeRequest(response.data['orderId'], orderDetail.grandTotal, orderDetail.paymentMethod!)}',
         // );
+        print(
+          'paymentData change & amount: ${paymentData.change} ${paymentData.selectedCashAmount}',
+        );
         Response chargeResponse = await _dio.post(
           '/api/cashierCharge',
           data: createChargeRequest(
@@ -57,6 +61,8 @@ class OrderService {
                 ? orderDetail.grandTotal -
                     (paymentData.selectedDownPayment ?? 0)
                 : 0,
+            paymentData.selectedCashAmount ?? 0,
+            paymentData.change ?? 0,
           ),
           options: Options(
             headers: {
@@ -75,7 +81,7 @@ class OrderService {
       print('response status code create order: ${response.statusCode}');
       return response.data;
     } on DioException catch (e) {
-      print('error create order: ${e}');
+      print('error create order: $e');
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -289,6 +295,33 @@ class OrderService {
       throw Exception('Failed to delete order item: $e');
     }
   }
+
+  //patchOrder,
+  Future<Map<String, dynamic>> patchOrder({
+    required String orderId,
+    required Map<String, dynamic> patchData,
+  }) async {
+    try {
+      if (orderId.isEmpty || patchData.isEmpty) {
+        throw Exception("orderId atau patchData tidak boleh kosong");
+      }
+
+      print('orderId: $orderId, patchData: $patchData');
+
+      final res = await _dio.patch(
+        '/api/order/patch-order/$orderId',
+        data: patchData,
+      );
+
+      if (res.data['success'] == true) {
+        return res.data;
+      } else {
+        throw Exception('Failed to patch order: ${res.data['message']}');
+      }
+    } catch (e) {
+      throw Exception('Failed to patch order: $e');
+    }
+  }
 }
 
 Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
@@ -337,6 +370,7 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'totalPrice': order.grandTotal,
     'source': "Cashier",
     'isOpenBill': order.isOpenBill,
+    'isSplitPayment': order.isSplitPayment,
     // 'createdAtWIB': now,
     // 'updatedAtWIB' : now
   };
@@ -349,6 +383,8 @@ Map<String, dynamic> createChargeRequest(
   bool isDownPayment,
   int downPaymentAmount,
   int remainingPayment,
+  int tenderedAmount,
+  int changeAmount,
 ) {
   print(
     'create charge orderId: $orderId, grandTotal: $grandTotal, paymentType: $paymentType',
@@ -361,5 +397,7 @@ Map<String, dynamic> createChargeRequest(
     'remaining_payment': remainingPayment,
     'order_id': orderId,
     'gross_amount': grandTotal,
+    'tendered_amount': tenderedAmount,
+    'change_amount': changeAmount,
   };
 }

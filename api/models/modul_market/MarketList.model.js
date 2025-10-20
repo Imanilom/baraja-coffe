@@ -1,10 +1,9 @@
 import mongoose from 'mongoose';
 
-// Skema untuk detail pembayaran (bukti pembayaran)
 const paymentSchema = new mongoose.Schema({
   method: {
     type: String,
-    enum: ['cash', 'card', 'transfer'],
+    enum: ['cash', 'card', 'transfer', 'mixed'],
     required: true
   },
   status: {
@@ -18,15 +17,15 @@ const paymentSchema = new mongoose.Schema({
   proofOfPayment: String,
   notes: String,
   amount: Number,
+  amountPhysical: { type: Number, default: 0 },
+  amountNonPhysical: { type: Number, default: 0 },
   date: {
     type: Date,
     default: Date.now
   }
 }, { _id: false });
 
-// Skema item belanja
 const marketListItemSchema = new mongoose.Schema({
-  // Informasi Produk
   productId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product',
@@ -49,8 +48,6 @@ const marketListItemSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-
-  // Jumlah Request vs Belanja
   quantityRequested: {
     type: Number,
     required: true,
@@ -61,8 +58,6 @@ const marketListItemSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
-
-  // Harga & Supplier
   pricePerUnit: {
     type: Number,
     required: true,
@@ -76,28 +71,39 @@ const marketListItemSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-
-  // Pembayaran per Item
+  warehouse: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Warehouse',
+    required: true
+  },
   amountCharged: {
     type: Number,
     default: 0,
     min: 0
-  }, // total harga (quantity × price)
+  },
   amountPaid: {
     type: Number,
     default: 0,
     min: 0
-  }, // jumlah dibayarkan
+  },
   remainingBalance: {
     type: Number,
     default: 0,
     min: 0
-  }, // sisa utang
-
-  payment: paymentSchema // Bukti pembayaran per item
+  },
+  payment: paymentSchema,
+  requestId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Request'
+  },
+  requestItemId: String,
+  purpose: {
+    type: String,
+    enum: ['replenish', 'direct_purchase'],
+    default: 'direct_purchase'
+  }
 });
 
-// Skema pengeluaran tambahan
 const additionalExpenseSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -109,10 +115,9 @@ const additionalExpenseSchema = new mongoose.Schema({
     min: 0
   },
   notes: String,
-  payment: paymentSchema // Bukti pembayaran untuk pengeluaran tambahan
+  payment: paymentSchema
 });
 
-// Skema utama MarketList
 const marketListSchema = new mongoose.Schema({
   date: { 
     type: Date, 
@@ -125,25 +130,62 @@ const marketListSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Request' 
   }],
-  createdBy: String
+  createdBy: String,
+  purpose: {
+    type: String,
+    enum: ['replenish', 'direct_purchase'],
+    default: 'direct_purchase'
+  },
+  totalCharged: { type: Number, default: 0 },
+  totalPaid: { type: Number, default: 0 },
+  totalPhysical: { type: Number, default: 0 },
+  totalNonPhysical: { type: Number, default: 0 }
+}, { 
+  timestamps: true 
 });
 
-// Middleware: Hitung amountCharged, remainingBalance, paymentStatus otomatis
+// Middleware: Hitung totals
 marketListSchema.pre('save', function (next) {
   this.day = new Date(this.date).toLocaleDateString('id-ID', { weekday: 'long' });
+
+  let totalCharged = 0;
+  let totalPaid = 0;
+  let totalPhysical = 0;
+  let totalNonPhysical = 0;
 
   this.items.forEach(item => {
     item.amountCharged = item.quantityPurchased * item.pricePerUnit;
     item.remainingBalance = Math.max(0, item.amountCharged - item.amountPaid);
 
-    if (item.amountPaid >= item.amountCharged) {
-      item.paymentStatus = 'paid';
-    } else if (item.amountPaid > 0) {
-      item.paymentStatus = 'partial';
+    totalCharged += item.amountCharged;
+    totalPaid += item.amountPaid;
+
+    // Hitung pembagian fisik/non-fisik
+    if (item.payment && item.payment.method) {
+      switch (item.payment.method) {
+        case 'cash':
+          totalPhysical += item.amountPaid;
+          break;
+        case 'card':
+        case 'transfer':
+          totalNonPhysical += item.amountPaid;
+          break;
+        case 'mixed':
+          totalPhysical += item.payment.amountPhysical || 0;
+          totalNonPhysical += item.payment.amountNonPhysical || 0;
+          break;
+        default:
+          totalPhysical += item.amountPaid;
+      }
     } else {
-      item.paymentStatus = 'unpaid';
+      totalPhysical += item.amountPaid;
     }
   });
+
+  this.totalCharged = totalCharged;
+  this.totalPaid = totalPaid;
+  this.totalPhysical = totalPhysical;
+  this.totalNonPhysical = totalNonPhysical;
 
   next();
 });

@@ -1052,6 +1052,122 @@ class StockOpnameController {
       });
     }
   }
-}
 
+
+/**
+ * POST /api/stock-opname
+ * Body:
+ * {
+ *   warehouseId: "60d21b4667d0d8992e610c85",
+ *   items: [
+ *     { productId: "60d21b4667d0d8992e610c86", actualStock: 150 },
+ *     { productId: "60d21b4667d0d8992e610c87", actualStock: 0 },
+ *     ...
+ *   ],
+ *   handledBy: "admin@example.com" // opsional
+ * }
+ */
+async performStockOpname(req, res) {
+  const { warehouseId, items, handledBy = 'system' } = req.body;
+
+  if (!warehouseId || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ message: 'warehouseId dan items (array) wajib diisi' });
+  }
+
+  try {
+    // Validasi warehouse
+    const warehouse = await Warehouse.findById(warehouseId);
+    if (!warehouse) {
+      return res.status(404).json({ message: 'Warehouse tidak ditemukan' });
+    }
+
+    // Validasi semua productId
+    const productIds = items.map(item => item.productId);
+    const existingProducts = await Product.find({ _id: { $in: productIds } });
+    const existingProductIds = new Set(existingProducts.map(p => p._id.toString()));
+
+    const invalidItems = items.filter(item => !existingProductIds.has(item.productId.toString()));
+    if (invalidItems.length > 0) {
+      return res.status(400).json({
+        message: 'Beberapa productId tidak valid',
+        invalidProductIds: invalidItems.map(i => i.productId)
+      });
+    }
+
+    const results = [];
+    const errors = [];
+
+    // Proses tiap item
+    for (const item of items) {
+      const { productId, actualStock } = item;
+
+      if (actualStock < 0) {
+        errors.push({ productId, error: 'Stok aktual tidak boleh negatif' });
+        continue;
+      }
+
+      try {
+        // Cari atau buat record ProductStock
+        let stockRecord = await ProductStock.findOne({
+          productId: productId,
+          warehouse: warehouseId
+        });
+
+        if (!stockRecord) {
+          // Buat record baru jika belum ada
+          stockRecord = new ProductStock({
+            productId,
+            warehouse: warehouseId,
+            currentStock: actualStock,
+            category: existingProducts.find(p => p._id.toString() === productId.toString())?.category || 'unknown'
+          });
+        }
+
+        const previousStock = stockRecord.currentStock;
+        const difference = actualStock - previousStock;
+
+        // Hanya buat adjustment jika ada perubahan
+        if (difference !== 0) {
+          const movement = {
+            quantity: difference,
+            type: 'adjustment',
+            notes: `Stock opname: ${previousStock} → ${actualStock}`,
+            handledBy,
+            date: new Date()
+          };
+
+          stockRecord.movements.push(movement);
+          stockRecord.currentStock = actualStock;
+        }
+
+        // Simpan dengan optimistic concurrency
+        await stockRecord.save();
+
+        results.push({
+          productId,
+          previousStock,
+          actualStock,
+          adjusted: difference !== 0,
+          success: true
+        });
+
+      } catch (err) {
+        errors.push({ productId, error: err.message });
+      }
+    }
+
+    return res.status(200).json({
+      message: 'Stock opname selesai',
+      processed: results.length,
+      results,
+      errors
+    });
+
+  } catch (error) {
+    console.error('Error during stock opname:', error);
+    return res.status(500).json({ message: 'Terjadi kesalahan server', error: error.message });
+  }
+};
+
+}
 export default new StockOpnameController();

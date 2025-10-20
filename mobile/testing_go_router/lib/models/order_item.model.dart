@@ -28,6 +28,10 @@ abstract class OrderItemModel with _$OrderItemModel {
       toJson: OrderTypeExtension.orderTypeToJson,
     )
     OrderType orderType,
+    @HiveField(7) @Default(null) String? orderItemid,
+    @HiveField(8) @Default(false) bool isPrinted,
+    @HiveField(9) @Default(0) int printedQuantity,
+    @HiveField(10) @Default([]) List<String> printBatchIds,
   }) = _OrderItemModel;
 
   OrderItemModel._();

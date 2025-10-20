@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
@@ -20,16 +22,19 @@ class PrinterService {
     switch (jobType) {
       case 'kitchen':
         return orderDetail.items.any(
-          (item) => item.menuItem.workstation == 'kitchen',
+          (item) =>
+              item.menuItem.workstation == 'kitchen' && item.isPrinted == false,
         );
       case 'bar':
         return orderDetail.items.any(
-          (item) => item.menuItem.workstation == 'bar',
+          (item) =>
+              item.menuItem.workstation == 'bar' && item.isPrinted == false,
         );
       case 'customer':
       case 'waiter':
         // Customer dan waiter selalu print karena menampilkan semua items
-        return orderDetail.items.isNotEmpty;
+        return orderDetail.items.isNotEmpty &&
+            orderDetail.items.any((item) => item.isPrinted == false);
       default:
         return false;
     }
@@ -73,26 +78,26 @@ class PrinterService {
     }
   }
 
-  static Future<void> printToPrinter(
-    OrderDetailModel orderDetail,
-    BluetoothPrinterModel printer,
-    bool isKitchenReceipt,
-  ) async {
-    await disconnectPrinter();
-    await connectPrinter(printer);
-    final bytes =
-        isKitchenReceipt
-            ? await generateKitchenBytes(orderDetail, printer)
-            : await generateBarBytes(orderDetail, printer);
-    final copies = isKitchenReceipt ? printer.kitchenCopies : printer.barCopies;
-    for (var i = 0; i < copies; i++) {
-      await PrintBluetoothThermal.writeBytes(bytes);
-    }
+  // static Future<void> printToPrinter(
+  //   OrderDetailModel orderDetail,
+  //   BluetoothPrinterModel printer,
+  //   bool isKitchenReceipt,
+  // ) async {
+  //   await disconnectPrinter();
+  //   await connectPrinter(printer);
+  //   final bytes =
+  //       isKitchenReceipt
+  //           ? await generateKitchenBytes(orderDetail, printer)
+  //           : await generateBarBytes(orderDetail, printer);
+  //   final copies = isKitchenReceipt ? printer.kitchenCopies : printer.barCopies;
+  //   for (var i = 0; i < copies; i++) {
+  //     await PrintBluetoothThermal.writeBytes(bytes);
+  //   }
 
-    final customerBytes = await generateBarBytes(orderDetail, printer);
+  //   final customerBytes = await generateBarBytes(orderDetail, printer);
 
-    await PrintBluetoothThermal.writeBytes(customerBytes);
-  }
+  //   await PrintBluetoothThermal.writeBytes(customerBytes);
+  // }
 
   //new logic for printing
   static Future<void> printDocuments({
@@ -154,6 +159,8 @@ class PrinterService {
         return ['bar'];
       case 'waiter':
         return ['waiter'];
+      case 'kitchen_and_bar':
+        return ['kitchen', 'bar'];
       case 'all':
         return ['customer', 'kitchen', 'bar', 'waiter'];
       default:
@@ -167,12 +174,22 @@ class PrinterService {
     required String jobType,
     required List<BluetoothPrinterModel> printers,
   }) async {
-    // Cek apakah ada items untuk workstation ini
-    if (!_hasItemsForWorkstation(orderDetail, jobType)) {
-      print('⚠️ Tidak ada menu items untuk $jobType, skip printing');
+    // 1️⃣ Ambil daftar item yang punya delta quantity (belum tercetak)
+    final deltas = _selectDeltasForJob(orderDetail, jobType);
+    if (deltas.isEmpty) {
+      print('⚠️ Tidak ada delta item untuk $jobType');
       return;
     }
 
+    // 2️⃣ Buat daftar item dengan quantity hanya delta-nya
+    final itemsToPrint =
+        deltas.map((t) {
+          final (idx, delta) = t;
+          final src = orderDetail.items[idx];
+          return src.copyWith(quantity: delta);
+        }).toList();
+
+    // 3️⃣ Cari printer yang mendukung jobType ini
     final supportedPrinters =
         printers.where((printer) {
           switch (jobType) {
@@ -196,22 +213,39 @@ class PrinterService {
 
     print('📤 Mencetak $jobType di ${supportedPrinters.length} printer');
 
+    var anySuccess = false;
     for (final printer in supportedPrinters) {
-      print(
-        '📤 Mencetak $jobType di ${printer.connectionType} (${printer.address})',
-      );
-      await _printSingleJob(
+      final ok = await _printSingleJob(
         orderDetail: orderDetail,
         printer: printer,
         jobType: jobType,
+        itemsToPrint: itemsToPrint, // 🔹 kirim item delta
+        batchLabel: _batchLabel(orderDetail), // 🔹 label Cetak Awal / Tambahan
       );
+      anySuccess = anySuccess || ok;
+    }
+
+    // 4️⃣ Jika cetak sukses → tandai printedQuantity bertambah
+    if (anySuccess) {
+      for (final (idx, delta) in deltas) {
+        final cur = orderDetail.items[idx];
+        final newPrinted = (cur.printedQuantity ?? 0) + delta;
+        orderDetail.items[idx] = cur.copyWith(printedQuantity: newPrinted);
+        // optional: append batchId, mis. ts:
+        // orderDetail.items[idx].printBatchIds = [...cur.printBatchIds, batchId];
+      }
+      // orderDetail.printSequence =
+      //     (orderDetail.printSequence) + 1; // naikkan sequence
+      print('✅ Tambah printedQuantity & increment printSequence');
     }
   }
 
-  static Future<void> _printSingleJob({
+  static Future<bool> _printSingleJob({
     required OrderDetailModel orderDetail,
     required BluetoothPrinterModel printer,
     required String jobType,
+    required List<OrderItemModel> itemsToPrint,
+    required String batchLabel,
   }) async {
     try {
       print('📤 Mencetak $jobType di ${printer.name} (${printer.address})');
@@ -220,6 +254,8 @@ class PrinterService {
         orderDetail: orderDetail,
         printer: printer,
         jobType: jobType,
+        itemsOverride: itemsToPrint, // <-- kirim delta items
+        headerOverride: batchLabel, // <-- (lihat bagian generator)
       );
 
       final copies = _getCopiesForJob(printer, jobType);
@@ -239,8 +275,10 @@ class PrinterService {
           );
         }
       }
+      return true;
     } catch (e) {
       print('❌ Gagal mencetak $jobType di ${printer.name}: $e');
+      return false;
     }
   }
 
@@ -263,16 +301,38 @@ class PrinterService {
     required OrderDetailModel orderDetail,
     required BluetoothPrinterModel printer,
     required String jobType,
+    List<OrderItemModel>? itemsOverride,
+    String? headerOverride,
   }) async {
     switch (jobType) {
-      case 'customer':
-        return generateCustomerBytes(orderDetail, printer);
       case 'kitchen':
-        return generateKitchenBytes(orderDetail, printer);
+        return generateKitchenBytes(
+          orderDetail,
+          printer,
+          itemsOverride,
+          headerOverride,
+        );
       case 'bar':
-        return generateBarBytes(orderDetail, printer);
+        return generateBarBytes(
+          orderDetail,
+          printer,
+          itemsOverride,
+          headerOverride,
+        );
+      case 'customer':
+        return generateCustomerBytes(
+          orderDetail,
+          printer,
+          // kalau mau customer juga hanya delta, tambahkan params serupa
+        );
       case 'waiter':
-        return generateWaiterBytes(orderDetail, printer);
+        return generateWaiterBytes(
+          orderDetail,
+          printer,
+          itemsOverride,
+          headerOverride,
+          // idem
+        );
       default:
         throw 'Jenis struk tidak valid: $jobType';
     }
@@ -820,55 +880,132 @@ class PrinterService {
         ),
       ]),
     );
-    bytes.addAll(generator.hr());
+    bytes.addAll(generator.hr(ch: '='));
+    print('bersiap untuk menulis pembayaran');
+    if (isOrderDetailSplitPayment(orderDetail)) {
+      print('isSplitPayment: ${orderDetail.isSplitPayment}');
+      bytes.addAll(generator.feed(1));
+      for (var payment in orderDetail.payment!) {
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: 'Metode',
+              width: 6,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
+              text: payment.method ?? "-",
+              width: 6,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
 
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Metode',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
-          text: orderDetail.paymentType ?? "-",
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: 'Tagihan',
+              width: 6,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: formatPrice(payment.amount).toString(),
+              width: 6,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
 
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Bibayar',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: formatPrice(orderDetail.paymentAmount).toString(),
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-    bytes.addAll(generator.hr());
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: 'Diterima',
+              width: 6,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text:
+                  formatPrice(
+                    payment.tenderedAmount == 0
+                        ? payment.amount
+                        : payment.tenderedAmount ?? 0,
+                  ).toString(),
+              width: 6,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
+        bytes.addAll(generator.hr());
 
-    bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: 'Kembalian',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left),
-        ),
-        PosColumn(
-          text: formatPrice(orderDetail.changeAmount).toString(),
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
-    );
-    bytes.addAll(generator.hr());
+        bytes.addAll(
+          generator.row([
+            PosColumn(
+              text: 'Kembalian',
+              width: 6,
+              styles: const PosStyles(align: PosAlign.left),
+            ),
+            PosColumn(
+              text: formatPrice(payment.changeAmount ?? 0).toString(),
+              width: 6,
+              styles: const PosStyles(align: PosAlign.right),
+            ),
+          ]),
+        );
+        bytes.addAll(generator.feed(1));
+      }
+    } else {
+      print('brarti tidak ada order detail');
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Metode',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
+            text: orderDetail.paymentType ?? "-",
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Diterima',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: formatPrice(orderDetail.paymentAmount).toString(),
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      bytes.addAll(generator.hr());
+
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: 'Kembalian',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: formatPrice(orderDetail.changeAmount).toString(),
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+    }
+
+    bytes.addAll(generator.hr(ch: '='));
+
     //footer
     await generateFooterBytes(generator, paperSize).then((footerBytes) {
       bytes.addAll(footerBytes);
@@ -884,6 +1021,8 @@ class PrinterService {
   static Future<List<int>> generateBarBytes(
     OrderDetailModel orderDetail,
     BluetoothPrinterModel printer,
+    List<OrderItemModel>? itemsOverride, // delta items
+    String? headerOverride,
   ) async {
     // 1. Buat generator
     final profile = await CapabilityProfile.load();
@@ -913,6 +1052,15 @@ class PrinterService {
       ),
     );
 
+    if (headerOverride != null) {
+      bytes.addAll(
+        generator.text(
+          headerOverride,
+          styles: const PosStyles(align: PosAlign.center, underline: true),
+        ),
+      );
+    }
+
     bytes.addAll(generator.feed(1));
     // Bill Data
     bytes.addAll(
@@ -929,10 +1077,17 @@ class PrinterService {
     bytes.addAll(generator.hr());
 
     // Filter items for bar workstation
+    // final orderdetail =
+    //     orderDetail.items
+    //         .where((item) => item.menuItem.workstation == 'bar')
+    //         .toList();
+
+    // Items yang dipakai: delta (itemsOverride) jika ada
     final orderdetail =
-        orderDetail.items
-            .where((item) => item.menuItem.workstation == 'bar')
-            .toList();
+        (itemsOverride ??
+            orderDetail.items
+                .where((it) => it.menuItem.workstation == 'kitchen')
+                .toList());
     //list order Items
     for (var item in orderdetail) {
       bytes.addAll(
@@ -1048,6 +1203,8 @@ class PrinterService {
   static Future<List<int>> generateKitchenBytes(
     OrderDetailModel orderDetail,
     BluetoothPrinterModel printer,
+    List<OrderItemModel>? itemsOverride, // delta items
+    String? headerOverride,
   ) async {
     final profile = await CapabilityProfile.load();
     PaperSize paperSize = PaperSize.mm58;
@@ -1075,6 +1232,15 @@ class PrinterService {
       ),
     );
 
+    if (headerOverride != null) {
+      bytes.addAll(
+        generator.text(
+          headerOverride,
+          styles: const PosStyles(align: PosAlign.center, underline: true),
+        ),
+      );
+    }
+
     bytes.addAll(generator.feed(1));
     // Bill Data
     bytes.addAll(
@@ -1091,10 +1257,15 @@ class PrinterService {
     bytes.addAll(generator.hr());
     print('print kitchen ${orderDetail.items}');
 
+    // final orderdetail =
+    //     orderDetail.items
+    //         .where((item) => item.menuItem.workstation == 'kitchen')
+    //         .toList();
     final orderdetail =
-        orderDetail.items
-            .where((item) => item.menuItem.workstation == 'kitchen')
-            .toList();
+        (itemsOverride ??
+            orderDetail.items
+                .where((it) => it.menuItem.workstation == 'kitchen')
+                .toList());
     print('print kitchen $orderdetail');
     for (var item in orderdetail) {
       bytes.addAll(
@@ -1206,6 +1377,8 @@ class PrinterService {
   static Future<List<int>> generateWaiterBytes(
     OrderDetailModel orderDetail,
     BluetoothPrinterModel printer,
+    List<OrderItemModel>? itemsOverride, // delta items
+    String? headerOverride,
   ) async {
     // 1. Buat generator
     final profile = await CapabilityProfile.load();
@@ -1234,6 +1407,14 @@ class PrinterService {
         ),
       ),
     );
+    if (headerOverride != null) {
+      bytes.addAll(
+        generator.text(
+          headerOverride,
+          styles: const PosStyles(align: PosAlign.center, underline: true),
+        ),
+      );
+    }
 
     bytes.addAll(generator.feed(1));
     // Bill Data
@@ -1250,7 +1431,13 @@ class PrinterService {
 
     bytes.addAll(generator.hr());
 
-    final orderdetail = orderDetail.items;
+    // final orderdetail = orderDetail.items;
+    // Items yang dipakai: delta (itemsOverride) jika ada
+    final orderdetail =
+        (itemsOverride ??
+            orderDetail.items
+                .where((it) => it.menuItem.workstation == 'kitchen')
+                .toList());
     //list order Items
     for (var item in orderdetail) {
       bytes.addAll(
@@ -1322,5 +1509,41 @@ class PrinterService {
     bytes.addAll(generator.feed(2));
 
     return bytes;
+  }
+
+  //membuat method untuk mengtahui orderdetail split payment atau tidak
+  static bool isOrderDetailSplitPayment(OrderDetailModel orderDetail) {
+    print(orderDetail.payment);
+    if (orderDetail.payment == null) return false;
+    if (orderDetail.payment!.isEmpty) return false;
+
+    return true; //orderdetail
+  }
+
+  static List<(int index, int deltaQty)> _selectDeltasForJob(
+    OrderDetailModel od,
+    String jobType,
+  ) {
+    bool matchWS(String? ws) => switch (jobType) {
+      'kitchen' => (ws?.toLowerCase().trim() == 'kitchen'),
+      'bar' => (ws?.toLowerCase().trim() == 'bar'),
+      'customer' || 'waiter' => true,
+      _ => false,
+    };
+
+    final out = <(int, int)>[];
+    for (int i = 0; i < od.items.length; i++) {
+      final it = od.items[i];
+      if (!matchWS(it.menuItem.workstation)) continue;
+      final delta = (it.quantity - (it.printedQuantity ?? 0));
+      if (delta > 0) out.add((i, delta));
+    }
+    return out;
+  }
+
+  static String _batchLabel(OrderDetailModel od) {
+    return (od.printSequence > 0)
+        ? 'Cetak Tambahan #${od.printSequence + 1}'
+        : 'Cetak Awal';
   }
 }

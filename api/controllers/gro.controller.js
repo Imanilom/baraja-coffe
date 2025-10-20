@@ -122,6 +122,270 @@ export async function generateOrderId(tableNumber) {
   return `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
 }
 
+// GET /api/gro/tables/:tableNumber/order - Get active order detail for specific table
+export const getTableOrderDetail = async (req, res) => {
+  try {
+    const { tableNumber } = req.params;
+    const { date } = req.query;
+
+    if (!tableNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Table number is required'
+      });
+    }
+
+    // Build query
+    const query = {
+      tableNumber: tableNumber.toUpperCase(),
+      status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
+      orderType: 'Dine-In'
+    };
+
+    // If date provided, filter by date
+    if (date) {
+      const targetDate = new Date(date);
+      query.createdAtWIB = {
+        $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
+        $lte: new Date(targetDate.setHours(23, 59, 59, 999))
+      };
+    }
+
+    // Find active order for this table
+    const order = await Order.findOne(query)
+      .populate('user_id', 'name phone email')
+      .populate({
+        path: 'items.menuItem',
+        select: 'name price imageURL category mainCategory'
+      })
+      .sort({ createdAtWIB: -1 });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active order found for this table'
+      });
+    }
+
+    // Format response
+    const formattedOrder = {
+      _id: order._id,
+      order_id: order.order_id,
+      customerName: order.user_id?.name || order.user,
+      customerPhone: order.user_id?.phone,
+      customerEmail: order.user_id?.email,
+      tableNumber: order.tableNumber,
+      status: order.status,
+      orderType: order.orderType,
+      items: order.items.map(item => ({
+        _id: item._id,
+        menuItem: {
+          _id: item.menuItem?._id,
+          name: item.menuItem?.name,
+          price: item.menuItem?.price,
+          imageURL: item.menuItem?.imageURL,
+          category: item.menuItem?.category,
+          mainCategory: item.menuItem?.mainCategory
+        },
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        addons: item.addons || [],
+        toppings: item.toppings || [],
+        notes: item.notes || '',
+        kitchenStatus: item.kitchenStatus,
+        batchNumber: item.batchNumber
+      })),
+      totalBeforeDiscount: order.totalBeforeDiscount,
+      totalAfterDiscount: order.totalAfterDiscount,
+      totalTax: order.totalTax,
+      totalServiceFee: order.totalServiceFee,
+      grandTotal: order.grandTotal,
+      discounts: order.discounts,
+      appliedVoucher: order.appliedVoucher,
+      paymentMethod: order.paymentMethod,
+      isOpenBill: order.isOpenBill,
+      createdAt: order.createdAt,
+      createdAtWIB: order.createdAtWIB,
+      updatedAt: order.updatedAt,
+      updatedAtWIB: order.updatedAtWIB
+    };
+
+    res.json({
+      success: true,
+      data: formattedOrder
+    });
+
+  } catch (error) {
+    console.error('Error fetching table order detail:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching table order detail',
+      error: error.message
+    });
+  }
+};
+
+// PUT /api/gro/orders/:orderId/complete - Complete order and free up table
+export const completeTableOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const { orderId } = req.params;
+    const userId = req.user?.id; // GRO employee ID
+
+    // Find the order
+    const order = await Order.findById(orderId).session(session);
+
+    if (!order) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Validate order type
+    if (order.orderType !== 'Dine-In') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Only Dine-In orders can be completed through this endpoint'
+      });
+    }
+
+    // Check if order is already completed
+    if (order.status === 'Completed' || order.status === 'Canceled') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Order is already ${order.status.toLowerCase()}`
+      });
+    }
+
+    // Get employee info
+    const employee = await User.findById(userId).select('username');
+
+    // Update order status
+    order.status = 'Completed';
+    order.updatedAtWIB = getWIBNow();
+
+    // Add completion info to notes
+    const completionNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Order diselesaikan oleh GRO: ${employee?.username || 'Unknown'}`;
+    order.notes = (order.notes || '') + completionNote;
+
+    await order.save({ session });
+
+    // Update table status to available
+    if (order.tableNumber) {
+      const table = await Table.findOne({
+        table_number: order.tableNumber.toUpperCase()
+      }).session(session);
+
+      if (table) {
+        table.status = 'available';
+        table.updatedAt = new Date();
+
+        // Add to status history
+        if (!table.statusHistory) {
+          table.statusHistory = [];
+        }
+
+        table.statusHistory.push({
+          fromStatus: 'occupied',
+          toStatus: 'available',
+          updatedBy: employee?.username || 'GRO System',
+          notes: `Order ${order.order_id} completed`,
+          updatedAt: getWIBNow()
+        });
+
+        await table.save({ session });
+
+        // Emit socket event for table status update
+        if (typeof io !== 'undefined' && io) {
+          io.to(`area_${table.area_id?.area_code}`).emit('table_status_updated', {
+            tableId: table._id,
+            tableNumber: table.table_number,
+            oldStatus: 'occupied',
+            newStatus: 'available',
+            updatedBy: employee?.username || 'GRO System',
+            timestamp: getWIBNow()
+          });
+        }
+      }
+    }
+
+    // If there's a related reservation, update it too
+    if (order.reservation) {
+      const reservation = await Reservation.findById(order.reservation).session(session);
+      if (reservation && reservation.status !== 'completed') {
+
+        // Auto check-out if not already done
+        if (!reservation.check_out_time) {
+          reservation.check_out_time = getWIBNow();
+          reservation.checked_out_by = {
+            employee_id: userId,
+            employee_name: employee?.username || 'Unknown',
+            checked_out_at: getWIBNow()
+          };
+        }
+
+        reservation.status = 'completed';
+        await reservation.save({ session });
+      }
+    }
+
+    await session.commitTransaction();
+
+    // Emit socket event for order completion
+    if (typeof io !== 'undefined' && io) {
+      io.to('gro_room').emit('order_completed', {
+        orderId: order._id,
+        order_id: order.order_id,
+        tableNumber: order.tableNumber,
+        completedBy: employee?.username || 'GRO',
+        timestamp: getWIBNow()
+      });
+
+      io.to('cashier_room').emit('order_status_updated', {
+        orderId: order._id,
+        order_id: order.order_id,
+        status: 'Completed',
+        timestamp: getWIBNow()
+      });
+    }
+
+    console.log(`✅ Order ${order.order_id} completed by GRO. Table ${order.tableNumber} is now available.`);
+
+    res.json({
+      success: true,
+      message: `Order ${order.order_id} berhasil diselesaikan. Meja ${order.tableNumber} sekarang tersedia.`,
+      data: {
+        order: {
+          id: order._id,
+          order_id: order.order_id,
+          status: order.status,
+          tableNumber: order.tableNumber
+        },
+        completedBy: employee?.username || 'GRO',
+        completedAt: getWIBNow()
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error completing table order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error completing table order',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
 // GET /api/gro/dashboard-stats - Get dashboard statistics
 export const getDashboardStats = async (req, res) => {
   try {
@@ -418,6 +682,7 @@ export const createReservation = async (req, res) => {
       area_id: area_id,
       table_id: table_ids,
       guest_count: guest_count,
+      guest_number: guest_phone,
       reservation_type: reservation_type,
       status: 'pending',
       notes: notes || '',
@@ -1147,11 +1412,16 @@ export const getTableAvailability = async (req, res) => {
         $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
         $lt: new Date(targetDate.setHours(23, 59, 59, 999))
       },
+      status: { $in: ['confirmed', 'pending'] },
+      reservation_time: {
+        $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
+        $lt: new Date(targetDate.setHours(23, 59, 59, 999))
+      },
       status: { $in: ['confirmed', 'pending'] }
     };
 
     if (time) {
-      filter.reservation_date = time;
+      filter.reservation_time = time;
     }
 
     if (area_id) {
@@ -1389,7 +1659,6 @@ export const getActiveOrders = async (req, res) => {
 
     const formattedOrders = activeOrders.map(order => {
       const orderPayments = paymentMap[order.order_id] || [];
-
       // Hitung total yang sudah dibayar (status settlement/paid)
       const totalPaid = orderPayments
         .filter(p => p.status === 'settlement' || p.status === 'paid')
@@ -1849,29 +2118,59 @@ export const getOrderTableHistory = async (req, res) => {
 // ✅ BULK TABLE STATUS UPDATE (Untuk GRO yang keliling)
 export const bulkUpdateTableStatus = async (req, res) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    const { updates, updatedBy } = req.body;
+    session.startTransaction();
 
-    if (!Array.isArray(updates) || updates.length === 0 || !updatedBy) {
+    const { outletId, areaCode } = req.query;
+
+    if (!outletId) {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: 'Data updates dan nama GRO diperlukan'
+        message: 'Outlet ID diperlukan'
       });
     }
+
+    // updates: array of { tableNumber, status, updatedBy, notes }
+    const updates = Array.isArray(req.body) ? req.body : (req.body.updates || []);
+    if (!Array.isArray(updates) || updates.length === 0) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Payload harus berisi array updates'
+      });
+    }
+
+    // Ambil semua pesanan aktif untuk outlet ini untuk pengecekan ketersediaan
+    const activeOrders = await Order.find({
+      outlet: outletId,
+      status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
+      orderType: 'Dine-In',
+      tableNumber: { $exists: true, $ne: null }
+    }).select('tableNumber');
+
+    const occupiedTableNumbers = new Set(
+      activeOrders.map(order => order.tableNumber?.toUpperCase())
+    );
 
     const results = [];
     const errors = [];
 
     for (const update of updates) {
-      try {
-        const { tableNumber, status, notes } = update;
+      const tableNumber = (update.tableNumber || '').toString().toUpperCase();
+      const status = update.status;
+      const updatedBy = update.updatedBy || 'GRO';
+      const notes = update.notes || '';
 
-        // Find table
+      if (!tableNumber || !status) {
+        errors.push({ tableNumber: update.tableNumber, message: 'tableNumber dan status wajib diisi' });
+        continue;
+      }
+
+      try {
+        // Cari meja (tambahkan outlet/area filter bila perlu)
         const table = await Table.findOne({
-          table_number: tableNumber.toUpperCase(),
+          table_number: tableNumber,
           is_active: true
         }).session(session);
 
@@ -1880,11 +2179,12 @@ export const bulkUpdateTableStatus = async (req, res) => {
           continue;
         }
 
-        // Check if table has active order when changing to available
+        // Jika ingin mengubah ke 'available' tetapi meja masih punya pesanan aktif -> tolak
         if (status === 'available' && table.status === 'occupied') {
           const activeOrder = await Order.findOne({
-            tableNumber: tableNumber,
-            status: { $in: ['Pending', 'Waiting', 'OnProcess'] }
+            tableNumber: table.table_number,
+            status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
+            outlet: outletId
           }).session(session);
 
           if (activeOrder) {
@@ -1896,12 +2196,11 @@ export const bulkUpdateTableStatus = async (req, res) => {
           }
         }
 
-        // Update table status
+        // Update table status dan history
         const oldStatus = table.status;
         table.status = status;
         table.updatedAt = new Date();
 
-        // Add status history
         if (!table.statusHistory) {
           table.statusHistory = [];
         }
@@ -1923,7 +2222,7 @@ export const bulkUpdateTableStatus = async (req, res) => {
           success: true
         });
 
-        // Emit socket event
+        // Emit socket event ke area sesuai table.area_id (boleh undefined)
         io.to(`area_${table.area_id?.area_code}`).emit('table_status_updated', {
           tableId: table._id,
           tableNumber: table.table_number,
@@ -1934,28 +2233,26 @@ export const bulkUpdateTableStatus = async (req, res) => {
           timestamp: new Date()
         });
 
-      } catch (error) {
-        errors.push({ tableNumber: update.tableNumber, message: error.message });
+      } catch (err) {
+        errors.push({ tableNumber: update.tableNumber, message: err.message });
       }
     }
 
     await session.commitTransaction();
 
     res.json({
-      success: errors.length === 0,
-      message: `${results.length} meja berhasil diupdate, ${errors.length} gagal`,
-      updated: results.length,
-      failed: errors.length,
+      success: true,
+      message: 'Bulk table status update selesai',
       results,
       errors
     });
 
   } catch (error) {
     await session.abortTransaction();
-    console.error('Error bulk updating tables:', error);
+    console.error('Error performing bulk table status update:', error);
     res.status(500).json({
       success: false,
-      message: 'Gagal update status meja',
+      message: 'Gagal memperbarui status meja secara massal',
       error: error.message
     });
   } finally {

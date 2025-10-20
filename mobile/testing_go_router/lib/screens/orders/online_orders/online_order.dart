@@ -247,6 +247,7 @@ Widget _buildStatisticsRow(
               color: Colors.blue.shade600,
             ),
             onPressed: () {
+              ref.read(onlineOrderProvider.notifier).refresh();
               showDialog(
                 context: context,
                 builder:

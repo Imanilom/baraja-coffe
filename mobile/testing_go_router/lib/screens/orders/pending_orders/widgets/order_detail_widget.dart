@@ -159,6 +159,7 @@ class OrderDetailWidget extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
       ),
+      width: double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -168,6 +169,30 @@ class OrderDetailWidget extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           ...order.items.map((item) => _buildItemCard(item)),
+
+          //tombol edit order item hanyamuncul ketika payment detailnya belu sepenuhnya dibayar,
+          if (order.items.isEmpty ||
+              order.payment!.isEmpty ||
+              order.payment!.any((p) => p.status!.toLowerCase() == "pending"))
+            TextButton.icon(
+              style: TextButton.styleFrom(backgroundColor: Colors.green[50]),
+              icon: Icon(
+                order.items.isEmpty ? Icons.add : Icons.edit,
+                color: Colors.green,
+              ),
+              label: Text(
+                order.items.isEmpty ? 'Add Order Item' : 'Edit Order Item',
+                style: TextStyle(color: Colors.green),
+              ),
+              onPressed: () {
+                // showModalBottomSheet(
+                //   context: context,
+                //   isScrollControlled: true,
+                //   backgroundColor: Colors.transparent,
+                //   builder: (ctx) => EditOrderItemSheet(order: order),
+                // );
+              },
+            ),
         ],
       ),
     );

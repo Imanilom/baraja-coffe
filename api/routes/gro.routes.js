@@ -11,7 +11,9 @@ import {
     checkInReservation,
     checkOutReservation,
     transferTable,
-    createReservation
+    createReservation,
+    getTableOrderDetail,
+    completeTableOrder
 } from '../controllers/gro.controller.js';
 import { authMiddleware, verifyToken } from '../utils/verifyUser.js';
 
@@ -33,6 +35,8 @@ router.put('/reservations/:id/cancel', authMiddleware, cancelReservation);
 router.put('/reservations/:id/close-open-bill', authMiddleware, closeOpenBill);
 router.put('/reservations/:id/check-in', authMiddleware, checkInReservation);
 router.put('/reservations/:id/check-out', authMiddleware, checkOutReservation);
+router.get('/tables/:tableNumber/order', authMiddleware, getTableOrderDetail);
+router.put('/orders/:orderId/complete', authMiddleware, completeTableOrder);
 
 // Table Availability
 router.get('/tables/availability', authMiddleware, getTableAvailability);

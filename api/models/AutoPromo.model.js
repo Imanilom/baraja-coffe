@@ -7,7 +7,7 @@ const AutoPromoSchema = new mongoose.Schema({
   },
   promoType: {
     type: String,
-    enum: ['discount_by_product', 'discount_on_quantity', 'discount_on_total', 'buy_x_get_y', 'bundling'],
+    enum: ['discount_on_quantity', 'discount_on_total', 'buy_x_get_y', 'bundling', 'product_specific'],
     required: true
   },
   conditions: {
@@ -27,6 +27,11 @@ const AutoPromoSchema = new mongoose.Schema({
         ref: 'MenuItem'
       },
       quantity: Number
+    }],
+    // New field for product-specific promo
+    products: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'MenuItem'
     }]
   },
   discount: {
