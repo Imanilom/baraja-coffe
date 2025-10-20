@@ -16,10 +16,7 @@ class RequestController {
 
   try {
     const user = await User.findById(req.user._id).session(session);
-    if (!user || !['staff', 'admin', 'superadmin'].includes(user.role)) {
-      await session.abortTransaction();
-      return res.status(403).json({ message: 'Akses ditolak' });
-    }
+ 
 
     const { requestedWarehouse, items } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
