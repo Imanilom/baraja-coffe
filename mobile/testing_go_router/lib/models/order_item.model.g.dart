@@ -26,13 +26,18 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       notes: fields[4] == null ? '' : fields[4] as String?,
       subtotal: fields[5] == null ? 0 : (fields[5] as num).toInt(),
       orderType: fields[6] == null ? OrderType.dineIn : fields[6] as OrderType,
+      orderItemid: fields[7] == null ? null : fields[7] as String?,
+      isPrinted: fields[8] == null ? false : fields[8] as bool,
+      printedQuantity: fields[9] == null ? 0 : (fields[9] as num).toInt(),
+      printBatchIds:
+          fields[10] == null ? [] : (fields[10] as List).cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderItemModel obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.menuItem)
       ..writeByte(1)
@@ -46,7 +51,15 @@ class OrderItemModelAdapter extends TypeAdapter<OrderItemModel> {
       ..writeByte(5)
       ..write(obj.subtotal)
       ..writeByte(6)
-      ..write(obj.orderType);
+      ..write(obj.orderType)
+      ..writeByte(7)
+      ..write(obj.orderItemid)
+      ..writeByte(8)
+      ..write(obj.isPrinted)
+      ..writeByte(9)
+      ..write(obj.printedQuantity)
+      ..writeByte(10)
+      ..write(obj.printBatchIds);
   }
 
   @override
@@ -86,6 +99,14 @@ _OrderItemModel _$OrderItemModelFromJson(Map<String, dynamic> json) =>
           json['dineType'] == null
               ? OrderType.dineIn
               : OrderTypeExtension.fromString(json['dineType'] as String),
+      orderItemid: json['orderItemid'] as String? ?? null,
+      isPrinted: json['isPrinted'] as bool? ?? false,
+      printedQuantity: (json['printedQuantity'] as num?)?.toInt() ?? 0,
+      printBatchIds:
+          (json['printBatchIds'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
@@ -97,4 +118,8 @@ Map<String, dynamic> _$OrderItemModelToJson(_OrderItemModel instance) =>
       'notes': instance.notes,
       'subtotal': instance.subtotal,
       'dineType': OrderTypeExtension.orderTypeToJson(instance.orderType),
+      'orderItemid': instance.orderItemid,
+      'isPrinted': instance.isPrinted,
+      'printedQuantity': instance.printedQuantity,
+      'printBatchIds': instance.printBatchIds,
     };

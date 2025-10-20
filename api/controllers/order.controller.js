@@ -3204,7 +3204,19 @@ export const getPendingOrders = async (req, res) => {
 
       // Get payment details for this order
       const paymentDetails = paymentDetailsMap.get(orderIdString) || [];
-      const paymentStatus = paymentStatusMap.get(orderIdString) || 'pending';
+      //get payment status jika payment detail ada 2 dan salah satunya belum lunas atau settlement beri satatus "partial", dan jika ada satu atau lebih yang lunas beri status "settlement" dan jika hanya ada satu yang lunas namun lebih kecil dari grand total beri status "partial"
+
+      const paymentStatus = paymentDetails.length > 1
+        ? paymentDetails.every(p => p.status === 'Success' || p.status === 'settlement')
+          ? 'Settlement'
+          : paymentDetails.some(p => p.status === 'Success' || p.status === 'settlement')
+            ? 'Partial'
+            : 'Pending'
+        : paymentDetails.length === 1
+          ? paymentDetails[0].status === 'Success' || paymentDetails[0].status === 'settlement'
+            ? 'Settlement'
+            : paymentDetails[0].payment_type === 'Down Payment' ? 'Partial' : 'Pending'
+          : 'Pending';
 
       // Calculate payment summary
       const totalPaid = paymentDetails.reduce((sum, payment) =>
@@ -3836,10 +3848,13 @@ export const getOrderById = async (req, res) => {
   }
 };
 
+
+
 export const getOrderId = async (req, res) => {
   try {
     const { orderId } = req.params;
 
+    // 1️⃣ Cari order-nya
     const order = await Order.findOne({ order_id: orderId })
       .populate('user_id', 'name email')
       .populate('cashierId', 'name email')
@@ -3857,10 +3872,31 @@ export const getOrderId = async (req, res) => {
       });
     }
 
+    // 2️⃣ Ambil ringkasan pembayaran (payment summary)
+    const paymentSummary = await Payment.getPaymentSummary(order.order_id);
+
+    // 3️⃣ Tentukan status pembayaran global
+    let paymentStatus = 'unpaid';
+    if (paymentSummary) {
+      if (paymentSummary.summary.isFullyPaid) paymentStatus = 'settlement';
+      else if (paymentSummary.summary.totalPaid > 0) paymentStatus = 'partial';
+      else paymentStatus = 'pending';
+    }
+
+    // 4️⃣ Kirim response dengan gabungan data
     res.status(200).json({
       success: true,
-      data: order
+      data: {
+        order,
+        payment: {
+          status: paymentStatus,
+          summary: paymentSummary?.summary || null,
+          history: paymentSummary?.summary?.paymentHistory || [],
+          details: paymentSummary?.payments || [],
+        }
+      }
     });
+
   } catch (error) {
     console.error('Error getOrderById:', error);
     res.status(500).json({
@@ -3870,6 +3906,7 @@ export const getOrderId = async (req, res) => {
     });
   }
 };
+
 
 export const getPendingPaymentOrders = async (req, res) => {
   try {

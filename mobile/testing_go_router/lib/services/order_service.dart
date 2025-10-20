@@ -1,6 +1,7 @@
 import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
+import 'package:kasirbaraja/models/edit_order_ops.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
@@ -292,6 +293,33 @@ class OrderService {
       }
     } catch (e) {
       throw Exception('Failed to delete order item: $e');
+    }
+  }
+
+  //patchOrder,
+  Future<Map<String, dynamic>> patchOrder({
+    required String orderId,
+    required Map<String, dynamic> patchData,
+  }) async {
+    try {
+      if (orderId.isEmpty || patchData.isEmpty) {
+        throw Exception("orderId atau patchData tidak boleh kosong");
+      }
+
+      print('orderId: $orderId, patchData: $patchData');
+
+      final res = await _dio.patch(
+        '/api/order/patch-order/$orderId',
+        data: patchData,
+      );
+
+      if (res.data['success'] == true) {
+        return res.data;
+      } else {
+        throw Exception('Failed to patch order: ${res.data['message']}');
+      }
+    } catch (e) {
+      throw Exception('Failed to patch order: $e');
     }
   }
 }

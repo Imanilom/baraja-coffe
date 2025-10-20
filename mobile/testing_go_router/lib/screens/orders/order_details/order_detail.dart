@@ -14,6 +14,7 @@ import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/providers/tax_and_service_provider.dart';
 import 'package:kasirbaraja/repositories/online_order_repository.dart';
 import 'package:kasirbaraja/screens/orders/order_details/dialog_order_type.dart';
+import 'package:kasirbaraja/utils/generate_order_id.dart';
 import 'package:kasirbaraja/widgets/buttons/vertical_icon_text_button.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
@@ -40,23 +41,23 @@ class OrderDetail extends ConsumerWidget {
         subTotalPrices = ref.watch(orderDetailProvider.notifier).subTotalPrice;
         onNull = 'Pilih menu untuk memulai pesanan';
         break;
+      // case 1:
+      //   orderDetail = ref.watch(onlineOrderDetailProvider);
+      //   final orderDetailNotifier = ref.read(
+      //     onlineOrderDetailProvider.notifier,
+      //   );
+      //   subTotalPrices =
+      //       ref.watch(onlineOrderDetailProvider.notifier).subTotalPrice;
+      //   onNull = 'Pilih pesanan untuk konfirmasi';
+      //   break;
+      // case 2:
+      //   orderDetail = ref.watch(historyDetailProvider);
+      //   final orderDetailNotifier = ref.read(historyDetailProvider.notifier);
+      //   subTotalPrices =
+      //       ref.watch(historyDetailProvider.notifier).subTotalPrice;
+      //   onNull = 'Pilih detail history pesanan';
+      //   break;
       case 1:
-        orderDetail = ref.watch(onlineOrderDetailProvider);
-        final orderDetailNotifier = ref.read(
-          onlineOrderDetailProvider.notifier,
-        );
-        subTotalPrices =
-            ref.watch(onlineOrderDetailProvider.notifier).subTotalPrice;
-        onNull = 'Pilih pesanan untuk konfirmasi';
-        break;
-      case 2:
-        orderDetail = ref.watch(historyDetailProvider);
-        final orderDetailNotifier = ref.read(historyDetailProvider.notifier);
-        subTotalPrices =
-            ref.watch(historyDetailProvider.notifier).subTotalPrice;
-        onNull = 'Pilih detail history pesanan';
-        break;
-      case 3:
         orderDetail = ref.watch(savedOrderDetailProvider);
         final orderDetailNotifier = ref.read(savedOrderDetailProvider.notifier);
         subTotalPrices =
@@ -335,7 +336,7 @@ class OrderDetail extends ConsumerWidget {
                               child: Text(orderItem.quantity.toString()),
                             ),
                             title: Text(
-                              '(${OrderTypeExtension.orderTypeToShortJson(orderItem.orderType!)}) ${orderItem.menuItem.name.toString()}',
+                              '(${OrderTypeExtension.orderTypeToShortJson(orderItem.orderType)}) ${orderItem.menuItem.name.toString()}',
                             ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,7 +436,7 @@ class OrderDetail extends ConsumerWidget {
                       isBold: true,
                     ),
                     const SizedBox(height: 8),
-                    currentWidgetIndex == 3
+                    currentWidgetIndex == 1
                         ? ElevatedButton(
                           onPressed: () {
                             // hapus data order detail yang lama
@@ -452,151 +453,6 @@ class OrderDetail extends ConsumerWidget {
                                 .setIndex(0);
                           },
                           child: const Text('Lanjutkan Pesanan'),
-                        )
-                        : currentWidgetIndex == 2
-                        ? Row(
-                          children: [
-                            Expanded(
-                              child: TextButton(
-                                onPressed: () {
-                                  ref
-                                      .read(historyDetailProvider.notifier)
-                                      .clearHistoryDetail();
-                                },
-                                child: const Text('cancel'),
-                              ),
-                            ),
-                            Expanded(
-                              child: TextButton(
-                                onPressed: () {
-                                  if (orderDetail != null &&
-                                      orderDetail.items.isNotEmpty) {
-                                    //refund order
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          "Fitur refund belum tersedia",
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                                style: TextButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: const Text('Refund'),
-                              ),
-                            ),
-                          ],
-                        )
-                        : currentWidgetIndex == 1
-                        ? Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Status Pembayaran',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                Text(
-                                  orderDetail.paymentStatus ?? 'Pending',
-                                  style: TextStyle(
-                                    color:
-                                        orderDetail.paymentStatus == 'Paid'
-                                            ? Colors.green
-                                            : Colors.orangeAccent,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              spacing: 8,
-                              children: [
-                                TextButton(
-                                  onPressed: () {
-                                    ref
-                                        .read(
-                                          onlineOrderDetailProvider.notifier,
-                                        )
-                                        .clearOnlineOrderDetail();
-                                  },
-                                  style: TextButton.styleFrom(
-                                    backgroundColor: Colors.red[50],
-                                    foregroundColor: Colors.red,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  child: Text('Kembali'),
-                                ),
-                                Expanded(
-                                  child: TextButton(
-                                    onPressed: () {
-                                      print(
-                                        'payment status: ${orderDetail!.paymentStatus}',
-                                      );
-                                      if (orderDetail.items.isNotEmpty &&
-                                          orderDetail.paymentStatus
-                                                  ?.toLowerCase() !=
-                                              'pending') {
-                                        //confirm order
-                                        print('order dikonfirmasi bohongan');
-                                        // context.push(
-                                        //   '/payment-method',
-                                        //   extra: orderDetail,
-                                        // );
-                                        // confirmOrder(ref, orderDetail);
-                                      } else if (orderDetail.items.isNotEmpty &&
-                                          orderDetail.paymentStatus
-                                                  ?.toLowerCase() ==
-                                              'pending') {
-                                        //lanjut ke metode pembayaran
-                                        print('lanjut ke metode pembayaran');
-                                        print('order detail: $orderDetail');
-                                        context.push(
-                                          '/payment-method',
-                                          extra: orderDetail,
-                                        );
-                                      } else {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              "Tidak ada item yang dipesan",
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    style: TextButton.styleFrom(
-                                      backgroundColor: Colors.green,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      orderDetail.paymentStatus
-                                                      ?.toLowerCase() ==
-                                                  'pending' ||
-                                              orderDetail.paymentStatus
-                                                      ?.toLowerCase() ==
-                                                  'partial'
-                                          ? 'Lanjut Bayar'
-                                          : 'Konfirmasi',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
                         )
                         : orderDetail.items.isNotEmpty
                         ? orderDetail.user == ''
@@ -956,6 +812,16 @@ class OrderDetail extends ConsumerWidget {
                                                   );
                                                   return;
                                                 }
+                                                ref
+                                                    .read(
+                                                      orderDetailProvider
+                                                          .notifier,
+                                                    )
+                                                    .updateOrderId();
+                                                //delay
+                                                Future.delayed(
+                                                  const Duration(seconds: 1),
+                                                );
                                                 ref
                                                     .read(
                                                       savedOrderProvider
