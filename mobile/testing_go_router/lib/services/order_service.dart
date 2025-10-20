@@ -294,6 +294,33 @@ class OrderService {
       throw Exception('Failed to delete order item: $e');
     }
   }
+
+  //patchOrder,
+  Future<Map<String, dynamic>> patchOrder({
+    required String orderId,
+    required Map<String, dynamic> patchData,
+  }) async {
+    try {
+      if (orderId.isEmpty || patchData.isEmpty) {
+        throw Exception("orderId atau patchData tidak boleh kosong");
+      }
+
+      print('orderId: $orderId, patchData: $patchData');
+
+      final res = await _dio.patch(
+        '/api/order/patch-order/$orderId',
+        data: patchData,
+      );
+
+      if (res.data['success'] == true) {
+        return res.data;
+      } else {
+        throw Exception('Failed to patch order: ${res.data['message']}');
+      }
+    } catch (e) {
+      throw Exception('Failed to patch order: $e');
+    }
+  }
 }
 
 Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
