@@ -7,6 +7,7 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
+import DailySalesSkeleton from "./skeleton";
 
 const DailySales = () => {
 
@@ -291,9 +292,7 @@ const DailySales = () => {
     // Show loading state
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
+            <DailySalesSkeleton />
         );
     }
 
@@ -327,9 +326,9 @@ const DailySales = () => {
                     <FaChevronRight />
                     <span>Penjualan Harian</span>
                 </div>
-                <button onClick={exportToExcel} className="flex items-center gap-2 bg-green-900 text-white px-4 py-2 rounded border border-green-900 hover:text-white hover:bg-green-900 text-[13px]">
+                {/* <button onClick={exportToExcel} className="flex items-center gap-2 bg-green-900 text-white px-4 py-2 rounded border border-green-900 hover:text-white hover:bg-green-900 text-[13px]">
                     <FaDownload /> Ekspor
-                </button>
+                </button> */}
             </div>
 
             {/* Filters */}

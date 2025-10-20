@@ -19,7 +19,7 @@ import AddonForm from "./opsimodal";
 const CreateMenu = () => {
   const [allCategories, setAllCategories] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [subCategories, setSubCategories] = useState([]);
+  // const [subCategories, setSubCategories] = useState([]);
 
   const MainCategories = ['makanan', 'minuman', 'dessert', 'snack', 'event'];
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -279,13 +279,9 @@ const CreateMenu = () => {
         workstation: valueToSend
       };
 
-      console.log('Payload yang dikirim ke database:', payload);
-
       // Simpan ke database Anda (data + URL gambar)
       await axios.post("/api/menu/menu-items", payload);
-
-      alert('Menu berhasil disimpan!');
-      navigate("/admin/menu");
+      navigate("/admin/menu", { state: { success: `Menu ${formData.name} berhasil dibuat` } });
 
     } catch (err) {
       console.error("Gagal kirim data:", err);
@@ -417,10 +413,10 @@ const CreateMenu = () => {
                       ...prev,
                       category: selected.value,
                     }));
-                    const sub = allCategories.filter(
-                      (cat) => cat.parentCategory === selected.value
-                    );
-                    setSubCategories(sub);
+                    // const sub = allCategories.filter(
+                    //   (cat) => cat.parentCategory === selected.value
+                    // );
+                    // setSubCategories(sub);
                   }}
                   styles={customSelectStyles}
                   placeholder="Pilih kategori..."
@@ -428,7 +424,7 @@ const CreateMenu = () => {
                 />
               </div>
 
-              {subCategories.length > 0 && (
+              {/* {subCategories.length > 0 && (
                 <div>
                   <label className="my-2.5 text-xs block font-medium">
                     SUB KATEGORI
@@ -450,7 +446,7 @@ const CreateMenu = () => {
                     styles={customSelectStyles}
                   />
                 </div>
-              )}
+              )} */}
 
               <div>
                 <label className="my-2.5 text-xs block font-medium">HARGA</label>

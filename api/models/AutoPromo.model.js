@@ -7,7 +7,7 @@ const AutoPromoSchema = new mongoose.Schema({
   },
   promoType: {
     type: String,
-    enum: ['discount_on_quantity', 'discount_on_total', 'buy_x_get_y', 'bundling'],
+    enum: ['discount_by_product', 'discount_on_quantity', 'discount_on_total', 'buy_x_get_y', 'bundling'],
     required: true
   },
   conditions: {
