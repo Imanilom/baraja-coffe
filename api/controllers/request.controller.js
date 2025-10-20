@@ -10,7 +10,7 @@ import MarketList from '../models/modul_market/MarketList.model.js';
 class RequestController {
   
   // Membuat request baru (hanya membuat request, belum mengambil stok)
-  async createRequest(req, res) {
+async createRequest(req, res) {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -19,6 +19,7 @@ class RequestController {
  
 
     const { requestedWarehouse, items } = req.body;
+    console.log('Received createRequest with items:', req.body);
     if (!Array.isArray(items) || items.length === 0) {
       await session.abortTransaction();
       return res.status(400).json({ message: 'Items wajib diisi' });

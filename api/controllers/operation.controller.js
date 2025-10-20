@@ -5,7 +5,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// ! Start Kitchen sections
 export const getKitchenOrder = async (req, res) => {
   try {
     // ✅ Ambil data order terbaru
@@ -51,7 +50,7 @@ export const getKitchenOrder = async (req, res) => {
 
 export const updateKitchenOrderStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { status, kitchenId, kitchenName } = req.body; // tambahkan data kitchen user
+  const { status, kitchenId, kitchenName } = req.body;
 
   console.log('Updating kitchen order status for orderId:', orderId, 'to status:', status);
   if (!orderId || !status) {
@@ -59,24 +58,55 @@ export const updateKitchenOrderStatus = async (req, res) => {
   }
 
   try {
-    const order = await Order.findOneAndUpdate(
-      { order_id: orderId },
-      { $set: { status: status } },
-      { new: true }
-    ).populate('items.menuItem');
+    // 🔍 Cek order dan reservasi terkait
+    const order = await Order.findOne({ order_id: orderId })
+      .populate('reservation')
+      .populate('items.menuItem');
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
+    // 🚫 CEK: Jika status ingin diubah ke Completed dan ada reservasi aktif
+    if (status === 'Completed' && order.reservation) {
+      // Cek apakah reservasi masih aktif (belum selesai)
+      const reservation = order.reservation;
+      
+      // Asumsi: reservasi memiliki field status yang menandakan aktif/tidak
+      // Sesuaikan dengan struktur data reservasi Anda
+      if (reservation.status && ['confirmed', 'checked-in', 'in-progress'].includes(reservation.status)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Cannot complete order with active reservation. Reservation might have OTS or additional orders.' 
+        });
+      }
+      
+      // Atau cek berdasarkan waktu reservasi
+      const now = new Date();
+      const reservationEnd = new Date(reservation.reservation_end || reservation.end_time);
+      if (reservationEnd > now) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Cannot complete order while reservation is still active. Customer might add more orders.' 
+        });
+      }
+    }
+
+    // ✅ Update status order
+    const updatedOrder = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: status } },
+      { new: true }
+    ).populate('items.menuItem');
+
     // 🔥 EMIT SOCKET EVENTS
     const updateData = {
-      order_id: orderId,   // ubah ke snake_case
-      orderStatus: status, // pakai orderStatus, bukan status
+      order_id: orderId,
+      orderStatus: status,
       kitchen: { id: kitchenId, name: kitchenName },
-      timestamp: new Date()
+      timestamp: new Date(),
+      hasActiveReservation: !!order.reservation // tambahkan info reservasi
     };
-
 
     // Emit ke room customer agar tahu progres order
     io.to(`order_${orderId}`).emit('order_status_update', updateData);
@@ -87,7 +117,13 @@ export const updateKitchenOrderStatus = async (req, res) => {
     // Emit ke kitchen room juga kalau perlu broadcast antar kitchen
     io.to('kitchen_room').emit('kitchen_order_updated', updateData);
 
-    res.status(200).json({ success: true, data: order });
+    res.status(200).json({ 
+      success: true, 
+      data: updatedOrder,
+      message: status === 'Completed' && order.reservation 
+        ? 'Order completed but reservation is still active' 
+        : 'Order status updated successfully'
+    });
   } catch (error) {
     console.error('Error updating kitchen order status:', error);
     res.status(500).json({ success: false, message: 'Failed to update kitchen order status' });
