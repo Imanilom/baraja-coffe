@@ -4,6 +4,7 @@ import axios from "axios";
 import Select from "react-select";
 import { toast } from "react-toastify";
 import BundlingForm from "./bundlingform";
+import DiscountByProductForm from "./discountbyproduct";
 
 const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
   const now = new Date();
@@ -55,6 +56,7 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
   const promoTypeOptions = [
     { value: "discount_on_quantity", label: "Discount on Quantity" },
     { value: "discount_on_total", label: "Discount on Total" },
+    { value: "discount_by_product", label: "Discount by Product" },
     { value: "buy_x_get_y", label: "Buy X Get Y" },
     { value: "bundling", label: "Bundling" },
   ];
@@ -138,6 +140,10 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
       case "bundling":
         if (!formData.conditions?.bundleProducts?.length) newErrors.bundleProducts = "Tambahkan minimal 1 produk bundel!";
         if (!formData.bundlePrice || formData.bundlePrice <= 0) newErrors.bundlePrice = "Harga bundel wajib diisi!";
+        break;
+      case "discount_by_product":
+        if (!formData.conditions?.discountedProducts?.length)
+          newErrors.discountedProducts = "Tambahkan minimal 1 produk dengan diskon!";
         break;
       default:
         break;
@@ -314,6 +320,15 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
 
               {formData.promoType === "bundling" && (
                 <BundlingForm products={products} formData={formData} setFormData={setFormData} />
+              )}
+
+              {formData.promoType === "discount_by_product" && (
+                <DiscountByProductForm
+                  products={products}
+                  formData={formData}
+                  setFormData={setFormData}
+                  errors={errors}
+                />
               )}
 
               <div className="mb-4">

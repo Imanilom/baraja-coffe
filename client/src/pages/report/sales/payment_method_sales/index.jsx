@@ -6,6 +6,7 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import PaymentDetailModal from "./detailModal";
+import PaymentMethodSalesSkeleton from "./skeleton";
 
 const PaymentMethodSales = () => {
     // Modal state
@@ -87,8 +88,10 @@ const PaymentMethodSales = () => {
                 (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
                     productsResponse.data.data : [];
 
-            setProducts(productsData);
-            setFilteredData(productsData); // Initialize filtered data with all products
+            const completedData = productsData.filter(item => item.status === "Completed");
+
+            setProducts(completedData);
+            setFilteredData(completedData); // Initialize filtered data with all products
 
             // Fetch outlets data
             const outletsResponse = await axios.get('/api/outlet');
@@ -303,9 +306,7 @@ const PaymentMethodSales = () => {
     // Show loading state
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
+            <PaymentMethodSalesSkeleton />
         );
     }
 

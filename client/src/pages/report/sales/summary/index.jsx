@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
+import SalesReportSkeleton from "./skeleton";
 
 const Summary = () => {
 
@@ -45,6 +46,7 @@ const Summary = () => {
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isExporting, setIsExporting] = useState(false);
     const [error, setError] = useState(null);
 
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
@@ -69,8 +71,9 @@ const Summary = () => {
                 (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
                     productsResponse.data.data : [];
 
-            setProducts(productsData);
-            setFilteredData(productsData); // Initialize filtered data with all products
+            const completedOrders = productsData.filter(order => order.status === 'Completed');
+            setProducts(completedOrders);
+            setFilteredData(completedOrders); // Initialize filtered data with all products
 
             // Fetch outlets data
             const outletsResponse = await axios.get('/api/outlet');
@@ -223,30 +226,91 @@ const Summary = () => {
     }, []);
 
     // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-            const addonsPrice = item.addons?.reduce((sum, addon) => sum + (addon?.price || 0), 0) || 0;
+    const exportToExcel = async () => {
+        setIsExporting(true);
 
-            return {
-                "Produk": menuItem.name || 'N/A',
-                "Kategori": menuItem.category?.join(', ') || 'N/A',
-                "SKU": menuItem._id || 'N/A',
-                "Terjual": item.quantity || 0,
-                "Penjualan Kotor": item.subtotal || 0,
-                "Diskon Produk": addonsPrice || 0,
-                "Total": (item.subtotal || 0) + addonsPrice,
-                "Outlet": product.cashier?.outlet?.[0]?.outletId?.name || 'N/A',
-                "Tanggal": new Date(product.createdAt).toLocaleDateString('id-ID')
-            };
-        });
+        try {
+            // Small delay to show loading state
+            await new Promise(resolve => setTimeout(resolve, 15000));
 
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
-        XLSX.writeFile(wb, "Penjualan_Produk.xlsx");
+            // Get outlet name and date range
+            const outletName = tempSelectedOutlet
+                ? outlets.find(o => o._id === tempSelectedOutlet)?.name || 'Semua Outlet'
+                : 'Semua Outlet';
+
+            const dateRange = value && value.startDate && value.endDate
+                ? `${new Date(value.startDate).toLocaleDateString('id-ID')} - ${new Date(value.endDate).toLocaleDateString('id-ID')}`
+                : 'Semua Tanggal';
+
+            // Calculate totals (using values from the table)
+            const penjualanKotor = grandTotal.subtotal;
+            const diskonPromo = 0; // You can calculate this based on your data
+            const diskonPoin = 0;
+            const voidAmount = 0;
+            const pembulatan = 0;
+            const penjualanBersih = penjualanKotor - diskonPromo - diskonPoin - voidAmount + pembulatan;
+            const serviceCharge = 0;
+            const pajak = grandTotal.subtotal * 0.10;
+            const totalPenjualan = penjualanBersih + serviceCharge + pajak;
+
+            // Create export data with the summary format
+            const exportData = [
+                { col1: 'Laporan Ringkasan', col2: '' },
+                { col1: '', col2: '' },
+                { col1: 'Outlet', col2: outletName },
+                { col1: 'Tanggal', col2: dateRange },
+                { col1: '', col2: '' },
+                { col1: '', col2: 'Total Nominal (Rp)' },
+                { col1: 'Penjualan Kotor', col2: penjualanKotor },
+                { col1: 'Diskon Promo', col2: diskonPromo },
+                { col1: 'Diskon Poin', col2: diskonPoin },
+                { col1: 'Void', col2: voidAmount },
+                { col1: 'Pembulatan', col2: pembulatan },
+                { col1: 'Penjualan Bersih', col2: penjualanBersih },
+                { col1: 'Service Charge', col2: serviceCharge },
+                { col1: 'Pajak', col2: pajak },
+                { col1: 'Total Penjualan', col2: totalPenjualan }
+            ];
+
+            // Create worksheet
+            const ws = XLSX.utils.json_to_sheet(exportData, {
+                header: ['col1', 'col2'],
+                skipHeader: true
+            });
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 20 },
+                { wch: 20 }
+            ];
+
+            // Apply bold styling to specific cells
+            const boldRows = [1, 6, 12, 15]; // Row indices for: Laporan Ringkasan, header Total Nominal, Penjualan Bersih, Total Penjualan
+
+            boldRows.forEach(rowIndex => {
+                const cellAddressCol1 = XLSX.utils.encode_cell({ r: rowIndex, c: 0 });
+                const cellAddressCol2 = XLSX.utils.encode_cell({ r: rowIndex, c: 1 });
+
+                if (ws[cellAddressCol1]) {
+                    ws[cellAddressCol1].s = { font: { bold: true } };
+                }
+                if (ws[cellAddressCol2]) {
+                    ws[cellAddressCol2].s = { font: { bold: true } };
+                }
+            });
+
+            // Create workbook and add worksheet
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Laporan Ringkasan");
+
+            // Export file
+            XLSX.writeFile(wb, `Laporan_Ringkasan_${outletName}_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`);
+        } catch (error) {
+            console.error("Error exporting to Excel:", error);
+            alert("Gagal mengekspor data. Silakan coba lagi.");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     // Saat pertama kali render → set default value ke hari ini
@@ -262,9 +326,7 @@ const Summary = () => {
     // Show loading state
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
+            <SalesReportSkeleton />
         );
     }
 
@@ -298,8 +360,21 @@ const Summary = () => {
                     <FaChevronRight />
                     <span>Ringkasan</span>
                 </h1>
-                <button onClick={exportToExcel} className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2">
-                    <FaDownload /> Ekspor CSV
+                <button
+                    onClick={exportToExcel}
+                    disabled={isExporting}
+                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isExporting ? (
+                        <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                            Mengekspor...
+                        </>
+                    ) : (
+                        <>
+                            <FaDownload /> Ekspor CSV
+                        </>
+                    )}
                 </button>
             </div>
 

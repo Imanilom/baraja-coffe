@@ -18,7 +18,7 @@ const marketingAcceess = verifyToken('marketing', 'admin', 'superadmin');
 router.post('/', marketingAcceess, createEvent);
 router.get('/', getEvents);
 router.get('/:id', getEventById);
-router.put('/:id', marketingAcceess, updateEvent);
+router.put('/:id', updateEvent);
 router.delete('/:id', marketingAcceess, deleteEvent);
 router.post('/:id/attendees', addAttendee);
 router.delete('/:id/attendees', removeAttendee);

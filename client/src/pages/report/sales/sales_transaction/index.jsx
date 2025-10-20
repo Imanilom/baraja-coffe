@@ -6,6 +6,7 @@ import { FaChevronRight, FaDownload } from "react-icons/fa";
 import ExportFilter from "../export";
 import { useReactToPrint } from "react-to-print";
 import SalesTransactionTable from "./table";
+import SalesTransactionTableSkeleton from "./skeleton";
 
 
 const SalesTransaction = () => {
@@ -289,15 +290,6 @@ const SalesTransaction = () => {
         applyFilter();
     }, []);
 
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
-
     // Show error state
     if (error) {
         return (
@@ -340,28 +332,32 @@ const SalesTransaction = () => {
             </div>
 
             {/* Filters */}
-            <SalesTransactionTable
-                paginatedData={paginatedData}
-                grandTotalFinal={grandTotalFinal}
-                setSelectedTrx={setSelectedTrx}
-                selectedTrx={selectedTrx}
-                formatDateTime={formatDateTime}
-                formatCurrency={formatCurrency}
-                options={options}
-                tempSelectedOutlet={tempSelectedOutlet}
-                setTempSelectedOutlet={setTempSelectedOutlet}
-                value={value}
-                setValue={setValue}
-                tempSearch={tempSearch}
-                setTempSearch={setTempSearch}
-                customSelectStyles={customSelectStyles}
-                receiptRef={receiptRef}
-                currentPage={currentPage}
-                setCurrentPage={setCurrentPage}
-                totalPages={totalPages}
-                ITEMS_PER_PAGE={ITEMS_PER_PAGE}
-                filteredData={filteredData}
-            />
+            {loading ? (
+                <SalesTransactionTableSkeleton />
+            ) : (
+                <SalesTransactionTable
+                    paginatedData={paginatedData}
+                    grandTotalFinal={grandTotalFinal}
+                    setSelectedTrx={setSelectedTrx}
+                    selectedTrx={selectedTrx}
+                    formatDateTime={formatDateTime}
+                    formatCurrency={formatCurrency}
+                    options={options}
+                    tempSelectedOutlet={tempSelectedOutlet}
+                    setTempSelectedOutlet={setTempSelectedOutlet}
+                    value={value}
+                    setValue={setValue}
+                    tempSearch={tempSearch}
+                    setTempSearch={setTempSearch}
+                    customSelectStyles={customSelectStyles}
+                    receiptRef={receiptRef}
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                    ITEMS_PER_PAGE={ITEMS_PER_PAGE}
+                    filteredData={filteredData}
+                />
+            )}
         </div>
     );
 };

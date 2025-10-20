@@ -89,8 +89,6 @@ const UpdateMenu = () => {
       try {
         const res = await axios.get("/api/menu/categories");
         const data = res.data.data;
-
-        console.log(data);
         setAllCategories(data);
         const main = data.filter((cat) => !cat.parentCategory);
         setCategories(main);
@@ -198,6 +196,9 @@ const UpdateMenu = () => {
   const [image, setImage] = useState(undefined);
   const [imagePercent, setImagePercent] = useState(0);
   const [imageError, setImageError] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [compressedImageURL, setCompressedImageURL] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   // State untuk pemilihan dan pencarian
   const [selectedCategories, setSelectedCategories] = useState([]);
@@ -260,6 +261,104 @@ const UpdateMenu = () => {
     }));
   };
 
+
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validasi tipe file
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('Format file tidak didukung. Gunakan JPG, PNG, GIF, atau WebP');
+      return;
+    }
+
+    // Validasi ukuran file (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      alert('Ukuran file terlalu besar. Maksimal 5MB');
+      return;
+    }
+
+    setImageFile(file);
+    setCompressedImageURL(URL.createObjectURL(file)); // tampilkan preview
+  };
+
+  const compressImage = (file, quality = 0.6, maxWidth = 800) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+
+          const scale = maxWidth / img.width;
+          canvas.width = maxWidth;
+          canvas.height = img.height * scale;
+
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return reject("Blob is null");
+              resolve(blob);
+            },
+            "image/jpeg",
+            quality
+          );
+        };
+
+        img.onerror = (err) => reject(err);
+      };
+
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+
+  // ===== NEW: UPLOAD KE PHP SERVER =====
+  const uploadToPHP = async (file) => {
+    try {
+      setUploading(true);
+
+      // Compress image terlebih dahulu
+      const compressedBlob = await compressImage(file);
+
+      // Buat FormData untuk kirim file
+      const formData = new FormData();
+      formData.append('image', compressedBlob, file.name);
+      formData.append('kategori', 'menu'); // kategori untuk organize file
+
+      // Upload ke PHP backend
+      // GANTI URL ini dengan URL PHP upload.php Anda
+      const response = await axios.post('https://img.barajacoffee.com/api.php', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      // Response format: { success: true, imageURL: "http://..." }
+      if (response.data.success) {
+        return response.data.imageURL;
+      } else {
+        throw new Error(response.data.message || 'Upload gagal');
+      }
+
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Gagal upload gambar: ' + (error.response?.data?.message || error.message));
+      throw error;
+    } finally {
+      setUploading(false);
+    }
+  };
+
   useEffect(() => {
     if (image) {
       handleFileUpload(image);
@@ -290,20 +389,21 @@ const UpdateMenu = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    let imageURL = "";
 
-    console.log(formData.category);
+    // Upload image ke PHP jika ada
+    if (imageFile) {
+      imageURL = await uploadToPHP(imageFile); // Upload ke PHP, dapat URL
+    }
+
 
     const payload = {
       ...formData,
       category: typeof formData.category === 'string'
         ? formData.category
         : formData.category?._id || formData.category?.id,
-      subCategory: typeof formData.subCategory === 'string'
-        ? formData.subCategory || null
-        : formData.subCategory?._id || "",
+      subCategory: null,
     };
-
-    console.log(payload)
 
     try {
       await axios.put(`/api/menu/menu-items/${id}`, payload, {
@@ -422,7 +522,6 @@ const UpdateMenu = () => {
                     setFormData((prev) => ({
                       ...prev,
                       category: selectedCategory,
-                      subCategory: "",
                     }));
                   }}
                   styles={customStyles}
@@ -430,7 +529,7 @@ const UpdateMenu = () => {
               </div>
 
               {/* Sub Category */}
-              <div>
+              {/* <div>
                 <label className="my-2.5 text-xs block font-medium">
                   SUB KATEGORI
                 </label>
@@ -457,7 +556,7 @@ const UpdateMenu = () => {
                   styles={customStyles}
                   placeholder="Pilih sub kategori"
                 />
-              </div>
+              </div> */}
 
               {/* Price */}
               <div>
@@ -511,7 +610,7 @@ const UpdateMenu = () => {
               </div> */}
 
               {/* Image Upload */}
-              <div className="flex items-center space-x-4 p-4 rounded-lg">
+              {/* <div className="flex items-center space-x-4 p-4 rounded-lg">
                 <img
                   src={formData.imageURL}
                   alt="Uploaded"
@@ -531,6 +630,43 @@ const UpdateMenu = () => {
                 )}
                 {imageError && (
                   <div className="text-red-500 text-sm">Image upload failed</div>
+                )}
+              </div> */}
+
+              <div className="flex items-center space-x-4 py-4">
+                {compressedImageURL ? (
+                  <img
+                    src={compressedImageURL}
+                    alt="Preview"
+                    className="h-24 w-24 object-cover rounded cursor-pointer"
+                    onClick={() => fileRef.current.click()}
+                  />
+                ) : (
+                  <div
+                    className="h-24 w-24 flex items-center justify-center bg-gray-200 rounded cursor-pointer"
+                    onClick={() => fileRef.current.click()}
+                  >
+                    <span className="text-gray-500 text-xl">+</span>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  ref={fileRef}
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+                {compressedImageURL && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageFile(null);
+                      setCompressedImageURL(null);
+                    }}
+                    className="text-red-500 text-sm hover:underline"
+                  >
+                    Hapus gambar
+                  </button>
                 )}
               </div>
 

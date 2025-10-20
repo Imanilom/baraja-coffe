@@ -8,7 +8,7 @@ const adminAccess = verifyToken(['admin', 'superadmin']);
 
 
 // ✅ OPTIMISED: GET ALL DEVICES dengan pagination dan filtering
-router.get('/', authMiddleware, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const {
       outlet,
