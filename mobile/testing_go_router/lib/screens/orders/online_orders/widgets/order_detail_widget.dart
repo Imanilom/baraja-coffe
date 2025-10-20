@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/enums/order_status.dart';
@@ -160,6 +161,7 @@ class OrderDetailWidget extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
       ),
+      width: double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -197,6 +199,62 @@ class OrderDetailWidget extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           ...order.items.map((item) => _buildItemCard(item)),
+          const SizedBox(height: 12),
+
+          //tombol edit order item hanyamuncul ketika payment detailnya belu sepenuhnya dibayar,
+          if (order.items.isEmpty ||
+              order.payment!.isEmpty ||
+              order.payment!.any((p) => p.status!.toLowerCase() == "pending"))
+            TextButton.icon(
+              style: TextButton.styleFrom(backgroundColor: Colors.green[50]),
+              icon: Icon(
+                order.items.isEmpty ? Icons.add : Icons.edit,
+                color: Colors.green,
+              ),
+              label: Text(
+                order.items.isEmpty ? 'Add Order Item' : 'Edit Order Item',
+                style: TextStyle(color: Colors.green),
+              ),
+              onPressed: () {
+                //show konfirmasi ya atau tidak
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: const Text('Konfirmasi'),
+                      content: const Text(
+                        'Apakah Anda yakin ingin mengganti order item?',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: Text(
+                            'Batal',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            context.goNamed(
+                              'edit-order-item',
+                              extra: order,
+                              pathParameters: {'id': order.id!},
+                            );
+                          },
+                          child: const Text(
+                            'Ya, Ganti',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
         ],
       ),
     );

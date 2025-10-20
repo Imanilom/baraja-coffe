@@ -8,6 +8,7 @@ import 'package:kasirbaraja/screens/data_sync_screen.dart';
 import 'package:kasirbaraja/screens/main_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kasirbaraja/screens/orders/edit_order/edit_order_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_success_screen.dart';
 import 'package:kasirbaraja/screens/payments/payment_type_screen.dart';
 import 'package:kasirbaraja/screens/reports/sales_report_screen.dart';
@@ -385,6 +386,35 @@ final routerProvider = Provider<GoRouter>((ref) {
             (context, state) => CustomTransitionPage(
               arguments: state.extra,
               child: const SalesReportScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                const begin = Offset(1.0, 0.0);
+                const end = Offset.zero;
+                const curve = Curves.ease;
+                final tween = Tween(
+                  begin: begin,
+                  end: end,
+                ).chain(CurveTween(curve: curve));
+                return SlideTransition(
+                  position: animation.drive(tween),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      //edit orderitem,
+      GoRoute(
+        path: ':id/edit-order-item',
+        name: 'edit-order-item',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              arguments: state.extra,
+              // child: const EditOrderItemScreen(orderMongoId: state.pathParameters['id']!),
+              child: const EditOrderScreen(),
               transitionsBuilder: (
                 context,
                 animation,
