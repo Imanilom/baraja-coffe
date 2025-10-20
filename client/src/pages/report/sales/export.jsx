@@ -5,6 +5,7 @@ import Datepicker from "react-tailwindcss-datepicker";
 import axios from "axios";
 
 const ExportFilter = ({ isOpen, onClose }) => {
+    const [isExporting, setIsExporting] = useState(false);
     const [orders, setOrders] = useState([]);
     const [categories, setCategories] = useState([]);
     const [subCategories, setSubCategories] = useState([]);
@@ -72,175 +73,181 @@ const ExportFilter = ({ isOpen, onClose }) => {
         );
     };
 
-    const handleExport = () => {
-        const filtered = orders.filter((order) => {
-            const tanggal = new Date(order.createdAt);
-            const start = dateRange.startDate ? new Date(dateRange.startDate) : null;
-            const end = dateRange.endDate ? new Date(dateRange.endDate) : null;
-            if (start) start.setHours(0, 0, 0, 0);
-            if (end) end.setHours(23, 59, 59, 999);
-            const inDateRange = (!start || tanggal >= start) && (!end || tanggal <= end);
+    const handleExport = async () => {
+        setIsExporting(true);
 
-            // ✅ Jika tidak ada filter yang dipilih, ambil semua item
-            const noFilterSelected =
-                selectedMainTypes.length === 0 &&
-                selectedCategories.length === 0;
+        try {
+            const filtered = orders.filter((order) => {
+                const tanggal = new Date(order.createdAt);
+                const start = dateRange.startDate ? new Date(dateRange.startDate) : null;
+                const end = dateRange.endDate ? new Date(dateRange.endDate) : null;
+                if (start) start.setHours(0, 0, 0, 0);
+                if (end) end.setHours(23, 59, 59, 999);
+                const inDateRange = (!start || tanggal >= start) && (!end || tanggal <= end);
 
-            const filteredItems = order.items.filter((item) => {
-                if (noFilterSelected) return true;
+                const noFilterSelected =
+                    selectedMainTypes.length === 0 &&
+                    selectedCategories.length === 0;
 
-                const menuItem = item.menuItem || {};
-                const mainCat = menuItem.mainCategory;
-                const cat = menuItem.category;
-                const work = menuItem.workstation;
+                const filteredItems = order.items.filter((item) => {
+                    if (noFilterSelected) return true;
 
-                const isMainCategoryChecked = mainCategory.find((m) => m.name === mainCat)?.type || "";
-                const isCategoryChecked = selectedCategories.some((id) =>
-                    categories.find((c) => c._id === id)
-                );
-                const isWorkstationChecked = selectedCategories.some((id) => workstation.includes(id));
+                    const menuItem = item.menuItem || {};
+                    const mainCat = menuItem.mainCategory;
+                    const cat = menuItem.category;
+                    const work = menuItem.workstation;
 
-                const isCategoryMatch = selectedCategories.includes(cat);
-                const isWorkstationMatch = selectedCategories.includes(work);
-                const isMainCategoryMatch = selectedMainTypes.includes(isMainCategoryChecked);
+                    const isMainCategoryChecked = mainCategory.find((m) => m.name === mainCat)?.type || "";
+                    const isCategoryChecked = selectedCategories.some((id) =>
+                        categories.find((c) => c._id === id)
+                    );
+                    const isWorkstationChecked = selectedCategories.some((id) => workstation.includes(id));
 
-                if (isMainCategoryChecked && !isCategoryChecked && !isWorkstationChecked) {
-                    return isMainCategoryMatch;
-                }
-                if (isMainCategoryChecked && isCategoryChecked && !isWorkstationChecked) {
-                    return isCategoryMatch;
-                }
-                if (!isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
-                    return isWorkstationMatch;
-                }
-                if (isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
-                    return isMainCategoryMatch && isWorkstationMatch;
-                }
-                if (isMainCategoryChecked && isCategoryChecked && isWorkstationChecked) {
-                    return isCategoryMatch || isWorkstationMatch;
-                }
+                    const isCategoryMatch = selectedCategories.includes(cat);
+                    const isWorkstationMatch = selectedCategories.includes(work);
+                    const isMainCategoryMatch = selectedMainTypes.includes(isMainCategoryChecked);
 
-                return true;
+                    if (isMainCategoryChecked && !isCategoryChecked && !isWorkstationChecked) {
+                        return isMainCategoryMatch;
+                    }
+                    if (isMainCategoryChecked && isCategoryChecked && !isWorkstationChecked) {
+                        return isCategoryMatch;
+                    }
+                    if (!isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
+                        return isWorkstationMatch;
+                    }
+                    if (isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
+                        return isMainCategoryMatch && isWorkstationMatch;
+                    }
+                    if (isMainCategoryChecked && isCategoryChecked && isWorkstationChecked) {
+                        return isCategoryMatch || isWorkstationMatch;
+                    }
+
+                    return true;
+                });
+
+                return inDateRange && filteredItems.length > 0;
             });
 
-            return inDateRange && filteredItems.length > 0;
-        });
+            const formatDateTime = (isoString) => {
+                const date = new Date(isoString);
+                const pad = (num) => String(num).padStart(2, '0');
+                return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+            };
 
+            const exportData = filtered.flatMap((order) => {
+                const outletObj = outlets.find(o => o._id === order.outlet._id);
+                const outletName = outletObj?.name || '';
+                const outletCode = outletObj?._id || '';
 
-        const formatDateTime = (isoString) => {
-            const date = new Date(isoString);
-            const pad = (num) => String(num).padStart(2, '0');
-            return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-        };
+                const noFilterSelected =
+                    selectedMainTypes.length === 0 &&
+                    selectedCategories.length === 0;
 
-        // === exportData logic tetap sama seperti sebelumnya ===
-        const exportData = filtered.flatMap((order) => {
-            const outletObj = outlets.find(o => o._id === order.outlet);
-            const outletName = outletObj?.name || '';
-            const outletCode = outletObj?._id || '';
+                const filteredItems = order.items.filter((item) => {
+                    if (noFilterSelected) return true;
 
-            const noFilterSelected =
-                selectedMainTypes.length === 0 &&
-                selectedCategories.length === 0;
+                    const menuItem = item.menuItem || {};
+                    const mainCat = menuItem.mainCategory;
+                    const cat = menuItem.category;
+                    const work = menuItem.workstation;
 
-            const filteredItems = order.items.filter((item) => {
-                if (noFilterSelected) return true;
+                    const isMainCategoryChecked = mainCategory.find((m) => m.name === mainCat)?.type || "";
+                    const isCategoryChecked = selectedCategories.some((id) =>
+                        categories.find((c) => c._id === id)
+                    );
+                    const isWorkstationChecked = selectedCategories.some((id) => workstation.includes(id));
 
-                const menuItem = item.menuItem || {};
-                const mainCat = menuItem.mainCategory;
-                const cat = menuItem.category;
-                const work = menuItem.workstation;
+                    const isCategoryMatch = selectedCategories.includes(cat);
+                    const isWorkstationMatch = selectedCategories.includes(work);
+                    const isMainCategoryMatch = selectedMainTypes.includes(isMainCategoryChecked);
 
-                const isMainCategoryChecked = mainCategory.find((m) => m.name === mainCat)?.type || "";
-                const isCategoryChecked = selectedCategories.some((id) =>
-                    categories.find((c) => c._id === id)
-                );
-                const isWorkstationChecked = selectedCategories.some((id) => workstation.includes(id));
+                    if (isMainCategoryChecked && !isCategoryChecked && !isWorkstationChecked) {
+                        return isMainCategoryMatch;
+                    }
+                    if (isMainCategoryChecked && isCategoryChecked && !isWorkstationChecked) {
+                        return isCategoryMatch;
+                    }
+                    if (!isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
+                        return isWorkstationMatch;
+                    }
+                    if (isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
+                        return isMainCategoryMatch && isWorkstationMatch;
+                    }
+                    if (isMainCategoryChecked && isCategoryChecked && isWorkstationChecked) {
+                        return isCategoryMatch || isWorkstationMatch;
+                    }
 
-                const isCategoryMatch = selectedCategories.includes(cat);
-                const isWorkstationMatch = selectedCategories.includes(work);
-                const isMainCategoryMatch = selectedMainTypes.includes(isMainCategoryChecked);
+                    return true;
+                });
 
-                if (isMainCategoryChecked && !isCategoryChecked && !isWorkstationChecked) {
-                    return isMainCategoryMatch;
-                }
-                if (isMainCategoryChecked && isCategoryChecked && !isWorkstationChecked) {
-                    return isCategoryMatch;
-                }
-                if (!isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
-                    return isWorkstationMatch;
-                }
-                if (isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
-                    return isMainCategoryMatch && isWorkstationMatch;
-                }
-                if (isMainCategoryChecked && isCategoryChecked && isWorkstationChecked) {
-                    return isCategoryMatch || isWorkstationMatch;
-                }
+                if (filteredItems.length === 0) return [];
 
-                return true;
+                const subtotal = filteredItems.reduce((acc, item) => acc + (item.subtotal || 0), 0);
+                const tax = subtotal * 0.1;
+                const total = subtotal + tax;
+
+                return filteredItems.map((item, index) => {
+                    const categoryObj = categories.find(c => c._id === item.menuItem?.category._id);
+                    return {
+                        "Tanggal & Waktu": formatDateTime(order.createdAt),
+                        "ID Struk": order.order_id || '',
+                        "Status Pembayaran": order.status || '',
+                        "ID / Kode Outlet": outletCode,
+                        "Outlet": outletName,
+                        "Tipe Penjualan": order.orderType || '',
+                        "Kasir": order.cashierId?.username || '',
+                        "No. Hp Pelanggan": '',
+                        "Nama Pelanggan": order.user || '',
+                        "SKU": '',
+                        "Nama Produk": item.menuItem?.name || '',
+                        "Kategori": categoryObj?.name || '',
+                        "Jumlah Produk": item.quantity || 0,
+                        "Harga Produk": item.menuItem?.price || 0,
+                        "Penjualan Kotor": item.subtotal || 0,
+                        "Diskon Produk": 0,
+                        "Subtotal": index === 0 ? subtotal : '',
+                        "Diskon Transaksi": 0,
+                        "Pajak": index === 0 ? tax : '',
+                        "Pembulatan": 0,
+                        "Poin Ditukar": 0,
+                        "Biaya Admin": 0,
+                        "Total": index === 0 ? total : '',
+                        "Metode Pembayaran": order.paymentMethod || '',
+                        "Pembayaran": index === 0 ? total : '',
+                        "Kode Voucher": ''
+                    };
+                });
             });
 
-            if (filteredItems.length === 0) return [];
+            const formatDate = (dateStr) => {
+                if (!dateStr) return "semua-tanggal";
+                const date = new Date(dateStr);
+                const dd = String(date.getDate()).padStart(2, '0');
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const yyyy = date.getFullYear();
+                return `${dd}-${mm}-${yyyy}`;
+            };
 
-            // ➕ Hitung subtotal, pajak, total per order
-            const subtotal = filteredItems.reduce((acc, item) => acc + (item.subtotal || 0), 0);
-            const tax = subtotal * 0.1;
-            const total = subtotal + tax;
+            const startLabel = formatDate(dateRange.startDate);
+            const endLabel = formatDate(dateRange.endDate);
+            const fileName = `Penjualan ${startLabel} - ${endLabel}.xlsx`;
 
-            return filteredItems.map((item, index) => {
-                const categoryObj = categories.find(c => c._id === item.menuItem?.category);
-                return {
-                    "Tanggal & Waktu": formatDateTime(order.createdAt),
-                    "ID Struk": order.order_id || '',
-                    "Status Pembayaran": order.status || '',
-                    "ID / Kode Outlet": outletCode,
-                    "Outlet": outletName,
-                    "Tipe Penjualan": order.orderType || '',
-                    "Kasir": order.cashierId?.username || '',
-                    "No. Hp Pelanggan": '',
-                    "Nama Pelanggan": order.user || '',
-                    "SKU": '',
-                    "Nama Produk": item.menuItem?.name || '',
-                    "Kategori": categoryObj?.name || '',
-                    "Jumlah Produk": item.quantity || 0,
-                    "Harga Produk": item.menuItem?.price || 0,
-                    "Penjualan Kotor": item.subtotal || 0,
-                    "Diskon Produk": 0,
-                    // ➕ Isi subtotal, pajak, dan total hanya di baris pertama order
-                    "Subtotal": index === 0 ? subtotal : '',
-                    "Diskon Transaksi": 0,
-                    "Pajak": index === 0 ? tax : '',
-                    "Pembulatan": 0,
-                    "Poin Ditukar": 0,
-                    "Biaya Admin": 0,
-                    "Total": index === 0 ? total : '',
-                    "Metode Pembayaran": order.paymentMethod || '',
-                    "Pembayaran": index === 0 ? total : '',
-                    "Kode Voucher": ''
-                };
-            });
-        });
+            const headerInfo = [
+                ["Tanggal", `${startLabel} - ${endLabel}`],
+                ["Status Transaksi", "Semua Status"],
+                ["Produk/Pelanggan", "Semua Pelanggan"],
+            ];
 
-        const formatDate = (dateStr) => {
-            if (!dateStr) return "semua-tanggal";
-            const date = new Date(dateStr);
-            const dd = String(date.getDate()).padStart(2, '0');
-            const mm = String(date.getMonth() + 1).padStart(2, '0');
-            const yyyy = date.getFullYear();
-            return `${dd}-${mm}-${yyyy}`;
-        };
+            // Simulasi delay 15 detik
+            await new Promise(resolve => setTimeout(resolve, 15000));
 
-        const startLabel = formatDate(dateRange.startDate);
-        const endLabel = formatDate(dateRange.endDate);
-        const fileName = `Penjualan ${startLabel} - ${endLabel}.xlsx`;
-
-        const headerInfo = [
-            ["Tanggal", `${startLabel} - ${endLabel}`],
-            ["Status Transaksi", "Semua Status"],
-            ["Produk/Pelanggan", "Semua Pelanggan"],
-        ];
-
-        exportToExcel(exportData, fileName, headerInfo);
+            exportToExcel(exportData, fileName, headerInfo);
+        } catch (error) {
+            console.error('Error exporting:', error);
+        } finally {
+            setIsExporting(false);
+        }
     };
 
 
@@ -356,9 +363,23 @@ const ExportFilter = ({ isOpen, onClose }) => {
                     <div className="pt-4">
                         <button
                             onClick={handleExport}
-                            className="w-full bg-white hover:bg-[#005429] hover:text-white border-[#005429] border text-[#005429] py-2 px-4 rounded-lg text-sm font-medium transition"
+                            disabled={isExporting}
+                            className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 ${isExporting
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-white hover:bg-[#005429] hover:text-white border-[#005429] border text-[#005429]'
+                                }`}
                         >
-                            Ekspor ke Excel
+                            {isExporting ? (
+                                <>
+                                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span>Mengekspor...</span>
+                                </>
+                            ) : (
+                                'Ekspor ke Excel'
+                            )}
                         </button>
                     </div>
                 </div>

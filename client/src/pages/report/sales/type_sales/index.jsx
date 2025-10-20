@@ -5,6 +5,8 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa"
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
+import TypeSalesSkeleton from "./skeleton";
+import Paginated from "../../../../components/paginated";
 
 const TypeSales = () => {
 
@@ -332,9 +334,7 @@ const TypeSales = () => {
     // Show loading state
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
+            <TypeSalesSkeleton />
         );
     }
 
@@ -483,27 +483,11 @@ const TypeSales = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-4 text-sm text-white">
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
-                        >
-                            <FaChevronLeft /> Sebelumnya
-                        </button>
-
-                        <div className="flex gap-2">{renderPageNumbers()}</div>
-
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                            disabled={currentPage === totalPages}
-                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
-                        >
-                            Selanjutnya <FaChevronRight />
-                        </button>
-                    </div>
-                )}
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
             </div>
         </div>
     );

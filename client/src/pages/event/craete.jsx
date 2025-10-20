@@ -1,134 +1,19 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import Select from 'react-select';
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
-import {
-    getDownloadURL,
-    getStorage,
-    ref,
-    uploadBytesResumable,
-} from 'firebase/storage';
-import { app } from '../../firebase';
-import { Link } from "react-router-dom";
-import { FaChevronRight, FaShoppingBag, FaBell, FaUser, FaImage, FaCamera, FaInfoCircle, FaGift, FaPizzaSlice, FaChevronDown } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
-import ConfirmationModal from "../menu/confirmmodal";
-import AddonForm from "../menu/opsimodal";
+import dayjs from "dayjs";
+import Select from "react-select";
+import { Link, useNavigate } from "react-router-dom";
+import { FaTimes, FaChevronRight, FaBell, FaUser, FaSearch, FaInfoCircle, FaBoxes, FaChevronLeft, FaTicketAlt, FaPlus } from "react-icons/fa";
+import Datepicker from 'react-tailwindcss-datepicker';
+import Header from "../admin/header";
+
 
 const CreateEvent = () => {
-    const [allCategories, setAllCategories] = useState([]);
-    const [categories, setCategories] = useState([]);
-    const [subCategories, setSubCategories] = useState([]);
-
-    const MainCategories = ['makanan', 'minuman', 'dessert', 'snack', 'event'];
-    const [isModalOpen, setIsModalOpen] = useState(false);
-
-    const [outlets, setOutlets] = useState([]);
-    const [file, setFile] = useState(null);
-    const [isVariationOpen, setIsVariationOpen] = useState(false);
-    const [isOpsiOpen, setIsOpsiOpen] = useState(false);
-    const [isChecked, setIsChecked] = useState(false);
-
-    const [selectedOutlet, setSelectedOutlet] = useState('');
-    const [selectedMainCategory, setSelectedMainCategory] = useState("");
-    const [searchTermMainCategories, setSearchTermMainCategories] = useState("");
-    const [searchTermCategories, setSearchTermCategories] = useState("");
-    const [searchTermSub, setSearchTermSub] = useState("");
-
-    const [showMainDropdown, setShowMainDropdown] = useState(false);
-    const [showDropdown, setShowDropdown] = useState(false);
-    const [showSubDropdown, setShowSubDropdown] = useState(false);
-    const fileRef = useRef(null);
-    const navigate = useNavigate();
-    const [isOpen, setIsOpen] = useState(false);
-    const [isOptional, setIsOptional] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
-
-    const [imageFile, setImageFile] = useState(null);
-
-    const [compressedImageURL, setCompressedImageURL] = useState(null);
-    const [imageError, setImageError] = useState(false);
-    const [formData, setFormData] = useState({
-        name: "",
-        price: "",
-        description: "",
-        mainCat: "",
-        category: "",
-        subCategory: "",
-        rawMaterials: [],
-        availableAt: [],
-    });
-
-    const [toppings, setToppings] = useState([]);
-    const [addons, setAddons] = useState([]);
-
-    const handleImageChange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        setImageFile(file);
-        setCompressedImageURL(URL.createObjectURL(file)); // tampilkan preview
-    };
-
-    const compressImage = (file, quality = 0.6, maxWidth = 800) => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-
-            reader.onload = (event) => {
-                const img = new Image();
-                img.src = event.target.result;
-
-                img.onload = () => {
-                    const canvas = document.createElement("canvas");
-
-                    const scale = maxWidth / img.width;
-                    canvas.width = maxWidth;
-                    canvas.height = img.height * scale;
-
-                    const ctx = canvas.getContext("2d");
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                    canvas.toBlob(
-                        (blob) => {
-                            if (!blob) return reject("Blob is null");
-                            resolve(blob);
-                        },
-                        "image/jpeg",
-                        quality
-                    );
-                };
-
-                img.onerror = (err) => reject(err);
-            };
-
-            reader.onerror = (err) => reject(err);
-        });
-    };
-
-    const uploadToFirebase = (file) => {
-        return new Promise((resolve, reject) => {
-            const storage = getStorage(app);
-            const fileRef = ref(storage, `menu/${Date.now()}-${file.name}`);
-            const uploadTask = uploadBytesResumable(fileRef, file);
-
-            uploadTask.on(
-                "state_changed",
-                null,
-                (err) => reject(err),
-                async () => {
-                    const url = await getDownloadURL(uploadTask.snapshot.ref);
-                    resolve(url);
-                }
-            );
-        });
-    };
-
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
             borderColor: '#d1d5db', // Tailwind border-gray-300
-            minHeight: '34px',
+            minHeight: '36px',
             fontSize: '13px',
             color: '#6b7280', // text-gray-500
             boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
@@ -158,395 +43,377 @@ const CreateEvent = () => {
         }),
     };
 
-    const handleInputChange = (e) => {
+    const navigate = useNavigate();
+    const [form, setForm] = useState({
+        name: "",
+        description: "",
+        location: "",
+        date: null,
+        price: "",
+        organizer: "",
+        contactEmail: "",
+        imageUrl: "",
+        category: "",
+        tags: "",
+        status: "upcoming",
+        capacity: "",
+        privacy: "public",
+        terms: ""
+    });
+
+    const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData({ ...formData, [name]: value });
+        setForm((prev) => ({ ...prev, [name]: value }));
     };
 
-    useEffect(() => {
-        fetchCategories();
-        fetchOutlets();
-    }, []);
-
-    const fetchCategories = async () => {
-        setLoading(true);
-        try {
-            const res = await axios.get("/api/menu/categories");
-            const data = res.data.data;
-
-            setAllCategories(data);
-            console.log(data);
-            const main = data.filter((cat) => !cat.parentCategory);
-            setCategories(main);
-        } catch (error) {
-            console.error("Gagal fetch categories:", error);
-        } finally {
-            setLoading(false);
+    const handleDateChange = (newValue) => {
+        // Convert ke ISO string (sesuai API)
+        if (newValue && newValue.startDate) {
+            const isoDate = new Date(newValue.startDate).toISOString();
+            setForm(prev => ({ ...prev, date: isoDate }));
+        } else {
+            setForm(prev => ({ ...prev, date: "" }));
         }
     };
 
-    const fetchOutlets = async () => {
-        setLoading(true);
-        try {
-            const res = await axios.get("/api/outlet");
-            const data = res.data.data;
+    const [imagePreview, setImagePreview] = useState(form.imageUrl || "");
 
-            setOutlets(data);
-        } catch (error) {
-            console.error("Gagal fetch outlet:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        const valueToSend = isChecked ? "kitchen" : "bar";
-        e.preventDefault();
-        try {
-            let imageURL = "";
-            if (imageFile) {
-                imageURL = await uploadToFirebase(imageFile);
-            }
-
-            const payload = {
-                name: formData.name,
-                description: formData.description,
-                price: Number(formData.price),
-                // discountedPrice: Number(formData.price), // bisa ubah sesuai diskon
-                imageURL: imageURL || "",
-                mainCat: selectedMainCategory,
-                category: formData.category,
-                subCategory: formData.subCategory || null,
-                availableAt: formData.availableAt, // array of outlet ids
-                rawMaterials: formData.rawMaterials || [],
-                toppings: toppings.map((top) => ({
-                    name: top.name,
-                    price: Number(top.price),
-                })),
-                addons: addons.map((addon) => ({
-                    name: addon.name,
-                    options: addon.options.map((opt) => ({
-                        label: opt.label,
-                        price: Number(opt.price),
-                        isDefault: opt.isDefault,
-                    })),
-                })),
-                workstation: valueToSend
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result);
             };
-
-            console.log(payload);
-
-            await axios.post("/api/menu/menu-items", payload);
-            navigate("/admin/event/create-event");
-            // alert("Berhasil");
-        } catch (err) {
-            console.error("Gagal kirim data:", err);
+            reader.readAsDataURL(file);
         }
     };
 
-    // Show loading state
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
-        );
-    }
+    const handleRemoveImage = () => {
+        setImagePreview(null);
+        document.getElementById("file-upload").value = ""; // reset input file
+    };
+
+    const privacyOptions = [
+        { value: "public", label: "Public" },
+        { value: "private", label: "Private" }
+    ];
+
+    const status = [
+        { value: "upcoming", label: "Upcoming" },
+        { value: "ongoing", label: "Ongoing" },
+        { value: "completed", label: "Completed" }
+    ]
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        // Convert tags from string to array
+        const payload = {
+            ...form,
+            price: Number(form.price),
+            capacity: Number(form.capacity),
+            tags: form.tags.split(",").map((tag) => tag.trim())
+        };
+        // console.log("Submit data:", payload);
+        axios.post("/api/event", payload);
+        navigate("/admin/event");
+    };
 
     return (
         <div className="">
-            <form onSubmit={handleSubmit}>
-                {/* Header */}
+            <Header />
 
-                <div className="flex justify-between items-center px-6 py-3 my-3">
-                    <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                        <Link to="/admin/event">
-                            Event
-                        </Link>
-                        <FaChevronRight />
-                        <span>
-                            Tambah Event
-                        </span>
-                    </h1>
-                    <div className="flex items-center gap-3">
-                        <span
-                            onClick={() => setIsModalOpen(true)}
-                            className="block border border-[#005429] text-[#005429] hover:bg-[#005429] hover:text-white text-sm px-3 py-1.5 rounded cursor-pointer"
-                        >
-                            Batal
-                        </span>
-                        <button
-                            type="submit"
-                            className="block bg-[#005429] text-white text-sm px-3 py-1.5 rounded"
-                        >
-                            Simpan
-                        </button>
+            {/* Breadcrumb */}
+            <div className="px-3 py-2 flex justify-between items-center border-b">
+                <div className="flex items-center space-x-2">
+                    <FaTicketAlt size={21} className="text-gray-500 inline-block" />
+                    <p className="text-[15px] text-gray-500">Event</p>
+                    <FaChevronRight size={21} className="text-gray-500 inline-block" />
+                    <p className="text-[15px] text-gray-500">Tambah Event</p>
+                </div>
+            </div>
+            <form
+                onSubmit={handleSubmit}
+                className="space-y-8 p-8 max-w-5xl mx-auto mb-[60px]"
+            >
+
+                {/* Grid Input */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Nama Event */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Nama Event
+                        </label>
+                        <input
+                            type="text"
+                            name="name"
+                            value={form.name}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="Masukkan nama event"
+                            required
+                        />
+                    </div>
+
+                    {/* Lokasi */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Lokasi
+                        </label>
+                        <input
+                            type="text"
+                            name="location"
+                            value={form.location}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="Lokasi event"
+                            required
+                        />
+                    </div>
+
+                    {/* Deskripsi */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Deskripsi
+                        </label>
+                        <textarea
+                            name="description"
+                            value={form.description}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm resize-y min-h-[120px]"
+                            placeholder="Ceritakan tentang event ini..."
+                            required
+                        />
+                    </div>
+
+                    {/* Tanggal & Waktu */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Tanggal & Waktu
+                        </label>
+                        <Datepicker
+                            primaryColor="green"
+                            useRange={false}
+                            asSingle={true}
+                            value={{
+                                startDate: form.date ? new Date(form.date) : null,
+                                endDate: form.date ? new Date(form.date) : null,
+                            }}
+                            onChange={handleDateChange}
+                            showShortcuts={false}
+                            displayFormat="DD-MM-YYYY HH:mm"
+                            showTimePicker={true}
+                            inputClassName="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                        />
+
+                    </div>
+
+                    {/* Harga */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Harga Tiket (Rp)
+                        </label>
+                        <input
+                            type="number"
+                            name="price"
+                            value={form.price}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="150000"
+                        />
+                    </div>
+
+                    {/* Penyelenggara */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Penyelenggara
+                        </label>
+                        <input
+                            type="text"
+                            name="organizer"
+                            value={form.organizer}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="Nama penyelenggara"
+                        />
+                    </div>
+
+                    {/* Email Kontak */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Email Kontak
+                        </label>
+                        <input
+                            type="email"
+                            name="contactEmail"
+                            value={form.contactEmail}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="contoh@email.com"
+                        />
+                    </div>
+
+                    {/* Gambar Event */}
+                    <div>
+                        <label className="block font-medium mb-2">Gambar</label>
+
+                        <div className="relative w-40 h-40 border-2 border-dashed rounded-lg flex items-center justify-center overflow-hidden cursor-pointer hover:border-blue-500">
+                            {/* Kotak klik */}
+                            <label
+                                htmlFor="file-upload"
+                                className="w-full h-full flex items-center justify-center cursor-pointer"
+                            >
+                                {imagePreview ? (
+                                    <img
+                                        src={imagePreview}
+                                        alt="Preview"
+                                        className="object-cover w-full h-full"
+                                    />
+                                ) : (
+                                    <span className="text-gray-400 text-center px-2">
+                                        <FaPlus size={48} />
+                                    </span>
+                                )}
+                            </label>
+
+                            {/* Tombol hapus */}
+                            {imagePreview && (
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveImage}
+                                    className="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-70"
+                                >
+                                    <FaTimes size={14} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Input file hidden */}
+                        <input
+                            id="file-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleFileChange}
+                        />
+                    </div>
+
+                    {/* Kategori */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Kategori
+                        </label>
+                        <input
+                            type="text"
+                            name="category"
+                            value={form.category}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="Contoh: Music, Seminar..."
+                        />
+                    </div>
+
+                    {/* Tags */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Tags
+                        </label>
+                        <input
+                            type="text"
+                            name="tags"
+                            value={form.tags}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="Pisahkan dengan koma"
+                        />
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Status
+                        </label>
+                        <Select
+                            options={status}
+                            value={status.find(option => option.value === form.status)}
+                            onChange={(selected) =>
+                                setForm(prev => ({ ...prev, status: selected.value }))
+                            }
+                            classNamePrefix="react-select"
+                            styles={customSelectStyles}
+                        />
+                    </div>
+
+
+                    {/* Kapasitas */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Kapasitas
+                        </label>
+                        <input
+                            type="number"
+                            name="capacity"
+                            value={form.capacity}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm"
+                            placeholder="300"
+                        />
+                    </div>
+
+                    {/* Privasi */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Privasi
+                        </label>
+                        <Select
+                            options={privacyOptions}
+                            value={privacyOptions.find(option => option.value === form.privacy)}
+                            onChange={(selected) =>
+                                setForm(prev => ({ ...prev, privacy: selected.value }))
+                            }
+                            classNamePrefix="react-select"
+                            styles={customSelectStyles}
+                        />
+                    </div>
+
+                    {/* Syarat & Ketentuan */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Syarat & Ketentuan
+                        </label>
+                        <textarea
+                            name="terms"
+                            value={form.terms}
+                            onChange={handleChange}
+                            className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm resize-y min-h-[100px]"
+                            placeholder="Tulis syarat & ketentuan..."
+                        />
                     </div>
                 </div>
 
-                {/* Modal */}
-                {showModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-2">
-                        <div className="bg-white p-6 rounded shadow-md text-center space-y-4 w-full max-w-md">
-                            <p className="text-lg font-semibold">Yakin ingin membatalkan?</p>
-                            <div className="flex justify-center gap-4 flex-wrap">
-                                <Link
-                                    to="/admin/menu"
-                                    className="px-4 py-2 bg-red-500 text-white rounded"
-                                >
-                                    Ya, Batalkan
-                                </Link>
-                                <button
-                                    onClick={() => setShowModal(false)}
-                                    className="px-4 py-2 bg-gray-300 rounded"
-                                >
-                                    Tidak
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Form Container */}
-                <div className="px-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 shadow-md p-4 sm:p-6 md:p-12 rounded-lg bg-white">
-                        {/* grid 1 */}
-                        <div className="text-green-900 space-y-4">
-                            {/* Nama Menu */}
-                            <div>
-                                <label className="text-xs block font-medium after:content-['*'] after:text-red-500 after:text-lg after:ml-1 mb-2.5">
-                                    NAMA MENU
-                                </label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleInputChange}
-                                    className="w-full py-2 px-3 border rounded-lg"
-                                />
-                            </div>
-
-                            {/* Main Kategori */}
-                            {/* <div>
-                                <label className="my-2.5 text-xs block font-medium">
-                                    MAIN KATEGORI
-                                </label>
-                                <Select
-                                    options={MainCategories.map((cat) => ({
-                                        label: cat.charAt(0).toUpperCase() + cat.slice(1),
-                                        value: cat.toLowerCase(),
-                                    }))}
-                                    value={
-                                        MainCategories.find((cat) => cat === selectedMainCategory)
-                                            ? {
-                                                label:
-                                                    selectedMainCategory.charAt(0).toUpperCase() +
-                                                    selectedMainCategory.slice(1),
-                                                value: selectedMainCategory,
-                                            }
-                                            : null
-                                    }
-                                    onChange={(selectedOption) => {
-                                        setSelectedMainCategory(selectedOption.value);
-                                        setSearchTermMainCategories(selectedOption.value);
-                                    }}
-                                    styles={customSelectStyles}
-                                    placeholder="Pilih kategori utama..."
-                                />
-                            </div> */}
-
-                            {/* Kategori */}
-                            <div>
-                                <label className="my-2.5 text-xs block font-medium">KATEGORI</label>
-                                <Select
-                                    options={categories.map((cat) => ({
-                                        label: cat.name,
-                                        value: cat._id,
-                                    }))}
-                                    value={
-                                        formData.category
-                                            ? {
-                                                label:
-                                                    categories.find((cat) => cat._id === formData.category)
-                                                        ?.name || "",
-                                                value: formData.category,
-                                            }
-                                            : null
-                                    }
-                                    onChange={(selected) => {
-                                        setSearchTermCategories(selected.label);
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            category: selected.value,
-                                        }));
-                                        const sub = allCategories.filter(
-                                            (cat) => cat.parentCategory === selected.value
-                                        );
-                                        setSubCategories(sub);
-                                    }}
-                                    styles={customSelectStyles}
-                                    placeholder="Pilih kategori..."
-                                    className="mb-2"
-                                />
-                            </div>
-
-                            {/* Sub Kategori */}
-                            {subCategories.length > 0 && (
-                                <div>
-                                    <label className="my-2.5 text-xs block font-medium">
-                                        SUB KATEGORI
-                                    </label>
-                                    <Select
-                                        options={subCategories.map((sub) => ({
-                                            label: sub.name,
-                                            value: sub._id,
-                                        }))}
-                                        onChange={(selected) => {
-                                            setSearchTermSub(selected.label);
-                                            setFormData((prev) => ({
-                                                ...prev,
-                                                subCategory: selected.value,
-                                            }));
-                                        }}
-                                        placeholder="Pilih sub kategori..."
-                                        className="mb-2"
-                                        styles={customSelectStyles}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Price */}
-                            <div>
-                                <label className="my-2.5 text-xs block font-medium">HARGA</label>
-                                <input
-                                    type="number"
-                                    name="price"
-                                    value={formData.price}
-                                    onChange={handleInputChange}
-                                    className="w-full py-2 px-3 border rounded-lg"
-                                />
-                            </div>
-
-                            {/* SKU */}
-                            {/* <div>
-                <label className="my-2.5 text-xs block font-medium">SKU</label>
-                <input
-                  type="text"
-                  name="sku"
-                  value={formData.sku}
-                  onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg"
-                />
-              </div> */}
-
-                            {/* Barcode */}
-                            {/* <div>
-                <label className="my-2.5 text-xs block font-medium">BARCODE</label>
-                <input
-                  type="text"
-                  name="barcode"
-                  value={formData.barcode}
-                  onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg"
-                />
-              </div> */}
-
-                            {/* Stock Unit */}
-                            {/* <div>
-                <label className="my-2.5 text-xs block font-medium">
-                  SATUAN STOK
-                </label>
-                <input
-                  type="text"
-                  name="stock"
-                  value={formData.stock}
-                  onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg"
-                />
-              </div> */}
-
-                            {/* Image Input */}
-                            <div className="flex items-center space-x-4 py-4">
-                                {compressedImageURL ? (
-                                    <img
-                                        src={compressedImageURL}
-                                        alt="Compressed Preview"
-                                        className="h-24 w-24 object-cover rounded cursor-pointer"
-                                        onClick={() => fileRef.current.click()}
-                                    />
-                                ) : (
-                                    <div
-                                        className="h-24 w-24 flex items-center justify-center bg-gray-200 rounded cursor-pointer"
-                                        onClick={() => fileRef.current.click()}
-                                    >
-                                        <span className="text-gray-500 text-xl">+</span>
-                                    </div>
-                                )}
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    ref={fileRef}
-                                    className="hidden"
-                                    onChange={handleImageChange}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block mb-2.5 text-xs font-medium uppercase">Deskripsi</label>
-                                <textarea
-                                    name="description"
-                                    value={formData.description}
-                                    onChange={handleInputChange}
-                                    className="w-full border rounded p-2 h-36"
-                                />
-                            </div>
-                        </div>
-
-                        {/* grid 2 */}
-                        <div className="text-[14px] text-green-900 space-y-4">
-
-                            {/* Outlet */}
-                            <div>
-                                <label className="block mb-1 text-sm font-medium">Pilih Outlet</label>
-                                <div className="grid gap-2">
-                                    {outlets.map((outlet) => (
-                                        <label
-                                            key={outlet._id}
-                                            className="inline-flex items-center space-x-2"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                value={outlet._id}
-                                                checked={formData.availableAt.includes(outlet._id)}
-                                                onChange={(e) => {
-                                                    const checked = e.target.checked;
-                                                    const value = outlet._id;
-                                                    setFormData((prev) => ({
-                                                        ...prev,
-                                                        availableAt: checked
-                                                            ? [...prev.availableAt, value]
-                                                            : prev.availableAt.filter((id) => id !== value),
-                                                    }));
-                                                }}
-                                                className="form-checkbox text-blue-600"
-                                            />
-                                            <span>{outlet.name}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3">
+                    <Link
+                        to="/admin/event"
+                        className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-600"
+                    >
+                        Batal
+                    </Link>
+                    <button
+                        type="submit"
+                        className="px-5 py-2.5 rounded-lg border bg-[#005429] text-white"
+                    >
+                        Simpan
+                    </button>
                 </div>
             </form>
 
 
-            {/* Modal Slide */}
-            <ConfirmationModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onConfirm={() => navigate("/admin/event")}
-            />
+
+            <div className="bg-white w-full h-[50px] fixed bottom-0 shadow-[0_-1px_4px_rgba(0,0,0,0.1)]">
+                <div className="w-full h-[2px] bg-[#005429]">
+                </div>
+            </div>
         </div>
     );
 };
