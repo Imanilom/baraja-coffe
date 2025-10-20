@@ -46,6 +46,7 @@ const CategorySales = () => {
 
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
+    const [isExporting, setIsExporting] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
@@ -296,30 +297,113 @@ const CategorySales = () => {
     }, []);
 
     // Export current data to Excel
-    const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
-            const menuItem = item.menuItem || {};
-            const addonsPrice = item.addons?.reduce((sum, addon) => sum + (addon?.price || 0), 0) || 0;
+    const exportToExcel = async () => {
+        setIsExporting(true);
 
-            return {
-                "Produk": menuItem.name || 'N/A',
-                "Kategori": menuItem.category?.join(', ') || 'N/A',
-                "SKU": menuItem._id || 'N/A',
-                "Terjual": item.quantity || 0,
-                "Penjualan Kotor": item.subtotal || 0,
-                "Diskon Produk": addonsPrice || 0,
-                "Total": (item.subtotal || 0) + addonsPrice,
-                "Outlet": product.cashier?.outlet?.[0]?.outletId?.name || 'N/A',
-                "Tanggal": new Date(product.createdAt).toLocaleDateString('id-ID')
-            };
-        });
+        try {
+            // Small delay to show loading state
+            await new Promise(resolve => setTimeout(resolve, 15000));
 
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
-        XLSX.writeFile(wb, "Penjualan_Produk.xlsx");
+            // Get outlet name
+            const outletName = tempSelectedOutlet
+                ? outlets.find(o => o._id === tempSelectedOutlet)?.name || 'Semua Outlet'
+                : 'Semua Outlet';
+
+            // Get date range
+            const dateRange = value && value.startDate && value.endDate
+                ? `${new Date(value.startDate).toLocaleDateString('id-ID')} - ${new Date(value.endDate).toLocaleDateString('id-ID')}`
+                : new Date().toLocaleDateString('id-ID');
+
+            // Calculate totals
+            let totalTerjual = 0;
+            let totalPenjualanBersih = 0;
+            let totalRata = 0;
+
+            // Create export data
+            const exportData = [
+                { col1: 'Laporan Penjualan Produk', col2: '', col3: '', col4: '', col5: '', col6: '', col7: '', col8: '', col9: '' },
+                { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '', col7: '', col8: '', col9: '' },
+                { col1: 'Outlet', col2: outletName, col3: '', col4: '', col5: '', col6: '', col7: '', col8: '', col9: '' },
+                { col1: 'Tanggal', col2: dateRange, col3: '', col4: '', col5: '', col6: '', col7: '', col8: '', col9: '' },
+                { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '', col7: '', col8: '', col9: '' },
+                { col1: 'Kategori', col2: 'Terjual', col3: 'Penjualan Bersih', col4: 'Rata-rata' }
+            ];
+
+            // Add data rows
+            filteredData.forEach(product => {
+                const item = product.items?.[0] || {};
+                const menuItem = item.menuItem || {};
+
+                const terjual = item.quantity || 0;
+                const penjualanBersih = item.subtotal || 0;
+                const rata = penjualanBersih / terjual;
+
+                // Add to totals
+                totalTerjual += terjual;
+                totalPenjualanBersih += penjualanBersih;
+                totalRata += rata;
+
+                exportData.push({
+                    col1: menuItem.category?.name || '-',
+                    col2: terjual,
+                    col3: penjualanBersih,
+                    col4: rata,
+                });
+            });
+
+            // Add Grand Total row
+            exportData.push({
+                col1: 'Grand Total',
+                col2: totalTerjual,
+                col3: totalPenjualanBersih,
+                col4: totalRata,
+            });
+
+            // Create worksheet
+            const ws = XLSX.utils.json_to_sheet(exportData, {
+                header: ['col1', 'col2', 'col3', 'col4', 'col5', 'col6', 'col7', 'col8', 'col9'],
+                skipHeader: true
+            });
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 20 }, // Kategori
+                { wch: 12 }, // Terjual
+                { wch: 18 }, // Penjualan Bersih
+                { wch: 18 }, // Ratta-rata
+            ];
+
+            // Merge cells for title
+            ws['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } } // Merge title across 9 columns
+            ];
+
+            // Apply bold styling to specific rows
+            const boldRows = [0, 5, exportData.length - 1]; // Title, Header, Grand Total
+
+            boldRows.forEach(rowIndex => {
+                for (let col = 0; col < 9; col++) {
+                    const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: col });
+                    if (ws[cellAddress]) {
+                        ws[cellAddress].s = { font: { bold: true } };
+                    }
+                }
+            });
+
+            // Create workbook and add worksheet
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
+
+            // Export file
+            const fileName = `Laporan_Penjualan_Produk_${outletName}_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+
+        } catch (error) {
+            console.error("Error exporting to Excel:", error);
+            alert("Gagal mengekspor data. Silakan coba lagi.");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     // Show loading state
@@ -359,8 +443,21 @@ const CategorySales = () => {
                     <FaChevronRight />
                     <sapn>Penjualan Per Kategori</sapn>
                 </h1>
-                <button onClick={exportToExcel} className="flex items-center gap-2 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">
-                    <FaDownload /> Ekspor
+                <button
+                    onClick={exportToExcel}
+                    disabled={isExporting}
+                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isExporting ? (
+                        <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                            Mengekspor...
+                        </>
+                    ) : (
+                        <>
+                            <FaDownload /> Ekspor CSV
+                        </>
+                    )}
                 </button>
             </div>
 

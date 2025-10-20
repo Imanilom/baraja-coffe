@@ -399,6 +399,7 @@ const UpdateMenu = () => {
 
     const payload = {
       ...formData,
+      imageURL: imageURL,
       category: typeof formData.category === 'string'
         ? formData.category
         : formData.category?._id || formData.category?.id,
@@ -634,6 +635,45 @@ const UpdateMenu = () => {
               </div> */}
 
               <div className="flex items-center space-x-4 py-4">
+                {compressedImageURL || formData.imageURL ? (
+                  <img
+                    src={compressedImageURL || formData.imageURL}
+                    alt="Preview"
+                    className="h-24 w-24 object-cover rounded cursor-pointer"
+                    onClick={() => fileRef.current.click()}
+                  />
+                ) : (
+                  <div
+                    className="h-24 w-24 flex items-center justify-center bg-gray-200 rounded cursor-pointer"
+                    onClick={() => fileRef.current.click()}
+                  >
+                    <span className="text-gray-500 text-xl">+</span>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  ref={fileRef}
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+                {(compressedImageURL || formData.imageURL) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageFile(null);
+                      setCompressedImageURL(null);
+                      // Jika ingin menghapus gambar dari formData juga:
+                      // setFormData({ ...formData, imageURL: '' });
+                    }}
+                    className="text-red-500 text-sm hover:underline"
+                  >
+                    Hapus gambar
+                  </button>
+                )}
+              </div>
+
+              {/* <div className="flex items-center space-x-4 py-4">
                 {compressedImageURL ? (
                   <img
                     src={compressedImageURL}
@@ -668,7 +708,7 @@ const UpdateMenu = () => {
                     Hapus gambar
                   </button>
                 )}
-              </div>
+              </div> */}
 
               <div>
                 <label className="block mb-2.5 text-xs font-medium uppercase">Deskripsi</label>
