@@ -3848,10 +3848,13 @@ export const getOrderById = async (req, res) => {
   }
 };
 
+
+
 export const getOrderId = async (req, res) => {
   try {
     const { orderId } = req.params;
 
+    // 1️⃣ Cari order-nya
     const order = await Order.findOne({ order_id: orderId })
       .populate('user_id', 'name email')
       .populate('cashierId', 'name email')
@@ -3869,10 +3872,31 @@ export const getOrderId = async (req, res) => {
       });
     }
 
+    // 2️⃣ Ambil ringkasan pembayaran (payment summary)
+    const paymentSummary = await Payment.getPaymentSummary(order.order_id);
+
+    // 3️⃣ Tentukan status pembayaran global
+    let paymentStatus = 'unpaid';
+    if (paymentSummary) {
+      if (paymentSummary.summary.isFullyPaid) paymentStatus = 'settlement';
+      else if (paymentSummary.summary.totalPaid > 0) paymentStatus = 'partial';
+      else paymentStatus = 'pending';
+    }
+
+    // 4️⃣ Kirim response dengan gabungan data
     res.status(200).json({
       success: true,
-      data: order
+      data: {
+        order,
+        payment: {
+          status: paymentStatus,
+          summary: paymentSummary?.summary || null,
+          history: paymentSummary?.summary?.paymentHistory || [],
+          details: paymentSummary?.payments || [],
+        }
+      }
     });
+
   } catch (error) {
     console.error('Error getOrderById:', error);
     res.status(500).json({
@@ -3882,6 +3906,7 @@ export const getOrderId = async (req, res) => {
     });
   }
 };
+
 
 export const getPendingPaymentOrders = async (req, res) => {
   try {
