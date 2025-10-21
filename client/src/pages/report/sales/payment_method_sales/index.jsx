@@ -55,6 +55,7 @@ const PaymentMethodSales = () => {
     const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
+    const [isExporting, setIsExporting] = useState(false);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -339,8 +340,21 @@ const PaymentMethodSales = () => {
                     <FaChevronRight />
                     <span>Metode Pembayaran</span>
                 </h1>
-                <button onClick={exportToExcel} className="flex items-center gap-2 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">
-                    <FaDownload /> Ekspor
+                <button
+                    onClick={exportToExcel}
+                    disabled={isExporting}
+                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isExporting ? (
+                        <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                            Mengekspor...
+                        </>
+                    ) : (
+                        <>
+                            <FaDownload /> Ekspor CSV
+                        </>
+                    )}
                 </button>
             </div>
 
