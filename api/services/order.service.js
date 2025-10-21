@@ -9,66 +9,114 @@ import mongoose from 'mongoose';
 /**
  * Processes order items including pricing calculations and promotions
  */
-export async function processOrderItems({ items, outlet, orderType, voucherCode, customerType, source, customerId, loyaltyPointsToRedeem }, session) {
+export async function processOrderItems({ 
+  items, 
+  outlet, 
+  orderType, 
+  voucherCode, 
+  customerType, 
+  source, 
+  customerId, 
+  loyaltyPointsToRedeem, 
+  customAmountItems = [] 
+}, session) {
 
-  if (!items || !Array.isArray(items) || items.length === 0) {
+  if ((!items || !Array.isArray(items) || items.length === 0) && 
+      (!customAmountItems || customAmountItems.length === 0)) {
     throw new Error('Order items cannot be empty');
   }
-
-  
 
   const orderItems = [];
   let totalBeforeDiscount = 0;
 
-  for (const item of items) {
-    if (!item.id || !item.quantity || item.quantity <= 0) {
-      throw new Error(`Invalid item quantity (${item.quantity}) or missing ID for item`);
-    }
+  // Process regular menu items
+  if (items && Array.isArray(items)) {
+    for (const item of items) {
+      if (!item.id || !item.quantity || item.quantity <= 0) {
+        throw new Error(`Invalid item quantity (${item.quantity}) or missing ID for item`);
+      }
 
-    const [menuItem, recipe] = await Promise.all([
-      MenuItem.findById(item.id).session(session),
-      Recipe.findOne({ menuItemId: item.id }).session(session),
-    ]);
+      const [menuItem, recipe] = await Promise.all([
+        MenuItem.findById(item.id).session(session),
+        Recipe.findOne({ menuItemId: item.id }).session(session),
+      ]);
 
-    if (!menuItem) {
-      throw new Error(`Menu item ${item.id} not found`);
-    }
-    if (!recipe) {
-      throw new Error(`Recipe for menu item ${menuItem.name} (${item.id}) not found`);
-    }
+      if (!menuItem) {
+        throw new Error(`Menu item ${item.id} not found`);
+      }
+      if (!recipe) {
+        throw new Error(`Recipe for menu item ${menuItem.name} (${item.id}) not found`);
+      }
 
-    let itemPrice = menuItem.price;
-    const addons = [];
-    const toppings = [];
+      let itemPrice = menuItem.price;
+      const addons = [];
+      const toppings = [];
 
-    // Process toppings
-    if (item.selectedToppings?.length > 0) {
-      await processToppings(item, menuItem, recipe, toppings, (added) => {
-        itemPrice += added;
+      // Process toppings
+      if (item.selectedToppings?.length > 0) {
+        await processToppings(item, menuItem, recipe, toppings, (added) => {
+          itemPrice += added;
+        });
+      }
+
+      // Process addons
+      if (item.selectedAddons?.length > 0) {
+        await processAddons(item, menuItem, recipe, addons, (added) => {
+          itemPrice += added;
+        });
+      }
+
+      const subtotal = itemPrice * item.quantity;
+      totalBeforeDiscount += subtotal;
+
+      orderItems.push({
+        menuItem: item.id,
+        menuItemName: menuItem.name,
+        quantity: item.quantity,
+        subtotal,
+        addons,
+        toppings,
+        notes: item.notes || '',
+        isPrinted: false,
+        dineType: item.dineType || 'Dine-In',
+        isCustomAmount: false // Regular item
       });
     }
+  }
 
-    // Process addons
-    if (item.selectedAddons?.length > 0) {
-      await processAddons(item, menuItem, recipe, addons, (added) => {
-        itemPrice += added;
+  // Process custom amount items
+  if (customAmountItems && Array.isArray(customAmountItems)) {
+    for (const customItem of customAmountItems) {
+      if (!customItem.amount || customItem.amount <= 0) {
+        throw new Error(`Invalid custom amount (${customItem.amount})`);
+      }
+
+      const subtotal = customItem.amount;
+      totalBeforeDiscount += subtotal;
+
+      orderItems.push({
+        menuItem: null, // No menu item reference
+        menuItemName: customItem.name || 'Custom Amount',
+        quantity: 1, // Always quantity 1 for custom amount
+        subtotal,
+        addons: [],
+        toppings: [],
+        notes: customItem.description || 'Penyesuaian jumlah pembayaran',
+        isPrinted: false,
+        dineType: customItem.dineType || 'Dine-In',
+        isCustomAmount: true,
+        customAmountName: customItem.name || 'Custom Amount',
+        customAmountDescription: customItem.description || '',
+        kitchenStatus: 'ready', // Custom amount langsung ready, tidak perlu ke kitchen
+        isPrinted: true // Custom amount tidak perlu di-print di kitchen
+      });
+
+      console.log('Custom amount item added:', {
+        name: customItem.name || 'Custom Amount',
+        amount: customItem.amount,
+        description: customItem.description || ''
       });
     }
-
-    const subtotal = itemPrice * item.quantity;
-    totalBeforeDiscount += subtotal;
-
-    orderItems.push({
-      menuItem: item.id,
-      menuItemName: menuItem.name,
-      quantity: item.quantity,
-      subtotal,
-      addons,
-      toppings,
-      notes: item.notes || '',
-      isPrinted: false,
-      dineType: item.dineType,
-    });
   }
 
   // LOYALTY PROGRAM: OPSIONAL - hanya jika ada customerId yang valid
@@ -86,7 +134,8 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
     isValidCustomerId: customerId ? mongoose.Types.ObjectId.isValid(customerId) : false,
     source,
     isEligibleForLoyalty,
-    loyaltyPointsToRedeem
+    loyaltyPointsToRedeem,
+    totalBeforeDiscount
   });
 
   if (isEligibleForLoyalty) {
@@ -168,6 +217,21 @@ export async function processOrderItems({ items, outlet, orderType, voucherCode,
 
   const grandTotal = promotionResults.totalAfterDiscount + totalTax + totalServiceFee;
 
+  console.log('Order Processing Summary:', {
+    totalBeforeDiscount,
+    loyaltyDiscount,
+    totalAfterLoyaltyDiscount,
+    autoPromoDiscount: promotionResults.autoPromoDiscount,
+    manualDiscount: promotionResults.manualDiscount,
+    voucherDiscount: promotionResults.voucherDiscount,
+    totalAfterDiscount: promotionResults.totalAfterDiscount,
+    totalTax,
+    totalServiceFee,
+    grandTotal,
+    customAmountItemsCount: customAmountItems ? customAmountItems.length : 0,
+    regularItemsCount: items ? items.length : 0
+  });
+
   return {
     orderItems,
     totals: {
@@ -225,6 +289,16 @@ async function processPromotions({ orderItems, outlet, orderType, voucherCode, c
 
   const totalDiscount = autoPromoDiscount + manualDiscount + voucherDiscount;
   const totalAfterDiscount = Math.max(0, totalBeforeDiscount - totalDiscount);
+
+  console.log('Promotion Processing:', {
+    autoPromoDiscount,
+    manualDiscount,
+    voucherDiscount,
+    totalDiscount,
+    totalBeforeDiscount,
+    totalAfterDiscount,
+    canUsePromo
+  });
 
   return {
     autoPromoDiscount,
@@ -352,9 +426,33 @@ export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orde
     }
   }
 
+  console.log('Tax and Service Calculation:', {
+    totalTax,
+    totalServiceFee,
+    taxAndServiceDetailsCount: taxAndServiceDetails.length
+  });
+
   return {
     taxAndServiceDetails,
     totalTax,
     totalServiceFee
+  };
+}
+
+/**
+ * Utility function untuk calculate custom amount automatically
+ */
+export function calculateCustomAmount(paidAmount, orderTotal) {
+  const difference = paidAmount - orderTotal;
+  
+  if (difference <= 0) {
+    return null; // Tidak perlu custom amount
+  }
+
+  return {
+    amount: difference,
+    name: 'Penyesuaian Pembayaran',
+    description: `Kelebihan pembayaran sebesar Rp ${difference.toLocaleString('id-ID')}`,
+    dineType: 'Dine-In'
   };
 }

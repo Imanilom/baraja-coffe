@@ -11,7 +11,11 @@ const toWIB = (date) => {
 };
 
 const OrderItemSchema = new mongoose.Schema({
-  menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+  menuItem: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'MenuItem',
+    required: false // Jadikan tidak required untuk custom amount
+  },
   quantity: { type: Number, min: 1 },
   subtotal: { type: Number, min: 0 },
   addons: [{ name: String, price: Number }],
@@ -20,7 +24,7 @@ const OrderItemSchema = new mongoose.Schema({
   batchNumber: { type: Number, default: 1 },
   addedAt: {
     type: Date,
-    default: () => getWIBNow() // Simpan dalam WIB
+    default: () => getWIBNow()
   },
   kitchenStatus: {
     type: String,
@@ -41,7 +45,21 @@ const OrderItemSchema = new mongoose.Schema({
   },
   outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
   outletName: { type: String },
-  payment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null }
+  payment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
+  
+  // TAMBAHAN: Field untuk custom amount
+  isCustomAmount: { 
+    type: Boolean, 
+    default: false 
+  },
+  customAmountName: {
+    type: String,
+    default: 'Custom Amount'
+  },
+  customAmountDescription: {
+    type: String,
+    default: ''
+  }
 });
 
 // Model Order

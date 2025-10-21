@@ -1028,7 +1028,9 @@ export const createUnifiedOrder = async (req, res) => {
       outletId,
       loyaltyPointsToRedeem,
       delivery_option, // 'pickup' atau 'delivery' (opsional, default 'pickup')
-      recipient_data // data penerima untuk delivery (opsional)
+      recipient_data, // data penerima untuk delivery (opsional)
+      customAmountItems, // TAMBAHAN: Custom amount items
+      paymentDetails // Payment details termasuk amount paid
     } = req.body;
 
     // Validasi outletId
@@ -1048,7 +1050,7 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    // PERBAIKAN: Pengecekan jam operasional outlet
+    // Pengecekan jam operasional outlet
     const isOutletOpen = checkOutletOperatingHours(outlet);
     if (!isOutletOpen.isOpen) {
       return res.status(400).json({
@@ -1121,8 +1123,30 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    const validated = validateOrderData(req.body, source);
-    validated.outletId = outletId; // Tambahkan ini
+    // Auto calculate custom amount jika ada kelebihan pembayaran
+    let finalCustomAmountItems = customAmountItems || [];
+    
+    // Jika ada paymentDetails dan ada kelebihan pembayaran, hitung custom amount otomatis
+    if (paymentDetails && paymentDetails.amount && req.body.items) {
+      // Hitung total order dari items
+      const orderTotalFromItems = req.body.items.reduce((total, item) => {
+        return total + (item.price || 0) * (item.quantity || 1);
+      }, 0);
+      
+      // Hitung custom amount otomatis jika ada kelebihan
+      const autoCustomAmount = calculateCustomAmount(paymentDetails.amount, orderTotalFromItems);
+      if (autoCustomAmount) {
+        console.log('Auto-calculated custom amount:', autoCustomAmount);
+        finalCustomAmountItems = [...finalCustomAmountItems, autoCustomAmount];
+      }
+    }
+
+    const validated = validateOrderData({
+      ...req.body,
+      customAmountItems: finalCustomAmountItems
+    }, source);
+    
+    validated.outletId = outletId;
     validated.outlet = outletId;
 
     // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
@@ -1135,14 +1159,22 @@ export const createUnifiedOrder = async (req, res) => {
       validated.recipient_data = recipient_data;
     }
 
+    // Log custom amount information
+    if (finalCustomAmountItems.length > 0) {
+      console.log('Custom amount items included:', {
+        count: finalCustomAmountItems.length,
+        items: finalCustomAmountItems,
+        totalCustomAmount: finalCustomAmountItems.reduce((sum, item) => sum + item.amount, 0)
+      });
+    }
+
     const areaCode = tableNumber?.charAt(0).toUpperCase();
-    const areaGroup = getAreaGroup(areaCode); // Pass areaCode, bukan tableNumber
+    const areaGroup = getAreaGroup(areaCode);
 
     // Generate order ID
     let orderId;
     if (tableNumber) {
       orderId = await generateOrderId(String(tableNumber));
-
     } else {
       orderId = `${source.toUpperCase()}-${Date.now()}`;
     }
@@ -1172,7 +1204,6 @@ export const createUnifiedOrder = async (req, res) => {
     } else {
       console.warn(`⚠️ No area group found for table ${tableNumber}, area code: ${areaCode}`);
     }
-
 
     // Add reservation-specific processing if needed
     if (orderType === 'reservation' && reservationData) {
@@ -1229,9 +1260,9 @@ export const createUnifiedOrder = async (req, res) => {
         tableNumber,
         source,
         outletId,
-        paymentDetails: validated.paymentDetails
+        paymentDetails: validated.paymentDetails,
+        hasCustomAmount: finalCustomAmountItems.length > 0
       });
-
 
     } catch (queueErr) {
       console.error(`Job ${job.id} failed:`, queueErr);
@@ -1248,17 +1279,20 @@ export const createUnifiedOrder = async (req, res) => {
     const baseResponse = {
       status: '',
       orderId,
-      jobId: job.id
+      jobId: job.id,
+      hasCustomAmount: finalCustomAmountItems.length > 0,
+      customAmountTotal: finalCustomAmountItems.reduce((sum, item) => sum + item.amount, 0)
     };
 
     // Handle payment based on source
     if (source === 'Cashier') {
-      //  BROADCAST UNTUK CASHIER CASH PAYMENT
+      // BROADCAST UNTUK CASHIER CASH PAYMENT
       await broadcastCashOrderToKitchen({
         orderId,
         tableNumber,
         orderData: validated,
-        outletId
+        outletId,
+        hasCustomAmount: finalCustomAmountItems.length > 0
       });
 
       return res.status(200).json({
@@ -1296,18 +1330,19 @@ export const createUnifiedOrder = async (req, res) => {
         }
       }
 
-      //  CHECK PAYMENT METHOD UNTUK APP
+      // CHECK PAYMENT METHOD UNTUK APP
       const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
 
       if (isCashPayment) {
-        //  BROADCAST UNTUK APP CASH PAYMENT
+        // BROADCAST UNTUK APP CASH PAYMENT
         await broadcastCashOrderToKitchen({
           orderId,
           tableNumber,
           orderData: validated,
           outletId,
           isAppOrder: true,
-          deliveryOption: delivery_option
+          deliveryOption: delivery_option,
+          hasCustomAmount: finalCustomAmountItems.length > 0
         });
 
         return res.status(200).json({
@@ -1387,17 +1422,18 @@ export const createUnifiedOrder = async (req, res) => {
       };
       const payment = await Payment.create(paymentData);
 
-      //  CHECK PAYMENT METHOD UNTUK WEB
+      // CHECK PAYMENT METHOD UNTUK WEB
       const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
 
       if (isCashPayment) {
-        //  BROADCAST UNTUK WEB CASH PAYMENT
+        // BROADCAST UNTUK WEB CASH PAYMENT
         await broadcastCashOrderToKitchen({
           orderId,
           tableNumber,
           orderData: validated,
           outletId,
-          isWebOrder: true
+          isWebOrder: true,
+          hasCustomAmount: finalCustomAmountItems.length > 0
         });
 
         return res.status(200).json({
@@ -1444,6 +1480,7 @@ export const createUnifiedOrder = async (req, res) => {
     });
   }
 };
+
 
 // HELPER FUNCTION UNTUK CEK JAM OPERASIONAL OUTLET
 const checkOutletOperatingHours = (outlet) => {
