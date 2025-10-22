@@ -1,14 +1,14 @@
 import express from 'express';
 import {
-    salesReport
+  salesReport
 } from '../controllers/report.controller.js';
 import {
-    getSalesSummary,
-    getOrderDetails,
-    getSalesAnalytics,
-    getCashierPerformance,
-    exportToCSV,
-    getCashiersList
+  getSalesSummary,
+  getOrderDetails,
+  getSalesAnalytics,
+  getCashierPerformance,
+  exportToCSV,
+  getCashiersList
 } from '../controllers/cashierReport.controller.js'
 
 import {
