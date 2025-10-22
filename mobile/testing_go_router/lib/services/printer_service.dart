@@ -366,6 +366,17 @@ class PrinterService {
       // 2. Siapkan konten
       final List<int> bytes = [];
 
+      // bytes.addAll(
+      //   await generateBasicLogoBytes(
+      //     generator,
+      //     // 'assets/logo/logo_baraja.svg',
+      //     // 'assets/logo/logo_baraja.webp',
+      //     'assets/logo/logo_baraja.png',
+      //     paperSize,
+      //   ),
+      // );
+      // bytes.addAll(generator.feed(1));
+
       bytes.addAll(
         generator.text(
           'Bluetooth Printer Test',
@@ -460,7 +471,16 @@ class PrinterService {
 
       // Header
       // bytes.addAll(await generateHeadersBytes(generator, paperSize));
-
+      bytes.addAll(
+        await generateOptimizedLogoBytes(
+          generator,
+          // 'assets/logo/logo_baraja.svg',
+          // 'assets/logo/logo_baraja.webp',
+          'assets/logo/logo_baraja.png',
+          paperSize,
+        ),
+      );
+      bytes.addAll(generator.feed(1));
       bytes.addAll(
         generator.text(
           'Network Printer Test',
@@ -657,6 +677,32 @@ class PrinterService {
 
   //   return out;
   // },
+
+  static Future<List<int>> generateBasicLogoBytes(
+    Generator generator,
+    String imagePath,
+    PaperSize paperSize,
+  ) async {
+    // 1. Siapkan konten
+    final List<int> bytes = [];
+
+    // Header
+    final ByteData byteData = await rootBundle.load(imagePath);
+    final Uint8List imageBytes = byteData.buffer.asUint8List();
+    final image = img.decodeImage(imageBytes)!;
+
+    // Resize gambar sesuai lebar kertas
+
+    final resizedImage = img.copyResize(image, width: 300);
+
+    // Konversi ke grayscale
+    final grayscaleImage = img.grayscale(resizedImage);
+
+    bytes.addAll(generator.image(grayscaleImage));
+    bytes.addAll(generator.feed(1));
+
+    return bytes;
+  }
 
   static Future<List<int>> generateLogoBytes(
     Generator generator,
@@ -904,21 +950,21 @@ class PrinterService {
     // Logo
     bytes.addAll(generator.feed(2));
     bytes.addAll(
-      await ThermalPrinters.generateLogoBytes(
-        generator,
-        // 'assets/logo/logo_baraja.svg',
-        // 'assets/logo/logo_baraja.webp',
-        'assets/logo/logo_baraja.png',
-        paperSize,
-      ),
-      // generator.text(
-      //   'Baraja Amphitheater',
-      //   styles: const PosStyles(
-      //     align: PosAlign.center,
-      //     bold: true,
-      //     height: PosTextSize.size2,
-      //   ),
+      // await generateOptimizedLogoBytes(
+      //   generator,
+      //   // 'assets/logo/logo_baraja.svg',
+      //   // 'assets/logo/logo_baraja.webp',
+      //   'assets/logo/logo_baraja.png',
+      //   paperSize,
       // ),
+      generator.text(
+        'Baraja Amphitheater',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+        ),
+      ),
     );
     bytes.addAll(generator.feed(1));
 
