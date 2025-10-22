@@ -13,7 +13,7 @@ export const midtransWebhook = async (req, res) => {
     const notificationJson = req.body;
     let {
       transaction_status,
-      order_id,
+      order_id, // This is your payment_code
       fraud_status,
       payment_type,
       gross_amount,
@@ -38,8 +38,8 @@ export const midtransWebhook = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Cari payment berdasarkan order_id
-    const existingPayment = await Payment.findOne({ order_id });
+    // ✅ FIX: Search by payment_code since Midtrans order_id = your payment_code
+    const existingPayment = await Payment.findOne({ order_id: order_id });
 
     if (!existingPayment) {
       console.error(`[WEBHOOK ${requestId}] Payment record not found for payment_code: ${order_id}`);
@@ -68,8 +68,9 @@ export const midtransWebhook = async (req, res) => {
       webhook_received_at: new Date()
     };
 
+    // ✅ FIX: Update by payment_code (which matches Midtrans order_id)
     const updatedPayment = await Payment.findOneAndUpdate(
-      { payment_code: order_id },
+      { order_id: order_id },  
       {
         ...paymentUpdateData,
         raw_response: rawResponseUpdate
@@ -84,7 +85,7 @@ export const midtransWebhook = async (req, res) => {
 
     console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for payment_code ${order_id}`);
 
-    // Cari order berdasarkan order_id dengan populate yang lebih detail
+    // ✅ FIX: Also fix this reference - change payment_order to order
     const order = await Order.findOne({ order_id })
       .populate('user_id', 'name email phone')
       .populate('cashierId', 'name')
@@ -95,7 +96,6 @@ export const midtransWebhook = async (req, res) => {
       .populate('outlet', 'name address');
 
     console.log("order:", order);
-
 
     if (!order) {
       console.warn(`[WEBHOOK ${requestId}] Order with ID ${order_id} not found`);
@@ -157,9 +157,9 @@ export const midtransWebhook = async (req, res) => {
       console.log(`[WEBHOOK ${requestId}] Order ${order_id} updated:`, orderUpdateData);
     }
 
-    // Emit events ke customer
+    // ✅ FIX: Change payment_order to order
     const emitData = {
-      order_id: payment_order.order_id,
+      order_id: order.order_id,  // ✅ Fixed reference
       status: order.status,
       paymentStatus: order.paymentStatus,
       transaction_status,

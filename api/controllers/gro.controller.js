@@ -135,9 +135,11 @@ export const getTableOrderDetail = async (req, res) => {
       });
     }
 
-    // Build query
-    const query = {
-      tableNumber: tableNumber.toUpperCase(),
+    const targetTableNumber = tableNumber.toUpperCase();
+
+    // Build query untuk Dine-In
+    const dineInQuery = {
+      tableNumber: targetTableNumber,
       status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
       orderType: 'Dine-In'
     };
@@ -145,20 +147,69 @@ export const getTableOrderDetail = async (req, res) => {
     // If date provided, filter by date
     if (date) {
       const targetDate = new Date(date);
-      query.createdAtWIB = {
+      dineInQuery.createdAtWIB = {
         $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
         $lte: new Date(targetDate.setHours(23, 59, 59, 999))
       };
     }
 
-    // Find active order for this table
-    const order = await Order.findOne(query)
+    // Find Dine-In order
+    let order = await Order.findOne(dineInQuery)
       .populate('user_id', 'name phone email')
       .populate({
         path: 'items.menuItem',
         select: 'name price imageURL category mainCategory'
       })
       .sort({ createdAtWIB: -1 });
+
+    // Jika tidak ada Dine-In order, cari Reservation order
+    if (!order) {
+      // Cari table berdasarkan table_number
+      const table = await mongoose.model('Table').findOne({
+        table_number: targetTableNumber
+      });
+
+      if (table) {
+        // Cari reservation yang sedang aktif untuk table ini
+        const activeReservation = await Reservation.findOne({
+          table_id: table._id,
+          status: { $in: ['confirmed', 'pending'] },
+          order_id: { $exists: true, $ne: null }
+        });
+
+        console.log('Active reservation for table', targetTableNumber, ':', activeReservation);
+
+        if (activeReservation && activeReservation.order_id) {
+          // Pertama cek order tersebut ada atau tidak tanpa filter status
+          const checkOrder = await Order.findById(activeReservation.order_id);
+          console.log('Order details:', checkOrder);
+
+          // Cari order dari reservation dengan filter yang lebih longgar
+          const reservationQuery = {
+            _id: activeReservation.order_id,
+            status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] } // Tambahkan 'Reserved'
+          };
+
+          if (date) {
+            const targetDate = new Date(date);
+            reservationQuery.createdAtWIB = {
+              $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
+              $lte: new Date(targetDate.setHours(23, 59, 59, 999))
+            };
+          }
+
+          order = await Order.findOne(reservationQuery)
+            .populate('user_id', 'name phone email')
+            .populate({
+              path: 'items.menuItem',
+              select: 'name price imageURL category mainCategory'
+            })
+            .populate('reservation', 'reservation_code reservation_date reservation_time guest_count');
+
+          console.log('Found reservation order for table', targetTableNumber, ':', order);
+        }
+      }
+    }
 
     if (!order) {
       return res.status(404).json({
@@ -174,9 +225,16 @@ export const getTableOrderDetail = async (req, res) => {
       customerName: order.user_id?.name || order.user,
       customerPhone: order.user_id?.phone,
       customerEmail: order.user_id?.email,
-      tableNumber: order.tableNumber,
+      tableNumber: order.tableNumber || targetTableNumber,
       status: order.status,
       orderType: order.orderType,
+      reservation: order.reservation ? {
+        _id: order.reservation._id,
+        reservation_code: order.reservation.reservation_code,
+        reservation_date: order.reservation.reservation_date,
+        reservation_time: order.reservation.reservation_time,
+        guest_count: order.reservation.guest_count
+      } : null,
       items: order.items.map(item => ({
         _id: item._id,
         menuItem: {
@@ -682,7 +740,6 @@ export const createReservation = async (req, res) => {
       area_id: area_id,
       table_id: table_ids,
       guest_count: guest_count,
-      guest_number: guest_phone,
       reservation_type: reservation_type,
       status: 'pending',
       notes: notes || '',
@@ -1396,10 +1453,12 @@ export const closeOpenBill = async (req, res) => {
 };
 
 // GET /api/gro/tables/availability - Get real-time table availability
+// GET /api/gro/tables/availability - Get real-time table availability
 export const getTableAvailability = async (req, res) => {
   try {
     const { date, time, area_id } = req.query;
 
+    // Tentukan tanggal target
     let targetDate;
     if (date) {
       targetDate = new Date(date);
@@ -1407,44 +1466,87 @@ export const getTableAvailability = async (req, res) => {
       targetDate = new Date();
     }
 
-    const filter = {
+    // Set range untuk hari yang dipilih
+    const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
+    const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
+
+    // ✅ PERBAIKAN 1: Ambil SEMUA reservasi yang aktif untuk tanggal tersebut
+    const reservationFilter = {
       reservation_date: {
-        $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
-        $lt: new Date(targetDate.setHours(23, 59, 59, 999))
+        $gte: startOfDay,
+        $lte: endOfDay
       },
       status: { $in: ['confirmed', 'pending'] }
     };
 
     if (time) {
-      filter.reservation_date = time;
+      reservationFilter.reservation_time = time;
     }
 
     if (area_id) {
-      filter.area_id = area_id;
+      reservationFilter.area_id = area_id;
     }
 
-    const reservations = await Reservation.find(filter).select('table_id');
+    const reservations = await Reservation.find(reservationFilter).select('table_id');
 
+    // ✅ PERBAIKAN 2: Ambil SEMUA pesanan Dine-In aktif untuk tanggal tersebut
+    const orderFilter = {
+      orderType: 'Dine-In',
+      status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
+      tableNumber: { $exists: true, $ne: null },
+      createdAtWIB: {
+        $gte: startOfDay,
+        $lte: endOfDay
+      }
+    };
+
+    const activeDineInOrders = await Order.find(orderFilter).select('tableNumber');
+
+    // ✅ PERBAIKAN 3: Gabungkan meja yang teroccupied dari reservasi DAN pesanan dine-in
     const occupiedTableIds = new Set();
+
+    // Dari reservasi
     reservations.forEach(reservation => {
       reservation.table_id.forEach(tableId => {
         occupiedTableIds.add(tableId.toString());
       });
     });
 
-    const tableFilter = area_id ? { area_id, is_active: true } : { is_active: true };
+    // Dari pesanan dine-in
+    const occupiedTableNumbers = new Set(
+      activeDineInOrders.map(order => order.tableNumber?.toUpperCase())
+    );
+
+    // ✅ PERBAIKAN 4: Ambil semua meja dengan filter yang benar
+    const tableFilter = { is_active: true };
+    if (area_id) {
+      tableFilter.area_id = area_id;
+    }
+
     const allTables = await Table.find(tableFilter)
       .populate('area_id', 'area_name area_code');
 
-    const tablesWithStatus = allTables.map(table => ({
-      _id: table._id,
-      table_number: table.table_number,
-      seats: table.seats,
-      table_type: table.table_type,
-      area: table.area_id,
-      is_available: !occupiedTableIds.has(table._id.toString()),
-      is_active: table.is_active
-    }));
+    // ✅ PERBAIKAN 5: Tentukan ketersediaan dengan logika lengkap
+    const tablesWithStatus = allTables.map(table => {
+      const isOccupiedByReservation = occupiedTableIds.has(table._id.toString());
+      const isOccupiedByDineIn = occupiedTableNumbers.has(table.table_number.toUpperCase());
+      const isAvailable = !isOccupiedByReservation && !isOccupiedByDineIn;
+
+      return {
+        _id: table._id,
+        table_number: table.table_number,
+        seats: table.seats,
+        table_type: table.table_type,
+        area: table.area_id,
+        is_available: isAvailable,
+        is_active: table.is_active,
+        occupied_by: isOccupiedByReservation ? 'reservation' : (isOccupiedByDineIn ? 'dine-in' : null)
+      };
+    });
+
+    // ✅ Hitung summary yang akurat
+    const availableCount = tablesWithStatus.filter(t => t.is_available).length;
+    const occupiedCount = allTables.length - availableCount;
 
     res.json({
       success: true,
@@ -1452,8 +1554,13 @@ export const getTableAvailability = async (req, res) => {
         tables: tablesWithStatus,
         summary: {
           total: allTables.length,
-          available: tablesWithStatus.filter(t => t.is_available).length,
-          occupied: occupiedTableIds.size
+          available: availableCount,
+          occupied: occupiedCount
+        },
+        filters: {
+          date: date || 'today',
+          time: time || 'all',
+          area_id: area_id || 'all'
         }
       }
     });
@@ -1654,6 +1761,7 @@ export const getActiveOrders = async (req, res) => {
 
     const formattedOrders = activeOrders.map(order => {
       const orderPayments = paymentMap[order.order_id] || [];
+
       // Hitung total yang sudah dibayar (status settlement/paid)
       const totalPaid = orderPayments
         .filter(p => p.status === 'settlement' || p.status === 'paid')
@@ -2113,59 +2221,29 @@ export const getOrderTableHistory = async (req, res) => {
 // ✅ BULK TABLE STATUS UPDATE (Untuk GRO yang keliling)
 export const bulkUpdateTableStatus = async (req, res) => {
   const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    session.startTransaction();
+    const { updates, updatedBy } = req.body;
 
-    const { outletId, areaCode } = req.query;
-
-    if (!outletId) {
+    if (!Array.isArray(updates) || updates.length === 0 || !updatedBy) {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: 'Outlet ID diperlukan'
+        message: 'Data updates dan nama GRO diperlukan'
       });
     }
-
-    // updates: array of { tableNumber, status, updatedBy, notes }
-    const updates = Array.isArray(req.body) ? req.body : (req.body.updates || []);
-    if (!Array.isArray(updates) || updates.length === 0) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        success: false,
-        message: 'Payload harus berisi array updates'
-      });
-    }
-
-    // Ambil semua pesanan aktif untuk outlet ini untuk pengecekan ketersediaan
-    const activeOrders = await Order.find({
-      outlet: outletId,
-      status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
-      orderType: 'Dine-In',
-      tableNumber: { $exists: true, $ne: null }
-    }).select('tableNumber');
-
-    const occupiedTableNumbers = new Set(
-      activeOrders.map(order => order.tableNumber?.toUpperCase())
-    );
 
     const results = [];
     const errors = [];
 
     for (const update of updates) {
-      const tableNumber = (update.tableNumber || '').toString().toUpperCase();
-      const status = update.status;
-      const updatedBy = update.updatedBy || 'GRO';
-      const notes = update.notes || '';
-
-      if (!tableNumber || !status) {
-        errors.push({ tableNumber: update.tableNumber, message: 'tableNumber dan status wajib diisi' });
-        continue;
-      }
-
       try {
-        // Cari meja (tambahkan outlet/area filter bila perlu)
+        const { tableNumber, status, notes } = update;
+
+        // Find table
         const table = await Table.findOne({
-          table_number: tableNumber,
+          table_number: tableNumber.toUpperCase(),
           is_active: true
         }).session(session);
 
@@ -2174,12 +2252,11 @@ export const bulkUpdateTableStatus = async (req, res) => {
           continue;
         }
 
-        // Jika ingin mengubah ke 'available' tetapi meja masih punya pesanan aktif -> tolak
+        // Check if table has active order when changing to available
         if (status === 'available' && table.status === 'occupied') {
           const activeOrder = await Order.findOne({
-            tableNumber: table.table_number,
-            status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
-            outlet: outletId
+            tableNumber: tableNumber,
+            status: { $in: ['Pending', 'Waiting', 'OnProcess'] }
           }).session(session);
 
           if (activeOrder) {
@@ -2191,11 +2268,12 @@ export const bulkUpdateTableStatus = async (req, res) => {
           }
         }
 
-        // Update table status dan history
+        // Update table status
         const oldStatus = table.status;
         table.status = status;
         table.updatedAt = new Date();
 
+        // Add status history
         if (!table.statusHistory) {
           table.statusHistory = [];
         }
@@ -2217,7 +2295,7 @@ export const bulkUpdateTableStatus = async (req, res) => {
           success: true
         });
 
-        // Emit socket event ke area sesuai table.area_id (boleh undefined)
+        // Emit socket event
         io.to(`area_${table.area_id?.area_code}`).emit('table_status_updated', {
           tableId: table._id,
           tableNumber: table.table_number,
@@ -2228,26 +2306,28 @@ export const bulkUpdateTableStatus = async (req, res) => {
           timestamp: new Date()
         });
 
-      } catch (err) {
-        errors.push({ tableNumber: update.tableNumber, message: err.message });
+      } catch (error) {
+        errors.push({ tableNumber: update.tableNumber, message: error.message });
       }
     }
 
     await session.commitTransaction();
 
     res.json({
-      success: true,
-      message: 'Bulk table status update selesai',
+      success: errors.length === 0,
+      message: `${results.length} meja berhasil diupdate, ${errors.length} gagal`,
+      updated: results.length,
+      failed: errors.length,
       results,
       errors
     });
 
   } catch (error) {
     await session.abortTransaction();
-    console.error('Error performing bulk table status update:', error);
+    console.error('Error bulk updating tables:', error);
     res.status(500).json({
       success: false,
-      message: 'Gagal memperbarui status meja secara massal',
+      message: 'Gagal update status meja',
       error: error.message
     });
   } finally {

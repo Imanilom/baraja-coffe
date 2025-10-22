@@ -72,7 +72,7 @@ router.get("/getPaymentStatus/:orderId", getPaymentStatus);
 router.get("/getPayment/:orderId", getPendingPaymentOrders);
 // router.post("/chargeCash", chargeCash);
 
-// router.post('/midtrans/webhook', midtransWebhook);
+router.post('/midtrans/webhook', midtransWebhook);
 
 // TODO: End route untuk melakukan charge from aplication
 

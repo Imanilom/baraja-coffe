@@ -5,23 +5,43 @@ import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
 
-export async function createOrderHandler({ orderId, orderData, source, isOpenBill, isReservation, requiresDelivery, recipientData }) {
+export async function createOrderHandler({ 
+  orderId, 
+  orderData, 
+  source, 
+  isOpenBill, 
+  isReservation, 
+  requiresDelivery, 
+  recipientData 
+}) {
   let session;
   try {
     session = await mongoose.startSession();
 
     const orderResult = await runWithTransactionRetry(async () => {
-      const { customerId, loyaltyPointsToRedeem, orderType } = orderData;
+      const { 
+        customerId, 
+        loyaltyPointsToRedeem, 
+        orderType, 
+        customAmountItems = [] 
+      } = orderData;
 
-      console.log('Order Handler - Delivery Check:', {
+      console.log('Order Handler - Starting Order Creation:', {
+        orderId,
         orderType,
         requiresDelivery,
         hasRecipientData: !!recipientData,
-        source
+        source,
+        hasCustomAmount: customAmountItems && customAmountItems.length > 0,
+        customAmountItemsCount: customAmountItems ? customAmountItems.length : 0
       });
 
-      // Process order items dengan loyalty program opsional
-      const processed = await processOrderItems(orderData, session);
+      // Process order items dengan custom amount
+      const processed = await processOrderItems({
+        ...orderData,
+        customAmountItems: customAmountItems || []
+      }, session);
+      
       if (!processed) {
         throw new Error('Failed to process order items');
       }
@@ -38,11 +58,11 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       // Determine initial status based on source and payment method
       let initialStatus = 'Pending';
       if (source === 'Cashier') {
-        console.log('Source Cashier ', isOpenBill);
+        console.log('Source Cashier - isOpenBill:', isOpenBill);
         initialStatus = isOpenBill ? 'Pending' : 'Waiting';
       }
 
-      // PERBAIKAN: Cleanup menyeluruh - hapus SEMUA field delivery
+      // Cleanup menyeluruh - hapus SEMUA field delivery yang tidak diperlukan
       const {
         delivery_option,
         recipient_data,
@@ -50,11 +70,12 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         deliveryProvider,
         deliveryTracking,
         recipientInfo,
+        customAmountItems: cleanedCustomAmountItems, // Already processed
         ...cleanOrderData
       } = orderData;
 
       const baseOrderData = {
-        ...cleanOrderData, // Gunakan data yang sudah dibersihkan
+        ...cleanOrderData,
         order_id: orderId,
         items: orderItems,
         totalBeforeDiscount: totals.beforeDiscount,
@@ -79,7 +100,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         updatedAt: new Date(),
       };
 
-      // PERBAIKAN: Hanya tambahkan loyalty data jika applied
+      // Tambahkan loyalty data jika applied
       if (loyalty.isApplied) {
         baseOrderData.loyalty = {
           pointsUsed: loyalty.pointsUsed,
@@ -89,7 +110,7 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         };
       }
 
-      // PERBAIKAN: Handle delivery fields hanya untuk delivery orders
+      // Handle delivery fields hanya untuk delivery orders
       const isDeliveryOrder = (orderType === 'Delivery' || requiresDelivery) && source === 'App';
       console.log('Delivery Order Check:', {
         isDeliveryOrder,
@@ -116,8 +137,6 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         // Set deliveryTracking sebagai object kosong
         baseOrderData.deliveryTracking = {};
       } else {
-        // PERBAIKAN: Pastikan field delivery TIDAK ADA untuk non-delivery orders
-        // Dengan tidak menyetel field tersebut, mereka akan menjadi undefined
         console.log('Non-delivery order - skipping delivery fields');
       }
 
@@ -131,18 +150,18 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
         orderId,
         orderType: baseOrderData.orderType,
         source: baseOrderData.source,
+        totalItems: baseOrderData.items.length,
+        customAmountItems: baseOrderData.items.filter(item => item.isCustomAmount).length,
+        regularItems: baseOrderData.items.filter(item => !item.isCustomAmount).length,
+        grandTotal: baseOrderData.grandTotal,
         hasDeliveryStatus: baseOrderData.deliveryStatus !== undefined,
-        hasDeliveryProvider: baseOrderData.deliveryProvider !== undefined,
-        deliveryStatus: baseOrderData.deliveryStatus,
-        deliveryProvider: baseOrderData.deliveryProvider,
-        // Log semua keys untuk memastikan tidak ada field delivery yang tidak diinginkan
-        keys: Object.keys(baseOrderData)
+        hasDeliveryProvider: baseOrderData.deliveryProvider !== undefined
       });
 
       // Create and save the order
       const newOrder = new Order(baseOrderData);
 
-      // PERBAIKAN: Validasi manual sebelum save
+      // Validasi manual sebelum save
       const validationError = newOrder.validateSync();
       if (validationError) {
         console.error('Validation error before save:', validationError.errors);
@@ -153,8 +172,12 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
 
       console.log('Order created successfully:', {
         orderId: newOrder._id.toString(),
+        orderNumber: orderId,
         orderType: newOrder.orderType,
         status: newOrder.status,
+        totalItems: newOrder.items.length,
+        customAmountItems: newOrder.items.filter(item => item.isCustomAmount).length,
+        grandTotal: newOrder.grandTotal,
         deliveryStatus: newOrder.deliveryStatus,
         deliveryProvider: newOrder.deliveryProvider
       });
@@ -191,7 +214,8 @@ export async function createOrderHandler({ orderId, orderData, source, isOpenBil
       stack: err.stack,
       orderId,
       source,
-      orderType: orderData?.orderType
+      orderType: orderData?.orderType,
+      hasCustomAmount: orderData?.customAmountItems?.length > 0
     });
 
     if (err.message.includes('Failed to process order items')) {
@@ -222,12 +246,15 @@ export async function enqueueInventoryUpdate(orderResult) {
   }
 
   try {
+    // Filter out custom amount items dari inventory update
+    const regularItems = orderResult.processedItems.filter(item => !item.isCustomAmount);
+
     const jobData = {
       type: 'update_inventory',
       payload: {
         orderId: orderResult.orderId,
         orderNumber: orderResult.orderNumber,
-        items: orderResult.processedItems
+        items: regularItems // Hanya regular items yang mempengaruhi inventory
       }
     };
 
@@ -245,6 +272,12 @@ export async function enqueueInventoryUpdate(orderResult) {
         removeOnFail: true
       }
     );
+
+    console.log('Inventory update enqueued:', {
+      orderId: orderResult.orderId,
+      regularItemsCount: regularItems.length,
+      totalItemsCount: orderResult.processedItems.length
+    });
 
     return {
       success: true,

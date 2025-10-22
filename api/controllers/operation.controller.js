@@ -5,7 +5,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// ! Start Kitchen sections
 export const getKitchenOrder = async (req, res) => {
   try {
     // ✅ Ambil data order terbaru
@@ -51,7 +50,7 @@ export const getKitchenOrder = async (req, res) => {
 
 export const updateKitchenOrderStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { status, kitchenId, kitchenName } = req.body; // tambahkan data kitchen user
+  const { status, kitchenId, kitchenName } = req.body;
 
   console.log('Updating kitchen order status for orderId:', orderId, 'to status:', status);
   if (!orderId || !status) {
@@ -59,24 +58,55 @@ export const updateKitchenOrderStatus = async (req, res) => {
   }
 
   try {
-    const order = await Order.findOneAndUpdate(
-      { order_id: orderId },
-      { $set: { status: status } },
-      { new: true }
-    ).populate('items.menuItem');
+    // 🔍 Cek order dan reservasi terkait
+    const order = await Order.findOne({ order_id: orderId })
+      .populate('reservation')
+      .populate('items.menuItem');
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
+    // 🚫 CEK: Jika status ingin diubah ke Completed dan ada reservasi aktif
+    if (status === 'Completed' && order.reservation) {
+      // Cek apakah reservasi masih aktif (belum selesai)
+      const reservation = order.reservation;
+      
+      // Asumsi: reservasi memiliki field status yang menandakan aktif/tidak
+      // Sesuaikan dengan struktur data reservasi Anda
+      if (reservation.status && ['confirmed', 'checked-in', 'in-progress'].includes(reservation.status)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Cannot complete order with active reservation. Reservation might have OTS or additional orders.' 
+        });
+      }
+      
+      // Atau cek berdasarkan waktu reservasi
+      const now = new Date();
+      const reservationEnd = new Date(reservation.reservation_end || reservation.end_time);
+      if (reservationEnd > now) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Cannot complete order while reservation is still active. Customer might add more orders.' 
+        });
+      }
+    }
+
+    // ✅ Update status order
+    const updatedOrder = await Order.findOneAndUpdate(
+      { order_id: orderId },
+      { $set: { status: status } },
+      { new: true }
+    ).populate('items.menuItem');
+
     // 🔥 EMIT SOCKET EVENTS
     const updateData = {
-      order_id: orderId,   // ubah ke snake_case
-      orderStatus: status, // pakai orderStatus, bukan status
+      order_id: orderId,
+      orderStatus: status,
       kitchen: { id: kitchenId, name: kitchenName },
-      timestamp: new Date()
+      timestamp: new Date(),
+      hasActiveReservation: !!order.reservation // tambahkan info reservasi
     };
-
 
     // Emit ke room customer agar tahu progres order
     io.to(`order_${orderId}`).emit('order_status_update', updateData);
@@ -87,7 +117,13 @@ export const updateKitchenOrderStatus = async (req, res) => {
     // Emit ke kitchen room juga kalau perlu broadcast antar kitchen
     io.to('kitchen_room').emit('kitchen_order_updated', updateData);
 
-    res.status(200).json({ success: true, data: order });
+    res.status(200).json({ 
+      success: true, 
+      data: updatedOrder,
+      message: status === 'Completed' && order.reservation 
+        ? 'Order completed but reservation is still active' 
+        : 'Order status updated successfully'
+    });
   } catch (error) {
     console.error('Error updating kitchen order status:', error);
     res.status(500).json({ success: false, message: 'Failed to update kitchen order status' });
@@ -100,7 +136,7 @@ export const updateKitchenOrderStatus = async (req, res) => {
 export const getBarOrder = async (req, res) => {
   try {
     const { barType } = req.params; // 'depan' atau 'belakang'
-    
+
     if (!barType || !['depan', 'belakang'].includes(barType)) {
       return res.status(400).json({
         success: false,
@@ -131,10 +167,10 @@ export const getBarOrder = async (req, res) => {
       .map((order) => ({
         ...order,
         items: order.items.filter(
-          (item) => item.menuItem?.workstation === 'bar' || 
-                    item.menuItem?.workstation === 'beverage' ||
-                    (item.menuItem?.category && 
-                     ['minuman', 'beverage', 'drink'].includes(item.menuItem.category.toLowerCase()))
+          (item) => item.menuItem?.workstation === 'bar' ||
+            item.menuItem?.workstation === 'beverage' ||
+            (item.menuItem?.category &&
+              ['minuman', 'beverage', 'drink'].includes(item.menuItem.category.toLowerCase()))
         ),
       }))
       .filter((order) => order.items.length > 0); // hanya order yang punya beverage items
@@ -142,9 +178,9 @@ export const getBarOrder = async (req, res) => {
     // 🔥 Filter berdasarkan area meja untuk bar depan/belakang
     const filteredOrders = beverageOrders.filter((order) => {
       if (!order.table_id && !order.reservation) return false;
-      
+
       let tableNumber = '';
-      
+
       // Ambil table number dari reservation atau langsung dari order
       if (order.reservation && order.reservation.table_id) {
         tableNumber = order.reservation.table_id.table_number;
@@ -157,7 +193,7 @@ export const getBarOrder = async (req, res) => {
       // Convert ke string dan ambil karakter pertama
       const tableStr = tableNumber.toString().toUpperCase();
       const firstChar = tableStr.charAt(0);
-      
+
       if (barType === 'depan') {
         // Bar depan: meja A-I
         return firstChar >= 'A' && firstChar <= 'I';
@@ -165,7 +201,7 @@ export const getBarOrder = async (req, res) => {
         // Bar belakang: meja J-Z
         return firstChar >= 'J' && firstChar <= 'Z';
       }
-      
+
       return false;
     });
 
@@ -186,7 +222,97 @@ export const getBarOrder = async (req, res) => {
   }
 };
 
+// export const getBarOrder = async (req, res) => {
+//   try {
+//     // ✅ Ambil data order terbaru
+//     const orders = await Order.find({
+//       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Cancelled'] },
+//     })
+//       .populate({
+//         path: 'items.menuItem',
+//         select: 'name workstation', // bisa pilih field yg diperlukan
+//       })
+//       .populate({
+//         path: 'reservation',
+//         populate: [
+//           { path: 'area_id', select: 'area_name' },
+//           { path: 'table_id', select: 'table_number' },
+//         ],
+//       })
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     // 🔥 Filter items & buang order yang tidak punya workstation bar
+//     const filteredOrders = orders
+//       .map((order) => ({
+//         ...order,
+//         items: order.items.filter(
+//           (item) => item.menuItem?.workstation === 'bar'
+//         ),
+//       }))
+//       .filter((order) => order.items.length > 0); // hanya order yang punya bar items
+
+//     res.status(200).json({
+//       success: true,
+//       data: filteredOrders, // sudah termasuk reservation populated
+//     });
+//   } catch (error) {
+//     console.error('Error fetching bar orders:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch bar orders',
+//     });
+//   }
+// };
+
+
 // ✅ Get all beverage orders (fallback)
+// export const getAllBeverageOrders = async (req, res) => {
+//   try {
+//     const orders = await Order.find({
+//       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
+//     })
+//       .populate({
+//         path: 'items.menuItem',
+//         select: 'name workstation category',
+//       })
+//       .populate({
+//         path: 'reservation',
+//         populate: [
+//           { path: 'area_id', select: 'area_name' },
+//           { path: 'table_id', select: 'table_number' },
+//         ],
+//       })
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     // Filter hanya item beverage/bar
+//     const beverageOrders = orders
+//       .map((order) => ({
+//         ...order,
+//         items: order.items.filter(
+//           (item) => item.menuItem?.workstation === 'bar' ||
+//             item.menuItem?.workstation === 'beverage' ||
+//             (item.menuItem?.category &&
+//               ['minuman', 'beverage', 'drink'].includes(item.menuItem.category.toLowerCase()))
+//         ),
+//       }))
+//       .filter((order) => order.items.length > 0);
+
+//     res.status(200).json({
+//       success: true,
+//       data: beverageOrders,
+//       total: beverageOrders.length
+//     });
+//   } catch (error) {
+//     console.error('Error fetching all beverage orders:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch beverage orders',
+//     });
+//   }
+// };
+
 export const getAllBeverageOrders = async (req, res) => {
   try {
     const orders = await Order.find({
@@ -206,16 +332,29 @@ export const getAllBeverageOrders = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Filter hanya item beverage/bar
+    // Filter hanya item beverage/bar - VERSI AMAN
     const beverageOrders = orders
       .map((order) => ({
         ...order,
-        items: order.items.filter(
-          (item) => item.menuItem?.workstation === 'bar' || 
-                    item.menuItem?.workstation === 'beverage' ||
-                    (item.menuItem?.category && 
-                     ['minuman', 'beverage', 'drink'].includes(item.menuItem.category.toLowerCase()))
-        ),
+        items: order.items.filter((item) => {
+          const menuItem = item.menuItem;
+
+          // Skip jika menuItem null/undefined
+          if (!menuItem) return false;
+
+          // Cek workstation
+          if (menuItem.workstation === 'bar' || menuItem.workstation === 'beverage') {
+            return true;
+          }
+
+          // Cek category dengan safe check
+          if (menuItem.category) {
+            const categoryStr = String(menuItem.category).toLowerCase();
+            return ['minuman', 'beverage', 'drink'].includes(categoryStr);
+          }
+
+          return false;
+        }),
       }))
       .filter((order) => order.items.length > 0);
 
@@ -224,11 +363,13 @@ export const getAllBeverageOrders = async (req, res) => {
       data: beverageOrders,
       total: beverageOrders.length
     });
+
   } catch (error) {
-    console.error('Error fetching all beverage orders:', error);
+    console.error('❌ Error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch beverage orders',
+      error: error.message
     });
   }
 };
@@ -239,11 +380,11 @@ export const updateBarOrderStatus = async (req, res) => {
   const { status, bartenderId, bartenderName, completedItems } = req.body;
 
   console.log('Updating bar order status for orderId:', orderId, 'to status:', status);
-  
+
   if (!orderId || !status) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'orderId and status are required' 
+    return res.status(400).json({
+      success: false,
+      message: 'orderId and status are required'
     });
   }
 
@@ -252,9 +393,9 @@ export const updateBarOrderStatus = async (req, res) => {
       .populate('items.menuItem');
 
     if (!order) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Order not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
       });
     }
 
@@ -278,25 +419,25 @@ export const updateBarOrderStatus = async (req, res) => {
     io.to('cashier_room').emit('beverage_order_updated', updateData);
 
     // Emit ke bar room sesuai type
-    const tableNumber = order.table_id?.toString() || 
-                       order.reservation?.table_id?.table_number || '';
+    const tableNumber = order.table_id?.toString() ||
+      order.reservation?.table_id?.table_number || '';
     const firstChar = tableNumber.charAt(0).toUpperCase();
     const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-    
+
     io.to(barRoom).emit('beverage_order_updated', updateData);
 
     console.log(`Bar order ${orderId} updated to ${status} by ${bartenderName}`);
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       data: order,
       message: `Order status updated to ${status}`
     });
   } catch (error) {
     console.error('Error updating bar order status:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to update bar order status' 
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update bar order status'
     });
   }
 };
@@ -307,11 +448,11 @@ export const startBeverageOrder = async (req, res) => {
   const { bartenderName } = req.body;
 
   console.log('Starting beverage preparation for orderId:', orderId, 'by:', bartenderName);
-  
+
   if (!orderId || !bartenderName) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'orderId and bartenderName are required' 
+    return res.status(400).json({
+      success: false,
+      message: 'orderId and bartenderName are required'
     });
   }
 
@@ -319,9 +460,9 @@ export const startBeverageOrder = async (req, res) => {
     const order = await Order.findOne({ order_id: orderId });
 
     if (!order) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Order not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
       });
     }
 
@@ -345,25 +486,25 @@ export const startBeverageOrder = async (req, res) => {
     io.to('cashier_room').emit('beverage_preparation_started', startData);
 
     // Emit ke bar room
-    const tableNumber = order.table_id?.toString() || 
-                       order.reservation?.table_id?.table_number || '';
+    const tableNumber = order.table_id?.toString() ||
+      order.reservation?.table_id?.table_number || '';
     const firstChar = tableNumber.charAt(0).toUpperCase();
     const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-    
+
     io.to(barRoom).emit('beverage_preparation_started', startData);
 
     console.log(`Beverage order ${orderId} started preparation by ${bartenderName}`);
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       data: order,
       message: 'Beverage preparation started'
     });
   } catch (error) {
     console.error('Error starting beverage order:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to start beverage order' 
+    res.status(500).json({
+      success: false,
+      message: 'Failed to start beverage order'
     });
   }
 };
@@ -374,11 +515,11 @@ export const completeBeverageOrder = async (req, res) => {
   const { bartenderName, completedItems } = req.body;
 
   console.log('Completing beverage order for orderId:', orderId, 'by:', bartenderName);
-  
+
   if (!orderId || !bartenderName) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'orderId and bartenderName are required' 
+    return res.status(400).json({
+      success: false,
+      message: 'orderId and bartenderName are required'
     });
   }
 
@@ -386,9 +527,9 @@ export const completeBeverageOrder = async (req, res) => {
     const order = await Order.findOne({ order_id: orderId });
 
     if (!order) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Order not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
       });
     }
 
@@ -413,11 +554,11 @@ export const completeBeverageOrder = async (req, res) => {
     io.to('cashier_room').emit('beverage_ready', completeData);
 
     // Emit ke bar room
-    const tableNumber = order.table_id?.toString() || 
-                       order.reservation?.table_id?.table_number || '';
+    const tableNumber = order.table_id?.toString() ||
+      order.reservation?.table_id?.table_number || '';
     const firstChar = tableNumber.charAt(0).toUpperCase();
     const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-    
+
     io.to(barRoom).emit('beverage_ready', completeData);
 
     // Juga emit ke waitstaff/runner room
@@ -425,16 +566,16 @@ export const completeBeverageOrder = async (req, res) => {
 
     console.log(`Beverage order ${orderId} completed by ${bartenderName}`);
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       data: order,
       message: 'Beverage order marked as ready'
     });
   } catch (error) {
     console.error('Error completing beverage order:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to complete beverage order' 
+    res.status(500).json({
+      success: false,
+      message: 'Failed to complete beverage order'
     });
   }
 };
@@ -445,11 +586,11 @@ export const updateBeverageItemStatus = async (req, res) => {
   const { status, bartenderName } = req.body;
 
   console.log('Updating beverage item status for orderId:', orderId, 'itemId:', itemId, 'to:', status);
-  
+
   if (!orderId || !itemId || !status) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'orderId, itemId and status are required' 
+    return res.status(400).json({
+      success: false,
+      message: 'orderId, itemId and status are required'
     });
   }
 
@@ -457,18 +598,18 @@ export const updateBeverageItemStatus = async (req, res) => {
     const order = await Order.findOne({ order_id: orderId });
 
     if (!order) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Order not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
       });
     }
 
     // Find and update the specific item
     const item = order.items.id(itemId);
     if (!item) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Item not found in order' 
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found in order'
       });
     }
 
@@ -487,25 +628,25 @@ export const updateBeverageItemStatus = async (req, res) => {
     };
 
     // Emit ke bar room untuk update real-time
-    const tableNumber = order.table_id?.toString() || 
-                       order.reservation?.table_id?.table_number || '';
+    const tableNumber = order.table_id?.toString() ||
+      order.reservation?.table_id?.table_number || '';
     const firstChar = tableNumber.charAt(0).toUpperCase();
     const barRoom = (firstChar >= 'A' && firstChar <= 'I') ? 'bar_depan' : 'bar_belakang';
-    
+
     io.to(barRoom).emit('beverage_item_status_updated', itemUpdateData);
 
     console.log(`Beverage item ${itemId} in order ${orderId} updated to ${status}`);
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       data: { order, updatedItem: item },
       message: `Item status updated to ${status}`
     });
   } catch (error) {
     console.error('Error updating beverage item status:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to update beverage item status' 
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update beverage item status'
     });
   }
 };

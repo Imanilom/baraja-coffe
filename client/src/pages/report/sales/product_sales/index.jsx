@@ -5,6 +5,8 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload, FaChevronL
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
+import Paginated from "../../../../components/paginated";
+import ProductSalesSkeleton from "./skeleton";
 
 const ProductSales = () => {
     const customStyles = {
@@ -338,33 +340,10 @@ const ProductSales = () => {
         XLSX.writeFile(wb, "Penjualan_Produk.xlsx");
     };
 
-
-    // generate nomor halaman
-    const renderPageNumbers = () => {
-        let pages = [];
-        for (let i = 1; i <= totalPages; i++) {
-            pages.push(
-                <button
-                    key={i}
-                    onClick={() => setCurrentPage(i)}
-                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
-                        ? "bg-green-900 text-white border-green-900"
-                        : "text-green-900 hover:bg-green-900 hover:text-white"
-                        }`}
-                >
-                    {i}
-                </button>
-            );
-        }
-        return pages;
-    };
-
     // Show loading state
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
+            <ProductSalesSkeleton />
         );
     }
 
@@ -525,28 +504,11 @@ const ProductSales = () => {
                 </div>
 
                 {/* Pagination Controls */}
-
-                {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
-                        >
-                            <FaChevronLeft /> Sebelumnya
-                        </button>
-
-                        <div className="flex gap-2">{renderPageNumbers()}</div>
-
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                            disabled={currentPage === totalPages}
-                            className="flex items-center gap-2 px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
-                        >
-                            Selanjutnya <FaChevronRight />
-                        </button>
-                    </div>
-                )}
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
             </div>
         </div>
     );

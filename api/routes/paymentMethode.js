@@ -27,7 +27,7 @@ router.get('/payment-methods-and-types', (req, res) => {
             id: 'banktransfer',
             name: 'Bank Transfer',
             icon: 'bank-transfer.png',
-            isActive: false,
+            isActive: true,
         }
     ]
     const paymentMethods = [
@@ -80,6 +80,22 @@ router.get('/payment-methods-and-types', (req, res) => {
             isActive: true
         },
         {
+            id: 'mandiri',
+            name: 'Mandiri',
+            payment_method: 'Mandiri',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'bsi',
+            name: 'BSI',
+            payment_method: 'BSI',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
             id: 'qrisbni',
             name: 'Qris BNI',
             payment_method: 'Qris',
@@ -98,6 +114,22 @@ router.get('/payment-methods-and-types', (req, res) => {
         {
             id: 'qrisbca',
             name: 'Qris BCA',
+            payment_method: 'Qris',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'qrismandiri',
+            name: 'Qris Mandiri',
+            payment_method: 'Qris',
+            typeId: ['debit', 'banktransfer'],
+            isDigital: false,
+            isActive: true
+        },
+        {
+            id: 'qrisbsi',
+            name: 'Qris BSI',
             payment_method: 'Qris',
             typeId: ['debit', 'banktransfer'],
             isDigital: false,
@@ -125,14 +157,14 @@ router.get('/payment-methods-and-types', (req, res) => {
 
 router.get('/payment-methods', (req, res) => {
     const paymentMethods = [
-        // {
-        //     name: 'QRIS',
-        //     icon: 'qris.png',
-        //     color: '#2196F3', // Colors.blue
-        //     payment_method: 'qris',
-        //     payment_method_name: 'E-Wallet',
-        //     bank_code: 'qris',
-        // },
+        {
+            name: 'QRIS',
+            icon: 'qris.png',
+            color: '#2196F3', // Colors.blue
+            payment_method: 'qris',
+            payment_method_name: 'E-Wallet',
+            bank_code: 'qris',
+        },
         // {
         //     name: 'Gopay',
         //     icon: 'gopay.png',

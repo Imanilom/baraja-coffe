@@ -1,45 +1,100 @@
-// // ignore_for_file: invalid_annotation_target
+// edit_order_ops.model.dart
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-// import 'package:freezed_annotation/freezed_annotation.dart';
-// import 'package:hive_ce/hive.dart';
-// import 'package:kasirbaraja/models/order_item.model.dart';
+part 'edit_order_ops.model.freezed.dart';
+part 'edit_order_ops.model.g.dart';
 
-// part 'edit_order_ops.model.freezed.dart';
-// part 'edit_order_ops.model.g.dart';
+@freezed
+abstract class EditOrderOpsRequest with _$EditOrderOpsRequest {
+  factory EditOrderOpsRequest({
+    required String reason,
+    required List<EditOperation> operations,
+  }) = _EditOrderOpsRequest;
 
-// @freezed
-// @HiveType(typeId: 26) // Pastikan typeId unik
-// abstract class EditOrderOpsModel with _$EditOrderOpsModel {
-//   factory EditOrderOpsModel({
-//     @HiveField(0) required String reason,
-//     @HiveField(1) required List<EditOperation> operations,
-//   }) = _EditOrderOpsModel;
+  factory EditOrderOpsRequest.fromJson(Map<String, dynamic> json) =>
+      _$EditOrderOpsRequestFromJson(json);
+}
 
-//   factory EditOrderOpsModel.fromJson(Map<String, dynamic> json) =>
-//       _$EditOrderOpsModelFromJson(json);
-// }
+@freezed
+abstract class EditOperation with _$EditOperation {
+  factory EditOperation.add({
+    @Default('add') String op,
+    required EditAddItem item,
+  }) = _EditOperationAdd;
 
-// @freezed
-// @HiveType(typeId: 27)
-// abstract class EditOperationModel with _$EditOperationModel {
-//   factory EditOperationModel.add({
-//     @HiveField(0) @Default('add') String op,
-//     @HiveField(1) required OrderItemModel item,
-//   }) = _EditOperationModelAdd;
+  factory EditOperation.update({
+    @Default('update') String op,
+    required String itemId,
+    required EditUpdatePatch patch,
+    @Default(false) bool oos, // jika OOS dari dapur
+  }) = _EditOperationUpdate;
 
-//   factory EditOperationModel.update({
-//     @HiveField(0) @Default('update') String op,
-//     @HiveField(1) required String itemId,
-//     @HiveField(2) required OrderItemModel patch,
-//     @HiveField(3) @Default(false) bool oos,
-//   }) = _EditOperationModelUpdate;
+  factory EditOperation.remove({
+    @Default('remove') String op,
+    required String itemId,
+    @Default(false) bool oos,
+  }) = _EditOperationRemove;
 
-//   factory EditOperationModel.remove({
-//     @HiveField(0) @Default('remove') String op,
-//     @HiveField(1) required String itemId,
-//     @HiveField(2) @Default(false) bool oos,
-//   }) = _EditOperationModelRemove;
+  factory EditOperation.fromJson(Map<String, dynamic> json) =>
+      _$EditOperationFromJson(json);
+}
 
-//   factory EditOperationModel.fromJson(Map<String, dynamic> json) =>
-//       _$EditOperationModelFromJson(json);
-// }
+@freezed
+abstract class EditAddItem with _$EditAddItem {
+  factory EditAddItem({
+    required String menuItem,
+    @Default(1) int quantity,
+    @Default([]) List<SelectedAddon> selectedAddons,
+    @Default([]) List<SelectedTopping> selectedToppings,
+    @Default('') String notes,
+    @JsonKey(name: 'dineType') @Default('Dine-In') String dineType,
+  }) = _EditAddItem;
+
+  factory EditAddItem.fromJson(Map<String, dynamic> json) =>
+      _$EditAddItemFromJson(json);
+}
+
+@freezed
+abstract class EditUpdatePatch with _$EditUpdatePatch {
+  factory EditUpdatePatch({
+    int? quantity,
+    String? notes,
+    String? dineType,
+    List<SelectedAddon>? selectedAddons,
+    List<SelectedTopping>? selectedToppings,
+  }) = _EditUpdatePatch;
+
+  factory EditUpdatePatch.fromJson(Map<String, dynamic> json) =>
+      _$EditUpdatePatchFromJson(json);
+}
+
+@freezed
+abstract class SelectedAddon with _$SelectedAddon {
+  factory SelectedAddon({
+    required String id, // addonId
+    @Default([]) List<SelectedAddonOption> options,
+  }) = _SelectedAddon;
+
+  factory SelectedAddon.fromJson(Map<String, dynamic> json) =>
+      _$SelectedAddonFromJson(json);
+}
+
+@freezed
+abstract class SelectedAddonOption with _$SelectedAddonOption {
+  factory SelectedAddonOption({
+    required String id, // optionId
+  }) = _SelectedAddonOption;
+
+  factory SelectedAddonOption.fromJson(Map<String, dynamic> json) =>
+      _$SelectedAddonOptionFromJson(json);
+}
+
+@freezed
+abstract class SelectedTopping with _$SelectedTopping {
+  factory SelectedTopping({
+    required String id, // toppingId
+  }) = _SelectedTopping;
+
+  factory SelectedTopping.fromJson(Map<String, dynamic> json) =>
+      _$SelectedToppingFromJson(json);
+}

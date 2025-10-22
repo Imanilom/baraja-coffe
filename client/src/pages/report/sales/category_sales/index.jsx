@@ -6,6 +6,7 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import Paginated from "../../../../components/paginated";
+import SalesCategorySkeleton from "./skeleton";
 
 const CategorySales = () => {
 
@@ -324,9 +325,7 @@ const CategorySales = () => {
     // Show loading state
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#005429]"></div>
-            </div>
+            <SalesCategorySkeleton />
         );
     }
 

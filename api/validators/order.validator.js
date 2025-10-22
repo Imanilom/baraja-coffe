@@ -218,9 +218,9 @@ export async function createMidtransSnapTransaction(orderId, amount, customer, p
 
     // ✅ TAMBAHAN: Callbacks untuk update status
     callbacks: {
-      finish: `${process.env.BASE_URL}/payment-success`,
-      error: `${process.env.BASE_URL}/payment-error`,
-      pending: `${process.env.BASE_URL}/payment-pending`
+      finish: `https://order.barajacoffee.com/order-status.php`,
+      error: `https://order.barajacoffee.com/order-status.php`,
+      pending: `https://order.barajacoffee.com/order-status.php`
     }
   };
 
