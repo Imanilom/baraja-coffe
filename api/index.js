@@ -182,7 +182,7 @@ app.use((err, req, res, next) => {
 // =====================================================
 const startServer = async () => {
   try {
-    await mongoose.connect(process.env.MONGO, {
+    await mongoose.connect(process.env.MONGO_PROD, {
       serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
     });
     console.log('✅ Connected to MongoDB');
