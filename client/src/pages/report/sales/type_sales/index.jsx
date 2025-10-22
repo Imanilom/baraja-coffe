@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
@@ -52,6 +52,7 @@ const TypeSales = () => {
     const [value, setValue] = useState(null);
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
+    const [isExporting, setIsExporting] = useState(false);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -273,62 +274,124 @@ const TypeSales = () => {
     }, []);
 
     // Export current data to Excel
-    const exportToExcel = () => {
-        // 1. Group the data by orderType
-        const grouped = {};
+    const exportToExcel = async () => {
+        setIsExporting(true);
 
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
+        try {
+            // Small delay to show loading state
+            await new Promise(resolve => setTimeout(resolve, 15000));
 
-            const orderType = product?.orderType || 'N/A';
-            const subtotal = Number(item?.subtotal) || 0;
+            // Get outlet name
+            const outletName = tempSelectedOutlet
+                ? outlets.find(o => o._id === tempSelectedOutlet)?.name || 'Semua Outlet'
+                : 'Semua Outlet';
 
-            if (!grouped[orderType]) {
-                grouped[orderType] = {
-                    orderType,
-                    subtotal: 0,
-                    count: 0
-                };
-            }
+            // Get date range
+            const dateRange = value && value.startDate && value.endDate
+                ? `${new Date(value.startDate).toLocaleDateString('id-ID')} - ${new Date(value.endDate).toLocaleDateString('id-ID')}`
+                : new Date().toLocaleDateString('id-ID');
 
-            grouped[orderType].subtotal += subtotal;
-            grouped[orderType].count += 1;
-        });
+            // 1. Group the data by orderType
+            const grouped = {};
 
-        // 2. Prepare data to export from the grouped object
-        const dataToExport = Object.values(grouped).map(item => ({
-            "Tipe Penjualan": item.orderType,
-            "Jumlah Transaksi": item.count,
-            "Total Transaksi": item.subtotal,
-            "Total Fee": 0 // Ganti dengan perhitungan fee jika ada
-        }));
+            filteredData.forEach(product => {
+                const item = product?.items?.[0];
+                if (!item) return;
 
-        // 3. Export to Excel
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Tipe Penjualan");
-        XLSX.writeFile(wb, "Tipe_Penjualan.xlsx");
-    };
+                const orderType = product?.orderType || 'N/A';
+                const subtotal = Number(item?.subtotal) || 0;
 
-    // generate nomor halaman
-    const renderPageNumbers = () => {
-        let pages = [];
-        for (let i = 1; i <= totalPages; i++) {
-            pages.push(
-                <button
-                    key={i}
-                    onClick={() => setCurrentPage(i)}
-                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
-                        ? "bg-green-900 text-white border-green-900"
-                        : "text-green-900 hover:bg-green-900 hover:text-white"
-                        }`}
-                >
-                    {i}
-                </button>
-            );
+                if (!grouped[orderType]) {
+                    grouped[orderType] = {
+                        orderType,
+                        subtotal: 0,
+                        count: 0
+                    };
+                }
+
+                grouped[orderType].subtotal += subtotal;
+                grouped[orderType].count += 1;
+            });
+
+            // 2. Calculate totals
+            const groupedArray = Object.values(grouped);
+            const totalTransaksi = groupedArray.reduce((sum, item) => sum + item.count, 0);
+            const totalSubtotal = groupedArray.reduce((sum, item) => sum + item.subtotal, 0);
+            const totalFee = 0; // Ganti dengan perhitungan fee jika ada
+
+            // Create export data
+            const exportData = [
+                { col1: 'Laporan Tipe Penjualan', col2: '', col3: '', col4: '' },
+                { col1: '', col2: '', col3: '', col4: '' },
+                { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
+                { col1: 'Tanggal', col2: dateRange, col3: '', col4: '' },
+                { col1: '', col2: '', col3: '', col4: '' },
+                { col1: 'Tipe Penjualan', col2: 'Jumlah Transaksi', col3: 'Total Transaksi', col4: 'Total Fee' }
+            ];
+
+            // Add data rows
+            groupedArray.forEach(item => {
+                exportData.push({
+                    col1: item.orderType,
+                    col2: item.count,
+                    col3: item.subtotal,
+                    col4: 0 // Ganti dengan perhitungan fee per item jika ada
+                });
+            });
+
+            // Add Grand Total row
+            exportData.push({
+                col1: 'Grand Total',
+                col2: totalTransaksi,
+                col3: totalSubtotal,
+                col4: totalFee
+            });
+
+            // Create worksheet
+            const ws = XLSX.utils.json_to_sheet(exportData, {
+                header: ['col1', 'col2', 'col3', 'col4'],
+                skipHeader: true
+            });
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 25 }, // Tipe Penjualan
+                { wch: 20 }, // Jumlah Transaksi
+                { wch: 20 }, // Total Transaksi
+                { wch: 15 }  // Total Fee
+            ];
+
+            // Merge cells for title
+            ws['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } } // Merge title across 4 columns
+            ];
+
+            // Apply bold styling to specific rows
+            const boldRows = [0, 5, exportData.length - 1]; // Title, Header, Grand Total
+
+            boldRows.forEach(rowIndex => {
+                for (let col = 0; col < 4; col++) {
+                    const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: col });
+                    if (ws[cellAddress]) {
+                        ws[cellAddress].s = { font: { bold: true } };
+                    }
+                }
+            });
+
+            // Create workbook and add worksheet
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Tipe Penjualan");
+
+            // Export file
+            const fileName = `Laporan_Tipe_Penjualan_${outletName}_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+
+        } catch (error) {
+            console.error("Error exporting to Excel:", error);
+            alert("Gagal mengekspor data. Silakan coba lagi.");
+        } finally {
+            setIsExporting(false);
         }
-        return pages;
     };
 
     // Show loading state
@@ -368,7 +431,22 @@ const TypeSales = () => {
                     <FaChevronRight />
                     <span>Tipe Penjualan</span>
                 </h1>
-                <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                <button
+                    onClick={exportToExcel}
+                    disabled={isExporting}
+                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isExporting ? (
+                        <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                            Mengekspor...
+                        </>
+                    ) : (
+                        <>
+                            <FaDownload /> Ekspor CSV
+                        </>
+                    )}
+                </button>
             </div>
 
             {/* Filters */}

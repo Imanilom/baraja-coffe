@@ -47,19 +47,7 @@ const OrderItemSchema = new mongoose.Schema({
   outletName: { type: String },
   payment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
   
-  // TAMBAHAN: Field untuk custom amount
-  isCustomAmount: { 
-    type: Boolean, 
-    default: false 
-  },
-  customAmountName: {
-    type: String,
-    default: 'Custom Amount'
-  },
-  customAmountDescription: {
-    type: String,
-    default: ''
-  }
+
 });
 
 // Model Order
@@ -75,6 +63,16 @@ const OrderSchema = new mongoose.Schema({
     enum: ['Pending', 'Waiting', 'Reserved', 'OnProcess', 'Completed', 'Canceled'],
     default: 'Pending'
   },
+  customAmount: {
+    amount: { type: Number, default: 0 },
+    name: { type: String, default: 'Penyesuaian Pembayaran' },
+    description: { type: String, default: '' },
+    appliedAt: {
+      type: Date,
+      default: () => getWIBNow()
+    }
+  },
+
   paymentMethod: {
     type: String,
     enum: ['Cash', 'Card', 'QRIS', 'E-Wallet', 'Debit', 'Bank Transfer', 'No Payment'],

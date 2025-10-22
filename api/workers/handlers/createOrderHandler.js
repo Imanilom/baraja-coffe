@@ -23,7 +23,7 @@ export async function createOrderHandler({
         customerId, 
         loyaltyPointsToRedeem, 
         orderType, 
-        customAmountItems = [] 
+        customAmount // SEKARANG single object
       } = orderData;
 
       console.log('Order Handler - Starting Order Creation:', {
@@ -32,14 +32,14 @@ export async function createOrderHandler({
         requiresDelivery,
         hasRecipientData: !!recipientData,
         source,
-        hasCustomAmount: customAmountItems && customAmountItems.length > 0,
-        customAmountItemsCount: customAmountItems ? customAmountItems.length : 0
+        hasCustomAmount: customAmount && customAmount.amount > 0,
+        customAmount: customAmount ? customAmount.amount : 0
       });
 
-      // Process order items dengan custom amount
+      // Process order items dengan custom amount terpisah
       const processed = await processOrderItems({
         ...orderData,
-        customAmountItems: customAmountItems || []
+        customAmount: customAmount || null
       }, session);
       
       if (!processed) {
@@ -48,6 +48,7 @@ export async function createOrderHandler({
 
       const {
         orderItems,
+        customAmount: processedCustomAmount,
         totals,
         discounts,
         promotions,
@@ -62,7 +63,7 @@ export async function createOrderHandler({
         initialStatus = isOpenBill ? 'Pending' : 'Waiting';
       }
 
-      // Cleanup menyeluruh - hapus SEMUA field delivery yang tidak diperlukan
+      // Cleanup menyeluruh
       const {
         delivery_option,
         recipient_data,
@@ -70,14 +71,15 @@ export async function createOrderHandler({
         deliveryProvider,
         deliveryTracking,
         recipientInfo,
-        customAmountItems: cleanedCustomAmountItems, // Already processed
+        customAmount: cleanedCustomAmount, // Already processed
         ...cleanOrderData
       } = orderData;
 
       const baseOrderData = {
         ...cleanOrderData,
         order_id: orderId,
-        items: orderItems,
+        items: orderItems, // HANYA menu items
+        customAmount: processedCustomAmount, // Custom amount terpisah
         totalBeforeDiscount: totals.beforeDiscount,
         totalAfterDiscount: totals.afterDiscount,
         totalTax: totals.totalTax,
@@ -134,7 +136,6 @@ export async function createOrderHandler({
           };
         }
 
-        // Set deliveryTracking sebagai object kosong
         baseOrderData.deliveryTracking = {};
       } else {
         console.log('Non-delivery order - skipping delivery fields');
@@ -150,12 +151,11 @@ export async function createOrderHandler({
         orderId,
         orderType: baseOrderData.orderType,
         source: baseOrderData.source,
-        totalItems: baseOrderData.items.length,
-        customAmountItems: baseOrderData.items.filter(item => item.isCustomAmount).length,
-        regularItems: baseOrderData.items.filter(item => !item.isCustomAmount).length,
+        totalMenuItems: baseOrderData.items.length,
+        hasCustomAmount: !!baseOrderData.customAmount,
+        customAmountValue: baseOrderData.customAmount ? baseOrderData.customAmount.amount : 0,
         grandTotal: baseOrderData.grandTotal,
-        hasDeliveryStatus: baseOrderData.deliveryStatus !== undefined,
-        hasDeliveryProvider: baseOrderData.deliveryProvider !== undefined
+        menuItemsTotal: baseOrderData.totalAfterDiscount
       });
 
       // Create and save the order
@@ -175,11 +175,10 @@ export async function createOrderHandler({
         orderNumber: orderId,
         orderType: newOrder.orderType,
         status: newOrder.status,
-        totalItems: newOrder.items.length,
-        customAmountItems: newOrder.items.filter(item => item.isCustomAmount).length,
-        grandTotal: newOrder.grandTotal,
-        deliveryStatus: newOrder.deliveryStatus,
-        deliveryProvider: newOrder.deliveryProvider
+        totalMenuItems: newOrder.items.length,
+        hasCustomAmount: !!newOrder.customAmount,
+        customAmount: newOrder.customAmount ? newOrder.customAmount.amount : 0,
+        grandTotal: newOrder.grandTotal
       });
 
       return {
@@ -187,6 +186,7 @@ export async function createOrderHandler({
         orderId: newOrder._id.toString(),
         orderNumber: orderId,
         processedItems: orderItems,
+        customAmount: processedCustomAmount,
         totals: totals,
         loyalty: loyalty
       };
@@ -205,7 +205,8 @@ export async function createOrderHandler({
       ...queueResult,
       orderNumber: orderId,
       grandTotal: orderResult.totals.grandTotal,
-      loyalty: orderResult.loyalty
+      loyalty: orderResult.loyalty,
+      hasCustomAmount: !!orderResult.customAmount
     };
 
   } catch (err) {
@@ -215,14 +216,13 @@ export async function createOrderHandler({
       orderId,
       source,
       orderType: orderData?.orderType,
-      hasCustomAmount: orderData?.customAmountItems?.length > 0
+      hasCustomAmount: orderData?.customAmount?.amount > 0
     });
 
     if (err.message.includes('Failed to process order items')) {
       throw new Error(`ORDER_PROCESSING_FAILED: ${err.message}`);
     }
     if (err instanceof mongoose.Error.ValidationError) {
-      // Log detail validation error
       console.error('Validation Error Details:', Object.keys(err.errors).map(key => ({
         field: key,
         value: err.errors[key]?.value,
@@ -246,15 +246,13 @@ export async function enqueueInventoryUpdate(orderResult) {
   }
 
   try {
-    // Filter out custom amount items dari inventory update
-    const regularItems = orderResult.processedItems.filter(item => !item.isCustomAmount);
-
+    // Hanya update inventory untuk regular menu items
     const jobData = {
       type: 'update_inventory',
       payload: {
         orderId: orderResult.orderId,
         orderNumber: orderResult.orderNumber,
-        items: regularItems // Hanya regular items yang mempengaruhi inventory
+        items: orderResult.processedItems // Hanya regular items
       }
     };
 
@@ -275,8 +273,8 @@ export async function enqueueInventoryUpdate(orderResult) {
 
     console.log('Inventory update enqueued:', {
       orderId: orderResult.orderId,
-      regularItemsCount: regularItems.length,
-      totalItemsCount: orderResult.processedItems.length
+      regularItemsCount: orderResult.processedItems.length,
+      hasCustomAmount: !!orderResult.customAmount
     });
 
     return {

@@ -103,16 +103,28 @@ export const createAppOrder = async (req, res) => {
       reservationType,
       isOpenBill,
       openBillData,
-      // Add new parameters from frontend
       taxDetails,
       totalTax,
       subtotal: frontendSubtotal,
-      discount: frontendDiscount
+      discount: frontendDiscount,
+      // ✅ TAMBAHAN: Parameter untuk GRO mode
+      isGroMode,
+      groId,
+      userName,
+      guestPhone,
     } = req.body;
 
-    console.log('Received createAppOrder request:', req.body);
+    console.log('Received createAppOrder request:', {
+      isGroMode,
+      groId,
+      userName,
+      guestPhone,
+      userId,
+      isOpenBill,
+      openBillData
+    });
 
-    //  Validasi items, kecuali reservasi tanpa open bill
+    // Validasi items, kecuali reservasi tanpa open bill
     if ((!items || items.length === 0) && !(orderType === 'reservation' && !isOpenBill)) {
       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
     }
@@ -123,35 +135,76 @@ export const createAppOrder = async (req, res) => {
     if (!paymentDetails?.method) {
       return res.status(400).json({ success: false, message: 'Payment method is required' });
     }
-    if (!userId) {
-      return res.status(400).json({ success: false, message: 'User ID is required' });
+
+    // ✅ PERBAIKAN: Validasi user berbeda untuk GRO mode
+    let userExists = null;
+    let finalUserId = null;
+    let finalUserName = userName || 'Guest';
+
+    if (isGroMode) {
+      // Untuk GRO mode, validasi GRO yang login
+      if (!groId) {
+        return res.status(400).json({ success: false, message: 'GRO ID is required for GRO mode' });
+      }
+
+      const groExists = await User.findById(groId);
+      if (!groExists) {
+        return res.status(404).json({ success: false, message: 'GRO not found' });
+      }
+
+      // Untuk order, gunakan guest name yang dimasukkan GRO
+      finalUserId = null; // Biarkan null untuk guest
+      finalUserName = userName || 'Guest';
+
+      console.log('✅ GRO Mode - Order akan dibuat atas nama guest:', finalUserName);
+    } else {
+      // Normal user flow
+      if (!userId) {
+        return res.status(400).json({ success: false, message: 'User ID is required' });
+      }
+
+      userExists = await User.findById(userId);
+      if (!userExists) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+
+      finalUserId = userId;
+      finalUserName = userExists.username || 'Guest';
     }
 
-    // Verify user exists
-    const userExists = await User.findById(userId);
-    if (!userExists) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-
-    // Handle Open Bill scenario - find existing reservation order
+    // ✅ PERBAIKAN UTAMA: Handle Open Bill scenario - find existing order first
     let existingOrder = null;
     let existingReservation = null;
 
     if (isOpenBill && openBillData) {
-      existingReservation = await Reservation.findById(openBillData.reservationId);
-      if (!existingReservation) {
+      console.log('🔍 Looking for existing order with order_id:', openBillData.reservationId);
+
+      // ✅ Cari order terlebih dahulu menggunakan order_id (string)
+      existingOrder = await Order.findOne({ order_id: openBillData.reservationId });
+
+      if (!existingOrder) {
+        console.log('❌ Order not found for open bill:', openBillData.reservationId);
         return res.status(404).json({
           success: false,
-          message: 'Reservation not found for open bill'
+          message: 'Order not found for open bill'
         });
       }
 
-      if (existingReservation.order_id) {
-        existingOrder = await Order.findById(existingReservation.order_id);
+      console.log('✅ Found existing order:', existingOrder._id);
+
+      // ✅ Kemudian cari reservation yang terkait dengan order ini
+      if (existingOrder.reservation) {
+        existingReservation = await Reservation.findById(existingOrder.reservation);
+        console.log('✅ Found existing reservation:', existingReservation?._id);
+      }
+
+      if (!existingReservation) {
+        console.log('⚠️ Warning: Order found but no reservation linked');
+        // Tidak return error, lanjutkan saja karena bisa jadi walk-in order tanpa reservation
       }
     }
 
-    //  Format orderType
+    // Format orderType
     let formattedOrderType = '';
     switch (orderType) {
       case 'dineIn':
@@ -174,7 +227,6 @@ export const createAppOrder = async (req, res) => {
         break;
       case 'takeAway':
         formattedOrderType = 'Take Away';
-        //  Tidak perlu validasi tambahan
         break;
       case 'reservation':
         formattedOrderType = 'Reservation';
@@ -196,7 +248,6 @@ export const createAppOrder = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
       }
 
-      // Convert "HH:mm" -> Date
       const [hours, minutes] = pickupTime.split(':').map(Number);
       const now = new Date();
       parsedPickupTime = new Date(
@@ -207,7 +258,6 @@ export const createAppOrder = async (req, res) => {
         minutes
       );
     }
-
 
     // Find voucher if provided
     let voucherId = null;
@@ -267,10 +317,10 @@ export const createAppOrder = async (req, res) => {
       }
     }
 
-    //  Perhitungan konsisten
+    // Perhitungan konsisten
     let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
     if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0) {
-      totalBeforeDiscount = 25000; // minimal reservasi tanpa menu
+      totalBeforeDiscount = 25000;
     }
 
     let totalAfterDiscount = totalBeforeDiscount;
@@ -301,7 +351,6 @@ export const createAppOrder = async (req, res) => {
 
     console.log('Backend tax calculation result:', taxServiceCalculation);
 
-    // Calculate grand total including tax and service
     const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
 
     console.log('Final totals:', {
@@ -315,6 +364,8 @@ export const createAppOrder = async (req, res) => {
 
     // Handle Open Bill scenario - NOW WITH TAX CALCULATION
     if (isOpenBill && existingOrder) {
+      console.log('📝 Adding items to existing order:', existingOrder.order_id);
+
       existingOrder.items.push(...orderItems);
 
       const newItemsTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
@@ -329,7 +380,7 @@ export const createAppOrder = async (req, res) => {
         if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
       }
 
-      // Recalculate tax for open bill (now applies tax)
+      // Recalculate tax for open bill
       const updatedTaxCalculation = await calculateTaxAndService(
         updatedTotalAfterDiscount,
         outlet || "67cbc9560f025d897d69f889",
@@ -346,20 +397,23 @@ export const createAppOrder = async (req, res) => {
       await existingOrder.save();
       newOrder = existingOrder;
 
-      console.log('Updated existing order with tax:', {
+      console.log('✅ Updated existing order with new items and recalculated tax:', {
         totalTax: existingOrder.totalTax,
         totalServiceFee: existingOrder.totalServiceFee,
         grandTotal: existingOrder.grandTotal
       });
     }
     else if (isOpenBill && !existingOrder) {
-      // Create new order for open bill WITH TAX
+      // This shouldn't happen after our fix, but keep as fallback
+      console.log('⚠️ Open bill requested but no existing order found, creating new one');
+
       const generatedOrderId = await generateOrderId(openBillData.tableNumbers || tableNumber || '');
       newOrder = new Order({
         order_id: generatedOrderId,
-        user_id: userId,
-        user: userExists.username || 'Guest',
+        user_id: finalUserId,
+        user: finalUserName,
         cashier: null,
+        groId: isGroMode ? groId : null,
         items: orderItems,
         status: 'Reserved',
         paymentMethod: paymentDetails.method,
@@ -371,40 +425,35 @@ export const createAppOrder = async (req, res) => {
         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
         totalBeforeDiscount,
         totalAfterDiscount,
-        totalTax: taxServiceCalculation.totalTax, // Now includes tax for open bill
-        totalServiceFee: taxServiceCalculation.totalServiceFee, // Now includes service fee
+        totalTax: taxServiceCalculation.totalTax,
+        totalServiceFee: taxServiceCalculation.totalServiceFee,
         discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
         appliedPromos: [],
         appliedManualPromo: null,
         appliedVoucher: voucherId,
-        taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails, // Tax details for open bill
-        grandTotal: grandTotal, // Grand total with tax
+        taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,
+        grandTotal: grandTotal,
         promotions: [],
         source: 'App',
-        reservation: existingReservation._id,
+        reservation: existingReservation?._id || null,
         isOpenBill: true,
         originalReservationId: openBillData.reservationId,
       });
       await newOrder.save();
 
-      if (!existingReservation.order_id) {
+      if (existingReservation && !existingReservation.order_id) {
         existingReservation.order_id = newOrder._id;
         await existingReservation.save();
       }
-
-      console.log('Created new open bill order with tax:', {
-        totalTax: newOrder.totalTax,
-        totalServiceFee: newOrder.totalServiceFee,
-        grandTotal: newOrder.grandTotal
-      });
     } else {
       // Normal order creation with tax calculation
       const generatedOrderId = await generateOrderId(tableNumber || '');
       newOrder = new Order({
         order_id: generatedOrderId,
-        user_id: userId,
-        user: userExists.username || 'Guest',
+        user_id: finalUserId,
+        user: finalUserName,
         cashier: null,
+        groId: isGroMode ? groId : null,
         items: orderItems,
         status: orderType === 'reservation' ? 'Reserved' : 'Pending',
         paymentMethod: paymentDetails.method,
@@ -430,24 +479,18 @@ export const createAppOrder = async (req, res) => {
         reservation: null,
       });
       await newOrder.save();
-
-      console.log('Created new order with tax:', {
-        totalTax: newOrder.totalTax,
-        totalServiceFee: newOrder.totalServiceFee,
-        grandTotal: newOrder.grandTotal
-      });
     }
 
-    // Verify order was saved with tax data
+    // Verify order was saved
     const savedOrder = await Order.findById(newOrder._id);
-    console.log('Verified saved order tax data:', {
+    console.log('✅ Verified saved order:', {
       orderId: savedOrder._id,
+      order_id: savedOrder.order_id,
       totalTax: savedOrder.totalTax,
       totalServiceFee: savedOrder.totalServiceFee,
-      taxAndServiceDetails: savedOrder.taxAndServiceDetails,
-      grandTotal: savedOrder.grandTotal
+      grandTotal: savedOrder.grandTotal,
+      itemsCount: savedOrder.items.length
     });
-
 
     // Reservation creation (existing code remains the same)
     let reservationRecord = null;
@@ -474,16 +517,29 @@ export const createAppOrder = async (req, res) => {
           });
         }
 
+        // ✅ PERBAIKAN: Simpan data GRO di created_by
+        const createdByData = isGroMode && groId ? {
+          employee_id: groId,
+          employee_name: (await User.findById(groId))?.username || 'Unknown GRO',
+          created_at: new Date()
+        } : {
+          employee_id: null,
+          employee_name: null,
+          created_at: new Date()
+        };
+
         reservationRecord = new Reservation({
           reservation_date: parsedReservationDate,
           reservation_time: reservationData.reservationTime,
           area_id: reservationData.areaIds,
           table_id: reservationData.tableIds,
           guest_count: reservationData.guestCount,
+          guest_number: isGroMode ? guestPhone : null,
           order_id: newOrder._id,
           status: 'pending',
           reservation_type: reservationType || 'nonBlocking',
-          notes: reservationData.notes || ''
+          notes: reservationData.notes || '',
+          created_by: createdByData
         });
 
         await reservationRecord.save();
@@ -491,7 +547,11 @@ export const createAppOrder = async (req, res) => {
         newOrder.reservation = reservationRecord._id;
         await newOrder.save();
 
-        console.log('Reservation created:', reservationRecord);
+        console.log('✅ Reservation created with GRO data:', {
+          reservationId: reservationRecord._id,
+          createdBy: createdByData,
+          guestNumber: guestPhone
+        });
       } catch (reservationError) {
         console.error('Error creating reservation:', reservationError);
         await Order.findByIdAndDelete(newOrder._id);
@@ -518,12 +578,13 @@ export const createAppOrder = async (req, res) => {
       responseData.reservation = reservationRecord;
     }
 
-    // Enhanced mapping for frontend response with tax information
+    // Enhanced mapping for frontend response
     const mappedOrders = {
       _id: newOrder._id,
       userId: newOrder.user_id,
       customerName: newOrder.user,
       cashierId: newOrder.cashier,
+      groId: newOrder.groId,
       items: newOrder.items.map(item => ({
         _id: item._id,
         quantity: item.quantity,
@@ -591,6 +652,1019 @@ export const createAppOrder = async (req, res) => {
     });
   }
 };
+// export const createAppOrder = async (req, res) => {
+//   try {
+//     const {
+//       items,
+//       orderType,
+//       tableNumber,
+//       deliveryAddress,
+//       pickupTime,
+//       paymentDetails,
+//       voucherCode,
+//       userId,
+//       outlet,
+//       reservationData,
+//       reservationType,
+//       isOpenBill,
+//       openBillData,
+//       taxDetails,
+//       totalTax,
+//       subtotal: frontendSubtotal,
+//       discount: frontendDiscount,
+//       // ✅ TAMBAHAN: Parameter untuk GRO mode
+//       isGroMode,
+//       groId,
+//       userName,
+//       guestPhone,
+//     } = req.body;
+
+//     console.log('Received createAppOrder request:', {
+//       isGroMode,
+//       groId,
+//       userName,
+//       guestPhone,
+//       userId,
+//     });
+
+//     // Validasi items, kecuali reservasi tanpa open bill
+//     if ((!items || items.length === 0) && !(orderType === 'reservation' && !isOpenBill)) {
+//       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
+//     }
+//     if (!isOpenBill && !orderType) {
+//       return res.status(400).json({ success: false, message: 'Order type is required' });
+//     }
+
+//     if (!paymentDetails?.method) {
+//       return res.status(400).json({ success: false, message: 'Payment method is required' });
+//     }
+
+//     // ✅ PERBAIKAN: Validasi user berbeda untuk GRO mode
+//     let userExists = null;
+//     let finalUserId = null;
+//     let finalUserName = userName || 'Guest';
+
+//     if (isGroMode) {
+//       // Untuk GRO mode, validasi GRO yang login
+//       if (!groId) {
+//         return res.status(400).json({ success: false, message: 'GRO ID is required for GRO mode' });
+//       }
+
+//       const groExists = await User.findById(groId);
+//       if (!groExists) {
+//         return res.status(404).json({ success: false, message: 'GRO not found' });
+//       }
+
+//       // Untuk order, gunakan guest name yang dimasukkan GRO
+//       finalUserId = null; // Biarkan null untuk guest
+//       finalUserName = userName || 'Guest';
+
+//       console.log('✅ GRO Mode - Order akan dibuat atas nama guest:', finalUserName);
+//     } else {
+//       // Normal user flow
+//       if (!userId) {
+//         return res.status(400).json({ success: false, message: 'User ID is required' });
+//       }
+
+//       userExists = await User.findById(userId);
+//       if (!userExists) {
+//         return res.status(404).json({ success: false, message: 'User not found' });
+//       }
+
+//       finalUserId = userId;
+//       finalUserName = userExists.username || 'Guest';
+//     }
+
+//     // Handle Open Bill scenario - find existing reservation order
+//     let existingOrder = null;
+//     let existingReservation = null;
+
+//     if (isOpenBill && openBillData) {
+//       existingReservation = await Reservation.findById(openBillData.reservationId);
+//       if (!existingReservation) {
+//         return res.status(404).json({
+//           success: false,
+//           message: 'Reservation not found for open bill'
+//         });
+//       }
+
+//       if (existingReservation.order_id) {
+//         existingOrder = await Order.findById(existingReservation.order_id);
+//       }
+//     }
+
+//     // Format orderType
+//     let formattedOrderType = '';
+//     switch (orderType) {
+//       case 'dineIn':
+//         formattedOrderType = 'Dine-In';
+//         if (!tableNumber && !isOpenBill) {
+//           return res.status(400).json({ success: false, message: 'Table number is required for dine-in orders' });
+//         }
+//         break;
+//       case 'delivery':
+//         formattedOrderType = 'Delivery';
+//         if (!deliveryAddress) {
+//           return res.status(400).json({ success: false, message: 'Delivery address is required for delivery orders' });
+//         }
+//         break;
+//       case 'pickup':
+//         formattedOrderType = 'Pickup';
+//         if (!pickupTime) {
+//           return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
+//         }
+//         break;
+//       case 'takeAway':
+//         formattedOrderType = 'Take Away';
+//         break;
+//       case 'reservation':
+//         formattedOrderType = 'Reservation';
+//         if (!reservationData && !isOpenBill) {
+//           return res.status(400).json({ success: false, message: 'Reservation data is required for reservation orders' });
+//         }
+//         if (isOpenBill) {
+//           formattedOrderType = 'Reservation';
+//         }
+//         break;
+//       default:
+//         return res.status(400).json({ success: false, message: 'Invalid order type' });
+//     }
+
+//     // Handle pickup time
+//     let parsedPickupTime = null;
+//     if (orderType === 'pickup') {
+//       if (!pickupTime) {
+//         return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
+//       }
+
+//       const [hours, minutes] = pickupTime.split(':').map(Number);
+//       const now = new Date();
+//       parsedPickupTime = new Date(
+//         now.getFullYear(),
+//         now.getMonth(),
+//         now.getDate(),
+//         hours,
+//         minutes
+//       );
+//     }
+
+//     // Find voucher if provided
+//     let voucherId = null;
+//     let voucherAmount = 0;
+//     let discountType = null;
+//     if (voucherCode) {
+//       const voucher = await Voucher.findOneAndUpdate(
+//         { code: voucherCode },
+//         { $inc: { quota: -1 } },
+//         { new: true }
+//       );
+//       if (voucher) {
+//         voucherId = voucher._id;
+//         voucherAmount = voucher.discountAmount;
+//         discountType = voucher.discountType;
+//       }
+//     }
+
+//     // Process items (jika ada)
+//     const orderItems = [];
+//     if (items && items.length > 0) {
+//       for (const item of items) {
+//         const menuItem = await MenuItem.findById(item.productId).populate('availableAt');
+//         if (!menuItem) {
+//           return res.status(404).json({
+//             success: false,
+//             message: `Menu item not found: ${item.productId}`
+//           });
+//         }
+
+//         const processedAddons = item.addons?.map(addon => ({
+//           name: addon.name,
+//           price: addon.price
+//         })) || [];
+
+//         const processedToppings = item.toppings?.map(topping => ({
+//           name: topping.name,
+//           price: topping.price
+//         })) || [];
+
+//         const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
+//         const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
+//         const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
+
+//         orderItems.push({
+//           menuItem: menuItem._id,
+//           quantity: item.quantity,
+//           subtotal: itemSubtotal,
+//           addons: processedAddons,
+//           toppings: processedToppings,
+//           notes: item.notes || '',
+//           outletId: menuItem.availableAt?.[0]?._id || null,
+//           outletName: menuItem.availableAt?.[0]?.name || null,
+//           isPrinted: false,
+//           payment_id: null,
+//         });
+//       }
+//     }
+
+//     // Perhitungan konsisten
+//     let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+//     if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0) {
+//       totalBeforeDiscount = 25000;
+//     }
+
+//     let totalAfterDiscount = totalBeforeDiscount;
+//     if (discountType === 'percentage') {
+//       totalAfterDiscount = totalBeforeDiscount - (totalBeforeDiscount * (voucherAmount / 100));
+//     } else if (discountType === 'fixed') {
+//       totalAfterDiscount = totalBeforeDiscount - voucherAmount;
+//       if (totalAfterDiscount < 0) totalAfterDiscount = 0;
+//     }
+
+//     // Calculate tax and service fees
+//     const isReservationOrder = orderType === 'reservation';
+//     const isOpenBillOrder = isOpenBill || false;
+
+//     const taxServiceCalculation = await calculateTaxAndService(
+//       totalAfterDiscount,
+//       outlet || "67cbc9560f025d897d69f889",
+//       isReservationOrder,
+//       isOpenBillOrder
+//     );
+
+//     const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
+
+//     let newOrder;
+
+//     // Handle Open Bill scenario
+//     if (isOpenBill && existingOrder) {
+//       existingOrder.items.push(...orderItems);
+//       const newItemsTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+//       existingOrder.totalBeforeDiscount += newItemsTotal;
+
+//       let updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount;
+//       if (discountType === 'percentage') {
+//         updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount - (existingOrder.totalBeforeDiscount * (voucherAmount / 100));
+//       } else if (discountType === 'fixed') {
+//         updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount - voucherAmount;
+//         if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
+//       }
+
+//       const updatedTaxCalculation = await calculateTaxAndService(
+//         updatedTotalAfterDiscount,
+//         outlet || "67cbc9560f025d897d69f889",
+//         isReservationOrder,
+//         true
+//       );
+
+//       existingOrder.totalAfterDiscount = updatedTotalAfterDiscount;
+//       existingOrder.totalTax = updatedTaxCalculation.totalTax;
+//       existingOrder.totalServiceFee = updatedTaxCalculation.totalServiceFee;
+//       existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
+//       existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
+
+//       await existingOrder.save();
+//       newOrder = existingOrder;
+//     }
+//     else if (isOpenBill && !existingOrder) {
+//       const generatedOrderId = await generateOrderId(openBillData.tableNumbers || tableNumber || '');
+//       newOrder = new Order({
+//         order_id: generatedOrderId,
+//         user_id: finalUserId,
+//         user: finalUserName,
+//         cashier: null,
+//         groId: isGroMode ? groId : null, // ✅ Simpan GRO ID jika dari GRO mode
+//         items: orderItems,
+//         status: 'Reserved',
+//         paymentMethod: paymentDetails.method,
+//         orderType: formattedOrderType,
+//         deliveryAddress: deliveryAddress || '',
+//         tableNumber: openBillData.tableNumbers || tableNumber || '',
+//         type: 'Indoor',
+//         voucher: voucherId,
+//         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
+//         totalBeforeDiscount,
+//         totalAfterDiscount,
+//         totalTax: taxServiceCalculation.totalTax,
+//         totalServiceFee: taxServiceCalculation.totalServiceFee,
+//         discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
+//         appliedPromos: [],
+//         appliedManualPromo: null,
+//         appliedVoucher: voucherId,
+//         taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,
+//         grandTotal: grandTotal,
+//         promotions: [],
+//         source: 'App',
+//         reservation: existingReservation._id,
+//         isOpenBill: true,
+//         originalReservationId: openBillData.reservationId,
+//       });
+//       await newOrder.save();
+
+//       if (!existingReservation.order_id) {
+//         existingReservation.order_id = newOrder._id;
+//         await existingReservation.save();
+//       }
+//     } else {
+//       // Normal order creation
+//       const generatedOrderId = await generateOrderId(tableNumber || '');
+//       newOrder = new Order({
+//         order_id: generatedOrderId,
+//         user_id: finalUserId,
+//         user: finalUserName,
+//         cashier: null,
+//         groId: isGroMode ? groId : null, // ✅ Simpan GRO ID jika dari GRO mode
+//         items: orderItems,
+//         status: orderType === 'reservation' ? 'Reserved' : 'Pending',
+//         paymentMethod: paymentDetails.method,
+//         orderType: formattedOrderType,
+//         deliveryAddress: deliveryAddress || '',
+//         tableNumber: tableNumber || '',
+//         pickupTime: parsedPickupTime,
+//         type: 'Indoor',
+//         voucher: voucherId,
+//         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
+//         totalBeforeDiscount,
+//         totalAfterDiscount,
+//         totalTax: taxServiceCalculation.totalTax,
+//         totalServiceFee: taxServiceCalculation.totalServiceFee,
+//         discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
+//         appliedPromos: [],
+//         appliedManualPromo: null,
+//         appliedVoucher: voucherId,
+//         taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,
+//         grandTotal: grandTotal,
+//         promotions: [],
+//         source: 'App',
+//         reservation: null,
+//       });
+//       await newOrder.save();
+//     }
+
+//     // ✅ RESERVATION CREATION - Update untuk include GRO data
+//     let reservationRecord = null;
+//     if (orderType === 'reservation' && !isOpenBill) {
+//       try {
+//         let parsedReservationDate;
+
+//         if (reservationData.reservationDate) {
+//           if (typeof reservationData.reservationDate === 'string') {
+//             parsedReservationDate = reservationData.reservationDate.match(/Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember/)
+//               ? parseIndonesianDate(reservationData.reservationDate)
+//               : new Date(reservationData.reservationDate);
+//           } else {
+//             parsedReservationDate = new Date(reservationData.reservationDate);
+//           }
+//         } else {
+//           parsedReservationDate = new Date();
+//         }
+
+//         if (isNaN(parsedReservationDate.getTime())) {
+//           return res.status(400).json({
+//             success: false,
+//             message: 'Invalid reservation date format. Please use YYYY-MM-DD or standard date format.'
+//           });
+//         }
+
+//         // ✅ PERBAIKAN UTAMA: Simpan data GRO di created_by
+//         const createdByData = isGroMode && groId ? {
+//           employee_id: groId,
+//           employee_name: (await User.findById(groId))?.username || 'Unknown GRO',
+//           created_at: new Date()
+//         } : {
+//           employee_id: null,
+//           employee_name: null,
+//           created_at: new Date()
+//         };
+
+//         reservationRecord = new Reservation({
+//           reservation_date: parsedReservationDate,
+//           reservation_time: reservationData.reservationTime,
+//           area_id: reservationData.areaIds,
+//           table_id: reservationData.tableIds,
+//           guest_count: reservationData.guestCount,
+//           guest_number: isGroMode ? guestPhone : null, // ✅ Simpan nomor telepon guest
+//           order_id: newOrder._id,
+//           status: 'pending',
+//           reservation_type: reservationType || 'nonBlocking',
+//           notes: reservationData.notes || '',
+//           created_by: createdByData // ✅ Simpan data GRO yang membuat
+//         });
+
+//         await reservationRecord.save();
+
+//         newOrder.reservation = reservationRecord._id;
+//         await newOrder.save();
+
+//         console.log('✅ Reservation created with GRO data:', {
+//           reservationId: reservationRecord._id,
+//           createdBy: createdByData,
+//           guestNumber: guestPhone
+//         });
+//       } catch (reservationError) {
+//         console.error('Error creating reservation:', reservationError);
+//         await Order.findByIdAndDelete(newOrder._id);
+//         return res.status(500).json({
+//           success: false,
+//           message: 'Error creating reservation',
+//           error: reservationError.message
+//         });
+//       }
+//     }
+
+//     // Response preparation
+//     const responseData = {
+//       success: true,
+//       message: isOpenBill ?
+//         'Items added to existing order successfully' :
+//         `${orderType === 'reservation' ? 'Reservation' : 'Order'} created successfully`,
+//       order: newOrder,
+//       isOpenBill: isOpenBill || false,
+//       existingReservation: isOpenBill ? existingReservation : null
+//     };
+
+//     if (reservationRecord) {
+//       responseData.reservation = reservationRecord;
+//     }
+
+//     // Enhanced mapping for frontend response
+//     const mappedOrders = {
+//       _id: newOrder._id,
+//       userId: newOrder.user_id,
+//       customerName: newOrder.user,
+//       cashierId: newOrder.cashier,
+//       groId: newOrder.groId, // ✅ Include GRO ID in response
+//       items: newOrder.items.map(item => ({
+//         _id: item._id,
+//         quantity: item.quantity,
+//         subtotal: item.subtotal,
+//         isPrinted: item.isPrinted,
+//         menuItem: {
+//           ...item.menuItem,
+//           categories: item.menuItem.category,
+//         },
+//         selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
+//           name: addon.name,
+//           _id: addon._id,
+//           options: [{
+//             id: addon._id,
+//             label: addon.label || addon.name,
+//             price: addon.price
+//           }]
+//         })) : [],
+//         selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
+//           id: topping._id || topping.id,
+//           name: topping.name,
+//           price: topping.price
+//         })) : []
+//       })),
+//       status: newOrder.status,
+//       orderType: newOrder.orderType,
+//       deliveryAddress: newOrder.deliveryAddress,
+//       tableNumber: newOrder.tableNumber,
+//       pickupTime: newOrder.pickupTime,
+//       type: newOrder.type,
+//       paymentMethod: newOrder.paymentMethod || "Cash",
+//       totalPrice: newOrder.totalBeforeDiscount,
+//       totalAfterDiscount: newOrder.totalAfterDiscount,
+//       totalTax: newOrder.totalTax,
+//       totalServiceFee: newOrder.totalServiceFee,
+//       taxAndServiceDetails: newOrder.taxAndServiceDetails,
+//       grandTotal: newOrder.grandTotal,
+//       voucher: newOrder.voucher || null,
+//       outlet: newOrder.outlet || null,
+//       promotions: newOrder.promotions || [],
+//       createdAt: newOrder.createdAt,
+//       updatedAt: newOrder.updatedAt,
+//       __v: newOrder.__v,
+//       isOpenBill: isOpenBill || false
+//     };
+
+//     // Emit to cashier application
+//     if (isOpenBill) {
+//       io.to('cashier_room').emit('open_bill_order', {
+//         mappedOrders,
+//         originalReservation: existingReservation,
+//         message: 'Additional items added to existing reservation'
+//       });
+//     } else {
+//       io.to('cashier_room').emit('new_order', { mappedOrders });
+//     }
+
+//     res.status(201).json(responseData);
+//   } catch (error) {
+//     console.error('Error in createAppOrder:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error creating order',
+//       error: error.message
+//     });
+//   }
+// };
+
+// export const createAppOrder = async (req, res) => {
+//   try {
+//     const {
+//       items,
+//       orderType,
+//       tableNumber,
+//       deliveryAddress,
+//       pickupTime,
+//       paymentDetails,
+//       voucherCode,
+//       userId,
+//       outlet,
+//       reservationData,
+//       reservationType,
+//       isOpenBill,
+//       openBillData,
+//       // Add new parameters from frontend
+//       taxDetails,
+//       totalTax,
+//       subtotal: frontendSubtotal,
+//       discount: frontendDiscount
+//     } = req.body;
+
+//     console.log('Received createAppOrder request:', req.body);
+
+//     //  Validasi items, kecuali reservasi tanpa open bill
+//     if ((!items || items.length === 0) && !(orderType === 'reservation' && !isOpenBill)) {
+//       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
+//     }
+//     if (!isOpenBill && !orderType) {
+//       return res.status(400).json({ success: false, message: 'Order type is required' });
+//     }
+
+//     if (!paymentDetails?.method) {
+//       return res.status(400).json({ success: false, message: 'Payment method is required' });
+//     }
+//     if (!userId) {
+//       return res.status(400).json({ success: false, message: 'User ID is required' });
+//     }
+
+//     // Verify user exists
+//     const userExists = await User.findById(userId);
+//     if (!userExists) {
+//       return res.status(404).json({ success: false, message: 'User not found' });
+//     }
+
+//     // Handle Open Bill scenario - find existing reservation order
+//     let existingOrder = null;
+//     let existingReservation = null;
+
+//     if (isOpenBill && openBillData) {
+//       existingReservation = await Reservation.findById(openBillData.reservationId);
+//       if (!existingReservation) {
+//         return res.status(404).json({
+//           success: false,
+//           message: 'Reservation not found for open bill'
+//         });
+//       }
+
+//       if (existingReservation.order_id) {
+//         existingOrder = await Order.findById(existingReservation.order_id);
+//       }
+//     }
+
+//     //  Format orderType
+//     let formattedOrderType = '';
+//     switch (orderType) {
+//       case 'dineIn':
+//         formattedOrderType = 'Dine-In';
+//         if (!tableNumber && !isOpenBill) {
+//           return res.status(400).json({ success: false, message: 'Table number is required for dine-in orders' });
+//         }
+//         break;
+//       case 'delivery':
+//         formattedOrderType = 'Delivery';
+//         if (!deliveryAddress) {
+//           return res.status(400).json({ success: false, message: 'Delivery address is required for delivery orders' });
+//         }
+//         break;
+//       case 'pickup':
+//         formattedOrderType = 'Pickup';
+//         if (!pickupTime) {
+//           return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
+//         }
+//         break;
+//       case 'takeAway':
+//         formattedOrderType = 'Take Away';
+//         //  Tidak perlu validasi tambahan
+//         break;
+//       case 'reservation':
+//         formattedOrderType = 'Reservation';
+//         if (!reservationData && !isOpenBill) {
+//           return res.status(400).json({ success: false, message: 'Reservation data is required for reservation orders' });
+//         }
+//         if (isOpenBill) {
+//           formattedOrderType = 'Reservation';
+//         }
+//         break;
+//       default:
+//         return res.status(400).json({ success: false, message: 'Invalid order type' });
+//     }
+
+//     // Handle pickup time
+//     let parsedPickupTime = null;
+//     if (orderType === 'pickup') {
+//       if (!pickupTime) {
+//         return res.status(400).json({ success: false, message: 'Pickup time is required for pickup orders' });
+//       }
+
+//       // Convert "HH:mm" -> Date
+//       const [hours, minutes] = pickupTime.split(':').map(Number);
+//       const now = new Date();
+//       parsedPickupTime = new Date(
+//         now.getFullYear(),
+//         now.getMonth(),
+//         now.getDate(),
+//         hours,
+//         minutes
+//       );
+//     }
+
+
+//     // Find voucher if provided
+//     let voucherId = null;
+//     let voucherAmount = 0;
+//     let discountType = null;
+//     if (voucherCode) {
+//       const voucher = await Voucher.findOneAndUpdate(
+//         { code: voucherCode },
+//         { $inc: { quota: -1 } },
+//         { new: true }
+//       );
+//       if (voucher) {
+//         voucherId = voucher._id;
+//         voucherAmount = voucher.discountAmount;
+//         discountType = voucher.discountType;
+//       }
+//     }
+
+//     // Process items (jika ada)
+//     const orderItems = [];
+//     if (items && items.length > 0) {
+//       for (const item of items) {
+//         const menuItem = await MenuItem.findById(item.productId).populate('availableAt');
+//         if (!menuItem) {
+//           return res.status(404).json({
+//             success: false,
+//             message: `Menu item not found: ${item.productId}`
+//           });
+//         }
+
+//         const processedAddons = item.addons?.map(addon => ({
+//           name: addon.name,
+//           price: addon.price
+//         })) || [];
+
+//         const processedToppings = item.toppings?.map(topping => ({
+//           name: topping.name,
+//           price: topping.price
+//         })) || [];
+
+//         const addonsTotal = processedAddons.reduce((sum, addon) => sum + addon.price, 0);
+//         const toppingsTotal = processedToppings.reduce((sum, topping) => sum + topping.price, 0);
+//         const itemSubtotal = item.quantity * (menuItem.price + addonsTotal + toppingsTotal);
+
+//         orderItems.push({
+//           menuItem: menuItem._id,
+//           quantity: item.quantity,
+//           subtotal: itemSubtotal,
+//           addons: processedAddons,
+//           toppings: processedToppings,
+//           notes: item.notes || '',
+//           outletId: menuItem.availableAt?.[0]?._id || null,
+//           outletName: menuItem.availableAt?.[0]?.name || null,
+//           isPrinted: false,
+//           payment_id: null,
+//         });
+//       }
+//     }
+
+//     //  Perhitungan konsisten
+//     let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+//     if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0) {
+//       totalBeforeDiscount = 25000; // minimal reservasi tanpa menu
+//     }
+
+//     let totalAfterDiscount = totalBeforeDiscount;
+//     if (discountType === 'percentage') {
+//       totalAfterDiscount = totalBeforeDiscount - (totalBeforeDiscount * (voucherAmount / 100));
+//     } else if (discountType === 'fixed') {
+//       totalAfterDiscount = totalBeforeDiscount - voucherAmount;
+//       if (totalAfterDiscount < 0) totalAfterDiscount = 0;
+//     }
+
+//     // Calculate tax and service fees
+//     const isReservationOrder = orderType === 'reservation';
+//     const isOpenBillOrder = isOpenBill || false;
+
+//     console.log('Tax calculation parameters:', {
+//       totalAfterDiscount,
+//       outlet: outlet || "67cbc9560f025d897d69f889",
+//       isReservationOrder,
+//       isOpenBillOrder
+//     });
+
+//     const taxServiceCalculation = await calculateTaxAndService(
+//       totalAfterDiscount,
+//       outlet || "67cbc9560f025d897d69f889",
+//       isReservationOrder,
+//       isOpenBillOrder
+//     );
+
+//     console.log('Backend tax calculation result:', taxServiceCalculation);
+
+//     // Calculate grand total including tax and service
+//     const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
+
+//     console.log('Final totals:', {
+//       totalAfterDiscount,
+//       taxAmount: taxServiceCalculation.totalTax,
+//       serviceAmount: taxServiceCalculation.totalServiceFee,
+//       grandTotal
+//     });
+
+//     let newOrder;
+
+//     // Handle Open Bill scenario - NOW WITH TAX CALCULATION
+//     if (isOpenBill && existingOrder) {
+//       existingOrder.items.push(...orderItems);
+
+//       const newItemsTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+//       existingOrder.totalBeforeDiscount += newItemsTotal;
+
+//       // Recalculate discount
+//       let updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount;
+//       if (discountType === 'percentage') {
+//         updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount - (existingOrder.totalBeforeDiscount * (voucherAmount / 100));
+//       } else if (discountType === 'fixed') {
+//         updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount - voucherAmount;
+//         if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
+//       }
+
+//       // Recalculate tax for open bill (now applies tax)
+//       const updatedTaxCalculation = await calculateTaxAndService(
+//         updatedTotalAfterDiscount,
+//         outlet || "67cbc9560f025d897d69f889",
+//         isReservationOrder,
+//         true // isOpenBill = true
+//       );
+
+//       existingOrder.totalAfterDiscount = updatedTotalAfterDiscount;
+//       existingOrder.totalTax = updatedTaxCalculation.totalTax;
+//       existingOrder.totalServiceFee = updatedTaxCalculation.totalServiceFee;
+//       existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
+//       existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
+
+//       await existingOrder.save();
+//       newOrder = existingOrder;
+
+//       console.log('Updated existing order with tax:', {
+//         totalTax: existingOrder.totalTax,
+//         totalServiceFee: existingOrder.totalServiceFee,
+//         grandTotal: existingOrder.grandTotal
+//       });
+//     }
+//     else if (isOpenBill && !existingOrder) {
+//       // Create new order for open bill WITH TAX
+//       const generatedOrderId = await generateOrderId(openBillData.tableNumbers || tableNumber || '');
+//       newOrder = new Order({
+//         order_id: generatedOrderId,
+//         user_id: userId,
+//         user: userExists.username || 'Guest',
+//         cashier: null,
+//         items: orderItems,
+//         status: 'Reserved',
+//         paymentMethod: paymentDetails.method,
+//         orderType: formattedOrderType,
+//         deliveryAddress: deliveryAddress || '',
+//         tableNumber: openBillData.tableNumbers || tableNumber || '',
+//         type: 'Indoor',
+//         voucher: voucherId,
+//         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
+//         totalBeforeDiscount,
+//         totalAfterDiscount,
+//         totalTax: taxServiceCalculation.totalTax, // Now includes tax for open bill
+//         totalServiceFee: taxServiceCalculation.totalServiceFee, // Now includes service fee
+//         discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
+//         appliedPromos: [],
+//         appliedManualPromo: null,
+//         appliedVoucher: voucherId,
+//         taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails, // Tax details for open bill
+//         grandTotal: grandTotal, // Grand total with tax
+//         promotions: [],
+//         source: 'App',
+//         reservation: existingReservation._id,
+//         isOpenBill: true,
+//         originalReservationId: openBillData.reservationId,
+//       });
+//       await newOrder.save();
+
+//       if (!existingReservation.order_id) {
+//         existingReservation.order_id = newOrder._id;
+//         await existingReservation.save();
+//       }
+
+//       console.log('Created new open bill order with tax:', {
+//         totalTax: newOrder.totalTax,
+//         totalServiceFee: newOrder.totalServiceFee,
+//         grandTotal: newOrder.grandTotal
+//       });
+//     } else {
+//       // Normal order creation with tax calculation
+//       const generatedOrderId = await generateOrderId(tableNumber || '');
+//       newOrder = new Order({
+//         order_id: generatedOrderId,
+//         user_id: userId,
+//         user: userExists.username || 'Guest',
+//         cashier: null,
+//         items: orderItems,
+//         status: orderType === 'reservation' ? 'Reserved' : 'Pending',
+//         paymentMethod: paymentDetails.method,
+//         orderType: formattedOrderType,
+//         deliveryAddress: deliveryAddress || '',
+//         tableNumber: tableNumber || '',
+//         pickupTime: parsedPickupTime,
+//         type: 'Indoor',
+//         voucher: voucherId,
+//         outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
+//         totalBeforeDiscount,
+//         totalAfterDiscount,
+//         totalTax: taxServiceCalculation.totalTax,
+//         totalServiceFee: taxServiceCalculation.totalServiceFee,
+//         discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
+//         appliedPromos: [],
+//         appliedManualPromo: null,
+//         appliedVoucher: voucherId,
+//         taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,
+//         grandTotal: grandTotal,
+//         promotions: [],
+//         source: 'App',
+//         reservation: null,
+//       });
+//       await newOrder.save();
+
+//       console.log('Created new order with tax:', {
+//         totalTax: newOrder.totalTax,
+//         totalServiceFee: newOrder.totalServiceFee,
+//         grandTotal: newOrder.grandTotal
+//       });
+//     }
+
+//     // Verify order was saved with tax data
+//     const savedOrder = await Order.findById(newOrder._id);
+//     console.log('Verified saved order tax data:', {
+//       orderId: savedOrder._id,
+//       totalTax: savedOrder.totalTax,
+//       totalServiceFee: savedOrder.totalServiceFee,
+//       taxAndServiceDetails: savedOrder.taxAndServiceDetails,
+//       grandTotal: savedOrder.grandTotal
+//     });
+
+
+//     // Reservation creation (existing code remains the same)
+//     let reservationRecord = null;
+//     if (orderType === 'reservation' && !isOpenBill) {
+//       try {
+//         let parsedReservationDate;
+
+//         if (reservationData.reservationDate) {
+//           if (typeof reservationData.reservationDate === 'string') {
+//             parsedReservationDate = reservationData.reservationDate.match(/Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember/)
+//               ? parseIndonesianDate(reservationData.reservationDate)
+//               : new Date(reservationData.reservationDate);
+//           } else {
+//             parsedReservationDate = new Date(reservationData.reservationDate);
+//           }
+//         } else {
+//           parsedReservationDate = new Date();
+//         }
+
+//         if (isNaN(parsedReservationDate.getTime())) {
+//           return res.status(400).json({
+//             success: false,
+//             message: 'Invalid reservation date format. Please use YYYY-MM-DD or standard date format.'
+//           });
+//         }
+
+//         reservationRecord = new Reservation({
+//           reservation_date: parsedReservationDate,
+//           reservation_time: reservationData.reservationTime,
+//           area_id: reservationData.areaIds,
+//           table_id: reservationData.tableIds,
+//           guest_count: reservationData.guestCount,
+//           order_id: newOrder._id,
+//           status: 'pending',
+//           reservation_type: reservationType || 'nonBlocking',
+//           notes: reservationData.notes || ''
+//         });
+
+//         await reservationRecord.save();
+
+//         newOrder.reservation = reservationRecord._id;
+//         await newOrder.save();
+
+//         console.log('Reservation created:', reservationRecord);
+//       } catch (reservationError) {
+//         console.error('Error creating reservation:', reservationError);
+//         await Order.findByIdAndDelete(newOrder._id);
+//         return res.status(500).json({
+//           success: false,
+//           message: 'Error creating reservation',
+//           error: reservationError.message
+//         });
+//       }
+//     }
+
+//     // Response preparation
+//     const responseData = {
+//       success: true,
+//       message: isOpenBill ?
+//         'Items added to existing order successfully' :
+//         `${orderType === 'reservation' ? 'Reservation' : 'Order'} created successfully`,
+//       order: newOrder,
+//       isOpenBill: isOpenBill || false,
+//       existingReservation: isOpenBill ? existingReservation : null
+//     };
+
+//     if (reservationRecord) {
+//       responseData.reservation = reservationRecord;
+//     }
+
+//     // Enhanced mapping for frontend response with tax information
+//     const mappedOrders = {
+//       _id: newOrder._id,
+//       userId: newOrder.user_id,
+//       customerName: newOrder.user,
+//       cashierId: newOrder.cashier,
+//       items: newOrder.items.map(item => ({
+//         _id: item._id,
+//         quantity: item.quantity,
+//         subtotal: item.subtotal,
+//         isPrinted: item.isPrinted,
+//         menuItem: {
+//           ...item.menuItem,
+//           categories: item.menuItem.category,
+//         },
+//         selectedAddons: item.addons.length > 0 ? item.addons.map(addon => ({
+//           name: addon.name,
+//           _id: addon._id,
+//           options: [{
+//             id: addon._id,
+//             label: addon.label || addon.name,
+//             price: addon.price
+//           }]
+//         })) : [],
+//         selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
+//           id: topping._id || topping.id,
+//           name: topping.name,
+//           price: topping.price
+//         })) : []
+//       })),
+//       status: newOrder.status,
+//       orderType: newOrder.orderType,
+//       deliveryAddress: newOrder.deliveryAddress,
+//       tableNumber: newOrder.tableNumber,
+//       pickupTime: newOrder.pickupTime,
+//       type: newOrder.type,
+//       paymentMethod: newOrder.paymentMethod || "Cash",
+//       totalPrice: newOrder.totalBeforeDiscount,
+//       totalAfterDiscount: newOrder.totalAfterDiscount,
+//       totalTax: newOrder.totalTax,
+//       totalServiceFee: newOrder.totalServiceFee,
+//       taxAndServiceDetails: newOrder.taxAndServiceDetails,
+//       grandTotal: newOrder.grandTotal,
+//       voucher: newOrder.voucher || null,
+//       outlet: newOrder.outlet || null,
+//       promotions: newOrder.promotions || [],
+//       createdAt: newOrder.createdAt,
+//       updatedAt: newOrder.updatedAt,
+//       __v: newOrder.__v,
+//       isOpenBill: isOpenBill || false
+//     };
+
+//     // Emit to cashier application
+//     if (isOpenBill) {
+//       io.to('cashier_room').emit('open_bill_order', {
+//         mappedOrders,
+//         originalReservation: existingReservation,
+//         message: 'Additional items added to existing reservation'
+//       });
+//     } else {
+//       io.to('cashier_room').emit('new_order', { mappedOrders });
+//     }
+
+//     res.status(201).json(responseData);
+//   } catch (error) {
+//     console.error('Error in createAppOrder:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error creating order',
+//       error: error.message
+//     });
+//   }
+// };
 
 // Helper function to parse Indonesian date format
 function parseIndonesianDate(dateString) {
@@ -1027,10 +2101,10 @@ export const createUnifiedOrder = async (req, res) => {
       customerId,
       outletId,
       loyaltyPointsToRedeem,
-      delivery_option, // 'pickup' atau 'delivery' (opsional, default 'pickup')
-      recipient_data, // data penerima untuk delivery (opsional)
-      customAmountItems, // TAMBAHAN: Custom amount items
-      paymentDetails // Payment details termasuk amount paid
+      delivery_option,
+      recipient_data,
+      customAmount, 
+      paymentDetails
     } = req.body;
 
     // Validasi outletId
@@ -1089,7 +2163,7 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    // Loyalty program OPSIONAL - tidak perlu validasi strict
+    // Loyalty program OPSIONAL
     if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
       console.warn('Invalid customer ID format for loyalty program:', customerId);
     }
@@ -1124,11 +2198,11 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     // Auto calculate custom amount jika ada kelebihan pembayaran
-    let finalCustomAmountItems = customAmountItems || [];
+    let finalCustomAmount = customAmount || null;
     
     // Jika ada paymentDetails dan ada kelebihan pembayaran, hitung custom amount otomatis
     if (paymentDetails && paymentDetails.amount && req.body.items) {
-      // Hitung total order dari items
+      // Hitung total order dari items saja (tanpa custom amount)
       const orderTotalFromItems = req.body.items.reduce((total, item) => {
         return total + (item.price || 0) * (item.quantity || 1);
       }, 0);
@@ -1137,13 +2211,14 @@ export const createUnifiedOrder = async (req, res) => {
       const autoCustomAmount = calculateCustomAmount(paymentDetails.amount, orderTotalFromItems);
       if (autoCustomAmount) {
         console.log('Auto-calculated custom amount:', autoCustomAmount);
-        finalCustomAmountItems = [...finalCustomAmountItems, autoCustomAmount];
+        // Jika sudah ada customAmount manual, gunakan yang manual, otherwise gunakan auto
+        finalCustomAmount = customAmount ? customAmount : autoCustomAmount;
       }
     }
 
     const validated = validateOrderData({
       ...req.body,
-      customAmountItems: finalCustomAmountItems
+      customAmount: finalCustomAmount
     }, source);
     
     validated.outletId = outletId;
@@ -1155,16 +2230,16 @@ export const createUnifiedOrder = async (req, res) => {
 
     // Hanya tambahkan delivery info untuk App JIKA delivery_option ada
     if (source === 'App') {
-      validated.delivery_option = delivery_option || 'pickup'; // default ke pickup
+      validated.delivery_option = delivery_option || 'pickup';
       validated.recipient_data = recipient_data;
     }
 
     // Log custom amount information
-    if (finalCustomAmountItems.length > 0) {
-      console.log('Custom amount items included:', {
-        count: finalCustomAmountItems.length,
-        items: finalCustomAmountItems,
-        totalCustomAmount: finalCustomAmountItems.reduce((sum, item) => sum + item.amount, 0)
+    if (finalCustomAmount && finalCustomAmount.amount > 0) {
+      console.log('Custom amount included:', {
+        amount: finalCustomAmount.amount,
+        name: finalCustomAmount.name,
+        description: finalCustomAmount.description
       });
     }
 
@@ -1190,7 +2265,6 @@ export const createUnifiedOrder = async (req, res) => {
         timestamp: new Date()
       });
 
-      // Juga broadcast ke area room spesifik
       const areaRoom = `area_${areaCode}`;
       io.to(areaRoom).emit('new_order_in_area', {
         orderId,
@@ -1216,7 +2290,7 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    // Log delivery information (HANYA UNTUK APP JIKA DELIVERY)
+    // Log delivery information
     if (source === 'App' && delivery_option === 'delivery') {
       console.log('Creating App Order with Delivery Option:', {
         orderId,
@@ -1234,7 +2308,6 @@ export const createUnifiedOrder = async (req, res) => {
         source,
         isOpenBill: validated.isOpenBill,
         isReservation: orderType === 'reservation',
-        // Tambahkan flag untuk delivery - HANYA UNTUK APP JIKA DELIVERY
         requiresDelivery: source === 'App' && delivery_option === 'delivery',
         recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null
       }
@@ -1261,7 +2334,7 @@ export const createUnifiedOrder = async (req, res) => {
         source,
         outletId,
         paymentDetails: validated.paymentDetails,
-        hasCustomAmount: finalCustomAmountItems.length > 0
+        hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
       });
 
     } catch (queueErr) {
@@ -1275,24 +2348,23 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    // Base response tanpa loyalty
+    // Base response
     const baseResponse = {
       status: '',
       orderId,
       jobId: job.id,
-      hasCustomAmount: finalCustomAmountItems.length > 0,
-      customAmountTotal: finalCustomAmountItems.reduce((sum, item) => sum + item.amount, 0)
+      hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0,
+      customAmount: finalCustomAmount ? finalCustomAmount.amount : 0
     };
 
     // Handle payment based on source
     if (source === 'Cashier') {
-      // BROADCAST UNTUK CASHIER CASH PAYMENT
       await broadcastCashOrderToKitchen({
         orderId,
         tableNumber,
         orderData: validated,
         outletId,
-        hasCustomAmount: finalCustomAmountItems.length > 0
+        hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
       });
 
       return res.status(200).json({
@@ -1330,11 +2402,9 @@ export const createUnifiedOrder = async (req, res) => {
         }
       }
 
-      // CHECK PAYMENT METHOD UNTUK APP
       const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
 
       if (isCashPayment) {
-        // BROADCAST UNTUK APP CASH PAYMENT
         await broadcastCashOrderToKitchen({
           orderId,
           tableNumber,
@@ -1342,7 +2412,7 @@ export const createUnifiedOrder = async (req, res) => {
           outletId,
           isAppOrder: true,
           deliveryOption: delivery_option,
-          hasCustomAmount: finalCustomAmountItems.length > 0
+          hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
         });
 
         return res.status(200).json({
@@ -1369,7 +2439,6 @@ export const createUnifiedOrder = async (req, res) => {
           })
         });
       } else {
-        // Non-cash payment (Midtrans)
         const midtransRes = await createMidtransCoreTransaction(
           orderId,
           validated.paymentDetails.amount,
@@ -1403,7 +2472,6 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (source === 'Web') {
-      // Always create a pending Payment record first
       const order = await Order.findOne({ order_id: orderId });
       if (!order) {
         throw new Error(`Order ${orderId} not found after job completion`);
@@ -1422,18 +2490,16 @@ export const createUnifiedOrder = async (req, res) => {
       };
       const payment = await Payment.create(paymentData);
 
-      // CHECK PAYMENT METHOD UNTUK WEB
       const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
 
       if (isCashPayment) {
-        // BROADCAST UNTUK WEB CASH PAYMENT
         await broadcastCashOrderToKitchen({
           orderId,
           tableNumber,
           orderData: validated,
           outletId,
           isWebOrder: true,
-          hasCustomAmount: finalCustomAmountItems.length > 0
+          hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
         });
 
         return res.status(200).json({
@@ -1448,7 +2514,6 @@ export const createUnifiedOrder = async (req, res) => {
           })
         });
       } else {
-        // Non-cash payment (Midtrans Snap)
         const midtransRes = await createMidtransSnapTransaction(
           orderId,
           validated.paymentDetails.amount,

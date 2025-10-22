@@ -47,6 +47,7 @@ const DeviceSales = () => {
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isExporting, setIsExporting] = useState(false);
     const [error, setError] = useState(null);
     const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
     const [value, setValue] = useState(null);
@@ -270,22 +271,101 @@ const DeviceSales = () => {
     }, []);
 
     // Export current data to Excel
-    const exportToExcel = () => {
-        const rows = [];
+    const exportToExcel = async () => {
+        setIsExporting(true);
 
-        groupedArray.forEach(group => {
-            rows.push({
-                'Outlet': group.outletName || 'Unknown',
-                'Jumlah Transaksi': group.count,
-                'Penjualan': group.subtotalTotal,
-                'Rata-Rata': Math.round(group.subtotalTotal / group.count)
+        try {
+            // Small delay to show loading state
+            await new Promise(resolve => setTimeout(resolve, 15000));
+
+            // Get outlet name
+            const outletName = tempSelectedOutlet
+                ? outlets.find(o => o._id === tempSelectedOutlet)?.name || 'Semua Outlet'
+                : 'Semua Outlet';
+
+            // Get date range
+            const dateRange = value && value.startDate && value.endDate
+                ? `${new Date(value.startDate).toLocaleDateString('id-ID')} - ${new Date(value.endDate).toLocaleDateString('id-ID')}`
+                : new Date().toLocaleDateString('id-ID');
+
+            // Calculate totals from groupedArray
+            const totalTransaksi = groupedArray.reduce((sum, group) => sum + group.count, 0);
+            const totalPenjualan = groupedArray.reduce((sum, group) => sum + group.subtotalTotal, 0);
+            const rataRataTotal = Math.round(totalPenjualan / totalTransaksi);
+
+            // Create export data
+            const exportData = [
+                { col1: 'Laporan Penjualan Per Perangkat', col2: '', col3: '', col4: '' },
+                { col1: '', col2: '', col3: '', col4: '' },
+                { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
+                { col1: 'Tanggal', col2: dateRange, col3: '', col4: '' },
+                { col1: '', col2: '', col3: '', col4: '' },
+                { col1: 'Perangkat', col2: 'Jumlah Transaksi', col3: 'Penjualan', col4: 'Rata-Rata' }
+            ];
+
+            // Add data rows
+            groupedArray.forEach(group => {
+                exportData.push({
+                    col1: group.cashierType || '-',
+                    col2: group.count,
+                    col3: group.subtotalTotal,
+                    col4: Math.round(group.subtotalTotal / group.count)
+                });
             });
-        });
 
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Outlet");
-        XLSX.writeFile(wb, "Penjualan_Per_Outlet.xlsx");
+            // Add Grand Total row
+            exportData.push({
+                col1: 'Grand Total',
+                col2: totalTransaksi,
+                col3: totalPenjualan,
+                col4: rataRataTotal
+            });
+
+            // Create worksheet
+            const ws = XLSX.utils.json_to_sheet(exportData, {
+                header: ['col1', 'col2', 'col3', 'col4'],
+                skipHeader: true
+            });
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 20 },
+                { wch: 20 },
+                { wch: 20 },
+                { wch: 15 }
+            ];
+
+            // Merge cells for title
+            ws['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } } // Merge title across 4 columns
+            ];
+
+            // Apply bold styling to specific rows
+            const boldRows = [0, 5, exportData.length - 1]; // Title, Header, Grand Total
+
+            boldRows.forEach(rowIndex => {
+                for (let col = 0; col < 4; col++) {
+                    const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: col });
+                    if (ws[cellAddress]) {
+                        ws[cellAddress].s = { font: { bold: true } };
+                    }
+                }
+            });
+
+            // Create workbook and add worksheet
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Perangkat");
+
+            // Export file
+            const fileName = `Laporan_Penjualan_Per_Perangkat_${outletName}_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+
+        } catch (error) {
+            console.error("Error exporting to Excel:", error);
+            alert("Gagal mengekspor data. Silakan coba lagi.");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     // Show loading state
@@ -325,8 +405,21 @@ const DeviceSales = () => {
                     <FaChevronRight />
                     <span>Penjualan Per Perangkat</span>
                 </h1>
-                <button onClick={exportToExcel} className="flex items-center gap-2 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">
-                    <FaDownload /> Ekspor
+                <button
+                    onClick={exportToExcel}
+                    disabled={isExporting}
+                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isExporting ? (
+                        <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                            Mengekspor...
+                        </>
+                    ) : (
+                        <>
+                            <FaDownload /> Ekspor CSV
+                        </>
+                    )}
                 </button>
             </div>
 
