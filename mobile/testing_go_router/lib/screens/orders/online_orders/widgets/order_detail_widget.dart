@@ -238,7 +238,7 @@ class OrderDetailWidget extends ConsumerWidget {
                         TextButton(
                           onPressed: () {
                             Navigator.of(context).pop();
-                            context.goNamed(
+                            context.pushNamed(
                               'edit-order-item',
                               extra: order,
                               pathParameters: {'id': order.id!},

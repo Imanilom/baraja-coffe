@@ -184,19 +184,19 @@ class OnlineOrderEditorNotifier extends StateNotifier<OnlineOrderEditorState> {
     final idempotencyKey = 'edit-${DateTime.now().millisecondsSinceEpoch}';
 
     try {
-      final updated = await repo.editOrder(
-        orderMongoId: order.id!, // _id string dari order (Mongo _id)
-        body: EditOrderOpsRequest(reason: reason, operations: state.pendingOps),
-        idempotencyKey: idempotencyKey,
-        bearer: user?.token,
-      );
+      // final updated = await repo.patchOrder(
+      //   orderMongoId: order.id!, // _id string dari order (Mongo _id)
+      //   body: EditOrderOpsRequest(reason: reason, operations: state.pendingOps),
+      //   idempotencyKey: idempotencyKey,
+      //   bearer: user?.token,
+      // );
 
-      // Sinkron ke state editor & juga list provider utama, bila ada
-      state = state.copyWith(
-        order: updated,
-        pendingOps: [],
-        isSubmitting: false,
-      );
+      // // Sinkron ke state editor & juga list provider utama, bila ada
+      // state = state.copyWith(
+      //   order: updated,
+      //   pendingOps: [],
+      //   isSubmitting: false,
+      // );
     } catch (e) {
       state = state.copyWith(isSubmitting: false, error: e.toString());
       rethrow;

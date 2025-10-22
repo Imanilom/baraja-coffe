@@ -55,6 +55,17 @@ abstract class OrderItemModel with _$OrderItemModel {
     return total * quantity;
   }
 
+  String get uniqueId {
+    // Urutkan addon dan topping untuk konsistensi hash
+    final addonIds = (selectedAddons.map((a) => a.id).toList()..sort()).join(
+      '-',
+    );
+    final toppingIds = (selectedToppings.map((t) => t.id).toList()..sort())
+        .join('-');
+    // Pastikan notes dan orderType juga masuk ke hash
+    return '${menuItem.id}-$addonIds-$toppingIds-${notes ?? ''}-${orderType.name}';
+  }
+
   factory OrderItemModel.fromJson(Map<String, dynamic> json) =>
       _$OrderItemModelFromJson(json);
 }
