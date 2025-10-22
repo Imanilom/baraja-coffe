@@ -28,23 +28,15 @@ const getWIBNow = () => {
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
   try {
-    // Fetch tax and service data
     const taxAndServices = await TaxAndService.find({
       isActive: true,
       appliesToOutlets: outlet
     });
-
-    console.log('Found tax and service items:', taxAndServices);
-
     let totalTax = 0;
     let totalServiceFee = 0;
     const taxAndServiceDetails = [];
-
     for (const item of taxAndServices) {
-      console.log(`Processing item: ${item.name}, type: ${item.type}, percentage: ${item.percentage}`);
-
       if (item.type === 'tax') {
-        // Apply PPN to all orders (including open bill)
         if (item.name.toLowerCase().includes('ppn') || item.name.toLowerCase() === 'tax') {
           const amount = subtotal * (item.percentage / 100);
           totalTax += amount;
@@ -55,10 +47,8 @@ const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBil
             percentage: item.percentage,
             amount: amount
           });
-          console.log(`Applied tax: ${item.name}, amount: ${amount}`);
         }
       } else if (item.type === 'service') {
-        // Apply service fees to all orders (including open bill if needed)
         const amount = subtotal * (item.percentage / 100);
         totalServiceFee += amount;
         taxAndServiceDetails.push({
@@ -68,12 +58,8 @@ const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBil
           percentage: item.percentage,
           amount: amount
         });
-        console.log(`Applied service fee: ${item.name}, amount: ${amount}`);
       }
     }
-
-    console.log('Tax calculation result:', { totalTax, totalServiceFee, taxAndServiceDetails });
-
     return {
       totalTax,
       totalServiceFee,
@@ -90,37 +76,59 @@ const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBil
 };
 
 export async function generateOrderId(tableNumber) {
-  // Dapatkan tanggal sekarang
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
-  const dateStr = `${year}${month}${day}`; // misal "20250605"
-
-  // Jika tidak ada tableNumber, gunakan hari dan tanggal
+  const dateStr = `${year}${month}${day}`;
   let tableOrDayCode = tableNumber;
   if (!tableNumber) {
     const days = ['MD', 'TU', 'WD', 'TH', 'FR', 'ST', 'SN'];
-    // getDay: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
     const dayCode = days[now.getDay()];
     tableOrDayCode = `${dayCode}${day}`;
   }
-
-  // Kunci sequence unik per tableOrDayCode dan tanggal
   const key = `order_seq_${tableOrDayCode}_${dateStr}`;
-
-  // Atomic increment dengan upsert dan reset setiap hari
   const result = await db.collection('counters').findOneAndUpdate(
     { _id: key },
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: 'after' }
   );
-
   const seq = result.value.seq;
-
-  // Format orderId
   return `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
 }
+
+// export async function generateOrderId(tableNumber) {
+//   // Dapatkan tanggal sekarang
+//   const now = new Date();
+//   const year = now.getFullYear();
+//   const month = String(now.getMonth() + 1).padStart(2, '0');
+//   const day = String(now.getDate()).padStart(2, '0');
+//   const dateStr = `${year}${month}${day}`; // misal "20250605"
+
+//   // Jika tidak ada tableNumber, gunakan hari dan tanggal
+//   let tableOrDayCode = tableNumber;
+//   if (!tableNumber) {
+//     const days = ['MD', 'TU', 'WD', 'TH', 'FR', 'ST', 'SN'];
+//     // getDay: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+//     const dayCode = days[now.getDay()];
+//     tableOrDayCode = `${dayCode}${day}`;
+//   }
+
+//   // Kunci sequence unik per tableOrDayCode dan tanggal
+//   const key = `order_seq_${tableOrDayCode}_${dateStr}`;
+
+//   // Atomic increment dengan upsert dan reset setiap hari
+//   const result = await db.collection('counters').findOneAndUpdate(
+//     { _id: key },
+//     { $inc: { seq: 1 } },
+//     { upsert: true, returnDocument: 'after' }
+//   );
+
+//   const seq = result.value.seq;
+
+//   // Format orderId
+//   return `ORD-${day}${tableOrDayCode}-${String(seq).padStart(3, '0')}`;
+// }
 
 // GET /api/gro/tables/:tableNumber/order - Get active order detail for specific table
 export const getTableOrderDetail = async (req, res) => {
@@ -1157,7 +1165,7 @@ export const getReservations = async (req, res) => {
       _id: order._id,
       type: 'dine-in-order', // Flag to identify it's from Order table
       reservation_code: order.order_id,
-      status: 'walk-in',
+      status: 'Dine-In',
       guest_count: 1, // Default, bisa disesuaikan
       reservation_date: order.createdAt,
       reservation_time: new Date(order.createdAt).toLocaleTimeString('id-ID', {
@@ -1177,7 +1185,7 @@ export const getReservations = async (req, res) => {
         employee_id: order.cashierId || order.groId,
         timestamp: order.createdAt
       },
-      notes: `Walk-in customer - ${order.user || 'Guest'}`
+      notes: `Dine-In customer - ${order.user || 'Guest'}`
     }));
 
     // Combine and sort both datasets
@@ -1469,12 +1477,11 @@ export const checkInReservation = async (req, res) => {
   }
 };
 
-// PUT /api/gro/orders/:orderId/walk-in/check-in - Check-in walk-in customer
-export const checkInWalkInOrder = async (req, res) => {
+// ✅ PUT /api/gro/orders/:orderId/dine-in/check-in
+export const checkInDineInOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
     const userId = req.user?.id;
-
     const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({
@@ -1482,43 +1489,37 @@ export const checkInWalkInOrder = async (req, res) => {
         message: 'Order not found'
       });
     }
-
     if (order.orderType !== 'Dine-In') {
       return res.status(400).json({
         success: false,
         message: 'Only Dine-In orders can be checked in'
       });
     }
-
     const employee = await User.findById(userId).select('username');
-
-    // Add check-in note
-    const checkInNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Customer check-in oleh GRO: ${employee?.username || 'Unknown'}`;
+    const checkInNote = `
+[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Customer check-in oleh GRO: ${employee?.username || 'Unknown'}`;
     order.notes = (order.notes || '') + checkInNote;
-
     await order.save();
-
     res.json({
       success: true,
       message: 'Customer berhasil check-in',
       data: order
     });
   } catch (error) {
-    console.error('Error checking in walk-in order:', error);
+    console.error('Error checking in dine-in order:', error);
     res.status(500).json({
       success: false,
-      message: 'Error checking in walk-in order',
+      message: 'Error checking in dine-in order',
       error: error.message
     });
   }
 };
 
-// PUT /api/gro/orders/:orderId/walk-in/check-out - Check-out walk-in customer  
-export const checkOutWalkInOrder = async (req, res) => {
+// ✅ PUT /api/gro/orders/:orderId/dine-in/check-out
+export const checkOutDineInOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
     const userId = req.user?.id;
-
     const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({
@@ -1526,36 +1527,32 @@ export const checkOutWalkInOrder = async (req, res) => {
         message: 'Order not found'
       });
     }
-
     if (order.orderType !== 'Dine-In') {
       return res.status(400).json({
         success: false,
         message: 'Only Dine-In orders can be checked out'
       });
     }
-
     const employee = await User.findById(userId).select('username');
-
-    // Add check-out note
-    const checkOutNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Customer check-out oleh GRO: ${employee?.username || 'Unknown'}`;
+    const checkOutNote = `
+[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Customer check-out oleh GRO: ${employee?.username || 'Unknown'}`;
     order.notes = (order.notes || '') + checkOutNote;
-
     await order.save();
-
     res.json({
       success: true,
       message: 'Customer berhasil check-out',
       data: order
     });
   } catch (error) {
-    console.error('Error checking out walk-in order:', error);
+    console.error('Error checking out dine-in order:', error);
     res.status(500).json({
       success: false,
-      message: 'Error checking out walk-in order',
+      message: 'Error checking out dine-in order',
       error: error.message
     });
   }
 };
+
 
 // PUT /api/gro/reservations/:id/check-out - Check-out reservation
 export const checkOutReservation = async (req, res) => {
