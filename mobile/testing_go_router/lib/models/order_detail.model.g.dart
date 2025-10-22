@@ -62,13 +62,18 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       printSequence: fields[33] == null ? 0 : (fields[33] as num).toInt(),
       printHistory:
           fields[34] == null ? [] : (fields[34] as List).cast<String>(),
+      customAmountItems:
+          fields[35] == null
+              ? null
+              : (fields[35] as List?)?.cast<CustomAmountItemsModel>(),
+      totalCustomAmount: fields[36] == null ? 0 : (fields[36] as num).toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderDetailModel obj) {
     writer
-      ..writeByte(35)
+      ..writeByte(37)
       ..writeByte(0)
       ..write(obj.orderId)
       ..writeByte(1)
@@ -138,7 +143,11 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..writeByte(33)
       ..write(obj.printSequence)
       ..writeByte(34)
-      ..write(obj.printHistory);
+      ..write(obj.printHistory)
+      ..writeByte(35)
+      ..write(obj.customAmountItems)
+      ..writeByte(36)
+      ..write(obj.totalCustomAmount);
   }
 
   @override
@@ -230,6 +239,14 @@ _OrderDetailModel _$OrderDetailModelFromJson(
           ?.map((e) => e as String)
           .toList() ??
       const [],
+  customAmountItems:
+      (json['customAmountItems'] as List<dynamic>?)
+          ?.map(
+            (e) => CustomAmountItemsModel.fromJson(e as Map<String, dynamic>),
+          )
+          .toList() ??
+      null,
+  totalCustomAmount: (json['totalCustomAmount'] as num?)?.toInt() ?? 0,
 );
 
 Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
@@ -269,4 +286,6 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'isSplitPayment': instance.isSplitPayment,
       'printSequence': instance.printSequence,
       'printHistory': instance.printHistory,
+      'customAmountItems': instance.customAmountItems,
+      'totalCustomAmount': instance.totalCustomAmount,
     };

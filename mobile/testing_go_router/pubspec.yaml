@@ -3,7 +3,7 @@ description: "Kasir Baraja."
 
 publish_to: "none"
 
-version: 1.0.2+3
+version: 1.1.0+6
 
 environment:
   sdk: ^3.7.2
@@ -51,6 +51,8 @@ dependency_overrides:
 assets:
   - .env
   - assets/logo/logo_baraja.png
+  - assets/logo/logo_baraja.svg
+  - assets/logo/logo_baraja.webp
 
 dev_dependencies:
   flutter_test:
@@ -90,3 +92,5 @@ flutter:
   assets:
     - .env
     - assets/logo/logo_baraja.png
+    - assets/logo/logo_baraja.svg
+    - assets/logo/logo_baraja.webp

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
@@ -120,23 +121,28 @@ class ReceiptWidget extends ConsumerWidget {
         _buildReceiptRow('Payment', order.paymentMethod!),
 
         const SizedBox(height: 16),
-        Text(
-          order.orderType.name,
-          textAlign: TextAlign.center,
-        ),
+        Text(order.orderType.name, textAlign: TextAlign.center),
         const SizedBox(height: 16),
         _buildDivider(),
         const SizedBox(height: 16),
 
         // Items
         ...order.items.map((item) => _buildReceiptItem(item)),
+        if (order.customAmountItems != null &&
+            order.customAmountItems!.isNotEmpty)
+          ...order.customAmountItems!.map(
+            (item) => _buildReceiptCustomAmountItem(item),
+          ),
 
         const SizedBox(height: 16),
         _buildDivider(),
         const SizedBox(height: 16),
 
         // Pricing
-        _buildReceiptRow('Subtotal', formatPrice(order.totalBeforeDiscount)),
+        _buildReceiptRow(
+          'Subtotal',
+          formatPrice(order.totalBeforeDiscount + order.totalCustomAmount),
+        ),
 
         if (order.discounts!.autoPromoDiscount > 0)
           _buildReceiptRow(
@@ -279,14 +285,45 @@ class ReceiptWidget extends ConsumerWidget {
 
         //notes
         if (item.notes != null && item.notes != '')
-        Padding(
-          padding: const EdgeInsets.only(left: 16, top: 1),
-          child: Text(
-            'catatan: ${item.notes!}',
-            style: const TextStyle(fontSize: 10, color: Colors.grey),
+          Padding(
+            padding: const EdgeInsets.only(left: 16, top: 1),
+            child: Text(
+              'catatan: ${item.notes!}',
+              style: const TextStyle(fontSize: 10, color: Colors.grey),
+            ),
           ),
-        ),
 
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildReceiptCustomAmountItem(CustomAmountItemsModel item) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                item.name!,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 80,
+              child: Text(
+                formatPrice(item.amount),
+                style: const TextStyle(fontSize: 12),
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
       ],
     );

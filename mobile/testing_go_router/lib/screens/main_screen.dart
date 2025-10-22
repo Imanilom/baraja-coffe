@@ -6,7 +6,13 @@ import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
+import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
+import 'package:kasirbaraja/providers/payment_provider.dart';
+import 'package:kasirbaraja/providers/tax_and_service_provider.dart';
+import 'package:kasirbaraja/repositories/menu_item_repository.dart';
+import 'package:kasirbaraja/repositories/payment_type_repository.dart';
+import 'package:kasirbaraja/repositories/tax_and_service_repository.dart';
 import 'package:kasirbaraja/screens/orders/order_screen.dart';
 import 'package:kasirbaraja/screens/orders/order_histories/order_history.dart';
 import 'package:kasirbaraja/screens/orders/online_orders/online_order.dart';
@@ -516,10 +522,59 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     );
   }
 
-  void _performDataUpdate(BuildContext context, WidgetRef ref) {
-    // Show loading snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
+  // void _performDataUpdate(BuildContext context, WidgetRef ref) {
+  //   // Show loading snackbar
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     const SnackBar(
+  //       content: Row(
+  //         children: [
+  //           SizedBox(
+  //             width: 16,
+  //             height: 16,
+  //             child: CircularProgressIndicator(
+  //               strokeWidth: 2,
+  //               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+  //             ),
+  //           ),
+  //           SizedBox(width: 12),
+  //           Text('Memperbarui data...'),
+  //         ],
+  //       ),
+  //       duration: Duration(seconds: 2),
+  //     ),
+  //   );
+
+  //   // TODO: Implementasikan logic update data sesuai kebutuhan
+  //   // Contoh: refresh provider data, sync dengan server, dll
+  //   //
+  //   // Misalnya:
+  //   // ref.refresh(someDataProvider);
+  //   // await apiService.syncData();
+  //     await MenuItemRepository().getMenuItem();
+
+  //   // Show success message after delay (simulate API call)
+  //   Future.delayed(const Duration(seconds: 2), () {
+  //     if (context.mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         //overlay alert success update data
+  //         const SnackBar(
+  //           content: Text('Data berhasil diperbarui!'),
+  //           backgroundColor: Color(0xFF4CAF50),
+  //         ),
+  //       );
+  //     }
+  //   });
+  // }
+  Future<void> _performDataUpdate(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Tutup snackbar yang mungkin masih terbuka
+    messenger.hideCurrentSnackBar();
+
+    // Tampilkan snackbar loading (persisten)
+    final loading = messenger.showSnackBar(
       const SnackBar(
+        duration: Duration(days: 1), // biar persisten sampai kita tutup manual
         content: Row(
           children: [
             SizedBox(
@@ -534,28 +589,51 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             Text('Memperbarui data...'),
           ],
         ),
-        duration: Duration(seconds: 2),
       ),
     );
 
-    // TODO: Implementasikan logic update data sesuai kebutuhan
-    // Contoh: refresh provider data, sync dengan server, dll
-    //
-    // Misalnya:
-    // ref.refresh(someDataProvider);
-    // await apiService.syncData();
+    try {
+      // Jalankan sinkronisasi yang kamu perlukan
+      // NOTE: ganti/ambah sesuai kebutuhanmu (payment types, categories, dsb)
 
-    // Show success message after delay (simulate API call)
-    Future.delayed(const Duration(seconds: 2), () {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          //overlay alert success update data
-          const SnackBar(
-            content: Text('Data berhasil diperbarui!'),
-            backgroundColor: Color(0xFF4CAF50),
-          ),
-        );
-      }
-    });
+      // print('hasil update data: ${reusltitem.length} items');
+      // refresh ulang menu item dan reservation menu item
+      // Contoh kalau mau paralel:
+      await Future.wait([
+        MenuItemRepository().getMenuItem(),
+        TaxAndServiceRepository().getTaxAndServices(),
+        PaymentTypeRepository().getPaymentTypes(),
+      ]);
+
+      // (Opsional) refresh/invalidasi provider agar UI ambil data terbaru
+      // ref.invalidate(menuItemsProvider);
+      ref.invalidate(paymentTypesProvider);
+      ref.invalidate(taxProvider);
+      ref.invalidate(reservationMenuItemProvider);
+
+      // Tutup snackbar loading
+      loading.close();
+
+      // Tampilkan sukses
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Data berhasil diperbarui!'),
+          backgroundColor: Color(0xFF4CAF50),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      // Tutup snackbar loading
+      loading.close();
+
+      // Tampilkan error
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Gagal memperbarui data: $e'),
+          backgroundColor: Colors.red[700],
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 }
