@@ -6,6 +6,7 @@ import 'package:kasirbaraja/enums/location_type.dart';
 import 'package:kasirbaraja/enums/order_status.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
+import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
@@ -94,6 +95,9 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(32) @Default(false) bool isSplitPayment,
     @HiveField(33) @Default(0) int printSequence,
     @HiveField(34) @Default([]) List<String> printHistory,
+    @HiveField(35)
+    @Default(null)
+    List<CustomAmountItemsModel>? customAmountItems,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>

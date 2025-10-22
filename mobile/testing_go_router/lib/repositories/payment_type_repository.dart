@@ -7,63 +7,94 @@ import 'package:hive_ce/hive.dart';
 class PaymentTypeRepository {
   final PaymentTypeService _paymentTypeService = PaymentTypeService();
 
+  // Future<List<PaymentTypeModel>> getPaymentTypes() async {
+  //   try {
+  //     final paymentTypeBox = HiveService.paymentTypeBox;
+  //     final paymentTypeResponse = await _paymentTypeService.fetchPaymentTypes();
+
+  //     final serverTypes =
+  //         (paymentTypeResponse['paymentTypes'] as List)
+  //             .map((json) => PaymentTypeModel.fromJson(json))
+  //             .toList();
+
+  //     // CASE 1: Box kosong (first run)
+  //     if (paymentTypeBox.isEmpty) {
+  //       await _saveAllTypes(paymentTypeBox, serverTypes);
+  //       return serverTypes;
+  //     }
+
+  //     // CASE 2: Data sudah ada, lakukan sinkronisasi
+  //     final localTypes = paymentTypeBox.values.toList();
+  //     final List<PaymentTypeModel> typesToUpdate = [];
+  //     final List<String> idsToDelete = [];
+
+  //     // 1. Identifikasi perubahan pada payment types
+  //     for (final serverType in serverTypes) {
+  //       final localType = localTypes.firstWhere(
+  //         (t) => t.id == serverType.id,
+  //         orElse:
+  //             () => PaymentTypeModel(
+  //               id: '',
+  //               name: '',
+  //               icon: '',
+  //               isActive: false,
+  //               paymentMethods: [],
+  //             ),
+  //       );
+
+  //       // Periksa apakah ada perubahan di type atau methods
+  //       if (localType.id.isEmpty ||
+  //           _hasTypeChanged(localType, serverType) ||
+  //           _hasMethodsChanged(localType, serverType)) {
+  //         typesToUpdate.add(serverType);
+  //       }
+  //     }
+
+  //     // 2. Identifikasi type yang dihapus di server
+  //     for (final localType in localTypes) {
+  //       if (!serverTypes.any((s) => s.id == localType.id)) {
+  //         idsToDelete.add(localType.id);
+  //       }
+  //     }
+
+  //     // 3. Eksekusi update dan delete
+  //     await _updateTypes(paymentTypeBox, typesToUpdate);
+  //     await _deleteTypes(paymentTypeBox, idsToDelete);
+
+  //     return paymentTypeBox.values.toList();
+  //   } catch (e) {
+  //     rethrow;
+  //   }
+  // }
+
   Future<List<PaymentTypeModel>> getPaymentTypes() async {
+    final box = HiveService.paymentTypeBox;
+
     try {
-      final paymentTypeBox = HiveService.paymentTypeBox;
-      final paymentTypeResponse = await _paymentTypeService.fetchPaymentTypes();
+      // 1) Ambil dari server
+      final resp = await _paymentTypeService.fetchPaymentTypes();
+      final raw = resp['paymentTypes'];
+      if (raw is! List) {
+        throw StateError('Invalid response: paymentTypes is not a List');
+      }
 
       final serverTypes =
-          (paymentTypeResponse['paymentTypes'] as List)
-              .map((json) => PaymentTypeModel.fromJson(json))
+          raw
+              .map((e) => PaymentTypeModel.fromJson(e as Map<String, dynamic>))
               .toList();
 
-      // CASE 1: Box kosong (first run)
-      if (paymentTypeBox.isEmpty) {
-        await _saveAllTypes(paymentTypeBox, serverTypes);
-        return serverTypes;
-      }
+      // 2) Tiban semua data lokal dengan data server
+      await box.clear(); // hati-hati: sebentar kosong
+      await box.putAll({for (final t in serverTypes) t.id: t});
 
-      // CASE 2: Data sudah ada, lakukan sinkronisasi
-      final localTypes = paymentTypeBox.values.toList();
-      final List<PaymentTypeModel> typesToUpdate = [];
-      final List<String> idsToDelete = [];
+      // 3) Kembalikan data terbaru
 
-      // 1. Identifikasi perubahan pada payment types
-      for (final serverType in serverTypes) {
-        final localType = localTypes.firstWhere(
-          (t) => t.id == serverType.id,
-          orElse:
-              () => PaymentTypeModel(
-                id: '',
-                name: '',
-                icon: '',
-                isActive: false,
-                paymentMethods: [],
-              ),
-        );
-
-        // Periksa apakah ada perubahan di type atau methods
-        if (localType.id.isEmpty ||
-            _hasTypeChanged(localType, serverType) ||
-            _hasMethodsChanged(localType, serverType)) {
-          typesToUpdate.add(serverType);
-        }
-      }
-
-      // 2. Identifikasi type yang dihapus di server
-      for (final localType in localTypes) {
-        if (!serverTypes.any((s) => s.id == localType.id)) {
-          idsToDelete.add(localType.id);
-        }
-      }
-
-      // 3. Eksekusi update dan delete
-      await _updateTypes(paymentTypeBox, typesToUpdate);
-      await _deleteTypes(paymentTypeBox, idsToDelete);
-
-      return paymentTypeBox.values.toList();
+      return serverTypes;
     } catch (e) {
-      rethrow;
+      // Kalau gagal fetch, fallback ke lokal biar app tetap jalan
+      final local = box.values.toList();
+      if (local.isNotEmpty) return local;
+      rethrow; // kalau lokal juga kosong, lempar error ke atas
     }
   }
 

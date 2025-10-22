@@ -1,18 +1,18 @@
 import mongoose from 'mongoose';
 import { Order } from '../../models/order.model.js';
-import { processOrderItems } from '../../services/order.service.js'; 
+import { processOrderItems } from '../../services/order.service.js';
 import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
 
-export async function createOrderHandler({ 
-  orderId, 
-  orderData, 
-  source, 
-  isOpenBill, 
-  isReservation, 
-  requiresDelivery, 
-  recipientData 
+export async function createOrderHandler({
+  orderId,
+  orderData,
+  source,
+  isOpenBill,
+  isReservation,
+  requiresDelivery,
+  recipientData
 }) {
   let session;
   try {
@@ -41,7 +41,7 @@ export async function createOrderHandler({
         ...orderData,
         customAmountItems: customAmountItems || []
       }, session);
-      
+
       if (!processed) {
         throw new Error('Failed to process order items');
       }

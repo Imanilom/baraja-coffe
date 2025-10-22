@@ -61,7 +61,7 @@ abstract class OrderItemModelForRequest with _$OrderItemModelForRequest {
                 (addon) => SelectedAddonForRequest(
                   id: addon.id!,
                   options:
-                      addon.selectedOptions
+                      addon.options!
                           .map(
                             (option) =>
                                 SelectedOptionForRequest(id: option.id!),

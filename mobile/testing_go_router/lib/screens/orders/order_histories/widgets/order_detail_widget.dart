@@ -170,6 +170,29 @@ class OrderDetailWidget extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           ...order.items.map((item) => _buildItemCard(item)),
+          if (order.customAmountItems != null &&
+              order.customAmountItems!.isNotEmpty)
+            ...order.customAmountItems!.map((item) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    item.name!,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    formatRupiah(item.amount),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              );
+            }),
         ],
       ),
     );
