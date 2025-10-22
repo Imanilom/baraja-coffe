@@ -1,28 +1,28 @@
 import mongoose from 'mongoose';
 import { Order } from '../../models/order.model.js';
-import { processOrderItems } from '../../services/orderProcessing.service.js'; // Asumsi service terpisah
+import { processOrderItems } from '../../services/order.service.js'; // Asumsi service terpisah
 import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
 
-export async function createOrderHandler({ 
-  orderId, 
-  orderData, 
-  source, 
-  isOpenBill, 
-  isReservation, 
-  requiresDelivery, 
-  recipientData 
+export async function createOrderHandler({
+  orderId,
+  orderData,
+  source,
+  isOpenBill,
+  isReservation,
+  requiresDelivery,
+  recipientData
 }) {
   let session;
   try {
     session = await mongoose.startSession();
 
     const orderResult = await runWithTransactionRetry(async () => {
-      const { 
-        customerId, 
-        loyaltyPointsToRedeem, 
-        orderType, 
+      const {
+        customerId,
+        loyaltyPointsToRedeem,
+        orderType,
         customAmountItems // UBAH: customAmount menjadi customAmountItems array
       } = orderData;
 
@@ -41,7 +41,7 @@ export async function createOrderHandler({
         ...orderData,
         customAmountItems: customAmountItems || [] // UBAH: customAmount menjadi customAmountItems
       }, session);
-      
+
       if (!processed) {
         throw new Error('Failed to process order items');
       }
