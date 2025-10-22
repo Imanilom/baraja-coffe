@@ -10,44 +10,48 @@ import MarketList from '../models/modul_market/MarketList.model.js';
 class RequestController {
   
   // Membuat request baru (hanya membuat request, belum mengambil stok)
-  async createRequest(req, res) {
+async createRequest(req, res) {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const user = await User.findById(req.user._id).populate('role').session(session);
-    if (!user) {
-      await session.abortTransaction();
-      return res.status(403).json({ message: 'User tidak ditemukan' });
-    }
+    const user = await User.findById(req.user._id).session(session);
+ 
 
     const { requestedWarehouse, items } = req.body;
-    if (!requestedWarehouse) {
+    console.log('Received createRequest with items:', req.body);
+    if (!Array.isArray(items) || items.length === 0) {
       await session.abortTransaction();
-      return res.status(400).json({ message: 'Warehouse (departemen) wajib diisi' });
-    }
-
-    // Cari Gudang Pusat
-    const centralWarehouse = await Warehouse.findOne({ code: 'gudang-pusat' }).session(session);
-    if (!centralWarehouse) {
-      await session.abortTransaction();
-      return res.status(500).json({ message: 'Gudang Pusat tidak ditemukan' });
+      return res.status(400).json({ message: 'Items wajib diisi' });
     }
 
     const transferItems = [];
     const purchaseItems = [];
+    const stockUpdates = [];
+
+    // Cari gudang pusat (asumsi ada warehouse dengan nama 'Gudang Pusat')
+    const centralWarehouse = await Warehouse.findOne({ name: 'Gudang Pusat' }).session(session);
+    if (!centralWarehouse) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Gudang Pusat tidak ditemukan' });
+    }
 
     for (const item of items) {
-      const { productId, quantity, notes } = item;
+      const { productId, quantity, notes, type = 'transfer' } = item;
+      
       if (!productId || !quantity || quantity <= 0) {
         await session.abortTransaction();
-        return res.status(400).json({ message: 'Data item tidak lengkap atau quantity <= 0' });
+        return res.status(400).json({
+          message: 'Data item tidak lengkap atau quantity <= 0'
+        });
       }
 
       const productDoc = await Product.findById(productId).session(session);
       if (!productDoc) {
         await session.abortTransaction();
-        return res.status(404).json({ message: `Produk dengan ID ${productId} tidak ditemukan` });
+        return res.status(404).json({
+          message: `Produk dengan ID ${productId} tidak ditemukan`
+        });
       }
 
       if (quantity < productDoc.minimumrequest) {
@@ -57,21 +61,15 @@ class RequestController {
         });
       }
 
-      // Cek stok di Gudang Pusat
-      let centralStockDoc = await ProductStock.findOne({ productId, warehouse: centralWarehouse._id }).session(session);
-      if (!centralStockDoc) {
-        centralStockDoc = new ProductStock({
-          productId,
-          warehouse: centralWarehouse._id,
-          currentStock: 0,
-          minStock: 0,
-          movements: []
-        });
-        await centralStockDoc.save({ session });
-        console.log(`Auto-create central warehouse stock for product ${productId}`);
-      }
+      // Cek stok yang tersedia di gudang pusat
+      const centralStock = await ProductStock.findOne({
+        productId,
+        warehouse: centralWarehouse._id
+      }).session(session);
 
-      const itemData = {
+      const availableStock = centralStock ? centralStock.currentStock : 0;
+      
+      const requestItem = {
         productId,
         productName: productDoc.name,
         productSku: productDoc.sku,
@@ -79,42 +77,123 @@ class RequestController {
         quantity,
         unit: productDoc.unit,
         notes: notes || '',
-        status: 'pending',
-        fulfilledQuantity: 0,
-        availableStock: centralStockDoc.currentStock,
+        status: 'approved',
+        fulfilledQuantity: type === 'transfer' ? quantity : 0, // Langsung terpenuhi untuk transfer
+        availableStock,
         minimumRequest: productDoc.minimumrequest,
-        sourceWarehouse: centralWarehouse._id // ⬅️ SIMPAN SOURCE WAREHOUSE
+        sourceWarehouse: type === 'transfer' ? centralWarehouse._id : null,
+        destinationWarehouse: requestedWarehouse,
+        processedAt: new Date(),
+        processedBy: user.username,
+        type
       };
 
-      if (centralStockDoc.currentStock >= quantity) {
-        transferItems.push(itemData);
+      if (type === 'purchase') {
+        purchaseItems.push(requestItem);
       } else {
-        purchaseItems.push(itemData);
+        transferItems.push(requestItem);
+      }
+
+      // **STOK LANGSUNG BERPINDAH MESKI MINUS**
+      if (type === 'transfer') {
+        // 1. Kurangi stok gudang pusat (bisa minus)
+        stockUpdates.push({
+          updateOne: {
+            filter: { 
+              productId, 
+              warehouse: centralWarehouse._id 
+            },
+            update: {
+              $inc: { currentStock: -quantity },
+              $push: { 
+                movements: {
+                  quantity: -quantity,
+                  type: 'out',
+                  referenceId: null, // Akan diupdate setelah request dibuat
+                  notes: `Transfer ke ${requestedWarehouse}`,
+                  destinationWarehouse: requestedWarehouse,
+                  handledBy: user.username,
+                  date: new Date()
+                }
+              }
+            },
+            upsert: true
+          }
+        });
+
+        // 2. Tambah stok gudang tujuan
+        stockUpdates.push({
+          updateOne: {
+            filter: { 
+              productId, 
+              warehouse: requestedWarehouse 
+            },
+            update: {
+              $inc: { currentStock: quantity },
+              $push: { 
+                movements: {
+                  quantity: quantity,
+                  type: 'in',
+                  referenceId: null, // Akan diupdate setelah request dibuat
+                  notes: `Transfer dari Gudang Pusat`,
+                  sourceWarehouse: centralWarehouse._id,
+                  handledBy: user.username,
+                  date: new Date()
+                }
+              },
+              $setOnInsert: {
+                category: productDoc.category,
+                productName: productDoc.name,
+                productSku: productDoc.sku
+              }
+            },
+            upsert: true
+          }
+        });
       }
     }
 
+    // Buat request
     const newRequest = new Request({
       requestedWarehouse,
       requester: user.username,
       transferItems,
       purchaseItems,
-      status: 'pending',
-      fulfillmentStatus: 'pending'
+      status: 'approved', // Langsung approved
+      fulfillmentStatus: transferItems.length > 0 ? 'fulfilled' : 'pending',
+      processedBy: user.username,
+      processedAt: new Date()
     });
 
-    await newRequest.save({ session });
+    const savedRequest = await newRequest.save({ session });
+
+    // Update referenceId di stock movements dengan ID request yang baru
+    for (const update of stockUpdates) {
+      if (update.updateOne.$push && update.updateOne.$push.movements) {
+        update.updateOne.$push.movements.$each[0].referenceId = savedRequest._id;
+      }
+    }
+
+    // Eksekusi update stok
+    if (stockUpdates.length > 0) {
+      await ProductStock.bulkWrite(stockUpdates, { session });
+    }
+
     await session.commitTransaction();
 
     res.status(201).json({
       success: true,
-      message: 'Request berhasil dibuat, menunggu approval',
-      data: newRequest
+      message: 'Request berhasil dibuat dan langsung diproses',
+      data: savedRequest
     });
 
   } catch (error) {
     await session.abortTransaction();
     console.error('Error creating request:', error);
-    res.status(500).json({ success: false, message: error.message || 'Terjadi kesalahan server.' });
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Terjadi kesalahan server.'
+    });
   } finally {
     session.endSession();
   }

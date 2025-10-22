@@ -223,6 +223,3 @@ PaymentSchema.statics.getRequiredFinalPaymentAmount = async function (orderId) {
 
 export default mongoose.model('Payment', PaymentSchema);
 
-
-
-
