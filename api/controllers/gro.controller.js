@@ -11,6 +11,7 @@ import moment from 'moment-timezone';
 import Voucher from '../models/voucher.model.js';
 import { MenuItem } from '../models/MenuItem.model.js';
 import { db } from '../utils/mongo.js';
+import { TaxAndService } from '../models/TaxAndService.model.js';
 
 // ! GRO Apps Controller start
 
@@ -452,103 +453,96 @@ export const completeTableOrder = async (req, res) => {
   }
 };
 
-// GET /api/gro/dashboard-stats - Get dashboard statistics
 export const getDashboardStats = async (req, res) => {
   try {
-    // Gunakan WIB (UTC+7)
-    const now = new Date();
-    const wibOffset = 7 * 60 * 60 * 1000;
-    const wibDate = new Date(now.getTime() + wibOffset);
-    const todayStr = wibDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    const { date: dateParam } = req.query;
+    const targetDate = dateParam
+      ? new Date(dateParam)
+      : moment.tz('Asia/Jakarta').startOf('day').toDate();
 
-    console.log('Looking for reservations and dine-in orders on date:', todayStr);
+    const startOfDayWIB = moment.tz(targetDate, 'Asia/Jakarta').startOf('day').toDate();
+    const endOfDayWIB = moment.tz(targetDate, 'Asia/Jakarta').endOf('day').toDate();
 
-    // === 1. Ambil Reservasi Hari Ini ===
-    const todayReservations = await Reservation.aggregate([
-      {
-        $addFields: {
-          dateStr: { $dateToString: { format: "%Y-%m-%d", date: "$reservation_date" } }
-        }
-      },
-      {
-        $match: { dateStr: todayStr }
+    // Konversi ke UTC untuk query MongoDB
+    const startOfDayUTC = new Date(startOfDayWIB.getTime() - 7 * 60 * 60 * 1000);
+    const endOfDayUTC = new Date(endOfDayWIB.getTime() - 7 * 60 * 60 * 1000);
+
+    // === 1. Ambil SEMUA Order (Dine-In + Reservation) pada tanggal tersebut ===
+    const allOrders = await Order.find({
+      createdAt: { $gte: startOfDayUTC, $lte: endOfDayUTC },
+      orderType: { $in: ['Dine-In', 'Reservation'] }
+    }).lean();
+
+    const allReservations = await Reservation.find({
+      createdAtWIB: { $gte: startOfDayWIB, $lte: endOfDayWIB }
+    }).lean();
+
+    // === 2. Hitung total semua order (Riwayat Semua) ===
+    const allReservationsCount = allOrders.length + allReservations.length;
+
+    // === 3. Hitung berdasarkan status ===
+    let pendingReservations = 0;
+    let activeReservations = 0;
+    let completedReservations = 0;
+    let cancelledReservations = 0;
+
+    // Proses Reservation
+    for (const r of allReservations) {
+      if (r.status === 'pending') pendingReservations++;
+      else if (r.status === 'confirmed' && r.check_in_time && !r.check_out_time) activeReservations++;
+      else if (r.status === 'completed') completedReservations++;
+      else if (r.status === 'cancelled') cancelledReservations++;
+    }
+
+    // Proses Dine-In Orders
+    for (const o of allOrders) {
+      if (o.orderType === 'Dine-In') {
+        if (['Pending', 'Waiting'].includes(o.status)) pendingReservations++;
+        else if (o.status === 'OnProcess') activeReservations++;
+        else if (o.status === 'Completed') completedReservations++;
+        else if (o.status === 'Canceled') cancelledReservations++;
+      } else if (o.orderType === 'Reservation') {
+        // Ini seharusnya tidak terjadi karena Reservation disimpan di collection Reservation
+        // Tapi jika ada, abaikan atau sesuaikan
       }
-    ]);
+    }
 
-    console.log('Found reservations:', todayReservations.length);
-
-    // === 2. Ambil Pesanan Dine-In Aktif Hari Ini (WIB) ===
-    const startOfDayWIB = new Date(wibDate);
-    startOfDayWIB.setHours(0, 0, 0, 0);
-    const endOfDayWIB = new Date(wibDate);
-    endOfDayWIB.setHours(23, 59, 59, 999);
-
-    // Konversi ke UTC untuk query MongoDB (karena createdAt disimpan dalam UTC)
-    const startOfDayUTC = new Date(startOfDayWIB.getTime() - wibOffset);
-    const endOfDayUTC = new Date(endOfDayWIB.getTime() - wibOffset);
-
-    const activeDineInOrders = await Order.find({
-      orderType: 'Dine-In',
-      status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
-      tableNumber: { $exists: true, $ne: null },
-      createdAt: {
-        $gte: startOfDayUTC,
-        $lte: endOfDayUTC
-      }
-    }).select('tableNumber');
-
-    console.log('Found active Dine-In orders:', activeDineInOrders.length);
-
-    // === 3. Hitung Pending & Active Reservations (hanya dari Reservation) ===
-    const pendingReservations = todayReservations.filter(r => r.status === 'pending').length;
-    const activeReservations = todayReservations.filter(r =>
-      r.status === 'confirmed' &&
-      r.check_in_time != null &&
-      r.check_out_time == null
-    ).length;
-
-    // === 4. Hitung Total Reservasi & Status Lainnya ===
-    const allReservationsCount = await Reservation.countDocuments();
-    const completedReservations = await Reservation.countDocuments({ status: 'completed' });
-    const cancelledReservations = await Reservation.countDocuments({ status: 'cancelled' });
-
-    // === 5. Hitung Meja Terisi & Tersedia (Gabung Reservasi + Dine-In) ===
+    // === 4. Hitung Meja Terisi & Tersedia (opsional, sesuai kebutuhan UI) ===
     const allActiveTables = await Table.countDocuments({ is_active: true });
+
+    // Ambil meja yang terisi dari:
+    // - Reservation aktif (confirmed/pending, belum check-out)
+    // - Dine-In aktif (status bukan Completed/Canceled)
     const occupiedTableIds = new Set();
 
-    // Dari Reservasi
-    todayReservations.forEach(reservation => {
-      if (['confirmed', 'pending'].includes(reservation.status) && !reservation.check_out_time) {
-        reservation.table_id.forEach(tableId => {
-          occupiedTableIds.add(tableId.toString());
-        });
-      }
-    });
-
-    // Dari Dine-In Orders
-    const occupiedTableNumbers = new Set(
-      activeDineInOrders.map(order => order.tableNumber?.toUpperCase())
+    // Dari Reservation
+    const activeReservationsToday = allReservations.filter(r =>
+      ['confirmed', 'pending'].includes(r.status) && !r.check_out_time
     );
+    for (const r of activeReservationsToday) {
+      r.table_id.forEach(id => occupiedTableIds.add(id.toString()));
+    }
 
-    // Ambil semua meja aktif untuk mapping nomor ke ID
-    const allActiveTableDocs = await Table.find({ is_active: true }).select('table_number');
+    // Dari Dine-In
+    const activeDineInOrders = allOrders.filter(o =>
+      o.orderType === 'Dine-In' &&
+      ['Pending', 'Waiting', 'OnProcess'].includes(o.status) &&
+      o.tableNumber
+    );
     const tableNumberToIdMap = new Map();
-    allActiveTableDocs.forEach(table => {
-      tableNumberToIdMap.set(table.table_number.toUpperCase(), table._id.toString());
-    });
-
-    // Tambahkan ID meja dari Dine-In ke occupied set
-    occupiedTableNumbers.forEach(tableNum => {
-      const tableId = tableNumberToIdMap.get(tableNum);
-      if (tableId) {
-        occupiedTableIds.add(tableId);
-      }
-    });
+    const allTables = await Table.find({ is_active: true }).select('table_number');
+    for (const t of allTables) {
+      tableNumberToIdMap.set(t.table_number.toUpperCase(), t._id.toString());
+    }
+    for (const o of activeDineInOrders) {
+      const id = tableNumberToIdMap.get(o.tableNumber.toUpperCase());
+      if (id) occupiedTableIds.add(id);
+    }
 
     const occupiedTablesCount = occupiedTableIds.size;
     const availableTables = Math.max(0, allActiveTables - occupiedTablesCount);
 
-    // === 6. Siapkan Statistik Akhir ===
+    // === 5. Return stats ===
     const stats = {
       allReservations: allReservationsCount,
       pendingReservations,
@@ -557,11 +551,8 @@ export const getDashboardStats = async (req, res) => {
       cancelledReservations,
       availableTables,
       occupiedTables: occupiedTablesCount,
-      totalTables: allActiveTables,
-      activeDineInOrders: activeDineInOrders.length // opsional: tambahkan ke stats
+      totalTables: allActiveTables
     };
-
-    console.log('Dashboard stats:', stats);
 
     res.json({
       success: true,
