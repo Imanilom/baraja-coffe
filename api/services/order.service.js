@@ -18,11 +18,11 @@ export async function processOrderItems({
   source, 
   customerId, 
   loyaltyPointsToRedeem, 
-  customAmount // SEKARANG single object, bukan array
+  customAmountItems // UBAH: customAmount menjadi customAmountItems array
 }, session) {
 
   if ((!items || !Array.isArray(items) || items.length === 0) && 
-      (!customAmount || customAmount.amount <= 0)) {
+      (!customAmountItems || !Array.isArray(customAmountItems) || customAmountItems.length === 0)) {
     throw new Error('Order items cannot be empty');
   }
 
@@ -83,17 +83,26 @@ export async function processOrderItems({
     }
   }
 
-  // Process custom amount (TERPISAH dari items)
-  let customAmountData = null;
-  if (customAmount && customAmount.amount > 0) {
-    customAmountData = {
-      amount: customAmount.amount,
-      name: customAmount.name || 'Penyesuaian Pembayaran',
-      description: customAmount.description || 'Penyesuaian jumlah pembayaran',
-      appliedAt: new Date()
-    };
+  // Process custom amount items (TERPISAH dari items)
+  let customAmountItemsData = [];
+  let totalCustomAmount = 0;
 
-    console.log('Custom amount processed:', customAmountData);
+  if (customAmountItems && Array.isArray(customAmountItems)) {
+    customAmountItemsData = customAmountItems.map(item => ({
+      amount: item.amount,
+      name: item.name || 'Penyesuaian Pembayaran',
+      description: item.description || 'Penyesuaian jumlah pembayaran',
+      dineType: item.dineType || 'Dine-In',
+      appliedAt: new Date()
+    }));
+
+    totalCustomAmount = customAmountItemsData.reduce((total, item) => total + item.amount, 0);
+
+    console.log('Custom amount items processed:', {
+      count: customAmountItemsData.length,
+      totalCustomAmount,
+      items: customAmountItemsData
+    });
   }
 
   // LOYALTY PROGRAM: OPSIONAL - hanya jika ada customerId yang valid
@@ -192,32 +201,32 @@ export async function processOrderItems({
     session
   );
 
-  // PERHITUNGAN GRAND TOTAL: totalAfterDiscount + customAmount + tax + service fee
+  // PERHITUNGAN GRAND TOTAL: totalAfterDiscount + totalCustomAmount + tax + service fee
   const grandTotal = promotionResults.totalAfterDiscount + 
-                    (customAmountData ? customAmountData.amount : 0) + 
+                    totalCustomAmount + 
                     totalTax + 
                     totalServiceFee;
 
   console.log('Order Processing Summary:', {
     menuItemsTotal: totalBeforeDiscount,
     afterDiscount: promotionResults.totalAfterDiscount,
-    customAmount: customAmountData ? customAmountData.amount : 0,
+    totalCustomAmount,
     totalTax,
     totalServiceFee,
     grandTotal,
     regularItemsCount: items ? items.length : 0,
-    hasCustomAmount: !!customAmountData
+    customAmountItemsCount: customAmountItemsData.length
   });
 
   return {
     orderItems,
-    customAmount: customAmountData, // Kembalikan sebagai object terpisah
+    customAmountItems: customAmountItemsData, // UBAH: Kembalikan sebagai array
     totals: {
       beforeDiscount: totalBeforeDiscount,
       afterDiscount: promotionResults.totalAfterDiscount,
+      totalCustomAmount: totalCustomAmount, // UBAH: Tambahkan total custom amount
       totalTax: totalTax,
       totalServiceFee: totalServiceFee,
-      customAmount: customAmountData ? customAmountData.amount : 0,
       grandTotal
     },
     discounts: {
@@ -229,8 +238,8 @@ export async function processOrderItems({
     },
     promotions: {
       appliedPromos: promotionResults.appliedPromos,
-      appliedManualPromo: promotionResults.appliedPromo, // FIXED: changed from promotions.appliedManualPromo
-      appliedVoucher: promotionResults.voucher // FIXED: changed from promotions.appliedVoucher
+      appliedManualPromo: promotionResults.appliedPromo,
+      appliedVoucher: promotionResults.voucher
     },
     loyalty: isEligibleForLoyalty ? {
       pointsUsed: loyaltyPointsUsed,
@@ -420,17 +429,20 @@ export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orde
 
 /**
  * Utility function untuk calculate custom amount automatically
+ * Kembalikan array dengan satu item untuk kompatibilitas
  */
 export function calculateCustomAmount(paidAmount, orderTotal) {
   const difference = paidAmount - orderTotal;
   
   if (difference <= 0) {
-    return null; // Tidak perlu custom amount
+    return []; // Tidak perlu custom amount, return empty array
   }
 
-  return {
+  return [{
     amount: difference,
     name: 'Penyesuaian Pembayaran',
-    description: `Kelebihan pembayaran sebesar Rp ${difference.toLocaleString('id-ID')}`
-  };
+    description: `Kelebihan pembayaran sebesar Rp ${difference.toLocaleString('id-ID')}`,
+    dineType: 'Dine-In'
+  }];
+}
 }

@@ -2103,7 +2103,7 @@ export const createUnifiedOrder = async (req, res) => {
       loyaltyPointsToRedeem,
       delivery_option,
       recipient_data,
-      customAmount, 
+      customAmountItems, 
       paymentDetails
     } = req.body;
 
@@ -2197,8 +2197,8 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    // Auto calculate custom amount jika ada kelebihan pembayaran
-    let finalCustomAmount = customAmount || null;
+    // Auto calculate custom amount items jika ada kelebihan pembayaran
+    let finalCustomAmountItems = customAmountItems || [];
     
     // Jika ada paymentDetails dan ada kelebihan pembayaran, hitung custom amount otomatis
     if (paymentDetails && paymentDetails.amount && req.body.items) {
@@ -2211,14 +2211,18 @@ export const createUnifiedOrder = async (req, res) => {
       const autoCustomAmount = calculateCustomAmount(paymentDetails.amount, orderTotalFromItems);
       if (autoCustomAmount) {
         console.log('Auto-calculated custom amount:', autoCustomAmount);
-        // Jika sudah ada customAmount manual, gunakan yang manual, otherwise gunakan auto
-        finalCustomAmount = customAmount ? customAmount : autoCustomAmount;
+        // Jika sudah ada customAmountItems manual, tambahkan yang auto, otherwise buat array baru
+        if (finalCustomAmountItems.length > 0) {
+          finalCustomAmountItems.push(autoCustomAmount);
+        } else {
+          finalCustomAmountItems = [autoCustomAmount];
+        }
       }
     }
 
     const validated = validateOrderData({
       ...req.body,
-      customAmount: finalCustomAmount
+      customAmountItems: finalCustomAmountItems // UBAH: customAmount menjadi customAmountItems
     }, source);
     
     validated.outletId = outletId;
@@ -2234,12 +2238,16 @@ export const createUnifiedOrder = async (req, res) => {
       validated.recipient_data = recipient_data;
     }
 
-    // Log custom amount information
-    if (finalCustomAmount && finalCustomAmount.amount > 0) {
-      console.log('Custom amount included:', {
-        amount: finalCustomAmount.amount,
-        name: finalCustomAmount.name,
-        description: finalCustomAmount.description
+    // Log custom amount items information
+    if (finalCustomAmountItems.length > 0) {
+      console.log('Custom amount items included:', {
+        count: finalCustomAmountItems.length,
+        items: finalCustomAmountItems.map(item => ({
+          amount: item.amount,
+          name: item.name,
+          description: item.description,
+          dineType: item.dineType
+        }))
       });
     }
 
@@ -2334,7 +2342,7 @@ export const createUnifiedOrder = async (req, res) => {
         source,
         outletId,
         paymentDetails: validated.paymentDetails,
-        hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
+        hasCustomAmountItems: finalCustomAmountItems.length > 0 // UBAH: hasCustomAmount menjadi hasCustomAmountItems
       });
 
     } catch (queueErr) {
@@ -2353,8 +2361,8 @@ export const createUnifiedOrder = async (req, res) => {
       status: '',
       orderId,
       jobId: job.id,
-      hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0,
-      customAmount: finalCustomAmount ? finalCustomAmount.amount : 0
+      hasCustomAmountItems: finalCustomAmountItems.length > 0, // UBAH: hasCustomAmount menjadi hasCustomAmountItems
+      customAmountItems: finalCustomAmountItems // UBAH: customAmount menjadi customAmountItems
     };
 
     // Handle payment based on source
@@ -2364,7 +2372,7 @@ export const createUnifiedOrder = async (req, res) => {
         tableNumber,
         orderData: validated,
         outletId,
-        hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
+        hasCustomAmountItems: finalCustomAmountItems.length > 0 // UBAH
       });
 
       return res.status(200).json({
@@ -2412,7 +2420,7 @@ export const createUnifiedOrder = async (req, res) => {
           outletId,
           isAppOrder: true,
           deliveryOption: delivery_option,
-          hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
+          hasCustomAmountItems: finalCustomAmountItems.length > 0 // UBAH
         });
 
         return res.status(200).json({
@@ -2499,7 +2507,7 @@ export const createUnifiedOrder = async (req, res) => {
           orderData: validated,
           outletId,
           isWebOrder: true,
-          hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
+          hasCustomAmountItems: finalCustomAmountItems.length > 0 // UBAH
         });
 
         return res.status(200).json({
