@@ -229,8 +229,8 @@ export async function processOrderItems({
     },
     promotions: {
       appliedPromos: promotionResults.appliedPromos,
-      appliedManualPromo: promotions.appliedManualPromo,
-      appliedVoucher: promotions.appliedVoucher
+      appliedManualPromo: promotionResults.appliedPromo, // FIXED: changed from promotions.appliedManualPromo
+      appliedVoucher: promotionResults.voucher // FIXED: changed from promotions.appliedVoucher
     },
     loyalty: isEligibleForLoyalty ? {
       pointsUsed: loyaltyPointsUsed,
@@ -286,8 +286,8 @@ async function processPromotions({ orderItems, outlet, orderType, voucherCode, c
     totalDiscount,
     totalAfterDiscount,
     appliedPromos,
-    appliedPromo,
-    voucher
+    appliedPromo, // This is the manual promo
+    voucher // This is the voucher
   };
 }
 
