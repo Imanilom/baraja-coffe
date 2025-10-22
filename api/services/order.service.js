@@ -445,4 +445,3 @@ export function calculateCustomAmount(paidAmount, orderTotal) {
     dineType: 'Dine-In'
   }];
 }
-}
