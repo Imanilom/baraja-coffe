@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
+import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
@@ -300,15 +301,15 @@ class OrderDetail extends ConsumerWidget {
               color: Colors.white,
               padding: const EdgeInsets.only(right: 4),
               child:
-                  orderDetail == null || orderDetail.items.isEmpty
+                  orderDetail == null ||
+                          (orderDetail.items.isEmpty &&
+                              (orderDetail.customAmountItems?.isEmpty ?? true))
                       ? Center(child: Text(onNull, textAlign: TextAlign.center))
                       : ListView.builder(
-                        itemCount: orderDetail.items.length,
-                        // urutan terbalik
-                        // reverse: true,
+                        itemCount:
+                            orderDetail.items.length +
+                            (orderDetail.customAmountItems?.length ?? 0),
                         physics: const BouncingScrollPhysics(),
-                        //selalu scroll ke atas,
-                        // controller: ScrollController(),
                         controller: ScrollController(
                           initialScrollOffset: 0,
                           keepScrollOffset: true,
@@ -320,84 +321,106 @@ class OrderDetail extends ConsumerWidget {
                         ),
 
                         itemBuilder: (context, index) {
-                          final orderItem = orderDetail!.items[index];
-                          return ListTile(
-                            horizontalTitleGap: 4,
-                            visualDensity: const VisualDensity(
-                              vertical: -4,
-                              horizontal: 0,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 0,
-                              horizontal: 4,
-                            ),
-                            dense: true,
-                            leading: CircleAvatar(
-                              child: Text(orderItem.quantity.toString()),
-                            ),
-                            title: Text(
-                              '(${OrderTypeExtension.orderTypeToShortJson(orderItem.orderType)}) ${orderItem.menuItem.name.toString()}',
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Text(
-                                //   'workstation: ${orderItem.menuItem.workstation}',
-                                // ),
-                                if (orderItem.selectedToppings.isNotEmpty)
-                                  Text(
-                                    'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}',
-                                  ),
-                                if (orderItem.selectedAddons.isNotEmpty)
-                                  //mengambil nama addons dan lable pada opsions
-                                  if (orderItem
-                                      .selectedAddons
-                                      .first
-                                      .options!
-                                      .isNotEmpty)
+                          // Tentukan apakah item adalah OrderItem atau CustomAmount
+                          final isCustomAmount =
+                              index >= orderDetail!.items.length;
+
+                          if (isCustomAmount) {
+                            // Index untuk custom amount
+                            final customIndex =
+                                index - orderDetail.items.length;
+                            final customAmount =
+                                orderDetail.customAmountItems![customIndex];
+
+                            return _buildCustomAmountListTile(
+                              customAmount,
+                              context,
+                              ref,
+                            );
+                          } else {
+                            final orderItem = orderDetail.items[index];
+                            return ListTile(
+                              horizontalTitleGap: 4,
+                              visualDensity: const VisualDensity(
+                                vertical: -4,
+                                horizontal: 0,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 0,
+                                horizontal: 4,
+                              ),
+                              dense: true,
+                              leading: CircleAvatar(
+                                child: Text(orderItem.quantity.toString()),
+                              ),
+                              title: Text(
+                                '(${OrderTypeExtension.orderTypeToShortJson(orderItem.orderType)}) ${orderItem.menuItem.name.toString()}',
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Text(
+                                  //   'workstation: ${orderItem.menuItem.workstation}',
+                                  // ),
+                                  if (orderItem.selectedToppings.isNotEmpty)
                                     Text(
-                                      'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}',
+                                      'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}',
                                     ),
-                                if (orderItem.notes != null &&
-                                    orderItem.notes!.isNotEmpty)
-                                  Text(
-                                    'Catatan: ${orderItem.notes!}',
-                                    style: const TextStyle(
-                                      fontStyle: FontStyle.italic,
-                                      color: Colors.grey,
+                                  if (orderItem.selectedAddons.isNotEmpty)
+                                    //mengambil nama addons dan lable pada opsions
+                                    if (orderItem
+                                        .selectedAddons
+                                        .first
+                                        .options!
+                                        .isNotEmpty)
+                                      Text(
+                                        'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}',
+                                      ),
+                                  if (orderItem.notes != null &&
+                                      orderItem.notes!.isNotEmpty)
+                                    Text(
+                                      'Catatan: ${orderItem.notes!}',
+                                      style: const TextStyle(
+                                        fontStyle: FontStyle.italic,
+                                        color: Colors.grey,
+                                      ),
                                     ),
-                                  ),
-                              ],
-                            ),
-                            trailing: Text(formatRupiah(orderItem.subtotal)),
-                            onTap: () {
-                              if (currentWidgetIndex != 0) return;
-                              //membuka drawer untuk edit order item
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder:
-                                    (context) => EditOrderItemDialog(
-                                      orderItem: orderItem,
-                                      onEditOrder: (editedOrderItem) {
-                                        ref
-                                            .read(orderDetailProvider.notifier)
-                                            .editOrderItem(
-                                              orderItem,
-                                              editedOrderItem,
-                                            );
-                                      },
-                                      onClose: () => Navigator.pop(context),
-                                      onDeleteOrderItem: () {
-                                        ref
-                                            .read(orderDetailProvider.notifier)
-                                            .removeItem(orderItem);
-                                      },
-                                    ),
-                              );
-                            },
-                          );
+                                ],
+                              ),
+                              trailing: Text(formatRupiah(orderItem.subtotal)),
+                              onTap: () {
+                                if (currentWidgetIndex != 0) return;
+                                //membuka drawer untuk edit order item
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder:
+                                      (context) => EditOrderItemDialog(
+                                        orderItem: orderItem,
+                                        onEditOrder: (editedOrderItem) {
+                                          ref
+                                              .read(
+                                                orderDetailProvider.notifier,
+                                              )
+                                              .editOrderItem(
+                                                orderItem,
+                                                editedOrderItem,
+                                              );
+                                        },
+                                        onClose: () => Navigator.pop(context),
+                                        onDeleteOrderItem: () {
+                                          ref
+                                              .read(
+                                                orderDetailProvider.notifier,
+                                              )
+                                              .removeItem(orderItem);
+                                        },
+                                      ),
+                                );
+                              },
+                            );
+                          }
                         },
                       ),
             ),
@@ -932,6 +955,146 @@ class OrderDetail extends ConsumerWidget {
               ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCustomAmountListTile(
+    CustomAmountItemsModel customAmount,
+    BuildContext context,
+    WidgetRef ref,
+  ) {
+    return ListTile(
+      horizontalTitleGap: 4,
+      visualDensity: const VisualDensity(vertical: -4, horizontal: 0),
+      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4),
+      dense: true,
+      tileColor: Colors.blue[50], // Warna berbeda untuk membedakan
+      leading: CircleAvatar(
+        backgroundColor: Colors.blue[100],
+        child: Icon(Icons.attach_money, color: Colors.blue[700], size: 20),
+      ),
+      title: Text(
+        '(${OrderTypeExtension.orderTypeToShortJson(customAmount.orderType ?? OrderType.dineIn)}) ${customAmount.name ?? "Custom Amount"}',
+      ),
+      subtitle:
+          customAmount.description != null &&
+                  customAmount.description!.isNotEmpty
+              ? Text(
+                'Deskripsi: ${customAmount.description!}',
+                style: const TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
+              )
+              : null,
+      trailing: Text(
+        formatRupiah(customAmount.amount ?? 0),
+        style: TextStyle(color: Colors.blue[700], fontWeight: FontWeight.w600),
+      ),
+      onTap: () {
+        // if (currentWidgetIndex != 0) return;
+        // Dialog untuk edit atau hapus custom amount
+        _showCustomAmountOptions(context, ref, customAmount);
+      },
+    );
+  }
+
+  // Method untuk menampilkan dialog opsi custom amount
+  void _showCustomAmountOptions(
+    BuildContext context,
+    WidgetRef ref,
+    CustomAmountItemsModel customAmount,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder:
+          (context) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 20),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        customAmount.name ?? 'Custom Amount',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        formatRupiah(customAmount.amount ?? 0),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.blue[700],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (customAmount.description?.isNotEmpty ?? false) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          customAmount.description!,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Divider(height: 1),
+                // Opsi Hapus
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text(
+                    'Hapus Item',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () {
+                    ref
+                        .read(orderDetailProvider.notifier)
+                        .removeCustomAmountItem(customAmount);
+                    Navigator.pop(context);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '${customAmount.name ?? "Custom amount"} berhasil dihapus',
+                        ),
+                        backgroundColor: Colors.red[400],
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
     );
   }
 }
