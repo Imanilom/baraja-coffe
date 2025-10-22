@@ -2101,10 +2101,10 @@ export const createUnifiedOrder = async (req, res) => {
       customerId,
       outletId,
       loyaltyPointsToRedeem,
-      delivery_option, // 'pickup' atau 'delivery' (opsional, default 'pickup')
-      recipient_data, // data penerima untuk delivery (opsional)
-      customAmountItems, // TAMBAHAN: Custom amount items
-      paymentDetails // Payment details termasuk amount paid
+      delivery_option,
+      recipient_data,
+      customAmount, 
+      paymentDetails
     } = req.body;
 
     // Validasi outletId
@@ -2163,7 +2163,7 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    // Loyalty program OPSIONAL - tidak perlu validasi strict
+    // Loyalty program OPSIONAL
     if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
       console.warn('Invalid customer ID format for loyalty program:', customerId);
     }
@@ -2198,11 +2198,11 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     // Auto calculate custom amount jika ada kelebihan pembayaran
-    let finalCustomAmountItems = customAmountItems || [];
+    let finalCustomAmount = customAmount || null;
     
     // Jika ada paymentDetails dan ada kelebihan pembayaran, hitung custom amount otomatis
     if (paymentDetails && paymentDetails.amount && req.body.items) {
-      // Hitung total order dari items
+      // Hitung total order dari items saja (tanpa custom amount)
       const orderTotalFromItems = req.body.items.reduce((total, item) => {
         return total + (item.price || 0) * (item.quantity || 1);
       }, 0);
@@ -2211,13 +2211,14 @@ export const createUnifiedOrder = async (req, res) => {
       const autoCustomAmount = calculateCustomAmount(paymentDetails.amount, orderTotalFromItems);
       if (autoCustomAmount) {
         console.log('Auto-calculated custom amount:', autoCustomAmount);
-        finalCustomAmountItems = [...finalCustomAmountItems, autoCustomAmount];
+        // Jika sudah ada customAmount manual, gunakan yang manual, otherwise gunakan auto
+        finalCustomAmount = customAmount ? customAmount : autoCustomAmount;
       }
     }
 
     const validated = validateOrderData({
       ...req.body,
-      customAmountItems: finalCustomAmountItems
+      customAmount: finalCustomAmount
     }, source);
     
     validated.outletId = outletId;
@@ -2229,16 +2230,16 @@ export const createUnifiedOrder = async (req, res) => {
 
     // Hanya tambahkan delivery info untuk App JIKA delivery_option ada
     if (source === 'App') {
-      validated.delivery_option = delivery_option || 'pickup'; // default ke pickup
+      validated.delivery_option = delivery_option || 'pickup';
       validated.recipient_data = recipient_data;
     }
 
     // Log custom amount information
-    if (finalCustomAmountItems.length > 0) {
-      console.log('Custom amount items included:', {
-        count: finalCustomAmountItems.length,
-        items: finalCustomAmountItems,
-        totalCustomAmount: finalCustomAmountItems.reduce((sum, item) => sum + item.amount, 0)
+    if (finalCustomAmount && finalCustomAmount.amount > 0) {
+      console.log('Custom amount included:', {
+        amount: finalCustomAmount.amount,
+        name: finalCustomAmount.name,
+        description: finalCustomAmount.description
       });
     }
 
@@ -2264,7 +2265,6 @@ export const createUnifiedOrder = async (req, res) => {
         timestamp: new Date()
       });
 
-      // Juga broadcast ke area room spesifik
       const areaRoom = `area_${areaCode}`;
       io.to(areaRoom).emit('new_order_in_area', {
         orderId,
@@ -2290,7 +2290,7 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    // Log delivery information (HANYA UNTUK APP JIKA DELIVERY)
+    // Log delivery information
     if (source === 'App' && delivery_option === 'delivery') {
       console.log('Creating App Order with Delivery Option:', {
         orderId,
@@ -2308,7 +2308,6 @@ export const createUnifiedOrder = async (req, res) => {
         source,
         isOpenBill: validated.isOpenBill,
         isReservation: orderType === 'reservation',
-        // Tambahkan flag untuk delivery - HANYA UNTUK APP JIKA DELIVERY
         requiresDelivery: source === 'App' && delivery_option === 'delivery',
         recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null
       }
@@ -2335,7 +2334,7 @@ export const createUnifiedOrder = async (req, res) => {
         source,
         outletId,
         paymentDetails: validated.paymentDetails,
-        hasCustomAmount: finalCustomAmountItems.length > 0
+        hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
       });
 
     } catch (queueErr) {
@@ -2349,24 +2348,23 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    // Base response tanpa loyalty
+    // Base response
     const baseResponse = {
       status: '',
       orderId,
       jobId: job.id,
-      hasCustomAmount: finalCustomAmountItems.length > 0,
-      customAmountTotal: finalCustomAmountItems.reduce((sum, item) => sum + item.amount, 0)
+      hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0,
+      customAmount: finalCustomAmount ? finalCustomAmount.amount : 0
     };
 
     // Handle payment based on source
     if (source === 'Cashier') {
-      // BROADCAST UNTUK CASHIER CASH PAYMENT
       await broadcastCashOrderToKitchen({
         orderId,
         tableNumber,
         orderData: validated,
         outletId,
-        hasCustomAmount: finalCustomAmountItems.length > 0
+        hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
       });
 
       return res.status(200).json({
@@ -2404,11 +2402,9 @@ export const createUnifiedOrder = async (req, res) => {
         }
       }
 
-      // CHECK PAYMENT METHOD UNTUK APP
       const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
 
       if (isCashPayment) {
-        // BROADCAST UNTUK APP CASH PAYMENT
         await broadcastCashOrderToKitchen({
           orderId,
           tableNumber,
@@ -2416,7 +2412,7 @@ export const createUnifiedOrder = async (req, res) => {
           outletId,
           isAppOrder: true,
           deliveryOption: delivery_option,
-          hasCustomAmount: finalCustomAmountItems.length > 0
+          hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
         });
 
         return res.status(200).json({
@@ -2443,7 +2439,6 @@ export const createUnifiedOrder = async (req, res) => {
           })
         });
       } else {
-        // Non-cash payment (Midtrans)
         const midtransRes = await createMidtransCoreTransaction(
           orderId,
           validated.paymentDetails.amount,
@@ -2477,7 +2472,6 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     if (source === 'Web') {
-      // Always create a pending Payment record first
       const order = await Order.findOne({ order_id: orderId });
       if (!order) {
         throw new Error(`Order ${orderId} not found after job completion`);
@@ -2496,18 +2490,16 @@ export const createUnifiedOrder = async (req, res) => {
       };
       const payment = await Payment.create(paymentData);
 
-      // CHECK PAYMENT METHOD UNTUK WEB
       const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
 
       if (isCashPayment) {
-        // BROADCAST UNTUK WEB CASH PAYMENT
         await broadcastCashOrderToKitchen({
           orderId,
           tableNumber,
           orderData: validated,
           outletId,
           isWebOrder: true,
-          hasCustomAmount: finalCustomAmountItems.length > 0
+          hasCustomAmount: finalCustomAmount && finalCustomAmount.amount > 0
         });
 
         return res.status(200).json({
@@ -2522,7 +2514,6 @@ export const createUnifiedOrder = async (req, res) => {
           })
         });
       } else {
-        // Non-cash payment (Midtrans Snap)
         const midtransRes = await createMidtransSnapTransaction(
           orderId,
           validated.paymentDetails.amount,

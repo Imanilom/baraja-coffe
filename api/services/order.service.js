@@ -18,11 +18,11 @@ export async function processOrderItems({
   source, 
   customerId, 
   loyaltyPointsToRedeem, 
-  customAmountItems = [] 
+  customAmount // SEKARANG single object, bukan array
 }, session) {
 
   if ((!items || !Array.isArray(items) || items.length === 0) && 
-      (!customAmountItems || customAmountItems.length === 0)) {
+      (!customAmount || customAmount.amount <= 0)) {
     throw new Error('Order items cannot be empty');
   }
 
@@ -79,44 +79,21 @@ export async function processOrderItems({
         notes: item.notes || '',
         isPrinted: false,
         dineType: item.dineType || 'Dine-In',
-        isCustomAmount: false // Regular item
       });
     }
   }
 
-  // Process custom amount items
-  if (customAmountItems && Array.isArray(customAmountItems)) {
-    for (const customItem of customAmountItems) {
-      if (!customItem.amount || customItem.amount <= 0) {
-        throw new Error(`Invalid custom amount (${customItem.amount})`);
-      }
+  // Process custom amount (TERPISAH dari items)
+  let customAmountData = null;
+  if (customAmount && customAmount.amount > 0) {
+    customAmountData = {
+      amount: customAmount.amount,
+      name: customAmount.name || 'Penyesuaian Pembayaran',
+      description: customAmount.description || 'Penyesuaian jumlah pembayaran',
+      appliedAt: new Date()
+    };
 
-      const subtotal = customItem.amount;
-      totalBeforeDiscount += subtotal;
-
-      orderItems.push({
-        menuItem: null, // No menu item reference
-        menuItemName: customItem.name || 'Custom Amount',
-        quantity: 1, // Always quantity 1 for custom amount
-        subtotal,
-        addons: [],
-        toppings: [],
-        notes: customItem.description || 'Penyesuaian jumlah pembayaran',
-        isPrinted: false,
-        dineType: customItem.dineType || 'Dine-In',
-        isCustomAmount: true,
-        customAmountName: customItem.name || 'Custom Amount',
-        customAmountDescription: customItem.description || '',
-        kitchenStatus: 'ready', // Custom amount langsung ready, tidak perlu ke kitchen
-        isPrinted: true // Custom amount tidak perlu di-print di kitchen
-      });
-
-      console.log('Custom amount item added:', {
-        name: customItem.name || 'Custom Amount',
-        amount: customItem.amount,
-        description: customItem.description || ''
-      });
-    }
+    console.log('Custom amount processed:', customAmountData);
   }
 
   // LOYALTY PROGRAM: OPSIONAL - hanya jika ada customerId yang valid
@@ -171,7 +148,7 @@ export async function processOrderItems({
   // Calculate total after loyalty discount
   const totalAfterLoyaltyDiscount = Math.max(0, totalBeforeDiscount - loyaltyDiscount);
 
-  // Promotions and discounts
+  // Promotions and discounts (HANYA berlaku untuk menu items, bukan custom amount)
   const promotionResults = await processPromotions({
     orderItems,
     outlet,
@@ -207,7 +184,7 @@ export async function processOrderItems({
     }
   }
 
-  // Taxes and services
+  // Taxes and services (HANYA berlaku untuk menu items, bukan custom amount)
   const { taxAndServiceDetails, totalTax, totalServiceFee } = await calculateTaxesAndServices(
     outlet,
     promotionResults.totalAfterDiscount,
@@ -215,30 +192,32 @@ export async function processOrderItems({
     session
   );
 
-  const grandTotal = promotionResults.totalAfterDiscount + totalTax + totalServiceFee;
+  // PERHITUNGAN GRAND TOTAL: totalAfterDiscount + customAmount + tax + service fee
+  const grandTotal = promotionResults.totalAfterDiscount + 
+                    (customAmountData ? customAmountData.amount : 0) + 
+                    totalTax + 
+                    totalServiceFee;
 
   console.log('Order Processing Summary:', {
-    totalBeforeDiscount,
-    loyaltyDiscount,
-    totalAfterLoyaltyDiscount,
-    autoPromoDiscount: promotionResults.autoPromoDiscount,
-    manualDiscount: promotionResults.manualDiscount,
-    voucherDiscount: promotionResults.voucherDiscount,
-    totalAfterDiscount: promotionResults.totalAfterDiscount,
+    menuItemsTotal: totalBeforeDiscount,
+    afterDiscount: promotionResults.totalAfterDiscount,
+    customAmount: customAmountData ? customAmountData.amount : 0,
     totalTax,
     totalServiceFee,
     grandTotal,
-    customAmountItemsCount: customAmountItems ? customAmountItems.length : 0,
-    regularItemsCount: items ? items.length : 0
+    regularItemsCount: items ? items.length : 0,
+    hasCustomAmount: !!customAmountData
   });
 
   return {
     orderItems,
+    customAmount: customAmountData, // Kembalikan sebagai object terpisah
     totals: {
       beforeDiscount: totalBeforeDiscount,
       afterDiscount: promotionResults.totalAfterDiscount,
       totalTax: totalTax,
       totalServiceFee: totalServiceFee,
+      customAmount: customAmountData ? customAmountData.amount : 0,
       grandTotal
     },
     discounts: {
@@ -250,8 +229,8 @@ export async function processOrderItems({
     },
     promotions: {
       appliedPromos: promotionResults.appliedPromos,
-      appliedManualPromo: promotionResults.appliedPromo,
-      appliedVoucher: promotionResults.voucher
+      appliedManualPromo: promotions.appliedManualPromo,
+      appliedVoucher: promotions.appliedVoucher
     },
     loyalty: isEligibleForLoyalty ? {
       pointsUsed: loyaltyPointsUsed,
@@ -272,7 +251,7 @@ export async function processOrderItems({
 }
 
 /**
- * Processes all promotions for an order
+ * Processes all promotions for an order (HANYA untuk menu items)
  */
 async function processPromotions({ orderItems, outlet, orderType, voucherCode, customerType, totalBeforeDiscount, source }) {
   const canUsePromo = source === 'app' || source === 'cashier';
@@ -371,7 +350,7 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
 }
 
 /**
- * Calculates taxes and service fees for an order
+ * Calculates taxes and service fees for an order (HANYA untuk menu items)
  */
 export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orderItems, session) {
   const taxesAndServices = await TaxAndService.find({
@@ -452,7 +431,6 @@ export function calculateCustomAmount(paidAmount, orderTotal) {
   return {
     amount: difference,
     name: 'Penyesuaian Pembayaran',
-    description: `Kelebihan pembayaran sebesar Rp ${difference.toLocaleString('id-ID')}`,
-    dineType: 'Dine-In'
+    description: `Kelebihan pembayaran sebesar Rp ${difference.toLocaleString('id-ID')}`
   };
 }
