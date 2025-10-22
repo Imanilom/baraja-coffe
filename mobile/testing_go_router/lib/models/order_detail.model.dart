@@ -98,6 +98,7 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @HiveField(35)
     @Default(null)
     List<CustomAmountItemsModel>? customAmountItems,
+    @HiveField(36) @Default(0) int totalCustomAmount,
   }) = _OrderDetailModel;
 
   factory OrderDetailModel.fromJson(Map<String, dynamic> json) =>

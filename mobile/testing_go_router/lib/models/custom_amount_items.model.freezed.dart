@@ -83,7 +83,7 @@ as OrderType?,
 @JsonSerializable()
 
 class _CustomAmountItemsModel extends CustomAmountItemsModel {
-   _CustomAmountItemsModel({@HiveField(0) this.amount = 0, @HiveField(1) this.name = null, @HiveField(2) this.description = null, @HiveField(3) this.orderType = OrderType.dineIn}): super._();
+   _CustomAmountItemsModel({@HiveField(0) this.amount = 0, @HiveField(1) this.name = 'Custom Amount', @HiveField(2) this.description = null, @HiveField(3) this.orderType = OrderType.dineIn}): super._();
   factory _CustomAmountItemsModel.fromJson(Map<String, dynamic> json) => _$CustomAmountItemsModelFromJson(json);
 
 @override@JsonKey()@HiveField(0) final  int amount;
