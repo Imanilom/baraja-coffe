@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { Order } from '../../models/order.model.js';
-import { processOrderItems } from '../../services/order.service.js'; // Asumsi service terpisah
+import { processOrderItems } from '../../services/order.service.js';
 import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
