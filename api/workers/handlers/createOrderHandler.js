@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { Order } from '../../models/order.model.js';
-import { processOrderItems } from '../../services/order.service.js';
+import { processOrderItems } from '../../services/orderProcessing.service.js'; // Asumsi service terpisah
 import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
@@ -23,7 +23,7 @@ export async function createOrderHandler({
         customerId, 
         loyaltyPointsToRedeem, 
         orderType, 
-        customAmount // SEKARANG single object
+        customAmountItems // UBAH: customAmount menjadi customAmountItems array
       } = orderData;
 
       console.log('Order Handler - Starting Order Creation:', {
@@ -32,14 +32,14 @@ export async function createOrderHandler({
         requiresDelivery,
         hasRecipientData: !!recipientData,
         source,
-        hasCustomAmount: customAmount && customAmount.amount > 0,
-        customAmount: customAmount ? customAmount.amount : 0
+        hasCustomAmountItems: customAmountItems && customAmountItems.length > 0, // UBAH
+        customAmountItemsCount: customAmountItems ? customAmountItems.length : 0
       });
 
-      // Process order items dengan custom amount terpisah
+      // Process order items dengan custom amount items terpisah
       const processed = await processOrderItems({
         ...orderData,
-        customAmount: customAmount || null
+        customAmountItems: customAmountItems || [] // UBAH: customAmount menjadi customAmountItems
       }, session);
       
       if (!processed) {
@@ -48,7 +48,7 @@ export async function createOrderHandler({
 
       const {
         orderItems,
-        customAmount: processedCustomAmount,
+        customAmountItems: processedCustomAmountItems, // UBAH
         totals,
         discounts,
         promotions,
@@ -71,7 +71,7 @@ export async function createOrderHandler({
         deliveryProvider,
         deliveryTracking,
         recipientInfo,
-        customAmount: cleanedCustomAmount, // Already processed
+        customAmountItems: cleanedCustomAmountItems, // Already processed
         ...cleanOrderData
       } = orderData;
 
@@ -79,9 +79,10 @@ export async function createOrderHandler({
         ...cleanOrderData,
         order_id: orderId,
         items: orderItems, // HANYA menu items
-        customAmount: processedCustomAmount, // Custom amount terpisah
+        customAmountItems: processedCustomAmountItems, // UBAH: Custom amount items array
         totalBeforeDiscount: totals.beforeDiscount,
         totalAfterDiscount: totals.afterDiscount,
+        totalCustomAmount: totals.totalCustomAmount, // UBAH: Tambahkan total custom amount
         totalTax: totals.totalTax,
         totalServiceFee: totals.totalServiceFee,
         grandTotal: totals.grandTotal,
@@ -152,8 +153,9 @@ export async function createOrderHandler({
         orderType: baseOrderData.orderType,
         source: baseOrderData.source,
         totalMenuItems: baseOrderData.items.length,
-        hasCustomAmount: !!baseOrderData.customAmount,
-        customAmountValue: baseOrderData.customAmount ? baseOrderData.customAmount.amount : 0,
+        hasCustomAmountItems: baseOrderData.customAmountItems.length > 0, // UBAH
+        customAmountItemsCount: baseOrderData.customAmountItems.length,
+        totalCustomAmount: baseOrderData.totalCustomAmount,
         grandTotal: baseOrderData.grandTotal,
         menuItemsTotal: baseOrderData.totalAfterDiscount
       });
@@ -176,8 +178,9 @@ export async function createOrderHandler({
         orderType: newOrder.orderType,
         status: newOrder.status,
         totalMenuItems: newOrder.items.length,
-        hasCustomAmount: !!newOrder.customAmount,
-        customAmount: newOrder.customAmount ? newOrder.customAmount.amount : 0,
+        hasCustomAmountItems: newOrder.customAmountItems.length > 0, // UBAH
+        customAmountItemsCount: newOrder.customAmountItems.length,
+        totalCustomAmount: newOrder.totalCustomAmount,
         grandTotal: newOrder.grandTotal
       });
 
@@ -186,7 +189,7 @@ export async function createOrderHandler({
         orderId: newOrder._id.toString(),
         orderNumber: orderId,
         processedItems: orderItems,
-        customAmount: processedCustomAmount,
+        customAmountItems: processedCustomAmountItems, // UBAH
         totals: totals,
         loyalty: loyalty
       };
@@ -206,7 +209,7 @@ export async function createOrderHandler({
       orderNumber: orderId,
       grandTotal: orderResult.totals.grandTotal,
       loyalty: orderResult.loyalty,
-      hasCustomAmount: !!orderResult.customAmount
+      hasCustomAmountItems: orderResult.customAmountItems.length > 0 // UBAH
     };
 
   } catch (err) {
@@ -216,7 +219,7 @@ export async function createOrderHandler({
       orderId,
       source,
       orderType: orderData?.orderType,
-      hasCustomAmount: orderData?.customAmount?.amount > 0
+      hasCustomAmountItems: orderData?.customAmountItems?.length > 0 // UBAH
     });
 
     if (err.message.includes('Failed to process order items')) {
@@ -274,7 +277,7 @@ export async function enqueueInventoryUpdate(orderResult) {
     console.log('Inventory update enqueued:', {
       orderId: orderResult.orderId,
       regularItemsCount: orderResult.processedItems.length,
-      hasCustomAmount: !!orderResult.customAmount
+      hasCustomAmountItems: orderResult.customAmountItems.length > 0 // UBAH
     });
 
     return {
