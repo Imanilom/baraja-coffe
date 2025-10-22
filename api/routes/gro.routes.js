@@ -15,7 +15,8 @@ import {
     getTableOrderDetail,
     completeTableOrder,
     checkInWalkInOrder,
-    checkOutWalkInOrder
+    checkOutWalkInOrder,
+    getOrderDetail
 } from '../controllers/gro.controller.js';
 import { authMiddleware, verifyToken } from '../utils/verifyUser.js';
 
@@ -43,6 +44,8 @@ router.put('/orders/:orderId/complete', authMiddleware, completeTableOrder);
 // Walk-in order actions
 router.put('/orders/:orderId/walk-in/check-in', authMiddleware, checkInWalkInOrder);
 router.put('/orders/:orderId/walk-in/check-out', authMiddleware, checkOutWalkInOrder);
+// Order detail
+router.get('/orders/:orderId', authMiddleware, getOrderDetail);
 
 // Table Availability
 router.get('/tables/availability', authMiddleware, getTableAvailability);

@@ -447,13 +447,15 @@ export const completeTableOrder = async (req, res) => {
 // GET /api/gro/dashboard-stats - Get dashboard statistics
 export const getDashboardStats = async (req, res) => {
   try {
+    // Gunakan WIB (UTC+7)
     const now = new Date();
     const wibOffset = 7 * 60 * 60 * 1000;
     const wibDate = new Date(now.getTime() + wibOffset);
-    const todayStr = wibDate.toISOString().split('T')[0];
+    const todayStr = wibDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
 
-    console.log('Looking for reservations on date:', todayStr);
+    console.log('Looking for reservations and dine-in orders on date:', todayStr);
 
+    // === 1. Ambil Reservasi Hari Ini ===
     const todayReservations = await Reservation.aggregate([
       {
         $addFields: {
@@ -467,6 +469,29 @@ export const getDashboardStats = async (req, res) => {
 
     console.log('Found reservations:', todayReservations.length);
 
+    // === 2. Ambil Pesanan Dine-In Aktif Hari Ini (WIB) ===
+    const startOfDayWIB = new Date(wibDate);
+    startOfDayWIB.setHours(0, 0, 0, 0);
+    const endOfDayWIB = new Date(wibDate);
+    endOfDayWIB.setHours(23, 59, 59, 999);
+
+    // Konversi ke UTC untuk query MongoDB (karena createdAt disimpan dalam UTC)
+    const startOfDayUTC = new Date(startOfDayWIB.getTime() - wibOffset);
+    const endOfDayUTC = new Date(endOfDayWIB.getTime() - wibOffset);
+
+    const activeDineInOrders = await Order.find({
+      orderType: 'Dine-In',
+      status: { $in: ['Pending', 'Waiting', 'OnProcess'] },
+      tableNumber: { $exists: true, $ne: null },
+      createdAt: {
+        $gte: startOfDayUTC,
+        $lte: endOfDayUTC
+      }
+    }).select('tableNumber');
+
+    console.log('Found active Dine-In orders:', activeDineInOrders.length);
+
+    // === 3. Hitung Pending & Active Reservations (hanya dari Reservation) ===
     const pendingReservations = todayReservations.filter(r => r.status === 'pending').length;
     const activeReservations = todayReservations.filter(r =>
       r.status === 'confirmed' &&
@@ -474,13 +499,16 @@ export const getDashboardStats = async (req, res) => {
       r.check_out_time == null
     ).length;
 
+    // === 4. Hitung Total Reservasi & Status Lainnya ===
     const allReservationsCount = await Reservation.countDocuments();
     const completedReservations = await Reservation.countDocuments({ status: 'completed' });
     const cancelledReservations = await Reservation.countDocuments({ status: 'cancelled' });
 
+    // === 5. Hitung Meja Terisi & Tersedia (Gabung Reservasi + Dine-In) ===
     const allActiveTables = await Table.countDocuments({ is_active: true });
     const occupiedTableIds = new Set();
 
+    // Dari Reservasi
     todayReservations.forEach(reservation => {
       if (['confirmed', 'pending'].includes(reservation.status) && !reservation.check_out_time) {
         reservation.table_id.forEach(tableId => {
@@ -489,8 +517,30 @@ export const getDashboardStats = async (req, res) => {
       }
     });
 
-    const availableTables = allActiveTables - occupiedTableIds.size;
+    // Dari Dine-In Orders
+    const occupiedTableNumbers = new Set(
+      activeDineInOrders.map(order => order.tableNumber?.toUpperCase())
+    );
 
+    // Ambil semua meja aktif untuk mapping nomor ke ID
+    const allActiveTableDocs = await Table.find({ is_active: true }).select('table_number');
+    const tableNumberToIdMap = new Map();
+    allActiveTableDocs.forEach(table => {
+      tableNumberToIdMap.set(table.table_number.toUpperCase(), table._id.toString());
+    });
+
+    // Tambahkan ID meja dari Dine-In ke occupied set
+    occupiedTableNumbers.forEach(tableNum => {
+      const tableId = tableNumberToIdMap.get(tableNum);
+      if (tableId) {
+        occupiedTableIds.add(tableId);
+      }
+    });
+
+    const occupiedTablesCount = occupiedTableIds.size;
+    const availableTables = Math.max(0, allActiveTables - occupiedTablesCount);
+
+    // === 6. Siapkan Statistik Akhir ===
     const stats = {
       allReservations: allReservationsCount,
       pendingReservations,
@@ -498,8 +548,9 @@ export const getDashboardStats = async (req, res) => {
       completedReservations,
       cancelledReservations,
       availableTables,
-      occupiedTables: occupiedTableIds.size,
-      totalTables: allActiveTables
+      occupiedTables: occupiedTablesCount,
+      totalTables: allActiveTables,
+      activeDineInOrders: activeDineInOrders.length // opsional: tambahkan ke stats
     };
 
     console.log('Dashboard stats:', stats);
@@ -1159,6 +1210,97 @@ export const getReservations = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching reservations',
+      error: error.message
+    });
+  }
+};
+
+// GET /api/orders/:orderId - Get order detail (FIXED - Proper 404 handling)
+export const getOrderDetail = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    console.log('Fetching order with ID:', orderId);
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid order ID format'
+      });
+    }
+
+    const order = await Order.findById(orderId)
+      .populate('user_id', 'name phone email')
+      .populate({
+        path: 'items.menuItem',
+        select: 'name price imageURL category mainCategory'
+      })
+      .populate('reservation', 'reservation_code reservation_date reservation_time guest_count');
+
+    console.log('Order found:', order ? 'Yes' : 'No');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Format response dengan struktur yang konsisten
+    const formattedResponse = {
+      success: true,
+      data: {
+        _id: order._id,
+        order_id: order.order_id,
+        customerName: order.user_id?.name || order.user || 'Guest',
+        customerPhone: order.user_id?.phone || '',
+        customerEmail: order.user_id?.email || '',
+        tableNumber: order.tableNumber || 'N/A',
+        status: order.status,
+        orderType: order.orderType,
+        items: order.items.map(item => ({
+          _id: item._id,
+          menuItem: item.menuItem ? {
+            _id: item.menuItem._id,
+            name: item.menuItem.name,
+            price: item.menuItem.price,
+            imageURL: item.menuItem.imageURL,
+            category: item.menuItem.category,
+            mainCategory: item.menuItem.mainCategory
+          } : null,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+          addons: Array.isArray(item.addons) ? item.addons : [],
+          toppings: Array.isArray(item.toppings) ? item.toppings : [],
+          notes: item.notes || '',
+          kitchenStatus: item.kitchenStatus,
+          batchNumber: item.batchNumber
+        })),
+        totalBeforeDiscount: order.totalBeforeDiscount || 0,
+        totalAfterDiscount: order.totalAfterDiscount || 0,
+        totalTax: order.totalTax || 0,
+        totalServiceFee: order.totalServiceFee || 0,
+        grandTotal: order.grandTotal || 0,
+        discounts: order.discounts || {},
+        appliedVoucher: order.appliedVoucher,
+        paymentMethod: order.paymentMethod,
+        isOpenBill: order.isOpenBill || false,
+        createdAt: order.createdAt,
+        createdAtWIB: order.createdAtWIB,
+        updatedAt: order.updatedAt,
+        updatedAtWIB: order.updatedAtWIB
+      }
+    };
+
+    console.log('Returning formatted response');
+    res.json(formattedResponse);
+
+  } catch (error) {
+    console.error('Error fetching order detail:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching order detail',
       error: error.message
     });
   }
