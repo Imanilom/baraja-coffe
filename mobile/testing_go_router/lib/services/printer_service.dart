@@ -904,7 +904,7 @@ class PrinterService {
     // Logo
     bytes.addAll(generator.feed(2));
     bytes.addAll(
-      await ThermalPrinters.generateLogoBytesFastest(
+      await ThermalPrinters.generateLogoBytes(
         generator,
         // 'assets/logo/logo_baraja.svg',
         // 'assets/logo/logo_baraja.webp',

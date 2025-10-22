@@ -1,20 +1,20 @@
 import express from 'express';
 import {
-    salesReport
+  salesReport
 } from '../controllers/report.controller.js';
 import {
-    getSalesSummary,
-    getOrderDetails,
-    getSalesAnalytics,
-    getCashierPerformance,
-    exportToCSV,
-    getCashiersList
+  getSalesSummary,
+  getOrderDetails,
+  getSalesAnalytics,
+  getCashierPerformance,
+  exportToCSV,
+  getCashiersList
 } from '../controllers/cashierReport.controller.js'
 
 import {
   generateSalesReport,
-  exportSalesReport,
-  getPaymentMethodDetail
+  // exportSalesReport,
+  // getPaymentMethodDetail
 } from '../controllers/report/payment.report.controller.js';
 
 
@@ -42,8 +42,8 @@ router.get('/sales/export-to-cvs', exportToCSV);
 router.get('/sales/cashier-list', getCashiersList);
 
 router.get('/sales-report', generateSalesReport);
-router.get('/sales-report/export', exportSalesReport);
-router.get('/sales-report/payment-detail', getPaymentMethodDetail);
+// router.get('/sales-report/export', exportSalesReport);
+// router.get('/sales-report/payment-detail', getPaymentMethodDetail);
 
 // Daily stock opname
 router.get('/stock-opname/daily', stockOpnameController.getDailyStockOpname);

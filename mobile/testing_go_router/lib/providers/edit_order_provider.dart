@@ -102,7 +102,7 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
         if (op is AddOperation) {
           return OrderItemModelForRequest.fromOrderItemModel(
                 op.item,
-              ).uniqueId ==
+              ).menuItem ==
               newItem.uniqueId;
         }
         return false;
@@ -119,9 +119,9 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
             patch: {...op.patch, 'quantity': updatedItem.item.quantity},
           );
         } else if (op is AddOperation) {
-          newPendingOps[existingOpIndex] = Operation.add(
-            item: OrderItemModelForRequest.fromOrderItemModel(updatedItem.item),
-          );
+          // newPendingOps[existingOpIndex] = Operation.add(
+          //   item: OrderItemModelForRequest.fromOrderItemModel(updatedItem.item),
+          // );
         }
       } else {
         // Tambah operasi baru (UPDATE jika original, ADD jika bukan)
@@ -135,13 +135,13 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
         } else {
           // Jika item yang ditambahkan sebelumnya (bukan original) dan qty-nya bertambah
           // Kita perlu update operasi ADD nya
-          newPendingOps.add(
-            Operation.add(
-              item: OrderItemModelForRequest.fromOrderItemModel(
-                updatedItem.item,
-              ),
-            ),
-          );
+          // newPendingOps.add(
+          //   Operation.add(
+          //     item: OrderItemModelForRequest.fromOrderItemModel(
+          //       updatedItem.item,
+          //     ),
+          //   ),
+          // );
           // Hapus operasi ADD lama jika ada (ini agak tricky, bisa diabaikan dulu, atau hapus yang lama dan tambah baru)
           // Solusi sederhana: Biarkan operasi ADD pertama, dan tambahkan UPDATE qty nanti saat submit jika perlu.
           // Solusi kompleks: Gabungkan operasi ADD menjadi satu.
@@ -163,16 +163,16 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
       final newCurrentItems = List<EditableOrderItem>.from(
         state.currentOrderItems,
       )..add(newItemWrapper);
-      final newPendingOps = List<Operation>.from(state.pendingOperations)..add(
-        Operation.add(
-          item: OrderItemModelForRequest.fromOrderItemModel(newItem),
-        ),
-      );
+      // final newPendingOps = List<Operation>.from(state.pendingOperations)..add(
+      //   Operation.add(
+      //     item: OrderItemModelForRequest.fromOrderItemModel(newItem),
+      //   ),
+      // );
 
-      state = state.copyWith(
-        currentOrderItems: newCurrentItems,
-        pendingOperations: newPendingOps,
-      );
+      // state = state.copyWith(
+      //   currentOrderItems: newCurrentItems,
+      //   pendingOperations: newPendingOps,
+      // );
     }
   }
 
