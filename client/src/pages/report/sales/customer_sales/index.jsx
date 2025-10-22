@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaChevronLeft } from "react-icons/fa";
+import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaChevronLeft, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
@@ -49,6 +49,7 @@ const CustomerSales = () => {
     const [user, setUser] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [isExporting, setIsExporting] = useState(false);
 
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
@@ -179,36 +180,8 @@ const CustomerSales = () => {
     // const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
     // Calculate grand totals for filtered data
-    const {
-        grandTotalItems,
-        grandTotalSubtotal,
-    } = useMemo(() => {
-        const totals = {
-            grandTotalItems: 0,
-            grandTotalSubtotal: 0,
-        };
-
-        if (!Array.isArray(filteredData)) {
-            return totals;
-        }
-
-        filteredData.forEach(product => {
-            try {
-                const item = product;
-                // const item = product?.items?.[0];
-                if (!item) return;
-
-                const subtotal = Number(item.subtotal) || 0;
-
-                totals.grandTotalItems += 1;
-                totals.grandTotalSubtotal += subtotal;
-            } catch (err) {
-                console.error("Error calculating totals for product:", err);
-            }
-        });
-
-        return totals;
-    }, [filteredData]);
+    const totalTransaksi = groupedArray.reduce((sum, group) => sum + group.count, 0);
+    const totalPenjualan = groupedArray.reduce((sum, group) => sum + group.subtotalTotal, 0);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -323,22 +296,106 @@ const CustomerSales = () => {
     }, []);
 
     // Export current data to Excel
-    const exportToExcel = () => {
-        const rows = [];
+    const exportToExcel = async () => {
+        setIsExporting(true);
 
-        groupedArray.forEach(group => {
-            rows.push({
-                'Outlet': group.outletName || 'Unknown',
-                'Jumlah Transaksi': group.count,
-                'Penjualan': group.subtotalTotal,
-                'Rata-Rata': Math.round(group.subtotalTotal / group.count)
+        try {
+            // Small delay to show loading state
+            await new Promise(resolve => setTimeout(resolve, 15000));
+
+            // Get outlet name
+            const outletName = tempSelectedOutlet
+                ? outlets.find(o => o._id === tempSelectedOutlet)?.name || 'Semua Outlet'
+                : 'Semua Outlet';
+
+            // Get date range
+            const dateRange = value && value.startDate && value.endDate
+                ? `${new Date(value.startDate).toLocaleDateString('id-ID')} - ${new Date(value.endDate).toLocaleDateString('id-ID')}`
+                : new Date().toLocaleDateString('id-ID');
+
+            // Calculate totals from groupedArray
+            const totalTransaksi = groupedArray.reduce((sum, group) => sum + group.count, 0);
+            const totalPenjualan = groupedArray.reduce((sum, group) => sum + group.subtotalTotal, 0);
+
+            // Create export data
+            const exportData = [
+                { col1: 'Laporan Penjualan Per Pelanggan', col2: '', col3: '', col4: '', col5: '', col6: '' },
+                { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' },
+                { col1: 'Outlet', col2: outletName, col3: '', col4: '', col5: '', col6: '' },
+                { col1: 'Tanggal', col2: dateRange, col3: '', col4: '', col5: '', col6: '' },
+                { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '' },
+                { col1: 'Id Member', col2: 'Nama', col3: 'Tipe Pelanggan', col4: 'No Telepon', col5: 'Jumlah Transaksi', col6: 'Total' }
+            ];
+
+            // Add data rows
+            groupedArray.forEach(group => {
+                exportData.push({
+                    col1: group.customer._id || '-',
+                    col2: group.customerName || '-',
+                    col3: group.customer.consumerType || '-',
+                    col4: group.customer.phone || '-',
+                    col5: group.count,
+                    col6: group.subtotalTotal
+                });
             });
-        });
 
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Outlet");
-        XLSX.writeFile(wb, "Penjualan_Per_Outlet.xlsx");
+            // Add Grand Total row
+            exportData.push({
+                col1: 'Grand Total',
+                col2: '',
+                col3: '',
+                col4: '',
+                col5: totalTransaksi,
+                col6: totalPenjualan
+            });
+
+            // Create worksheet
+            const ws = XLSX.utils.json_to_sheet(exportData, {
+                header: ['col1', 'col2', 'col3', 'col4', 'col5', 'col6'],
+                skipHeader: true
+            });
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 25 }, // Id Member
+                { wch: 25 }, // Nama
+                { wch: 20 }, // Tipe Pelanggan
+                { wch: 18 }, // No Telepon
+                { wch: 20 }, // Jumlah Transaksi
+                { wch: 18 }  // Total
+            ];
+
+            // Merge cells for title
+            ws['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } } // Merge title across 6 columns
+            ];
+
+            // Apply bold styling to specific rows
+            const boldRows = [0, 5, exportData.length - 1]; // Title, Header, Grand Total
+
+            boldRows.forEach(rowIndex => {
+                for (let col = 0; col < 6; col++) {
+                    const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: col });
+                    if (ws[cellAddress]) {
+                        ws[cellAddress].s = { font: { bold: true } };
+                    }
+                }
+            });
+
+            // Create workbook and add worksheet
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Pelanggan");
+
+            // Export file
+            const fileName = `Laporan_Penjualan_Per_Pelanggan_${outletName}_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+
+        } catch (error) {
+            console.error("Error exporting to Excel:", error);
+            alert("Gagal mengekspor data. Silakan coba lagi.");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     // Show loading state
@@ -378,7 +435,22 @@ const CustomerSales = () => {
                     <FaChevronRight />
                     <span>Penjualan Per Pelanggan</span>
                 </h1>
-                <button onClick={exportToExcel} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button>
+                <button
+                    onClick={exportToExcel}
+                    disabled={isExporting}
+                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isExporting ? (
+                        <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                            Mengekspor...
+                        </>
+                    ) : (
+                        <>
+                            <FaDownload /> Ekspor CSV
+                        </>
+                    )}
+                </button>
             </div>
 
             {/* Filters */}
@@ -457,7 +529,7 @@ const CustomerSales = () => {
                                             <td className="px-4 py-3 text-right">{group.customer.consumerType || "-"}</td>
                                             <td className="px-4 py-3 text-right">{group.customer.phone || "-"}</td>
                                             <td className="px-4 py-3 text-right">{group.count}</td>
-                                            <td className="px-4 py-3 text-right">{group.count}</td>
+                                            <td className="px-4 py-3 text-right">{formatCurrency(group.subtotalTotal)}</td>
                                         </tr>
                                     </React.Fragment>
                                 ))}
@@ -473,8 +545,8 @@ const CustomerSales = () => {
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
                                 <td className="px-4 py-2" colSpan={3}>Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotalItems.toLocaleString()}</p></td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotalItems.toLocaleString()}</p></td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{totalTransaksi}</p></td>
+                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{totalPenjualan}</p></td>
                             </tr>
                         </tfoot>
                     </table>
