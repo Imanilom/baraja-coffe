@@ -23,7 +23,7 @@ export async function createOrderHandler({
         customerId, 
         loyaltyPointsToRedeem, 
         orderType, 
-        customAmountItems // UBAH: customAmount menjadi customAmountItems array
+        customAmountItems = [] // Default ke empty array
       } = orderData;
 
       console.log('Order Handler - Starting Order Creation:', {
@@ -32,14 +32,14 @@ export async function createOrderHandler({
         requiresDelivery,
         hasRecipientData: !!recipientData,
         source,
-        hasCustomAmountItems: customAmountItems && customAmountItems.length > 0, // UBAH
+        hasCustomAmountItems: customAmountItems && customAmountItems.length > 0,
         customAmountItemsCount: customAmountItems ? customAmountItems.length : 0
       });
 
       // Process order items dengan custom amount items terpisah
       const processed = await processOrderItems({
         ...orderData,
-        customAmountItems: customAmountItems || [] // UBAH: customAmount menjadi customAmountItems
+        customAmountItems: customAmountItems || []
       }, session);
       
       if (!processed) {
@@ -48,7 +48,7 @@ export async function createOrderHandler({
 
       const {
         orderItems,
-        customAmountItems: processedCustomAmountItems, // UBAH
+        customAmountItems: processedCustomAmountItems,
         totals,
         discounts,
         promotions,
@@ -75,14 +75,15 @@ export async function createOrderHandler({
         ...cleanOrderData
       } = orderData;
 
+      // PERBAIKAN: Pastikan structure discounts sesuai dengan yang dikembalikan processOrderItems
       const baseOrderData = {
         ...cleanOrderData,
         order_id: orderId,
-        items: orderItems, // HANYA menu items
-        customAmountItems: processedCustomAmountItems, // UBAH: Custom amount items array
+        items: orderItems,
+        customAmountItems: processedCustomAmountItems, // PERBAIKAN: Gunakan processedCustomAmountItems
         totalBeforeDiscount: totals.beforeDiscount,
         totalAfterDiscount: totals.afterDiscount,
-        totalCustomAmount: totals.totalCustomAmount, // UBAH: Tambahkan total custom amount
+        totalCustomAmount: totals.totalCustomAmount,
         totalTax: totals.totalTax,
         totalServiceFee: totals.totalServiceFee,
         grandTotal: totals.grandTotal,
@@ -92,11 +93,12 @@ export async function createOrderHandler({
         appliedManualPromo: promotions.appliedManualPromo,
         appliedVoucher: promotions.appliedVoucher,
         discounts: {
-          autoPromoDiscount: discounts.autoPromoDiscount,
-          manualDiscount: discounts.manualDiscount,
-          voucherDiscount: discounts.voucherDiscount,
-          loyaltyDiscount: discounts.loyaltyDiscount,
-          total: discounts.total
+          autoPromoDiscount: discounts.autoPromoDiscount || 0,
+          manualDiscount: discounts.manualDiscount || 0,
+          voucherDiscount: discounts.voucherDiscount || 0,
+          loyaltyDiscount: discounts.loyaltyDiscount || 0,
+          customAmountDiscount: discounts.customAmountDiscount || 0, // PERBAIKAN: Default value
+          total: discounts.total || 0
         },
         taxAndServiceDetails: taxesAndFees,
         createdAt: new Date(),
@@ -153,11 +155,11 @@ export async function createOrderHandler({
         orderType: baseOrderData.orderType,
         source: baseOrderData.source,
         totalMenuItems: baseOrderData.items.length,
-        hasCustomAmountItems: baseOrderData.customAmountItems.length > 0, // UBAH
+        hasCustomAmountItems: baseOrderData.customAmountItems.length > 0,
         customAmountItemsCount: baseOrderData.customAmountItems.length,
         totalCustomAmount: baseOrderData.totalCustomAmount,
         grandTotal: baseOrderData.grandTotal,
-        menuItemsTotal: baseOrderData.totalAfterDiscount
+        discounts: baseOrderData.discounts
       });
 
       // Create and save the order
@@ -178,10 +180,11 @@ export async function createOrderHandler({
         orderType: newOrder.orderType,
         status: newOrder.status,
         totalMenuItems: newOrder.items.length,
-        hasCustomAmountItems: newOrder.customAmountItems.length > 0, // UBAH
+        hasCustomAmountItems: newOrder.customAmountItems.length > 0,
         customAmountItemsCount: newOrder.customAmountItems.length,
         totalCustomAmount: newOrder.totalCustomAmount,
-        grandTotal: newOrder.grandTotal
+        grandTotal: newOrder.grandTotal,
+        discounts: newOrder.discounts
       });
 
       return {
@@ -189,7 +192,7 @@ export async function createOrderHandler({
         orderId: newOrder._id.toString(),
         orderNumber: orderId,
         processedItems: orderItems,
-        customAmountItems: processedCustomAmountItems, // UBAH
+        customAmountItems: processedCustomAmountItems,
         totals: totals,
         loyalty: loyalty
       };
@@ -209,7 +212,7 @@ export async function createOrderHandler({
       orderNumber: orderId,
       grandTotal: orderResult.totals.grandTotal,
       loyalty: orderResult.loyalty,
-      hasCustomAmountItems: orderResult.customAmountItems.length > 0 // UBAH
+      hasCustomAmountItems: orderResult.customAmountItems && orderResult.customAmountItems.length > 0 // PERBAIKAN: Tambahkan null check
     };
 
   } catch (err) {
@@ -219,7 +222,7 @@ export async function createOrderHandler({
       orderId,
       source,
       orderType: orderData?.orderType,
-      hasCustomAmountItems: orderData?.customAmountItems?.length > 0 // UBAH
+      hasCustomAmountItems: orderData?.customAmountItems?.length > 0
     });
 
     if (err.message.includes('Failed to process order items')) {
@@ -277,7 +280,7 @@ export async function enqueueInventoryUpdate(orderResult) {
     console.log('Inventory update enqueued:', {
       orderId: orderResult.orderId,
       regularItemsCount: orderResult.processedItems.length,
-      hasCustomAmountItems: orderResult.customAmountItems.length > 0 // UBAH
+      hasCustomAmountItems: orderResult.customAmountItems && orderResult.customAmountItems.length > 0 // PERBAIKAN: Tambahkan null check
     });
 
     return {
