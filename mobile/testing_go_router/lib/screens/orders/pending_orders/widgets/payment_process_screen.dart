@@ -4,6 +4,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/pending_order_detail_provider.dart';
+import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/models/payments/payment_method.model.dart';
 import 'package:kasirbaraja/models/payments/payment_type.model.dart';
@@ -1230,10 +1231,11 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
     _showProcessingDialog();
     try {
       final box = Hive.box('userBox');
-      final cashier = box.get('cashier') as CashierModel?;
+      final cashierId = box.get('cashier').id;
+      final cashierbox = await HiveService.getCashier();
       ref
           .read(processPaymentRequestProvider.notifier)
-          .addCashierId(cashier!.id!);
+          .addCashierId(cashierbox!.id ?? cashierId);
       final requestData = ref.watch(processPaymentRequestProvider);
       print('req data: $requestData');
       final result = await ref

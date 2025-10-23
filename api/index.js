@@ -182,7 +182,10 @@ app.use((err, req, res, next) => {
 // =====================================================
 const startServer = async () => {
   try {
-    // await mongoose.connect(process.env.MONGO_PROD, {
+    await mongoose.connect(process.env.MONGO, {
+      serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
+    });
+    // await mongoose.connect(process.env.MONGO, {
     //   serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
     // });
     await mongoose.connect(process.env.MONGO, {

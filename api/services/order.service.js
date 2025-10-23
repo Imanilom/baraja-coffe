@@ -18,7 +18,7 @@ export async function processOrderItems({
   source, 
   customerId, 
   loyaltyPointsToRedeem, 
-  customAmountItems // UBAH: customAmount menjadi customAmountItems array
+  customAmountItems
 }, session) {
 
   if ((!items || !Array.isArray(items) || items.length === 0) && 
@@ -105,6 +105,9 @@ export async function processOrderItems({
     });
   }
 
+  // PERBAIKAN: Gabungkan total menu items dan custom amount untuk perhitungan diskon
+  const combinedTotalBeforeDiscount = totalBeforeDiscount + totalCustomAmount;
+
   // LOYALTY PROGRAM: OPSIONAL - hanya jika ada customerId yang valid
   let loyaltyDiscount = 0;
   let loyaltyPointsUsed = 0;
@@ -121,7 +124,7 @@ export async function processOrderItems({
     source,
     isEligibleForLoyalty,
     loyaltyPointsToRedeem,
-    totalBeforeDiscount
+    totalBeforeDiscount: combinedTotalBeforeDiscount
   });
 
   if (isEligibleForLoyalty) {
@@ -155,24 +158,47 @@ export async function processOrderItems({
   }
 
   // Calculate total after loyalty discount
-  const totalAfterLoyaltyDiscount = Math.max(0, totalBeforeDiscount - loyaltyDiscount);
+  const totalAfterLoyaltyDiscount = Math.max(0, combinedTotalBeforeDiscount - loyaltyDiscount);
 
-  // Promotions and discounts (HANYA berlaku untuk menu items, bukan custom amount)
+  // PERBAIKAN: Promotions and discounts berlaku untuk combined total (menu items + custom amount)
   const promotionResults = await processPromotions({
     orderItems,
     outlet,
     orderType,
     voucherCode,
     customerType,
-    totalBeforeDiscount: totalAfterLoyaltyDiscount,
+    totalBeforeDiscount: totalAfterLoyaltyDiscount, // Gunakan combined total
     source
   });
+
+  // PERBAIKAN: Hitung proporsi diskon untuk custom amount
+  let customAmountDiscount = 0;
+  let menuItemsDiscount = promotionResults.totalDiscount;
+  
+  // Jika ada custom amount, bagi diskon secara proporsional
+  if (totalCustomAmount > 0 && promotionResults.totalDiscount > 0) {
+    const totalEligibleAmount = totalBeforeDiscount + totalCustomAmount;
+    
+    // Hitung proporsi custom amount terhadap total
+    const customAmountRatio = totalCustomAmount / totalEligibleAmount;
+    customAmountDiscount = promotionResults.totalDiscount * customAmountRatio;
+    menuItemsDiscount = promotionResults.totalDiscount - customAmountDiscount;
+    
+    console.log('Discount Allocation:', {
+      totalDiscount: promotionResults.totalDiscount,
+      customAmountDiscount,
+      menuItemsDiscount,
+      customAmountRatio: (customAmountRatio * 100).toFixed(2) + '%'
+    });
+  }
 
   // Calculate loyalty points earned hanya untuk yang eligible
   if (isEligibleForLoyalty) {
     try {
+      // PERBAIKAN: Loyalty points dihitung berdasarkan total setelah diskon termasuk custom amount
+      const eligibleAmountForLoyalty = promotionResults.totalAfterDiscount;
       const pointsResult = await calculateLoyaltyPoints(
-        promotionResults.totalAfterDiscount,
+        eligibleAmountForLoyalty,
         customerId,
         outlet,
         session
@@ -183,7 +209,7 @@ export async function processOrderItems({
 
       console.log('Loyalty Points Earned:', {
         pointsEarned: loyaltyPointsEarned,
-        transactionAmount: promotionResults.totalAfterDiscount,
+        transactionAmount: eligibleAmountForLoyalty,
         isFirstTransaction: loyaltyDetails?.isFirstTransaction
       });
     } catch (pointsError) {
@@ -193,24 +219,46 @@ export async function processOrderItems({
     }
   }
 
-  // Taxes and services (HANYA berlaku untuk menu items, bukan custom amount)
+  // PERBAIKAN: Taxes and services berlaku untuk combined total setelah diskon
+  const totalAfterAllDiscounts = promotionResults.totalAfterDiscount;
+  
+  // Buat virtual items untuk custom amount untuk perhitungan pajak
+  const virtualItemsForTax = [...orderItems];
+  if (totalCustomAmount > 0) {
+    // Kurangi custom amount dengan diskon yang dialokasikan
+    const customAmountAfterDiscount = totalCustomAmount - customAmountDiscount;
+    
+    virtualItemsForTax.push({
+      menuItem: null,
+      menuItemName: 'Custom Amount',
+      quantity: 1,
+      subtotal: customAmountAfterDiscount,
+      addons: [],
+      toppings: [],
+      notes: 'Virtual item for tax calculation',
+      isCustomAmount: true
+    });
+  }
+
   const { taxAndServiceDetails, totalTax, totalServiceFee } = await calculateTaxesAndServices(
     outlet,
-    promotionResults.totalAfterDiscount,
-    orderItems,
+    totalAfterAllDiscounts,
+    virtualItemsForTax, // Gunakan virtual items yang termasuk custom amount
     session
   );
 
-  // PERHITUNGAN GRAND TOTAL: totalAfterDiscount + totalCustomAmount + tax + service fee
-  const grandTotal = promotionResults.totalAfterDiscount + 
-                    totalCustomAmount + 
-                    totalTax + 
-                    totalServiceFee;
+  // PERHITUNGAN GRAND TOTAL: totalAfterAllDiscounts + tax + service fee
+  const grandTotal = totalAfterAllDiscounts + totalTax + totalServiceFee;
 
   console.log('Order Processing Summary:', {
     menuItemsTotal: totalBeforeDiscount,
-    afterDiscount: promotionResults.totalAfterDiscount,
-    totalCustomAmount,
+    customAmountTotal: totalCustomAmount,
+    combinedTotalBeforeDiscount,
+    loyaltyDiscount,
+    totalPromoDiscount: promotionResults.totalDiscount,
+    customAmountDiscount,
+    menuItemsDiscount,
+    totalAfterAllDiscounts,
     totalTax,
     totalServiceFee,
     grandTotal,
@@ -220,11 +268,11 @@ export async function processOrderItems({
 
   return {
     orderItems,
-    customAmountItems: customAmountItemsData, // UBAH: Kembalikan sebagai array
+    customAmountItems: customAmountItemsData,
     totals: {
-      beforeDiscount: totalBeforeDiscount,
-      afterDiscount: promotionResults.totalAfterDiscount,
-      totalCustomAmount: totalCustomAmount, // UBAH: Tambahkan total custom amount
+      beforeDiscount: combinedTotalBeforeDiscount,
+      afterDiscount: totalAfterAllDiscounts,
+      totalCustomAmount: totalCustomAmount,
       totalTax: totalTax,
       totalServiceFee: totalServiceFee,
       grandTotal
@@ -234,6 +282,7 @@ export async function processOrderItems({
       manualDiscount: promotionResults.manualDiscount,
       voucherDiscount: promotionResults.voucherDiscount,
       loyaltyDiscount: loyaltyDiscount,
+      customAmountDiscount: customAmountDiscount, // PERBAIKAN: Tambahkan custom amount discount
       total: promotionResults.totalDiscount + loyaltyDiscount
     },
     promotions: {
@@ -260,19 +309,20 @@ export async function processOrderItems({
 }
 
 /**
- * Processes all promotions for an order (HANYA untuk menu items)
+ * Processes all promotions for an order (SEKARANG termasuk custom amount)
  */
 async function processPromotions({ orderItems, outlet, orderType, voucherCode, customerType, totalBeforeDiscount, source }) {
   const canUsePromo = source === 'app' || source === 'cashier';
 
+  // PERBAIKAN: Auto promos hanya untuk menu items (karena berdasarkan product)
   const [
     { discount: autoPromoDiscount = 0, appliedPromos },
     { discount: manualDiscount = 0, appliedPromo },
     { discount: voucherDiscount = 0, voucher }
   ] = await Promise.all([
-    checkAutoPromos(orderItems, outlet, orderType),
-    canUsePromo ? checkManualPromo(totalBeforeDiscount, outlet, customerType) : { discount: 0, appliedPromo: null },
-    canUsePromo ? checkVoucher(voucherCode, totalBeforeDiscount, outlet) : { discount: 0, voucher: null }
+    checkAutoPromos(orderItems, outlet, orderType), // Auto promo hanya untuk menu items
+    canUsePromo ? checkManualPromo(totalBeforeDiscount, outlet, customerType) : { discount: 0, appliedPromo: null }, // Manual promo untuk total termasuk custom amount
+    canUsePromo ? checkVoucher(voucherCode, totalBeforeDiscount, outlet) : { discount: 0, voucher: null } // Voucher untuk total termasuk custom amount
   ]);
 
   const totalDiscount = autoPromoDiscount + manualDiscount + voucherDiscount;
@@ -285,7 +335,8 @@ async function processPromotions({ orderItems, outlet, orderType, voucherCode, c
     totalDiscount,
     totalBeforeDiscount,
     totalAfterDiscount,
-    canUsePromo
+    canUsePromo,
+    note: 'Manual discount dan voucher berlaku untuk total termasuk custom amount'
   });
 
   return {
@@ -295,8 +346,8 @@ async function processPromotions({ orderItems, outlet, orderType, voucherCode, c
     totalDiscount,
     totalAfterDiscount,
     appliedPromos,
-    appliedPromo, // This is the manual promo
-    voucher // This is the voucher
+    appliedPromo,
+    voucher
   };
 }
 
@@ -359,7 +410,7 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
 }
 
 /**
- * Calculates taxes and service fees for an order (HANYA untuk menu items)
+ * Calculates taxes and service fees for an order (SEKARANG termasuk custom amount)
  */
 export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orderItems, session) {
   const taxesAndServices = await TaxAndService.find({
@@ -372,13 +423,20 @@ export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orde
   let totalServiceFee = 0;
 
   for (const charge of taxesAndServices) {
+    // PERBAIKAN: Untuk tax dan service fee, berlaku untuk semua items termasuk custom amount
+    // Karena orderItems sudah termasuk virtual items untuk custom amount
     const applicableItems = charge.appliesToMenuItems?.length > 0
-      ? orderItems.filter(item =>
-        charge.appliesToMenuItems.some(menuId =>
-          menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
-        )
-      )
-      : orderItems;
+      ? orderItems.filter(item => {
+          // Untuk custom amount (virtual items), selalu applicable
+          if (item.isCustomAmount) {
+            return true;
+          }
+          // Untuk menu items, cek apakah termasuk dalam appliesToMenuItems
+          return charge.appliesToMenuItems.some(menuId =>
+            menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
+          );
+        })
+      : orderItems; // Jika tidak ada appliesToMenuItems, berlaku untuk semua
 
     const applicableSubtotal = applicableItems.reduce((sum, item) => sum + item.subtotal, 0);
 
@@ -392,7 +450,8 @@ export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orde
         type: 'tax',
         amount: taxAmount,
         percentage: charge.percentage,
-        appliesTo: charge.appliesToMenuItems?.length > 0 ? 'specific_items' : 'all_items'
+        appliesTo: charge.appliesToMenuItems?.length > 0 ? 'specific_items' : 'all_items',
+        applicableSubtotal
       });
     } else if (charge.type === 'service') {
       const feeAmount = charge.fixedFee
@@ -409,7 +468,8 @@ export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orde
         ...(charge.fixedFee
           ? { fixedFee: charge.fixedFee }
           : { percentage: charge.percentage }),
-        appliesTo: charge.appliesToMenuItems?.length > 0 ? 'specific_items' : 'all_items'
+        appliesTo: charge.appliesToMenuItems?.length > 0 ? 'specific_items' : 'all_items',
+        applicableSubtotal
       });
     }
   }
@@ -417,7 +477,9 @@ export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orde
   console.log('Tax and Service Calculation:', {
     totalTax,
     totalServiceFee,
-    taxAndServiceDetailsCount: taxAndServiceDetails.length
+    taxAndServiceDetailsCount: taxAndServiceDetails.length,
+    totalAfterDiscount,
+    note: 'Tax dan service fee berlaku untuk total termasuk custom amount setelah diskon'
   });
 
   return {
@@ -429,7 +491,6 @@ export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orde
 
 /**
  * Utility function untuk calculate custom amount automatically
- * Kembalikan array dengan satu item untuk kompatibilitas
  */
 export function calculateCustomAmount(paidAmount, orderTotal) {
   const difference = paidAmount - orderTotal;

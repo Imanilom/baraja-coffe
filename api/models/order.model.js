@@ -48,31 +48,6 @@ const OrderItemSchema = new mongoose.Schema({
   payment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
 });
 
-// Schema untuk custom amount items
-const CustomAmountItemSchema = new mongoose.Schema({
-  amount: { 
-    type: Number, 
-    required: true,
-    min: 0
-  },
-  name: { 
-    type: String, 
-    default: 'Penyesuaian Pembayaran' 
-  },
-  description: { 
-    type: String, 
-    default: '' 
-  },
-  dineType: {
-    type: String,
-    enum: ['Dine-In', 'Take Away'],
-    default: 'Dine-In'
-  },
-  appliedAt: {
-    type: Date,
-    default: () => getWIBNow()
-  }
-});
 
 // Model Order
 const OrderSchema = new mongoose.Schema({
@@ -82,8 +57,24 @@ const OrderSchema = new mongoose.Schema({
   cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   groId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [OrderItemSchema],
-  // UBAH: customAmount menjadi customAmountItems array
-  customAmountItems: [CustomAmountItemSchema],
+  customAmountItems: [{
+    amount: { type: Number, required: true },
+    name: { type: String, default: 'Penyesuaian Pembayaran' },
+    description: { type: String, default: '' },
+    dineType: { 
+      type: String, 
+      enum: ['Dine-In', 'Take Away'],
+      default: 'Dine-In'
+    },
+    appliedAt: {
+      type: Date,
+      default: () => getWIBNow()
+    },
+    // PERBAIKAN: Tambahkan field untuk tracking diskon yang diterima
+    originalAmount: { type: Number }, // Amount sebelum diskon
+    discountApplied: { type: Number, default: 0 } // Jumlah diskon yang diterima
+  }],
+
   status: {
     type: String,
     enum: ['Pending', 'Waiting', 'Reserved', 'OnProcess', 'Completed', 'Canceled'],
