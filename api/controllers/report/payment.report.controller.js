@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import { Order } from '../../models/order.model.js';
 import Payment from '../../models/Payment.model.js';
 
@@ -23,22 +22,38 @@ export const generateSalesReport = async (req, res) => {
     const payments = await Payment.find({
       createdAt: { $gte: start, $lte: end },
       status: { $in: ['settlement', 'paid', 'capture'] }
-    }).populate({
-      path: 'order',
-      match: {
-        status: { $in: ['Completed', 'OnProcess', 'Waiting'] },
-        ...(outletId && { outlet: new mongoose.Types.ObjectId(outletId) })
-      }
     });
 
-    // Filter hanya payments yang memiliki order valid
-    const validPayments = payments.filter(payment => payment.order);
+    // Get order_ids from payments
+    const orderIds = payments.map(p => p.order_id).filter(id => id);
+    
+    // Find orders separately since order_id is string, not ObjectId
+    const orders = await Order.find({
+      order_id: { $in: orderIds },
+      status: { $in: ['Completed', 'OnProcess', 'Waiting'] },
+      ...(outletId && { outlet: new mongoose.Types.ObjectId(outletId) })
+    });
+
+    // Create a map for quick order lookup
+    const orderMap = new Map();
+    orders.forEach(order => {
+      orderMap.set(order.order_id, order);
+    });
+
+    // Combine payments with their orders
+    const validPayments = payments.map(payment => {
+      const order = orderMap.get(payment.order_id);
+      return {
+        ...payment.toObject(),
+        order_data: order // Attach order data
+      };
+    }).filter(payment => payment.order_data); // Only include payments with valid orders
 
     // Group by payment method secara dinamis
-    const paymentMethodSummary = await generateDynamicPaymentSummary(validPayments);
-
+    const paymentMethodSummary = generateDynamicPaymentSummary(validPayments);
+    
     // Group by period (daily/weekly/monthly)
-    const periodSummary = await generatePeriodSummary(validPayments, groupBy);
+    const periodSummary = generatePeriodSummary(validPayments, groupBy);
 
     // Final report
     const finalReport = {
@@ -126,6 +141,161 @@ const generateDynamicPaymentSummary = (payments) => {
   }));
 
   return result.sort((a, b) => b.totalAmount - a.totalAmount);
+};
+
+// Generate summary berdasarkan periode
+const generatePeriodSummary = (payments, groupBy) => {
+  const periodMap = new Map();
+  
+  payments.forEach(payment => {
+    const periodKey = getPeriodKey(payment.createdAt, groupBy);
+    
+    if (!periodMap.has(periodKey)) {
+      periodMap.set(periodKey, {
+        period: periodKey,
+        totalAmount: 0,
+        totalTransactions: 0,
+        orders: new Set(),
+        paymentMethods: new Map()
+      });
+    }
+    
+    const periodData = periodMap.get(periodKey);
+    periodData.totalAmount += payment.amount;
+    periodData.totalTransactions += 1;
+    periodData.orders.add(payment.order_id);
+    
+    // Group by payment method dalam periode
+    const method = normalizePaymentMethod(payment);
+    const methodKey = method.category;
+    
+    if (!periodData.paymentMethods.has(methodKey)) {
+      periodData.paymentMethods.set(methodKey, {
+        category: method.category,
+        displayName: method.displayName,
+        totalAmount: 0,
+        count: 0
+      });
+    }
+    
+    const methodData = periodData.paymentMethods.get(methodKey);
+    methodData.totalAmount += payment.amount;
+    methodData.count += 1;
+  });
+  
+  // Convert to array
+  return Array.from(periodMap.values()).map(period => ({
+    ...period,
+    totalOrders: period.orders.size,
+    paymentMethods: Array.from(period.paymentMethods.values()),
+    date: period.period
+  })).sort((a, b) => a.date.localeCompare(b.date));
+};
+
+// Controller untuk mendapatkan detail transaksi - FIXED
+export const getPaymentDetails = async (req, res) => {
+  try {
+    const { 
+      startDate, 
+      endDate, 
+      outletId, 
+      paymentMethod,
+      limit = 50,
+      page = 1
+    } = req.query;
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const skip = (page - 1) * limit;
+
+    // Build match stage
+    const matchStage = {
+      createdAt: { $gte: start, $lte: end },
+      status: { $in: ['settlement', 'paid', 'capture'] }
+    };
+
+    if (paymentMethod && paymentMethod !== 'all') {
+      matchStage.method = new RegExp(paymentMethod, 'i');
+    }
+
+    const payments = await Payment.find(matchStage)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    // Get order_ids from payments
+    const orderIds = payments.map(p => p.order_id).filter(id => id);
+    
+    // Find orders separately
+    const orderMatch = outletId ? { 
+      order_id: { $in: orderIds },
+      outlet: new mongoose.Types.ObjectId(outletId)
+    } : { order_id: { $in: orderIds } };
+    
+    const orders = await Order.find(orderMatch)
+      .select('order_id user tableNumber orderType grandTotal outletName')
+      .lean();
+
+    // Create order map
+    const orderMap = new Map();
+    orders.forEach(order => {
+      orderMap.set(order.order_id, order);
+    });
+
+    // Combine payments with order data
+    const validPayments = payments.map(payment => {
+      const order = orderMap.get(payment.order_id);
+      return {
+        ...payment,
+        order_data: order
+      };
+    }).filter(payment => payment.order_data);
+
+    // Transform data untuk response
+    const transformedPayments = validPayments.map(payment => ({
+      id: payment._id,
+      order_id: payment.order_id,
+      transaction_id: payment.transaction_id,
+      method: payment.method,
+      paymentType: payment.paymentType,
+      amount: payment.amount,
+      status: payment.status,
+      createdAt: payment.createdAt,
+      orderDetails: {
+        user: payment.order_data?.user,
+        tableNumber: payment.order_data?.tableNumber,
+        orderType: payment.order_data?.orderType,
+        grandTotal: payment.order_data?.grandTotal,
+        outletName: payment.order_data?.outletName
+      },
+      paymentDetails: getPaymentSpecificDetails(payment)
+    }));
+
+    const total = await Payment.countDocuments(matchStage);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        payments: transformedPayments,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting payment details:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
 };
 
 // Normalize payment method berdasarkan data yang ada
@@ -346,54 +516,6 @@ const getBankDisplayName = (bankCode) => {
   return bankNames[bankCode] || bankCode.toUpperCase();
 };
 
-// Generate summary berdasarkan periode
-const generatePeriodSummary = (payments, groupBy) => {
-  const periodMap = new Map();
-
-  payments.forEach(payment => {
-    const periodKey = getPeriodKey(payment.createdAt, groupBy);
-
-    if (!periodMap.has(periodKey)) {
-      periodMap.set(periodKey, {
-        period: periodKey,
-        totalAmount: 0,
-        totalTransactions: 0,
-        orders: new Set(),
-        paymentMethods: new Map()
-      });
-    }
-
-    const periodData = periodMap.get(periodKey);
-    periodData.totalAmount += payment.amount;
-    periodData.totalTransactions += 1;
-    periodData.orders.add(payment.order_id);
-
-    // Group by payment method dalam periode
-    const method = normalizePaymentMethod(payment);
-    const methodKey = method.category;
-
-    if (!periodData.paymentMethods.has(methodKey)) {
-      periodData.paymentMethods.set(methodKey, {
-        category: method.category,
-        displayName: method.displayName,
-        totalAmount: 0,
-        count: 0
-      });
-    }
-
-    const methodData = periodData.paymentMethods.get(methodKey);
-    methodData.totalAmount += payment.amount;
-    methodData.count += 1;
-  });
-
-  // Convert to array
-  return Array.from(periodMap.values()).map(period => ({
-    ...period,
-    totalOrders: period.orders.size,
-    paymentMethods: Array.from(period.paymentMethods.values()),
-    date: period.period
-  })).sort((a, b) => a.date.localeCompare(b.date));
-};
 
 // Get period key berdasarkan grouping
 const getPeriodKey = (date, groupBy) => {
@@ -416,91 +538,6 @@ const getPeriodKey = (date, groupBy) => {
   }
 };
 
-// Controller untuk mendapatkan detail transaksi
-export const getPaymentDetails = async (req, res) => {
-  try {
-    const {
-      startDate,
-      endDate,
-      outletId,
-      paymentMethod,
-      limit = 50,
-      page = 1
-    } = req.query;
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-
-    const skip = (page - 1) * limit;
-
-    // Build match stage
-    const matchStage = {
-      createdAt: { $gte: start, $lte: end },
-      status: { $in: ['settlement', 'paid', 'capture'] }
-    };
-
-    if (paymentMethod && paymentMethod !== 'all') {
-      matchStage.method = new RegExp(paymentMethod, 'i');
-    }
-
-    const payments = await Payment.find(matchStage)
-      .populate({
-        path: 'order',
-        match: outletId ? { outlet: new mongoose.Types.ObjectId(outletId) } : {},
-        select: 'order_id user tableNumber orderType grandTotal outletName'
-      })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
-
-    // Filter hanya yang punya order valid
-    const validPayments = payments.filter(p => p.order);
-
-    // Transform data untuk response
-    const transformedPayments = validPayments.map(payment => ({
-      id: payment._id,
-      order_id: payment.order_id,
-      transaction_id: payment.transaction_id,
-      method: payment.method,
-      paymentType: payment.paymentType,
-      amount: payment.amount,
-      status: payment.status,
-      createdAt: payment.createdAt,
-      orderDetails: {
-        user: payment.order?.user,
-        tableNumber: payment.order?.tableNumber,
-        orderType: payment.order?.orderType,
-        grandTotal: payment.order?.grandTotal,
-        outletName: payment.order?.outletName
-      },
-      paymentDetails: getPaymentSpecificDetails(payment)
-    }));
-
-    const total = await Payment.countDocuments(matchStage);
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        payments: transformedPayments,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          pages: Math.ceil(total / limit)
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('Error getting payment details:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-  }
-};
 
 // Get payment-specific details berdasarkan method
 const getPaymentSpecificDetails = (payment) => {

@@ -1,5 +1,5 @@
 import React from "react";
-import { FaChevronLeft, FaChevronRight, FaSearch } from "react-icons/fa";
+import { FaSearch } from "react-icons/fa";
 import Select from "react-select";
 import Datepicker from "react-tailwindcss-datepicker";
 import TransactionModal from "./modal";
@@ -12,18 +12,18 @@ const SalesTransactionTable = ({
     formatDateTime,
     formatCurrency,
     options,
-    tempSelectedOutlet,
-    setTempSelectedOutlet,
-    value,
-    setValue,
-    tempSearch,
-    setTempSearch,
+    selectedOutlet,
+    handleOutletChange,
+    dateRange,
+    handleDateRangeChange,
+    searchTerm,
+    handleSearchChange,
     customSelectStyles,
     selectedTrx,
     receiptRef,
     currentPage,
     totalPages,
-    setCurrentPage
+    handlePageChange
 }) => {
     return (
         <>
@@ -34,8 +34,8 @@ const SalesTransactionTable = ({
                         <Datepicker
                             showFooter
                             showShortcuts
-                            value={value}
-                            onChange={setValue}
+                            value={dateRange}
+                            onChange={handleDateRangeChange}
                             displayFormat="DD-MM-YYYY"
                             inputClassName="w-full text-[13px] border py-[8px] pr-[25px] pl-[12px] rounded cursor-pointer"
                             popoverDirection="down"
@@ -49,8 +49,8 @@ const SalesTransactionTable = ({
                         <input
                             type="text"
                             placeholder="Produk / Pelanggan / Kode Struk"
-                            value={tempSearch}
-                            onChange={(e) => setTempSearch(e.target.value)}
+                            value={searchTerm}
+                            onChange={(e) => handleSearchChange(e.target.value)}
                             className="pl-9 pr-3 py-2 w-full border rounded-md text-sm focus:ring-1 focus:ring-green-900 focus:outline-none"
                         />
                     </div>
@@ -63,9 +63,11 @@ const SalesTransactionTable = ({
                             options={options}
                             isSearchable
                             value={
-                                options.find((opt) => opt.value === tempSelectedOutlet) || options[0]
+                                selectedOutlet
+                                    ? options.find((opt) => opt.value === selectedOutlet)
+                                    : options[0]
                             }
-                            onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                            onChange={handleOutletChange}
                             styles={customSelectStyles}
                         />
                     </div>
@@ -160,13 +162,12 @@ const SalesTransactionTable = ({
                             formatDateTime={formatDateTime}
                             formatCurrency={formatCurrency}
                         />
-                    )
-                    }
+                    )}
                 </div>
                 {/* Pagination Controls */}
                 <Paginated
                     currentPage={currentPage}
-                    setCurrentPage={setCurrentPage}
+                    setCurrentPage={handlePageChange}
                     totalPages={totalPages}
                 />
             </main>

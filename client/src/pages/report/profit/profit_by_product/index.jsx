@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaSearch } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
@@ -10,7 +10,9 @@ import dayjs from "dayjs";
 
 
 const ProfitByProductManagement = () => {
-    const [attendances, setAttendances] = useState([]);
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const [orders, setOrders] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -25,6 +27,7 @@ const ProfitByProductManagement = () => {
         endDate: dayjs()
     });
     const [filteredData, setFilteredData] = useState([]);
+    const [isInitialized, setIsInitialized] = useState(false);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -42,16 +45,86 @@ const ProfitByProductManagement = () => {
     // Calculate the final total
     const finalTotal = totalSubtotal + pb1;
 
-    // Fetch attendances and outlets data
+    // Initialize filters from URL on component mount
+    useEffect(() => {
+        const page = parseInt(searchParams.get('page')) || 1;
+        const searchQuery = searchParams.get('search') || '';
+        const outlet = searchParams.get('outlet') || '';
+        const startDate = searchParams.get('startDate');
+        const endDate = searchParams.get('endDate');
+
+        setCurrentPage(page);
+        setTempSearch(searchQuery);
+        setTempSelectedOutlet(outlet);
+
+        if (startDate && endDate) {
+            setValue({
+                startDate: startDate,
+                endDate: endDate
+            });
+        } else {
+            // Set today's date as default
+            setValue({
+                startDate: dayjs(),
+                endDate: dayjs()
+            });
+        }
+
+        setIsInitialized(true);
+    }, []);
+
+    // Update URL when filters change
+    useEffect(() => {
+        if (!isInitialized) return;
+
+        const params = new URLSearchParams();
+
+        if (currentPage > 1) {
+            params.set('page', currentPage.toString());
+        }
+
+        if (tempSearch) {
+            params.set('search', tempSearch);
+        }
+
+        if (tempSelectedOutlet) {
+            params.set('outlet', tempSelectedOutlet);
+        }
+
+        if (value?.startDate && value?.endDate) {
+            // Convert to YYYY-MM-DD format
+            const formatDate = (dateStr) => {
+                if (dayjs.isDayjs(dateStr)) {
+                    return dateStr.format('YYYY-MM-DD');
+                }
+                const date = new Date(dateStr);
+                return date.toISOString().split('T')[0];
+            };
+
+            params.set('startDate', formatDate(value.startDate));
+            params.set('endDate', formatDate(value.endDate));
+        }
+
+        setSearchParams(params, { replace: true });
+    }, [currentPage, tempSearch, tempSelectedOutlet, value, isInitialized]);
+
+    // Fetch orders and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch attendances data
-                const attendancesResponse = [];
+                // Fetch orders data
+                const orderResponse = await axios.get('/api/orders');
 
-                setAttendances(attendancesResponse);
-                setFilteredData(attendancesResponse); // Initialize filtered data with all attendances
+                const orderData = Array.isArray(orderResponse.data) ?
+                    orderResponse.data :
+                    (orderResponse.data && Array.isArray(orderResponse.data.data)) ?
+                        orderResponse.data.data : [];
+
+                const completedData = orderData.filter(item => item.status === "Completed");
+
+                setOrders(completedData);
+                setFilteredData(completedData); // Initialize filtered data with all orders
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -69,7 +142,7 @@ const ProfitByProductManagement = () => {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
                 // Set empty arrays as fallback
-                setAttendances([]);
+                setOrders([]);
                 setFilteredData([]);
                 setOutlets([]);
             } finally {
@@ -191,10 +264,10 @@ const ProfitByProductManagement = () => {
     ];
 
     // Apply filter function
-    const applyFilter = () => {
+    const applyFilter = useCallback(() => {
 
-        // Make sure attendances is an array before attempting to filter
-        let filtered = ensureArray([...attendances]);
+        // Make sure orders is an array before attempting to filter
+        let filtered = ensureArray([...orders]);
 
         // Filter by search term (product name, category, or SKU)
         if (tempSearch) {
@@ -251,8 +324,16 @@ const ProfitByProductManagement = () => {
                     }
 
                     const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
+                    let startDate, endDate;
+
+                    // Handle dayjs objects
+                    if (dayjs.isDayjs(value.startDate)) {
+                        startDate = value.startDate.toDate();
+                        endDate = value.endDate.toDate();
+                    } else {
+                        startDate = new Date(value.startDate);
+                        endDate = new Date(value.endDate);
+                    }
 
                     // Set time to beginning/end of day for proper comparison
                     startDate.setHours(0, 0, 0, 0);
@@ -276,17 +357,14 @@ const ProfitByProductManagement = () => {
 
         setFilteredData(filtered);
         setCurrentPage(1); // Reset to first page after filter
-    };
+    }, [orders, tempSearch, tempSelectedOutlet, value]);
 
-    // Reset filters
-    const resetFilter = () => {
-        setTempSearch("");
-        setTempSelectedOutlet("");
-        setValue(null);
-        setSearch("");
-        setFilteredData(ensureArray(attendances));
-        setCurrentPage(1);
-    };
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        if (isInitialized) {
+            applyFilter();
+        }
+    }, [applyFilter, isInitialized]);
 
     // Export current data to Excel
     const exportToExcel = () => {
@@ -311,12 +389,45 @@ const ProfitByProductManagement = () => {
         const columnWidths = Object.keys(dataToExport[0]).map(key => ({
             wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
         }));
-        worksheet['!cols'] = columnWidths;
+        ws['!cols'] = columnWidths;
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
         XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
     };
+
+    const calculateTotals = () => {
+        let totalPenjualanKotor = 0;
+        let totalDiskon = 0;
+        let totalPembelian = 0;
+        let totalLabaProduk = 0;
+
+        paginatedData.forEach(data => {
+            data.items?.forEach(item => {
+                const { price = 0, diskon = 0, pembelian = 0 } = item.menuItem || {};
+                const labaproduk = price - pembelian;
+
+                totalPenjualanKotor += price;
+                totalDiskon += diskon;
+                totalPembelian += pembelian;
+                totalLabaProduk += labaproduk;
+            });
+        });
+
+        const totalLabaPersen = totalPenjualanKotor > 0
+            ? ((totalLabaProduk / totalPenjualanKotor) * 100)
+            : 0;
+
+        return {
+            totalPenjualanKotor,
+            totalDiskon,
+            totalPembelian,
+            totalLabaProduk,
+            totalLabaPersen
+        };
+    };
+
+    const totals = calculateTotals();
 
 
     // Show loading state
@@ -418,46 +529,48 @@ const ProfitByProductManagement = () => {
                                 <th className="px-4 py-3 font-normal text-right">% Laba Produk</th>
                             </tr>
                         </thead>
+                        {console.log(paginatedData)}
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((data, index) => {
-                                    try {
-                                        return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
-                                                    {data.produk || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.kategori || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatCurrency(data.penjualankotor) || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(data.diskon) || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(data.pembelian) || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(data.labaproduk) || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {data.labaprodukpersen || []}
-                                                </td>
-                                            </tr>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="4" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
+                                {paginatedData.flatMap((data, dataIndex) =>
+                                    data.items?.map((item, itemIndex) => {
+                                        try {
+                                            const {
+                                                name,
+                                                category,
+                                                price,
+                                                diskon,
+                                                pembelian,
+                                                labaproduk = price - 0,
+                                                labaprodukpersen = price > 0
+                                                    ? ((labaproduk / price) * 100)
+                                                    : 0
+                                            } = item.menuItem || {};
+
+                                            return (
+                                                <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={`${data._id}-${itemIndex}`}>
+                                                    <td className="px-4 py-3">{name || '-'}</td>
+                                                    <td className="px-4 py-3">{category?.name || '-'}</td>
+                                                    <td className="px-4 py-3 text-right">{formatCurrency(price) || '-'}</td>
+                                                    {/* <td className="px-4 py-3 text-right">{formatCurrency(diskon) || 0}</td> */}
+                                                    <td className="px-4 py-3 text-right">{formatCurrency(0)}</td>
+                                                    <td className="px-4 py-3 text-right">{formatCurrency(0)}</td>
+                                                    <td className="px-4 py-3 text-right">{formatCurrency(labaproduk) || '-'}</td>
+                                                    <td className="px-4 py-3 text-right">{labaprodukpersen || '-'}%</td>
+                                                </tr>
+                                            );
+                                        } catch (err) {
+                                            console.error(`Error rendering item ${dataIndex}-${itemIndex}:`, err, item);
+                                            return (
+                                                <tr className="text-left text-sm" key={`error-${dataIndex}-${itemIndex}`}>
+                                                    <td colSpan="7" className="px-4 py-3 text-red-500">
+                                                        Error rendering product
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }
+                                    }) || []
+                                )}
                             </tbody>
                         ) : (
                             <tbody>
@@ -469,11 +582,31 @@ const ProfitByProductManagement = () => {
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
                                 <td className="p-[15px]" colSpan={2}>Grand Total</td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{(0) + "%"}</p></td>
+                                <td className="p-[15px] text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(totals.totalPenjualanKotor)}
+                                    </p>
+                                </td>
+                                <td className="p-[15px] text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(0)}
+                                    </p>
+                                </td>
+                                <td className="p-[15px] text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(0)}
+                                    </p>
+                                </td>
+                                <td className="p-[15px] text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(totals.totalLabaProduk)}
+                                    </p>
+                                </td>
+                                <td className="p-[15px] text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {totals.totalLabaPersen}%
+                                    </p>
+                                </td>
                             </tr>
                         </tfoot>
                     </table>
