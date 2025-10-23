@@ -400,7 +400,11 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
           _id: addon.id,
           name: `${addonInfo.name}`,
           price: optionInfo.price || 0,
-          options: [optionInfo._id]
+          options: [{
+            _id: option.id,
+            label: optionInfo.label,
+            price: optionInfo.price
+          }]
         });
 
         console.log('asdasda addons asdasdasd', addons);

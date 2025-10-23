@@ -274,7 +274,7 @@ class ReceiptWidget extends ConsumerWidget {
             (addon) => Padding(
               padding: const EdgeInsets.only(left: 16, top: 1),
               child: Text(
-                addon.name!,
+                '${addon.name!}: ${addon.options == null ? '' : addon.options!.map((e) => e.label!).join(', ')}',
                 style: const TextStyle(fontSize: 10, color: Colors.grey),
               ),
             ),

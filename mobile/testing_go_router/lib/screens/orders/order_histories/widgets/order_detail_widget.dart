@@ -253,10 +253,16 @@ class OrderDetailWidget extends ConsumerWidget {
             ),
             ...item.selectedAddons.map((addon) {
               final name = addon.name!;
-              final options = addon.options!.map((e) => e.label).join(', ');
-              final optionPrices = addon.options!
-                  .map((e) => formatPrice(e.price!))
-                  .join(', ');
+              final options =
+                  addon.options != null
+                      ? addon.options!.map((e) => e.label).join(', ')
+                      : '';
+              final optionPrices =
+                  addon.options != null
+                      ? addon.options!
+                          .map((e) => formatPrice(e.price ?? 0))
+                          .join(', ')
+                      : 'free';
               return Padding(
                 padding: const EdgeInsets.only(left: 8, top: 2),
                 child: Text(

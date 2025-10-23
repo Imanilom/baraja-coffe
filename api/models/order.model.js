@@ -24,12 +24,17 @@ const OrderItemSchema = new mongoose.Schema({
       price: Number,
       options: [
         {
-          id: { type: String, required: true }
+          label: { type: String },
+          price: { type: Number }
         }
       ]
     }
   ],
-  toppings: [{ name: String, price: Number }],
+  toppings: [{
+    _id: { type: String },
+    name: String,
+    price: Number
+  }],
   notes: { type: String, default: '' },
   batchNumber: { type: Number, default: 1 },
   addedAt: {
