@@ -182,10 +182,13 @@ app.use((err, req, res, next) => {
 // =====================================================
 const startServer = async () => {
   try {
-    await mongoose.connect(process.env.MONGO, {
+    await mongoose.connect(process.env.MONGO_PROD, {
       serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
     });
-    console.log('✅ Connected to MongoDB');
+    // await mongoose.connect(process.env.MONGO, {
+    //   serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
+    // });
+    // console.log('✅ Connected to MongoDB');
 
     setupStockCalibrationCron();
     // Jalankan sekali untuk generate secret

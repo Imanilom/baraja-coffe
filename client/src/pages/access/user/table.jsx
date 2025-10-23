@@ -397,7 +397,7 @@ export default function UserTable({ currentUser, customSelectStyles }) {
                                 Konfirmasi Hapus
                             </h2>
                             <p className="text-sm text-gray-600 mb-6">
-                                Apakah Anda yakin ingin menghapus karyawan ini? Aksi ini tidak
+                                Apakah Anda yakin ingin menghapus User ini? Aksi ini tidak
                                 bisa dibatalkan.
                             </p>
                             <div className="flex justify-end gap-3">

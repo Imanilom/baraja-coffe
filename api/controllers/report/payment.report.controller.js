@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Order } from '../../models/order.model.js';
 import Payment from '../../models/Payment.model.js';
 
@@ -152,7 +153,7 @@ export const generateSalesReport = async (req, res) => {
 
     // Process QRIS breakdown
     const qrisBreakdown = await processQRISBreakdown(paymentDetails);
-    
+
     // Process payment channel summary
     const paymentChannelSummary = await generatePaymentChannelSummary(paymentDetails, qrisBreakdown);
 
@@ -191,7 +192,7 @@ export const generateSalesReport = async (req, res) => {
 // Helper function untuk memproses breakdown QRIS
 const processQRISBreakdown = async (paymentDetails) => {
   const qrisData = paymentDetails.find(p => p._id === 'qris');
-  
+
   if (!qrisData || !qrisData.qrisBreakdown) {
     return {};
   }
@@ -242,8 +243,8 @@ const generatePaymentChannelSummary = (paymentDetails, qrisBreakdown) => {
     mandiri: { totalAmount: 0, totalTransactions: 0, totalOrders: 0 },
     bsi: { totalAmount: 0, totalTransactions: 0, totalOrders: 0 },
     bca: { totalAmount: 0, totalTransactions: 0, totalOrders: 0 },
-    qris: { 
-      totalAmount: qrisBreakdown.summary?.totalAmount || 0, 
+    qris: {
+      totalAmount: qrisBreakdown.summary?.totalAmount || 0,
       totalTransactions: qrisBreakdown.summary?.totalTransactions || 0,
       totalOrders: 0
     },
@@ -256,7 +257,7 @@ const generatePaymentChannelSummary = (paymentDetails, qrisBreakdown) => {
 
   paymentDetails.forEach(method => {
     const methodName = method._id?.toLowerCase();
-    
+
     switch (methodName) {
       case 'bank_transfer':
         // Cek VA numbers untuk menentukan bank
@@ -334,7 +335,7 @@ export const exportSalesReport = async (req, res) => {
 
     // Generate report data
     const reportResponse = await generateSalesReportData(startDate, endDate, outletId);
-    
+
     // Format data untuk export
     const exportData = formatExportData(reportResponse);
 
