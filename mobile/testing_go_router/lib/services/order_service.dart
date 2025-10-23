@@ -141,6 +141,7 @@ class OrderService {
   ) async {
     final box = Hive.box('userBox');
     final cashierId = box.get('cashier').id;
+    final cashierbox = await HiveService.getCashier();
 
     try {
       if (cashierId == null) {
@@ -150,7 +151,7 @@ class OrderService {
         '/api/order/cashier/confirm-order',
         data: {
           'order_id': request.orderId,
-          'cashier_id': cashierId,
+          'cashier_id': cashierbox!.id ?? cashierId,
           'source': request.source,
         },
         options: Options(

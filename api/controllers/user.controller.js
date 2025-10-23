@@ -93,7 +93,7 @@ export const deleteUser = async (req, res, next) => {
     if (!user) return next(errorHandler(404, 'User not found'));
 
     // Otorisasi: Hanya pemilik akun atau admin yang bisa menghapus
-    if (req.user.id !== req.params.id && req.user.role !== 'admin') {
+    if (req.user.id !== req.params.id && req.user.role !== 'admin' && req.user.role !== 'superadmin') {
       return next(errorHandler(401, 'Unauthorized'));
     }
 

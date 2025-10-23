@@ -1930,6 +1930,72 @@ class PrinterService {
     return bytes;
   }
 
+  //print rekap kasir
+  static Future<List<int>> generateRekapKasirBytes(
+    Generator generator,
+    PaperSize paperSize,
+    List<OrderDetailModel> orderDetails,
+  ) async {
+    final List<int> bytes = [];
+
+    // Header
+    bytes.addAll(
+      generator.text(
+        'Rekap Kasir',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
+      ),
+    );
+
+    bytes.addAll(generator.feed(1));
+    bytes.addAll(generator.hr());
+
+    int totalSales = 0;
+
+    for (var order in orderDetails) {
+      bytes.addAll(
+        generator.row([
+          PosColumn(
+            text: order.orderId ?? 'Order ID',
+            width: 6,
+            styles: const PosStyles(align: PosAlign.left),
+          ),
+          PosColumn(
+            text: formatPrice(order.grandTotal).toString(),
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
+      totalSales += order.grandTotal;
+    }
+
+    bytes.addAll(generator.hr());
+    bytes.addAll(
+      generator.row([
+        PosColumn(
+          text: 'Total Penjualan',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left, bold: true),
+        ),
+        PosColumn(
+          text: formatPrice(totalSales).toString(),
+          width: 6,
+          styles: const PosStyles(align: PosAlign.right, bold: true),
+        ),
+      ]),
+    );
+
+    bytes.addAll(generator.feed(2));
+    bytes.addAll(generator.cut());
+
+    return bytes;
+  }
+
   //membuat method untuk mengtahui orderdetail split payment atau tidak
   static bool isOrderDetailSplitPayment(OrderDetailModel orderDetail) {
     print(orderDetail.payment);
@@ -1963,7 +2029,7 @@ class PrinterService {
   static String _batchLabel(OrderDetailModel od) {
     return (od.printSequence > 0)
         ? 'Cetak Tambahan #${od.printSequence + 1}'
-        : 'Cetak Awal';
+        : '';
   }
 }
 

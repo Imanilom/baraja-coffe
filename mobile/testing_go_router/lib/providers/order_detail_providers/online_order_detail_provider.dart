@@ -184,7 +184,7 @@ class OnlineOrderEditorNotifier extends StateNotifier<OnlineOrderEditorState> {
     final idempotencyKey = 'edit-${DateTime.now().millisecondsSinceEpoch}';
 
     try {
-      // final updated = await repo.editOrder(
+      // final updated = await repo.patchOrder(
       //   orderMongoId: order.id!, // _id string dari order (Mongo _id)
       //   body: EditOrderOpsRequest(reason: reason, operations: state.pendingOps),
       //   idempotencyKey: idempotencyKey,

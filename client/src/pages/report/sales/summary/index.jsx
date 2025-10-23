@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import Select from "react-select";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import SalesReportSkeleton from "./skeleton";
 
 const Summary = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
 
     const customStyles = {
         control: (provided, state) => ({
@@ -49,14 +51,56 @@ const Summary = () => {
     const [isExporting, setIsExporting] = useState(false);
     const [error, setError] = useState(null);
 
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
+    const [selectedOutlet, setSelectedOutlet] = useState("");
+    const [dateRange, setDateRange] = useState(null);
     const [filteredData, setFilteredData] = useState([]);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
 
     const dropdownRef = useRef(null);
+
+    // Initialize from URL params or set default to today
+    useEffect(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        const outletParam = searchParams.get('outletId');
+
+        if (startDateParam && endDateParam) {
+            setDateRange({
+                startDate: new Date(startDateParam),
+                endDate: new Date(endDateParam),
+            });
+        } else {
+            const today = new Date();
+            setDateRange({
+                startDate: today,
+                endDate: today,
+            });
+        }
+
+        if (outletParam) {
+            setSelectedOutlet(outletParam);
+        }
+    }, []);
+
+    // Update URL when filters change
+    const updateURLParams = (newDateRange, newOutlet) => {
+        const params = new URLSearchParams();
+
+        if (newDateRange?.startDate && newDateRange?.endDate) {
+            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
+            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
+        }
+
+        if (newOutlet) {
+            params.set('outletId', newOutlet);
+        }
+
+        setSearchParams(params);
+    };
 
     // Fetch products and outlets data
     const fetchData = async () => {
@@ -73,7 +117,6 @@ const Summary = () => {
 
             const completedOrders = productsData.filter(order => order.status === 'Completed');
             setProducts(completedOrders);
-            setFilteredData(completedOrders); // Initialize filtered data with all products
 
             // Fetch outlets data
             const outletsResponse = await axios.get('/api/outlet');
@@ -107,6 +150,76 @@ const Summary = () => {
         { value: "", label: "Semua Outlet" },
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ];
+
+    // Apply filter function
+    const applyFilter = useCallback(() => {
+        // Make sure products is an array before attempting to filter
+        let filtered = ensureArray([...products]);
+
+        // Filter by outlet
+        if (selectedOutlet) {
+            filtered = filtered.filter(product => {
+                try {
+                    const outletId = product.outlet?._id;
+                    const matches = outletId === selectedOutlet;
+                    return matches;
+                } catch (err) {
+                    console.error("Error filtering by outlet:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by date range
+        if (dateRange && dateRange.startDate && dateRange.endDate) {
+            filtered = filtered.filter(product => {
+                try {
+                    if (!product.createdAt) {
+                        return false;
+                    }
+
+                    const productDate = new Date(product.createdAt);
+                    const startDate = new Date(dateRange.startDate);
+                    const endDate = new Date(dateRange.endDate);
+
+                    // Set time to beginning/end of day for proper comparison
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate.setHours(23, 59, 59, 999);
+
+                    // Check if dates are valid
+                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
+                        return false;
+                    }
+
+                    const isInRange = productDate >= startDate && productDate <= endDate;
+                    return isInRange;
+                } catch (err) {
+                    console.error("Error filtering by date:", err);
+                    return false;
+                }
+            });
+        }
+
+        setFilteredData(filtered);
+    }, [products, selectedOutlet, dateRange]);
+
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
+
+    // Handle date range change
+    const handleDateRangeChange = (newValue) => {
+        setDateRange(newValue);
+        updateURLParams(newValue, selectedOutlet);
+    };
+
+    // Handle outlet change
+    const handleOutletChange = (selected) => {
+        const newOutlet = selected.value;
+        setSelectedOutlet(newOutlet);
+        updateURLParams(dateRange, newOutlet);
+    };
 
     const groupedArray = useMemo(() => {
         const grouped = {};
@@ -163,83 +276,21 @@ const Summary = () => {
         }).format(amount);
     };
 
-    const applyFilter = useCallback(() => {
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    const outletName = product.outlet?._id;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-    }, [products, tempSelectedOutlet, value]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
-    // Initial load
-    useEffect(() => {
-        applyFilter();
-    }, []);
-
     // Export current data to Excel
     const exportToExcel = async () => {
         setIsExporting(true);
 
         try {
             // Small delay to show loading state
-            await new Promise(resolve => setTimeout(resolve, 15000));
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
             // Get outlet name and date range
-            const outletName = tempSelectedOutlet
-                ? outlets.find(o => o._id === tempSelectedOutlet)?.name || 'Semua Outlet'
+            const outletName = selectedOutlet
+                ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
 
-            const dateRange = value && value.startDate && value.endDate
-                ? `${new Date(value.startDate).toLocaleDateString('id-ID')} - ${new Date(value.endDate).toLocaleDateString('id-ID')}`
+            const dateRangeText = dateRange && dateRange.startDate && dateRange.endDate
+                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : 'Semua Tanggal';
 
             // Calculate totals (using values from the table)
@@ -258,7 +309,7 @@ const Summary = () => {
                 { col1: 'Laporan Ringkasan', col2: '' },
                 { col1: '', col2: '' },
                 { col1: 'Outlet', col2: outletName },
-                { col1: 'Tanggal', col2: dateRange },
+                { col1: 'Tanggal', col2: dateRangeText },
                 { col1: '', col2: '' },
                 { col1: '', col2: 'Total Nominal (Rp)' },
                 { col1: 'Penjualan Kotor', col2: penjualanKotor },
@@ -303,8 +354,13 @@ const Summary = () => {
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Laporan Ringkasan");
 
+            // Generate filename with date range
+            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const filename = `Laporan_Ringkasan_${outletName}_${startDate}_${endDate}.xlsx`;
+
             // Export file
-            XLSX.writeFile(wb, `Laporan_Ringkasan_${outletName}_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`);
+            XLSX.writeFile(wb, filename);
         } catch (error) {
             console.error("Error exporting to Excel:", error);
             alert("Gagal mengekspor data. Silakan coba lagi.");
@@ -312,16 +368,6 @@ const Summary = () => {
             setIsExporting(false);
         }
     };
-
-    // Saat pertama kali render → set default value ke hari ini
-    useEffect(() => {
-        const today = new Date();
-        setValue({
-            startDate: today,
-            endDate: today,
-        });
-    }, []);
-
 
     // Show loading state
     if (loading) {
@@ -372,7 +418,7 @@ const Summary = () => {
                         </>
                     ) : (
                         <>
-                            <FaDownload /> Ekspor CSV
+                            <FaDownload /> Ekspor Excel
                         </>
                     )}
                 </button>
@@ -386,8 +432,8 @@ const Summary = () => {
                             <Datepicker
                                 showFooter
                                 showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={handleDateRangeChange}
                                 displayFormat="DD-MM-YYYY"
                                 inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
@@ -398,11 +444,11 @@ const Summary = () => {
                         <Select
                             options={options}
                             value={
-                                tempSelectedOutlet
-                                    ? options.find((opt) => opt.value === tempSelectedOutlet)
+                                selectedOutlet
+                                    ? options.find((opt) => opt.value === selectedOutlet)
                                     : options[0]
                             }
-                            onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                            onChange={handleOutletChange}
                             placeholder="Pilih outlet..."
                             className="text-[13px]"
                             classNamePrefix="react-select"

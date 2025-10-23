@@ -1,17 +1,27 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
-import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload, FaEye, FaTimes, FaChevronLeft } from "react-icons/fa";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { FaChevronRight, FaDownload, FaEye, FaChevronLeft } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import PaymentDetailModal from "./detailModal";
-import PaymentMethodSalesSkeleton from "./skeleton";
 
 const PaymentMethodSales = () => {
-    // Modal state
+    const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+    const [reportData, setReportData] = useState(null);
+    const [outlets, setOutlets] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [selectedOutlet, setSelectedOutlet] = useState("");
+    const [dateRange, setDateRange] = useState(null);
+    const [isExporting, setIsExporting] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 50;
 
     const customStyles = {
         control: (provided, state) => ({
@@ -47,137 +57,183 @@ const PaymentMethodSales = () => {
         }),
     };
 
-    const [products, setProducts] = useState([]);
-    const [outlets, setOutlets] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
-    const [tempSearch, setTempSearch] = useState("");
-    const [filteredData, setFilteredData] = useState([]);
-    const [isExporting, setIsExporting] = useState(false);
+    // Initialize from URL params or set default to today
+    useEffect(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        const outletParam = searchParams.get('outletId');
+        const pageParam = searchParams.get('page');
 
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
+        if (startDateParam && endDateParam) {
+            setDateRange({
+                startDate: new Date(startDateParam),
+                endDate: new Date(endDateParam),
+            });
+        } else {
+            const today = new Date();
+            setDateRange({
+                startDate: today,
+                endDate: today,
+            });
+        }
 
-    const dropdownRef = useRef(null);
+        if (outletParam) {
+            setSelectedOutlet(outletParam);
+        }
 
-    // Function to open modal with selected payment method
-    const openModal = (paymentMethod) => {
-        setSelectedPaymentMethod(paymentMethod);
-        setIsModalOpen(true);
+        if (pageParam) {
+            setCurrentPage(parseInt(pageParam, 10));
+        }
+    }, []);
+
+    // Update URL when filters change
+    const updateURLParams = (newDateRange, newOutlet, newPage) => {
+        const params = new URLSearchParams();
+
+        if (newDateRange?.startDate && newDateRange?.endDate) {
+            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
+            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
+        }
+
+        if (newOutlet) {
+            params.set('outletId', newOutlet);
+        }
+
+        if (newPage && newPage > 1) {
+            params.set('page', newPage.toString());
+        }
+
+        setSearchParams(params);
     };
 
-    // Function to close modal
-    const closeModal = () => {
-        setIsModalOpen(false);
-        setSelectedPaymentMethod('');
+    // Fetch outlets
+    const fetchOutlets = async () => {
+        try {
+            const response = await axios.get('/api/outlet');
+            const outletsData = Array.isArray(response.data) ? response.data :
+                (response.data && Array.isArray(response.data.data)) ? response.data.data : [];
+            setOutlets(outletsData);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setOutlets([]);
+        }
     };
 
-    // Fetch products and outlets data
-    const fetchData = async () => {
+    // Fetch sales report data
+    const fetchSalesReport = async () => {
+        if (!dateRange?.startDate || !dateRange?.endDate) return;
+
         setLoading(true);
         try {
-            // Fetch products data
-            const productsResponse = await axios.get('/api/orders');
+            const startDate = new Date(dateRange.startDate).toISOString().split('T')[0];
+            const endDate = new Date(dateRange.endDate).toISOString().split('T')[0];
 
-            // Ensure productsResponse.data is an array
-            const productsData = Array.isArray(productsResponse.data) ?
-                productsResponse.data :
-                (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
-                    productsResponse.data.data : [];
+            let url = `/api/report/sales-report?startDate=${startDate}&endDate=${endDate}`;
+            if (selectedOutlet) {
+                url += `&outletId=${selectedOutlet}`;
+            }
 
-            const completedData = productsData.filter(item => item.status === "Completed");
+            const response = await axios.get(url);
 
-            setProducts(completedData);
-            setFilteredData(completedData); // Initialize filtered data with all products
-
-            // Fetch outlets data
-            const outletsResponse = await axios.get('/api/outlet');
-
-            // Ensure outletsResponse.data is an array
-            const outletsData = Array.isArray(outletsResponse.data) ?
-                outletsResponse.data :
-                (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                    outletsResponse.data.data : [];
-
-            setOutlets(outletsData);
-
-            setError(null);
+            if (response.data?.success && response.data?.data) {
+                setReportData(response.data.data);
+                setError(null);
+            } else {
+                setError("Invalid data format received");
+            }
         } catch (err) {
-            console.error("Error fetching data:", err);
+            console.error("Error fetching sales report:", err);
             setError("Failed to load data. Please try again later.");
-            // Set empty arrays as fallback
-            setProducts([]);
-            setFilteredData([]);
-            setOutlets([]);
+            setReportData(null);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchData();
+        fetchOutlets();
     }, []);
+
+    useEffect(() => {
+        if (dateRange?.startDate && dateRange?.endDate) {
+            fetchSalesReport();
+        }
+    }, [dateRange, selectedOutlet]);
+
+    // Handle date range change
+    const handleDateRangeChange = (newValue) => {
+        setDateRange(newValue);
+        setCurrentPage(1);
+        updateURLParams(newValue, selectedOutlet, 1);
+    };
+
+    // Handle outlet change
+    const handleOutletChange = (selected) => {
+        const newOutlet = selected.value;
+        setSelectedOutlet(newOutlet);
+        setCurrentPage(1);
+        updateURLParams(dateRange, newOutlet, 1);
+    };
+
+    // Handle page change
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+        updateURLParams(dateRange, selectedOutlet, newPage);
+        // Scroll to top of table
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     const options = [
         { value: "", label: "Semua Outlet" },
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ];
 
-    const groupedArray = useMemo(() => {
-        const grouped = {};
+    // Process payment data from API response
+    const paymentMethodData = useMemo(() => {
+        if (!reportData?.dailyBreakdown) return [];
 
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
+        const paymentMap = {};
 
-            const paymentMethod = product?.paymentMethod || '';
-            const subtotal = Number(item?.subtotal) || 0;
-
-            const key = `${paymentMethod}`; // unique key per produk
-
-            if (!grouped[key]) {
-                grouped[key] = {
-                    paymentMethod,
-                    count: 0,
-                    subtotal: 0
-                };
-            }
-
-            grouped[key].count++;
-            grouped[key].subtotal += subtotal;
-
+        reportData.dailyBreakdown.forEach(day => {
+            day.paymentBreakdown?.forEach(payment => {
+                const key = payment.paymentMethod;
+                if (!paymentMap[key]) {
+                    paymentMap[key] = {
+                        paymentMethod: payment.paymentMethod,
+                        count: 0,
+                        subtotal: 0,
+                        orderIds: []
+                    };
+                }
+                paymentMap[key].count += payment.totalOrders || 0;
+                paymentMap[key].subtotal += payment.totalRevenue || 0;
+                paymentMap[key].orderIds.push(...(payment.orderIds || []));
+            });
         });
 
-        return Object.values(grouped);
-    }, [filteredData]);
+        return Object.values(paymentMap);
+    }, [reportData]);
 
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
-        return groupedArray.slice(startIndex, endIndex);
-    }, [groupedArray, currentPage]);
+        return paymentMethodData.slice(startIndex, endIndex);
+    }, [paymentMethodData, currentPage]);
 
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(paymentMethodData.length / ITEMS_PER_PAGE);
 
-    // Calculate grand totals for filtered data
     const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
+        return paymentMethodData.reduce(
             (acc, curr) => {
                 acc.count += curr.count;
                 acc.subtotal += curr.subtotal;
                 return acc;
             },
-            {
-                count: 0,
-                subtotal: 0,
-            }
+            { count: 0, subtotal: 0 }
         );
-    }, [groupedArray]);
+    }, [paymentMethodData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -188,110 +244,79 @@ const PaymentMethodSales = () => {
         }).format(amount);
     };
 
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    }, [products, tempSearch, tempSelectedOutlet, value]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
-    // Initial load
-    useEffect(() => {
-        applyFilter();
-    }, []);
-
-    useEffect(() => {
-        const today = new Date();
-        setValue({
-            startDate: today,
-            endDate: today,
-        });
-    }, []);
-
-    // Export current data to Excel
     const exportToExcel = () => {
-        // Prepare data for export
-        const rows = [];
-
-        groupedArray.forEach(group => {
-            rows.push({
+        setIsExporting(true);
+        try {
+            const rows = paymentMethodData.map(group => ({
                 'Metode Pembayaran': group.paymentMethod,
                 'Jumlah Transaksi': group.count,
                 'Total': group.subtotal,
-            });
-        });
+            }));
 
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Metode Pembayaran");
-        XLSX.writeFile(wb, "Metode_Pembayaran.xlsx");
+            // Add summary row
+            rows.push({
+                'Metode Pembayaran': 'GRAND TOTAL',
+                'Jumlah Transaksi': grandTotal.count,
+                'Total': grandTotal.subtotal,
+            });
+
+            const ws = XLSX.utils.json_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Metode Pembayaran");
+
+            // Generate filename with date range
+            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const filename = `Metode_Pembayaran_${startDate}_${endDate}.xlsx`;
+
+            XLSX.writeFile(wb, filename);
+        } catch (err) {
+            console.error("Error exporting:", err);
+        } finally {
+            setIsExporting(false);
+        }
     };
 
-    // generate nomor halaman
+    const openModal = (paymentMethod) => {
+        setSelectedPaymentMethod(paymentMethod);
+        setIsModalOpen(true);
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setSelectedPaymentMethod('');
+    };
+
     const renderPageNumbers = () => {
         let pages = [];
-        for (let i = 1; i <= totalPages; i++) {
+        const maxVisiblePages = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+        if (endPage - startPage < maxVisiblePages - 1) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+
+        if (startPage > 1) {
+            pages.push(
+                <button
+                    key={1}
+                    onClick={() => handlePageChange(1)}
+                    className="px-3 py-1 border border-green-900 rounded text-green-900 hover:bg-green-900 hover:text-white"
+                >
+                    1
+                </button>
+            );
+            if (startPage > 2) {
+                pages.push(<span key="ellipsis1" className="px-2 text-green-900">...</span>);
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
             pages.push(
                 <button
                     key={i}
-                    onClick={() => setCurrentPage(i)}
+                    onClick={() => handlePageChange(i)}
                     className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
                         ? "bg-green-900 text-white border-green-900"
                         : "text-green-900 hover:bg-green-900 hover:text-white"
@@ -301,17 +326,36 @@ const PaymentMethodSales = () => {
                 </button>
             );
         }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                pages.push(<span key="ellipsis2" className="px-2 text-green-900">...</span>);
+            }
+            pages.push(
+                <button
+                    key={totalPages}
+                    onClick={() => handlePageChange(totalPages)}
+                    className="px-3 py-1 border border-green-900 rounded text-green-900 hover:bg-green-900 hover:text-white"
+                >
+                    {totalPages}
+                </button>
+            );
+        }
+
         return pages;
     };
 
-    // Show loading state
     if (loading) {
         return (
-            <PaymentMethodSalesSkeleton />
+            <div className="flex justify-center items-center h-screen">
+                <div className="text-green-900 flex flex-col items-center gap-3">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-900"></div>
+                    <p>Memuat data...</p>
+                </div>
+            </div>
         );
     }
 
-    // Show error state
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -319,7 +363,7 @@ const PaymentMethodSales = () => {
                     <p className="text-xl font-semibold mb-2">Error</p>
                     <p>{error}</p>
                     <button
-                        onClick={() => window.location.reload()}
+                        onClick={fetchSalesReport}
                         className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
                     >
                         Refresh
@@ -342,7 +386,7 @@ const PaymentMethodSales = () => {
                 </h1>
                 <button
                     onClick={exportToExcel}
-                    disabled={isExporting}
+                    disabled={isExporting || paymentMethodData.length === 0}
                     className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isExporting ? (
@@ -352,7 +396,7 @@ const PaymentMethodSales = () => {
                         </>
                     ) : (
                         <>
-                            <FaDownload /> Ekspor CSV
+                            <FaDownload /> Ekspor Excel
                         </>
                     )}
                 </button>
@@ -366,8 +410,8 @@ const PaymentMethodSales = () => {
                             <Datepicker
                                 showFooter
                                 showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={handleDateRangeChange}
                                 displayFormat="DD-MM-YYYY"
                                 inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
@@ -378,11 +422,11 @@ const PaymentMethodSales = () => {
                         <Select
                             options={options}
                             value={
-                                tempSelectedOutlet
-                                    ? options.find((opt) => opt.value === tempSelectedOutlet)
+                                selectedOutlet
+                                    ? options.find((opt) => opt.value === selectedOutlet)
                                     : options[0]
                             }
-                            onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                            onChange={handleOutletChange}
                             placeholder="Pilih outlet..."
                             className="text-[13px]"
                             classNamePrefix="react-select"
@@ -391,6 +435,26 @@ const PaymentMethodSales = () => {
                         />
                     </div>
                 </div>
+
+                {/* Summary Cards */}
+                {reportData?.summary && (
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div className="bg-white p-4 rounded shadow">
+                            <p className="text-gray-500 text-xs">Total Transaksi</p>
+                            <p className="text-2xl font-bold text-green-900">{reportData.summary.totalOrders}</p>
+                        </div>
+                        <div className="bg-white p-4 rounded shadow">
+                            <p className="text-gray-500 text-xs">Total Pendapatan</p>
+                            <p className="text-2xl font-bold text-green-900">{formatCurrency(reportData.summary.totalRevenue)}</p>
+                        </div>
+                        <div className="bg-white p-4 rounded shadow">
+                            <p className="text-gray-500 text-xs">Rata-rata per Transaksi</p>
+                            <p className="text-2xl font-bold text-green-900">
+                                {formatCurrency(reportData.summary.totalOrders > 0 ? reportData.summary.totalRevenue / reportData.summary.totalOrders : 0)}
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Table */}
                 <div className="overflow-x-auto rounded shadow-md bg-white shadow-slate-200">
@@ -405,44 +469,29 @@ const PaymentMethodSales = () => {
                         </thead>
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((group, index) => {
-                                    try {
-                                        return (
-                                            <React.Fragment key={index}>
-                                                <tr className="text-left text-sm hover:bg-gray-50">
-                                                    <td className="px-4 py-3 font-medium">
-                                                        {group.paymentMethod}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        {group.count || 'N/A'}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        {formatCurrency(group.subtotal) || 'N/A'}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <button
-                                                            onClick={() => openModal(group.paymentMethod)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-                                                            title="Lihat Detail Transaksi"
-                                                        >
-                                                            <FaEye className="text-xs" />
-                                                            Detail
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            </React.Fragment>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="4" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
+                                {paginatedData.map((group, index) => (
+                                    <tr key={index} className="text-left text-sm hover:bg-gray-50">
+                                        <td className="px-4 py-3 font-medium text-gray-700">
+                                            {group.paymentMethod}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            {group.count}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            {formatCurrency(group.subtotal)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            <button
+                                                onClick={() => openModal(group.paymentMethod)}
+                                                className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                                                title="Lihat Detail Transaksi"
+                                            >
+                                                <FaEye className="text-xs" />
+                                                Detail
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         ) : (
                             <tbody>
@@ -454,8 +503,16 @@ const PaymentMethodSales = () => {
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
                                 <td className="px-4 py-2">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotal.count.toLocaleString()}</p></td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal.toFixed())}</p></td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {grandTotal.count.toLocaleString()}
+                                    </p>
+                                </td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(grandTotal.subtotal)}
+                                    </p>
+                                </td>
                                 <td className="px-4 py-2"></td>
                             </tr>
                         </tfoot>
@@ -466,9 +523,9 @@ const PaymentMethodSales = () => {
                 {totalPages > 1 && (
                     <div className="flex justify-between items-center mt-4 text-sm text-white">
                         <button
-                            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                            onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
                             disabled={currentPage === 1}
-                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
+                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <FaChevronLeft /> Sebelumnya
                         </button>
@@ -476,9 +533,9 @@ const PaymentMethodSales = () => {
                         <div className="flex gap-2">{renderPageNumbers()}</div>
 
                         <button
-                            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                            onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
                             disabled={currentPage === totalPages}
-                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50"
+                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Selanjutnya <FaChevronRight />
                         </button>
@@ -491,7 +548,8 @@ const PaymentMethodSales = () => {
                 isOpen={isModalOpen}
                 onClose={closeModal}
                 paymentMethod={selectedPaymentMethod}
-                orders={filteredData}
+                dateRange={dateRange}
+                outletId={selectedOutlet}
                 formatCurrency={formatCurrency}
             />
         </div>

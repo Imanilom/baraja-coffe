@@ -19,7 +19,7 @@ class CustomAmountItemsModelAdapter
     };
     return CustomAmountItemsModel(
       amount: fields[0] == null ? 0 : (fields[0] as num).toInt(),
-      name: fields[1] == null ? null : fields[1] as String?,
+      name: fields[1] == null ? 'Custom Amount' : fields[1] as String?,
       description: fields[2] == null ? null : fields[2] as String?,
       orderType: fields[3] == null ? OrderType.dineIn : fields[3] as OrderType?,
     );
@@ -58,7 +58,7 @@ _CustomAmountItemsModel _$CustomAmountItemsModelFromJson(
   Map<String, dynamic> json,
 ) => _CustomAmountItemsModel(
   amount: (json['amount'] as num?)?.toInt() ?? 0,
-  name: json['name'] as String? ?? null,
+  name: json['name'] as String? ?? 'Custom Amount',
   description: json['description'] as String? ?? null,
   orderType:
       $enumDecodeNullable(_$OrderTypeEnumMap, json['orderType']) ??

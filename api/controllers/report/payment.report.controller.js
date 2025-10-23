@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Order } from '../../models/order.model.js';
 import Payment from '../../models/Payment.model.js';
 import mongoose from 'mongoose';
@@ -68,7 +69,7 @@ export const generateSalesReport = async (req, res) => {
         totalRevenue: validPayments.reduce((sum, payment) => sum + payment.amount, 0),
         totalTransactions: validPayments.length,
         totalOrders: [...new Set(validPayments.map(p => p.order_id))].length,
-        averageTransaction: validPayments.length > 0 ? 
+        averageTransaction: validPayments.length > 0 ?
           validPayments.reduce((sum, payment) => sum + payment.amount, 0) / validPayments.length : 0
       },
       paymentMethods: paymentMethodSummary,
@@ -94,11 +95,11 @@ export const generateSalesReport = async (req, res) => {
 // Helper function untuk generate summary payment method yang dinamis
 const generateDynamicPaymentSummary = (payments) => {
   const methodMap = new Map();
-  
+
   payments.forEach(payment => {
     const method = normalizePaymentMethod(payment);
     const key = method.category;
-    
+
     if (!methodMap.has(key)) {
       methodMap.set(key, {
         category: method.category,
@@ -110,12 +111,12 @@ const generateDynamicPaymentSummary = (payments) => {
         details: []
       });
     }
-    
+
     const existing = methodMap.get(key);
     existing.totalAmount += payment.amount;
     existing.totalTransactions += 1;
     existing.orders.add(payment.order_id);
-    
+
     // Tambahkan detail untuk method tertentu
     if (method.details) {
       existing.details.push({
@@ -302,7 +303,7 @@ export const getPaymentDetails = async (req, res) => {
 // Normalize payment method berdasarkan data yang ada
 const normalizePaymentMethod = (payment) => {
   const method = payment.method?.toLowerCase() || 'unknown';
-  
+
   // Cek berdasarkan berbagai kemungkinan field
   switch (method) {
     case 'cash':
@@ -385,7 +386,7 @@ const normalizePaymentMethod = (payment) => {
           }
         };
       }
-      
+
       if (payment.permata_va_number) {
         return {
           category: 'bank_transfer',
@@ -412,12 +413,12 @@ const detectBankFromPayment = (payment) => {
   if (payment.va_numbers && payment.va_numbers.length > 0) {
     return payment.va_numbers[0].bank;
   }
-  
+
   // Cek dari permata_va_number
   if (payment.permata_va_number) {
     return 'permata';
   }
-  
+
   // Cek dari biller_code (untuk BSI, Mandiri Bill, dll)
   if (payment.biller_code) {
     const billerMap = {
@@ -426,12 +427,12 @@ const detectBankFromPayment = (payment) => {
     };
     return billerMap[payment.biller_code] || payment.biller_code;
   }
-  
+
   // Cek dari raw_response
   if (payment.raw_response?.bank) {
     return payment.raw_response.bank;
   }
-  
+
   return 'unknown';
 };
 
@@ -453,7 +454,7 @@ const getVANumber = (payment) => {
 const generateQRISBreakdown = (details) => {
   const issuerMap = new Map();
   const acquirerMap = new Map();
-  
+
   details.forEach(detail => {
     // By Issuer
     const issuer = detail.issuer || 'Unknown';
@@ -462,7 +463,7 @@ const generateQRISBreakdown = (details) => {
     }
     issuerMap.get(issuer).totalAmount += detail.amount;
     issuerMap.get(issuer).count += 1;
-    
+
     // By Acquirer
     const acquirer = detail.acquirer || 'Unknown';
     if (!acquirerMap.has(acquirer)) {
@@ -471,7 +472,7 @@ const generateQRISBreakdown = (details) => {
     acquirerMap.get(acquirer).totalAmount += detail.amount;
     acquirerMap.get(acquirer).count += 1;
   });
-  
+
   return {
     byIssuer: Array.from(issuerMap.values()).sort((a, b) => b.totalAmount - a.totalAmount),
     byAcquirer: Array.from(acquirerMap.values()).sort((a, b) => b.totalAmount - a.totalAmount)
@@ -481,21 +482,21 @@ const generateQRISBreakdown = (details) => {
 // Generate breakdown untuk bank transfer
 const generateBankBreakdown = (details) => {
   const bankMap = new Map();
-  
+
   details.forEach(detail => {
     const bank = detail.bank || 'unknown';
     if (!bankMap.has(bank)) {
-      bankMap.set(bank, { 
-        bank, 
+      bankMap.set(bank, {
+        bank,
         displayName: getBankDisplayName(bank),
-        totalAmount: 0, 
-        count: 0 
+        totalAmount: 0,
+        count: 0
       });
     }
     bankMap.get(bank).totalAmount += detail.amount;
     bankMap.get(bank).count += 1;
   });
-  
+
   return Array.from(bankMap.values()).sort((a, b) => b.totalAmount - a.totalAmount);
 };
 
@@ -513,7 +514,7 @@ const getBankDisplayName = (bankCode) => {
     'maybank': 'Maybank',
     'ocbc': 'OCBC'
   };
-  
+
   return bankNames[bankCode] || bankCode.toUpperCase();
 };
 
@@ -521,19 +522,19 @@ const getBankDisplayName = (bankCode) => {
 // Get period key berdasarkan grouping
 const getPeriodKey = (date, groupBy) => {
   const d = new Date(date);
-  
+
   switch (groupBy) {
     case 'daily':
       return d.toISOString().split('T')[0]; // YYYY-MM-DD
-      
+
     case 'weekly':
       const weekStart = new Date(d);
       weekStart.setDate(d.getDate() - d.getDay());
       return weekStart.toISOString().split('T')[0];
-      
+
     case 'monthly':
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      
+
     default:
       return d.toISOString().split('T')[0];
   }
@@ -553,20 +554,20 @@ const getPaymentSpecificDetails = (payment) => {
       details.acquirer = payment.raw_response?.acquirer;
       details.paymentType = payment.raw_response?.payment_type;
       break;
-      
+
     case 'bank_transfer':
-      details.bank = payment.va_numbers?.[0]?.bank || 
-                    (payment.permata_va_number ? 'permata' : 'unknown');
+      details.bank = payment.va_numbers?.[0]?.bank ||
+        (payment.permata_va_number ? 'permata' : 'unknown');
       details.vaNumber = payment.va_numbers?.[0]?.va_number || payment.permata_va_number;
       break;
-      
+
     case 'gopay':
     case 'shopeepay':
     case 'ovo':
     case 'dana':
       details.ewalletType = payment.method;
       break;
-      
+
     case 'cash':
       details.tendered = payment.tendered_amount;
       details.change = payment.change_amount;
@@ -580,18 +581,18 @@ const getPaymentSpecificDetails = (payment) => {
 export const getAvailablePaymentMethods = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    
+
     const matchStage = {
       status: { $in: ['settlement', 'paid', 'capture'] }
     };
-    
+
     if (startDate && endDate) {
       const start = new Date(startDate);
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
       matchStage.createdAt = { $gte: start, $lte: end };
     }
-    
+
     const methods = await Payment.aggregate([
       { $match: matchStage },
       {
@@ -603,7 +604,7 @@ export const getAvailablePaymentMethods = async (req, res) => {
       },
       { $sort: { totalAmount: -1 } }
     ]);
-    
+
     return res.status(200).json({
       success: true,
       data: methods.map(method => ({
@@ -613,7 +614,7 @@ export const getAvailablePaymentMethods = async (req, res) => {
         totalAmount: method.totalAmount
       }))
     });
-    
+
   } catch (error) {
     console.error('Error getting available methods:', error);
     return res.status(500).json({

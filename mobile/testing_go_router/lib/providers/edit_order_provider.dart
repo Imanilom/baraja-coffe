@@ -1,26 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/edit_order_request.model.dart';
-import 'package:kasirbaraja/models/edit_order_item_wrapper.model.dart';
+import 'package:kasirbaraja/models/edit_order_item.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/services/order_service.dart';
 // import 'package:kasirbaraja/services/api_service.dart';
 
-final editOrderStateProviderV2 =
-    StateNotifierProvider<EditOrderStateNotifierV2, EditOrderStateV2>((ref) {
-      return EditOrderStateNotifierV2();
+final editOrderStateProviderV3 =
+    StateNotifierProvider<EditOrderStateNotifierV3, EditOrderStateV3>((ref) {
+      return EditOrderStateNotifierV3();
     });
 
-class EditOrderStateV2 {
+class EditOrderStateV3 {
   final OrderDetailModel? originalOrder;
   final List<EditableOrderItem>
-  currentOrderItems; // Daftar item untuk ditampilkan di kolom kanan
+  currentOrderItems; // Daftar item untuk ditampilkan di UI
   final List<Operation> pendingOperations; // Operasi untuk dikirim ke API
   final bool isSubmitting;
   final String? errorMessage;
 
-  EditOrderStateV2({
+  EditOrderStateV3({
     this.originalOrder,
     this.currentOrderItems = const [],
     this.pendingOperations = const [],
@@ -28,14 +27,14 @@ class EditOrderStateV2 {
     this.errorMessage,
   });
 
-  EditOrderStateV2 copyWith({
+  EditOrderStateV3 copyWith({
     OrderDetailModel? originalOrder,
     List<EditableOrderItem>? currentOrderItems,
     List<Operation>? pendingOperations,
     bool? isSubmitting,
     String? errorMessage,
   }) {
-    return EditOrderStateV2(
+    return EditOrderStateV3(
       originalOrder: originalOrder ?? this.originalOrder,
       currentOrderItems: currentOrderItems ?? this.currentOrderItems,
       pendingOperations: pendingOperations ?? this.pendingOperations,
@@ -45,8 +44,8 @@ class EditOrderStateV2 {
   }
 }
 
-class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
-  EditOrderStateNotifierV2() : super(EditOrderStateV2());
+class EditOrderStateNotifierV3 extends StateNotifier<EditOrderStateV3> {
+  EditOrderStateNotifierV3() : super(EditOrderStateV3());
 
   void setOriginalOrder(OrderDetailModel order) {
     final initialItems =
@@ -69,7 +68,8 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
 
   // --- LOGIKA TAMBAH ITEM ---
   void addItemToOrder(OrderItemModel newItem) {
-    // Cek apakah item ini SAMA PERSIS dengan item yang sudah ada di currentOrderItems
+    // Cek apakah item ini SAMA PERSIS (berdasarkan uniqueId) dengan item yang sudah ada di currentOrderItems
+    // dan yang *tidak* dihapus (karena item yang dihapus tidak bisa ditambahkan lagi sebagai "baru")
     final existingItemIndex = state.currentOrderItems.indexWhere(
       (item) =>
           item.uniqueId == newItem.uniqueId &&
@@ -79,10 +79,11 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
     if (existingItemIndex != -1) {
       // Item sudah ada dan tidak dihapus -> Update qty
       final existingItem = state.currentOrderItems[existingItemIndex];
+      final updatedItemModel = existingItem.item.copyWith(
+        quantity: existingItem.item.quantity + newItem.quantity,
+      );
       final updatedItem = existingItem.copyWith(
-        item: existingItem.item.copyWith(
-          quantity: existingItem.item.quantity + newItem.quantity,
-        ),
+        item: updatedItemModel,
         changeType:
             existingItem.isOriginal
                 ? ItemChangeType.modified
@@ -95,17 +96,17 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
       newCurrentItems[existingItemIndex] = updatedItem;
 
       // Perbarui atau tambah operasi UPDATE atau ADD di pendingOperations
+      // Cari operasi yang relevan di pendingOperations berdasarkan itemId atau uniqueId
       final existingOpIndex = state.pendingOperations.indexWhere((op) {
         if (op is UpdateOperation) {
-          return op.itemId == existingItem.item.menuItem.id;
+          return op.itemId ==
+              existingItem.item.menuItem.id; // Update berdasarkan itemId
         }
         if (op is AddOperation) {
-          return OrderItemModelForRequest.fromOrderItemModel(
-                op.item,
-              ).menuItem ==
-              newItem.uniqueId;
+          // Add berdasarkan uniqueId
+          return op.item.uniqueId == newItem.uniqueId;
         }
-        return false;
+        return false; // Remove tidak perlu dicek di sini
       });
 
       List<Operation> newPendingOps = List<Operation>.from(
@@ -115,13 +116,17 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
         // Update operasi yang sudah ada
         final op = newPendingOps[existingOpIndex];
         if (op is UpdateOperation) {
-          newPendingOps[existingOpIndex] = op.copyWith(
-            patch: {...op.patch, 'quantity': updatedItem.item.quantity},
-          );
+          // Gabungkan patch, pastikan quantity yang baru
+          final newPatch = {...op.patch, 'quantity': updatedItem.item.quantity};
+          newPendingOps[existingOpIndex] = op.copyWith(patch: newPatch);
         } else if (op is AddOperation) {
-          // newPendingOps[existingOpIndex] = Operation.add(
-          //   item: OrderItemModelForRequest.fromOrderItemModel(updatedItem.item),
-          // );
+          // Update item ADD dengan quantity baru
+          newPendingOps[existingOpIndex] = Operation.add(
+            item: updatedItem.item.copyWith(
+              quantity:
+                  updatedItem.item.quantity, // Quantity sudah diupdate di model
+            ),
+          );
         }
       } else {
         // Tambah operasi baru (UPDATE jika original, ADD jika bukan)
@@ -135,17 +140,7 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
         } else {
           // Jika item yang ditambahkan sebelumnya (bukan original) dan qty-nya bertambah
           // Kita perlu update operasi ADD nya
-          // newPendingOps.add(
-          //   Operation.add(
-          //     item: OrderItemModelForRequest.fromOrderItemModel(
-          //       updatedItem.item,
-          //     ),
-          //   ),
-          // );
-          // Hapus operasi ADD lama jika ada (ini agak tricky, bisa diabaikan dulu, atau hapus yang lama dan tambah baru)
-          // Solusi sederhana: Biarkan operasi ADD pertama, dan tambahkan UPDATE qty nanti saat submit jika perlu.
-          // Solusi kompleks: Gabungkan operasi ADD menjadi satu.
-          // Solusi sederhana yang lebih baik: Gunakan map untuk mengelola operasi pending berdasarkan uniqueId.
+          newPendingOps.add(Operation.add(item: updatedItem.item));
         }
       }
 
@@ -163,16 +158,13 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
       final newCurrentItems = List<EditableOrderItem>.from(
         state.currentOrderItems,
       )..add(newItemWrapper);
-      // final newPendingOps = List<Operation>.from(state.pendingOperations)..add(
-      //   Operation.add(
-      //     item: OrderItemModelForRequest.fromOrderItemModel(newItem),
-      //   ),
-      // );
+      final newPendingOps = List<Operation>.from(state.pendingOperations)
+        ..add(Operation.add(item: newItem)); // Gunakan OrderItemModel langsung
 
-      // state = state.copyWith(
-      //   currentOrderItems: newCurrentItems,
-      //   pendingOperations: newPendingOps,
-      // );
+      state = state.copyWith(
+        currentOrderItems: newCurrentItems,
+        pendingOperations: newPendingOps,
+      );
     }
   }
 
@@ -191,10 +183,7 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
       // Tambahkan update untuk addon/topping jika diperlukan
       // selectedAddons: patch['selectedAddons'] ?? currentItem.item.selectedAddons,
       // selectedToppings: patch['selectedToppings'] ?? currentItem.item.selectedToppings,
-      orderType:
-          patch['orderType'] != null
-              ? OrderTypeExtension.fromString(patch['orderType'])
-              : currentItem.item.orderType,
+      orderType: patch['orderType'] ?? currentItem.item.orderType,
     );
 
     final updatedItem = currentItem.copyWith(
@@ -274,8 +263,12 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
         if (hasOos) {
           reason = EditReason.oosRefund.name;
         } else {
-          // Jika sudah bayar tapi bukan OOS, mungkin add_after_fullpay
-          reason = EditReason.addAfterFullpay.name;
+          // Jika sudah bayar tapi bukan OOS, mungkin add_after_fullpay atau swap_item
+          // Logika ini bisa diperjelas berdasarkan kombinasi operasi
+          reason =
+              EditReason
+                  .addAfterFullpay
+                  .name; // Default jika ada operasi add/update
         }
       }
 
@@ -283,6 +276,9 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
         reason: reason,
         operations: state.pendingOperations,
       );
+
+      // Gunakan Idempotency-Key
+      String idempotencyKey = 'edit-${DateTime.now().millisecondsSinceEpoch}';
 
       await apiService.patchOrder(
         orderId: orderMongoId,
@@ -301,10 +297,10 @@ class EditOrderStateNotifierV2 extends StateNotifier<EditOrderStateV2> {
   }
 }
 
-// --- EXTENSION UNTUK OrderItemModel -> OrderItemModelForRequest ---
-// File: order_item.model.dart (Tambahkan extension ini di akhir file)
+// --- EXTENSION UNTUK OrderItemModel ---
+// File: models/order_item.model.dart (Tambahkan extension ini di akhir file)
 extension OrderItemModelExtension on OrderItemModel {
-  String get uniqueId {
+  String getUniqueId(OrderItemModel item) {
     // Urutkan addon dan topping untuk konsistensi
     final addonIds = (selectedAddons.map((a) => a.id).toList()..sort()).join(
       '-',
@@ -312,34 +308,5 @@ extension OrderItemModelExtension on OrderItemModel {
     final toppingIds = (selectedToppings.map((t) => t.id).toList()..sort())
         .join('-');
     return '${menuItem.id}-$addonIds-$toppingIds-$notes-${orderType.name}';
-  }
-}
-
-extension OrderItemModelForRequestExtension on OrderItemModelForRequest {
-  static OrderItemModelForRequest fromOrderItemModel(OrderItemModel item) {
-    return OrderItemModelForRequest(
-      menuItem: item.menuItem.id,
-      quantity: item.quantity,
-      selectedAddons:
-          item.selectedAddons
-              .map(
-                (a) => SelectedAddonForRequest(
-                  id: a.id!,
-                  options:
-                      a.options
-                          ?.map((o) => SelectedOptionForRequest(id: o.id!))
-                          .toList() ??
-                      [],
-                ),
-              )
-              .toList(),
-      selectedToppings:
-          item.selectedToppings
-              .map((t) => SelectedToppingForRequest(id: t.id!))
-              .toList(),
-      notes: item.notes ?? '',
-      dineType:
-          item.orderType.name, // Konversi enum ke string sesuai kebutuhan API
-    );
   }
 }

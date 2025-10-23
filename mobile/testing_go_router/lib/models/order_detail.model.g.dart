@@ -66,13 +66,14 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
           fields[35] == null
               ? null
               : (fields[35] as List?)?.cast<CustomAmountItemsModel>(),
+      totalCustomAmount: fields[36] == null ? 0 : (fields[36] as num).toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, OrderDetailModel obj) {
     writer
-      ..writeByte(36)
+      ..writeByte(37)
       ..writeByte(0)
       ..write(obj.orderId)
       ..writeByte(1)
@@ -144,7 +145,9 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
       ..writeByte(34)
       ..write(obj.printHistory)
       ..writeByte(35)
-      ..write(obj.customAmountItems);
+      ..write(obj.customAmountItems)
+      ..writeByte(36)
+      ..write(obj.totalCustomAmount);
   }
 
   @override
@@ -243,6 +246,7 @@ _OrderDetailModel _$OrderDetailModelFromJson(
           )
           .toList() ??
       null,
+  totalCustomAmount: (json['totalCustomAmount'] as num?)?.toInt() ?? 0,
 );
 
 Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
@@ -283,4 +287,5 @@ Map<String, dynamic> _$OrderDetailModelToJson(_OrderDetailModel instance) =>
       'printSequence': instance.printSequence,
       'printHistory': instance.printHistory,
       'customAmountItems': instance.customAmountItems,
+      'totalCustomAmount': instance.totalCustomAmount,
     };

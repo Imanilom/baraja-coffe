@@ -110,7 +110,7 @@ const TransactionModal = ({ selectedTrx, setSelectedTrx, receiptRef, formatDateT
                     {/* Payment */}
                     <div className="border-t border-dashed space-y-2">
                         <div className="flex my-2 justify-between">
-                            <span>Tunai</span>
+                            <span>{selectedTrx.paymentMethod}</span>
                             <span>{formatCurrency(finalTotal)}</span>
                         </div>
                         <div className="flex justify-between">

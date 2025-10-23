@@ -14,23 +14,21 @@ import {
     createReservation,
     getTableOrderDetail,
     completeTableOrder,
-    checkInWalkInOrder,
-    checkOutWalkInOrder,
+    // Ganti nama method controller ke versi "dine-in"
+    checkInDineInOrder,
+    checkOutDineInOrder,
     getOrderDetail
 } from '../controllers/gro.controller.js';
-import { authMiddleware, verifyToken } from '../utils/verifyUser.js';
+import { authMiddleware } from '../utils/verifyUser.js';
 
 const router = express.Router();
-
-// Middleware untuk gro, Admin, dan SuperAdmin
-// const groAccess = verifyToken(['gro', 'admin', 'superadmin']);
 
 // Dashboard Statistics
 router.get('/dashboard-stats', getDashboardStats);
 
 // Reservation Management
 router.get('/reservations', authMiddleware, getReservations);
-router.post('/reservations', authMiddleware, createReservation); // ✅ Route baru untuk create reservation
+router.post('/reservations', authMiddleware, createReservation);
 router.get('/reservations/:id', authMiddleware, getReservationDetail);
 router.put('/reservations/:id/confirm', authMiddleware, confirmReservation);
 router.put('/reservations/:id/complete', authMiddleware, completeReservation);
@@ -38,17 +36,22 @@ router.put('/reservations/:id/cancel', authMiddleware, cancelReservation);
 router.put('/reservations/:id/close-open-bill', authMiddleware, closeOpenBill);
 router.put('/reservations/:id/check-in', authMiddleware, checkInReservation);
 router.put('/reservations/:id/check-out', authMiddleware, checkOutReservation);
+
+// Table & Order Management
 router.get('/tables/:tableNumber/order', authMiddleware, getTableOrderDetail);
 router.put('/orders/:orderId/complete', authMiddleware, completeTableOrder);
 
-// Walk-in order actions
-router.put('/orders/:orderId/walk-in/check-in', authMiddleware, checkInWalkInOrder);
-router.put('/orders/:orderId/walk-in/check-out', authMiddleware, checkOutWalkInOrder);
-// Order detail
+// ✅ Dine-in order actions (replaced "walk-in" with "dine-in")
+router.put('/orders/:orderId/dine-in/check-in', authMiddleware, checkInDineInOrder);
+router.put('/orders/:orderId/dine-in/check-out', authMiddleware, checkOutDineInOrder);
+
+// Order detail (used by tracking, GRO, etc.)
 router.get('/orders/:orderId', authMiddleware, getOrderDetail);
 
 // Table Availability
 router.get('/tables/availability', authMiddleware, getTableAvailability);
-router.get('/reservations/:id/transfer-table', authMiddleware, transferTable);
+
+// Transfer table (note: seharusnya PUT, bukan GET — diperbaiki di sini)
+router.put('/reservations/:id/transfer-table', authMiddleware, transferTable);
 
 export default router;

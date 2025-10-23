@@ -14,14 +14,15 @@ class EditableOrderItem {
   });
 
   // Getter untuk ID unik item dalam konteks edit ini
-  // Gabungan dari menuItem.id, addon.id, topping.id, notes
+  // Gabungan dari menuItem.id, addon.id, topping.id, notes, orderType
   String get uniqueId {
-    // Urutkan addon dan topping untuk konsistensi
+    // Urutkan addon dan topping untuk konsistensi hash
     final addonIds = (item.selectedAddons.map((a) => a.id).toList()..sort())
         .join('-');
     final toppingIds = (item.selectedToppings.map((t) => t.id).toList()..sort())
         .join('-');
-    return '${item.menuItem.id}-$addonIds-$toppingIds-${item.notes}-${item.orderType.name}';
+    // Pastikan notes dan orderType juga masuk ke hash
+    return '${item.menuItem.id}-$addonIds-$toppingIds-${item.notes ?? ''}-${item.orderType.name}';
   }
 
   EditableOrderItem copyWith({

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/history_detail_provider.dart';
@@ -172,27 +173,9 @@ class OrderDetailWidget extends ConsumerWidget {
           ...order.items.map((item) => _buildItemCard(item)),
           if (order.customAmountItems != null &&
               order.customAmountItems!.isNotEmpty)
-            ...order.customAmountItems!.map((item) {
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    item.name!,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    formatRupiah(item.amount),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              );
-            }),
+            ...order.customAmountItems!.map(
+              (item) => _buildCustomAmountItemsCard(item),
+            ),
         ],
       ),
     );
@@ -293,6 +276,33 @@ class OrderDetailWidget extends ConsumerWidget {
     );
   }
 
+  Widget _buildCustomAmountItemsCard(CustomAmountItemsModel item) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            item.name!,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Subtotal: ${formatRupiah(item.amount)}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPricingDetails(OrderDetailModel order) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -309,9 +319,12 @@ class OrderDetailWidget extends ConsumerWidget {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _buildPriceRow('Subtotal', order.totalBeforeDiscount),
+          _buildPriceRow(
+            'Subtotal',
+            order.totalBeforeDiscount + order.totalCustomAmount,
+          ),
           _buildPriceRow('Tax', order.totalTax),
-          // _buildPriceRow('Discount', -order.discount!),
+          // _buildPriceRow('Discount', -order.discounts),
           const Divider(),
           _buildPriceRow(
             'Grand Total',
