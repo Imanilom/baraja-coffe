@@ -371,6 +371,19 @@ Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
     'source': "Cashier",
     'isOpenBill': order.isOpenBill,
     'isSplitPayment': order.isSplitPayment,
+    'customAmountItems':
+        order.customAmountItems != null
+            ? order.customAmountItems?.map((item) {
+              return {
+                'name': item.name,
+                'description': item.description,
+                'amount': item.amount,
+                'orderType': OrderTypeExtension.orderTypeToJson(
+                  item.orderType ?? OrderType.dineIn,
+                ),
+              };
+            }).toList()
+            : [],
     // 'createdAtWIB': now,
     // 'updatedAtWIB' : now
   };

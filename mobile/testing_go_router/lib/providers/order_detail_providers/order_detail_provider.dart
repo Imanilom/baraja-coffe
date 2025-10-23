@@ -1,6 +1,7 @@
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
 import 'package:kasirbaraja/extentions/order_item_extensions.dart';
+import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/payments/payment.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
@@ -330,17 +331,26 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
               .map((item) => item.copyWith(subtotal: item.countSubTotalPrice()))
               .toList();
 
-      // 2. Hitung total before discount
-      final totalBeforeDiscount = updatedItems.fold(
+      // 2. Hitung total from order items
+      final totalFromItems = updatedItems.fold(
         0,
         (sum, item) => sum + item.subtotal,
       );
 
-      // 3. Hitung total after discount
+      // 3. Hitung total from custom amounts
+      final totalFromCustomAmounts = (state!.customAmountItems ?? []).fold(
+        0,
+        (sum, item) => sum + (item.amount ?? 0),
+      );
+
+      // 4. Total before discount = items + custom amounts
+      final totalBeforeDiscount = totalFromItems + totalFromCustomAmounts;
+
+      // 5. Hitung total after discount
       final discountAmount = state!.discounts?.totalDiscount ?? 0;
       final totalAfterDiscount = totalBeforeDiscount - discountAmount;
 
-      // 4. Hitung tax dan service (jika ada outlet ID)
+      // 6. Hitung tax dan service (jika ada outlet ID)
       int totalTax = 0;
       int totalServiceFee = 0;
 
@@ -353,14 +363,13 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
           totalServiceFee = result.serviceAmount;
         } catch (e) {
           print('Error calculating tax and service: $e');
-          // Keep existing values atau set ke 0
         }
       }
 
-      // 5. Hitung grand total
+      // 7. Hitung grand total
       final grandTotal = totalAfterDiscount + totalTax + totalServiceFee;
 
-      // 6. Update state sekali saja
+      // 8. Update state sekali saja
       state = state!.copyWith(
         items: updatedItems,
         totalBeforeDiscount: totalBeforeDiscount,
@@ -371,6 +380,8 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       );
 
       print('Calculation completed:');
+      print('- Total from items: $totalFromItems');
+      print('- Total from custom amounts: $totalFromCustomAmounts');
       print('- Before discount: $totalBeforeDiscount');
       print('- After discount: $totalAfterDiscount');
       print('- Tax: $totalTax');
@@ -429,6 +440,36 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
       //isis orderid menggunakan UUID
       state = state!.copyWith(orderId: Uuid().v1());
     }
+  }
+
+  // Method untuk menambahkan custom amount
+  void addCustomAmountItem(CustomAmountItemsModel customAmountItem) {
+    if (state == null) return;
+
+    final currentCustomAmounts = state!.customAmountItems ?? [];
+    final updatedCustomAmounts = [...currentCustomAmounts, customAmountItem];
+
+    state = state!.copyWith(customAmountItems: updatedCustomAmounts);
+
+    // Recalculate totals karena ada tambahan custom amount
+    _recalculateAll();
+
+    print('Custom amount berhasil ditambahkan: ${customAmountItem.name}');
+  }
+
+  // Method untuk menghapus custom amount
+  void removeCustomAmountItem(CustomAmountItemsModel customAmountItem) {
+    if (state == null) return;
+
+    final currentCustomAmounts = state!.customAmountItems ?? [];
+    final updatedCustomAmounts =
+        currentCustomAmounts.where((item) => item != customAmountItem).toList();
+
+    state = state!.copyWith(customAmountItems: updatedCustomAmounts);
+
+    _recalculateAll();
+
+    print('Custom amount berhasil dihapus');
   }
 }
 

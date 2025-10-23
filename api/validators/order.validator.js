@@ -81,18 +81,19 @@ export function validateOrderData(data, source) {
       if (!data.paymentMethod) throw new Error('Payment method is required for Cashier orders');
 
       // PERBAIKAN KRITIS: Hapus semua field delivery dari data cashier
-      const { 
-        delivery_option, 
-        recipient_data, 
-        deliveryStatus, 
-        deliveryProvider, 
-        deliveryTracking, 
+      const {
+        delivery_option,
+        recipient_data,
+        deliveryStatus,
+        deliveryProvider,
+        deliveryTracking,
         recipientInfo,
-        ...cashierData 
+        ...cashierData
       } = data;
 
       return {
         items: cashierData.items,
+        customAmountItems: cashierData.customAmountItems || [],
         user: cashierData.user || null,
         cashierId: cashierData.cashierId,
         paymentMethod: cashierData.paymentMethod,

@@ -10,6 +10,7 @@ import 'package:kasirbaraja/providers/menu_item_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/order_detail_provider.dart';
 import 'package:kasirbaraja/widgets/cards/event_item_card.dart';
 import 'package:kasirbaraja/widgets/cards/menu_item_card.dart';
+import 'package:kasirbaraja/widgets/dialogs/add_custom_amount_dialog.dart';
 import 'package:kasirbaraja/widgets/dialogs/add_order_item_dialog.dart';
 
 class ListMenu extends ConsumerStatefulWidget {
@@ -79,6 +80,29 @@ class _ListMenuState extends ConsumerState<ListMenu> {
             orderItem: orderItem,
             onAddOrder: (addOrderItem) {
               notifier.addItemToOrder(addOrderItem);
+            },
+            onClose: () => Navigator.pop(context),
+          ),
+    );
+  }
+
+  void _handleAddCustomAmount() {
+    final orderDetail = ref.read(orderDetailProvider);
+    final notifier = ref.read(orderDetailProvider.notifier);
+
+    if (orderDetail == null) {
+      notifier.initializeOrder(orderType: OrderType.dineIn);
+    }
+    // Panggil dialog
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder:
+          (context) => AddCustomAmountDialog(
+            orderType: OrderType.dineIn, // opsional
+            onAddCustomAmount: (customAmountItem) {
+              notifier.addCustomAmountItem(customAmountItem);
             },
             onClose: () => Navigator.pop(context),
           ),
@@ -321,24 +345,32 @@ class _ListMenuState extends ConsumerState<ListMenu> {
                                                 : 1,
                                       ),
                                   padding: const EdgeInsets.all(8),
-                                  itemCount: data.length,
-                                  itemBuilder:
-                                      (context, index) =>
-                                          selectedCategory == 'event'
-                                              ? EventItemCard(
-                                                menuItem: data[index],
-                                                onTap:
-                                                    () => _handleAddToOrder(
-                                                      data[index],
-                                                    ),
-                                              )
-                                              : MenuItemCard(
-                                                menuItem: data[index],
-                                                onTap:
-                                                    () => _handleAddToOrder(
-                                                      data[index],
-                                                    ),
+                                  itemCount: data.length + 1,
+                                  itemBuilder: (context, index) {
+                                    // Item pertama adalah tombol Custom Amount
+                                    if (index == 0) {
+                                      return _buildCustomAmountButton();
+                                    }
+
+                                    // Item selanjutnya adalah menu (index - 1 karena ada custom amount di depan)
+                                    final menuIndex = index - 1;
+
+                                    return selectedCategory == 'event'
+                                        ? EventItemCard(
+                                          menuItem: data[menuIndex],
+                                          onTap:
+                                              () => _handleAddToOrder(
+                                                data[menuIndex],
                                               ),
+                                        )
+                                        : MenuItemCard(
+                                          menuItem: data[menuIndex],
+                                          onTap:
+                                              () => _handleAddToOrder(
+                                                data[menuIndex],
+                                              ),
+                                        );
+                                  },
                                 ),
                   ),
                 ),
@@ -347,6 +379,80 @@ class _ListMenuState extends ConsumerState<ListMenu> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildCustomAmountButton() {
+    return GestureDetector(
+      onTap: _handleAddCustomAmount,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200, width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Image Container
+              Expanded(
+                flex: 3,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                    child: Container(
+                      color: Colors.grey[100],
+                      child: Center(
+                        child: Icon(
+                          Icons.add,
+                          color: Colors.grey[400],
+                          size: 42,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Content Container
+              Expanded(
+                flex: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Center(
+                    child: Text(
+                      'Custom Amount',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2D3748),
+                        height: 1.2,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

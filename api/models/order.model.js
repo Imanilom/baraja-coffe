@@ -46,19 +46,31 @@ const OrderItemSchema = new mongoose.Schema({
   outletId: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
   outletName: { type: String },
   payment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
-  
-  // TAMBAHAN: Field untuk custom amount
-  isCustomAmount: { 
-    type: Boolean, 
-    default: false 
+});
+
+// Schema untuk custom amount items
+const CustomAmountItemSchema = new mongoose.Schema({
+  amount: { 
+    type: Number, 
+    required: true,
+    min: 0
   },
-  customAmountName: {
-    type: String,
-    default: 'Custom Amount'
+  name: { 
+    type: String, 
+    default: 'Penyesuaian Pembayaran' 
   },
-  customAmountDescription: {
+  description: { 
+    type: String, 
+    default: '' 
+  },
+  dineType: {
     type: String,
-    default: ''
+    enum: ['Dine-In', 'Take Away'],
+    default: 'Dine-In'
+  },
+  appliedAt: {
+    type: Date,
+    default: () => getWIBNow()
   }
 });
 
@@ -70,6 +82,8 @@ const OrderSchema = new mongoose.Schema({
   cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   groId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   items: [OrderItemSchema],
+  // UBAH: customAmount menjadi customAmountItems array
+  customAmountItems: [CustomAmountItemSchema],
   status: {
     type: String,
     enum: ['Pending', 'Waiting', 'Reserved', 'OnProcess', 'Completed', 'Canceled'],
@@ -112,11 +126,13 @@ const OrderSchema = new mongoose.Schema({
   totalServiceFee: { type: Number, default: 0 },
   outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
 
-  // Total akhir
+  // Total akhir - TAMBAHKAN field untuk custom amount total
   totalBeforeDiscount: { type: Number, required: true },
   totalAfterDiscount: { type: Number, required: true },
+  totalCustomAmount: { type: Number, default: 0 }, // TOTAL dari semua custom amount items
   grandTotal: { type: Number, required: true },
   change: { type: Number, default: 0 },
+  
   // Sumber order
   source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true },
   currentBatch: { type: Number, default: 1 },
@@ -151,12 +167,10 @@ const OrderSchema = new mongoose.Schema({
   // OPSIONAL: Field delivery hanya diisi jika orderType adalah 'Delivery'
   deliveryStatus: {
     type: String,
-    // enum: ['pending', 'confirmed', 'picked_up', 'on_delivery', 'delivered', 'cancelled', 'failed'],
     default: false
   },
   deliveryProvider: {
     type: String,
-    // enum: ['GoSend', 'GrabExpress', 'Manual'],
     default: false
   },
   deliveryTracking: {
@@ -219,16 +233,24 @@ OrderSchema.methods.getWIBDate = function () {
   });
 };
 
-// Pre-save middleware untuk update updatedAtWIB
+// Pre-save middleware untuk update updatedAtWIB dan hitung totalCustomAmount
 OrderSchema.pre('save', function (next) {
   this.updatedAtWIB = getWIBNow();
+  
+  // Hitung total dari semua custom amount items
+  if (this.customAmountItems && Array.isArray(this.customAmountItems)) {
+    this.totalCustomAmount = this.customAmountItems.reduce((total, item) => {
+      return total + (item.amount || 0);
+    }, 0);
+  } else {
+    this.totalCustomAmount = 0;
+  }
+  
   next();
 });
 
-// Virtual untuk totalPrice
 // Virtual untuk totalPrice - PERBAIKAN
 OrderSchema.virtual('totalPrice').get(function () {
-  // Tambahkan null check
   if (!this.items || !Array.isArray(this.items)) {
     return 0;
   }
