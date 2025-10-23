@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
@@ -9,6 +9,7 @@ import Paginated from "../../../../components/paginated";
 import SalesCategorySkeleton from "./skeleton";
 
 const CategorySales = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const customStyles = {
         control: (provided, state) => ({
@@ -49,9 +50,9 @@ const CategorySales = () => {
     const [isExporting, setIsExporting] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
-    const [tempSearch, setTempSearch] = useState("");
+    const [selectedOutlet, setSelectedOutlet] = useState("");
+    const [dateRange, setDateRange] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
     const [filteredData, setFilteredData] = useState([]);
 
     // Safety function to ensure we're always working with arrays
@@ -60,6 +61,66 @@ const CategorySales = () => {
     const ITEMS_PER_PAGE = 50;
 
     const dropdownRef = useRef(null);
+
+    // Initialize from URL params or set default to today
+    useEffect(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        const outletParam = searchParams.get('outletId');
+        const searchParam = searchParams.get('search');
+        const pageParam = searchParams.get('page');
+
+        if (startDateParam && endDateParam) {
+            setDateRange({
+                startDate: new Date(startDateParam),
+                endDate: new Date(endDateParam),
+            });
+        } else {
+            const today = new Date();
+            setDateRange({
+                startDate: today,
+                endDate: today,
+            });
+        }
+
+        if (outletParam) {
+            setSelectedOutlet(outletParam);
+        }
+
+        if (searchParam) {
+            setSearchTerm(searchParam);
+        }
+
+        if (pageParam) {
+            setCurrentPage(parseInt(pageParam, 10));
+        }
+    }, []);
+
+    // Update URL when filters change
+    const updateURLParams = (newDateRange, newOutlet, newSearch, newPage) => {
+        const params = new URLSearchParams();
+
+        if (newDateRange?.startDate && newDateRange?.endDate) {
+            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
+            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
+        }
+
+        if (newOutlet) {
+            params.set('outletId', newOutlet);
+        }
+
+        if (newSearch) {
+            params.set('search', newSearch);
+        }
+
+        if (newPage && newPage > 1) {
+            params.set('page', newPage.toString());
+        }
+
+        setSearchParams(params);
+    };
 
     // Fetch products and outlets data
     useEffect(() => {
@@ -78,7 +139,6 @@ const CategorySales = () => {
                 const completedData = productsData.filter(item => item.status === "Completed");
 
                 setProducts(completedData);
-                setFilteredData(completedData); // Initialize filtered data with all products
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -106,6 +166,33 @@ const CategorySales = () => {
 
         fetchData();
     }, []);
+
+    // Handler functions
+    const handleDateRangeChange = (newValue) => {
+        setDateRange(newValue);
+        setCurrentPage(1);
+        updateURLParams(newValue, selectedOutlet, searchTerm, 1);
+    };
+
+    const handleOutletChange = (selected) => {
+        const newOutlet = selected.value;
+        setSelectedOutlet(newOutlet);
+        setCurrentPage(1);
+        updateURLParams(dateRange, newOutlet, searchTerm, 1);
+    };
+
+    const handleSearchChange = (e) => {
+        const newSearch = e.target.value;
+        setSearchTerm(newSearch);
+        setCurrentPage(1);
+        updateURLParams(dateRange, selectedOutlet, newSearch, 1);
+    };
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+        updateURLParams(dateRange, selectedOutlet, searchTerm, newPage);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     const options = [
         { value: "", label: "Semua Outlet" },
@@ -143,7 +230,6 @@ const CategorySales = () => {
         return Object.values(grouped);
     }, [filteredData]);
 
-
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
@@ -179,15 +265,14 @@ const CategorySales = () => {
 
     // Apply filter function
     const applyFilter = useCallback(() => {
-
         // Make sure products is an array before attempting to filter
         let filtered = ensureArray([...products]);
 
         // Filter by search term (category)
-        if (tempSearch) {
+        if (searchTerm) {
             filtered = filtered.flatMap(product => {
                 try {
-                    const searchTerm = tempSearch.toLowerCase();
+                    const searchTermLower = searchTerm.toLowerCase();
                     const item = product?.items?.[0];
                     const menuItem = item?.menuItem;
                     if (!menuItem) return [];
@@ -200,7 +285,7 @@ const CategorySales = () => {
                     return categories
                         .filter(category => {
                             const categoryLower = (category || '').toLowerCase();
-                            return !searchTerm || categoryLower.includes(searchTerm);
+                            return !searchTermLower || categoryLower.includes(searchTermLower);
                         })
                         .map(category => ({
                             ...product,
@@ -214,14 +299,13 @@ const CategorySales = () => {
                         }));
                 } catch (err) {
                     console.error("Error filtering by search:", err);
-                    return false;
+                    return [];
                 }
-            }
-            );
+            });
         }
 
         // Filter by outlet
-        if (tempSelectedOutlet) {
+        if (selectedOutlet) {
             filtered = filtered.filter(product => {
                 try {
                     if (!product?.cashier?.outlet?.length > 0) {
@@ -229,10 +313,7 @@ const CategorySales = () => {
                     }
 
                     const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
+                    const matches = outletName === selectedOutlet;
 
                     return matches;
                 } catch (err) {
@@ -243,7 +324,7 @@ const CategorySales = () => {
         }
 
         // Filter by date range
-        if (value && value.startDate && value.endDate) {
+        if (dateRange && dateRange.startDate && dateRange.endDate) {
             filtered = filtered.filter(product => {
                 try {
                     if (!product.createdAt) {
@@ -251,8 +332,8 @@ const CategorySales = () => {
                     }
 
                     const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
+                    const startDate = new Date(dateRange.startDate);
+                    const endDate = new Date(dateRange.endDate);
 
                     // Set time to beginning/end of day for proper comparison
                     startDate.setHours(0, 0, 0, 0);
@@ -264,8 +345,6 @@ const CategorySales = () => {
                     }
 
                     const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
                     return isInRange;
                 } catch (err) {
                     console.error("Error filtering by date:", err);
@@ -275,26 +354,12 @@ const CategorySales = () => {
         }
 
         setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    }, [products, tempSearch, tempSelectedOutlet, value]);
+    }, [products, searchTerm, selectedOutlet, dateRange]);
 
     // Auto-apply filter whenever dependencies change
     useEffect(() => {
         applyFilter();
     }, [applyFilter]);
-
-    // Initial load
-    useEffect(() => {
-        applyFilter();
-    }, []);
-
-    useEffect(() => {
-        const today = new Date();
-        setValue({
-            startDate: today,
-            endDate: today,
-        });
-    }, []);
 
     // Export current data to Excel
     const exportToExcel = async () => {
@@ -302,87 +367,70 @@ const CategorySales = () => {
 
         try {
             // Small delay to show loading state
-            await new Promise(resolve => setTimeout(resolve, 15000));
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
             // Get outlet name
-            const outletName = tempSelectedOutlet
-                ? outlets.find(o => o._id === tempSelectedOutlet)?.name || 'Semua Outlet'
+            const outletName = selectedOutlet
+                ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
 
             // Get date range
-            const dateRange = value && value.startDate && value.endDate
-                ? `${new Date(value.startDate).toLocaleDateString('id-ID')} - ${new Date(value.endDate).toLocaleDateString('id-ID')}`
+            const dateRangeText = dateRange && dateRange.startDate && dateRange.endDate
+                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : new Date().toLocaleDateString('id-ID');
-
-            // Calculate totals
-            let totalTerjual = 0;
-            let totalPenjualanBersih = 0;
-            let totalRata = 0;
 
             // Create export data
             const exportData = [
-                { col1: 'Laporan Penjualan Produk', col2: '', col3: '', col4: '', col5: '', col6: '', col7: '', col8: '', col9: '' },
-                { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '', col7: '', col8: '', col9: '' },
-                { col1: 'Outlet', col2: outletName, col3: '', col4: '', col5: '', col6: '', col7: '', col8: '', col9: '' },
-                { col1: 'Tanggal', col2: dateRange, col3: '', col4: '', col5: '', col6: '', col7: '', col8: '', col9: '' },
-                { col1: '', col2: '', col3: '', col4: '', col5: '', col6: '', col7: '', col8: '', col9: '' },
+                { col1: 'Laporan Penjualan Per Kategori', col2: '', col3: '', col4: '' },
+                { col1: '', col2: '', col3: '', col4: '' },
+                { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
+                { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '' },
+                { col1: '', col2: '', col3: '', col4: '' },
                 { col1: 'Kategori', col2: 'Terjual', col3: 'Penjualan Bersih', col4: 'Rata-rata' }
             ];
 
-            // Add data rows
-            filteredData.forEach(product => {
-                const item = product.items?.[0] || {};
-                const menuItem = item.menuItem || {};
-
-                const terjual = item.quantity || 0;
-                const penjualanBersih = item.subtotal || 0;
-                const rata = penjualanBersih / terjual;
-
-                // Add to totals
-                totalTerjual += terjual;
-                totalPenjualanBersih += penjualanBersih;
-                totalRata += rata;
-
+            // Add data rows from groupedArray
+            groupedArray.forEach(group => {
                 exportData.push({
-                    col1: menuItem.category?.name || '-',
-                    col2: terjual,
-                    col3: penjualanBersih,
-                    col4: rata,
+                    col1: group.category || '-',
+                    col2: group.quantity,
+                    col3: group.subtotal,
+                    col4: Math.round(group.subtotal / group.quantity),
                 });
             });
 
             // Add Grand Total row
             exportData.push({
                 col1: 'Grand Total',
-                col2: totalTerjual,
-                col3: totalPenjualanBersih,
-                col4: totalRata,
+                col2: grandTotal.quantity,
+                col3: grandTotal.subtotal,
+                col4: Math.round(grandTotal.subtotal / grandTotal.quantity),
             });
 
             // Create worksheet
             const ws = XLSX.utils.json_to_sheet(exportData, {
-                header: ['col1', 'col2', 'col3', 'col4', 'col5', 'col6', 'col7', 'col8', 'col9'],
+                header: ['col1', 'col2', 'col3', 'col4'],
                 skipHeader: true
             });
 
             // Set column widths
             ws['!cols'] = [
-                { wch: 20 }, // Kategori
+                { wch: 25 }, // Kategori
                 { wch: 12 }, // Terjual
                 { wch: 18 }, // Penjualan Bersih
-                { wch: 18 }, // Ratta-rata
+                { wch: 15 }, // Rata-rata
             ];
 
             // Merge cells for title
             ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } } // Merge title across 9 columns
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } } // Merge title across 4 columns
             ];
 
             // Apply bold styling to specific rows
             const boldRows = [0, 5, exportData.length - 1]; // Title, Header, Grand Total
 
             boldRows.forEach(rowIndex => {
-                for (let col = 0; col < 9; col++) {
+                for (let col = 0; col < 4; col++) {
                     const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: col });
                     if (ws[cellAddress]) {
                         ws[cellAddress].s = { font: { bold: true } };
@@ -392,10 +440,14 @@ const CategorySales = () => {
 
             // Create workbook and add worksheet
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Produk");
+            XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Kategori");
+
+            // Generate filename with date range
+            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const fileName = `Laporan_Penjualan_Per_Kategori_${outletName}_${startDate}_${endDate}.xlsx`;
 
             // Export file
-            const fileName = `Laporan_Penjualan_Produk_${outletName}_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`;
             XLSX.writeFile(wb, fileName);
 
         } catch (error) {
@@ -441,11 +493,11 @@ const CategorySales = () => {
                     <FaChevronRight />
                     <Link to="/admin/sales-menu">Laporan Penjualan</Link>
                     <FaChevronRight />
-                    <sapn>Penjualan Per Kategori</sapn>
+                    <span>Penjualan Per Kategori</span>
                 </h1>
                 <button
                     onClick={exportToExcel}
-                    disabled={isExporting}
+                    disabled={isExporting || groupedArray.length === 0}
                     className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isExporting ? (
@@ -455,7 +507,7 @@ const CategorySales = () => {
                         </>
                     ) : (
                         <>
-                            <FaDownload /> Ekspor CSV
+                            <FaDownload /> Ekspor Excel
                         </>
                     )}
                 </button>
@@ -469,8 +521,8 @@ const CategorySales = () => {
                             <Datepicker
                                 showFooter
                                 showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={handleDateRangeChange}
                                 displayFormat="DD-MM-YYYY"
                                 inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
@@ -483,9 +535,9 @@ const CategorySales = () => {
                             <input
                                 type="text"
                                 placeholder="Kategori"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-2 pr-[25px] pl-[12px] rounded"
+                                value={searchTerm}
+                                onChange={handleSearchChange}
+                                className="text-[13px] border py-2 pr-[25px] pl-[12px] rounded focus:ring-1 focus:ring-green-900 focus:outline-none"
                             />
                         </div>
 
@@ -493,11 +545,11 @@ const CategorySales = () => {
                             <Select
                                 options={options}
                                 value={
-                                    tempSelectedOutlet
-                                        ? options.find((opt) => opt.value === tempSelectedOutlet)
+                                    selectedOutlet
+                                        ? options.find((opt) => opt.value === selectedOutlet)
                                         : options[0]
                                 }
-                                onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                                onChange={handleOutletChange}
                                 placeholder="Pilih outlet..."
                                 className="text-[13px]"
                                 classNamePrefix="react-select"
@@ -524,28 +576,26 @@ const CategorySales = () => {
                                 {paginatedData.map((group, index) => {
                                     try {
                                         return (
-                                            <React.Fragment key={index}>
-                                                <tr className="text-left text-sm">
-                                                    <td className="px-4 py-3">
-                                                        {group.category}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        {group.quantity || 'N/A'}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        {formatCurrency(group.subtotal) || 'N/A'}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        {formatCurrency(group.subtotal / group.quantity) || 'N/A'}
-                                                    </td>
-                                                </tr>
-                                            </React.Fragment>
+                                            <tr key={index} className="text-left text-sm hover:bg-gray-50">
+                                                <td className="px-4 py-3">
+                                                    {group.category}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {group.quantity || 'N/A'}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatCurrency(group.subtotal) || 'N/A'}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatCurrency(group.subtotal / group.quantity) || 'N/A'}
+                                                </td>
+                                            </tr>
                                         );
                                     } catch (err) {
                                         console.error(`Error rendering product ${index}:`, err);
                                         return (
                                             <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="7" className="px-4 py-3 text-red-500">
+                                                <td colSpan="4" className="px-4 py-3 text-red-500">
                                                     Error rendering product
                                                 </td>
                                             </tr>
@@ -556,16 +606,28 @@ const CategorySales = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={4}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
                                 <td className="px-4 py-2">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotal.quantity.toLocaleString()}</p></td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal.toFixed())}</p></td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal.toFixed() / grandTotal.quantity)}</p></td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {grandTotal.quantity.toLocaleString()}
+                                    </p>
+                                </td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(grandTotal.subtotal)}
+                                    </p>
+                                </td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(grandTotal.subtotal / grandTotal.quantity)}
+                                    </p>
+                                </td>
                             </tr>
                         </tfoot>
                     </table>
@@ -573,7 +635,7 @@ const CategorySales = () => {
 
                 <Paginated
                     currentPage={currentPage}
-                    setCurrentPage={setCurrentPage}
+                    setCurrentPage={handlePageChange}
                     totalPages={totalPages}
                 />
 

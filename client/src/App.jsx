@@ -295,7 +295,7 @@ export default function App() {
                 <Route path="employee-create" element={<CreateEmployee />} />
 
                 {/* Customer */}
-                <Route path="customer" element={<CustomerManagement />} />
+                <Route path="customers" element={<CustomerManagement />} />
                 <Route path="customer-create" element={<CreateCustomer />} />
 
                 {/* Device */}

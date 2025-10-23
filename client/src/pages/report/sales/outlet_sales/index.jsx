@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
@@ -10,6 +10,7 @@ import Paginated from "../../../../components/paginated";
 import SalesOutletSkeleton from "./skeleton";
 
 const OutletSales = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const customStyles = {
         control: (provided, state) => ({
@@ -52,11 +53,8 @@ const OutletSales = () => {
 
     const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState({
-        startDate: dayjs(),
-        endDate: dayjs()
-    });
+    const [selectedOutlet, setSelectedOutlet] = useState("");
+    const [dateRange, setDateRange] = useState(null);
     const [filteredData, setFilteredData] = useState([]);
 
     // Safety function to ensure we're always working with arrays
@@ -65,6 +63,56 @@ const OutletSales = () => {
     const ITEMS_PER_PAGE = 50;
 
     const dropdownRef = useRef(null);
+
+    // Initialize from URL params or set default to today
+    useEffect(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        const outletParam = searchParams.get('outletId');
+        const pageParam = searchParams.get('page');
+
+        if (startDateParam && endDateParam) {
+            setDateRange({
+                startDate: dayjs(startDateParam),
+                endDate: dayjs(endDateParam),
+            });
+        } else {
+            setDateRange({
+                startDate: dayjs(),
+                endDate: dayjs()
+            });
+        }
+
+        if (outletParam) {
+            setSelectedOutlet(outletParam);
+        }
+
+        if (pageParam) {
+            setCurrentPage(parseInt(pageParam, 10));
+        }
+    }, []);
+
+    // Update URL when filters change
+    const updateURLParams = (newDateRange, newOutlet, newPage) => {
+        const params = new URLSearchParams();
+
+        if (newDateRange?.startDate && newDateRange?.endDate) {
+            const startDate = dayjs(newDateRange.startDate).format('YYYY-MM-DD');
+            const endDate = dayjs(newDateRange.endDate).format('YYYY-MM-DD');
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
+        }
+
+        if (newOutlet) {
+            params.set('outletId', newOutlet);
+        }
+
+        if (newPage && newPage > 1) {
+            params.set('page', newPage.toString());
+        }
+
+        setSearchParams(params);
+    };
 
     // Fetch products and outlets data
     useEffect(() => {
@@ -83,7 +131,6 @@ const OutletSales = () => {
                 const completedData = productsData.filter(item => item.status === "Completed");
 
                 setProducts(completedData);
-                setFilteredData(completedData); // Initialize filtered data with all products
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -111,6 +158,26 @@ const OutletSales = () => {
 
         fetchData();
     }, []);
+
+    // Handler functions
+    const handleDateRangeChange = (newValue) => {
+        setDateRange(newValue);
+        setCurrentPage(1);
+        updateURLParams(newValue, selectedOutlet, 1);
+    };
+
+    const handleOutletChange = (selected) => {
+        const newOutlet = selected.value;
+        setSelectedOutlet(newOutlet);
+        setCurrentPage(1);
+        updateURLParams(dateRange, newOutlet, 1);
+    };
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+        updateURLParams(dateRange, selectedOutlet, newPage);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     // Get unique outlet names for the dropdown
     const uniqueOutlets = useMemo(() => {
@@ -218,12 +285,11 @@ const OutletSales = () => {
 
     // Apply filter function
     const applyFilter = useCallback(() => {
-
         // Make sure products is an array before attempting to filter
         let filtered = ensureArray([...products]);
 
         // Filter by outlet
-        if (tempSelectedOutlet) {
+        if (selectedOutlet) {
             filtered = filtered.filter(product => {
                 try {
                     if (!product?.cashier?.outlet?.length > 0) {
@@ -231,10 +297,7 @@ const OutletSales = () => {
                     }
 
                     const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
+                    const matches = outletName === selectedOutlet;
 
                     return matches;
                 } catch (err) {
@@ -245,7 +308,7 @@ const OutletSales = () => {
         }
 
         // Filter by date range
-        if (value && value.startDate && value.endDate) {
+        if (dateRange && dateRange.startDate && dateRange.endDate) {
             filtered = filtered.filter(product => {
                 try {
                     if (!product.createdAt) {
@@ -253,8 +316,8 @@ const OutletSales = () => {
                     }
 
                     const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
+                    const startDate = new Date(dateRange.startDate);
+                    const endDate = new Date(dateRange.endDate);
 
                     // Set time to beginning/end of day for proper comparison
                     startDate.setHours(0, 0, 0, 0);
@@ -266,8 +329,6 @@ const OutletSales = () => {
                     }
 
                     const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
                     return isInRange;
                 } catch (err) {
                     console.error("Error filtering by date:", err);
@@ -277,36 +338,40 @@ const OutletSales = () => {
         }
 
         setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    }, [products, tempSelectedOutlet, value]);
+    }, [products, selectedOutlet, dateRange]);
 
     // Auto-apply filter whenever dependencies change
     useEffect(() => {
         applyFilter();
     }, [applyFilter]);
 
-    // Initial load
-    useEffect(() => {
-        applyFilter();
-    }, []);
-
     // Export current data to Excel
     const exportToExcel = () => {
-        const rows = [];
+        const rows = groupedArray.map(group => ({
+            'Outlet': group.outletName || 'Unknown',
+            'Jumlah Transaksi': group.count,
+            'Penjualan': group.subtotalTotal,
+            'Rata-Rata': Math.round(group.subtotalTotal / group.count)
+        }));
 
-        groupedArray.forEach(group => {
-            rows.push({
-                'Outlet': group.outletName || 'Unknown',
-                'Jumlah Transaksi': group.count,
-                'Penjualan': group.subtotalTotal,
-                'Rata-Rata': Math.round(group.subtotalTotal / group.count)
-            });
+        // Add grand total row
+        rows.push({
+            'Outlet': 'GRAND TOTAL',
+            'Jumlah Transaksi': grandTotalItems,
+            'Penjualan': grandTotalSubtotal,
+            'Rata-Rata': Math.round(grandTotalSubtotal / grandTotalItems)
         });
 
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Outlet");
-        XLSX.writeFile(wb, "Penjualan_Per_Outlet.xlsx");
+
+        // Generate filename with date range
+        const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+        const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
+        const filename = `Penjualan_Per_Outlet_${startDate}_${endDate}.xlsx`;
+
+        XLSX.writeFile(wb, filename);
     };
 
     // Show loading state
@@ -346,9 +411,13 @@ const OutletSales = () => {
                     <FaChevronRight />
                     <span>Penjualan Per Outlet</span>
                 </h1>
-                {/* <button onClick={exportToExcel} className="flex gap-2 items-center bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">
-                    <FaDownload /> Ekspor
-                </button> */}
+                <button
+                    onClick={exportToExcel}
+                    disabled={groupedArray.length === 0}
+                    className="flex gap-2 items-center bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <FaDownload /> Ekspor Excel
+                </button>
             </div>
 
             {/* Filters */}
@@ -359,8 +428,8 @@ const OutletSales = () => {
                             <Datepicker
                                 showFooter
                                 showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={handleDateRangeChange}
                                 displayFormat="DD-MM-YYYY"
                                 inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
@@ -372,11 +441,11 @@ const OutletSales = () => {
                             <Select
                                 options={options}
                                 value={
-                                    tempSelectedOutlet
-                                        ? options.find((opt) => opt.value === tempSelectedOutlet)
+                                    selectedOutlet
+                                        ? options.find((opt) => opt.value === selectedOutlet)
                                         : options[0]
                                 }
-                                onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                                onChange={handleOutletChange}
                                 placeholder="Cari outlet..."
                                 isSearchable
                                 className="text-[13px]"
@@ -401,20 +470,18 @@ const OutletSales = () => {
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {paginatedData.map((group, index) => (
-                                    <React.Fragment key={index}>
-                                        <tr className="">
-                                            <td className="px-4 py-3">{group.outletName}</td>
-                                            <td className="px-4 py-3 text-right">{group.count}</td>
-                                            <td className="px-4 py-3 text-right">{formatCurrency(group.subtotalTotal)}</td>
-                                            <td className="px-4 py-3 text-right">{formatCurrency((group.subtotalTotal / group.count).toFixed(0))}</td>
-                                        </tr>
-                                    </React.Fragment>
+                                    <tr key={index} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3">{group.outletName}</td>
+                                        <td className="px-4 py-3 text-right">{group.count}</td>
+                                        <td className="px-4 py-3 text-right">{formatCurrency(group.subtotalTotal)}</td>
+                                        <td className="px-4 py-3 text-right">{formatCurrency((group.subtotalTotal / group.count).toFixed(0))}</td>
+                                    </tr>
                                 ))}
                             </tbody>
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={4}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
@@ -422,9 +489,21 @@ const OutletSales = () => {
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
                                 <td className="px-4 py-2">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotalItems.toLocaleString()}</p></td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotalSubtotal)}</p></td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency((grandTotalSubtotal / grandTotalItems).toFixed(0))}</p></td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {grandTotalItems.toLocaleString()}
+                                    </p>
+                                </td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(grandTotalSubtotal)}
+                                    </p>
+                                </td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency((grandTotalSubtotal / grandTotalItems).toFixed(0))}
+                                    </p>
+                                </td>
                             </tr>
                         </tfoot>
                     </table>
@@ -433,7 +512,7 @@ const OutletSales = () => {
                 {/* Pagination Controls */}
                 <Paginated
                     currentPage={currentPage}
-                    setCurrentPage={setCurrentPage}
+                    setCurrentPage={handlePageChange}
                     totalPages={totalPages}
                 />
 
