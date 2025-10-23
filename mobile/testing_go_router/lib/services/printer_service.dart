@@ -1263,7 +1263,7 @@ class PrinterService {
     bytes.addAll(
       generator.row([
         PosColumn(
-          text: 'Tax 10%',
+          text: 'Pajak',
           width: 6,
           styles: const PosStyles(align: PosAlign.left),
         ),

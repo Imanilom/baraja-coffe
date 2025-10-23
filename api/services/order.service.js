@@ -9,20 +9,20 @@ import mongoose from 'mongoose';
 /**
  * Processes order items including pricing calculations and promotions
  */
-export async function processOrderItems({ 
-  items, 
-  outlet, 
-  orderType, 
-  voucherCode, 
-  customerType, 
-  source, 
-  customerId, 
-  loyaltyPointsToRedeem, 
+export async function processOrderItems({
+  items,
+  outlet,
+  orderType,
+  voucherCode,
+  customerType,
+  source,
+  customerId,
+  loyaltyPointsToRedeem,
   customAmountItems
 }, session) {
 
-  if ((!items || !Array.isArray(items) || items.length === 0) && 
-      (!customAmountItems || !Array.isArray(customAmountItems) || customAmountItems.length === 0)) {
+  if ((!items || !Array.isArray(items) || items.length === 0) &&
+    (!customAmountItems || !Array.isArray(customAmountItems) || customAmountItems.length === 0)) {
     throw new Error('Order items cannot be empty');
   }
 
@@ -60,6 +60,7 @@ export async function processOrderItems({
       }
 
       // Process addons
+      console.log('asdasdasdasdasdasdasdasdasdadasdasd addon input');
       if (item.selectedAddons?.length > 0) {
         await processAddons(item, menuItem, recipe, addons, (added) => {
           itemPrice += added;
@@ -174,16 +175,16 @@ export async function processOrderItems({
   // PERBAIKAN: Hitung proporsi diskon untuk custom amount
   let customAmountDiscount = 0;
   let menuItemsDiscount = promotionResults.totalDiscount;
-  
+
   // Jika ada custom amount, bagi diskon secara proporsional
   if (totalCustomAmount > 0 && promotionResults.totalDiscount > 0) {
     const totalEligibleAmount = totalBeforeDiscount + totalCustomAmount;
-    
+
     // Hitung proporsi custom amount terhadap total
     const customAmountRatio = totalCustomAmount / totalEligibleAmount;
     customAmountDiscount = promotionResults.totalDiscount * customAmountRatio;
     menuItemsDiscount = promotionResults.totalDiscount - customAmountDiscount;
-    
+
     console.log('Discount Allocation:', {
       totalDiscount: promotionResults.totalDiscount,
       customAmountDiscount,
@@ -221,13 +222,13 @@ export async function processOrderItems({
 
   // PERBAIKAN: Taxes and services berlaku untuk combined total setelah diskon
   const totalAfterAllDiscounts = promotionResults.totalAfterDiscount;
-  
+
   // Buat virtual items untuk custom amount untuk perhitungan pajak
   const virtualItemsForTax = [...orderItems];
   if (totalCustomAmount > 0) {
     // Kurangi custom amount dengan diskon yang dialokasikan
     const customAmountAfterDiscount = totalCustomAmount - customAmountDiscount;
-    
+
     virtualItemsForTax.push({
       menuItem: null,
       menuItemName: 'Custom Amount',
@@ -263,7 +264,8 @@ export async function processOrderItems({
     totalServiceFee,
     grandTotal,
     regularItemsCount: items ? items.length : 0,
-    customAmountItemsCount: customAmountItemsData.length
+    customAmountItemsCount: customAmountItemsData.length,
+    addons: orderItems.map(item => item.addons).flat(),
   });
 
   return {
@@ -382,26 +384,26 @@ async function processAddons(item, menuItem, recipe, addons, addPriceCallback) {
       console.warn(`Addon ${addon.id} not found in menu item ${menuItem._id}`);
       continue;
     }
+    console.log('addon options asdasdasda', addon.options);
 
     if (addon.options?.length > 0) {
       for (const option of addon.options) {
+        console.log('option asdasdasd', option);
         const optionInfo = addonInfo.options.find(o => o._id.toString() === option.id);
         if (!optionInfo) {
           console.warn(`Addon option ${option.id} not found in addon ${addonInfo.name}`);
           continue;
         }
 
+        console.log('optionsss asdasdasd', optionInfo);
         addons.push({
           _id: addon.id,
           name: `${addonInfo.name}`,
-          options: [
-            {
-              _id: option.id,
-              label: optionInfo.label,
-              price: optionInfo.price || 0
-            }
-          ]
+          price: optionInfo.price || 0,
+          options: [optionInfo._id]
         });
+
+        console.log('asdasda addons asdasdasd', addons);
 
         addPriceCallback(optionInfo.price || 0);
       }
@@ -427,15 +429,15 @@ export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orde
     // Karena orderItems sudah termasuk virtual items untuk custom amount
     const applicableItems = charge.appliesToMenuItems?.length > 0
       ? orderItems.filter(item => {
-          // Untuk custom amount (virtual items), selalu applicable
-          if (item.isCustomAmount) {
-            return true;
-          }
-          // Untuk menu items, cek apakah termasuk dalam appliesToMenuItems
-          return charge.appliesToMenuItems.some(menuId =>
-            menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
-          );
-        })
+        // Untuk custom amount (virtual items), selalu applicable
+        if (item.isCustomAmount) {
+          return true;
+        }
+        // Untuk menu items, cek apakah termasuk dalam appliesToMenuItems
+        return charge.appliesToMenuItems.some(menuId =>
+          menuId.equals(new mongoose.Types.ObjectId(item.menuItem))
+        );
+      })
       : orderItems; // Jika tidak ada appliesToMenuItems, berlaku untuk semua
 
     const applicableSubtotal = applicableItems.reduce((sum, item) => sum + item.subtotal, 0);
@@ -494,7 +496,7 @@ export async function calculateTaxesAndServices(outlet, totalAfterDiscount, orde
  */
 export function calculateCustomAmount(paidAmount, orderTotal) {
   const difference = paidAmount - orderTotal;
-  
+
   if (difference <= 0) {
     return []; // Tidak perlu custom amount, return empty array
   }

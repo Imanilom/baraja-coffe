@@ -408,32 +408,36 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       //edit orderitem,
       GoRoute(
-        path: ':id/edit-order-item',
+        path: '/:id/edit-order-item',
         name: 'edit-order-item',
-        pageBuilder:
-            (context, state) => CustomTransitionPage(
-              arguments: state.extra,
-              // child: const EditOrderItemScreen(orderMongoId: state.pathParameters['id']!),
-              child: const EditOrderScreen(),
-              transitionsBuilder: (
-                context,
-                animation,
-                secondaryAnimation,
-                child,
-              ) {
-                const begin = Offset(1.0, 0.0);
-                const end = Offset.zero;
-                const curve = Curves.ease;
-                final tween = Tween(
-                  begin: begin,
-                  end: end,
-                ).chain(CurveTween(curve: curve));
-                return SlideTransition(
-                  position: animation.drive(tween),
-                  child: child,
-                );
-              },
-            ),
+        pageBuilder: (context, state) {
+          final extra = state.extra;
+          final orderMongoId = state.pathParameters['id']!;
+
+          return CustomTransitionPage(
+            arguments: state.extra,
+            // child: const EditOrderItemScreen(orderMongoId: state.pathParameters['id']!),
+            child: EditOrderScreen(orderDetail: extra as OrderDetailModel),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              const begin = Offset(1.0, 0.0);
+              const end = Offset.zero;
+              const curve = Curves.ease;
+              final tween = Tween(
+                begin: begin,
+                end: end,
+              ).chain(CurveTween(curve: curve));
+              return SlideTransition(
+                position: animation.drive(tween),
+                child: child,
+              );
+            },
+          );
+        },
       ),
     ],
     redirect: (context, state) {

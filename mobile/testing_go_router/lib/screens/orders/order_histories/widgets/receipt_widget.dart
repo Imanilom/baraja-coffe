@@ -139,10 +139,7 @@ class ReceiptWidget extends ConsumerWidget {
         const SizedBox(height: 16),
 
         // Pricing
-        _buildReceiptRow(
-          'Subtotal',
-          formatPrice(order.totalBeforeDiscount + order.totalCustomAmount),
-        ),
+        _buildReceiptRow('Subtotal', formatPrice(order.totalBeforeDiscount)),
 
         if (order.discounts!.autoPromoDiscount > 0)
           _buildReceiptRow(
