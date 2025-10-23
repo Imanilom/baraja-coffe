@@ -188,9 +188,6 @@ const startServer = async () => {
     // await mongoose.connect(process.env.MONGO, {
     //   serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
     // });
-    await mongoose.connect(process.env.MONGO, {
-      serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
-    });
     // console.log('✅ Connected to MongoDB');
 
     setupStockCalibrationCron();
