@@ -1,60 +1,59 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import ExportFilter from "../export";
 import { useReactToPrint } from "react-to-print";
 import SalesTransactionTable from "./table";
 import SalesTransactionTableSkeleton from "./skeleton";
 
-
 const SalesTransaction = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
-            borderColor: '#d1d5db', // Tailwind border-gray-300
+            borderColor: '#d1d5db',
             minHeight: '34px',
             fontSize: '13px',
-            color: '#6b7280', // text-gray-500
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
             '&:hover': {
-                borderColor: '#9ca3af', // Tailwind border-gray-400
+                borderColor: '#9ca3af',
             },
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#6b7280', // text-gray-500
+            color: '#6b7280',
         }),
         input: (provided) => ({
             ...provided,
-            color: '#6b7280', // text-gray-500 for typed text
+            color: '#6b7280',
         }),
         placeholder: (provided) => ({
             ...provided,
-            color: '#9ca3af', // text-gray-400
+            color: '#9ca3af',
             fontSize: '13px',
         }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
-            color: '#374151', // gray-700
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
             cursor: 'pointer',
         }),
     };
+
     const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [selectedTrx, setSelectedTrx] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState({
-        startDate: dayjs(),
-        endDate: dayjs()
-    });
-    const [tempSearch, setTempSearch] = useState("");
+    const [selectedOutlet, setSelectedOutlet] = useState("");
+    const [dateRange, setDateRange] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
     const [filteredData, setFilteredData] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -73,11 +72,64 @@ const SalesTransaction = () => {
     // Calculate the total subtotal first
     const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
 
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = totalSubtotal * 0.10;
+    // Initialize from URL params or set default to today
+    useEffect(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        const outletParam = searchParams.get('outletId');
+        const searchParam = searchParams.get('search');
+        const pageParam = searchParams.get('page');
 
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
+        if (startDateParam && endDateParam) {
+            setDateRange({
+                startDate: dayjs(startDateParam),
+                endDate: dayjs(endDateParam),
+            });
+        } else {
+            setDateRange({
+                startDate: dayjs(),
+                endDate: dayjs()
+            });
+        }
+
+        if (outletParam) {
+            setSelectedOutlet(outletParam);
+        }
+
+        if (searchParam) {
+            setSearchTerm(searchParam);
+        }
+
+        if (pageParam) {
+            setCurrentPage(parseInt(pageParam, 10));
+        }
+    }, []);
+
+    // Update URL when filters change
+    const updateURLParams = (newDateRange, newOutlet, newSearch, newPage) => {
+        const params = new URLSearchParams();
+
+        if (newDateRange?.startDate && newDateRange?.endDate) {
+            const startDate = dayjs(newDateRange.startDate).format('YYYY-MM-DD');
+            const endDate = dayjs(newDateRange.endDate).format('YYYY-MM-DD');
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
+        }
+
+        if (newOutlet) {
+            params.set('outletId', newOutlet);
+        }
+
+        if (newSearch) {
+            params.set('search', newSearch);
+        }
+
+        if (newPage && newPage > 1) {
+            params.set('page', newPage.toString());
+        }
+
+        setSearchParams(params);
+    };
 
     // Fetch products and outlets data
     const fetchProducts = async () => {
@@ -90,7 +142,7 @@ const SalesTransaction = () => {
 
             const completedData = productsData.filter(item => item.status === "Completed");
 
-            setProducts(completedData); // simpan semua data mentah
+            setProducts(completedData);
             setError(null);
         } catch (err) {
             console.error("Error fetching products:", err);
@@ -101,9 +153,7 @@ const SalesTransaction = () => {
         }
     };
 
-
     const fetchOutlets = async () => {
-        setLoading(true);
         try {
             const response = await axios.get('/api/outlet');
 
@@ -119,8 +169,6 @@ const SalesTransaction = () => {
             console.error("Error fetching outlets:", err);
             setError("Failed to load outlets. Please try again later.");
             setOutlets([]);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -128,7 +176,6 @@ const SalesTransaction = () => {
         fetchProducts();
         fetchOutlets();
     }, []);
-
 
     const options = [
         { value: "", label: "Semua Outlet" },
@@ -138,10 +185,114 @@ const SalesTransaction = () => {
         })),
     ];
 
+    // Handle filter changes
+    const handleDateRangeChange = (newValue) => {
+        setDateRange(newValue);
+        setCurrentPage(1);
+        updateURLParams(newValue, selectedOutlet, searchTerm, 1);
+    };
+
+    const handleOutletChange = (selected) => {
+        const newOutlet = selected.value;
+        setSelectedOutlet(newOutlet);
+        setCurrentPage(1);
+        updateURLParams(dateRange, newOutlet, searchTerm, 1);
+    };
+
+    const handleSearchChange = (newSearch) => {
+        setSearchTerm(newSearch);
+        setCurrentPage(1);
+        updateURLParams(dateRange, selectedOutlet, newSearch, 1);
+    };
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+        updateURLParams(dateRange, selectedOutlet, searchTerm, newPage);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Apply filter function
+    const applyFilter = useCallback(() => {
+        let filtered = ensureArray([...products]);
+
+        // Filter by search term (product name, customer, or receipt ID)
+        if (searchTerm) {
+            filtered = filtered.filter(product => {
+                try {
+                    const searchTermLower = searchTerm.toLowerCase();
+
+                    return product.items?.some(item => {
+                        const menuItem = item?.menuItem;
+                        if (!menuItem) return false;
+
+                        const name = (menuItem.name || '').toLowerCase();
+                        const customer = (product.user || '').toLowerCase();
+                        const receipt = (product.order_id || '').toLowerCase();
+
+                        return name.includes(searchTermLower) ||
+                            receipt.includes(searchTermLower) ||
+                            customer.includes(searchTermLower);
+                    });
+                } catch (err) {
+                    console.error("Error filtering by search:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by outlet
+        if (selectedOutlet) {
+            filtered = filtered.filter(product => {
+                try {
+                    const outletId = product.outlet?._id;
+                    return outletId === selectedOutlet;
+                } catch (err) {
+                    console.error("Error filtering by outlet:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by date range
+        if (dateRange && dateRange.startDate && dateRange.endDate) {
+            filtered = filtered.filter(product => {
+                try {
+                    if (!product.createdAt) {
+                        return false;
+                    }
+
+                    const productDate = new Date(product.createdAt);
+                    const startDate = new Date(dateRange.startDate);
+                    const endDate = new Date(dateRange.endDate);
+
+                    // Set time to beginning/end of day for proper comparison
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate.setHours(23, 59, 59, 999);
+
+                    // Check if dates are valid
+                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
+                        return false;
+                    }
+
+                    const isInRange = productDate >= startDate && productDate <= endDate;
+                    return isInRange;
+                } catch (err) {
+                    console.error("Error filtering by date:", err);
+                    return false;
+                }
+            });
+        }
+
+        setFilteredData(filtered);
+    }, [products, searchTerm, selectedOutlet, dateRange]);
+
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
+
     // Paginate the filtered data
     const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
         if (!Array.isArray(filteredData)) {
             console.error('filteredData is not an array:', filteredData);
             return [];
@@ -172,9 +323,7 @@ const SalesTransaction = () => {
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
     // Calculate grand totals for filtered data
-    const {
-        grandTotalFinal,
-    } = useMemo(() => {
+    const { grandTotalFinal } = useMemo(() => {
         const totals = {
             grandTotalFinal: 0,
         };
@@ -189,8 +338,7 @@ const SalesTransaction = () => {
                 if (!item) return;
 
                 const subtotal = Number(item.subtotal) || 0;
-
-                totals.grandTotalFinal += subtotal + pb1;
+                totals.grandTotalFinal += product?.grandTotal;
             } catch (err) {
                 console.error("Error calculating totals for product:", err);
             }
@@ -198,97 +346,6 @@ const SalesTransaction = () => {
 
         return totals;
     }, [filteredData]);
-
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
-                try {
-                    const searchTerm = tempSearch.toLowerCase();
-
-                    // Periksa semua items, bukan hanya items[0]
-                    return product.items?.some(item => {
-                        const menuItem = item?.menuItem;
-                        if (!menuItem) return false;
-
-                        const name = (menuItem.name || '').toLowerCase();
-                        const customer = (product.user || '').toLowerCase();
-                        const receipt = (product.order_id || '').toLowerCase();
-
-                        return name.includes(searchTerm) || receipt.includes(searchTerm) || customer.includes(searchTerm);
-                    });
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    const outletId = product.outlet?._id;
-
-                    return outletId === tempSelectedOutlet;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    }, [products, tempSearch, tempSelectedOutlet, value]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
-    // Initial load
-    useEffect(() => {
-        applyFilter();
-    }, []);
 
     // Show error state
     if (error) {
@@ -331,7 +388,7 @@ const SalesTransaction = () => {
                 </button>
             </div>
 
-            {/* Filters */}
+            {/* Filters & Table */}
             {loading ? (
                 <SalesTransactionTableSkeleton />
             ) : (
@@ -343,16 +400,16 @@ const SalesTransaction = () => {
                     formatDateTime={formatDateTime}
                     formatCurrency={formatCurrency}
                     options={options}
-                    tempSelectedOutlet={tempSelectedOutlet}
-                    setTempSelectedOutlet={setTempSelectedOutlet}
-                    value={value}
-                    setValue={setValue}
-                    tempSearch={tempSearch}
-                    setTempSearch={setTempSearch}
+                    selectedOutlet={selectedOutlet}
+                    handleOutletChange={handleOutletChange}
+                    dateRange={dateRange}
+                    handleDateRangeChange={handleDateRangeChange}
+                    searchTerm={searchTerm}
+                    handleSearchChange={handleSearchChange}
                     customSelectStyles={customSelectStyles}
                     receiptRef={receiptRef}
                     currentPage={currentPage}
-                    setCurrentPage={setCurrentPage}
+                    handlePageChange={handlePageChange}
                     totalPages={totalPages}
                     ITEMS_PER_PAGE={ITEMS_PER_PAGE}
                     filteredData={filteredData}

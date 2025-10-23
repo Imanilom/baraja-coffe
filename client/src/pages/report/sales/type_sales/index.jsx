@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
@@ -9,6 +9,7 @@ import TypeSalesSkeleton from "./skeleton";
 import Paginated from "../../../../components/paginated";
 
 const TypeSales = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const customStyles = {
         control: (provided, state) => ({
@@ -53,6 +54,7 @@ const TypeSales = () => {
     const [tempSearch, setTempSearch] = useState("");
     const [filteredData, setFilteredData] = useState([]);
     const [isExporting, setIsExporting] = useState(false);
+    const [isInitialized, setIsInitialized] = useState(false);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
@@ -60,6 +62,67 @@ const TypeSales = () => {
     const ITEMS_PER_PAGE = 50;
 
     const dropdownRef = useRef(null);
+
+    // Initialize filters from URL on component mount
+    useEffect(() => {
+        const page = parseInt(searchParams.get('page')) || 1;
+        const searchQuery = searchParams.get('search') || '';
+        const outlet = searchParams.get('outlet') || '';
+        const startDate = searchParams.get('startDate');
+        const endDate = searchParams.get('endDate');
+
+        setCurrentPage(page);
+        setTempSearch(searchQuery);
+        setTempSelectedOutlet(outlet);
+
+        if (startDate && endDate) {
+            setValue({
+                startDate: startDate,
+                endDate: endDate
+            });
+        } else {
+            // Set today's date as default
+            const today = new Date().toISOString().split('T')[0];
+            setValue({
+                startDate: today,
+                endDate: today
+            });
+        }
+
+        setIsInitialized(true);
+    }, []);
+
+    // Update URL when filters change
+    useEffect(() => {
+        if (!isInitialized) return;
+
+        const params = new URLSearchParams();
+
+        if (currentPage > 1) {
+            params.set('page', currentPage.toString());
+        }
+
+        if (tempSearch) {
+            params.set('search', tempSearch);
+        }
+
+        if (tempSelectedOutlet) {
+            params.set('outlet', tempSelectedOutlet);
+        }
+
+        if (value?.startDate && value?.endDate) {
+            // Convert to YYYY-MM-DD format
+            const formatDate = (dateStr) => {
+                const date = new Date(dateStr);
+                return date.toISOString().split('T')[0];
+            };
+
+            params.set('startDate', formatDate(value.startDate));
+            params.set('endDate', formatDate(value.endDate));
+        }
+
+        setSearchParams(params, { replace: true });
+    }, [currentPage, tempSearch, tempSelectedOutlet, value, isInitialized]);
 
     // Fetch products and outlets data
     const fetchData = async () => {
@@ -257,21 +320,10 @@ const TypeSales = () => {
 
     // Auto-apply filter whenever dependencies change
     useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
-    // Initial load
-    useEffect(() => {
-        applyFilter();
-    }, []);
-
-    useEffect(() => {
-        const today = new Date();
-        setValue({
-            startDate: today,
-            endDate: today,
-        });
-    }, []);
+        if (isInitialized) {
+            applyFilter();
+        }
+    }, [applyFilter, isInitialized]);
 
     // Export current data to Excel
     const exportToExcel = async () => {
