@@ -221,51 +221,56 @@ const Summary = () => {
         updateURLParams(dateRange, newOutlet);
     };
 
-    const groupedArray = useMemo(() => {
-        const grouped = {};
+    // Calculate summary data from filtered orders
+    const summaryData = useMemo(() => {
+        let penjualanKotor = 0;
+        let diskonPromo = 0;
+        let diskonPoin = 0;
+        let voidAmount = 0;
+        let pembulatan = 0;
+        let serviceCharge = 0;
 
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
+        filteredData.forEach(order => {
+            // Calculate from all items in the order
+            if (order.items && Array.isArray(order.items)) {
+                order.items.forEach(item => {
+                    const subtotal = Number(item?.subtotal) || 0;
+                    penjualanKotor += subtotal;
+                });
+            }
 
-            const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem.category
-                : [item.menuItem?.category || 'Uncategorized'];
-            const quantity = Number(item?.quantity) || 0;
-            const subtotal = Number(item?.subtotal) || 0;
-
-            categories.forEach(category => {
-                const key = `${category}`;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        category,
-                        quantity: 0,
-                        subtotal: 0
-                    };
-                }
-
-                grouped[key].quantity += quantity;
-                grouped[key].subtotal += subtotal;
-            });
+            // Add discounts if available in order
+            if (order.discountPromo) {
+                diskonPromo += Number(order.discountPromo) || 0;
+            }
+            if (order.discountPoints) {
+                diskonPoin += Number(order.discountPoints) || 0;
+            }
+            if (order.serviceCharge) {
+                serviceCharge += Number(order.serviceCharge) || 0;
+            }
+            if (order.rounding) {
+                pembulatan += Number(order.rounding) || 0;
+            }
         });
 
-        return Object.values(grouped);
-    }, [filteredData]);
+        // Calculate derived values
+        const penjualanBersih = penjualanKotor - diskonPromo - diskonPoin - voidAmount + pembulatan;
+        const pajak = penjualanBersih * 0.10; // 10% tax
+        const totalPenjualan = penjualanBersih + serviceCharge + pajak;
 
-    // Calculate grand totals for filtered data
-    const grandTotal = useMemo(() => {
-        return groupedArray.reduce(
-            (acc, curr) => {
-                acc.quantity += curr.quantity;
-                acc.subtotal += curr.subtotal;
-                return acc;
-            },
-            {
-                quantity: 0,
-                subtotal: 0,
-            }
-        );
-    }, [groupedArray]);
+        return {
+            penjualanKotor,
+            diskonPromo,
+            diskonPoin,
+            voidAmount,
+            pembulatan,
+            penjualanBersih,
+            serviceCharge,
+            pajak,
+            totalPenjualan
+        };
+    }, [filteredData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -282,7 +287,7 @@ const Summary = () => {
 
         try {
             // Small delay to show loading state
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             // Get outlet name and date range
             const outletName = selectedOutlet
@@ -293,16 +298,18 @@ const Summary = () => {
                 ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : 'Semua Tanggal';
 
-            // Calculate totals (using values from the table)
-            const penjualanKotor = grandTotal.subtotal;
-            const diskonPromo = 0; // You can calculate this based on your data
-            const diskonPoin = 0;
-            const voidAmount = 0;
-            const pembulatan = 0;
-            const penjualanBersih = penjualanKotor - diskonPromo - diskonPoin - voidAmount + pembulatan;
-            const serviceCharge = 0;
-            const pajak = grandTotal.subtotal * 0.10;
-            const totalPenjualan = penjualanBersih + serviceCharge + pajak;
+            // Use calculated summary data
+            const {
+                penjualanKotor,
+                diskonPromo,
+                diskonPoin,
+                voidAmount,
+                pembulatan,
+                penjualanBersih,
+                serviceCharge,
+                pajak,
+                totalPenjualan
+            } = summaryData;
 
             // Create export data with the summary format
             const exportData = [
@@ -336,7 +343,7 @@ const Summary = () => {
             ];
 
             // Apply bold styling to specific cells
-            const boldRows = [1, 6, 12, 15]; // Row indices for: Laporan Ringkasan, header Total Nominal, Penjualan Bersih, Total Penjualan
+            const boldRows = [0, 5, 11, 14]; // Row indices for: Laporan Ringkasan, header Total Nominal, Penjualan Bersih, Total Penjualan
 
             boldRows.forEach(rowIndex => {
                 const cellAddressCol1 = XLSX.utils.encode_cell({ r: rowIndex, c: 0 });
@@ -465,38 +472,46 @@ const Summary = () => {
                             <React.Fragment>
                                 <tr>
                                     <td className="font-medium text-gray-500 p-[15px]">Penjualan Kotor</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal) || 0}</td>
+                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.penjualanKotor)}</td>
                                 </tr>
                                 <tr>
                                     <td className="font-medium text-gray-500 p-[15px]">Diskon Promo</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
+                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.diskonPromo)}</td>
                                 </tr>
                                 <tr>
                                     <td className="font-medium text-gray-500 p-[15px]">Diskon Poin</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
+                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.diskonPoin)}</td>
                                 </tr>
                                 <tr>
                                     <td className="font-medium text-gray-500 p-[15px]">Void</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
+                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.voidAmount)}</td>
                                 </tr>
                                 <tr>
                                     <td className="font-medium text-gray-500 p-[15px]">Pembulatan</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(0)}</td>
+                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.pembulatan)}</td>
                                 </tr>
                                 <tr>
                                     <td className="font-medium text-gray-500 p-[15px]">Penjualan Bersih</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal) || 0}</td>
+                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.penjualanBersih)}</td>
+                                </tr>
+                                <tr>
+                                    <td className="font-medium text-gray-500 p-[15px]">Service Charge</td>
+                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.serviceCharge)}</td>
                                 </tr>
                                 <tr>
                                     <td className="font-medium text-gray-500 p-[15px]">Pajak</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(grandTotal.subtotal * 0.10)}</td>
+                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.pajak)}</td>
                                 </tr>
                             </React.Fragment>
                         </tbody>
                         <tfoot className="font-semibold text-sm border-t">
                             <tr>
                                 <td className="p-[15px]">Total</td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal + (grandTotal.subtotal * 0.10))}</p></td>
+                                <td className="p-[15px] text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(summaryData.totalPenjualan)}
+                                    </p>
+                                </td>
                             </tr>
                         </tfoot>
                     </table>
