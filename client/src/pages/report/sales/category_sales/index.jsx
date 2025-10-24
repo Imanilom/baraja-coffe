@@ -54,13 +54,13 @@ const CategorySales = () => {
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [filteredData, setFilteredData] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
+
+    const ITEMS_PER_PAGE = 50;
+    const dropdownRef = useRef(null);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
-
-    const dropdownRef = useRef(null);
 
     // Initialize from URL params or set default to today
     useEffect(() => {
@@ -94,10 +94,10 @@ const CategorySales = () => {
         if (pageParam) {
             setCurrentPage(parseInt(pageParam, 10));
         }
-    }, []);
+    }, [searchParams]);
 
     // Update URL when filters change
-    const updateURLParams = (newDateRange, newOutlet, newSearch, newPage) => {
+    const updateURLParams = useCallback((newDateRange, newOutlet, newSearch, newPage) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
@@ -120,7 +120,7 @@ const CategorySales = () => {
         }
 
         setSearchParams(params);
-    };
+    }, [setSearchParams]);
 
     // Fetch products and outlets data
     useEffect(() => {
@@ -175,7 +175,7 @@ const CategorySales = () => {
     };
 
     const handleOutletChange = (selected) => {
-        const newOutlet = selected.value;
+        const newOutlet = selected?.value || "";
         setSelectedOutlet(newOutlet);
         setCurrentPage(1);
         updateURLParams(dateRange, newOutlet, searchTerm, 1);
@@ -194,40 +194,157 @@ const CategorySales = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const options = [
+    const options = useMemo(() => [
         { value: "", label: "Semua Outlet" },
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
-    ];
+    ], [outlets]);
 
+    // Apply filter function - FIXED LOGIC
+    const applyFilter = useCallback(() => {
+        // Make sure products is an array before attempting to filter
+        let filtered = ensureArray([...products]);
+
+        // Filter by outlet FIRST
+        if (selectedOutlet) {
+            filtered = filtered.filter(product => {
+                try {
+                    // Fixed: Check if outlet array exists and has items
+                    if (!product?.cashier?.outlet || product.cashier.outlet.length === 0) {
+                        return false;
+                    }
+
+                    // Fixed: Compare by ID, not name
+                    const outletId = product.cashier.outlet[0]?.outletId?._id || product.cashier.outlet[0]?.outletId;
+                    return outletId === selectedOutlet;
+                } catch (err) {
+                    console.error("Error filtering by outlet:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by date range
+        if (dateRange?.startDate && dateRange?.endDate) {
+            filtered = filtered.filter(product => {
+                try {
+                    if (!product.createdAt) {
+                        return false;
+                    }
+
+                    const productDate = new Date(product.createdAt);
+                    const startDate = new Date(dateRange.startDate);
+                    const endDate = new Date(dateRange.endDate);
+
+                    // Set time to beginning/end of day for proper comparison
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate.setHours(23, 59, 59, 999);
+
+                    // Check if dates are valid
+                    if (isNaN(productDate.getTime()) || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                        return false;
+                    }
+
+                    return productDate >= startDate && productDate <= endDate;
+                } catch (err) {
+                    console.error("Error filtering by date:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by search term (category) - FIXED: Apply after other filters
+        if (searchTerm) {
+            filtered = filtered.flatMap(product => {
+                try {
+                    const searchTermLower = searchTerm.toLowerCase();
+
+                    // Process all items in the order, not just the first one
+                    return (product?.items || []).flatMap(item => {
+                        const menuItem = item?.menuItem;
+                        if (!menuItem) return [];
+
+                        // Handle category as string or object
+                        let categoryName = '';
+                        if (typeof menuItem.category === 'string') {
+                            categoryName = menuItem.category;
+                        } else if (menuItem.category?.name) {
+                            categoryName = menuItem.category.name;
+                        } else {
+                            categoryName = 'Uncategorized';
+                        }
+
+                        // Check if category matches search term
+                        const categoryLower = categoryName.toLowerCase();
+                        if (!categoryLower.includes(searchTermLower)) {
+                            return [];
+                        }
+
+                        // Return filtered product with single item
+                        return [{
+                            ...product,
+                            items: [{
+                                ...item,
+                                menuItem: {
+                                    ...menuItem,
+                                    category: categoryName
+                                }
+                            }]
+                        }];
+                    });
+                } catch (err) {
+                    console.error("Error filtering by search:", err);
+                    return [];
+                }
+            });
+        }
+
+        setFilteredData(filtered);
+    }, [products, searchTerm, selectedOutlet, dateRange]);
+
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
+
+    // Group data by category - FIXED LOGIC
     const groupedArray = useMemo(() => {
         const grouped = {};
 
         filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
+            // Process all items in the order
+            (product?.items || []).forEach(item => {
+                if (!item?.menuItem) return;
 
-            const categories = Array.isArray(item.menuItem?.category)
-                ? item.menuItem?.category?.name
-                : [item.menuItem?.category?.name || 'Uncategorized'];
-            const quantity = Number(item?.quantity) || 0;
-            const subtotal = Number(item?.subtotal) || 0;
+                // Handle category as string or object
+                let categoryName = '';
+                if (typeof item.menuItem.category === 'string') {
+                    categoryName = item.menuItem.category;
+                } else if (item.menuItem.category?.name) {
+                    categoryName = item.menuItem.category.name;
+                } else {
+                    categoryName = 'Uncategorized';
+                }
 
-            categories.forEach(category => {
-                const key = `${category}`;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        category,
+                const quantity = Number(item?.quantity) || 0;
+                const subtotal = Number(item?.subtotal) || 0;
+
+                if (!grouped[categoryName]) {
+                    grouped[categoryName] = {
+                        category: categoryName,
                         quantity: 0,
                         subtotal: 0
                     };
                 }
 
-                grouped[key].quantity += quantity;
-                grouped[key].subtotal += subtotal;
+                grouped[categoryName].quantity += quantity;
+                grouped[categoryName].subtotal += subtotal;
             });
         });
 
-        return Object.values(grouped);
+        // Sort by category name
+        return Object.values(grouped).sort((a, b) =>
+            a.category.localeCompare(b.category, 'id')
+        );
     }, [filteredData]);
 
     const paginatedData = useMemo(() => {
@@ -255,6 +372,7 @@ const CategorySales = () => {
     }, [groupedArray]);
 
     const formatCurrency = (amount) => {
+        if (isNaN(amount) || !isFinite(amount)) return 'Rp 0';
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
             currency: 'IDR',
@@ -263,111 +381,13 @@ const CategorySales = () => {
         }).format(amount);
     };
 
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
-
-        // Filter by search term (category)
-        if (searchTerm) {
-            filtered = filtered.flatMap(product => {
-                try {
-                    const searchTermLower = searchTerm.toLowerCase();
-                    const item = product?.items?.[0];
-                    const menuItem = item?.menuItem;
-                    if (!menuItem) return [];
-
-                    const categories = Array.isArray(menuItem.category)
-                        ? menuItem.category
-                        : [menuItem.category || 'Uncategorized'];
-
-                    // Pecah kategori menjadi entri produk terpisah
-                    return categories
-                        .filter(category => {
-                            const categoryLower = (category || '').toLowerCase();
-                            return !searchTermLower || categoryLower.includes(searchTermLower);
-                        })
-                        .map(category => ({
-                            ...product,
-                            items: [{
-                                ...item,
-                                menuItem: {
-                                    ...menuItem,
-                                    category: category
-                                }
-                            }]
-                        }));
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return [];
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (selectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === selectedOutlet;
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (dateRange && dateRange.startDate && dateRange.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(dateRange.startDate);
-                    const endDate = new Date(dateRange.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-    }, [products, searchTerm, selectedOutlet, dateRange]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
     // Export current data to Excel
     const exportToExcel = async () => {
         setIsExporting(true);
 
         try {
             // Small delay to show loading state
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             // Get outlet name
             const outletName = selectedOutlet
@@ -375,7 +395,7 @@ const CategorySales = () => {
                 : 'Semua Outlet';
 
             // Get date range
-            const dateRangeText = dateRange && dateRange.startDate && dateRange.endDate
+            const dateRangeText = dateRange?.startDate && dateRange?.endDate
                 ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : new Date().toLocaleDateString('id-ID');
 
@@ -391,20 +411,25 @@ const CategorySales = () => {
 
             // Add data rows from groupedArray
             groupedArray.forEach(group => {
+                const average = group.quantity > 0 ? Math.round(group.subtotal / group.quantity) : 0;
                 exportData.push({
                     col1: group.category || '-',
                     col2: group.quantity,
                     col3: group.subtotal,
-                    col4: Math.round(group.subtotal / group.quantity),
+                    col4: average,
                 });
             });
 
             // Add Grand Total row
+            const grandAverage = grandTotal.quantity > 0
+                ? Math.round(grandTotal.subtotal / grandTotal.quantity)
+                : 0;
+
             exportData.push({
                 col1: 'Grand Total',
                 col2: grandTotal.quantity,
                 col3: grandTotal.subtotal,
-                col4: Math.round(grandTotal.subtotal / grandTotal.quantity),
+                col4: grandAverage,
             });
 
             // Create worksheet
@@ -425,18 +450,6 @@ const CategorySales = () => {
             ws['!merges'] = [
                 { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } } // Merge title across 4 columns
             ];
-
-            // Apply bold styling to specific rows
-            const boldRows = [0, 5, exportData.length - 1]; // Title, Header, Grand Total
-
-            boldRows.forEach(rowIndex => {
-                for (let col = 0; col < 4; col++) {
-                    const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: col });
-                    if (ws[cellAddress]) {
-                        ws[cellAddress].s = { font: { bold: true } };
-                    }
-                }
-            });
 
             // Create workbook and add worksheet
             const wb = XLSX.utils.book_new();
@@ -460,9 +473,7 @@ const CategorySales = () => {
 
     // Show loading state
     if (loading) {
-        return (
-            <SalesCategorySkeleton />
-        );
+        return <SalesCategorySkeleton />;
     }
 
     // Show error state
@@ -485,7 +496,6 @@ const CategorySales = () => {
 
     return (
         <div className="">
-
             {/* Breadcrumb */}
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
@@ -574,33 +584,26 @@ const CategorySales = () => {
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {paginatedData.map((group, index) => {
-                                    try {
-                                        return (
-                                            <tr key={index} className="text-left text-sm hover:bg-gray-50">
-                                                <td className="px-4 py-3">
-                                                    {group.category}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {group.quantity || 'N/A'}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(group.subtotal) || 'N/A'}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(group.subtotal / group.quantity) || 'N/A'}
-                                                </td>
-                                            </tr>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="4" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
+                                    const average = group.quantity > 0
+                                        ? group.subtotal / group.quantity
+                                        : 0;
+
+                                    return (
+                                        <tr key={index} className="text-left text-sm hover:bg-gray-50">
+                                            <td className="px-4 py-3">
+                                                {group.category}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                {group.quantity.toLocaleString('id-ID')}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                {formatCurrency(group.subtotal)}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                {formatCurrency(average)}
+                                            </td>
+                                        </tr>
+                                    );
                                 })}
                             </tbody>
                         ) : (
@@ -615,7 +618,7 @@ const CategorySales = () => {
                                 <td className="px-4 py-2">Grand Total</td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {grandTotal.quantity.toLocaleString()}
+                                        {grandTotal.quantity.toLocaleString('id-ID')}
                                     </p>
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
@@ -625,7 +628,7 @@ const CategorySales = () => {
                                 </td>
                                 <td className="px-2 py-2 text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(grandTotal.subtotal / grandTotal.quantity)}
+                                        {formatCurrency(grandTotal.quantity > 0 ? grandTotal.subtotal / grandTotal.quantity : 0)}
                                     </p>
                                 </td>
                             </tr>
@@ -638,7 +641,6 @@ const CategorySales = () => {
                     setCurrentPage={handlePageChange}
                     totalPages={totalPages}
                 />
-
             </div>
         </div>
     );

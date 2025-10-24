@@ -950,28 +950,28 @@ class PrinterService {
     // Logo
     bytes.addAll(generator.feed(2));
     bytes.addAll(
-      // await generateOptimizedLogoBytes(
-      //   generator,
-      //   // 'assets/logo/logo_baraja.svg',
-      //   // 'assets/logo/logo_baraja.webp',
-      //   'assets/logo/logo_baraja.png',
-      //   paperSize,
-      // ),
-      generator.text(
-        'Baraja Amphitheater',
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size2,
-        ),
+      await generateBasicLogoBytes(
+        generator,
+        // 'assets/logo/logo_baraja.svg',
+        // 'assets/logo/logo_baraja.webp',
+        'assets/logo/logo_baraja.png',
+        paperSize,
       ),
+      // generator.text(
+      //   'Baraja Amphitheater',
+      //   styles: const PosStyles(
+      //     align: PosAlign.center,
+      //     bold: true,
+      //     height: PosTextSize.size2,
+      //   ),
+      // ),
     );
     bytes.addAll(generator.feed(1));
 
     // Alamat Toko
     bytes.addAll(
       generator.text(
-        'Baraja Amphitheater, Jl. Tuparev No. 60, Kedungjaya, Kec. Kedawung, Kab. Cirebon, Jawa Barat 45153, Indonesia, KABUPATEN CIREBON\n0851-1708-9827',
+        'Jl. Tuparev No. 60, Kec. Kedawung, Kab. Cirebon, 45153\n0851-1708-9827',
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
@@ -1144,7 +1144,10 @@ class PrinterService {
                 text: item.selectedAddons
                     .map((x) {
                       final addon =
-                          "${x.name}: ${x.options!.map((x) => x.label).join(', ')}";
+                          "${x.name}: ${x.options!.map((x) {
+                            final option = "${x.label}${x.price != 0 ? '(+${x.price})' : ''}";
+                            return option;
+                          }).join(', ')}";
                       return addon;
                     })
                     .join(', '),
@@ -1808,7 +1811,11 @@ class PrinterService {
     // Header
     bytes.addAll(
       generator.text(
-        'Check Out',
+        orderDetail.paymentStatus == null
+            ? 'Pending'
+            : orderDetail.paymentStatus!.toLowerCase() == 'settlement'
+            ? 'Lunas'
+            : 'Belum Lunas',
         styles: const PosStyles(
           align: PosAlign.center,
           bold: true,
@@ -1825,19 +1832,29 @@ class PrinterService {
         ),
       );
     }
-
-    bytes.addAll(generator.feed(1));
-    // Bill Data
     bytes.addAll(
-      await generateBillDataBytes(
-        generator,
-        paperSize,
-        orderDetail.orderId,
-        orderDetail.user,
-        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
-        orderDetail.tableNumber,
+      generator.text(
+        orderDetail.orderId ?? 'Order ID',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+        ),
       ),
     );
+    bytes.addAll(generator.feed(1));
+
+    // Bill Data
+    // bytes.addAll(
+    //   await generateBillDataBytes(
+    //     generator,
+    //     paperSize,
+    //     orderDetail.orderId,
+    //     orderDetail.user,
+    //     OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+    //     orderDetail.tableNumber,
+    //   ),
+    // );
 
     bytes.addAll(generator.hr());
 
@@ -1875,6 +1892,23 @@ class PrinterService {
       );
     }
     bytes.addAll(generator.hr());
+
+    bytes.addAll(generator.feed(1));
+    if (orderDetail.tableNumber != null &&
+        orderDetail.tableNumber!.isNotEmpty) {
+      bytes.addAll(
+        generator.text(
+          'Meja ${orderDetail.tableNumber}',
+          styles: const PosStyles(
+            align: PosAlign.center,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          ),
+        ),
+      );
+    }
+    bytes.addAll(generator.feed(1));
     bytes.addAll(
       generator.text(
         'Selesai',
@@ -1912,7 +1946,7 @@ class PrinterService {
     bytes.addAll(generator.feed(1));
     bytes.addAll(
       generator.text(
-        'Terima kasih telah berbelanja di Baraja Amphitheater',
+        'Mari Menjadi Bagian Budaya di Baraja Amphitheater',
         styles: const PosStyles(align: PosAlign.center),
       ),
     );

@@ -5,6 +5,7 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser } from "react-icons/fa"
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
+import UnderDevelopment from "../../../../components/repair";
 
 const DailyProfitManagement = () => {
     const customSelectStyles = {
@@ -328,112 +329,114 @@ const DailyProfitManagement = () => {
     }
 
     return (
-        <div className="">
+        // <div className="">
 
-            {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <p>Laporan</p>
-                    <FaChevronRight />
-                    <Link to="/admin/profit-menu">Laporan Laba Rugi</Link>
-                    <FaChevronRight />
-                    <span>Laba Harian</span>
-                </div>
-                {/* <button
-                    onClick={exportToExcel} 
-                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button> */}
-            </div>
+        //     {/* Breadcrumb */}
+        //     <div className="flex justify-between items-center px-6 py-3 my-3">
+        //         <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+        //             <p>Laporan</p>
+        //             <FaChevronRight />
+        //             <Link to="/admin/profit-menu">Laporan Laba Rugi</Link>
+        //             <FaChevronRight />
+        //             <span>Laba Harian</span>
+        //         </div>
+        //         {/* <button
+        //             onClick={exportToExcel} 
+        //             className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button> */}
+        //     </div>
 
-            {/* Filters */}
-            <div className="px-6">
-                <div className="flex justify-between py-3">
-                    <div className="w-2/5">
-                        <div className="relative text-gray-500">
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
-                        </div>
-                    </div>
-                    <div className="w-1/5">
-                        <div className="relative">
-                            <Select
-                                className="text-sm"
-                                classNamePrefix="react-select"
-                                placeholder="Pilih Outlet"
-                                options={options}
-                                isSearchable
-                                value={
-                                    options.find((opt) => opt.value === tempSelectedOutlet) || options[0]
-                                }
-                                onChange={(selected) => setTempSelectedOutlet(selected.value)}
-                                styles={customSelectStyles}
-                            />
-                        </div>
-                    </div>
-                    {/* <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
-                    </div> */}
-                </div>
+        //     {/* Filters */}
+        //     <div className="px-6">
+        //         <div className="flex justify-between py-3">
+        //             <div className="w-2/5">
+        //                 <div className="relative text-gray-500">
+        //                     <Datepicker
+        //                         showFooter
+        //                         showShortcuts
+        //                         value={value}
+        //                         onChange={setValue}
+        //                         displayFormat="DD-MM-YYYY"
+        //                         inputClassName="w-full text-[13px] border py-[6px] pr-[25px] pl-[12px] rounded cursor-pointer"
+        //                         popoverDirection="down"
+        //                     />
+        //                 </div>
+        //             </div>
+        //             <div className="w-1/5">
+        //                 <div className="relative">
+        //                     <Select
+        //                         className="text-sm"
+        //                         classNamePrefix="react-select"
+        //                         placeholder="Pilih Outlet"
+        //                         options={options}
+        //                         isSearchable
+        //                         value={
+        //                             options.find((opt) => opt.value === tempSelectedOutlet) || options[0]
+        //                         }
+        //                         onChange={(selected) => setTempSelectedOutlet(selected.value)}
+        //                         styles={customSelectStyles}
+        //                     />
+        //                 </div>
+        //             </div>
+        //             {/* <div className="flex justify-end space-x-2 items-end col-span-2">
+        //                 <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
+        //                 <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+        //             </div> */}
+        //         </div>
 
-                {/* Table */}
-                <div className="rounded shadow-md bg-white shadow-slate-200">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-[14px] text-gray-400">
-                            <tr>
-                                <th className="px-4 py-4 text-left font-normal">Tanggal</th>
-                                <th className="px-4 py-4 text-left font-normal">Penjualan Kotor</th>
-                                <th className="px-4 py-4 text-left font-normal">Diskon</th>
-                                <th className="px-4 py-4 text-right font-normal">Pembulatan</th>
-                                <th className="px-4 py-4 text-right font-normal">Pembelian</th>
-                                <th className="px-4 py-4 text-right font-normal">Laba Kotor</th>
-                                <th className="px-4 py-4 text-right font-normal">% Laba Kotor</th>
-                            </tr>
-                        </thead>
-                        {filteredData.length > 0 ? (
-                            <tbody>
-                                {filteredData.map((item, i) => {
-                                    return (
-                                        <tr key={i} className="hover:bg-gray-50 text-gray-500">
-                                            <td className="p-[15px]">{formatDate(item.tanggal)}</td>
-                                            <td className="p-[15px] text-right">{formatRupiah(item.penjualankotor)}</td>
-                                            <td className="p-[15px] text-right">{formatRupiah(item.discount)}</td>
-                                            <td className="p-[15px] text-right">{formatRupiah(item.pembulatan)}</td>
-                                            <td className="p-[15px] text-right">{formatRupiah(item.pembelian)}</td>
-                                            <td className="p-[15px] text-right">{formatRupiah(item.labakotor)}</td>
-                                            <td className="p-[15px] text-right">{item.total}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96 text-gray-500">
-                                    <td colSpan={7} className="uppercase">Data tidak di temukan</td>
-                                </tr>
-                            </tbody>
-                        )}
-                        <tfoot className="border-t font-semibold text-sm">
-                            <tr>
-                                <td className="p-[15px]">Grand Total</td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{(0) + "%"}</p></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
-        </div>
+        //         {/* Table */}
+        //         <div className="rounded shadow-md bg-white shadow-slate-200">
+        //             <table className="min-w-full table-auto">
+        //                 <thead className="text-[14px] text-gray-400">
+        //                     <tr>
+        //                         <th className="px-4 py-4 text-left font-normal">Tanggal</th>
+        //                         <th className="px-4 py-4 text-left font-normal">Penjualan Kotor</th>
+        //                         <th className="px-4 py-4 text-left font-normal">Diskon</th>
+        //                         <th className="px-4 py-4 text-right font-normal">Pembulatan</th>
+        //                         <th className="px-4 py-4 text-right font-normal">Pembelian</th>
+        //                         <th className="px-4 py-4 text-right font-normal">Laba Kotor</th>
+        //                         <th className="px-4 py-4 text-right font-normal">% Laba Kotor</th>
+        //                     </tr>
+        //                 </thead>
+        //                 {filteredData.length > 0 ? (
+        //                     <tbody>
+        //                         {filteredData.map((item, i) => {
+        //                             return (
+        //                                 <tr key={i} className="hover:bg-gray-50 text-gray-500">
+        //                                     <td className="p-[15px]">{formatDate(item.tanggal)}</td>
+        //                                     <td className="p-[15px] text-right">{formatRupiah(item.penjualankotor)}</td>
+        //                                     <td className="p-[15px] text-right">{formatRupiah(item.discount)}</td>
+        //                                     <td className="p-[15px] text-right">{formatRupiah(item.pembulatan)}</td>
+        //                                     <td className="p-[15px] text-right">{formatRupiah(item.pembelian)}</td>
+        //                                     <td className="p-[15px] text-right">{formatRupiah(item.labakotor)}</td>
+        //                                     <td className="p-[15px] text-right">{item.total}</td>
+        //                                 </tr>
+        //                             );
+        //                         })}
+        //                     </tbody>
+        //                 ) : (
+        //                     <tbody>
+        //                         <tr className="py-6 text-center w-full h-96 text-gray-500">
+        //                             <td colSpan={7} className="uppercase">Data tidak di temukan</td>
+        //                         </tr>
+        //                     </tbody>
+        //                 )}
+        //                 <tfoot className="border-t font-semibold text-sm">
+        //                     <tr>
+        //                         <td className="p-[15px]">Grand Total</td>
+        //                         <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
+        //                         <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
+        //                         <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
+        //                         <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
+        //                         <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
+        //                         <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{(0) + "%"}</p></td>
+        //                     </tr>
+        //                 </tfoot>
+        //             </table>
+        //         </div>
+        //     </div>
+        // </div>
+
+        <UnderDevelopment />
     );
 };
 

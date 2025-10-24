@@ -70,7 +70,9 @@ const TaxRevenueManagement = () => {
             try {
                 // Fetch tax data
                 const responseOrder = await axios.get("/api/orders");
-                const dataOrder = responseOrder.data.data ? responseOrder.data.data : responseOrder.data
+                const dataOrder = responseOrder.data.data ? responseOrder.data.data : responseOrder.data;
+
+                const completedData = dataOrder.filter(item => item.status === "Completed");
 
                 const apiTax = await axios.get("/api/tax-service");
                 const taxData = apiTax.data.data ? apiTax.data.data : apiTax.data;
@@ -82,7 +84,7 @@ const TaxRevenueManagement = () => {
                 });
 
                 // Enrich dataOrder dengan percentage dari taxData
-                const enrichedData = dataOrder.map(order => ({
+                const enrichedData = completedData.map(order => ({
                     ...order,
                     taxAndServiceDetails: order.taxAndServiceDetails?.map(taxService => ({
                         ...taxService,

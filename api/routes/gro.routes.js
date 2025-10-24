@@ -4,7 +4,7 @@ import {
     getReservations,
     getReservationDetail,
     confirmReservation,
-    completeReservation,
+    // completeReservation,
     cancelReservation,
     closeOpenBill,
     getTableAvailability,
@@ -17,7 +17,8 @@ import {
     // Ganti nama method controller ke versi "dine-in"
     checkInDineInOrder,
     checkOutDineInOrder,
-    getOrderDetail
+    getOrderDetail,
+    cancelDineInOrder
 } from '../controllers/gro.controller.js';
 import { authMiddleware } from '../utils/verifyUser.js';
 
@@ -31,7 +32,7 @@ router.get('/reservations', authMiddleware, getReservations);
 router.post('/reservations', authMiddleware, createReservation);
 router.get('/reservations/:id', authMiddleware, getReservationDetail);
 router.put('/reservations/:id/confirm', authMiddleware, confirmReservation);
-router.put('/reservations/:id/complete', authMiddleware, completeReservation);
+// router.put('/reservations/:id/complete', authMiddleware, completeReservation);
 router.put('/reservations/:id/cancel', authMiddleware, cancelReservation);
 router.put('/reservations/:id/close-open-bill', authMiddleware, closeOpenBill);
 router.put('/reservations/:id/check-in', authMiddleware, checkInReservation);
@@ -43,6 +44,9 @@ router.put('/orders/:orderId/complete', authMiddleware, completeTableOrder);
 
 // ✅ Dine-in order actions (replaced "walk-in" with "dine-in")
 router.put('/orders/:orderId/dine-in/check-in', authMiddleware, checkInDineInOrder);
+
+router.put('/orders/:orderId/cancel', authMiddleware, cancelDineInOrder);
+
 router.put('/orders/:orderId/dine-in/check-out', authMiddleware, checkOutDineInOrder);
 
 // Order detail (used by tracking, GRO, etc.)

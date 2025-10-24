@@ -79,7 +79,7 @@ class _ConfirmOrderButtonState extends ConsumerState<ConfirmOrderButton> {
     return ElevatedButton(
       onPressed: () {
         _confirmOrder(context, ref);
-        // Navigator.of(context).pop();
+        Navigator.of(context).pop();
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.blue,

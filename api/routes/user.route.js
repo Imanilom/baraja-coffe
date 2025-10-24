@@ -42,7 +42,7 @@ router.delete('/delete/:id', verifyToken(["customer", "admin", "superadmin"]), d
 router.put('/assign-outlets/:id', adminAccess, assignOutlets);
 
 // List staff dengan filter (hanya admin/superadmin)
-router.get('/staff', adminAccess, listStaff);
+router.get('/staff', listStaff);
 
 // Create karyawan baru (hanya admin/superadmin)
 router.post('/create', adminAccess, createEmployee);
