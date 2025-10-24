@@ -81,16 +81,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF2E7D32),
-              Color(0xFF4CAF50),
-            ], // Dark green to medium green
-          ),
-        ),
+        color: Colors.white,
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -118,18 +109,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  Icons.store,
-                                  size: 80,
-                                  color: Colors.white.withOpacity(0.9),
-                                ),
                                 const SizedBox(height: 24),
                                 Text(
                                   'Selamat Datang',
                                   style: TextStyle(
-                                    fontSize: 32,
+                                    fontSize: 44,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.white.withOpacity(0.9),
+                                    color: Colors.green[700],
                                   ),
                                 ),
                                 const SizedBox(height: 12),
@@ -137,7 +123,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   'Sistem Kasir',
                                   style: TextStyle(
                                     fontSize: 18,
-                                    color: Colors.white.withOpacity(0.8),
+                                    color: Colors.green[700],
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -145,7 +131,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   'Masuk untuk mengelola sistem kasir Anda',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: Colors.white.withOpacity(0.7),
+                                    color: Colors.grey[600],
                                   ),
                                 ),
                               ],

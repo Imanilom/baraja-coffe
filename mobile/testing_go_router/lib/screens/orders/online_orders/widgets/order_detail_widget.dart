@@ -228,8 +228,10 @@ class OrderDetailWidget extends ConsumerWidget {
                   builder: (dialogCtx) {
                     return AlertDialog(
                       title: const Text('Konfirmasi'),
-                      content: const Text(
-                        'Apakah Anda yakin ingin mengganti order item?',
+                      content: Text(
+                        order.items.isEmpty
+                            ? 'Apakah Anda yakin ingin menambahkan order item?'
+                            : 'Apakah Anda yakin ingin mengganti order item?',
                       ),
                       actions: [
                         TextButton(
@@ -242,7 +244,7 @@ class OrderDetailWidget extends ConsumerWidget {
                         TextButton(
                           onPressed: () => Navigator.of(dialogCtx).pop(true),
                           child: const Text(
-                            'Ya, Ganti',
+                            'Lanjutkan',
                             // atau: const Text('Ya, Ganti', style: TextStyle(color: Colors.red)),
                           ),
                         ),
@@ -252,8 +254,12 @@ class OrderDetailWidget extends ConsumerWidget {
                 );
 
                 if (confirm == true) {
+                  //fitur belum tersedia
                   if (!context.mounted) return;
-                  context.push('/${order.id}/edit-order-item', extra: order);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Maaf Fitur Belum Jadi!!')),
+                  );
+                  // context.push('/${order.id}/edit-order-item', extra: order);
                 }
               },
             ),
