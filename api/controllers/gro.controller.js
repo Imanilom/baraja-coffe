@@ -1006,7 +1006,73 @@ export const createReservation = async (req, res) => {
   }
 };
 
-// ✅ FIXED: getReservations dengan filter yang benar untuk dine-in orders
+// controllers/groController.js - FIXED VERSION
+
+// controllers/groController.js - FIXED VERSION
+
+// ✅ GET /api/gro/reservations/:id - Get single reservation detail
+export const getReservationDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const reservation = await Reservation.findById(id)
+      .populate('area_id', 'area_name area_code capacity description')
+      .populate('table_id', 'table_number seats table_type')
+      .populate('created_by.employee_id', 'username email')
+      .populate('checked_in_by.employee_id', 'username email')
+      .populate('checked_out_by.employee_id', 'username email')
+      .populate({
+        path: 'order_id',
+        select: '_id order_id items grandTotal totalBeforeDiscount totalAfterDiscount totalTax totalServiceFee status paymentMethod',
+        populate: {
+          path: 'items.menuItem',
+          select: 'name price imageURL'
+        }
+      });
+
+    if (!reservation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reservation not found'
+      });
+    }
+
+    // ✅ PERBAIKAN: Format order_id untuk konsistensi
+    const formattedReservation = reservation.toObject();
+
+    // Jika order_id adalah populated object, pastikan struktur konsisten
+    if (formattedReservation.order_id && typeof formattedReservation.order_id === 'object') {
+      // Sudah dalam format yang benar (populated)
+      // Pastikan _id ada
+      formattedReservation.order_id = {
+        _id: formattedReservation.order_id._id,
+        order_id: formattedReservation.order_id.order_id,
+        items: formattedReservation.order_id.items || [],
+        grandTotal: formattedReservation.order_id.grandTotal,
+        totalBeforeDiscount: formattedReservation.order_id.totalBeforeDiscount,
+        totalAfterDiscount: formattedReservation.order_id.totalAfterDiscount,
+        totalTax: formattedReservation.order_id.totalTax,
+        totalServiceFee: formattedReservation.order_id.totalServiceFee,
+        status: formattedReservation.order_id.status,
+        paymentMethod: formattedReservation.order_id.paymentMethod
+      };
+    }
+
+    res.json({
+      success: true,
+      data: formattedReservation
+    });
+  } catch (error) {
+    console.error('Error fetching reservation detail:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching reservation detail',
+      error: error.message
+    });
+  }
+};
+
+// ✅ FIXED: getReservations dengan format order_id yang konsisten
 export const getReservations = async (req, res) => {
   try {
     const {
@@ -1063,7 +1129,10 @@ export const getReservations = async (req, res) => {
     const reservations = await Reservation.find(reservationFilter)
       .populate('area_id', 'area_name area_code capacity')
       .populate('table_id', 'table_number seats')
-      .populate('order_id', 'order_id grandTotal status')
+      .populate({
+        path: 'order_id',
+        select: '_id order_id grandTotal status' // ✅ Selalu include _id
+      })
       .populate('created_by.employee_id', 'username')
       .populate('checked_in_by.employee_id', 'username')
       .populate('checked_out_by.employee_id', 'username')
@@ -1071,38 +1140,46 @@ export const getReservations = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
-    // ========== FILTER UNTUK DINE-IN ORDERS (FIXED) ==========
+    // ✅ Format reservations untuk konsistensi
+    const formattedReservations = reservations.map(reservation => {
+      const resObj = reservation.toObject();
+
+      // Jika order_id populated, pastikan struktur konsisten
+      if (resObj.order_id && typeof resObj.order_id === 'object') {
+        resObj.order_id = {
+          _id: resObj.order_id._id,
+          order_id: resObj.order_id.order_id,
+          grandTotal: resObj.order_id.grandTotal,
+          status: resObj.order_id.status
+        };
+      }
+
+      return resObj;
+    });
+
+    // ========== FILTER UNTUK DINE-IN ORDERS ==========
     const orderFilter = {
       orderType: 'Dine-In'
     };
 
-    // ✅ PERBAIKAN: Mapping status filter ke status Order yang sesuai
     if (status) {
       switch (status) {
         case 'pending':
-          // Untuk filter "pending/menunggu", ambil order dengan status Pending atau Waiting
           orderFilter.status = { $in: ['Pending', 'Waiting'] };
           break;
         case 'active':
-          // Untuk filter "active/berlangsung", ambil order dengan status OnProcess
           orderFilter.status = 'OnProcess';
           break;
         case 'completed':
-          // Untuk filter "completed/selesai", ambil order dengan status Completed
           orderFilter.status = 'Completed';
           break;
         case 'cancelled':
-          // Untuk filter "cancelled/dibatalkan", ambil order dengan status Canceled
           orderFilter.status = 'Canceled';
           break;
         default:
-          // Jika tidak ada filter atau 'all', ambil semua kecuali yang sudah punya reservation
-          // Tidak perlu filter status khusus
           break;
       }
     } else {
-      // Jika tidak ada filter status (tampilkan semua), 
-      // ambil yang belum completed/canceled saja untuk menghindari duplikasi
       orderFilter.status = { $nin: ['Canceled', 'Completed'] };
     }
 
@@ -1141,7 +1218,7 @@ export const getReservations = async (req, res) => {
       .populate('cashierId', 'username')
       .populate('groId', 'username')
       .sort({ createdAt: -1 })
-      .select('order_id orderType grandTotal status tableNumber type createdAt cashierId groId user');
+      .select('_id order_id orderType grandTotal status tableNumber type createdAt cashierId groId user');
 
     const dineInOrders = await dineInOrdersQuery.lean();
 
@@ -1183,9 +1260,9 @@ export const getReservations = async (req, res) => {
     // Transform dine-in orders to match reservation structure
     const transformedOrders = filteredOrders.map(order => ({
       _id: order._id,
-      type: 'dine-in-order', // Flag to identify it's from Order table
+      type: 'dine-in-order',
       reservation_code: order.order_id,
-      status: order.status, // ✅ Gunakan status asli dari Order
+      status: order.status,
       guest_count: 1,
       reservation_date: order.createdAt,
       reservation_time: new Date(order.createdAt).toLocaleTimeString('id-ID', {
@@ -1195,6 +1272,7 @@ export const getReservations = async (req, res) => {
       }),
       area_id: order.areaInfo,
       table_id: order.tableInfo ? [order.tableInfo] : [],
+      // ✅ Format order_id dengan struktur konsisten
       order_id: {
         _id: order._id,
         order_id: order.order_id,
@@ -1206,11 +1284,11 @@ export const getReservations = async (req, res) => {
         timestamp: order.createdAt
       },
       notes: `Dine-In customer - ${order.user || 'Guest'}`,
-      createdAt: order.createdAt // ✅ Tambahkan untuk sorting
+      createdAt: order.createdAt
     }));
 
     // Combine and sort both datasets
-    const combinedData = [...reservations, ...transformedOrders]
+    const combinedData = [...formattedReservations, ...transformedOrders]
       .sort((a, b) => {
         const dateA = new Date(a.reservation_date || a.createdAt);
         const dateB = new Date(b.reservation_date || b.createdAt);
@@ -1334,49 +1412,6 @@ export const getOrderDetail = async (req, res) => {
   }
 };
 
-// GET /api/gro/reservations/:id - Get single reservation detail
-export const getReservationDetail = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const reservation = await Reservation.findById(id)
-      .populate('area_id', 'area_name area_code capacity description')
-      .populate('table_id', 'table_number seats table_type')
-      .populate('created_by.employee_id', 'username email')
-      .populate('checked_in_by.employee_id', 'username email')
-      .populate('checked_out_by.employee_id', 'username email')
-      .populate({
-        path: 'order_id',
-        select: 'order_id items grandTotal totalBeforeDiscount totalAfterDiscount totalTax totalServiceFee status paymentMethod',
-        populate: {
-          path: 'items.menuItem',
-          select: 'name price imageURL'
-        }
-      });
-
-    if (!reservation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Reservation not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: reservation
-    });
-  } catch (error) {
-    console.error('Error fetching reservation detail:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching reservation detail',
-      error: error.message
-    });
-  }
-};
-
-// PUT /api/gro/reservations/:id/confirm - Confirm reservation
-// PUT /api/gro/reservations/:id/confirm - Confirm reservation
 // ✅ FIXED: Update order status ke Reserved saat konfirmasi
 export const confirmReservation = async (req, res) => {
   const session = await mongoose.startSession();

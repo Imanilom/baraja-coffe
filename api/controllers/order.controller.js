@@ -242,10 +242,11 @@ export const createAppOrder = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid order type' });
     }
 
-    // ✅ TAMBAHAN: Tentukan status order berdasarkan GRO mode
-    let orderStatus = 'Pending'; // Default status
+    // ✅ PERBAIKAN: Tentukan status order berdasarkan GRO mode
+    let orderStatus = 'Pending'; // Default status untuk semua order dari App
 
     if (isGroMode) {
+      // Hanya GRO yang bisa set status selain Pending
       if (orderType === 'reservation') {
         orderStatus = 'Reserved';
       } else if (orderType === 'dineIn') {
@@ -255,8 +256,9 @@ export const createAppOrder = async (req, res) => {
       }
       console.log('✅ GRO Mode - Status order:', orderStatus);
     } else {
-      // Normal user flow
-      orderStatus = orderType === 'reservation' ? 'Reserved' : 'Pending';
+      // Order dari App (bukan GRO) selalu Pending, termasuk reservasi
+      orderStatus = 'Pending';
+      console.log('✅ App Mode - Status order: Pending (including reservations)');
     }
 
     // ✅ TAMBAHAN: Siapkan data created_by
