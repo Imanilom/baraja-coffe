@@ -140,6 +140,7 @@ export const createAppOrder = async (req, res) => {
     let userExists = null;
     let finalUserId = null;
     let finalUserName = userName || 'Guest';
+    let groUser = null; // ✅ TAMBAHAN: Simpan data GRO
 
     if (isGroMode) {
       // Untuk GRO mode, validasi GRO yang login
@@ -147,8 +148,8 @@ export const createAppOrder = async (req, res) => {
         return res.status(400).json({ success: false, message: 'GRO ID is required for GRO mode' });
       }
 
-      const groExists = await User.findById(groId);
-      if (!groExists) {
+      groUser = await User.findById(groId);
+      if (!groUser) {
         return res.status(404).json({ success: false, message: 'GRO not found' });
       }
 
@@ -240,6 +241,38 @@ export const createAppOrder = async (req, res) => {
       default:
         return res.status(400).json({ success: false, message: 'Invalid order type' });
     }
+
+    // ✅ PERBAIKAN: Tentukan status order berdasarkan GRO mode
+    let orderStatus = 'Pending'; // Default status untuk semua order dari App
+
+    if (isGroMode) {
+      // Hanya GRO yang bisa set status selain Pending
+      if (orderType === 'reservation') {
+        orderStatus = 'Reserved';
+      } else if (orderType === 'dineIn') {
+        orderStatus = 'OnProcess';
+      } else {
+        orderStatus = 'Pending'; // Untuk orderType lainnya tetap Pending
+      }
+      console.log('✅ GRO Mode - Status order:', orderStatus);
+    } else {
+      // Order dari App (bukan GRO) selalu Pending, termasuk reservasi
+      orderStatus = 'Pending';
+      console.log('✅ App Mode - Status order: Pending (including reservations)');
+    }
+
+    // ✅ TAMBAHAN: Siapkan data created_by
+    const createdByData = isGroMode && groUser ? {
+      employee_id: groUser._id,
+      employee_name: groUser.username || 'Unknown GRO',
+      created_at: new Date()
+    } : {
+      employee_id: null,
+      employee_name: null,
+      created_at: new Date()
+    };
+
+    console.log('✅ Created by data:', createdByData);
 
     // Handle pickup time
     let parsedPickupTime = null;
@@ -394,13 +427,33 @@ export const createAppOrder = async (req, res) => {
       existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
       existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
 
+      // ✅ TAMBAHAN: Update status jika dari GRO mode
+      if (isGroMode) {
+        if (orderType === 'dineIn') {
+          existingOrder.status = 'OnProcess';
+        }
+        // Update created_by jika belum ada
+        if (!existingOrder.created_by?.employee_id) {
+          existingOrder.created_by = createdByData;
+        }
+        // Update groId jika belum ada
+        if (!existingOrder.groId) {
+          existingOrder.groId = groId;
+        }
+        // Update source jika belum Gro
+        if (existingOrder.source !== 'Gro') {
+          existingOrder.source = 'Gro';
+        }
+      }
+
       await existingOrder.save();
       newOrder = existingOrder;
 
       console.log('✅ Updated existing order with new items and recalculated tax:', {
         totalTax: existingOrder.totalTax,
         totalServiceFee: existingOrder.totalServiceFee,
-        grandTotal: existingOrder.grandTotal
+        grandTotal: existingOrder.grandTotal,
+        status: existingOrder.status
       });
     }
     else if (isOpenBill && !existingOrder) {
@@ -415,7 +468,7 @@ export const createAppOrder = async (req, res) => {
         cashier: null,
         groId: isGroMode ? groId : null,
         items: orderItems,
-        status: 'Reserved',
+        status: orderStatus, // ✅ Gunakan status yang sudah ditentukan
         paymentMethod: paymentDetails.method,
         orderType: formattedOrderType,
         deliveryAddress: deliveryAddress || '',
@@ -434,10 +487,11 @@ export const createAppOrder = async (req, res) => {
         taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,
         grandTotal: grandTotal,
         promotions: [],
-        source: 'App',
+        source: isGroMode ? 'Gro' : 'App', // ✅ Set source berdasarkan mode
         reservation: existingReservation?._id || null,
         isOpenBill: true,
         originalReservationId: openBillData.reservationId,
+        created_by: createdByData, // ✅ Tambahkan created_by
       });
       await newOrder.save();
 
@@ -455,7 +509,7 @@ export const createAppOrder = async (req, res) => {
         cashier: null,
         groId: isGroMode ? groId : null,
         items: orderItems,
-        status: orderType === 'reservation' ? 'Reserved' : 'Pending',
+        status: orderStatus, // ✅ Gunakan status yang sudah ditentukan
         paymentMethod: paymentDetails.method,
         orderType: formattedOrderType,
         deliveryAddress: deliveryAddress || '',
@@ -475,8 +529,9 @@ export const createAppOrder = async (req, res) => {
         taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,
         grandTotal: grandTotal,
         promotions: [],
-        source: 'App',
+        source: isGroMode ? 'Gro' : 'App', // ✅ Set source berdasarkan mode
         reservation: null,
+        created_by: createdByData, // ✅ Tambahkan created_by
       });
       await newOrder.save();
     }
@@ -486,13 +541,16 @@ export const createAppOrder = async (req, res) => {
     console.log('✅ Verified saved order:', {
       orderId: savedOrder._id,
       order_id: savedOrder.order_id,
+      status: savedOrder.status,
+      source: savedOrder.source,
+      created_by: savedOrder.created_by,
       totalTax: savedOrder.totalTax,
       totalServiceFee: savedOrder.totalServiceFee,
       grandTotal: savedOrder.grandTotal,
       itemsCount: savedOrder.items.length
     });
 
-    // Reservation creation (existing code remains the same)
+    // Reservation creation
     let reservationRecord = null;
     if (orderType === 'reservation' && !isOpenBill) {
       try {
@@ -517,17 +575,7 @@ export const createAppOrder = async (req, res) => {
           });
         }
 
-        // ✅ PERBAIKAN: Simpan data GRO di created_by
-        const createdByData = isGroMode && groId ? {
-          employee_id: groId,
-          employee_name: (await User.findById(groId))?.username || 'Unknown GRO',
-          created_at: new Date()
-        } : {
-          employee_id: null,
-          employee_name: null,
-          created_at: new Date()
-        };
-
+        // ✅ Gunakan createdByData yang sudah disiapkan
         reservationRecord = new Reservation({
           reservation_date: parsedReservationDate,
           reservation_time: reservationData.reservationTime,
@@ -539,7 +587,7 @@ export const createAppOrder = async (req, res) => {
           status: 'pending',
           reservation_type: reservationType || 'nonBlocking',
           notes: reservationData.notes || '',
-          created_by: createdByData
+          created_by: createdByData // ✅ Gunakan created_by yang sama
         });
 
         await reservationRecord.save();
@@ -625,6 +673,8 @@ export const createAppOrder = async (req, res) => {
       voucher: newOrder.voucher || null,
       outlet: newOrder.outlet || null,
       promotions: newOrder.promotions || [],
+      source: newOrder.source,
+      created_by: newOrder.created_by,
       createdAt: newOrder.createdAt,
       updatedAt: newOrder.updatedAt,
       __v: newOrder.__v,

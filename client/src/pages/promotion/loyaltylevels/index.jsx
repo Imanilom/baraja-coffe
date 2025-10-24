@@ -1,4 +1,4 @@
-    import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 
 const initialForm = { name: "", requiredPoints: 0, description: "" };
@@ -15,7 +15,7 @@ export default function LoyaltyLevelManager() {
   const fetchLevels = async () => {
     try {
       const res = await axios.get("/api/promotion/loyalty-levels");
-    setLoyaltyLevels(Array.isArray(res.data.data) ? res.data.data : []);
+      setLoyaltyLevels(Array.isArray(res.data.data) ? res.data.data : []);
 
     } catch (err) {
       console.error(err);
