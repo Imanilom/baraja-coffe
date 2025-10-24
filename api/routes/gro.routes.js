@@ -18,7 +18,10 @@ import {
     checkInDineInOrder,
     checkOutDineInOrder,
     getOrderDetail,
-    cancelDineInOrder
+    cancelDineInOrder,
+    debugTableStatus,
+    syncTableStatus,
+    forceResetTableStatus
 } from '../controllers/gro.controller.js';
 import { authMiddleware } from '../utils/verifyUser.js';
 
@@ -41,6 +44,10 @@ router.put('/reservations/:id/check-out', authMiddleware, checkOutReservation);
 // Table & Order Management
 router.get('/tables/:tableNumber/order', authMiddleware, getTableOrderDetail);
 router.put('/orders/:orderId/complete', authMiddleware, completeTableOrder);
+// Di routes/gro.js - Tambahkan routes baru
+router.post('/tables/:tableNumber/force-reset ', authMiddleware, forceResetTableStatus);
+router.post('/tables/sync-status', authMiddleware, syncTableStatus);
+router.post('/tables/debug-status', authMiddleware, debugTableStatus);
 
 // ✅ Dine-in order actions (replaced "walk-in" with "dine-in")
 router.put('/orders/:orderId/dine-in/check-in', authMiddleware, checkInDineInOrder);
