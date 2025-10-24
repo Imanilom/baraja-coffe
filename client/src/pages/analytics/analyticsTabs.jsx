@@ -2,12 +2,14 @@ import { useState } from "react";
 import VoucherAnalytics from "./voucherAnalytics";
 import PromoAnalytics from "./promoAnalytics";
 import EventAnalytics from "./eventAnalytics";
+import CustomerSegmentDashboard from "./analyticsSegment";
 
 export default function AnalyticsTabs() {
     const tabs = [
         { label: "Voucher", value: "voucher" },
         { label: "Promo", value: "promo" },
         { label: "Event", value: "event" },
+        { label: "Segment", value: "segment" },
     ];
 
     const [selectedTab, setSelectedTab] = useState("voucher");
@@ -35,6 +37,7 @@ export default function AnalyticsTabs() {
                 {selectedTab === "voucher" && <VoucherAnalytics />}
                 {selectedTab === "promo" && <PromoAnalytics />}
                 {selectedTab === "event" && <EventAnalytics />}
+                {selectedTab === "segment" && <CustomerSegmentDashboard />}
             </div>
 
             {/* CSS Scrollbar */}
