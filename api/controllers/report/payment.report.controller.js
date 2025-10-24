@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import { Order } from '../../models/order.model.js';
 import Payment from '../../models/Payment.model.js';
-import mongoose from 'mongoose';
 
 export const generateSalesReport = async (req, res) => {
   try {

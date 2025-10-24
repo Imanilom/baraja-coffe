@@ -11,8 +11,8 @@ const toWIB = (date) => {
 };
 
 const OrderItemSchema = new mongoose.Schema({
-  menuItem: { 
-    type: mongoose.Schema.Types.ObjectId, 
+  menuItem: {
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'MenuItem',
     required: false // Jadikan tidak required untuk custom amount
   },
@@ -61,8 +61,8 @@ const OrderSchema = new mongoose.Schema({
     amount: { type: Number, required: true },
     name: { type: String, default: 'Penyesuaian Pembayaran' },
     description: { type: String, default: '' },
-    dineType: { 
-      type: String, 
+    dineType: {
+      type: String,
       enum: ['Dine-In', 'Take Away'],
       default: 'Dine-In'
     },
@@ -123,9 +123,24 @@ const OrderSchema = new mongoose.Schema({
   totalCustomAmount: { type: Number, default: 0 }, // TOTAL dari semua custom amount items
   grandTotal: { type: Number, required: true },
   change: { type: Number, default: 0 },
-  
+
   // Sumber order
-  source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true },
+  source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter', 'Gro'], required: true },
+  created_by: {
+    employee_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    employee_name: {
+      type: String,
+      default: null
+    },
+    created_at: {
+      type: Date,
+      default: () => getWIBNow()
+    }
+  },
   currentBatch: { type: Number, default: 1 },
   lastItemAddedAt: {
     type: Date,
@@ -227,7 +242,7 @@ OrderSchema.methods.getWIBDate = function () {
 // Pre-save middleware untuk update updatedAtWIB dan hitung totalCustomAmount
 OrderSchema.pre('save', function (next) {
   this.updatedAtWIB = getWIBNow();
-  
+
   // Hitung total dari semua custom amount items
   if (this.customAmountItems && Array.isArray(this.customAmountItems)) {
     this.totalCustomAmount = this.customAmountItems.reduce((total, item) => {
@@ -236,7 +251,7 @@ OrderSchema.pre('save', function (next) {
   } else {
     this.totalCustomAmount = 0;
   }
-  
+
   next();
 });
 
