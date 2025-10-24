@@ -121,13 +121,32 @@ export const createAppOrder = async (req, res) => {
       guestPhone,
       userId,
       isOpenBill,
-      openBillData
+      openBillData,
+      orderType,
+      itemsCount: items ? items.length : 0
     });
 
-    // Validasi items, kecuali reservasi tanpa open bill
-    if ((!items || items.length === 0) && !(orderType === 'reservation' && !isOpenBill)) {
-      return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
+    // ✅ PERBAIKAN: Validasi items yang lebih fleksibel untuk open bill
+    const shouldSkipItemValidation =
+      (orderType === 'reservation' && !isOpenBill) ||
+      (orderType === 'reservation' && isOpenBill) ||
+      isOpenBill; // ✅ TAMBAHAN: Skip validasi untuk SEMUA open bill
+
+    console.log('🔍 Item validation check:', {
+      orderType,
+      isOpenBill,
+      hasItems: items && items.length > 0,
+      shouldSkipItemValidation,
+      itemsCount: items ? items.length : 0
+    });
+
+    if ((!items || items.length === 0) && !shouldSkipItemValidation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order must contain at least one item'
+      });
     }
+
     if (!isOpenBill && !orderType) {
       return res.status(400).json({ success: false, message: 'Order type is required' });
     }
@@ -173,35 +192,97 @@ export const createAppOrder = async (req, res) => {
       finalUserName = userExists.username || 'Guest';
     }
 
-    // ✅ PERBAIKAN UTAMA: Handle Open Bill scenario - find existing order first
+    // ✅ PERBAIKAN UTAMA: Enhanced existing order search untuk open bill
     let existingOrder = null;
     let existingReservation = null;
 
     if (isOpenBill && openBillData) {
-      console.log('🔍 Looking for existing order with order_id:', openBillData.reservationId);
+      console.log('🔍 Enhanced Open Bill Search:', {
+        reservationId: openBillData.reservationId,
+        tableNumbers: openBillData.tableNumbers
+      });
 
-      // ✅ Cari order terlebih dahulu menggunakan order_id (string)
+      // Strategy 1: Cari by reservationId sebagai order_id
       existingOrder = await Order.findOne({ order_id: openBillData.reservationId });
+      console.log('🔍 Search by order_id result:', existingOrder ? `Found: ${existingOrder._id}` : 'Not found');
 
+      // Strategy 2: Cari by reservationId sebagai _id
       if (!existingOrder) {
-        console.log('❌ Order not found for open bill:', openBillData.reservationId);
-        return res.status(404).json({
-          success: false,
-          message: 'Order not found for open bill'
+        try {
+          existingOrder = await Order.findById(openBillData.reservationId);
+          console.log('🔍 Search by _id result:', existingOrder ? `Found: ${existingOrder._id}` : 'Not found');
+        } catch (idError) {
+          console.log('🔍 Invalid ObjectId format for direct search');
+        }
+      }
+
+      // Strategy 3: Cari via reservation
+      if (!existingOrder) {
+        existingReservation = await Reservation.findById(openBillData.reservationId);
+        console.log('🔍 Reservation search result:', existingReservation ? `Found: ${existingReservation._id}` : 'Not found');
+
+        if (existingReservation && existingReservation.order_id) {
+          existingOrder = await Order.findById(existingReservation.order_id);
+          console.log('🔍 Search via reservation order_id:', existingOrder ? `Found: ${existingOrder._id}` : 'Not found');
+        }
+      }
+
+      // Strategy 4: Cari by table number untuk dine-in open bill
+      if (!existingOrder && openBillData.tableNumbers) {
+        existingOrder = await Order.findOne({
+          tableNumber: openBillData.tableNumbers,
+          isOpenBill: true,
+          status: { $in: ['OnProcess', 'Reserved'] }
+        }).sort({ createdAt: -1 }); // Ambil yang terbaru
+
+        console.log('🔍 Search by tableNumber result:', existingOrder ? `Found: ${existingOrder._id}` : 'Not found');
+      }
+
+      // ✅ FALLBACK: Jika tidak ada existing order, buat baru untuk open bill
+      if (!existingOrder) {
+        console.log('⚠️ No existing order found for open bill, creating new one...');
+
+        const generatedOrderId = await generateOrderId(openBillData.tableNumbers || tableNumber || 'OPENBILL');
+
+        // Buat order baru untuk open bill
+        existingOrder = new Order({
+          order_id: generatedOrderId,
+          user_id: finalUserId,
+          user: finalUserName,
+          groId: isGroMode ? groId : null,
+          items: [], // Mulai dengan items kosong
+          status: 'OnProcess', // Langsung OnProcess untuk open bill
+          paymentMethod: paymentDetails.method || 'Cash',
+          orderType: 'Reservation', // Default untuk open bill reservasi
+          deliveryAddress: deliveryAddress || '',
+          tableNumber: openBillData.tableNumbers || tableNumber || '',
+          type: 'Indoor',
+          isOpenBill: true,
+          outlet: outlet && outlet !== "" ? outlet : "67cbc9560f025d897d69f889",
+          totalBeforeDiscount: 0, // Mulai dari 0
+          totalAfterDiscount: 0,
+          totalTax: 0,
+          totalServiceFee: 0,
+          discounts: { autoPromoDiscount: 0, manualDiscount: 0, voucherDiscount: 0 },
+          appliedPromos: [],
+          appliedManualPromo: null,
+          appliedVoucher: null,
+          taxAndServiceDetails: [],
+          grandTotal: 0,
+          promotions: [],
+          source: isGroMode ? 'Gro' : 'App',
+          created_by: createdByData,
         });
-      }
 
-      console.log('✅ Found existing order:', existingOrder._id);
+        await existingOrder.save();
+        console.log('✅ Created new order for open bill:', existingOrder._id);
 
-      // ✅ Kemudian cari reservation yang terkait dengan order ini
-      if (existingOrder.reservation) {
-        existingReservation = await Reservation.findById(existingOrder.reservation);
-        console.log('✅ Found existing reservation:', existingReservation?._id);
-      }
-
-      if (!existingReservation) {
-        console.log('⚠️ Warning: Order found but no reservation linked');
-        // Tidak return error, lanjutkan saja karena bisa jadi walk-in order tanpa reservation
+        // Link dengan reservation jika ada
+        if (existingReservation && !existingReservation.order_id) {
+          existingReservation.order_id = existingOrder._id;
+          await existingReservation.save();
+          console.log('✅ Linked new order to reservation');
+        }
       }
     }
 
@@ -242,21 +323,22 @@ export const createAppOrder = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid order type' });
     }
 
-    // ✅ PERBAIKAN: Tentukan status order berdasarkan GRO mode
+    // ✅ PERBAIKAN: Tentukan status order berdasarkan GRO mode dan tipe order
     let orderStatus = 'Pending'; // Default status untuk semua order dari App
 
     if (isGroMode) {
-      // Hanya GRO yang bisa set status selain Pending
-      if (orderType === 'reservation') {
+      if (isOpenBill) {
+        // Untuk open bill, pertahankan status existing atau gunakan OnProcess
+        orderStatus = existingOrder ? existingOrder.status : 'OnProcess';
+      } else if (orderType === 'reservation') {
         orderStatus = 'Reserved';
       } else if (orderType === 'dineIn') {
         orderStatus = 'OnProcess';
       } else {
-        orderStatus = 'Pending'; // Untuk orderType lainnya tetap Pending
+        orderStatus = 'Pending';
       }
       console.log('✅ GRO Mode - Status order:', orderStatus);
     } else {
-      // Order dari App (bukan GRO) selalu Pending, termasuk reservasi
       orderStatus = 'Pending';
       console.log('✅ App Mode - Status order: Pending (including reservations)');
     }
@@ -350,11 +432,41 @@ export const createAppOrder = async (req, res) => {
       }
     }
 
-    // Perhitungan konsisten
+    // ✅ PERBAIKAN: Handle tax calculation untuk order tanpa items
     let totalBeforeDiscount = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
-    if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0) {
-      totalBeforeDiscount = 25000;
+
+    // Untuk open bill dengan items kosong (baik baru atau existing)
+    if (isOpenBill && totalBeforeDiscount === 0 && orderItems.length === 0) {
+      console.log('ℹ️ Open bill with no items, tax calculation will be 0');
     }
+
+    // Untuk reservation biasa tanpa items
+    if (orderType === 'reservation' && !isOpenBill && orderItems.length === 0) {
+      totalBeforeDiscount = 25000; // Reservation fee
+    }
+
+    // Calculate tax hanya jika ada amount
+    let taxServiceCalculation = {
+      totalTax: 0,
+      totalServiceFee: 0,
+      taxAndServiceDetails: []
+    };
+
+    if (totalBeforeDiscount > 0) {
+      taxServiceCalculation = await calculateTaxAndService(
+        totalBeforeDiscount, // Gunakan totalBeforeDiscount untuk calculation
+        outlet || "67cbc9560f025d897d69f889",
+        orderType === 'reservation',
+        isOpenBill
+      );
+    }
+
+    console.log('💰 Final Tax Calculation:', {
+      totalBeforeDiscount,
+      totalTax: taxServiceCalculation.totalTax,
+      totalServiceFee: taxServiceCalculation.totalServiceFee,
+      hasItems: orderItems.length > 0
+    });
 
     let totalAfterDiscount = totalBeforeDiscount;
     if (discountType === 'percentage') {
@@ -363,26 +475,6 @@ export const createAppOrder = async (req, res) => {
       totalAfterDiscount = totalBeforeDiscount - voucherAmount;
       if (totalAfterDiscount < 0) totalAfterDiscount = 0;
     }
-
-    // Calculate tax and service fees
-    const isReservationOrder = orderType === 'reservation';
-    const isOpenBillOrder = isOpenBill || false;
-
-    console.log('Tax calculation parameters:', {
-      totalAfterDiscount,
-      outlet: outlet || "67cbc9560f025d897d69f889",
-      isReservationOrder,
-      isOpenBillOrder
-    });
-
-    const taxServiceCalculation = await calculateTaxAndService(
-      totalAfterDiscount,
-      outlet || "67cbc9560f025d897d69f889",
-      isReservationOrder,
-      isOpenBillOrder
-    );
-
-    console.log('Backend tax calculation result:', taxServiceCalculation);
 
     const grandTotal = totalAfterDiscount + taxServiceCalculation.totalTax + taxServiceCalculation.totalServiceFee;
 
@@ -395,52 +487,76 @@ export const createAppOrder = async (req, res) => {
 
     let newOrder;
 
-    // Handle Open Bill scenario - NOW WITH TAX CALCULATION
+    // Handle Open Bill scenario - WITH IMPROVED ITEMS HANDLING
     if (isOpenBill && existingOrder) {
-      console.log('📝 Adding items to existing order:', existingOrder.order_id);
+      console.log('📝 Adding items to existing open bill order:', {
+        orderId: existingOrder._id,
+        existingItemsCount: existingOrder.items.length,
+        newItemsCount: orderItems.length
+      });
 
-      existingOrder.items.push(...orderItems);
+      // ✅ PERBAIKAN: Tambahkan items baru ke existing order
+      if (orderItems.length > 0) {
+        existingOrder.items.push(...orderItems);
 
-      const newItemsTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
-      existingOrder.totalBeforeDiscount += newItemsTotal;
+        // Calculate new totals
+        const newItemsTotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+        const updatedTotalBeforeDiscount = existingOrder.totalBeforeDiscount + newItemsTotal;
 
-      // Recalculate discount
-      let updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount;
-      if (discountType === 'percentage') {
-        updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount - (existingOrder.totalBeforeDiscount * (voucherAmount / 100));
-      } else if (discountType === 'fixed') {
-        updatedTotalAfterDiscount = existingOrder.totalBeforeDiscount - voucherAmount;
-        if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
+        console.log('💰 Open Bill Totals Update:', {
+          previousTotal: existingOrder.totalBeforeDiscount,
+          newItemsTotal,
+          updatedTotalBeforeDiscount
+        });
+
+        // Recalculate discount
+        let updatedTotalAfterDiscount = updatedTotalBeforeDiscount;
+        if (voucherId && discountType === 'percentage') {
+          updatedTotalAfterDiscount = updatedTotalBeforeDiscount - (updatedTotalBeforeDiscount * (voucherAmount / 100));
+        } else if (voucherId && discountType === 'fixed') {
+          updatedTotalAfterDiscount = updatedTotalBeforeDiscount - voucherAmount;
+          if (updatedTotalAfterDiscount < 0) updatedTotalAfterDiscount = 0;
+        }
+
+        // Recalculate tax hanya jika ada amount
+        let updatedTaxCalculation = {
+          totalTax: 0,
+          totalServiceFee: 0,
+          taxAndServiceDetails: []
+        };
+
+        if (updatedTotalAfterDiscount > 0) {
+          updatedTaxCalculation = await calculateTaxAndService(
+            updatedTotalAfterDiscount,
+            outlet || "67cbc9560f025d897d69f889",
+            orderType === 'reservation',
+            true // isOpenBill = true
+          );
+        }
+
+        // Update order totals
+        existingOrder.totalBeforeDiscount = updatedTotalBeforeDiscount;
+        existingOrder.totalAfterDiscount = updatedTotalAfterDiscount;
+        existingOrder.totalTax = updatedTaxCalculation.totalTax;
+        existingOrder.totalServiceFee = updatedTaxCalculation.totalServiceFee;
+        existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
+        existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
+
+        // Update voucher jika ada
+        if (voucherId) {
+          existingOrder.appliedVoucher = voucherId;
+          existingOrder.voucher = voucherId;
+        }
       }
 
-      // Recalculate tax for open bill
-      const updatedTaxCalculation = await calculateTaxAndService(
-        updatedTotalAfterDiscount,
-        outlet || "67cbc9560f025d897d69f889",
-        isReservationOrder,
-        true // isOpenBill = true
-      );
-
-      existingOrder.totalAfterDiscount = updatedTotalAfterDiscount;
-      existingOrder.totalTax = updatedTaxCalculation.totalTax;
-      existingOrder.totalServiceFee = updatedTaxCalculation.totalServiceFee;
-      existingOrder.taxAndServiceDetails = updatedTaxCalculation.taxAndServiceDetails;
-      existingOrder.grandTotal = updatedTotalAfterDiscount + updatedTaxCalculation.totalTax + updatedTaxCalculation.totalServiceFee;
-
-      // ✅ TAMBAHAN: Update status jika dari GRO mode
+      // ✅ Update GRO data jika dari GRO mode
       if (isGroMode) {
-        if (orderType === 'dineIn') {
-          existingOrder.status = 'OnProcess';
-        }
-        // Update created_by jika belum ada
-        if (!existingOrder.created_by?.employee_id) {
-          existingOrder.created_by = createdByData;
-        }
-        // Update groId jika belum ada
         if (!existingOrder.groId) {
           existingOrder.groId = groId;
         }
-        // Update source jika belum Gro
+        if (!existingOrder.created_by?.employee_id) {
+          existingOrder.created_by = createdByData;
+        }
         if (existingOrder.source !== 'Gro') {
           existingOrder.source = 'Gro';
         }
@@ -449,16 +565,17 @@ export const createAppOrder = async (req, res) => {
       await existingOrder.save();
       newOrder = existingOrder;
 
-      console.log('✅ Updated existing order with new items and recalculated tax:', {
-        totalTax: existingOrder.totalTax,
-        totalServiceFee: existingOrder.totalServiceFee,
-        grandTotal: existingOrder.grandTotal,
-        status: existingOrder.status
+      console.log('✅ Open bill order updated:', {
+        orderId: newOrder._id,
+        totalItems: newOrder.items.length,
+        totalBeforeDiscount: newOrder.totalBeforeDiscount,
+        totalTax: newOrder.totalTax,
+        grandTotal: newOrder.grandTotal
       });
     }
     else if (isOpenBill && !existingOrder) {
-      // This shouldn't happen after our fix, but keep as fallback
-      console.log('⚠️ Open bill requested but no existing order found, creating new one');
+      // Fallback - should not happen after our fix
+      console.log('⚠️ Open bill requested but no existing order found, using normal creation');
 
       const generatedOrderId = await generateOrderId(openBillData.tableNumbers || tableNumber || '');
       newOrder = new Order({
@@ -468,7 +585,7 @@ export const createAppOrder = async (req, res) => {
         cashier: null,
         groId: isGroMode ? groId : null,
         items: orderItems,
-        status: orderStatus, // ✅ Gunakan status yang sudah ditentukan
+        status: orderStatus,
         paymentMethod: paymentDetails.method,
         orderType: formattedOrderType,
         deliveryAddress: deliveryAddress || '',
@@ -487,11 +604,11 @@ export const createAppOrder = async (req, res) => {
         taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,
         grandTotal: grandTotal,
         promotions: [],
-        source: isGroMode ? 'Gro' : 'App', // ✅ Set source berdasarkan mode
+        source: isGroMode ? 'Gro' : 'App',
         reservation: existingReservation?._id || null,
         isOpenBill: true,
         originalReservationId: openBillData.reservationId,
-        created_by: createdByData, // ✅ Tambahkan created_by
+        created_by: createdByData,
       });
       await newOrder.save();
 
@@ -509,7 +626,7 @@ export const createAppOrder = async (req, res) => {
         cashier: null,
         groId: isGroMode ? groId : null,
         items: orderItems,
-        status: orderStatus, // ✅ Gunakan status yang sudah ditentukan
+        status: orderStatus,
         paymentMethod: paymentDetails.method,
         orderType: formattedOrderType,
         deliveryAddress: deliveryAddress || '',
@@ -529,9 +646,9 @@ export const createAppOrder = async (req, res) => {
         taxAndServiceDetails: taxServiceCalculation.taxAndServiceDetails,
         grandTotal: grandTotal,
         promotions: [],
-        source: isGroMode ? 'Gro' : 'App', // ✅ Set source berdasarkan mode
+        source: isGroMode ? 'Gro' : 'App',
         reservation: null,
-        created_by: createdByData, // ✅ Tambahkan created_by
+        created_by: createdByData,
       });
       await newOrder.save();
     }
@@ -547,7 +664,8 @@ export const createAppOrder = async (req, res) => {
       totalTax: savedOrder.totalTax,
       totalServiceFee: savedOrder.totalServiceFee,
       grandTotal: savedOrder.grandTotal,
-      itemsCount: savedOrder.items.length
+      itemsCount: savedOrder.items.length,
+      isOpenBill: savedOrder.isOpenBill
     });
 
     // Reservation creation
@@ -575,7 +693,6 @@ export const createAppOrder = async (req, res) => {
           });
         }
 
-        // ✅ Gunakan createdByData yang sudah disiapkan
         reservationRecord = new Reservation({
           reservation_date: parsedReservationDate,
           reservation_time: reservationData.reservationTime,
@@ -587,7 +704,7 @@ export const createAppOrder = async (req, res) => {
           status: 'pending',
           reservation_type: reservationType || 'nonBlocking',
           notes: reservationData.notes || '',
-          created_by: createdByData // ✅ Gunakan created_by yang sama
+          created_by: createdByData
         });
 
         await reservationRecord.save();

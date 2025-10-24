@@ -1015,6 +1015,8 @@ export const getReservationDetail = async (req, res) => {
   try {
     const { id } = req.params;
 
+    console.log('Fetching reservation detail for ID:', id);
+
     const reservation = await Reservation.findById(id)
       .populate('area_id', 'area_name area_code capacity description')
       .populate('table_id', 'table_number seats table_type')
@@ -1072,7 +1074,7 @@ export const getReservationDetail = async (req, res) => {
   }
 };
 
-// ✅ FIXED: getReservations dengan format order_id yang konsisten
+
 export const getReservations = async (req, res) => {
   try {
     const {
@@ -1119,8 +1121,14 @@ export const getReservations = async (req, res) => {
       reservationFilter.area_id = area_id;
     }
 
+    // ✅ PERBAIKAN: Search untuk reservations - hanya field string
     if (search) {
-      reservationFilter.reservation_code = { $regex: search, $options: 'i' };
+      const searchRegex = { $regex: search, $options: 'i' };
+      reservationFilter.$or = [
+        { reservation_code: searchRegex },
+        { 'created_by.employee_name': searchRegex }
+        // Hapus pencarian di field object/array yang bukan string
+      ];
     }
 
     // Get reservations
@@ -1131,7 +1139,7 @@ export const getReservations = async (req, res) => {
       .populate('table_id', 'table_number seats')
       .populate({
         path: 'order_id',
-        select: '_id order_id grandTotal status' // ✅ Selalu include _id
+        select: '_id order_id grandTotal status user'
       })
       .populate('created_by.employee_id', 'username')
       .populate('checked_in_by.employee_id', 'username')
@@ -1144,15 +1152,22 @@ export const getReservations = async (req, res) => {
     const formattedReservations = reservations.map(reservation => {
       const resObj = reservation.toObject();
 
-      // Jika order_id populated, pastikan struktur konsisten
+      // Jika order_id populated, ambil user dari order
+      let guestName = 'Tamu';
       if (resObj.order_id && typeof resObj.order_id === 'object') {
+        guestName = resObj.order_id.user || 'Tamu';
+
         resObj.order_id = {
           _id: resObj.order_id._id,
           order_id: resObj.order_id.order_id,
           grandTotal: resObj.order_id.grandTotal,
-          status: resObj.order_id.status
+          status: resObj.order_id.status,
+          user: resObj.order_id.user
         };
       }
+
+      // ✅ Tambahkan guest_name dari order.user
+      resObj.guest_name = guestName;
 
       return resObj;
     });
@@ -1200,6 +1215,16 @@ export const getReservations = async (req, res) => {
       };
     }
 
+    // ✅ PERBAIKAN: Search untuk dine-in orders - hanya field string
+    if (search) {
+      const searchRegex = { $regex: search, $options: 'i' };
+      orderFilter.$or = [
+        { order_id: searchRegex },
+        { user: searchRegex }
+        // Hapus groId dari search karena itu ObjectId, bukan string
+      ];
+    }
+
     // Get order IDs that already have reservations
     const reservedOrderIds = await Reservation.distinct('order_id', {
       order_id: { $ne: null }
@@ -1207,11 +1232,6 @@ export const getReservations = async (req, res) => {
 
     // Exclude orders that already have reservations
     orderFilter._id = { $nin: reservedOrderIds };
-
-    // Apply search filter if specified
-    if (search) {
-      orderFilter.order_id = { $regex: search, $options: 'i' };
-    }
 
     // Query orders
     let dineInOrdersQuery = Order.find(orderFilter)
@@ -1263,6 +1283,7 @@ export const getReservations = async (req, res) => {
       type: 'dine-in-order',
       reservation_code: order.order_id,
       status: order.status,
+      guest_name: order.user || 'Customer',
       guest_count: 1,
       reservation_date: order.createdAt,
       reservation_time: new Date(order.createdAt).toLocaleTimeString('id-ID', {
@@ -1272,23 +1293,34 @@ export const getReservations = async (req, res) => {
       }),
       area_id: order.areaInfo,
       table_id: order.tableInfo ? [order.tableInfo] : [],
-      // ✅ Format order_id dengan struktur konsisten
       order_id: {
         _id: order._id,
         order_id: order.order_id,
         grandTotal: order.grandTotal,
-        status: order.status
+        status: order.status,
+        user: order.user
       },
       created_by: {
         employee_id: order.cashierId || order.groId,
+        employee_name: (order.cashierId?.username || order.groId?.username || 'System'),
         timestamp: order.createdAt
       },
       notes: `Dine-In customer - ${order.user || 'Guest'}`,
       createdAt: order.createdAt
     }));
 
+    // ✅ PERBAIKAN: Filter manual berdasarkan search untuk dine-in orders
+    let finalTransformedOrders = transformedOrders;
+    if (search) {
+      finalTransformedOrders = transformedOrders.filter(order =>
+        order.guest_name.toLowerCase().includes(search.toLowerCase()) ||
+        order.reservation_code.toLowerCase().includes(search.toLowerCase()) ||
+        order.created_by.employee_name.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
     // Combine and sort both datasets
-    const combinedData = [...formattedReservations, ...transformedOrders]
+    const combinedData = [...formattedReservations, ...finalTransformedOrders]
       .sort((a, b) => {
         const dateA = new Date(a.reservation_date || a.createdAt);
         const dateB = new Date(b.reservation_date || b.createdAt);
@@ -1297,7 +1329,7 @@ export const getReservations = async (req, res) => {
 
     // Apply pagination to combined data
     const paginatedData = combinedData.slice(skip, skip + parseInt(limit));
-    const totalCombined = total + filteredOrders.length;
+    const totalCombined = total + finalTransformedOrders.length;
 
     res.json({
       success: true,
@@ -1307,7 +1339,7 @@ export const getReservations = async (req, res) => {
         total_pages: Math.ceil(totalCombined / parseInt(limit)),
         total_records: totalCombined,
         reservations_count: reservations.length,
-        dine_in_orders_count: filteredOrders.length,
+        dine_in_orders_count: finalTransformedOrders.length,
         limit: parseInt(limit)
       }
     });
