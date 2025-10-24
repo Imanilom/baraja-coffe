@@ -140,7 +140,22 @@ const OrderSchema = new mongoose.Schema({
   change: { type: Number, default: 0 },
 
   // Sumber order
-  source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true },
+  source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter', 'Gro'], required: true },
+  created_by: {
+    employee_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    employee_name: {
+      type: String,
+      default: null
+    },
+    created_at: {
+      type: Date,
+      default: () => getWIBNow()
+    }
+  },
   currentBatch: { type: Number, default: 1 },
   lastItemAddedAt: {
     type: Date,

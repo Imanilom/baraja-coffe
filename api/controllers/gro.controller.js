@@ -1376,16 +1376,21 @@ export const getReservationDetail = async (req, res) => {
 };
 
 // PUT /api/gro/reservations/:id/confirm - Confirm reservation
-
+// PUT /api/gro/reservations/:id/confirm - Confirm reservation
+// ✅ FIXED: Update order status ke Reserved saat konfirmasi
 export const confirmReservation = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { id } = req.params;
     const userId = req.user?.id; // Dari auth middleware
 
     console.log('Confirming reservation ID:', id, 'by user ID:', userId);
 
-    const reservation = await Reservation.findById(id);
+    const reservation = await Reservation.findById(id).session(session);
     if (!reservation) {
+      await session.abortTransaction();
       return res.status(404).json({
         success: false,
         message: 'Reservation not found'
@@ -1393,6 +1398,7 @@ export const confirmReservation = async (req, res) => {
     }
 
     if (reservation.status === 'cancelled') {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         message: 'Cannot confirm cancelled reservation'
@@ -1400,6 +1406,7 @@ export const confirmReservation = async (req, res) => {
     }
 
     if (reservation.status === 'completed') {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         message: 'Reservation already completed'
@@ -1409,6 +1416,7 @@ export const confirmReservation = async (req, res) => {
     // Get employee info
     const employee = await User.findById(userId).select('username');
 
+    // Update reservation status
     reservation.status = 'confirmed';
     reservation.confirm_by = {
       employee_id: userId,
@@ -1416,12 +1424,68 @@ export const confirmReservation = async (req, res) => {
       confirmed_at: getWIBNow()
     };
 
-    await reservation.save();
+    await reservation.save({ session });
 
+    // ✅ PERBAIKAN: Update order status ke Reserved jika ada order terkait
+    if (reservation.order_id) {
+      const order = await Order.findById(reservation.order_id).session(session);
+
+      if (order) {
+        // Update status order menjadi Reserved
+        order.status = 'Reserved';
+        order.updatedAtWIB = getWIBNow();
+
+        // Tambahkan log ke notes
+        const confirmNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Reservasi dikonfirmasi oleh GRO: ${employee?.username || 'Unknown'}`;
+        order.notes = (order.notes || '') + confirmNote;
+
+        await order.save({ session });
+
+        console.log('✅ Order status updated to Reserved:', order.order_id);
+
+        // Emit socket event untuk order status update
+        if (typeof io !== 'undefined' && io) {
+          io.to('cashier_room').emit('order_status_updated', {
+            orderId: order._id,
+            order_id: order.order_id,
+            status: 'Reserved',
+            updatedBy: employee?.username || 'GRO',
+            timestamp: getWIBNow()
+          });
+
+          io.to('gro_room').emit('order_status_updated', {
+            orderId: order._id,
+            order_id: order.order_id,
+            status: 'Reserved',
+            updatedBy: employee?.username || 'GRO',
+            timestamp: getWIBNow()
+          });
+        }
+      }
+    }
+
+    await session.commitTransaction();
+
+    // Ambil data lengkap untuk response
     const updated = await Reservation.findById(id)
       .populate('area_id', 'area_name area_code')
       .populate('table_id', 'table_number seats')
-      .populate('confirm_by.employee_id', 'username');
+      .populate('confirm_by.employee_id', 'username')
+      .populate({
+        path: 'order_id',
+        select: 'order_id status grandTotal'
+      });
+
+    // Emit socket event untuk reservation update
+    if (typeof io !== 'undefined' && io) {
+      io.to('gro_room').emit('reservation_confirmed', {
+        reservation: updated,
+        confirmedBy: employee?.username || 'Unknown',
+        timestamp: getWIBNow()
+      });
+    }
+
+    console.log('✅ Reservation confirmed successfully:', id);
 
     res.json({
       success: true,
@@ -1429,22 +1493,33 @@ export const confirmReservation = async (req, res) => {
       data: updated
     });
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error confirming reservation:', error);
     res.status(500).json({
       success: false,
       message: 'Error confirming reservation',
       error: error.message
     });
+  } finally {
+    session.endSession();
   }
 };
 // PUT /api/gro/reservations/:id/check-in - Check-in reservation
+// ✅ FIXED: PUT /api/gro/reservations/:id/check-in
+// Update order status ke OnProcess saat check-in
 export const checkInReservation = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { id } = req.params;
-    const userId = req.user?.id; // Dari auth middleware
+    const userId = req.user?.id;
 
-    const reservation = await Reservation.findById(id);
+    console.log('Checking in reservation ID:', id, 'by user ID:', userId);
+
+    const reservation = await Reservation.findById(id).session(session);
     if (!reservation) {
+      await session.abortTransaction();
       return res.status(404).json({
         success: false,
         message: 'Reservation not found'
@@ -1452,6 +1527,7 @@ export const checkInReservation = async (req, res) => {
     }
 
     if (reservation.status === 'cancelled') {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         message: 'Cannot check-in cancelled reservation'
@@ -1459,6 +1535,7 @@ export const checkInReservation = async (req, res) => {
     }
 
     if (reservation.check_in_time) {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         message: 'Reservation already checked in'
@@ -1468,6 +1545,7 @@ export const checkInReservation = async (req, res) => {
     // Get employee info
     const employee = await User.findById(userId).select('username');
 
+    // Update reservation
     reservation.check_in_time = getWIBNow();
     reservation.checked_in_by = {
       employee_id: userId,
@@ -1476,12 +1554,68 @@ export const checkInReservation = async (req, res) => {
     };
     reservation.status = 'confirmed';
 
-    await reservation.save();
+    await reservation.save({ session });
 
+    // ✅ PERBAIKAN: Update order status ke OnProcess jika ada order terkait
+    if (reservation.order_id) {
+      const order = await Order.findById(reservation.order_id).session(session);
+
+      if (order) {
+        // Update status order menjadi OnProcess (sedang berlangsung)
+        order.status = 'OnProcess';
+        order.updatedAtWIB = getWIBNow();
+
+        // Tambahkan log ke notes
+        const checkInNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Customer check-in oleh GRO: ${employee?.username || 'Unknown'}`;
+        order.notes = (order.notes || '') + checkInNote;
+
+        await order.save({ session });
+
+        console.log('✅ Order status updated to OnProcess:', order.order_id);
+
+        // Emit socket event untuk order status update
+        if (typeof io !== 'undefined' && io) {
+          io.to('cashier_room').emit('order_status_updated', {
+            orderId: order._id,
+            order_id: order.order_id,
+            status: 'OnProcess',
+            updatedBy: employee?.username || 'GRO',
+            timestamp: getWIBNow()
+          });
+
+          io.to('gro_room').emit('order_status_updated', {
+            orderId: order._id,
+            order_id: order.order_id,
+            status: 'OnProcess',
+            updatedBy: employee?.username || 'GRO',
+            timestamp: getWIBNow()
+          });
+        }
+      }
+    }
+
+    await session.commitTransaction();
+
+    // Ambil data lengkap untuk response
     const updated = await Reservation.findById(id)
       .populate('area_id', 'area_name area_code')
       .populate('table_id', 'table_number seats')
-      .populate('checked_in_by.employee_id', 'username');
+      .populate('checked_in_by.employee_id', 'username')
+      .populate({
+        path: 'order_id',
+        select: 'order_id status grandTotal'
+      });
+
+    // Emit socket event untuk reservation update
+    if (typeof io !== 'undefined' && io) {
+      io.to('gro_room').emit('reservation_checked_in', {
+        reservation: updated,
+        checkedInBy: employee?.username || 'Unknown',
+        timestamp: getWIBNow()
+      });
+    }
+
+    console.log('✅ Reservation checked in successfully:', id);
 
     res.json({
       success: true,
@@ -1489,100 +1623,33 @@ export const checkInReservation = async (req, res) => {
       data: updated
     });
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error checking in reservation:', error);
     res.status(500).json({
       success: false,
       message: 'Error checking in reservation',
       error: error.message
     });
+  } finally {
+    session.endSession();
   }
 };
 
-// ✅ PUT /api/gro/orders/:orderId/dine-in/check-in
-export const checkInDineInOrder = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const userId = req.user?.id;
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-    if (order.orderType !== 'Dine-In') {
-      return res.status(400).json({
-        success: false,
-        message: 'Only Dine-In orders can be checked in'
-      });
-    }
-    const employee = await User.findById(userId).select('username');
-    const checkInNote = `
-[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Customer check-in oleh GRO: ${employee?.username || 'Unknown'}`;
-    order.notes = (order.notes || '') + checkInNote;
-    await order.save();
-    res.json({
-      success: true,
-      message: 'Customer berhasil check-in',
-      data: order
-    });
-  } catch (error) {
-    console.error('Error checking in dine-in order:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error checking in dine-in order',
-      error: error.message
-    });
-  }
-};
-
-// ✅ PUT /api/gro/orders/:orderId/dine-in/check-out
-export const checkOutDineInOrder = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const userId = req.user?.id;
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-    if (order.orderType !== 'Dine-In') {
-      return res.status(400).json({
-        success: false,
-        message: 'Only Dine-In orders can be checked out'
-      });
-    }
-    const employee = await User.findById(userId).select('username');
-    const checkOutNote = `
-[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Customer check-out oleh GRO: ${employee?.username || 'Unknown'}`;
-    order.notes = (order.notes || '') + checkOutNote;
-    await order.save();
-    res.json({
-      success: true,
-      message: 'Customer berhasil check-out',
-      data: order
-    });
-  } catch (error) {
-    console.error('Error checking out dine-in order:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error checking out dine-in order',
-      error: error.message
-    });
-  }
-};
-
-
-// PUT /api/gro/reservations/:id/check-out - Check-out reservation
+// ✅ FIXED: PUT /api/gro/reservations/:id/check-out
+// Update order status ke Completed saat check-out
 export const checkOutReservation = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { id } = req.params;
     const userId = req.user?.id;
 
-    const reservation = await Reservation.findById(id);
+    console.log('Checking out reservation ID:', id, 'by user ID:', userId);
+
+    const reservation = await Reservation.findById(id).session(session);
     if (!reservation) {
+      await session.abortTransaction();
       return res.status(404).json({
         success: false,
         message: 'Reservation not found'
@@ -1590,6 +1657,7 @@ export const checkOutReservation = async (req, res) => {
     }
 
     if (!reservation.check_in_time) {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         message: 'Cannot check-out before check-in'
@@ -1597,6 +1665,7 @@ export const checkOutReservation = async (req, res) => {
     }
 
     if (reservation.check_out_time) {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         message: 'Reservation already checked out'
@@ -1606,6 +1675,7 @@ export const checkOutReservation = async (req, res) => {
     // Get employee info
     const employee = await User.findById(userId).select('username');
 
+    // Update reservation
     reservation.check_out_time = getWIBNow();
     reservation.checked_out_by = {
       employee_id: userId,
@@ -1613,12 +1683,109 @@ export const checkOutReservation = async (req, res) => {
       checked_out_at: getWIBNow()
     };
 
-    await reservation.save();
+    await reservation.save({ session });
 
+    // ✅ PERBAIKAN: Update order status ke Completed jika ada order terkait
+    if (reservation.order_id) {
+      const order = await Order.findById(reservation.order_id).session(session);
+
+      if (order) {
+        // Update status order menjadi Completed
+        order.status = 'Completed';
+        order.updatedAtWIB = getWIBNow();
+
+        // Tambahkan log ke notes
+        const checkOutNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Customer check-out oleh GRO: ${employee?.username || 'Unknown'}`;
+        order.notes = (order.notes || '') + checkOutNote;
+
+        await order.save({ session });
+
+        console.log('✅ Order status updated to Completed:', order.order_id);
+
+        // ✅ Free up table (set table status to available)
+        if (order.tableNumber) {
+          const table = await Table.findOne({
+            table_number: order.tableNumber.toUpperCase()
+          }).session(session);
+
+          if (table) {
+            table.status = 'available';
+            table.updatedAt = new Date();
+
+            // Add to status history
+            if (!table.statusHistory) {
+              table.statusHistory = [];
+            }
+
+            table.statusHistory.push({
+              fromStatus: 'occupied',
+              toStatus: 'available',
+              updatedBy: employee?.username || 'GRO System',
+              notes: `Reservation ${reservation.reservation_code} checked out`,
+              updatedAt: getWIBNow()
+            });
+
+            await table.save({ session });
+
+            console.log('✅ Table freed:', order.tableNumber);
+
+            // Emit socket event for table status update
+            if (typeof io !== 'undefined' && io) {
+              io.to(`area_${table.area_id?.area_code}`).emit('table_status_updated', {
+                tableId: table._id,
+                tableNumber: table.table_number,
+                oldStatus: 'occupied',
+                newStatus: 'available',
+                updatedBy: employee?.username || 'GRO System',
+                timestamp: getWIBNow()
+              });
+            }
+          }
+        }
+
+        // Emit socket event untuk order status update
+        if (typeof io !== 'undefined' && io) {
+          io.to('cashier_room').emit('order_status_updated', {
+            orderId: order._id,
+            order_id: order.order_id,
+            status: 'Completed',
+            updatedBy: employee?.username || 'GRO',
+            timestamp: getWIBNow()
+          });
+
+          io.to('gro_room').emit('order_status_updated', {
+            orderId: order._id,
+            order_id: order.order_id,
+            status: 'Completed',
+            updatedBy: employee?.username || 'GRO',
+            timestamp: getWIBNow()
+          });
+        }
+      }
+    }
+
+    await session.commitTransaction();
+
+    // Ambil data lengkap untuk response
     const updated = await Reservation.findById(id)
       .populate('area_id', 'area_name area_code')
       .populate('table_id', 'table_number seats')
-      .populate('checked_out_by.employee_id', 'username');
+      .populate('checked_out_by.employee_id', 'username')
+      .populate({
+        path: 'order_id',
+        select: 'order_id status grandTotal'
+      });
+
+    // Emit socket event untuk reservation update
+    if (typeof io !== 'undefined' && io) {
+      io.to('gro_room').emit('reservation_checked_out', {
+        reservation: updated,
+        checkedOutBy: employee?.username || 'Unknown',
+        timestamp: getWIBNow()
+      });
+    }
+
+    console.log('✅ Reservation checked out successfully:', id);
 
     res.json({
       success: true,
@@ -1626,87 +1793,18 @@ export const checkOutReservation = async (req, res) => {
       data: updated
     });
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error checking out reservation:', error);
     res.status(500).json({
       success: false,
       message: 'Error checking out reservation',
       error: error.message
     });
+  } finally {
+    session.endSession();
   }
 };
 
-// PUT /api/gro/reservations/:id/complete - Complete reservation
-export const completeReservation = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { closeOpenBill = false } = req.body;
-    const userId = req.user?.id;
-
-    const reservation = await Reservation.findById(id);
-    if (!reservation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Reservation not found'
-      });
-    }
-
-    if (reservation.status === 'cancelled') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot complete cancelled reservation'
-      });
-    }
-
-    if (reservation.status === 'completed') {
-      return res.status(400).json({
-        success: false,
-        message: 'Reservation already completed'
-      });
-    }
-
-    // Auto check-out if not already done
-    if (!reservation.check_out_time) {
-      const employee = await User.findById(userId).select('username');
-      reservation.check_out_time = getWIBNow();
-      reservation.checked_out_by = {
-        employee_id: userId,
-        employee_name: employee?.username || 'Unknown',
-        checked_out_at: getWIBNow()
-      };
-    }
-
-    reservation.status = 'completed';
-    await reservation.save();
-
-    // Handle open bill closure
-    if (closeOpenBill && reservation.order_id) {
-      const order = await Order.findById(reservation.order_id);
-      if (order && order.isOpenBill) {
-        order.isOpenBill = false;
-        await order.save();
-      }
-    }
-
-    const updated = await Reservation.findById(id)
-      .populate('area_id', 'area_name area_code')
-      .populate('table_id', 'table_number seats')
-      .populate('order_id', 'order_id grandTotal status')
-      .populate('checked_out_by.employee_id', 'username');
-
-    res.json({
-      success: true,
-      message: 'Reservation completed successfully',
-      data: updated
-    });
-  } catch (error) {
-    console.error('Error completing reservation:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error completing reservation',
-      error: error.message
-    });
-  }
-};
 
 // PUT /api/gro/reservations/:id/cancel - Cancel reservation
 export const cancelReservation = async (req, res) => {
@@ -1766,6 +1864,325 @@ export const cancelReservation = async (req, res) => {
     });
   }
 };
+
+
+
+export const checkInDineInOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+
+  try {
+    const { orderId } = req.params;
+    const userId = req.user?.id;
+
+    const order = await Order.findById(orderId).session(session);
+    if (!order) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Validasi order type
+    if (order.orderType !== 'Dine-In' && order.orderType !== 'Reservation') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Only Dine-In or Reservation orders can be checked in'
+      });
+    }
+
+    // Validasi status
+    if (order.status !== 'Reserved') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Cannot check-in order with status ${order.status}. Order must be Reserved.`
+      });
+    }
+
+    // Get employee info
+    const employee = await User.findById(userId).select('username');
+
+    // Update order status ke OnProcess
+    order.status = 'OnProcess';
+    order.updatedAtWIB = getWIBNow();
+
+    // Tambahkan log check-in
+    const checkInNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Customer check-in oleh GRO: ${employee?.username || 'Unknown'}`;
+    order.notes = (order.notes || '') + checkInNote;
+
+    await order.save({ session });
+
+    // Jika ada reservation terkait, update juga
+    if (order.reservation) {
+      const reservation = await Reservation.findById(order.reservation).session(session);
+      if (reservation && !reservation.check_in_time) {
+        reservation.check_in_time = getWIBNow();
+        reservation.checked_in_by = {
+          employee_id: userId,
+          employee_name: employee?.username || 'Unknown',
+          checked_in_at: getWIBNow()
+        };
+        await reservation.save({ session });
+      }
+    }
+
+    await session.commitTransaction();
+
+    // Emit socket events
+    if (typeof io !== 'undefined' && io) {
+      io.to('cashier_room').emit('order_status_updated', {
+        orderId: order._id,
+        order_id: order.order_id,
+        status: 'OnProcess',
+        updatedBy: employee?.username || 'GRO',
+        timestamp: getWIBNow()
+      });
+
+      io.to('gro_room').emit('order_checked_in', {
+        orderId: order._id,
+        order_id: order.order_id,
+        tableNumber: order.tableNumber,
+        checkedInBy: employee?.username || 'GRO',
+        timestamp: getWIBNow()
+      });
+    }
+
+    console.log(`✅ Order ${order.order_id} checked in by GRO. Status: Reserved → OnProcess`);
+
+    res.json({
+      success: true,
+      message: 'Customer berhasil check-in. Order sekarang sedang berlangsung.',
+      data: {
+        order: {
+          id: order._id,
+          order_id: order.order_id,
+          status: order.status,
+          tableNumber: order.tableNumber
+        },
+        checkedInBy: employee?.username || 'GRO',
+        checkedInAt: getWIBNow()
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error checking in dine-in order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking in dine-in order',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// ✅ PUT /api/gro/orders/:orderId/cancel
+// Cancel dine-in order (Reserved → Canceled)
+export const cancelDineInOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { orderId } = req.params;
+    const { reason } = req.body;
+    const userId = req.user?.id;
+
+    const order = await Order.findById(orderId).session(session);
+    if (!order) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Validasi order type
+    if (order.orderType !== 'Dine-In' && order.orderType !== 'Reservation') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Only Dine-In or Reservation orders can be cancelled'
+      });
+    }
+
+    // Cek jika order sudah completed
+    if (order.status === 'Completed') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot cancel completed order'
+      });
+    }
+
+    // Cek jika order sudah canceled
+    if (order.status === 'Canceled') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Order is already cancelled'
+      });
+    }
+
+    // Get employee info
+    const employee = await User.findById(userId).select('username');
+
+    // Update order status ke Canceled
+    order.status = 'Canceled';
+    order.updatedAtWIB = getWIBNow();
+
+    // Tambahkan log pembatalan
+    const cancelNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Order dibatalkan oleh GRO: ${employee?.username || 'Unknown'}${reason ? `\nAlasan: ${reason}` : ''}`;
+    order.notes = (order.notes || '') + cancelNote;
+
+    await order.save({ session });
+
+    // Update table status ke available jika ada
+    if (order.tableNumber) {
+      const table = await Table.findOne({
+        table_number: order.tableNumber.toUpperCase()
+      }).session(session);
+
+      if (table) {
+        table.status = 'available';
+        table.updatedAt = new Date();
+
+        // Add to status history
+        if (!table.statusHistory) {
+          table.statusHistory = [];
+        }
+
+        table.statusHistory.push({
+          fromStatus: 'occupied',
+          toStatus: 'available',
+          updatedBy: employee?.username || 'GRO System',
+          notes: `Order ${order.order_id} cancelled`,
+          updatedAt: getWIBNow()
+        });
+
+        await table.save({ session });
+
+        // Emit socket event for table status update
+        if (typeof io !== 'undefined' && io) {
+          io.to(`area_${table.area_id?.area_code}`).emit('table_status_updated', {
+            tableId: table._id,
+            tableNumber: table.table_number,
+            oldStatus: 'occupied',
+            newStatus: 'available',
+            updatedBy: employee?.username || 'GRO System',
+            timestamp: getWIBNow()
+          });
+        }
+      }
+    }
+
+    // Jika ada reservation terkait, update juga
+    if (order.reservation) {
+      const reservation = await Reservation.findById(order.reservation).session(session);
+      if (reservation && reservation.status !== 'cancelled') {
+        reservation.status = 'cancelled';
+        if (reason) {
+          reservation.notes = `Cancelled: ${reason}. ${reservation.notes || ''}`;
+        }
+        await reservation.save({ session });
+      }
+    }
+
+    await session.commitTransaction();
+
+    // Emit socket events
+    if (typeof io !== 'undefined' && io) {
+      io.to('cashier_room').emit('order_status_updated', {
+        orderId: order._id,
+        order_id: order.order_id,
+        status: 'Canceled',
+        updatedBy: employee?.username || 'GRO',
+        timestamp: getWIBNow()
+      });
+
+      io.to('gro_room').emit('order_cancelled', {
+        orderId: order._id,
+        order_id: order.order_id,
+        tableNumber: order.tableNumber,
+        cancelledBy: employee?.username || 'GRO',
+        reason: reason,
+        timestamp: getWIBNow()
+      });
+    }
+
+    console.log(`✅ Order ${order.order_id} cancelled by GRO. Table ${order.tableNumber} is now available.`);
+
+    res.json({
+      success: true,
+      message: `Order berhasil dibatalkan.${order.tableNumber ? ` Meja ${order.tableNumber} sekarang tersedia.` : ''}`,
+      data: {
+        order: {
+          id: order._id,
+          order_id: order.order_id,
+          status: order.status,
+          tableNumber: order.tableNumber
+        },
+        cancelledBy: employee?.username || 'GRO',
+        cancelledAt: getWIBNow(),
+        reason: reason || 'No reason provided'
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error canceling dine-in order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error canceling dine-in order',
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// ✅ PUT /api/gro/orders/:orderId/dine-in/check-out
+export const checkOutDineInOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const userId = req.user?.id;
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+    if (order.orderType !== 'Dine-In') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only Dine-In orders can be checked out'
+      });
+    }
+    const employee = await User.findById(userId).select('username');
+    const checkOutNote = `
+[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Customer check-out oleh GRO: ${employee?.username || 'Unknown'}`;
+    order.notes = (order.notes || '') + checkOutNote;
+    await order.save();
+    res.json({
+      success: true,
+      message: 'Customer berhasil check-out',
+      data: order
+    });
+  } catch (error) {
+    console.error('Error checking out dine-in order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking out dine-in order',
+      error: error.message
+    });
+  }
+};
+
 
 // PUT /api/gro/reservations/:id/close-open-bill - Close open bill status
 export const closeOpenBill = async (req, res) => {
