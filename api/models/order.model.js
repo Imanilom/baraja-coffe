@@ -11,15 +11,30 @@ const toWIB = (date) => {
 };
 
 const OrderItemSchema = new mongoose.Schema({
-  menuItem: { 
-    type: mongoose.Schema.Types.ObjectId, 
+  menuItem: {
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'MenuItem',
     required: false // Jadikan tidak required untuk custom amount
   },
   quantity: { type: Number, min: 1 },
   subtotal: { type: Number, min: 0 },
-  addons: [{ name: String, price: Number }],
-  toppings: [{ name: String, price: Number }],
+  addons: [
+    {
+      name: String,
+      price: Number,
+      options: [
+        {
+          label: { type: String },
+          price: { type: Number }
+        }
+      ]
+    }
+  ],
+  toppings: [{
+    _id: { type: String },
+    name: String,
+    price: Number
+  }],
   notes: { type: String, default: '' },
   batchNumber: { type: Number, default: 1 },
   addedAt: {
@@ -61,8 +76,8 @@ const OrderSchema = new mongoose.Schema({
     amount: { type: Number, required: true },
     name: { type: String, default: 'Penyesuaian Pembayaran' },
     description: { type: String, default: '' },
-    dineType: { 
-      type: String, 
+    dineType: {
+      type: String,
       enum: ['Dine-In', 'Take Away'],
       default: 'Dine-In'
     },
@@ -123,7 +138,7 @@ const OrderSchema = new mongoose.Schema({
   totalCustomAmount: { type: Number, default: 0 }, // TOTAL dari semua custom amount items
   grandTotal: { type: Number, required: true },
   change: { type: Number, default: 0 },
-  
+
   // Sumber order
   source: { type: String, enum: ['Web', 'App', 'Cashier', 'Waiter'], required: true },
   currentBatch: { type: Number, default: 1 },
@@ -227,7 +242,7 @@ OrderSchema.methods.getWIBDate = function () {
 // Pre-save middleware untuk update updatedAtWIB dan hitung totalCustomAmount
 OrderSchema.pre('save', function (next) {
   this.updatedAtWIB = getWIBNow();
-  
+
   // Hitung total dari semua custom amount items
   if (this.customAmountItems && Array.isArray(this.customAmountItems)) {
     this.totalCustomAmount = this.customAmountItems.reduce((total, item) => {
@@ -236,7 +251,7 @@ OrderSchema.pre('save', function (next) {
   } else {
     this.totalCustomAmount = 0;
   }
-  
+
   next();
 });
 

@@ -1006,8 +1006,7 @@ export const createReservation = async (req, res) => {
   }
 };
 
-// GET /api/gro/reservations - Get all reservations with filters
-// GET /api/gro/reservations - Get all reservations with filters
+// ✅ FIXED: getReservations dengan filter yang benar untuk dine-in orders
 export const getReservations = async (req, res) => {
   try {
     const {
@@ -1020,46 +1019,48 @@ export const getReservations = async (req, res) => {
     } = req.query;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const filter = {};
+
+    // ========== FILTER UNTUK RESERVATIONS ==========
+    const reservationFilter = {};
 
     if (status) {
       if (status === 'active') {
-        filter.status = 'confirmed';
-        filter.check_in_time = { $ne: null };
-        filter.check_out_time = null;
+        reservationFilter.status = 'confirmed';
+        reservationFilter.check_in_time = { $ne: null };
+        reservationFilter.check_out_time = null;
       } else {
-        filter.status = status;
+        reservationFilter.status = status;
       }
     }
 
     if (date) {
       const targetDate = new Date(date);
       if (!isNaN(targetDate.getTime())) {
-        filter.reservation_date = {
+        reservationFilter.reservation_date = {
           $gte: new Date(targetDate.setHours(0, 0, 0, 0)),
           $lt: new Date(targetDate.setHours(23, 59, 59, 999))
         };
       }
     } else {
       const { startOfDay, endOfDay } = getTodayWIBRange();
-      filter.reservation_date = {
+      reservationFilter.reservation_date = {
         $gte: startOfDay,
         $lte: endOfDay
       };
     }
 
     if (area_id) {
-      filter.area_id = area_id;
+      reservationFilter.area_id = area_id;
     }
 
     if (search) {
-      filter.reservation_code = { $regex: search, $options: 'i' };
+      reservationFilter.reservation_code = { $regex: search, $options: 'i' };
     }
 
     // Get reservations
-    const total = await Reservation.countDocuments(filter);
+    const total = await Reservation.countDocuments(reservationFilter);
 
-    const reservations = await Reservation.find(filter)
+    const reservations = await Reservation.find(reservationFilter)
       .populate('area_id', 'area_name area_code capacity')
       .populate('table_id', 'table_number seats')
       .populate('order_id', 'order_id grandTotal status')
@@ -1070,11 +1071,40 @@ export const getReservations = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
-    // Get dine-in orders without reservations
+    // ========== FILTER UNTUK DINE-IN ORDERS (FIXED) ==========
     const orderFilter = {
-      orderType: 'Dine-In',
-      status: { $nin: ['Canceled', 'Completed'] } // Exclude completed and canceled orders
+      orderType: 'Dine-In'
     };
+
+    // ✅ PERBAIKAN: Mapping status filter ke status Order yang sesuai
+    if (status) {
+      switch (status) {
+        case 'pending':
+          // Untuk filter "pending/menunggu", ambil order dengan status Pending atau Waiting
+          orderFilter.status = { $in: ['Pending', 'Waiting'] };
+          break;
+        case 'active':
+          // Untuk filter "active/berlangsung", ambil order dengan status OnProcess
+          orderFilter.status = 'OnProcess';
+          break;
+        case 'completed':
+          // Untuk filter "completed/selesai", ambil order dengan status Completed
+          orderFilter.status = 'Completed';
+          break;
+        case 'cancelled':
+          // Untuk filter "cancelled/dibatalkan", ambil order dengan status Canceled
+          orderFilter.status = 'Canceled';
+          break;
+        default:
+          // Jika tidak ada filter atau 'all', ambil semua kecuali yang sudah punya reservation
+          // Tidak perlu filter status khusus
+          break;
+      }
+    } else {
+      // Jika tidak ada filter status (tampilkan semua), 
+      // ambil yang belum completed/canceled saja untuk menghindari duplikasi
+      orderFilter.status = { $nin: ['Canceled', 'Completed'] };
+    }
 
     // Apply date filter to orders
     if (date) {
@@ -1106,7 +1136,7 @@ export const getReservations = async (req, res) => {
       orderFilter.order_id = { $regex: search, $options: 'i' };
     }
 
-    // Query orders - WITHOUT populate area_id (karena tidak ada di schema Order)
+    // Query orders
     let dineInOrdersQuery = Order.find(orderFilter)
       .populate('cashierId', 'username')
       .populate('groId', 'username')
@@ -1121,7 +1151,6 @@ export const getReservations = async (req, res) => {
       let areaInfo = null;
 
       if (order.tableNumber) {
-        // Find table by table_number
         const table = await Table.findOne({ table_number: order.tableNumber })
           .populate('area_id', 'area_name area_code capacity')
           .lean();
@@ -1156,8 +1185,8 @@ export const getReservations = async (req, res) => {
       _id: order._id,
       type: 'dine-in-order', // Flag to identify it's from Order table
       reservation_code: order.order_id,
-      status: 'Dine-In',
-      guest_count: 1, // Default, bisa disesuaikan
+      status: order.status, // ✅ Gunakan status asli dari Order
+      guest_count: 1,
       reservation_date: order.createdAt,
       reservation_time: new Date(order.createdAt).toLocaleTimeString('id-ID', {
         hour: '2-digit',
@@ -1176,14 +1205,15 @@ export const getReservations = async (req, res) => {
         employee_id: order.cashierId || order.groId,
         timestamp: order.createdAt
       },
-      notes: `Dine-In customer - ${order.user || 'Guest'}`
+      notes: `Dine-In customer - ${order.user || 'Guest'}`,
+      createdAt: order.createdAt // ✅ Tambahkan untuk sorting
     }));
 
     // Combine and sort both datasets
     const combinedData = [...reservations, ...transformedOrders]
       .sort((a, b) => {
-        const dateA = new Date(a.reservation_date);
-        const dateB = new Date(b.reservation_date);
+        const dateA = new Date(a.reservation_date || a.createdAt);
+        const dateB = new Date(b.reservation_date || b.createdAt);
         return dateB - dateA;
       });
 
