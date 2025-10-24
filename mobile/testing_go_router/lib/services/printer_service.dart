@@ -971,7 +971,7 @@ class PrinterService {
     // Alamat Toko
     bytes.addAll(
       generator.text(
-        'Baraja Amphitheater, Jl. Tuparev No. 60, Kedungjaya, Kec. Kedawung, Kab. Cirebon, Jawa Barat 45153, Indonesia, KABUPATEN CIREBON\n0851-1708-9827',
+        'Jl. Tuparev No. 60, Kec. Kedawung, Kab. Cirebon, 45153\n0851-1708-9827',
         styles: const PosStyles(align: PosAlign.center),
       ),
     );
@@ -1144,7 +1144,10 @@ class PrinterService {
                 text: item.selectedAddons
                     .map((x) {
                       final addon =
-                          "${x.name}: ${x.options!.map((x) => x.label).join(', ')}";
+                          "${x.name}: ${x.options!.map((x) {
+                            final option = "${x.label}${x.price != 0 ? '(+${x.price})' : ''}";
+                            return option;
+                          }).join(', ')}";
                       return addon;
                     })
                     .join(', '),
@@ -1808,7 +1811,11 @@ class PrinterService {
     // Header
     bytes.addAll(
       generator.text(
-        'Check Out',
+        orderDetail.paymentStatus == null
+            ? 'Pending'
+            : orderDetail.paymentStatus!.toLowerCase() == 'settlement'
+            ? 'Lunas'
+            : 'Belum Lunas',
         styles: const PosStyles(
           align: PosAlign.center,
           bold: true,
@@ -1939,7 +1946,7 @@ class PrinterService {
     bytes.addAll(generator.feed(1));
     bytes.addAll(
       generator.text(
-        'Terima kasih telah berbelanja di Baraja Amphitheater',
+        'Mari Menjadi Bagian Budaya di Baraja Amphitheater',
         styles: const PosStyles(align: PosAlign.center),
       ),
     );

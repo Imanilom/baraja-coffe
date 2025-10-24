@@ -4,7 +4,7 @@ import Warehouse from '../models/modul_market/Warehouse.model.js';
 // CREATE: tambah asset baru
 export const createAsset = async (req, res) => {
   try {
-    const { name, code, category, description, quantity, unit, price, currency, warehouse } = req.body;
+    const { name, code, category, description, quantity, unit, price, currency, warehouse, barcode } = req.body;
 
     const warehouseExists = await Warehouse.findById(warehouse);
     if (!warehouseExists) {
@@ -21,6 +21,7 @@ export const createAsset = async (req, res) => {
       price,
       currency,
       warehouse,
+      barcode,
     });
 
     await asset.save();

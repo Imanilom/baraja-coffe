@@ -918,3 +918,536 @@ export const getRecipeByMenuId = async (req, res) => {
     });
   }
 };
+
+/**
+ * Controller untuk mengambil recipe yang menggunakan produk tertentu
+ * GET /api/recipes/by-product/:productId
+ */
+export const getRecipesByProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID Produk tidak valid' 
+      });
+    }
+
+    // Cari semua recipe yang menggunakan produk ini di baseIngredients
+    const recipesWithProduct = await Recipe.find({
+      $or: [
+        { 'baseIngredients.productId': productId },
+        { 'toppingOptions.ingredients.productId': productId },
+        { 'addonOptions.ingredients.productId': productId }
+      ]
+    })
+    .populate('menuItemId', 'name price category availableStock isActive')
+    .populate('baseIngredients.productId', 'name sku unit suppliers')
+    .populate('toppingOptions.ingredients.productId', 'name sku unit suppliers')
+    .populate('addonOptions.ingredients.productId', 'name sku unit suppliers')
+    .sort({ createdAt: -1 });
+
+    if (!recipesWithProduct.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tidak ada recipe yang menggunakan produk ini',
+        data: []
+      });
+    }
+
+    // Format response dengan detail penggunaan produk
+    const formattedRecipes = recipesWithProduct.map(recipe => {
+      const recipeObj = recipe.toObject();
+      
+      // Cari di baseIngredients
+      const inBaseIngredients = recipe.baseIngredients.filter(
+        ing => ing.productId && ing.productId._id.toString() === productId
+      );
+
+      // Cari di toppingOptions
+      const inToppingOptions = [];
+      recipe.toppingOptions.forEach(topping => {
+        topping.ingredients.forEach(ing => {
+          if (ing.productId && ing.productId._id.toString() === productId) {
+            inToppingOptions.push({
+              toppingName: topping.toppingName,
+              quantity: ing.quantity,
+              unit: ing.unit
+            });
+          }
+        });
+      });
+
+      // Cari di addonOptions
+      const inAddonOptions = [];
+      recipe.addonOptions.forEach(addon => {
+        addon.ingredients.forEach(ing => {
+          if (ing.productId && ing.productId._id.toString() === productId) {
+            inAddonOptions.push({
+              addonName: addon.addonName,
+              optionLabel: addon.optionLabel,
+              quantity: ing.quantity,
+              unit: ing.unit
+            });
+          }
+        });
+      });
+
+      return {
+        _id: recipeObj._id,
+        menuItem: recipeObj.menuItemId ? {
+          _id: recipeObj.menuItemId._id,
+          name: recipeObj.menuItemId.name,
+          price: recipeObj.menuItemId.price,
+          category: recipeObj.menuItemId.category,
+          availableStock: recipeObj.menuItemId.availableStock,
+          isActive: recipeObj.menuItemId.isActive
+        } : null,
+        productUsage: {
+          inBaseIngredients: inBaseIngredients.map(ing => ({
+            quantity: ing.quantity,
+            unit: ing.unit,
+            isDefault: ing.isDefault || false
+          })),
+          inToppingOptions,
+          inAddonOptions
+        },
+        totalUsageLocations: inBaseIngredients.length + inToppingOptions.length + inAddonOptions.length,
+        createdAt: recipeObj.createdAt,
+        updatedAt: recipeObj.updatedAt
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Ditemukan ${formattedRecipes.length} recipe yang menggunakan produk ini`,
+      data: formattedRecipes
+    });
+
+  } catch (error) {
+    console.error('Error fetching recipes by product:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mengambil data recipe berdasarkan produk'
+    });
+  }
+};
+
+/**
+ * Controller untuk mengambil recipe dengan detail stok bahan
+ * GET /api/recipes/by-product/:productId/with-stock
+ */
+export const getRecipesByProductWithStock = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID Produk tidak valid' 
+      });
+    }
+
+    // Cari produk terlebih dahulu untuk mendapatkan informasi stok
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Produk tidak ditemukan'
+      });
+    }
+
+    // Cari stok produk
+    const productStock = await ProductStock.findOne({ productId });
+
+    // Cari semua recipe yang menggunakan produk ini
+    const recipesWithProduct = await Recipe.find({
+      $or: [
+        { 'baseIngredients.productId': productId },
+        { 'toppingOptions.ingredients.productId': productId },
+        { 'addonOptions.ingredients.productId': productId }
+      ]
+    })
+    .populate('menuItemId', 'name price category availableStock isActive')
+    .populate('baseIngredients.productId', 'name sku unit suppliers')
+    .populate('toppingOptions.ingredients.productId', 'name sku unit suppliers')
+    .populate('addonOptions.ingredients.productId', 'name sku unit suppliers')
+    .sort({ createdAt: -1 });
+
+    if (!recipesWithProduct.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tidak ada recipe yang menggunakan produk ini',
+        data: []
+      });
+    }
+
+    // Format response dengan informasi stok
+    const formattedRecipes = await Promise.all(
+      recipesWithProduct.map(async (recipe) => {
+        const recipeObj = recipe.toObject();
+        
+        // Hitung total penggunaan produk dalam recipe
+        let totalUsage = 0;
+        const usageDetails = [];
+
+        // Base ingredients
+        recipe.baseIngredients.forEach(ing => {
+          if (ing.productId && ing.productId._id.toString() === productId) {
+            totalUsage += ing.quantity;
+            usageDetails.push({
+              type: 'base',
+              location: 'Bahan Utama',
+              quantity: ing.quantity,
+              unit: ing.unit,
+              isDefault: ing.isDefault || false
+            });
+          }
+        });
+
+        // Topping options
+        recipe.toppingOptions.forEach(topping => {
+          topping.ingredients.forEach(ing => {
+            if (ing.productId && ing.productId._id.toString() === productId) {
+              totalUsage += ing.quantity;
+              usageDetails.push({
+                type: 'topping',
+                location: `Topping: ${topping.toppingName}`,
+                quantity: ing.quantity,
+                unit: ing.unit
+              });
+            }
+          });
+        });
+
+        // Addon options
+        recipe.addonOptions.forEach(addon => {
+          addon.ingredients.forEach(ing => {
+            if (ing.productId && ing.productId._id.toString() === productId) {
+              totalUsage += ing.quantity;
+              usageDetails.push({
+                type: 'addon',
+                location: `Addon: ${addon.addonName} - ${addon.optionLabel}`,
+                quantity: ing.quantity,
+                unit: ing.unit
+              });
+            }
+          });
+        });
+
+        // Hitung estimasi porsi yang bisa dibuat berdasarkan stok produk ini
+        const estimatedPortions = productStock?.currentStock 
+          ? Math.floor(productStock.currentStock / totalUsage)
+          : 0;
+
+        return {
+          _id: recipeObj._id,
+          menuItem: recipeObj.menuItemId ? {
+            _id: recipeObj.menuItemId._id,
+            name: recipeObj.menuItemId.name,
+            price: recipeObj.menuItemId.price,
+            category: recipeObj.menuItemId.category,
+            availableStock: recipeObj.menuItemId.availableStock,
+            isActive: recipeObj.menuItemId.isActive
+          } : null,
+          productInfo: {
+            productId: product._id,
+            productName: product.name,
+            productSku: product.sku,
+            currentStock: productStock?.currentStock || 0,
+            unit: product.unit
+          },
+          usageDetails,
+          totalUsage,
+          estimatedPortions,
+          stockStatus: estimatedPortions > 0 ? 'available' : 'out_of_stock',
+          createdAt: recipeObj.createdAt,
+          updatedAt: recipeObj.updatedAt
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Ditemukan ${formattedRecipes.length} recipe yang menggunakan produk ini`,
+      productInfo: {
+        _id: product._id,
+        name: product.name,
+        sku: product.sku,
+        currentStock: productStock?.currentStock || 0,
+        unit: product.unit
+      },
+      data: formattedRecipes
+    });
+
+  } catch (error) {
+    console.error('Error fetching recipes by product with stock:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mengambil data recipe berdasarkan produk dengan informasi stok'
+    });
+  }
+};
+
+/**
+ * Controller untuk mencari recipe berdasarkan nama produk
+ * GET /api/recipes/by-product-name?productName=...
+ */
+export const getRecipesByProductName = async (req, res) => {
+  try {
+    const { productName } = req.query;
+
+    if (!productName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nama produk harus diisi'
+      });
+    }
+
+    // Cari produk berdasarkan nama (case insensitive)
+    const products = await Product.find({
+      name: { $regex: productName, $options: 'i' }
+    });
+
+    if (!products.length) {
+      return res.status(404).json({
+        success: false,
+        message: `Tidak ditemukan produk dengan nama mengandung '${productName}'`,
+        data: []
+      });
+    }
+
+    const productIds = products.map(p => p._id);
+
+    // Cari recipe yang menggunakan produk-produk tersebut
+    const recipesWithProducts = await Recipe.find({
+      $or: [
+        { 'baseIngredients.productId': { $in: productIds } },
+        { 'toppingOptions.ingredients.productId': { $in: productIds } },
+        { 'addonOptions.ingredients.productId': { $in: productIds } }
+      ]
+    })
+    .populate('menuItemId', 'name price category availableStock isActive')
+    .populate('baseIngredients.productId', 'name sku unit suppliers')
+    .populate('toppingOptions.ingredients.productId', 'name sku unit suppliers')
+    .populate('addonOptions.ingredients.productId', 'name sku unit suppliers')
+    .sort({ createdAt: -1 });
+
+    if (!recipesWithProducts.length) {
+      return res.status(404).json({
+        success: false,
+        message: `Tidak ada recipe yang menggunakan produk dengan nama '${productName}'`,
+        data: []
+      });
+    }
+
+    // Format response
+    const formattedRecipes = recipesWithProducts.map(recipe => {
+      const recipeObj = recipe.toObject();
+      
+      // Cari semua produk yang match dalam recipe ini
+      const matchedProducts = [];
+      
+      // Base ingredients
+      recipe.baseIngredients.forEach(ing => {
+        if (ing.productId && productIds.includes(ing.productId._id)) {
+          matchedProducts.push({
+            productId: ing.productId._id,
+            productName: ing.productId.name,
+            type: 'base',
+            location: 'Bahan Utama',
+            quantity: ing.quantity,
+            unit: ing.unit,
+            isDefault: ing.isDefault || false
+          });
+        }
+      });
+
+      // Topping options
+      recipe.toppingOptions.forEach(topping => {
+        topping.ingredients.forEach(ing => {
+          if (ing.productId && productIds.includes(ing.productId._id)) {
+            matchedProducts.push({
+              productId: ing.productId._id,
+              productName: ing.productId.name,
+              type: 'topping',
+              location: `Topping: ${topping.toppingName}`,
+              quantity: ing.quantity,
+              unit: ing.unit
+            });
+          }
+        });
+      });
+
+      // Addon options
+      recipe.addonOptions.forEach(addon => {
+        addon.ingredients.forEach(ing => {
+          if (ing.productId && productIds.includes(ing.productId._id)) {
+            matchedProducts.push({
+              productId: ing.productId._id,
+              productName: ing.productId.name,
+              type: 'addon',
+              location: `Addon: ${addon.addonName} - ${addon.optionLabel}`,
+              quantity: ing.quantity,
+              unit: ing.unit
+            });
+          }
+        });
+      });
+
+      return {
+        _id: recipeObj._id,
+        menuItem: recipeObj.menuItemId ? {
+          _id: recipeObj.menuItemId._id,
+          name: recipeObj.menuItemId.name,
+          price: recipeObj.menuItemId.price,
+          category: recipeObj.menuItemId.category,
+          availableStock: recipeObj.menuItemId.availableStock,
+          isActive: recipeObj.menuItemId.isActive
+        } : null,
+        matchedProducts,
+        totalMatchedProducts: matchedProducts.length,
+        createdAt: recipeObj.createdAt,
+        updatedAt: recipeObj.updatedAt
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Ditemukan ${formattedRecipes.length} recipe yang menggunakan produk dengan nama '${productName}'`,
+      searchQuery: productName,
+      matchedProducts: products.map(p => ({
+        _id: p._id,
+        name: p.name,
+        sku: p.sku,
+        unit: p.unit
+      })),
+      data: formattedRecipes
+    });
+
+  } catch (error) {
+    console.error('Error fetching recipes by product name:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mencari recipe berdasarkan nama produk'
+    });
+  }
+};
+
+/**
+ * Controller untuk mendapatkan ringkasan penggunaan produk di semua recipe
+ * GET /api/products/:productId/recipe-usage-summary
+ */
+export const getProductRecipeUsageSummary = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID Produk tidak valid' 
+      });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Produk tidak ditemukan'
+      });
+    }
+
+    // Cari semua recipe yang menggunakan produk ini
+    const recipes = await Recipe.find({
+      $or: [
+        { 'baseIngredients.productId': productId },
+        { 'toppingOptions.ingredients.productId': productId },
+        { 'addonOptions.ingredients.productId': productId }
+      ]
+    })
+    .populate('menuItemId', 'name price category availableStock isActive');
+
+    const productStock = await ProductStock.findOne({ productId });
+
+    // Hitung statistik
+    let totalRecipes = recipes.length;
+    let totalUsageInBase = 0;
+    let totalUsageInToppings = 0;
+    let totalUsageInAddons = 0;
+    let activeMenuItems = 0;
+
+    recipes.forEach(recipe => {
+      // Base ingredients
+      recipe.baseIngredients.forEach(ing => {
+        if (ing.productId && ing.productId.toString() === productId) {
+          totalUsageInBase += ing.quantity;
+        }
+      });
+
+      // Topping options
+      recipe.toppingOptions.forEach(topping => {
+        topping.ingredients.forEach(ing => {
+          if (ing.productId && ing.productId.toString() === productId) {
+            totalUsageInToppings += ing.quantity;
+          }
+        });
+      });
+
+      // Addon options
+      recipe.addonOptions.forEach(addon => {
+        addon.ingredients.forEach(ing => {
+          if (ing.productId && ing.productId.toString() === productId) {
+            totalUsageInAddons += ing.quantity;
+          }
+        });
+      });
+
+      // Hitung menu item aktif
+      if (recipe.menuItemId && recipe.menuItemId.isActive) {
+        activeMenuItems++;
+      }
+    });
+
+    const totalUsage = totalUsageInBase + totalUsageInToppings + totalUsageInAddons;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        product: {
+          _id: product._id,
+          name: product.name,
+          sku: product.sku,
+          unit: product.unit,
+          currentStock: productStock?.currentStock || 0
+        },
+        usageSummary: {
+          totalRecipes,
+          activeMenuItems,
+          inactiveMenuItems: totalRecipes - activeMenuItems,
+          totalUsage,
+          usageByType: {
+            baseIngredients: totalUsageInBase,
+            toppings: totalUsageInToppings,
+            addons: totalUsageInAddons
+          },
+          averageUsagePerRecipe: totalRecipes > 0 ? totalUsage / totalRecipes : 0
+        },
+        stockAnalysis: {
+          estimatedPortions: productStock?.currentStock 
+            ? Math.floor(productStock.currentStock / totalUsage)
+            : 0,
+          stockStatus: productStock?.currentStock > 0 ? 'in_stock' : 'out_of_stock',
+          requiresRestock: (productStock?.currentStock || 0) < totalUsage
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error generating product usage summary:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal membuat ringkasan penggunaan produk'
+    });
+  }
+};

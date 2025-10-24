@@ -308,6 +308,7 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
 
       final orderDetails = ref.read(orderDetailProvider.notifier);
       orderDetails.addOrderIdToOrderDetail(order['orderId']);
+      orderDetails.addPaymentStatusToOrderDetail(order['paymentStatus'] ?? '');
 
       if (order.isNotEmpty) {
         return true;
@@ -399,6 +400,13 @@ class OrderDetailNotifier extends StateNotifier<OrderDetailModel?> {
     if (state != null) {
       state = state!.copyWith(orderId: orderId);
       print('success add Order ID: $orderId');
+    }
+  }
+
+  void addPaymentStatusToOrderDetail(String paymentStatus) {
+    if (state != null) {
+      state = state!.copyWith(paymentStatus: paymentStatus);
+      print('success add Payment Status: $paymentStatus');
     }
   }
 

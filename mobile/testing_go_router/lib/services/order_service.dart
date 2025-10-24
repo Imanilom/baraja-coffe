@@ -39,47 +39,48 @@ class OrderService {
       );
       print('response create order: ${response.data}');
 
-      if (orderDetail.source != 'App') {
-        print(
-          'start create charge... orderId: ${createOrderRequest(orderDetail)}',
-        );
-        // print(
-        //   'start charge request: ${createChargeRequest(response.data['orderId'], orderDetail.grandTotal, orderDetail.paymentMethod!)}',
-        // );
-        print(
-          'paymentData change & amount: ${paymentData.change} ${paymentData.selectedCashAmount}',
-        );
-        Response chargeResponse = await _dio.post(
-          '/api/cashierCharge',
-          data: createChargeRequest(
-            response.data['orderId'],
-            orderDetail.grandTotal,
-            orderDetail.paymentMethod!,
-            paymentData.isDownPayment,
-            paymentData.selectedDownPayment ?? 0,
-            paymentData.selectedDownPayment != null
-                ? orderDetail.grandTotal -
-                    (paymentData.selectedDownPayment ?? 0)
-                : 0,
-            paymentData.selectedCashAmount ?? 0,
-            paymentData.change ?? 0,
-          ),
-          options: Options(
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'ngrok-skip-browser-warning': 'true',
-            },
-          ),
-        );
-        print('response charge: ${chargeResponse.data}');
-        if (chargeResponse.statusCode != 200) {
-          throw Exception('Failed to create charge');
-        }
+      print(
+        'start create charge... orderId: ${createOrderRequest(orderDetail)}',
+      );
+      // print(
+      //   'start charge request: ${createChargeRequest(response.data['orderId'], orderDetail.grandTotal, orderDetail.paymentMethod!)}',
+      // );
+      print(
+        'paymentData change & amount: ${paymentData.change} ${paymentData.selectedCashAmount}',
+      );
+      Response chargeResponse = await _dio.post(
+        '/api/cashierCharge',
+        data: createChargeRequest(
+          response.data['orderId'],
+          orderDetail.grandTotal,
+          orderDetail.paymentMethod!,
+          paymentData.isDownPayment,
+          paymentData.selectedDownPayment ?? 0,
+          paymentData.selectedDownPayment != null
+              ? orderDetail.grandTotal - (paymentData.selectedDownPayment ?? 0)
+              : 0,
+          paymentData.selectedCashAmount ?? 0,
+          paymentData.change ?? 0,
+        ),
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        ),
+      );
+      print('response charge: ${chargeResponse.data}');
+      if (chargeResponse.statusCode != 200) {
+        throw Exception('Failed to create charge');
       }
 
       print('response status code create order: ${response.statusCode}');
-      return response.data;
+      return {
+        'orderId': response.data['orderId'],
+        'orderNumber': response.data['orderNumber'],
+        'paymentStatus': chargeResponse.data['paymentStatus'],
+      };
     } on DioException catch (e) {
       print('error create order: $e');
       throw ApiResponseHandler.handleError(e);
@@ -92,7 +93,7 @@ class OrderService {
       Response response = await _dio.get(
         '/api/pending-orders/$outletId',
         data: {
-          "sources": ["App", "Web"],
+          "sources": ["App", "Web", "Gro"],
         },
         options: Options(
           headers: {
