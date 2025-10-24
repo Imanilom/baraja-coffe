@@ -161,6 +161,7 @@ import AnalyticsDashboard from "./pages/analytics";
 import QRCodeGenerator from "./pages/table/generateQr";
 import AssetManagement from "./pages/aset";
 import CreateDevice from "./pages/device/maindevice/create";
+import ReservationPage from "./pages/reservation";
 
 
 export default function App() {
@@ -347,6 +348,8 @@ export default function App() {
                 <Route path="categories" element={<CategoryIndex />} />
                 <Route path="categories-create" element={<CreateCategory />} />
                 <Route path="categories-assign" element={<AssignMenuItemToCategory />} />
+
+                <Route path="reservation" element={<ReservationPage />} />
 
                 <Route path="content" element={<ContentManagement />} />
                 <Route path="content-create" element={<CreateContent />} />

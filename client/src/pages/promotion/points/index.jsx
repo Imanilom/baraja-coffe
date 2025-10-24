@@ -1,282 +1,293 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
-import { FaBell, FaChevronRight, FaCut, FaSearch, FaUser } from "react-icons/fa";
-import { Link } from "react-router-dom";
-import Header from "../../admin/header";
-
-const initialForm = { name: "", requiredPoints: 0, description: "" };
+import React, { useState, useEffect } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Users, Award, TrendingUp } from 'lucide-react';
+import { FaChevronRight } from 'react-icons/fa';
+import { Link } from 'react-router-dom';
 
 export default function PointManagement() {
-  const [loyaltyLevels, setLoyaltyLevels] = useState([]);
-  const [outlets, setOutlet] = useState([]);
-  const [formData, setFormData] = useState(initialForm);
-  const [editingId, setEditingId] = useState(null);
-  const [tempSearch, setTempSearch] = useState("");
-
-  const [selectedOption, setSelectedOption] = useState("Per Outlet"); // Default aktif
-
-  const options = ["Semua Outlet", "Per Outlet", "Tidak Aktif"];
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchLevels();
-    fetchOutlet();
+    fetchData();
   }, []);
 
-  const [filters, setFilters] = useState({
-    outlet: "",
-    isActive: ""
-  });
-
-  const fetchLevels = async () => {
+  const fetchData = async () => {
     try {
-      const res = await axios.get("/api/promotion/loyalty-levels");
-      setLoyaltyLevels(Array.isArray(res.data.data) ? res.data.data : []);
+      setLoading(true);
+      const response = await fetch('/api/analytics/customer-segmentation');
+      const result = await response.json();
 
+      if (result.success) {
+        setData(result.data);
+      } else {
+        setError('Failed to fetch data');
+      }
     } catch (err) {
-      console.error(err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchOutlet = async () => {
-    try {
-      const res = await axios.get("/api/outlet");
-      setOutlet(res.data.data);
-    } catch (err) {
-      console.error(err);
-    }
+  const getAllCustomersWithLoyalty = () => {
+    if (!data) return [];
+
+    const allCustomers = [];
+    data.forEach(segment => {
+      segment.customers.forEach(customer => {
+        if (customer.customerInfo && customer.customerInfo.email) {
+          allCustomers.push({
+            userId: customer.customerInfo.userId || 'Unknown',
+            username: customer.customerInfo.username || 'Unknown User',
+            email: customer.customerInfo.email || '-',
+            loyaltyPoints: customer.customerInfo.loyaltyPoints || 0,
+            loyaltyLevel: customer.customerInfo.loyaltyLevel || '-',
+            totalSpent: customer.totalSpent || 0,
+            totalOrders: customer.totalOrders || 0,
+            profilePicture: customer.customerInfo.profilePicture
+          });
+        }
+      });
+    });
+
+    return allCustomers.sort((a, b) => b.loyaltyPoints - a.loyaltyPoints);
+  };
+
+  const getTop5Customers = () => {
+    const allCustomers = getAllCustomersWithLoyalty();
+    return allCustomers.slice(0, 5).map(customer => ({
+      name: customer.username.length > 15 ? customer.username.substring(0, 15) + '...' : customer.username,
+      points: customer.loyaltyPoints,
+      fullName: customer.username
+    }));
+  };
+
+  const calculateStats = () => {
+    const allCustomers = getAllCustomersWithLoyalty();
+    const totalPoints = allCustomers.reduce((sum, c) => sum + c.loyaltyPoints, 0);
+    const avgPoints = allCustomers.length > 0 ? totalPoints / allCustomers.length : 0;
+    const maxPoints = allCustomers.length > 0 ? allCustomers[0].loyaltyPoints : 0;
+
+    return {
+      totalCustomers: allCustomers.length,
+      totalPoints,
+      avgPoints: Math.round(avgPoints),
+      maxPoints
+    };
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading analytics...</p>
+        </div>
+      </div>
+    );
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editingId) {
-        await axios.put(`/api/promotion/loyalty-levels/${editingId}`, formData);
-      } else {
-        await axios.post("/api/promotion/loyalty-levels", formData);
-      }
-      setFormData(initialForm);
-      setEditingId(null);
-      fetchLevels();
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-lg">
+          <p className="text-red-600 text-lg">Error: {error}</p>
+          <button
+            onClick={fetchData}
+            className="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  const handleEdit = (level) => {
-    setFormData(level);
-    setEditingId(level._id);
-  };
-
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters({ ...filters, [name]: value });
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await axios.delete(`/api/promotion/loyalty-levels/${id}`);
-      fetchLevels();
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const top5Data = getTop5Customers();
+  const allCustomers = getAllCustomersWithLoyalty();
+  const stats = calculateStats();
 
   return (
-    <div className="w-full">
-      <Header />
+    <div className="pb-[50px] px-6">
 
       {/* Breadcrumb */}
-      <div className="px-3 py-3 flex justify-between items-center border-b">
-        <div className="flex items-center space-x-2">
-          <FaCut size={21} className="text-gray-500 inline-block" />
-          <Link to="/admin/promotion" className="text-[15px] text-gray-500">Promo</Link>
-          <FaChevronRight size={21} className="text-gray-500 inline-block" />
-          <p className="text-[15px] text-gray-500">Poin</p>
+      <div className="flex justify-between items-center py-3 my-3">
+        <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+          <Link to="/admin/promotion">Promosi</Link>
+          <FaChevronRight />
+          <span>Poin</span>
         </div>
       </div>
-      {/* <h1 className="text-[14px] font-bold mb-4 uppercase">Pengaturan Poin</h1> */}
-
-      {/* <form onSubmit={handleSubmit} className="space-y-4 bg-white p-4 shadow rounded mb-6">
-        <input
-          type="text"
-          placeholder="Level Name"
-          className="w-full p-2 border rounded"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          required
-        />
-        <input
-          type="number"
-          placeholder="Required Points"
-          className="w-full p-2 border rounded"
-          value={formData.requiredPoints}
-          onChange={(e) => setFormData({ ...formData, requiredPoints: e.target.value })}
-          required
-        />
-        <textarea
-          placeholder="Description"
-          className="w-full p-2 border rounded"
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-        />
-        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
-          {editingId ? "Update Level" : "Add Level"}
-        </button>
-        {editingId && (
-          <button
-            type="button"
-            className="ml-2 bg-gray-500 text-white px-4 py-2 rounded"
-            onClick={() => {
-              setFormData(initialForm);
-              setEditingId(null);
-            }}
-          >
-            Cancel
-          </button>
-        )}
-      </form> */}
-
-      <div className="flex justify-between items-center text-[14px] text-[#999999] px-4 py-4">
-        <h4 className="uppercase font-semibold">Pengaturan saat ini</h4>
-        <div className="flex border border-[#999999] rounded font-semibold">
-          {options.map((option, index) => (
-            <button
-              key={option}
-              onClick={() => setSelectedOption(option)}
-              className={`py-2 px-3 transition-colors duration-200 ${selectedOption === option
-                ? "bg-[#005429] text-white"
-                : "text-[#999999] hover:bg-[#005429] hover:text-white"
-                } ${index == 0 ? "rounded-l border-[#999999]" : ""
-                } ${index == 2 ? "rounded-r border-[#999999]" : ""
-                }`}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="px-[15px] pb-[15px]">
-        <div className="my-[13px] py-[10px] px-[15px] grid grid-cols-2 gap-[10px] items-end rounded bg-slate-50 shadow-slate-200 shadow-md">
-          <div className="relative">
-            <label className="text-[13px] mb-1 text-gray-500">Cari Outlet</label>
-            <div className="relative">
-              <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Outlet"
-                value={tempSearch}
-                onChange={(e) => setTempSearch(e.target.value)}
-                className="text-[13px] border py-[6px] pl-[30px] pr-[25px] rounded w-full"
-              />
+      <div className="">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-indigo-600">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-sm font-medium">Total Customers</p>
+                <p className="text-3xl font-bold text-gray-800 mt-1">{stats.totalCustomers}</p>
+              </div>
+              <Users className="text-indigo-600" size={40} />
             </div>
           </div>
-          <div className="relative">
-            <label className="text-[13px] mb-1 text-gray-500">Status :</label>
-            <select
-              name="isActive"
-              value={filters.isActive}
-              onChange={handleFilterChange}
-              className="w-full text-[13px] text-gray-500 border py-[6px] pr-[25px] pl-[12px] rounded text-left relative after:content-['▼'] after:absolute after:right-2 after:top-1/2 after:-translate-y-1/2 after:text-[10px]"
-            >
-              <option value="">All Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
+
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-600">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-sm font-medium">Total Points</p>
+                <p className="text-3xl font-bold text-gray-800 mt-1">{stats.totalPoints.toLocaleString()}</p>
+              </div>
+              <Award className="text-purple-600" size={40} />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-600">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-sm font-medium">Avg Points</p>
+                <p className="text-3xl font-bold text-gray-800 mt-1">{stats.avgPoints.toLocaleString()}</p>
+              </div>
+              <TrendingUp className="text-green-600" size={40} />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-600">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-sm font-medium">Top Points</p>
+                <p className="text-3xl font-bold text-gray-800 mt-1">{stats.maxPoints.toLocaleString()}</p>
+              </div>
+              <Award className="text-orange-600" size={40} />
+            </div>
+          </div>
+        </div>
+
+        {/* Top 5 Chart & All Customers List */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* All Customers List - Left Side (2/3 width) */}
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+              <Users className="text-indigo-600" size={28} />
+              Poin Pelanggan
+            </h2>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b-2 border-gray-200">
+                    <th className="text-left py-4 px-4 text-gray-700 text-xs font-semibold">Rank</th>
+                    <th className="text-left py-4 px-4 text-gray-700 text-xs font-semibold">Customer</th>
+                    <th className="text-left py-4 px-4 text-gray-700 text-xs font-semibold">Email</th>
+                    <th className="text-right py-4 px-4 text-gray-700 text-xs font-semibold">Loyalty Points</th>
+                    <th className="text-right py-4 px-4 text-gray-700 text-xs font-semibold">Total Spent</th>
+                    <th className="text-right py-4 px-4 text-gray-700 text-xs font-semibold">Total Orders</th>
+                    <th className="text-center py-4 px-4 text-gray-700 text-xs font-semibold">Level</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allCustomers.map((customer, index) => (
+                    <tr
+                      key={customer.userId}
+                      className={`border-b text-xs border-gray-100 hover:bg-gray-50 transition ${index < 5 ? 'bg-indigo-50' : ''}`}
+                    >
+                      <td className="py-4 px-4">
+                        <span className={`font-bold ${index < 5 ? 'text-indigo-600 text-lg' : 'text-gray-600'}`}>
+                          #{index + 1}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          {customer.profilePicture ? (
+                            <img
+                              src={customer.profilePicture ? customer.profilePicture : "https://img.barajacoffee.com/uploads/placeholder.webp"}
+                              alt={customer.username}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-indigo-200 flex items-center justify-center">
+                              <span className="text-indigo-700 font-semibold">
+                                {customer.username.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                          <span className="font-medium text-gray-800">{customer.username}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-gray-600">{customer.email}</td>
+                      <td className="py-4 px-4 text-right">
+                        <span className="font-bold text-indigo-600 text-lg">
+                          {customer.loyaltyPoints.toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-right text-gray-700">
+                        Rp {customer.totalSpent.toLocaleString()}
+                      </td>
+                      <td className="py-4 px-4 text-right text-gray-700">
+                        {customer.totalOrders}
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${customer.loyaltyLevel && customer.loyaltyLevel !== '-'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-500'
+                          }`}>
+                          {customer.loyaltyLevel}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Top 5 Chart - Right Side (1/3 width) */}
+          <div className="">
+
+            <div className="lg:col-span-1 bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+                Top 5 Pelanggan
+              </h2>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={top5Data} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    type="number"
+                    stroke="#6b7280"
+                    style={{ fontSize: '12px' }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    stroke="#6b7280"
+                    style={{ fontSize: '12px' }}
+                    width={100}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                    }}
+                    formatter={(value, name, props) => [
+                      `${value.toLocaleString()} points`,
+                      props.payload.fullName
+                    ]}
+                  />
+                  <Bar
+                    dataKey="points"
+                    fill="#4f46e5"
+                    radius={[0, 8, 8, 0]}
+                    name="Loyalty Points"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </div>
-
-      <div className="p-4">
-        <div className="bg-white shadow rounded">
-          <table className="w-full text-left">
-            <thead className="border-b">
-              <tr>
-                <th className="p-3 uppercase text-[14px] text-[#999999]">outlet</th>
-                <th className="p-3 uppercase text-[14px] text-[#999999] text-right">poin registrasi</th>
-                <th className="p-3 uppercase text-[14px] text-[#999999] text-right">nominal (Rp)</th>
-                <th className="p-3 uppercase text-[14px] text-[#999999] text-right">poin transaksi</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {outlets.map((outlet) => (
-                <tr key={outlet._id}>
-                  <td className="p-3">{outlet.name}</td>
-                  <td className="p-3 text-right">0</td>
-                  <td className="p-3 text-right">0</td>
-                  <td className="p-3 text-right">0</td>
-                  <td className="p-3 space-x-2 flex justify-end">
-                    <button
-                      onClick={() => handleEdit(outlet)}
-                      className="px-3 py-1 bg-yellow-500 text-white rounded"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(outlet._id)}
-                      className="px-3 py-1 bg-red-600 text-white rounded"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {outlets.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="text-center p-4 text-gray-500">
-                    No loyalty levels found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {/* <div className="p-4">
-        <div className="bg-white shadow rounded">
-          <table className="w-full text-left border">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-3 border">Name</th>
-                <th className="p-3 border">Required Points</th>
-                <th className="p-3 border">Description</th>
-                <th className="p-3 border">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loyaltyLevels.map((level) => (
-                <tr key={level._id}>
-                  <td className="p-3 border">{level.name}</td>
-                  <td className="p-3 border">{level.requiredPoints}</td>
-                  <td className="p-3 border">{level.description}</td>
-                  <td className="p-3 border space-x-2">
-                    <button
-                      onClick={() => handleEdit(level)}
-                      className="px-3 py-1 bg-yellow-500 text-white rounded"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(level._id)}
-                      className="px-3 py-1 bg-red-600 text-white rounded"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {loyaltyLevels.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="text-center p-4 text-gray-500">
-                    No loyalty levels found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div> */}
     </div>
   );
 }
