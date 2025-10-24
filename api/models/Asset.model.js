@@ -16,6 +16,7 @@ const AssetSchema = new mongoose.Schema(
     warehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
 
     isActive: { type: Boolean, default: true },
+    barcode: { type: String }, // lokasi image barcode
   },
   { timestamps: true }
 );
