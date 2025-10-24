@@ -36,7 +36,7 @@ class OrderDetailWidget extends ConsumerWidget {
           const SizedBox(height: 8),
           _buildOrderInfo(order),
           const SizedBox(height: 8),
-          _buildItemsList(context, order),
+          _buildItemsList(context, order, ref),
           const SizedBox(height: 8),
           _buildPricingDetails(order),
         ],
@@ -153,7 +153,11 @@ class OrderDetailWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildItemsList(BuildContext context, OrderDetailModel order) {
+  Widget _buildItemsList(
+    BuildContext context,
+    OrderDetailModel order,
+    WidgetRef ref,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -212,14 +216,16 @@ class OrderDetailWidget extends ConsumerWidget {
                 color: Colors.green,
               ),
               label: Text(
+                // label tidak pakai style manual: warna ikut TextButton
+                // kalau mau hijau, atur via styleFrom(foregroundColor: ...)
+                // 'Edit Order Item',
+                // Kalau mau dinamis:
                 order.items.isEmpty ? 'Add Order Item' : 'Edit Order Item',
-                style: TextStyle(color: Colors.green),
               ),
-              onPressed: () {
-                //show konfirmasi ya atau tidak
-                showDialog(
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
                   context: context,
-                  builder: (BuildContext context) {
+                  builder: (dialogCtx) {
                     return AlertDialog(
                       title: const Text('Konfirmasi'),
                       content: const Text(
@@ -227,32 +233,28 @@ class OrderDetailWidget extends ConsumerWidget {
                       ),
                       actions: [
                         TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
+                          onPressed: () => Navigator.of(dialogCtx).pop(false),
                           child: Text(
                             'Batal',
                             style: TextStyle(color: Colors.grey[600]),
                           ),
                         ),
                         TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            context.pushNamed(
-                              'edit-order-item',
-                              extra: order,
-                              pathParameters: {'id': order.id!},
-                            );
-                          },
+                          onPressed: () => Navigator.of(dialogCtx).pop(true),
                           child: const Text(
                             'Ya, Ganti',
-                            style: TextStyle(color: Colors.red),
+                            // atau: const Text('Ya, Ganti', style: TextStyle(color: Colors.red)),
                           ),
                         ),
                       ],
                     );
                   },
                 );
+
+                if (confirm == true) {
+                  if (!context.mounted) return;
+                  context.push('/${order.id}/edit-order-item', extra: order);
+                }
               },
             ),
         ],

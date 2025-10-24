@@ -251,15 +251,26 @@ class OrderDetailWidget extends ConsumerWidget {
                 fontSize: 12,
               ),
             ),
-            ...item.selectedAddons.map(
-              (addon) => Padding(
+            ...item.selectedAddons.map((addon) {
+              final name = addon.name!;
+              final options =
+                  addon.options != null
+                      ? addon.options!.map((e) => e.label).join(', ')
+                      : '';
+              final optionPrices =
+                  addon.options != null
+                      ? addon.options!
+                          .map((e) => formatPrice(e.price ?? 0))
+                          .join(', ')
+                      : 'free';
+              return Padding(
                 padding: const EdgeInsets.only(left: 8, top: 2),
                 child: Text(
-                  addon.name!,
+                  '+ $name: $options (+ $optionPrices)',
                   style: TextStyle(color: Colors.grey[600], fontSize: 11),
                 ),
-              ),
-            ),
+              );
+            }),
           ],
           const SizedBox(),
           Text(
@@ -319,10 +330,7 @@ class OrderDetailWidget extends ConsumerWidget {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _buildPriceRow(
-            'Subtotal',
-            order.totalBeforeDiscount + order.totalCustomAmount,
-          ),
+          _buildPriceRow('Subtotal', order.totalBeforeDiscount),
           _buildPriceRow('Tax', order.totalTax),
           // _buildPriceRow('Discount', -order.discounts),
           const Divider(),
