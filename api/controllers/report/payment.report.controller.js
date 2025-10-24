@@ -27,11 +27,17 @@ export const generateSalesReport = async (req, res) => {
 
     // Get order_ids from payments
     const orderIds = payments.map(p => p.order_id).filter(id => id);
-    
+
     // Find orders separately since order_id is string, not ObjectId
+    // const orders = await Order.find({
+    //   order_id: { $in: orderIds },
+    //   status: { $in: ['Completed', 'OnProcess', 'Waiting'] },
+    //   ...(outletId && { outlet: new mongoose.Types.ObjectId(outletId) })
+    // });
+
     const orders = await Order.find({
       order_id: { $in: orderIds },
-      status: { $in: ['Completed', 'OnProcess', 'Waiting'] },
+      status: { $in: ['Completed'] },
       ...(outletId && { outlet: new mongoose.Types.ObjectId(outletId) })
     });
 
@@ -52,7 +58,7 @@ export const generateSalesReport = async (req, res) => {
 
     // Group by payment method secara dinamis
     const paymentMethodSummary = generateDynamicPaymentSummary(validPayments);
-    
+
     // Group by period (daily/weekly/monthly)
     const periodSummary = generatePeriodSummary(validPayments, groupBy);
 
@@ -147,10 +153,10 @@ const generateDynamicPaymentSummary = (payments) => {
 // Generate summary berdasarkan periode
 const generatePeriodSummary = (payments, groupBy) => {
   const periodMap = new Map();
-  
+
   payments.forEach(payment => {
     const periodKey = getPeriodKey(payment.createdAt, groupBy);
-    
+
     if (!periodMap.has(periodKey)) {
       periodMap.set(periodKey, {
         period: periodKey,
@@ -160,16 +166,16 @@ const generatePeriodSummary = (payments, groupBy) => {
         paymentMethods: new Map()
       });
     }
-    
+
     const periodData = periodMap.get(periodKey);
     periodData.totalAmount += payment.amount;
     periodData.totalTransactions += 1;
     periodData.orders.add(payment.order_id);
-    
+
     // Group by payment method dalam periode
     const method = normalizePaymentMethod(payment);
     const methodKey = method.category;
-    
+
     if (!periodData.paymentMethods.has(methodKey)) {
       periodData.paymentMethods.set(methodKey, {
         category: method.category,
@@ -178,12 +184,12 @@ const generatePeriodSummary = (payments, groupBy) => {
         count: 0
       });
     }
-    
+
     const methodData = periodData.paymentMethods.get(methodKey);
     methodData.totalAmount += payment.amount;
     methodData.count += 1;
   });
-  
+
   // Convert to array
   return Array.from(periodMap.values()).map(period => ({
     ...period,
@@ -196,10 +202,10 @@ const generatePeriodSummary = (payments, groupBy) => {
 // Controller untuk mendapatkan detail transaksi - FIXED
 export const getPaymentDetails = async (req, res) => {
   try {
-    const { 
-      startDate, 
-      endDate, 
-      outletId, 
+    const {
+      startDate,
+      endDate,
+      outletId,
       paymentMethod,
       limit = 50,
       page = 1
@@ -229,13 +235,13 @@ export const getPaymentDetails = async (req, res) => {
 
     // Get order_ids from payments
     const orderIds = payments.map(p => p.order_id).filter(id => id);
-    
+
     // Find orders separately
-    const orderMatch = outletId ? { 
+    const orderMatch = outletId ? {
       order_id: { $in: orderIds },
       outlet: new mongoose.Types.ObjectId(outletId)
     } : { order_id: { $in: orderIds } };
-    
+
     const orders = await Order.find(orderMatch)
       .select('order_id user tableNumber orderType grandTotal outletName')
       .lean();
