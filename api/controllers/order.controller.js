@@ -4329,7 +4329,7 @@ export const getPendingOrders = async (req, res) => {
 
     // Ambil order pending / reserved dari outlet tertentu
     const pendingOrders = await Order.find({
-      status: { $in: ['Pending', 'Reserved'] },
+      status: { $in: ['Pending', 'Reserved', 'OnProcess'] }, //OnProcess
       source: { $in: sources },
       outlet: outletObjectId
     })
@@ -5561,6 +5561,7 @@ export const cashierCharge = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Payment created',
+      paymentStatus: fullyPaid ? 'settlement' : 'partial',
       data: {
         order_id,
         totalAmount: orderTotal,

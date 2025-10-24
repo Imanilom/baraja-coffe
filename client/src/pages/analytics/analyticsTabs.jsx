@@ -9,7 +9,7 @@ export default function AnalyticsTabs() {
         { label: "Voucher", value: "voucher" },
         { label: "Promo", value: "promo" },
         { label: "Event", value: "event" },
-        { label: "Segment", value: "segment" },
+        { label: "Poin", value: "poin" },
     ];
 
     const [selectedTab, setSelectedTab] = useState("voucher");
@@ -37,7 +37,7 @@ export default function AnalyticsTabs() {
                 {selectedTab === "voucher" && <VoucherAnalytics />}
                 {selectedTab === "promo" && <PromoAnalytics />}
                 {selectedTab === "event" && <EventAnalytics />}
-                {selectedTab === "segment" && <CustomerSegmentDashboard />}
+                {selectedTab === "poin" && <CustomerSegmentDashboard />}
             </div>
 
             {/* CSS Scrollbar */}

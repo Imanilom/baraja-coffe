@@ -1243,7 +1243,7 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
       final cashierbox = await HiveService.getCashier();
       ref
           .read(processPaymentRequestProvider.notifier)
-          .addCashierId(cashierbox!.id ?? cashierId);
+          .addCashierId(cashierbox?.id ?? cashierId);
       ref
           .read(processPaymentRequestProvider.notifier)
           .addPaymentTypeAndMethod(
@@ -1261,10 +1261,12 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
 
       if (mounted) Navigator.pop(context);
       if (result.success) {
+        //update paymentStatus pada widget.order
+        final updatedOrder = widget.order.copyWith(paymentStatus: 'settlement');
         final savedPrinter = ref.read(savedPrintersProvider.notifier);
         if (result.data?.orderType?.toLowerCase() != 'reservation') {
           savedPrinter.printToPrinter(
-            orderDetail: widget.order,
+            orderDetail: updatedOrder,
             printType: 'all',
           );
         }
