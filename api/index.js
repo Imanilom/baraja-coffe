@@ -9,7 +9,7 @@ import { Server } from 'socket.io';
 import WebSocket from 'ws';
 import { initializeFirebase } from './config/firebase.js';
 import { setupStockCalibrationCron } from './jobs/stockCalibration.job.js';
-
+import { startAutoCancelScheduler } from './jobs/orderCheker.job.js';
 // Routes imports...
 import userRoutes from './routes/user.route.js';
 import authRoutes from './routes/auth.route.js';
@@ -191,6 +191,7 @@ const startServer = async () => {
     // console.log('✅ Connected to MongoDB');
 
     setupStockCalibrationCron();
+    startAutoCancelScheduler();
     // Jalankan sekali untuk generate secret
     // console.log('Webhook Secret:', generateWebhookSecret());
 
