@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "react-icons/fa";
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
@@ -10,6 +10,7 @@ import Paginated from "../../../../components/paginated";
 import SalesOutletSkeleton from "./skeleton";
 
 const OutletSales = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const customStyles = {
         control: (provided, state) => ({
@@ -50,59 +51,75 @@ const OutletSales = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const [showInput, setShowInput] = useState(false);
     const [search, setSearch] = useState("");
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState({
-        startDate: dayjs(),
-        endDate: dayjs()
-    });
+    const [selectedOutlet, setSelectedOutlet] = useState("");
+    const [dateRange, setDateRange] = useState(null);
     const [filteredData, setFilteredData] = useState([]);
-
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
 
+    const ITEMS_PER_PAGE = 50;
     const dropdownRef = useRef(null);
+
+    // Initialize from URL params or set default to today
+    useEffect(() => {
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        const outletParam = searchParams.get('outletId');
+        const pageParam = searchParams.get('page');
+
+        if (startDateParam && endDateParam) {
+            setDateRange({
+                startDate: startDateParam,
+                endDate: endDateParam,
+            });
+        } else {
+            const today = dayjs().format('YYYY-MM-DD');
+            setDateRange({
+                startDate: today,
+                endDate: today
+            });
+        }
+
+        if (outletParam) {
+            setSelectedOutlet(outletParam);
+        }
+
+        if (pageParam) {
+            setCurrentPage(parseInt(pageParam, 10));
+        }
+    }, [searchParams]);
 
     // Fetch products and outlets data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch products data
-                const productsResponse = await axios.get('/api/orders');
+                const [productsResponse, outletsResponse] = await Promise.all([
+                    axios.get('/api/orders'),
+                    axios.get('/api/outlet')
+                ]);
 
-                // Ensure productsResponse.data is an array
-                const productsData = Array.isArray(productsResponse.data) ?
-                    productsResponse.data :
-                    (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
-                        productsResponse.data.data : [];
+                const productsData = Array.isArray(productsResponse.data)
+                    ? productsResponse.data
+                    : Array.isArray(productsResponse.data?.data)
+                        ? productsResponse.data.data
+                        : [];
 
                 const completedData = productsData.filter(item => item.status === "Completed");
-
                 setProducts(completedData);
-                setFilteredData(completedData); // Initialize filtered data with all products
 
-                // Fetch outlets data
-                const outletsResponse = await axios.get('/api/outlet');
-
-                // Ensure outletsResponse.data is an array
-                const outletsData = Array.isArray(outletsResponse.data) ?
-                    outletsResponse.data :
-                    (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                        outletsResponse.data.data : [];
+                const outletsData = Array.isArray(outletsResponse.data)
+                    ? outletsResponse.data
+                    : Array.isArray(outletsResponse.data?.data)
+                        ? outletsResponse.data.data
+                        : [];
 
                 setOutlets(outletsData);
-
                 setError(null);
             } catch (err) {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
                 setProducts([]);
-                setFilteredData([]);
                 setOutlets([]);
             } finally {
                 setLoading(false);
@@ -112,95 +129,153 @@ const OutletSales = () => {
         fetchData();
     }, []);
 
-    // Get unique outlet names for the dropdown
-    const uniqueOutlets = useMemo(() => {
-        return outlets.map(item => item.name);
-    }, [outlets]);
+    // Update URL when filters change
+    const updateURLParams = useCallback((newDateRange, newOutlet, newPage) => {
+        const params = new URLSearchParams();
 
-    // Handle click outside dropdown to close
+        if (newDateRange?.startDate && newDateRange?.endDate) {
+            const startDate = dayjs(newDateRange.startDate).format('YYYY-MM-DD');
+            const endDate = dayjs(newDateRange.endDate).format('YYYY-MM-DD');
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
+        }
+
+        if (newOutlet) {
+            params.set('outletId', newOutlet);
+        }
+
+        if (newPage && newPage > 1) {
+            params.set('page', newPage.toString());
+        }
+
+        setSearchParams(params);
+    }, [setSearchParams]);
+
+    // Handler functions
+    const handleDateRangeChange = (newValue) => {
+        setDateRange(newValue);
+        setCurrentPage(1);
+        updateURLParams(newValue, selectedOutlet, 1);
+    };
+
+    const handleOutletChange = (selected) => {
+        const newOutlet = selected?.value || "";
+        setSelectedOutlet(newOutlet);
+        setCurrentPage(1);
+        updateURLParams(dateRange, newOutlet, 1);
+    };
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+        updateURLParams(dateRange, selectedOutlet, newPage);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Apply filter function - FIXED LOGIC
+    const applyFilter = useCallback(() => {
+        let filtered = [...products];
+
+        // Filter by outlet - PERBAIKAN: cek struktur data yang benar
+        if (selectedOutlet) {
+            filtered = filtered.filter(product => {
+                try {
+                    // Cek berbagai kemungkinan struktur data
+                    const outletId = product?.outlet?._id ||
+                        product?.outlet?.id ||
+                        product?.cashier?.outlet?.[0]?.outletId?._id ||
+                        product?.cashier?.outlet?.[0]?.outletId?.id;
+
+                    return outletId === selectedOutlet;
+                } catch (err) {
+                    console.error("Error filtering by outlet:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by date range - PERBAIKAN: perbandingan tanggal yang lebih akurat
+        if (dateRange?.startDate && dateRange?.endDate) {
+            filtered = filtered.filter(product => {
+                try {
+                    if (!product.createdAt) return false;
+
+                    const productDate = dayjs(product.createdAt);
+                    const startDate = dayjs(dateRange.startDate).startOf('day');
+                    const endDate = dayjs(dateRange.endDate).endOf('day');
+
+                    return productDate.isAfter(startDate.subtract(1, 'second')) &&
+                        productDate.isBefore(endDate.add(1, 'second'));
+                } catch (err) {
+                    console.error("Error filtering by date:", err);
+                    return false;
+                }
+            });
+        }
+
+        setFilteredData(filtered);
+    }, [products, selectedOutlet, dateRange]);
+
+    // Auto-apply filter whenever dependencies change
     useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setShowInput(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+        applyFilter();
+    }, [applyFilter]);
 
+    // Group data by outlet - PERBAIKAN: perhitungan yang lebih akurat
     const groupedArray = useMemo(() => {
         const grouped = {};
 
         filteredData.forEach(product => {
-            const outletName = product?.outlet.name || 'Unknown';
-            const item = product?.items?.[0] || {};
-            const subtotal = Number(item?.subtotal) || 0;
+            try {
+                const outletName = product?.outlet?.name ||
+                    product?.cashier?.outlet?.[0]?.outletId?.name ||
+                    'Unknown';
 
-            if (!grouped[outletName]) {
-                grouped[outletName] = {
-                    count: 0,
-                    subtotalTotal: 0,
-                    products: []
-                };
+                // PERBAIKAN: ambil subtotal dari semua items, bukan hanya item pertama
+                let subtotal = 0;
+                if (Array.isArray(product?.items)) {
+                    subtotal = product.items.reduce((sum, item) => {
+                        return sum + (Number(item?.subtotal) || 0);
+                    }, 0);
+                }
+
+                if (!grouped[outletName]) {
+                    grouped[outletName] = {
+                        count: 0,
+                        subtotalTotal: 0,
+                        products: []
+                    };
+                }
+
+                grouped[outletName].products.push(product);
+                grouped[outletName].count++;
+                grouped[outletName].subtotalTotal += subtotal;
+            } catch (err) {
+                console.error("Error grouping product:", err);
             }
-
-            grouped[outletName].products.push(product);
-            grouped[outletName].count++;
-            grouped[outletName].subtotalTotal += subtotal;
         });
 
         return Object.entries(grouped).map(([outletName, data]) => ({
             outletName,
             ...data
-        }));
+        })).sort((a, b) => b.subtotalTotal - a.subtotalTotal); // Sort by total sales descending
     }, [filteredData]);
 
+    // Paginate grouped data
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
         return groupedArray.slice(startIndex, endIndex);
     }, [groupedArray, currentPage]);
 
-    // Calculate total pages based on filtered data
     const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
 
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
-    // Calculate grand totals for filtered data
-    const {
-        grandTotalItems,
-        grandTotalSubtotal,
-    } = useMemo(() => {
-        const totals = {
-            grandTotalItems: 0,
-            grandTotalSubtotal: 0,
-        };
-
-        if (!Array.isArray(filteredData)) {
-            return totals;
-        }
-
-        filteredData.forEach(product => {
-            try {
-                const item = product?.items?.[0];
-                if (!item) return;
-
-                const subtotal = Number(item.subtotal) || 0;
-
-                totals.grandTotalItems += 1;
-                totals.grandTotalSubtotal += subtotal;
-            } catch (err) {
-                console.error("Error calculating totals for product:", err);
-            }
-        });
-
-        return totals;
-    }, [filteredData]);
+    // Calculate grand totals - PERBAIKAN: perhitungan yang lebih akurat
+    const { grandTotalItems, grandTotalSubtotal } = useMemo(() => {
+        return groupedArray.reduce((totals, group) => ({
+            grandTotalItems: totals.grandTotalItems + group.count,
+            grandTotalSubtotal: totals.grandTotalSubtotal + group.subtotalTotal
+        }), { grandTotalItems: 0, grandTotalSubtotal: 0 });
+    }, [groupedArray]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -211,112 +286,42 @@ const OutletSales = () => {
         }).format(amount);
     };
 
-    const options = [
+    const options = useMemo(() => [
         { value: "", label: "Semua Outlet" },
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
-    ];
+    ], [outlets]);
 
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-    }, [products, tempSelectedOutlet, value]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
-
-    // Initial load
-    useEffect(() => {
-        applyFilter();
-    }, []);
-
-    // Export current data to Excel
+    // Export to Excel - PERBAIKAN: tambahkan informasi filter
     const exportToExcel = () => {
-        const rows = [];
+        const rows = groupedArray.map(group => ({
+            'Outlet': group.outletName || 'Unknown',
+            'Jumlah Transaksi': group.count,
+            'Penjualan': group.subtotalTotal,
+            'Rata-Rata': group.count > 0 ? Math.round(group.subtotalTotal / group.count) : 0
+        }));
 
-        groupedArray.forEach(group => {
-            rows.push({
-                'Outlet': group.outletName || 'Unknown',
-                'Jumlah Transaksi': group.count,
-                'Penjualan': group.subtotalTotal,
-                'Rata-Rata': Math.round(group.subtotalTotal / group.count)
-            });
+        rows.push({
+            'Outlet': 'GRAND TOTAL',
+            'Jumlah Transaksi': grandTotalItems,
+            'Penjualan': grandTotalSubtotal,
+            'Rata-Rata': grandTotalItems > 0 ? Math.round(grandTotalSubtotal / grandTotalItems) : 0
         });
 
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Outlet");
-        XLSX.writeFile(wb, "Penjualan_Per_Outlet.xlsx");
+
+        const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
+        const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
+        const filename = `Penjualan_Per_Outlet_${startDate}_${endDate}.xlsx`;
+
+        XLSX.writeFile(wb, filename);
     };
 
-    // Show loading state
     if (loading) {
-        return (
-            <SalesOutletSkeleton />
-        );
+        return <SalesOutletSkeleton />;
     }
 
-    // Show error state
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -336,7 +341,6 @@ const OutletSales = () => {
 
     return (
         <div className="">
-
             {/* Breadcrumb */}
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
@@ -346,9 +350,13 @@ const OutletSales = () => {
                     <FaChevronRight />
                     <span>Penjualan Per Outlet</span>
                 </h1>
-                {/* <button onClick={exportToExcel} className="flex gap-2 items-center bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">
-                    <FaDownload /> Ekspor
-                </button> */}
+                <button
+                    onClick={exportToExcel}
+                    disabled={groupedArray.length === 0}
+                    className="flex gap-2 items-center bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <FaDownload /> Ekspor Excel
+                </button>
             </div>
 
             {/* Filters */}
@@ -359,8 +367,8 @@ const OutletSales = () => {
                             <Datepicker
                                 showFooter
                                 showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={handleDateRangeChange}
                                 displayFormat="DD-MM-YYYY"
                                 inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
@@ -371,12 +379,8 @@ const OutletSales = () => {
                         <div className="relative text-[13px]">
                             <Select
                                 options={options}
-                                value={
-                                    tempSelectedOutlet
-                                        ? options.find((opt) => opt.value === tempSelectedOutlet)
-                                        : options[0]
-                                }
-                                onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                                value={options.find((opt) => opt.value === selectedOutlet) || options[0]}
+                                onChange={handleOutletChange}
                                 placeholder="Cari outlet..."
                                 isSearchable
                                 className="text-[13px]"
@@ -401,20 +405,20 @@ const OutletSales = () => {
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {paginatedData.map((group, index) => (
-                                    <React.Fragment key={index}>
-                                        <tr className="">
-                                            <td className="px-4 py-3">{group.outletName}</td>
-                                            <td className="px-4 py-3 text-right">{group.count}</td>
-                                            <td className="px-4 py-3 text-right">{formatCurrency(group.subtotalTotal)}</td>
-                                            <td className="px-4 py-3 text-right">{formatCurrency((group.subtotalTotal / group.count).toFixed(0))}</td>
-                                        </tr>
-                                    </React.Fragment>
+                                    <tr key={index} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3">{group.outletName}</td>
+                                        <td className="px-4 py-3 text-right">{group.count}</td>
+                                        <td className="px-4 py-3 text-right">{formatCurrency(group.subtotalTotal)}</td>
+                                        <td className="px-4 py-3 text-right">
+                                            {group.count > 0 ? formatCurrency(Math.round(group.subtotalTotal / group.count)) : formatCurrency(0)}
+                                        </td>
+                                    </tr>
                                 ))}
                             </tbody>
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={4}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
@@ -422,9 +426,21 @@ const OutletSales = () => {
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
                                 <td className="px-4 py-2">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotalItems.toLocaleString()}</p></td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotalSubtotal)}</p></td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency((grandTotalSubtotal / grandTotalItems).toFixed(0))}</p></td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {grandTotalItems.toLocaleString()}
+                                    </p>
+                                </td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(grandTotalSubtotal)}
+                                    </p>
+                                </td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {grandTotalItems > 0 ? formatCurrency(Math.round(grandTotalSubtotal / grandTotalItems)) : formatCurrency(0)}
+                                    </p>
+                                </td>
                             </tr>
                         </tfoot>
                     </table>
@@ -433,10 +449,9 @@ const OutletSales = () => {
                 {/* Pagination Controls */}
                 <Paginated
                     currentPage={currentPage}
-                    setCurrentPage={setCurrentPage}
+                    setCurrentPage={handlePageChange}
                     totalPages={totalPages}
                 />
-
             </div>
         </div>
     );

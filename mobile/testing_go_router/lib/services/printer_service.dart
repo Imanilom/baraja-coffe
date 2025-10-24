@@ -950,21 +950,21 @@ class PrinterService {
     // Logo
     bytes.addAll(generator.feed(2));
     bytes.addAll(
-      // await generateOptimizedLogoBytes(
-      //   generator,
-      //   // 'assets/logo/logo_baraja.svg',
-      //   // 'assets/logo/logo_baraja.webp',
-      //   'assets/logo/logo_baraja.png',
-      //   paperSize,
-      // ),
-      generator.text(
-        'Baraja Amphitheater',
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size2,
-        ),
+      await generateBasicLogoBytes(
+        generator,
+        // 'assets/logo/logo_baraja.svg',
+        // 'assets/logo/logo_baraja.webp',
+        'assets/logo/logo_baraja.png',
+        paperSize,
       ),
+      // generator.text(
+      //   'Baraja Amphitheater',
+      //   styles: const PosStyles(
+      //     align: PosAlign.center,
+      //     bold: true,
+      //     height: PosTextSize.size2,
+      //   ),
+      // ),
     );
     bytes.addAll(generator.feed(1));
 
@@ -1263,7 +1263,7 @@ class PrinterService {
     bytes.addAll(
       generator.row([
         PosColumn(
-          text: 'Tax 10%',
+          text: 'Pajak',
           width: 6,
           styles: const PosStyles(align: PosAlign.left),
         ),
@@ -1825,19 +1825,29 @@ class PrinterService {
         ),
       );
     }
-
-    bytes.addAll(generator.feed(1));
-    // Bill Data
     bytes.addAll(
-      await generateBillDataBytes(
-        generator,
-        paperSize,
-        orderDetail.orderId,
-        orderDetail.user,
-        OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
-        orderDetail.tableNumber,
+      generator.text(
+        orderDetail.orderId ?? 'Order ID',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+        ),
       ),
     );
+    bytes.addAll(generator.feed(1));
+
+    // Bill Data
+    // bytes.addAll(
+    //   await generateBillDataBytes(
+    //     generator,
+    //     paperSize,
+    //     orderDetail.orderId,
+    //     orderDetail.user,
+    //     OrderTypeExtension.orderTypeToJson(orderDetail.orderType).toString(),
+    //     orderDetail.tableNumber,
+    //   ),
+    // );
 
     bytes.addAll(generator.hr());
 
@@ -1875,6 +1885,23 @@ class PrinterService {
       );
     }
     bytes.addAll(generator.hr());
+
+    bytes.addAll(generator.feed(1));
+    if (orderDetail.tableNumber != null &&
+        orderDetail.tableNumber!.isNotEmpty) {
+      bytes.addAll(
+        generator.text(
+          'Meja ${orderDetail.tableNumber}',
+          styles: const PosStyles(
+            align: PosAlign.center,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          ),
+        ),
+      );
+    }
+    bytes.addAll(generator.feed(1));
     bytes.addAll(
       generator.text(
         'Selesai',

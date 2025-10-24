@@ -121,21 +121,23 @@ const PaymentMethodSales = () => {
         }
     };
 
-    // Fetch sales report data
+    // Fetch sales report data dari API baru
     const fetchSalesReport = async () => {
         if (!dateRange?.startDate || !dateRange?.endDate) return;
 
         setLoading(true);
         try {
-            const startDate = new Date(dateRange.startDate).toISOString().split('T')[0];
-            const endDate = new Date(dateRange.endDate).toISOString().split('T')[0];
+            const params = {
+                startDate: new Date(dateRange.startDate).toISOString().split('T')[0],
+                endDate: new Date(dateRange.endDate).toISOString().split('T')[0],
+                groupBy: 'daily'
+            };
 
-            let url = `/api/report/sales-report?startDate=${startDate}&endDate=${endDate}`;
             if (selectedOutlet) {
-                url += `&outletId=${selectedOutlet}`;
+                params.outletId = selectedOutlet;
             }
 
-            const response = await axios.get(url);
+            const response = await axios.get('/api/report/sales-report', { params });
 
             if (response.data?.success && response.data?.data) {
                 setReportData(response.data.data);
@@ -181,7 +183,6 @@ const PaymentMethodSales = () => {
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
         updateURLParams(dateRange, selectedOutlet, newPage);
-        // Scroll to top of table
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -190,30 +191,17 @@ const PaymentMethodSales = () => {
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ];
 
-    // Process payment data from API response
+    // Process payment data dari struktur API baru
     const paymentMethodData = useMemo(() => {
-        if (!reportData?.dailyBreakdown) return [];
+        if (!reportData?.paymentMethods) return [];
 
-        const paymentMap = {};
-
-        reportData.dailyBreakdown.forEach(day => {
-            day.paymentBreakdown?.forEach(payment => {
-                const key = payment.paymentMethod;
-                if (!paymentMap[key]) {
-                    paymentMap[key] = {
-                        paymentMethod: payment.paymentMethod,
-                        count: 0,
-                        subtotal: 0,
-                        orderIds: []
-                    };
-                }
-                paymentMap[key].count += payment.totalOrders || 0;
-                paymentMap[key].subtotal += payment.totalRevenue || 0;
-                paymentMap[key].orderIds.push(...(payment.orderIds || []));
-            });
-        });
-
-        return Object.values(paymentMap);
+        return reportData.paymentMethods.map(method => ({
+            paymentMethod: method.method,
+            count: method.totalTransactions,
+            subtotal: method.totalAmount,
+            percentage: method.percentage,
+            orderIds: method.orderIds || []
+        }));
     }, [reportData]);
 
     const paginatedData = useMemo(() => {
@@ -247,31 +235,68 @@ const PaymentMethodSales = () => {
     const exportToExcel = () => {
         setIsExporting(true);
         try {
-            const rows = paymentMethodData.map(group => ({
-                'Metode Pembayaran': group.paymentMethod,
-                'Jumlah Transaksi': group.count,
-                'Total': group.subtotal,
-            }));
+            // Header info
+            const outletName = selectedOutlet
+                ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
+                : 'Semua Outlet';
 
-            // Add summary row
-            rows.push({
-                'Metode Pembayaran': 'GRAND TOTAL',
-                'Jumlah Transaksi': grandTotal.count,
-                'Total': grandTotal.subtotal,
+            const dateRangeText = dateRange && dateRange.startDate && dateRange.endDate
+                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
+                : 'Semua Tanggal';
+
+            const rows = [
+                { col1: 'Laporan Metode Pembayaran', col2: '', col3: '', col4: '' },
+                { col1: '', col2: '', col3: '', col4: '' },
+                { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
+                { col1: 'Periode', col2: dateRangeText, col3: '', col4: '' },
+                { col1: '', col2: '', col3: '', col4: '' },
+                { col1: 'Metode Pembayaran', col2: 'Jumlah Transaksi', col3: 'Total', col4: 'Persentase' },
+            ];
+
+            // Add data rows
+            paymentMethodData.forEach(group => {
+                rows.push({
+                    col1: group.paymentMethod,
+                    col2: group.count,
+                    col3: group.subtotal,
+                    col4: `${group.percentage}%`
+                });
             });
 
-            const ws = XLSX.utils.json_to_sheet(rows);
+            // Add summary row
+            rows.push({ col1: '', col2: '', col3: '', col4: '' });
+            rows.push({
+                col1: 'GRAND TOTAL',
+                col2: grandTotal.count,
+                col3: grandTotal.subtotal,
+                col4: '100%'
+            });
+
+            const ws = XLSX.utils.json_to_sheet(rows, {
+                header: ['col1', 'col2', 'col3', 'col4'],
+                skipHeader: true
+            });
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 25 },
+                { wch: 20 },
+                { wch: 20 },
+                { wch: 15 }
+            ];
+
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Metode Pembayaran");
 
             // Generate filename with date range
             const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
             const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
-            const filename = `Metode_Pembayaran_${startDate}_${endDate}.xlsx`;
+            const filename = `Metode_Pembayaran_${outletName}_${startDate}_${endDate}.xlsx`;
 
             XLSX.writeFile(wb, filename);
         } catch (err) {
             console.error("Error exporting:", err);
+            alert("Gagal mengekspor data. Silakan coba lagi.");
         } finally {
             setIsExporting(false);
         }
@@ -366,7 +391,7 @@ const PaymentMethodSales = () => {
                         onClick={fetchSalesReport}
                         className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
                     >
-                        Refresh
+                        Coba Lagi
                     </button>
                 </div>
             </div>
@@ -438,9 +463,13 @@ const PaymentMethodSales = () => {
 
                 {/* Summary Cards */}
                 {reportData?.summary && (
-                    <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="grid grid-cols-4 gap-4 mb-4">
                         <div className="bg-white p-4 rounded shadow">
                             <p className="text-gray-500 text-xs">Total Transaksi</p>
+                            <p className="text-2xl font-bold text-green-900">{reportData.summary.totalTransactions}</p>
+                        </div>
+                        <div className="bg-white p-4 rounded shadow">
+                            <p className="text-gray-500 text-xs">Total Order</p>
                             <p className="text-2xl font-bold text-green-900">{reportData.summary.totalOrders}</p>
                         </div>
                         <div className="bg-white p-4 rounded shadow">
@@ -450,7 +479,7 @@ const PaymentMethodSales = () => {
                         <div className="bg-white p-4 rounded shadow">
                             <p className="text-gray-500 text-xs">Rata-rata per Transaksi</p>
                             <p className="text-2xl font-bold text-green-900">
-                                {formatCurrency(reportData.summary.totalOrders > 0 ? reportData.summary.totalRevenue / reportData.summary.totalOrders : 0)}
+                                {formatCurrency(reportData.summary.averageTransaction)}
                             </p>
                         </div>
                     </div>
@@ -459,28 +488,28 @@ const PaymentMethodSales = () => {
                 {/* Table */}
                 <div className="overflow-x-auto rounded shadow-md bg-white shadow-slate-200">
                     <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
+                        <thead className="text-gray-400 bg-gray-50">
                             <tr className="text-left text-[13px]">
                                 <th className="px-4 py-3 font-normal">Metode Pembayaran</th>
                                 <th className="px-4 py-3 font-normal text-right">Jumlah Transaksi</th>
                                 <th className="px-4 py-3 font-normal text-right">Total</th>
-                                <th className="px-4 py-3 font-normal text-center"></th>
+                                <th className="px-4 py-3 font-normal text-center">Aksi</th>
                             </tr>
                         </thead>
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
                                 {paginatedData.map((group, index) => (
-                                    <tr key={index} className="text-left text-sm hover:bg-gray-50">
+                                    <tr key={index} className="text-left text-sm hover:bg-gray-50 border-t">
                                         <td className="px-4 py-3 font-medium text-gray-700">
                                             {group.paymentMethod}
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            {group.count}
+                                            {group.count.toLocaleString()}
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             {formatCurrency(group.subtotal)}
                                         </td>
-                                        <td className="px-4 py-3 text-right">
+                                        <td className="px-4 py-3 text-center">
                                             <button
                                                 onClick={() => openModal(group.paymentMethod)}
                                                 className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
@@ -496,24 +525,24 @@ const PaymentMethodSales = () => {
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={4}>Tidak ada data ditemukan</td>
+                                    <td colSpan={5}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
-                        <tfoot className="border-t font-semibold text-sm">
+                        <tfoot className="border-t-2 font-semibold text-sm bg-gray-50">
                             <tr>
-                                <td className="px-4 py-2">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                <td className="px-4 py-3">Grand Total</td>
+                                <td className="px-4 py-3 text-right">
+                                    <p className="bg-green-100 text-green-900 inline-block px-3 py-1 rounded-full">
                                         {grandTotal.count.toLocaleString()}
                                     </p>
                                 </td>
-                                <td className="px-2 py-2 text-right rounded">
-                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                <td className="px-4 py-3 text-right">
+                                    <p className="bg-green-100 text-green-900 inline-block px-3 py-1 rounded-full">
                                         {formatCurrency(grandTotal.subtotal)}
                                     </p>
                                 </td>
-                                <td className="px-4 py-2"></td>
+                                <td className="px-4 py-3"></td>
                             </tr>
                         </tfoot>
                     </table>
