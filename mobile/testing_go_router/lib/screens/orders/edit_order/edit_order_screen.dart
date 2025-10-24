@@ -32,7 +32,8 @@ class _EditOrderScreenState extends ConsumerState<EditOrderScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Edit Order'),
-
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {

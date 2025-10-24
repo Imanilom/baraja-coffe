@@ -2103,7 +2103,7 @@ export const createUnifiedOrder = async (req, res) => {
       loyaltyPointsToRedeem,
       delivery_option,
       recipient_data,
-      customAmountItems, 
+      customAmountItems,
       paymentDetails
     } = req.body;
 
@@ -2199,14 +2199,14 @@ export const createUnifiedOrder = async (req, res) => {
 
     // Auto calculate custom amount items jika ada kelebihan pembayaran
     let finalCustomAmountItems = customAmountItems || [];
-    
+
     // Jika ada paymentDetails dan ada kelebihan pembayaran, hitung custom amount otomatis
     if (paymentDetails && paymentDetails.amount && req.body.items) {
       // Hitung total order dari items saja (tanpa custom amount)
       const orderTotalFromItems = req.body.items.reduce((total, item) => {
         return total + (item.price || 0) * (item.quantity || 1);
       }, 0);
-      
+
       // Hitung custom amount otomatis jika ada kelebihan
       const autoCustomAmount = calculateCustomAmount(paymentDetails.amount, orderTotalFromItems);
       if (autoCustomAmount) {
@@ -2224,7 +2224,7 @@ export const createUnifiedOrder = async (req, res) => {
       ...req.body,
       customAmountItems: finalCustomAmountItems // UBAH: customAmount menjadi customAmountItems
     }, source);
-    
+
     validated.outletId = outletId;
     validated.outlet = outletId;
 
@@ -4162,7 +4162,7 @@ export const getPendingOrders = async (req, res) => {
 
     // Ambil order pending / reserved dari outlet tertentu
     const pendingOrders = await Order.find({
-      status: { $in: ['Pending', 'Reserved'] },
+      status: { $in: ['Pending', 'Reserved', 'OnProcess'] }, //OnProcess
       source: { $in: sources },
       outlet: outletObjectId
     })
@@ -5394,6 +5394,7 @@ export const cashierCharge = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Payment created',
+      paymentStatus: fullyPaid ? 'settlement' : 'partial',
       data: {
         order_id,
         totalAmount: orderTotal,

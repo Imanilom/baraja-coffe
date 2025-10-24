@@ -85,7 +85,7 @@ abstract class OrderDetailModel with _$OrderDetailModel {
     @JsonKey(name: 'payment_details')
     @Default(null)
     List<PaymentModel>? payment,
-    @HiveField(26) @Default('') String? paymentStatus,
+    @HiveField(26) @Default(null) String? paymentStatus,
     @HiveField(27) @Default(null) @JsonKey(name: '_id') String? id,
     @HiveField(28) @Default(false) bool isOpenBill,
     //nominal pembayaran,
