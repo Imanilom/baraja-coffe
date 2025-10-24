@@ -6,9 +6,11 @@ import { FaClipboardList, FaChevronRight, FaBell, FaUser, FaDownload } from "rea
 import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import SalesReportSkeleton from "./skeleton";
+import { useSelector } from "react-redux";
 
 const Summary = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const { currentUser } = useSelector((state) => state.user);
     const navigate = useNavigate();
 
     const customStyles = {
@@ -45,7 +47,6 @@ const Summary = () => {
         }),
     };
 
-    const [products, setProducts] = useState([]);
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isExporting, setIsExporting] = useState(false);
@@ -53,10 +54,17 @@ const Summary = () => {
 
     const [selectedOutlet, setSelectedOutlet] = useState("");
     const [dateRange, setDateRange] = useState(null);
-    const [filteredData, setFilteredData] = useState([]);
-
-    // Safety function to ensure we're always working with arrays
-    const ensureArray = (data) => Array.isArray(data) ? data : [];
+    const [summaryData, setSummaryData] = useState({
+        totalSales: 0,
+        totalTransactions: 0,
+        avgOrderValue: 0,
+        totalTax: 0,
+        totalServiceFee: 0,
+        totalDiscount: 0,
+        totalItems: 0
+    });
+    const [paymentBreakdown, setPaymentBreakdown] = useState([]);
+    const [orderTypeBreakdown, setOrderTypeBreakdown] = useState([]);
 
     const dropdownRef = useRef(null);
 
@@ -102,111 +110,96 @@ const Summary = () => {
         setSearchParams(params);
     };
 
-    // Fetch products and outlets data
-    const fetchData = async () => {
-        setLoading(true);
+    // Fetch outlets data
+    const fetchOutlets = async () => {
         try {
-            // Fetch products data
-            const productsResponse = await axios.get('/api/orders');
-
-            // Ensure productsResponse.data is an array
-            const productsData = Array.isArray(productsResponse.data) ?
-                productsResponse.data :
-                (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
-                    productsResponse.data.data : [];
-
-            const completedOrders = productsData.filter(order => order.status === 'Completed');
-            setProducts(completedOrders);
-
-            // Fetch outlets data
             const outletsResponse = await axios.get('/api/outlet');
-
-            // Ensure outletsResponse.data is an array
             const outletsData = Array.isArray(outletsResponse.data) ?
                 outletsResponse.data :
                 (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
                     outletsResponse.data.data : [];
-
             setOutlets(outletsData);
+        } catch (err) {
+            console.error("Error fetching outlets:", err);
+            setOutlets([]);
+        }
+    };
+
+    // Fetch sales summary from API
+    const fetchSalesSummary = async () => {
+        setLoading(true);
+        try {
+            const params = {};
+
+            // Add date range
+            if (dateRange?.startDate) {
+                params.startDate = new Date(dateRange.startDate).toISOString().split('T')[0];
+            }
+            if (dateRange?.endDate) {
+                params.endDate = new Date(dateRange.endDate).toISOString().split('T')[0];
+            }
+
+            // Add outlet filter
+            if (selectedOutlet) {
+                params.outletId = selectedOutlet;
+            }
+
+            const response = await axios.get('/api/report/sales/summary', { params });
+
+            if (response.data.success) {
+                const { summary, paymentMethodBreakdown, orderTypeBreakdown } = response.data.data;
+
+                setSummaryData({
+                    totalSales: summary.totalSales - summary.totalTax || 0,
+                    totalTransactions: summary.totalTransactions || 0,
+                    avgOrderValue: summary.avgOrderValue || 0,
+                    totalTax: summary.totalTax || 0,
+                    totalServiceFee: summary.totalServiceFee || 0,
+                    totalDiscount: summary.totalDiscount || 0,
+                    totalItems: summary.totalItems || 0
+                });
+
+                setPaymentBreakdown(paymentMethodBreakdown || []);
+                setOrderTypeBreakdown(orderTypeBreakdown || []);
+            }
 
             setError(null);
         } catch (err) {
-            console.error("Error fetching data:", err);
-            setError("Failed to load data. Please try again later.");
-            // Set empty arrays as fallback
-            setProducts([]);
-            setFilteredData([]);
-            setOutlets([]);
+            console.error("Error fetching sales summary:", err);
+            setError("Failed to load sales summary. Please try again later.");
+            // Reset data on error
+            setSummaryData({
+                totalSales: 0,
+                totalTransactions: 0,
+                avgOrderValue: 0,
+                totalTax: 0,
+                totalServiceFee: 0,
+                totalDiscount: 0,
+                totalItems: 0
+            });
+            setPaymentBreakdown([]);
+            setOrderTypeBreakdown([]);
         } finally {
             setLoading(false);
         }
     };
 
+    // Load outlets on mount
     useEffect(() => {
-        fetchData();
+        fetchOutlets();
     }, []);
+
+    // Fetch sales summary when filters change
+    useEffect(() => {
+        if (dateRange?.startDate && dateRange?.endDate) {
+            fetchSalesSummary();
+        }
+    }, [dateRange, selectedOutlet]);
 
     const options = [
         { value: "", label: "Semua Outlet" },
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ];
-
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
-
-        // Filter by outlet
-        if (selectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    const outletId = product.outlet?._id;
-                    const matches = outletId === selectedOutlet;
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (dateRange && dateRange.startDate && dateRange.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(dateRange.startDate);
-                    const endDate = new Date(dateRange.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-    }, [products, selectedOutlet, dateRange]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        applyFilter();
-    }, [applyFilter]);
 
     // Handle date range change
     const handleDateRangeChange = (newValue) => {
@@ -221,56 +214,26 @@ const Summary = () => {
         updateURLParams(dateRange, newOutlet);
     };
 
-    // Calculate summary data from filtered orders
-    const summaryData = useMemo(() => {
-        let penjualanKotor = 0;
-        let diskonPromo = 0;
-        let diskonPoin = 0;
-        let voidAmount = 0;
-        let pembulatan = 0;
-        let serviceCharge = 0;
+    // Calculate display values (Penjualan Kotor, Bersih, etc.)
+    const calculatedValues = useMemo(() => {
+        // Penjualan Kotor = Total Sales + Total Discount (karena discount sudah dikurangi)
+        const penjualanKotor = summaryData.totalSales + summaryData.totalDiscount;
 
-        filteredData.forEach(order => {
-            // Calculate from all items in the order
-            if (order.items && Array.isArray(order.items)) {
-                order.items.forEach(item => {
-                    const subtotal = Number(item?.subtotal) || 0;
-                    penjualanKotor += subtotal;
-                });
-            }
+        // Penjualan Bersih = Total Sales (sudah setelah discount)
+        const penjualanBersih = summaryData.totalSales;
 
-            // Add discounts if available in order
-            if (order.discountPromo) {
-                diskonPromo += Number(order.discountPromo) || 0;
-            }
-            if (order.discountPoints) {
-                diskonPoin += Number(order.discountPoints) || 0;
-            }
-            if (order.serviceCharge) {
-                serviceCharge += Number(order.serviceCharge) || 0;
-            }
-            if (order.rounding) {
-                pembulatan += Number(order.rounding) || 0;
-            }
-        });
-
-        // Calculate derived values
-        const penjualanBersih = penjualanKotor - diskonPromo - diskonPoin - voidAmount + pembulatan;
-        const pajak = penjualanBersih * 0.10; // 10% tax
-        const totalPenjualan = penjualanBersih + serviceCharge + pajak;
+        // Total Penjualan = Penjualan Bersih + Service Fee + Tax
+        const totalPenjualan = penjualanBersih + summaryData.totalServiceFee + summaryData.totalTax;
 
         return {
             penjualanKotor,
-            diskonPromo,
-            diskonPoin,
-            voidAmount,
-            pembulatan,
+            diskonTotal: summaryData.totalDiscount,
             penjualanBersih,
-            serviceCharge,
-            pajak,
+            serviceCharge: summaryData.totalServiceFee,
+            pajak: summaryData.totalTax,
             totalPenjualan
         };
-    }, [filteredData]);
+    }, [summaryData]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('id-ID', {
@@ -286,10 +249,8 @@ const Summary = () => {
         setIsExporting(true);
 
         try {
-            // Small delay to show loading state
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Get outlet name and date range
             const outletName = selectedOutlet
                 ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
@@ -298,75 +259,42 @@ const Summary = () => {
                 ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : 'Semua Tanggal';
 
-            // Use calculated summary data
-            const {
-                penjualanKotor,
-                diskonPromo,
-                diskonPoin,
-                voidAmount,
-                pembulatan,
-                penjualanBersih,
-                serviceCharge,
-                pajak,
-                totalPenjualan
-            } = summaryData;
-
-            // Create export data with the summary format
             const exportData = [
-                { col1: 'Laporan Ringkasan', col2: '' },
+                { col1: 'Laporan Ringkasan Penjualan', col2: '' },
                 { col1: '', col2: '' },
                 { col1: 'Outlet', col2: outletName },
                 { col1: 'Tanggal', col2: dateRangeText },
                 { col1: '', col2: '' },
                 { col1: '', col2: 'Total Nominal (Rp)' },
-                { col1: 'Penjualan Kotor', col2: penjualanKotor },
-                { col1: 'Diskon Promo', col2: diskonPromo },
-                { col1: 'Diskon Poin', col2: diskonPoin },
-                { col1: 'Void', col2: voidAmount },
-                { col1: 'Pembulatan', col2: pembulatan },
-                { col1: 'Penjualan Bersih', col2: penjualanBersih },
-                { col1: 'Service Charge', col2: serviceCharge },
-                { col1: 'Pajak', col2: pajak },
-                { col1: 'Total Penjualan', col2: totalPenjualan }
+                { col1: 'Penjualan Kotor', col2: calculatedValues.penjualanKotor },
+                { col1: 'Total Diskon', col2: calculatedValues.diskonTotal },
+                { col1: 'Penjualan Bersih', col2: calculatedValues.penjualanBersih },
+                { col1: 'Service Charge', col2: calculatedValues.serviceCharge },
+                { col1: 'Pajak', col2: calculatedValues.pajak },
+                { col1: 'Total Penjualan', col2: calculatedValues.totalPenjualan },
+                { col1: '', col2: '' },
+                { col1: 'Total Transaksi', col2: summaryData.totalTransactions },
+                { col1: 'Total Item Terjual', col2: summaryData.totalItems },
+                { col1: 'Rata-rata Nilai Transaksi', col2: summaryData.avgOrderValue },
             ];
 
-            // Create worksheet
             const ws = XLSX.utils.json_to_sheet(exportData, {
                 header: ['col1', 'col2'],
                 skipHeader: true
             });
 
-            // Set column widths
             ws['!cols'] = [
-                { wch: 20 },
+                { wch: 25 },
                 { wch: 20 }
             ];
 
-            // Apply bold styling to specific cells
-            const boldRows = [0, 5, 11, 14]; // Row indices for: Laporan Ringkasan, header Total Nominal, Penjualan Bersih, Total Penjualan
-
-            boldRows.forEach(rowIndex => {
-                const cellAddressCol1 = XLSX.utils.encode_cell({ r: rowIndex, c: 0 });
-                const cellAddressCol2 = XLSX.utils.encode_cell({ r: rowIndex, c: 1 });
-
-                if (ws[cellAddressCol1]) {
-                    ws[cellAddressCol1].s = { font: { bold: true } };
-                }
-                if (ws[cellAddressCol2]) {
-                    ws[cellAddressCol2].s = { font: { bold: true } };
-                }
-            });
-
-            // Create workbook and add worksheet
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Laporan Ringkasan");
 
-            // Generate filename with date range
             const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
             const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
             const filename = `Laporan_Ringkasan_${outletName}_${startDate}_${endDate}.xlsx`;
 
-            // Export file
             XLSX.writeFile(wb, filename);
         } catch (error) {
             console.error("Error exporting to Excel:", error);
@@ -376,14 +304,10 @@ const Summary = () => {
         }
     };
 
-    // Show loading state
     if (loading) {
-        return (
-            <SalesReportSkeleton />
-        );
+        return <SalesReportSkeleton />;
     }
 
-    // Show error state
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -391,10 +315,10 @@ const Summary = () => {
                     <p className="text-xl font-semibold mb-2">Error</p>
                     <p>{error}</p>
                     <button
-                        onClick={() => window.location.reload()}
+                        onClick={fetchSalesSummary}
                         className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
                     >
-                        Refresh
+                        Coba Lagi
                     </button>
                 </div>
             </div>
@@ -402,8 +326,7 @@ const Summary = () => {
     }
 
     return (
-        <div className="">
-
+        <div className="pb-[30px]">
             {/* Breadcrumb */}
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
@@ -465,57 +388,113 @@ const Summary = () => {
                     </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 bg-white">
+                {/* Summary Stats Cards */}
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="bg-white p-4 rounded shadow-md">
+                        <p className="text-gray-500 text-sm">Total Transaksi</p>
+                        <p className="text-2xl font-bold text-green-900">{summaryData.totalTransactions}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded shadow-md">
+                        <p className="text-gray-500 text-sm">Total Item Terjual</p>
+                        <p className="text-2xl font-bold text-green-900">{summaryData.totalItems}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded shadow-md">
+                        <p className="text-gray-500 text-sm">Rata-rata Nilai Transaksi</p>
+                        <p className="text-2xl font-bold text-green-900">{formatCurrency(summaryData.avgOrderValue)}</p>
+                    </div>
+                </div>
+
+                {/* Main Summary Table */}
+                <div className="overflow-x-auto rounded shadow-md shadow-slate-200 bg-white mb-4">
                     <table className="min-w-full table-auto">
                         <tbody className="text-sm text-gray-400">
-                            <React.Fragment>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Penjualan Kotor</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.penjualanKotor)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Diskon Promo</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.diskonPromo)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Diskon Poin</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.diskonPoin)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Void</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.voidAmount)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Pembulatan</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.pembulatan)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Penjualan Bersih</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.penjualanBersih)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Service Charge</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.serviceCharge)}</td>
-                                </tr>
-                                <tr>
-                                    <td className="font-medium text-gray-500 p-[15px]">Pajak</td>
-                                    <td className="text-right p-[15px]">{formatCurrency(summaryData.pajak)}</td>
-                                </tr>
-                            </React.Fragment>
+                            <tr>
+                                <td className="font-medium text-gray-500 p-[15px]">Penjualan Kotor</td>
+                                <td className="text-right p-[15px]">{formatCurrency(calculatedValues.penjualanKotor)}</td>
+                            </tr>
+                            <tr>
+                                <td className="font-medium text-gray-500 p-[15px]">Total Diskon</td>
+                                <td className="text-right p-[15px]">{formatCurrency(calculatedValues.diskonTotal)}</td>
+                            </tr>
+                            <tr>
+                                <td className="font-medium text-gray-500 p-[15px]">Penjualan Bersih</td>
+                                <td className="text-right p-[15px]">{formatCurrency(calculatedValues.penjualanBersih)}</td>
+                            </tr>
+                            <tr>
+                                <td className="font-medium text-gray-500 p-[15px]">Service Charge</td>
+                                <td className="text-right p-[15px]">{formatCurrency(calculatedValues.serviceCharge)}</td>
+                            </tr>
+                            <tr>
+                                <td className="font-medium text-gray-500 p-[15px]">Pajak</td>
+                                <td className="text-right p-[15px]">{formatCurrency(calculatedValues.pajak)}</td>
+                            </tr>
                         </tbody>
                         <tfoot className="font-semibold text-sm border-t">
                             <tr>
-                                <td className="p-[15px]">Total</td>
+                                <td className="p-[15px]">Total Penjualan</td>
                                 <td className="p-[15px] text-right rounded">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(summaryData.totalPenjualan)}
+                                        {formatCurrency(calculatedValues.totalPenjualan)}
                                     </p>
                                 </td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
+
+                {/* Payment Method Breakdown */}
+                {paymentBreakdown.length > 0 && (
+                    <div className="overflow-x-auto rounded shadow-md shadow-slate-200 bg-white mb-4">
+                        <h3 className="font-semibold text-gray-700 p-4 border-b">Rincian Metode Pembayaran</h3>
+                        <table className="min-w-full table-auto">
+                            <thead className="bg-gray-50">
+                                <tr className="text-sm text-gray-600">
+                                    <th className="p-[15px] text-left">Metode Pembayaran</th>
+                                    <th className="p-[15px] text-right">Jumlah Transaksi</th>
+                                    <th className="p-[15px] text-right">Total Nominal</th>
+                                    <th className="p-[15px] text-right">Persentase</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-sm text-gray-400">
+                                {paymentBreakdown.map((item, index) => (
+                                    <tr key={index} className="border-t">
+                                        <td className="font-medium text-gray-500 p-[15px]">{item.method}</td>
+                                        <td className="text-right p-[15px]">{item.count}</td>
+                                        <td className="text-right p-[15px]">{formatCurrency(item.amount)}</td>
+                                        <td className="text-right p-[15px]">{item.percentage}%</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* Order Type Breakdown */}
+                {orderTypeBreakdown.length > 0 && (
+                    <div className="overflow-x-auto rounded shadow-md shadow-slate-200 bg-white">
+                        <h3 className="font-semibold text-gray-700 p-4 border-b">Rincian Tipe Pesanan</h3>
+                        <table className="min-w-full table-auto">
+                            <thead className="bg-gray-50">
+                                <tr className="text-sm text-gray-600">
+                                    <th className="p-[15px] text-left">Tipe Pesanan</th>
+                                    <th className="p-[15px] text-right">Jumlah Transaksi</th>
+                                    <th className="p-[15px] text-right">Total Nominal</th>
+                                    <th className="p-[15px] text-right">Persentase</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-sm text-gray-400">
+                                {orderTypeBreakdown.map((item, index) => (
+                                    <tr key={index} className="border-t">
+                                        <td className="font-medium text-gray-500 p-[15px]">{item.type}</td>
+                                        <td className="text-right p-[15px]">{item.count}</td>
+                                        <td className="text-right p-[15px]">{formatCurrency(item.total)}</td>
+                                        <td className="text-right p-[15px]">{item.percentage}%</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         </div>
     );

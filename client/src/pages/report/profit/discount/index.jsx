@@ -6,6 +6,7 @@ import Datepicker from 'react-tailwindcss-datepicker';
 import * as XLSX from "xlsx";
 import Select from "react-select";
 import dayjs from "dayjs";
+import UnderDevelopment from "../../../../components/repair";
 
 
 const DiscountManagement = () => {
@@ -348,159 +349,160 @@ const DiscountManagement = () => {
     }
 
     return (
-        <div className="">
+        // <div className="">
 
-            {/* Breadcrumb */}
-            <div className="flex justify-between items-center px-6 py-3 my-3">
-                <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/profit-menu">Laporan Laba & Rugi</Link>
-                    <FaChevronRight />
-                    <span>Promo</span>
-                </div>
-                {/* <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button> */}
-            </div>
+        //     {/* Breadcrumb */}
+        //     <div className="flex justify-between items-center px-6 py-3 my-3">
+        //         <div className="flex gap-2 items-center text-xl text-green-900 font-semibold">
+        //             <span>Laporan</span>
+        //             <FaChevronRight />
+        //             <Link to="/admin/profit-menu">Laporan Laba & Rugi</Link>
+        //             <FaChevronRight />
+        //             <span>Promo</span>
+        //         </div>
+        //         {/* <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button> */}
+        //     </div>
 
-            {/* Filters */}
-            <div className="px-6">
-                <div className="py-2 flex justify-between">
-                    <div className="flex flex-col col-span-3 w-2/5">
-                        <div className="relative text-gray-500">
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={value}
-                                onChange={setValue}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
-                        </div>
-                    </div>
+        //     {/* Filters */}
+        //     <div className="px-6">
+        //         <div className="py-2 flex justify-between">
+        //             <div className="flex flex-col col-span-3 w-2/5">
+        //                 <div className="relative text-gray-500">
+        //                     <Datepicker
+        //                         showFooter
+        //                         showShortcuts
+        //                         value={value}
+        //                         onChange={setValue}
+        //                         displayFormat="DD-MM-YYYY"
+        //                         inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
+        //                         popoverDirection="down"
+        //                     />
+        //                 </div>
+        //             </div>
 
-                    <div className="flex gap-2">
-                        <div className="flex">
-                            <div className="relative">
-                                <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                                <input
-                                    type="text"
-                                    placeholder="Promo"
-                                    value={tempSearch}
-                                    onChange={(e) => setTempSearch(e.target.value)}
-                                    className="text-[13px] border py-2 pl-[30px] pr-[25px] rounded w-full"
-                                />
-                            </div>
-                        </div>
+        //             <div className="flex gap-2">
+        //                 <div className="flex">
+        //                     <div className="relative">
+        //                         <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        //                         <input
+        //                             type="text"
+        //                             placeholder="Promo"
+        //                             value={tempSearch}
+        //                             onChange={(e) => setTempSearch(e.target.value)}
+        //                             className="text-[13px] border py-2 pl-[30px] pr-[25px] rounded w-full"
+        //                         />
+        //                     </div>
+        //                 </div>
 
-                        <div className="relative">
-                            <Select
-                                className="text-sm"
-                                classNamePrefix="react-select"
-                                placeholder="Pilih Outlet"
-                                options={options}
-                                isSearchable
-                                value={
-                                    options.find((opt) => opt.value === tempSelectedOutlet) || options[0]
-                                }
-                                onChange={(selected) => setTempSelectedOutlet(selected.value)}
-                                styles={customSelectStyles}
-                            />
-                        </div>
-                    </div>
-                    {/* 
-                    <div className="flex justify-end space-x-2 items-end col-span-2">
-                        <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
-                        <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
-                    </div> */}
-                </div>
+        //                 <div className="relative">
+        //                     <Select
+        //                         className="text-sm"
+        //                         classNamePrefix="react-select"
+        //                         placeholder="Pilih Outlet"
+        //                         options={options}
+        //                         isSearchable
+        //                         value={
+        //                             options.find((opt) => opt.value === tempSelectedOutlet) || options[0]
+        //                         }
+        //                         onChange={(selected) => setTempSelectedOutlet(selected.value)}
+        //                         styles={customSelectStyles}
+        //                     />
+        //                 </div>
+        //             </div>
+        //             {/* 
+        //             <div className="flex justify-end space-x-2 items-end col-span-2">
+        //                 <button onClick={applyFilter} className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Terapkan</button>
+        //                 <button onClick={resetFilter} className="text-gray-400 border text-[13px] px-[15px] py-[7px] rounded">Reset</button>
+        //             </div> */}
+        //         </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto rounded bg-white shadow-slate-200 shadow-md">
-                    <table className="min-w-full table-auto">
-                        <thead className="text-gray-400">
-                            <tr className="text-left text-[13px]">
-                                <th className="px-4 py-3 font-normal">Nama Promo</th>
-                                <th className="px-4 py-3 font-normal">Tipe Promo</th>
-                                <th className="px-4 py-3 font-normal text-right">Digunakan</th>
-                                <th className="px-4 py-3 font-normal text-right">Total</th>
-                            </tr>
-                        </thead>
-                        {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((data, index) => {
-                                    try {
-                                        return (
-                                            <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
-                                                <td className="px-4 py-3">
-                                                    {data.name || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.type || []}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {data.digunakan || []}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatCurrency(data.total) || []}
-                                                </td>
-                                            </tr>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="4" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={4}>Tidak ada data ditemukan</td>
-                                </tr>
-                            </tbody>
-                        )}
-                        <tfoot className="border-t font-semibold text-sm">
-                            <tr>
-                                <td className="p-[15px]" colSpan={2}>Grand Total</td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{0}</p></td>
-                                <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
+        //         {/* Table */}
+        //         <div className="overflow-x-auto rounded bg-white shadow-slate-200 shadow-md">
+        //             <table className="min-w-full table-auto">
+        //                 <thead className="text-gray-400">
+        //                     <tr className="text-left text-[13px]">
+        //                         <th className="px-4 py-3 font-normal">Nama Promo</th>
+        //                         <th className="px-4 py-3 font-normal">Tipe Promo</th>
+        //                         <th className="px-4 py-3 font-normal text-right">Digunakan</th>
+        //                         <th className="px-4 py-3 font-normal text-right">Total</th>
+        //                     </tr>
+        //                 </thead>
+        //                 {paginatedData.length > 0 ? (
+        //                     <tbody className="text-sm text-gray-400">
+        //                         {paginatedData.map((data, index) => {
+        //                             try {
+        //                                 return (
+        //                                     <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={data._id}>
+        //                                         <td className="px-4 py-3">
+        //                                             {data.name || []}
+        //                                         </td>
+        //                                         <td className="px-4 py-3">
+        //                                             {data.type || []}
+        //                                         </td>
+        //                                         <td className="px-4 py-3">
+        //                                             {data.digunakan || []}
+        //                                         </td>
+        //                                         <td className="px-4 py-3 text-right">
+        //                                             {formatCurrency(data.total) || []}
+        //                                         </td>
+        //                                     </tr>
+        //                                 );
+        //                             } catch (err) {
+        //                                 console.error(`Error rendering product ${index}:`, err, product);
+        //                                 return (
+        //                                     <tr className="text-left text-sm" key={index}>
+        //                                         <td colSpan="4" className="px-4 py-3 text-red-500">
+        //                                             Error rendering product
+        //                                         </td>
+        //                                     </tr>
+        //                                 );
+        //                             }
+        //                         })}
+        //                     </tbody>
+        //                 ) : (
+        //                     <tbody>
+        //                         <tr className="py-6 text-center w-full h-96">
+        //                             <td colSpan={4}>Tidak ada data ditemukan</td>
+        //                         </tr>
+        //                     </tbody>
+        //                 )}
+        //                 <tfoot className="border-t font-semibold text-sm">
+        //                     <tr>
+        //                         <td className="p-[15px]" colSpan={2}>Grand Total</td>
+        //                         <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{0}</p></td>
+        //                         <td className="p-[15px] text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
+        //                     </tr>
+        //                 </tfoot>
+        //             </table>
+        //         </div>
 
-                {/* Pagination Controls */}
-                {paginatedData.length > 0 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-gray-600">
-                            Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
-                        </span>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Sebelumnya
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Berikutnya
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
+        //         {/* Pagination Controls */}
+        //         {paginatedData.length > 0 && (
+        //             <div className="flex justify-between items-center mt-4">
+        //                 <span className="text-sm text-gray-600">
+        //                     Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} dari {filteredData.length} data
+        //                 </span>
+        //                 <div className="flex space-x-2">
+        //                     <button
+        //                         onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+        //                         disabled={currentPage === 1}
+        //                         className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+        //                     >
+        //                         Sebelumnya
+        //                     </button>
+        //                     <button
+        //                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+        //                         disabled={currentPage === totalPages}
+        //                         className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded disabled:opacity-50 disabled:cursor-not-allowed"
+        //                     >
+        //                         Berikutnya
+        //                     </button>
+        //                 </div>
+        //             </div>
+        //         )}
+        //     </div>
+        // </div>
+        <UnderDevelopment />
     );
 };
 

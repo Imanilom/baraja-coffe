@@ -49,160 +49,265 @@ const TypeSales = () => {
     const [outlets, setOutlets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [tempSelectedOutlet, setTempSelectedOutlet] = useState("");
-    const [value, setValue] = useState(null);
-    const [tempSearch, setTempSearch] = useState("");
+    const [selectedOutlet, setSelectedOutlet] = useState("");
+    const [dateRange, setDateRange] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
     const [filteredData, setFilteredData] = useState([]);
     const [isExporting, setIsExporting] = useState(false);
-    const [isInitialized, setIsInitialized] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+
+    const ITEMS_PER_PAGE = 50;
+    const dropdownRef = useRef(null);
 
     // Safety function to ensure we're always working with arrays
     const ensureArray = (data) => Array.isArray(data) ? data : [];
-    const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 50;
 
-    const dropdownRef = useRef(null);
-
-    // Initialize filters from URL on component mount
+    // Initialize from URL params or set default to today
     useEffect(() => {
-        const page = parseInt(searchParams.get('page')) || 1;
-        const searchQuery = searchParams.get('search') || '';
-        const outlet = searchParams.get('outlet') || '';
-        const startDate = searchParams.get('startDate');
-        const endDate = searchParams.get('endDate');
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
+        const outletParam = searchParams.get('outletId');
+        const searchParam = searchParams.get('search');
+        const pageParam = searchParams.get('page');
 
-        setCurrentPage(page);
-        setTempSearch(searchQuery);
-        setTempSelectedOutlet(outlet);
-
-        if (startDate && endDate) {
-            setValue({
-                startDate: startDate,
-                endDate: endDate
+        if (startDateParam && endDateParam) {
+            setDateRange({
+                startDate: new Date(startDateParam),
+                endDate: new Date(endDateParam),
             });
         } else {
-            // Set today's date as default
-            const today = new Date().toISOString().split('T')[0];
-            setValue({
+            const today = new Date();
+            setDateRange({
                 startDate: today,
-                endDate: today
+                endDate: today,
             });
         }
 
-        setIsInitialized(true);
+        if (outletParam) {
+            setSelectedOutlet(outletParam);
+        }
+
+        if (searchParam) {
+            setSearchTerm(searchParam);
+        }
+
+        if (pageParam) {
+            setCurrentPage(parseInt(pageParam, 10));
+        }
     }, []);
 
     // Update URL when filters change
-    useEffect(() => {
-        if (!isInitialized) return;
-
+    const updateURLParams = useCallback((newDateRange, newOutlet, newSearch, newPage) => {
         const params = new URLSearchParams();
 
-        if (currentPage > 1) {
-            params.set('page', currentPage.toString());
+        if (newDateRange?.startDate && newDateRange?.endDate) {
+            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
+            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
         }
 
-        if (tempSearch) {
-            params.set('search', tempSearch);
+        if (newOutlet) {
+            params.set('outletId', newOutlet);
         }
 
-        if (tempSelectedOutlet) {
-            params.set('outlet', tempSelectedOutlet);
+        if (newSearch) {
+            params.set('search', newSearch);
         }
 
-        if (value?.startDate && value?.endDate) {
-            // Convert to YYYY-MM-DD format
-            const formatDate = (dateStr) => {
-                const date = new Date(dateStr);
-                return date.toISOString().split('T')[0];
-            };
-
-            params.set('startDate', formatDate(value.startDate));
-            params.set('endDate', formatDate(value.endDate));
+        if (newPage && newPage > 1) {
+            params.set('page', newPage.toString());
         }
 
-        setSearchParams(params, { replace: true });
-    }, [currentPage, tempSearch, tempSelectedOutlet, value, isInitialized]);
+        setSearchParams(params);
+    }, [setSearchParams]);
 
     // Fetch products and outlets data
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            // Fetch products data
-            const productsResponse = await axios.get('/api/orders');
-
-            // Ensure productsResponse.data is an array
-            const productsData = Array.isArray(productsResponse.data) ?
-                productsResponse.data :
-                (productsResponse.data && Array.isArray(productsResponse.data.data)) ?
-                    productsResponse.data.data : [];
-
-            const completedData = productsData.filter(item => item.status === "Completed");
-
-            setProducts(completedData);
-            setFilteredData(completedData); // Initialize filtered data with all products
-
-            // Fetch outlets data
-            const outletsResponse = await axios.get('/api/outlet');
-
-            // Ensure outletsResponse.data is an array
-            const outletsData = Array.isArray(outletsResponse.data) ?
-                outletsResponse.data :
-                (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
-                    outletsResponse.data.data : [];
-
-            setOutlets(outletsData);
-
-            setError(null);
-        } catch (err) {
-            console.error("Error fetching data:", err);
-            setError("Failed to load data. Please try again later.");
-            // Set empty arrays as fallback
-            setProducts([]);
-            setFilteredData([]);
-            setOutlets([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const [productsResponse, outletsResponse] = await Promise.all([
+                    axios.get('/api/orders'),
+                    axios.get('/api/outlet')
+                ]);
+
+                const productsData = Array.isArray(productsResponse.data)
+                    ? productsResponse.data
+                    : Array.isArray(productsResponse.data?.data)
+                        ? productsResponse.data.data
+                        : [];
+
+                const completedData = productsData.filter(item => item.status === "Completed");
+                setProducts(completedData);
+
+                const outletsData = Array.isArray(outletsResponse.data)
+                    ? outletsResponse.data
+                    : Array.isArray(outletsResponse.data?.data)
+                        ? outletsResponse.data.data
+                        : [];
+
+                setOutlets(outletsData);
+                setError(null);
+            } catch (err) {
+                console.error("Error fetching data:", err);
+                setError("Failed to load data. Please try again later.");
+                setProducts([]);
+                setFilteredData([]);
+                setOutlets([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
         fetchData();
     }, []);
 
-    const options = [
+    // Handler functions
+    const handleDateRangeChange = (newValue) => {
+        setDateRange(newValue);
+        setCurrentPage(1);
+        updateURLParams(newValue, selectedOutlet, searchTerm, 1);
+    };
+
+    const handleOutletChange = (selected) => {
+        const newOutlet = selected?.value || "";
+        setSelectedOutlet(newOutlet);
+        setCurrentPage(1);
+        updateURLParams(dateRange, newOutlet, searchTerm, 1);
+    };
+
+    const handleSearchChange = (e) => {
+        const newSearch = e.target.value;
+        setSearchTerm(newSearch);
+        setCurrentPage(1);
+        updateURLParams(dateRange, selectedOutlet, newSearch, 1);
+    };
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+        updateURLParams(dateRange, selectedOutlet, searchTerm, newPage);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const options = useMemo(() => [
         { value: "", label: "Semua Outlet" },
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
-    ];
+    ], [outlets]);
 
+    // Apply filter function - FIXED LOGIC
+    const applyFilter = useCallback(() => {
+        let filtered = ensureArray([...products]);
+
+        // Filter by outlet - FIXED: Compare by ID
+        if (selectedOutlet) {
+            filtered = filtered.filter(product => {
+                try {
+                    if (!product?.cashier?.outlet || product.cashier.outlet.length === 0) {
+                        return false;
+                    }
+
+                    // Compare by ID instead of name
+                    const outletId = product.cashier.outlet[0]?.outletId?._id ||
+                        product.cashier.outlet[0]?.outletId;
+                    return outletId === selectedOutlet;
+                } catch (err) {
+                    console.error("Error filtering by outlet:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by date range
+        if (dateRange?.startDate && dateRange?.endDate) {
+            filtered = filtered.filter(product => {
+                try {
+                    if (!product.createdAt) {
+                        return false;
+                    }
+
+                    const productDate = new Date(product.createdAt);
+                    const startDate = new Date(dateRange.startDate);
+                    const endDate = new Date(dateRange.endDate);
+
+                    // Set time to beginning/end of day for proper comparison
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate.setHours(23, 59, 59, 999);
+
+                    // Check if dates are valid
+                    if (isNaN(productDate.getTime()) || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                        return false;
+                    }
+
+                    return productDate >= startDate && productDate <= endDate;
+                } catch (err) {
+                    console.error("Error filtering by date:", err);
+                    return false;
+                }
+            });
+        }
+
+        // Filter by search term (order type)
+        if (searchTerm) {
+            filtered = filtered.filter(product => {
+                try {
+                    const orderType = (product?.orderType || '').toLowerCase();
+                    const searchTermLower = searchTerm.toLowerCase();
+                    return orderType.includes(searchTermLower);
+                } catch (err) {
+                    console.error("Error filtering by search:", err);
+                    return false;
+                }
+            });
+        }
+
+        setFilteredData(filtered);
+    }, [products, selectedOutlet, dateRange, searchTerm]);
+
+    // Auto-apply filter whenever dependencies change
+    useEffect(() => {
+        applyFilter();
+    }, [applyFilter]);
+
+    // FIXED: Group by order type - Use grandTotal from product
     const groupedArray = useMemo(() => {
         const grouped = {};
 
         filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
+            try {
+                const orderType = product?.orderType || 'N/A';
 
-            const orderType = product?.orderType || '';
-            const subtotal = Number(item?.subtotal) || 0;
+                // PERBAIKAN UTAMA: Ambil grandTotal dari product
+                let penjualan = 0;
+                if (product.grandTotal !== undefined && product.grandTotal !== null) {
+                    penjualan = Number(product.grandTotal) || 0;
+                } else if (Array.isArray(product?.items)) {
+                    // Fallback: sum dari items jika grandTotal tidak tersedia
+                    penjualan = product.items.reduce((sum, item) => {
+                        return sum + (Number(item?.subtotal) || 0);
+                    }, 0);
+                }
 
-            const key = `${orderType}`; // unique key per produk
+                if (!grouped[orderType]) {
+                    grouped[orderType] = {
+                        orderType,
+                        penjualanTotal: 0,
+                        count: 0
+                    };
+                }
 
-            if (!grouped[key]) {
-                grouped[key] = {
-                    orderType,
-                    subtotal: 0,
-                    count: 0
-                };
+                grouped[orderType].penjualanTotal += penjualan;
+                grouped[orderType].count += 1;
+            } catch (err) {
+                console.error("Error grouping product:", err);
             }
-
-            grouped[key].subtotal += subtotal;
-            grouped[key].count += 1;
-
         });
 
-        return Object.values(grouped);
+        // Convert to array and sort by orderType
+        return Object.values(grouped).sort((a, b) =>
+            a.orderType.localeCompare(b.orderType, 'id')
+        );
     }, [filteredData]);
-
 
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -213,23 +318,23 @@ const TypeSales = () => {
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
 
-    // Calculate grand totals for filtered data
+    // FIXED: Calculate grand totals from grandTotal
     const grandTotal = useMemo(() => {
         return groupedArray.reduce(
             (acc, curr) => {
-                acc.subtotal += curr.subtotal;
-                acc.count += curr.count || 0; // pastikan count ada
+                acc.penjualanTotal += curr.penjualanTotal;
+                acc.count += curr.count;
                 return acc;
             },
             {
-                subtotal: 0,
+                penjualanTotal: 0,
                 count: 0,
             }
         );
     }, [groupedArray]);
 
-
     const formatCurrency = (amount) => {
+        if (isNaN(amount) || !isFinite(amount)) return 'Rp 0';
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
             currency: 'IDR',
@@ -238,145 +343,39 @@ const TypeSales = () => {
         }).format(amount);
     };
 
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-
-        // Make sure products is an array before attempting to filter
-        let filtered = ensureArray([...products]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
-                try {
-                    const orderType = product?.orderType.toLowerCase();
-
-                    const searchTerm = tempSearch.toLowerCase();
-                    return orderType.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
-        if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
-
-                    const productDate = new Date(product.createdAt);
-                    const startDate = new Date(value.startDate);
-                    const endDate = new Date(value.endDate);
-
-                    // Set time to beginning/end of day for proper comparison
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(23, 59, 59, 999);
-
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
-                        return false;
-                    }
-
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
-                } catch (err) {
-                    console.error("Error filtering by date:", err);
-                    return false;
-                }
-            });
-        }
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
-
-    }, [products, tempSearch, tempSelectedOutlet, value]);
-
-    // Auto-apply filter whenever dependencies change
-    useEffect(() => {
-        if (isInitialized) {
-            applyFilter();
-        }
-    }, [applyFilter, isInitialized]);
-
-    // Export current data to Excel
+    // Export current data to Excel - FIXED: Use grandTotal data
     const exportToExcel = async () => {
+        if (groupedArray.length === 0) {
+            alert("Tidak ada data untuk diekspor");
+            return;
+        }
+
         setIsExporting(true);
 
         try {
-            // Small delay to show loading state
-            await new Promise(resolve => setTimeout(resolve, 15000));
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             // Get outlet name
-            const outletName = tempSelectedOutlet
-                ? outlets.find(o => o._id === tempSelectedOutlet)?.name || 'Semua Outlet'
+            const outletName = selectedOutlet
+                ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
 
             // Get date range
-            const dateRange = value && value.startDate && value.endDate
-                ? `${new Date(value.startDate).toLocaleDateString('id-ID')} - ${new Date(value.endDate).toLocaleDateString('id-ID')}`
+            const dateRangeText = dateRange?.startDate && dateRange?.endDate
+                ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : new Date().toLocaleDateString('id-ID');
 
-            // 1. Group the data by orderType
-            const grouped = {};
-
-            filteredData.forEach(product => {
-                const item = product?.items?.[0];
-                if (!item) return;
-
-                const orderType = product?.orderType || 'N/A';
-                const subtotal = Number(item?.subtotal) || 0;
-
-                if (!grouped[orderType]) {
-                    grouped[orderType] = {
-                        orderType,
-                        subtotal: 0,
-                        count: 0
-                    };
-                }
-
-                grouped[orderType].subtotal += subtotal;
-                grouped[orderType].count += 1;
-            });
-
-            // 2. Calculate totals
-            const groupedArray = Object.values(grouped);
+            // Calculate totals from groupedArray (using grandTotal)
             const totalTransaksi = groupedArray.reduce((sum, item) => sum + item.count, 0);
-            const totalSubtotal = groupedArray.reduce((sum, item) => sum + item.subtotal, 0);
-            const totalFee = 0; // Ganti dengan perhitungan fee jika ada
+            const totalPenjualan = groupedArray.reduce((sum, item) => sum + item.penjualanTotal, 0);
+            const totalFee = 0; // Placeholder - ganti dengan perhitungan fee jika ada
 
             // Create export data
             const exportData = [
                 { col1: 'Laporan Tipe Penjualan', col2: '', col3: '', col4: '' },
                 { col1: '', col2: '', col3: '', col4: '' },
                 { col1: 'Outlet', col2: outletName, col3: '', col4: '' },
-                { col1: 'Tanggal', col2: dateRange, col3: '', col4: '' },
+                { col1: 'Tanggal', col2: dateRangeText, col3: '', col4: '' },
                 { col1: '', col2: '', col3: '', col4: '' },
                 { col1: 'Tipe Penjualan', col2: 'Jumlah Transaksi', col3: 'Total Transaksi', col4: 'Total Fee' }
             ];
@@ -386,8 +385,8 @@ const TypeSales = () => {
                 exportData.push({
                     col1: item.orderType,
                     col2: item.count,
-                    col3: item.subtotal,
-                    col4: 0 // Ganti dengan perhitungan fee per item jika ada
+                    col3: item.penjualanTotal,
+                    col4: 0 // Placeholder - ganti dengan fee per item jika ada
                 });
             });
 
@@ -395,7 +394,7 @@ const TypeSales = () => {
             exportData.push({
                 col1: 'Grand Total',
                 col2: totalTransaksi,
-                col3: totalSubtotal,
+                col3: totalPenjualan,
                 col4: totalFee
             });
 
@@ -415,27 +414,19 @@ const TypeSales = () => {
 
             // Merge cells for title
             ws['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } } // Merge title across 4 columns
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }
             ];
-
-            // Apply bold styling to specific rows
-            const boldRows = [0, 5, exportData.length - 1]; // Title, Header, Grand Total
-
-            boldRows.forEach(rowIndex => {
-                for (let col = 0; col < 4; col++) {
-                    const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: col });
-                    if (ws[cellAddress]) {
-                        ws[cellAddress].s = { font: { bold: true } };
-                    }
-                }
-            });
 
             // Create workbook and add worksheet
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Tipe Penjualan");
 
+            // Generate filename
+            const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
+            const fileName = `Laporan_Tipe_Penjualan_${outletName.replace(/\s+/g, '_')}_${startDate}_${endDate}.xlsx`;
+
             // Export file
-            const fileName = `Laporan_Tipe_Penjualan_${outletName}_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`;
             XLSX.writeFile(wb, fileName);
 
         } catch (error) {
@@ -448,9 +439,7 @@ const TypeSales = () => {
 
     // Show loading state
     if (loading) {
-        return (
-            <TypeSalesSkeleton />
-        );
+        return <TypeSalesSkeleton />;
     }
 
     // Show error state
@@ -473,7 +462,6 @@ const TypeSales = () => {
 
     return (
         <div className="">
-
             {/* Breadcrumb */}
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
@@ -485,7 +473,7 @@ const TypeSales = () => {
                 </h1>
                 <button
                     onClick={exportToExcel}
-                    disabled={isExporting}
+                    disabled={isExporting || groupedArray.length === 0}
                     className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isExporting ? (
@@ -495,7 +483,7 @@ const TypeSales = () => {
                         </>
                     ) : (
                         <>
-                            <FaDownload /> Ekspor CSV
+                            <FaDownload /> Ekspor Excel
                         </>
                     )}
                 </button>
@@ -504,14 +492,13 @@ const TypeSales = () => {
             {/* Filters */}
             <div className="px-6">
                 <div className="flex justify-between py-3 gap-2">
-
                     <div className="flex flex-col col-span-3 w-2/5">
                         <div className="relative text-gray-500">
                             <Datepicker
                                 showFooter
                                 showShortcuts
-                                value={value}
-                                onChange={setValue}
+                                value={dateRange}
+                                onChange={handleDateRangeChange}
                                 displayFormat="DD-MM-YYYY"
                                 inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
                                 popoverDirection="down"
@@ -519,26 +506,22 @@ const TypeSales = () => {
                         </div>
                     </div>
 
-                    <div className="flex justify-between gap-4">
-                        <div className="flex flex-col col-span-3">
+                    <div className="flex justify-end gap-2 w-2/5">
+                        <div className="flex flex-col col-span-3 w-2/5">
                             <input
                                 type="text"
                                 placeholder="Tipe Penjualan"
-                                value={tempSearch}
-                                onChange={(e) => setTempSearch(e.target.value)}
-                                className="text-[13px] border py-2 pr-[25px] pl-[12px] rounded"
+                                value={searchTerm}
+                                onChange={handleSearchChange}
+                                className="text-[13px] border py-2 pr-[25px] pl-[12px] rounded focus:ring-1 focus:ring-green-900 focus:outline-none"
                             />
                         </div>
 
                         <div className="flex flex-col col-span-3">
                             <Select
                                 options={options}
-                                value={
-                                    tempSelectedOutlet
-                                        ? options.find((opt) => opt.value === tempSelectedOutlet)
-                                        : options[0]
-                                }
-                                onChange={(selected) => setTempSelectedOutlet(selected.value)}
+                                value={options.find((opt) => opt.value === selectedOutlet) || options[0]}
+                                onChange={handleOutletChange}
                                 placeholder="Pilih outlet..."
                                 className="text-[13px]"
                                 classNamePrefix="react-select"
@@ -562,51 +545,48 @@ const TypeSales = () => {
                         </thead>
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((group, index) => {
-                                    try {
-                                        return (
-                                            <React.Fragment key={index}>
-                                                <tr className="text-left text-sm">
-                                                    <td className="px-4 py-3">
-                                                        {group.orderType}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        {group.count || 'N/A'}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        {formatCurrency(group.subtotal) || 'N/A'}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        {formatCurrency(0) || 'N/A'}
-                                                    </td>
-                                                </tr>
-                                            </React.Fragment>
-                                        );
-                                    } catch (err) {
-                                        console.error(`Error rendering product ${index}:`, err, product);
-                                        return (
-                                            <tr className="text-left text-sm" key={index}>
-                                                <td colSpan="7" className="px-4 py-3 text-red-500">
-                                                    Error rendering product
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                })}
+                                {paginatedData.map((group, index) => (
+                                    <tr key={index} className="text-left text-sm hover:bg-gray-50">
+                                        <td className="px-4 py-3">
+                                            {group.orderType}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            {group.count.toLocaleString('id-ID')}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            {formatCurrency(group.penjualanTotal)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            {formatCurrency(0)}
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={4}>Tidak ada data ditemukan</td>
                                 </tr>
                             </tbody>
                         )}
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
                                 <td className="px-4 py-2">Grand Total</td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{grandTotal.count.toLocaleString()}</p></td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(grandTotal.subtotal.toFixed())}</p></td>
-                                <td className="px-2 py-2 text-right rounded"><p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">{formatCurrency(0)}</p></td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {grandTotal.count.toLocaleString('id-ID')}
+                                    </p>
+                                </td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(grandTotal.penjualanTotal)}
+                                    </p>
+                                </td>
+                                <td className="px-2 py-2 text-right rounded">
+                                    <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
+                                        {formatCurrency(0)}
+                                    </p>
+                                </td>
                             </tr>
                         </tfoot>
                     </table>
@@ -615,7 +595,7 @@ const TypeSales = () => {
                 {/* Pagination Controls */}
                 <Paginated
                     currentPage={currentPage}
-                    setCurrentPage={setCurrentPage}
+                    setCurrentPage={handlePageChange}
                     totalPages={totalPages}
                 />
             </div>
