@@ -32,7 +32,8 @@ const reservationSchema = new mongoose.Schema({
         ref: 'Table',
         required: true
     }],
-    table_type:{
+    table_type: {
+        type: String,
         enum: ['long table', 'class', 'casual', 'theater'],
         default: 'long table'
     },
