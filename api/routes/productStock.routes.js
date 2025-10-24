@@ -1,6 +1,9 @@
 import express from 'express';
 import { insertInitialStocks, getProductStock, addStockMovement, getAllStock, getStockMovements, updateMinStock } from '../controllers/ProductStock.controller.js';
-import { getMenuStockDetails, updateMenuAvailableStock, updateSingleMenuStock, adjustMenuStock, createRecipe, deleteRecipe, getAllRecipes, getRecipeById, getRecipeByMenuId, updateRecipe, getMenuStocks } from '../controllers/Recipe.controller.js';
+import { getMenuStockDetails, updateMenuAvailableStock, updateSingleMenuStock, 
+    adjustMenuStock, createRecipe, deleteRecipe, getAllRecipes, getRecipeById, 
+    getRecipeByMenuId, updateRecipe, getMenuStocks, calculateCostPrice, getProductRecipeUsageSummary, getRecipesByProduct, getRecipesByProductName,
+    getRecipesByProductWithStock, recordWasteStock} from '../controllers/Recipe.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 const router = express.Router();
 const inventoryAccess = verifyToken(['superadmin', 'admin', 'inventory', 'accounting']);
@@ -25,6 +28,11 @@ router.get('/recipes/:id', getRecipeById);
 router.put('/recipes/:id', inventoryAccess, updateRecipe);
 router.delete('/recipes/:id', inventoryAccess, deleteRecipe);
 router.get('/recipes/menu/:menuId', getRecipeByMenuId);
+
+router.get('/recipes/by-product/:productId', getRecipesByProduct);
+router.get('/recipes/by-product-name', getRecipesByProductName);
+router.get('/recipes/by-product/:productId/with-stock', getRecipesByProductWithStock);
+router.get('/products/:productId/recipe-usage-summary', getProductRecipeUsageSummary);
 
 
 export default router;

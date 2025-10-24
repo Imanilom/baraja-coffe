@@ -18,6 +18,10 @@ const reservationSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    agenda: {
+        type: String,
+        default: ''
+    },
     area_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Area',
@@ -28,6 +32,10 @@ const reservationSchema = new mongoose.Schema({
         ref: 'Table',
         required: true
     }],
+    table_type:{
+        enum: ['long table', 'class', 'casual', 'theater'],
+        default: 'long table'
+    },
     guest_count: {
         type: Number,
         required: true,

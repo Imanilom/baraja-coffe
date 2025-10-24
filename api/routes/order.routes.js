@@ -34,6 +34,8 @@ import {
   getAllBeverageOrders,
   getBarOrder,
   getKitchenOrder,
+  bulkUpdateKitchenItems,
+  updateKitchenItemStatus,
   startBeverageOrder,
   updateBarOrderStatus,
   updateBeverageItemStatus,
@@ -88,6 +90,9 @@ router.get('/orders', getAllOrders);
 
 router.get('/orders/kitchen', getKitchenOrder);
 router.put('/orders/:orderId/status', updateKitchenOrderStatus);
+router.put('/orders/kitchen/items/status', updateKitchenItemStatus);
+router.put('/orders/kitchen/items/bulk-update', bulkUpdateKitchenItems);  
+
 
 router.put('/orders/beverage/:orderId/status', updateBeverageItemStatus);
 router.get('/orders/beverage', getAllBeverageOrders);

@@ -130,6 +130,236 @@ export const updateKitchenOrderStatus = async (req, res) => {
   }
 };
 
+export const updateKitchenItemStatus = async (req, res) => {
+  const { orderId, itemId } = req.params;
+  const { kitchenStatus, kitchenId, kitchenName } = req.body;
+
+  console.log('Updating kitchen item status for orderId:', orderId, 'itemId:', itemId, 'to status:', kitchenStatus);
+  
+  if (!orderId || !itemId || !kitchenStatus) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'orderId, itemId, and kitchenStatus are required' 
+    });
+  }
+
+  // Validasi kitchenStatus
+  const validStatuses = ['pending', 'printed', 'cooking', 'ready', 'served'];
+  if (!validStatuses.includes(kitchenStatus)) {
+    return res.status(400).json({ 
+      success: false, 
+      message: `Invalid kitchenStatus. Must be one of: ${validStatuses.join(', ')}` 
+    });
+  }
+
+  try {
+    // 🔍 Cek order dan item
+    const order = await Order.findOne({ order_id: orderId });
+    
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Cari item yang akan diupdate
+    const itemToUpdate = order.items.id(itemId);
+    if (!itemToUpdate) {
+      return res.status(404).json({ success: false, message: 'Order item not found' });
+    }
+
+    // Simpan status sebelumnya untuk tracking
+    const previousStatus = itemToUpdate.kitchenStatus;
+    
+    // ✅ Update kitchenStatus item
+    itemToUpdate.kitchenStatus = kitchenStatus;
+    
+    // Jika status diubah menjadi 'served', set isPrinted menjadi true
+    if (kitchenStatus === 'served') {
+      itemToUpdate.isPrinted = true;
+      itemToUpdate.printedAt = new Date();
+    }
+
+    // Simpan perubahan
+    await order.save();
+
+    // 🔍 Populate ulang untuk mendapatkan data yang lengkap
+    const updatedOrder = await Order.findOne({ order_id: orderId })
+      .populate('items.menuItem')
+      .populate('reservation');
+
+    // Dapatkan item yang sudah diupdate
+    const updatedItem = updatedOrder.items.id(itemId);
+
+    // 🔥 EMIT SOCKET EVENTS
+    const updateData = {
+      order_id: orderId,
+      item_id: itemId,
+      kitchenStatus: kitchenStatus,
+      previousStatus: previousStatus,
+      kitchen: { id: kitchenId, name: kitchenName },
+      timestamp: new Date(),
+      itemDetails: {
+        menuItem: updatedItem.menuItem,
+        quantity: updatedItem.quantity,
+        notes: updatedItem.notes,
+        batchNumber: updatedItem.batchNumber
+      },
+      orderStatus: updatedOrder.status, // Status order keseluruhan
+      hasActiveReservation: !!updatedOrder.reservation
+    };
+
+    // Emit ke room customer
+    io.to(`order_${orderId}`).emit('kitchen_item_status_update', updateData);
+
+    // Emit ke cashier room
+    io.to('cashier_room').emit('kitchen_item_updated', updateData);
+
+    // Emit ke kitchen room untuk update real-time
+    io.to('kitchen_room').emit('kitchen_item_updated', updateData);
+
+    // Emit khusus untuk waiter jika item sudah ready/served
+    // if (['ready', 'served'].includes(kitchenStatus)) {
+    //   io.to('waiter_room').emit('item_ready_for_serving', updateData);
+    // }
+
+    res.status(200).json({ 
+      success: true, 
+      data: {
+        order: updatedOrder,
+        updatedItem: updatedItem
+      },
+      message: `Item status updated to ${kitchenStatus} successfully`
+    });
+
+  } catch (error) {
+    console.error('Error updating kitchen item status:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update kitchen item status' 
+    });
+  }
+};
+
+export const bulkUpdateKitchenItems = async (req, res) => {
+  const { orderId } = req.params;
+  const { items, kitchenId, kitchenName } = req.body;
+
+  console.log('Bulk updating kitchen items for orderId:', orderId, 'items:', items);
+  
+  if (!orderId || !items || !Array.isArray(items)) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'orderId and items array are required' 
+    });
+  }
+
+  try {
+    const order = await Order.findOne({ order_id: orderId });
+    
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    const updateResults = [];
+    const validStatuses = ['pending', 'printed', 'cooking', 'ready', 'served'];
+
+    // Update setiap item
+    for (const itemUpdate of items) {
+      const { itemId, kitchenStatus } = itemUpdate;
+      
+      if (!itemId || !kitchenStatus) {
+        updateResults.push({
+          itemId,
+          success: false,
+          message: 'itemId and kitchenStatus are required for each item'
+        });
+        continue;
+      }
+
+      if (!validStatuses.includes(kitchenStatus)) {
+        updateResults.push({
+          itemId,
+          success: false,
+          message: `Invalid kitchenStatus: ${kitchenStatus}`
+        });
+        continue;
+      }
+
+      const itemToUpdate = order.items.id(itemId);
+      if (!itemToUpdate) {
+        updateResults.push({
+          itemId,
+          success: false,
+          message: 'Order item not found'
+        });
+        continue;
+      }
+
+      const previousStatus = itemToUpdate.kitchenStatus;
+      itemToUpdate.kitchenStatus = kitchenStatus;
+
+      if (kitchenStatus === 'served') {
+        itemToUpdate.isPrinted = true;
+        itemToUpdate.printedAt = new Date();
+      }
+
+      updateResults.push({
+        itemId,
+        success: true,
+        previousStatus,
+        newStatus: kitchenStatus
+      });
+    }
+
+    await order.save();
+
+    // Populate ulang untuk mendapatkan data lengkap
+    const updatedOrder = await Order.findOne({ order_id: orderId })
+      .populate('items.menuItem')
+      .populate('reservation');
+
+    // 🔥 EMIT SOCKET EVENTS untuk bulk update
+    const bulkUpdateData = {
+      order_id: orderId,
+      updates: updateResults.filter(result => result.success),
+      kitchen: { id: kitchenId, name: kitchenName },
+      timestamp: new Date(),
+      orderStatus: updatedOrder.status
+    };
+
+    io.to(`order_${orderId}`).emit('kitchen_items_bulk_update', bulkUpdateData);
+    io.to('kitchen_room').emit('kitchen_items_bulk_updated', bulkUpdateData);
+    io.to('cashier_room').emit('kitchen_items_bulk_updated', bulkUpdateData);
+
+    // Cek jika ada items yang ready/served untuk notifikasi waiter
+    const servedItems = updateResults.filter(result => 
+      result.success && ['ready', 'served'].includes(result.newStatus)
+    );
+    
+    if (servedItems.length > 0) {
+      io.to('waiter_room').emit('items_ready_for_serving', {
+        ...bulkUpdateData,
+        servedItems: servedItems
+      });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      data: {
+        order: updatedOrder,
+        updateResults: updateResults
+      },
+      message: `Bulk update completed for ${updateResults.filter(r => r.success).length} items`
+    });
+
+  } catch (error) {
+    console.error('Error in bulk updating kitchen items:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to bulk update kitchen items' 
+    });
+  }
+};
+
 // ! End Kitchen sections
 
 // ! Start Bar sections
@@ -221,97 +451,6 @@ export const getBarOrder = async (req, res) => {
     });
   }
 };
-
-// export const getBarOrder = async (req, res) => {
-//   try {
-//     // ✅ Ambil data order terbaru
-//     const orders = await Order.find({
-//       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Cancelled'] },
-//     })
-//       .populate({
-//         path: 'items.menuItem',
-//         select: 'name workstation', // bisa pilih field yg diperlukan
-//       })
-//       .populate({
-//         path: 'reservation',
-//         populate: [
-//           { path: 'area_id', select: 'area_name' },
-//           { path: 'table_id', select: 'table_number' },
-//         ],
-//       })
-//       .sort({ createdAt: -1 })
-//       .lean();
-
-//     // 🔥 Filter items & buang order yang tidak punya workstation bar
-//     const filteredOrders = orders
-//       .map((order) => ({
-//         ...order,
-//         items: order.items.filter(
-//           (item) => item.menuItem?.workstation === 'bar'
-//         ),
-//       }))
-//       .filter((order) => order.items.length > 0); // hanya order yang punya bar items
-
-//     res.status(200).json({
-//       success: true,
-//       data: filteredOrders, // sudah termasuk reservation populated
-//     });
-//   } catch (error) {
-//     console.error('Error fetching bar orders:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch bar orders',
-//     });
-//   }
-// };
-
-
-// ✅ Get all beverage orders (fallback)
-// export const getAllBeverageOrders = async (req, res) => {
-//   try {
-//     const orders = await Order.find({
-//       status: { $in: ['Waiting', 'Reserved', 'OnProcess', 'Completed', 'Ready', 'Cancelled'] },
-//     })
-//       .populate({
-//         path: 'items.menuItem',
-//         select: 'name workstation category',
-//       })
-//       .populate({
-//         path: 'reservation',
-//         populate: [
-//           { path: 'area_id', select: 'area_name' },
-//           { path: 'table_id', select: 'table_number' },
-//         ],
-//       })
-//       .sort({ createdAt: -1 })
-//       .lean();
-
-//     // Filter hanya item beverage/bar
-//     const beverageOrders = orders
-//       .map((order) => ({
-//         ...order,
-//         items: order.items.filter(
-//           (item) => item.menuItem?.workstation === 'bar' ||
-//             item.menuItem?.workstation === 'beverage' ||
-//             (item.menuItem?.category &&
-//               ['minuman', 'beverage', 'drink'].includes(item.menuItem.category.toLowerCase()))
-//         ),
-//       }))
-//       .filter((order) => order.items.length > 0);
-
-//     res.status(200).json({
-//       success: true,
-//       data: beverageOrders,
-//       total: beverageOrders.length
-//     });
-//   } catch (error) {
-//     console.error('Error fetching all beverage orders:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch beverage orders',
-//     });
-//   }
-// };
 
 export const getAllBeverageOrders = async (req, res) => {
   try {
