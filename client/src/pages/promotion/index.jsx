@@ -47,11 +47,29 @@ const PromoPage = () => {
         </Link>
 
         {/* Card 4: Poin */}
-        <Link
+        {/* <Link
           to="/admin/poin"
           className="card h-[260px] text-green-900 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300 bg-white"
         >
           <h2 className="text-lg font-bold mb-2">Poin</h2>
+          <p className="text-sm">Merupakan sistem Loyalty berupa pemberian poin untuk "Member" pada setiap transaksi dan dapat ditukar dengan potongan pembelian ketika Member telah mempunyai poin yang cukup</p>
+          <p className="text-sm">Contoh : 100 point = diskon Rp5000</p>
+        </Link> */}
+
+        <Link
+          to="/admin/loyalty"
+          className="card h-[260px] text-green-900 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300 bg-white"
+        >
+          <h2 className="text-lg font-bold mb-2">Loyalty Program</h2>
+          {/* <p className="text-sm">Merupakan sistem Loyalty berupa pemberian poin untuk "Member" pada setiap transaksi dan dapat ditukar dengan potongan pembelian ketika Member telah mempunyai poin yang cukup</p>
+          <p className="text-sm">Contoh : 100 point = diskon Rp5000</p> */}
+        </Link>
+
+        <Link
+          to="/admin/loyalty-levels"
+          className="card h-[260px] text-green-900 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-300 bg-white"
+        >
+          <h2 className="text-lg font-bold mb-2">Loyalty Member</h2>
           <p className="text-sm">Merupakan sistem Loyalty berupa pemberian poin untuk "Member" pada setiap transaksi dan dapat ditukar dengan potongan pembelian ketika Member telah mempunyai poin yang cukup</p>
           <p className="text-sm">Contoh : 100 point = diskon Rp5000</p>
         </Link>
