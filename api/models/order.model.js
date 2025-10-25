@@ -302,4 +302,58 @@ OrderSchema.add({
   }]
 });
 
+// DI Order.model.js - Tambahkan setelah schema definition
+
+// Middleware untuk auto-sync table status ketika order dibuat/diupdate
+OrderSchema.post('save', async function (doc, next) {
+  try {
+    // Hanya trigger untuk order Dine-In/Reservation dengan tableNumber
+    if ((doc.orderType === 'Dine-In' || doc.orderType === 'Reservation') &&
+      doc.tableNumber && doc.outlet) {
+
+      console.log(`🔄 Auto-syncing table status for order ${doc.order_id}`);
+
+      // Delay sedikit untuk memastikan order sudah tersimpan
+      setTimeout(async () => {
+        try {
+          await mongoose.model('Table').syncTableStatusWithActiveOrders(doc.outlet);
+          console.log(`✅ Auto-sync completed for outlet ${doc.outlet}`);
+        } catch (syncError) {
+          console.error('❌ Auto-sync error:', syncError);
+        }
+      }, 1000);
+    }
+
+    next();
+  } catch (error) {
+    console.error('❌ Error in order save middleware:', error);
+    next();
+  }
+});
+
+// Juga trigger pada update
+OrderSchema.post('findOneAndUpdate', async function (result, next) {
+  try {
+    if (result && result.outlet &&
+      (result.orderType === 'Dine-In' || result.orderType === 'Reservation') &&
+      result.tableNumber) {
+
+      console.log(`🔄 Auto-syncing table status after order update: ${result.order_id}`);
+
+      setTimeout(async () => {
+        try {
+          await mongoose.model('Table').syncTableStatusWithActiveOrders(result.outlet);
+        } catch (syncError) {
+          console.error('❌ Auto-sync error after update:', syncError);
+        }
+      }, 1000);
+    }
+
+    next();
+  } catch (error) {
+    console.error('❌ Error in order update middleware:', error);
+    next();
+  }
+});
+
 export const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);
