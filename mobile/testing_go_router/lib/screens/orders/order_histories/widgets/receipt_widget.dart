@@ -182,6 +182,13 @@ class ReceiptWidget extends ConsumerWidget {
         _buildDivider(),
         const SizedBox(height: 16),
 
+        // Payment Detail Section
+        _buildPaymentDetailsSection(order),
+
+        const SizedBox(height: 16),
+        _buildDivider(),
+        const SizedBox(height: 16),
+
         // Footer
         const Text(
           'Thank you!',
@@ -555,6 +562,184 @@ class ReceiptWidget extends ConsumerWidget {
       );
     } finally {
       ref.read(isPrintHistory.notifier).state = false;
+    }
+  }
+
+  Widget _buildPaymentDetailsSection(OrderDetailModel order) {
+    final details = order.payment; // <-- sesuaikan jika nama field berbeda
+    if (details == null || details.isEmpty) {
+      // fallback lama: hanya tampilkan baris Payment tunggal jika ada
+      if (order.paymentMethod != null && order.paymentMethod!.isNotEmpty) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Payment Detail',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            _buildReceiptRow('Metode', order.paymentMethod!),
+          ],
+        );
+      }
+      return const SizedBox.shrink();
+    }
+
+    // Hitung total dibayar (settlement) & sisa
+    final int totalPaid = details
+        .where(
+          (d) => (d.status?.toString().toLowerCase() ?? '') == 'settlement',
+        )
+        .fold<int>(0, (sum, d) => sum + (d.amount));
+    final int remaining = (order.grandTotal ?? 0) - totalPaid;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Payment Detail',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+
+        // List setiap payment detail
+        ...details.map<Widget>((d) {
+          final String method = d.method?.toString() ?? '-'; // sesuaikan field
+          final String status =
+              (d.status?.toString() ?? '-').toLowerCase(); // sesuaikan field
+          final String? paidAt = d.paidAt; // sesuaikan field
+          final int amount = d.amount; // sesuaikan field
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Baris judul + status chip
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        method,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    _statusChip(status),
+                  ],
+                ),
+
+                const SizedBox(height: 4),
+
+                // Amount + waktu bayar
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Amount',
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                    Text(
+                      formatRupiah(amount),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
+
+        const SizedBox(height: 8),
+        _buildDivider(),
+        const SizedBox(height: 8),
+
+        // Ringkasan pembayaran
+        _buildReceiptRow(
+          'Total Dibayar',
+          formatRupiah(totalPaid),
+          isBold: true,
+        ),
+        _buildReceiptRow(
+          remaining > 0 ? 'Sisa Tagihan' : 'Kembalian',
+          formatRupiah(remaining.abs()),
+          isBold: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _statusChip(String status) {
+    final color = _statusColor(status);
+    final label =
+        status.isEmpty
+            ? '-'
+            : status[0].toUpperCase() + status.substring(1); // kapital di awal
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.5), width: 0.7),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'settlement':
+        return const Color(0xFF1B5E20); // hijau gelap
+      case 'pending':
+        return const Color(0xFFEF6C00); // oranye
+      case 'void':
+      case 'canceled':
+      case 'failed':
+        return const Color(0xFFB71C1C); // merah
+      default:
+        return const Color(0xFF455A64); // abu kebiruan
+    }
+  }
+
+  String _formatPaymentMethod(String raw) {
+    // Sesuaikan jika kamu pakai enum PaymentMethod
+    // Misal: 'qris', 'cash', 'transfer', 'va_bca', 'va_bri', 'debit', dll.
+    final v = raw.toLowerCase();
+    if (v.startsWith('va_')) {
+      // contoh: va_bca -> VA BCA
+      return 'VA ${v.substring(3).toUpperCase()}';
+    }
+    switch (v) {
+      case 'qris':
+        return 'QRIS';
+      case 'cash':
+        return 'Cash';
+      case 'debit':
+        return 'Kartu Debit';
+      case 'credit':
+        return 'Kartu Kredit';
+      case 'transfer':
+        return 'Transfer';
+      default:
+        // fallback: kapitalisasi awal tiap kata
+        return raw
+            .split(RegExp(r'[_\s-]+'))
+            .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+            .join(' ');
     }
   }
 }
