@@ -4259,40 +4259,6 @@ export const getPendingOrders = async (req, res) => {
         paymentDetailsMap.set(orderId, []);
       }
 
-      // const paymentDetail = {
-      //   paymentId: payment._id,
-      //   paymentMethod: payment.paymentMethod || payment.payment_method,
-      //   paymentType: payment.paymentType || 'Full',
-      //   amount: payment.amount,
-      //   paidAmount: payment.paidAmount || payment.amount,
-      //   remainingAmount: payment.remainingAmount || 0,
-      //   status: payment.status,
-      //   transactionId: payment.transactionId || payment.transaction_id,
-      //   paymentGateway: payment.paymentGateway || payment.payment_gateway,
-      //   paymentDate: payment.paymentDate || payment.createdAt,
-      //   paymentReference: payment.paymentReference || payment.reference,
-
-      //   // Midtrans/Payment Gateway specific fields
-      //   grossAmount: payment.gross_amount,
-      //   fraudStatus: payment.fraud_status,
-      //   transactionStatus: payment.transaction_status,
-      //   transactionTime: payment.transaction_time,
-      //   settlementTime: payment.settlement_time,
-
-      //   // Bank/Card details (if available)
-      //   bank: payment.bank,
-      //   vaNumber: payment.va_number,
-      //   cardType: payment.card_type,
-      //   maskedCard: payment.masked_card,
-
-      //   // Additional metadata
-      //   metadata: payment.metadata || {},
-      //   notes: payment.notes || '',
-
-      //   createdAt: payment.createdAt,
-      //   updatedAt: payment.updatedAt
-      // };
-
       paymentDetailsMap.get(orderId).push(payment);
     });
 
@@ -5172,7 +5138,34 @@ export const getCashierOrderHistory = async (req, res) => {
     // Mapping data sesuai kebutuhan frontend
     const mappedOrders = orders.map(order => {
       const orderIdString = order.order_id.toString();
+
       const updatedItems = order.items.map(item => {
+        // const relatedPayments = paymentMap[order.order_id] || [];
+
+        // // Tentukan payment status berdasarkan aturan
+        // let paymentStatus = 'expire';
+        // for (const p of relatedPayments) {
+        //   if (
+        //     p.status === 'settlement' &&
+        //     p.paymentType === 'Down Payment' &&
+        //     p.remainingAmount > 0
+        //   ) {
+        //     paymentStatus = 'partial';
+        //     break;
+        //   } else if (
+        //     p.status === 'settlement' &&
+        //     p.paymentType === 'Down Payment' &&
+        //     p.remainingAmount === 0
+        //   ) {
+        //     paymentStatus = 'settlement';
+        //     break;
+        //   } else if (p.status === 'settlement') {
+        //     paymentStatus = 'settlement';
+        //     break;
+        //   } else if (p.status === 'pending') {
+        //     paymentStatus = 'pending';
+        //   }
+        // }
         return {
           _id: item._id,
           quantity: item.quantity,
@@ -5203,9 +5196,22 @@ export const getCashierOrderHistory = async (req, res) => {
 
       const paymentDetails = paymentDetailsMap.get(orderIdString) || [];
 
+      const paymentStatus = paymentDetails.length > 1
+        ? paymentDetails.every(p => p.status === 'Success' || p.status === 'settlement')
+          ? 'Settlement'
+          : paymentDetails.some(p => p.status === 'Success' || p.status === 'settlement')
+            ? 'Partial'
+            : 'Pending'
+        : paymentDetails.length === 1
+          ? paymentDetails[0].status === 'Success' || paymentDetails[0].status === 'settlement'
+            ? 'Settlement'
+            : paymentDetails[0].payment_type === 'Down Payment' ? 'Partial' : 'Pending'
+          : 'Pending';
+
       return {
         ...order,
         items: updatedItems,
+        paymentStatus,
         payment_details: paymentDetails,
         payment_status: paymentStatusMap.get(orderIdString)
       };
