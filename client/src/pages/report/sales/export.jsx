@@ -24,7 +24,10 @@ const ExportFilter = ({ isOpen, onClose }) => {
     const fetchOrder = async () => {
         const orderResponse = await axios.get('/api/orders');
         const orderData = orderResponse.data.data || [];
+        // Filter hanya berdasarkan status Completed, TIDAK filter orderType
         const filteredOrders = orderData.filter(order => order.status === 'Completed');
+        console.log('Total orders fetched:', filteredOrders.length);
+        console.log('Order types:', [...new Set(filteredOrders.map(o => o.orderType))]);
         setOrders(filteredOrders)
     }
 
@@ -77,6 +80,7 @@ const ExportFilter = ({ isOpen, onClose }) => {
         setIsExporting(true);
 
         try {
+            // Filter orders berdasarkan tanggal
             const filtered = orders.filter((order) => {
                 const tanggal = new Date(order.createdAt);
                 const start = dateRange.startDate ? new Date(dateRange.startDate) : null;
@@ -85,48 +89,7 @@ const ExportFilter = ({ isOpen, onClose }) => {
                 if (end) end.setHours(23, 59, 59, 999);
                 const inDateRange = (!start || tanggal >= start) && (!end || tanggal <= end);
 
-                const noFilterSelected =
-                    selectedMainTypes.length === 0 &&
-                    selectedCategories.length === 0;
-
-                const filteredItems = order.items.filter((item) => {
-                    if (noFilterSelected) return true;
-
-                    const menuItem = item.menuItem || {};
-                    const mainCat = menuItem.mainCategory;
-                    const cat = menuItem.category;
-                    const work = menuItem.workstation;
-
-                    const isMainCategoryChecked = mainCategory.find((m) => m.name === mainCat)?.type || "";
-                    const isCategoryChecked = selectedCategories.some((id) =>
-                        categories.find((c) => c._id === id)
-                    );
-                    const isWorkstationChecked = selectedCategories.some((id) => workstation.includes(id));
-
-                    const isCategoryMatch = selectedCategories.includes(cat);
-                    const isWorkstationMatch = selectedCategories.includes(work);
-                    const isMainCategoryMatch = selectedMainTypes.includes(isMainCategoryChecked);
-
-                    if (isMainCategoryChecked && !isCategoryChecked && !isWorkstationChecked) {
-                        return isMainCategoryMatch;
-                    }
-                    if (isMainCategoryChecked && isCategoryChecked && !isWorkstationChecked) {
-                        return isCategoryMatch;
-                    }
-                    if (!isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
-                        return isWorkstationMatch;
-                    }
-                    if (isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
-                        return isMainCategoryMatch && isWorkstationMatch;
-                    }
-                    if (isMainCategoryChecked && isCategoryChecked && isWorkstationChecked) {
-                        return isCategoryMatch || isWorkstationMatch;
-                    }
-
-                    return true;
-                });
-
-                return inDateRange && filteredItems.length > 0;
+                return inDateRange;
             });
 
             const formatDateTime = (isoString) => {
@@ -140,55 +103,61 @@ const ExportFilter = ({ isOpen, onClose }) => {
                 const outletName = outletObj?.name || '';
                 const outletCode = outletObj?._id || '';
 
+                // Cek apakah ada filter kategori yang dipilih
                 const noFilterSelected =
                     selectedMainTypes.length === 0 &&
                     selectedCategories.length === 0;
 
-                const filteredItems = order.items.filter((item) => {
-                    if (noFilterSelected) return true;
+                // Filter items berdasarkan kategori yang dipilih
+                const filteredItems = noFilterSelected
+                    ? order.items
+                    : order.items.filter((item) => {
+                        const menuItem = item.menuItem || {};
+                        const mainCat = menuItem.mainCategory;
+                        const cat = menuItem.category;
+                        const work = menuItem.workstation;
 
-                    const menuItem = item.menuItem || {};
-                    const mainCat = menuItem.mainCategory;
-                    const cat = menuItem.category;
-                    const work = menuItem.workstation;
+                        // Cek apakah main category cocok dengan yang dipilih
+                        const mainCatObj = mainCategory.find((m) => m.name === mainCat);
+                        const isMainCategoryMatch = mainCatObj && selectedMainTypes.includes(mainCatObj.type);
 
-                    const isMainCategoryChecked = mainCategory.find((m) => m.name === mainCat)?.type || "";
-                    const isCategoryChecked = selectedCategories.some((id) =>
-                        categories.find((c) => c._id === id)
-                    );
-                    const isWorkstationChecked = selectedCategories.some((id) => workstation.includes(id));
+                        // Cek apakah category cocok dengan yang dipilih
+                        const isCategoryMatch = selectedCategories.includes(cat);
 
-                    const isCategoryMatch = selectedCategories.includes(cat);
-                    const isWorkstationMatch = selectedCategories.includes(work);
-                    const isMainCategoryMatch = selectedMainTypes.includes(isMainCategoryChecked);
+                        // Cek apakah workstation cocok dengan yang dipilih
+                        const isWorkstationMatch = selectedCategories.includes(work);
 
-                    if (isMainCategoryChecked && !isCategoryChecked && !isWorkstationChecked) {
-                        return isMainCategoryMatch;
-                    }
-                    if (isMainCategoryChecked && isCategoryChecked && !isWorkstationChecked) {
-                        return isCategoryMatch;
-                    }
-                    if (!isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
-                        return isWorkstationMatch;
-                    }
-                    if (isMainCategoryChecked && !isCategoryChecked && isWorkstationChecked) {
-                        return isMainCategoryMatch && isWorkstationMatch;
-                    }
-                    if (isMainCategoryChecked && isCategoryChecked && isWorkstationChecked) {
-                        return isCategoryMatch || isWorkstationMatch;
-                    }
+                        // Jika ada filter main category dan cocok
+                        if (selectedMainTypes.length > 0 && !isMainCategoryMatch) {
+                            return false;
+                        }
 
-                    return true;
-                });
+                        // Jika ada filter category/workstation
+                        if (selectedCategories.length > 0) {
+                            return isCategoryMatch || isWorkstationMatch;
+                        }
 
+                        return true;
+                    });
+
+                // Jika tidak ada item yang cocok setelah filter, skip order ini
                 if (filteredItems.length === 0) return [];
 
-                const subtotal = filteredItems.reduce((acc, item) => acc + (item.subtotal || 0), 0);
-                const tax = subtotal * 0.1;
-                const total = subtotal + tax;
+                // Hitung total dari filtered items saja
+                const filteredItemsSubtotal = filteredItems.reduce((acc, item) => acc + (Number(item.subtotal) || 0), 0);
 
+                // Hitung proporsi untuk tax dan service charge
+                const originalItemsSubtotal = order.items.reduce((acc, item) => acc + (Number(item.subtotal) || 0), 0);
+                const proportion = originalItemsSubtotal > 0 ? filteredItemsSubtotal / originalItemsSubtotal : 0;
+
+                const proportionalTax = (order.tax || 0) * proportion;
+                const proportionalServiceCharge = (order.serviceCharge || 0) * proportion;
+                const filteredGrandTotal = filteredItemsSubtotal + proportionalTax + proportionalServiceCharge;
+
+                // Map setiap item ke baris Excel
                 return filteredItems.map((item, index) => {
-                    const categoryObj = categories.find(c => c._id === item.menuItem?.category._id);
+                    const categoryObj = categories.find(c => c._id === item.menuItem?.category);
+
                     return {
                         "Tanggal & Waktu": formatDateTime(order.createdAt),
                         "ID Struk": order.order_id || '',
@@ -204,17 +173,18 @@ const ExportFilter = ({ isOpen, onClose }) => {
                         "Kategori": categoryObj?.name || '',
                         "Jumlah Produk": item.quantity || 0,
                         "Harga Produk": item.menuItem?.price || 0,
-                        "Penjualan Kotor": item.subtotal || 0,
+                        "Penjualan Kotor": Number(item.subtotal) || 0,
                         "Diskon Produk": 0,
-                        "Subtotal": index === 0 ? subtotal : '',
+                        "Subtotal": index === 0 ? filteredItemsSubtotal : '',
                         "Diskon Transaksi": 0,
-                        "Pajak": index === 0 ? tax : '',
+                        "Pajak": index === 0 ? Math.round(proportionalTax) : '',
+                        "Service Charge": index === 0 ? Math.round(proportionalServiceCharge) : '',
                         "Pembulatan": 0,
                         "Poin Ditukar": 0,
                         "Biaya Admin": 0,
-                        "Total": index === 0 ? total : '',
+                        "Total": index === 0 ? Math.round(filteredGrandTotal) : '',
                         "Metode Pembayaran": order.paymentMethod || '',
-                        "Pembayaran": index === 0 ? total : '',
+                        "Pembayaran": index === 0 ? Math.round(filteredGrandTotal) : '',
                         "Kode Voucher": ''
                     };
                 });
@@ -235,16 +205,16 @@ const ExportFilter = ({ isOpen, onClose }) => {
 
             const headerInfo = [
                 ["Tanggal", `${startLabel} - ${endLabel}`],
-                ["Status Transaksi", "Semua Status"],
-                ["Produk/Pelanggan", "Semua Pelanggan"],
+                ["Status Transaksi", "Completed"],
+                ["Tipe Penjualan", "Semua Tipe"],
             ];
 
-            // Simulasi delay 15 detik
-            await new Promise(resolve => setTimeout(resolve, 15000));
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             exportToExcel(exportData, fileName, headerInfo);
         } catch (error) {
             console.error('Error exporting:', error);
+            alert('Terjadi kesalahan saat mengekspor data');
         } finally {
             setIsExporting(false);
         }
@@ -289,7 +259,7 @@ const ExportFilter = ({ isOpen, onClose }) => {
 
                     {/* Main Kategori */}
                     <div>
-                        <p className="text-sm font-medium text-gray-700 mb-2">Pilih Main Kategori</p>
+                        <p className="text-sm font-medium text-gray-700 mb-2">Pilih Main Kategori (Opsional)</p>
                         <div className="flex flex-wrap gap-3">
                             {mainCategory.map((mainCat) => (
                                 <label key={mainCat.name} className="inline-flex items-center text-sm text-gray-600">
@@ -303,7 +273,6 @@ const ExportFilter = ({ isOpen, onClose }) => {
                                                     ? prev.filter((t) => t !== mainCat.type)
                                                     : [...prev, mainCat.type]
                                             );
-                                            handleCheckboxChange(mainCat.name); // tetap masukkan ke selectedCategories untuk keperluan filter
                                         }}
                                     />
                                     {mainCat.name
@@ -316,9 +285,9 @@ const ExportFilter = ({ isOpen, onClose }) => {
                         </div>
                     </div>
 
-                    {selectedMainTypes && (
+                    {selectedMainTypes.length > 0 && (
                         <div>
-                            <p className="text-sm font-medium text-gray-700 mb-2">Pilih Kategori</p>
+                            <p className="text-sm font-medium text-gray-700 mb-2">Pilih Kategori (Opsional)</p>
                             <div className="flex flex-wrap gap-3">
                                 {categories
                                     .filter((cat) => selectedMainTypes.includes(cat.type))
@@ -339,7 +308,7 @@ const ExportFilter = ({ isOpen, onClose }) => {
 
                     {/* Workstation */}
                     <div>
-                        <p className="text-sm font-medium text-gray-700 mb-2">Tempat</p>
+                        <p className="text-sm font-medium text-gray-700 mb-2">Tempat (Opsional)</p>
                         <div className="flex flex-wrap gap-3">
                             {workstation.map((work) => (
                                 <label key={work} className="inline-flex items-center text-sm text-gray-600">
@@ -357,6 +326,12 @@ const ExportFilter = ({ isOpen, onClose }) => {
                                 </label>
                             ))}
                         </div>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-xs text-blue-800">
+                            💡 <strong>Info:</strong> Jika tidak ada filter kategori/tempat yang dipilih, semua data dalam rentang tanggal akan diekspor.
+                        </p>
                     </div>
 
                     {/* Tombol Ekspor */}
@@ -389,4 +364,3 @@ const ExportFilter = ({ isOpen, onClose }) => {
 };
 
 export default ExportFilter;
-

@@ -84,6 +84,7 @@ const Menu = () => {
   const [selectedOutlet, setSelectedOutlet] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedWorkstation, setSelectedWorkstation] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Pagination
@@ -125,7 +126,7 @@ const Menu = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedOutlet, selectedCategory, selectedStatus, searchQuery]);
+  }, [selectedOutlet, selectedCategory, selectedStatus, searchQuery, selectedWorkstation]);
 
   const outletOptions = [
     { value: '', label: 'Outlet' },
@@ -143,12 +144,19 @@ const Menu = () => {
     { value: false, label: 'Tidak Aktif' },
   ];
 
+  const workstationOptions = [
+    { value: '', label: 'Tempat' },
+    { value: 'bar', label: 'Bar' },
+    { value: 'kitchen', label: 'Dapur' },
+  ];
+
   const filteredMenuItems = menuItems.filter((item) => {
     const matchOutlet =
       selectedOutlet === '' ||
       item.availableAt.some(outlet => outlet.name === selectedOutlet);
     const matchCategory = selectedCategory === '' || item.category.name === selectedCategory;
     const matchStatus = selectedStatus === '' || item.isActive === selectedStatus;
+    const matchWorkstation = selectedWorkstation === '' || item.workstation === selectedWorkstation;
 
     const matchSearch =
       searchQuery === '' ||
@@ -156,7 +164,7 @@ const Menu = () => {
       item.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.barcode?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchOutlet && matchCategory && matchStatus && matchSearch;
+    return matchOutlet && matchCategory && matchStatus && matchSearch && matchWorkstation;
   });
 
   const totalPages = Math.ceil(filteredMenuItems.length / itemsPerPage);
@@ -251,8 +259,11 @@ const Menu = () => {
         selectedOutlet={selectedOutlet}
         setSelectedOutlet={setSelectedOutlet}
         statusOptions={statusOptions}
+        workstationOptions={workstationOptions}
         selectedStatus={selectedStatus}
         setSelectedStatus={setSelectedStatus}
+        setSelectedWorkstation={setSelectedWorkstation}
+        selectedWorkstation={selectedWorkstation}
         checkAll={checkAll}
         setCheckAll={setCheckAll}
         checkedItems={checkedItems}

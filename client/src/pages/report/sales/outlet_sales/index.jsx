@@ -171,15 +171,14 @@ const OutletSales = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Apply filter function - FIXED LOGIC
+    // Apply filter function
     const applyFilter = useCallback(() => {
         let filtered = [...products];
 
-        // Filter by outlet - PERBAIKAN: cek struktur data yang benar
+        // Filter by outlet
         if (selectedOutlet) {
             filtered = filtered.filter(product => {
                 try {
-                    // Cek berbagai kemungkinan struktur data
                     const outletId = product?.outlet?._id ||
                         product?.outlet?.id ||
                         product?.cashier?.outlet?.[0]?.outletId?._id ||
@@ -193,7 +192,7 @@ const OutletSales = () => {
             });
         }
 
-        // Filter by date range - PERBAIKAN: perbandingan tanggal yang lebih akurat
+        // Filter by date range
         if (dateRange?.startDate && dateRange?.endDate) {
             filtered = filtered.filter(product => {
                 try {
@@ -220,7 +219,7 @@ const OutletSales = () => {
         applyFilter();
     }, [applyFilter]);
 
-    // Group data by outlet - PERBAIKAN: perhitungan yang lebih akurat
+    // Group data by outlet - FIXED: gunakan grandTotal (total termasuk pajak)
     const groupedArray = useMemo(() => {
         const grouped = {};
 
@@ -230,13 +229,11 @@ const OutletSales = () => {
                     product?.cashier?.outlet?.[0]?.outletId?.name ||
                     'Unknown';
 
-                // PERBAIKAN: ambil subtotal dari semua items, bukan hanya item pertama
-                let subtotal = 0;
-                if (Array.isArray(product?.items)) {
-                    subtotal = product.items.reduce((sum, item) => {
-                        return sum + (Number(item?.subtotal) || 0);
-                    }, 0);
-                }
+                // Gunakan grandTotal (total akhir termasuk pajak & service)
+                // Atau totalPrice jika ingin tanpa pajak
+                const totalTransaction = Number(product?.grandTotal) ||
+                    Number(product?.totalPrice) ||
+                    0;
 
                 if (!grouped[outletName]) {
                     grouped[outletName] = {
@@ -248,7 +245,7 @@ const OutletSales = () => {
 
                 grouped[outletName].products.push(product);
                 grouped[outletName].count++;
-                grouped[outletName].subtotalTotal += subtotal;
+                grouped[outletName].subtotalTotal += totalTransaction;
             } catch (err) {
                 console.error("Error grouping product:", err);
             }
@@ -257,7 +254,7 @@ const OutletSales = () => {
         return Object.entries(grouped).map(([outletName, data]) => ({
             outletName,
             ...data
-        })).sort((a, b) => b.subtotalTotal - a.subtotalTotal); // Sort by total sales descending
+        })).sort((a, b) => b.subtotalTotal - a.subtotalTotal);
     }, [filteredData]);
 
     // Paginate grouped data
@@ -269,7 +266,7 @@ const OutletSales = () => {
 
     const totalPages = Math.ceil(groupedArray.length / ITEMS_PER_PAGE);
 
-    // Calculate grand totals - PERBAIKAN: perhitungan yang lebih akurat
+    // Calculate grand totals
     const { grandTotalItems, grandTotalSubtotal } = useMemo(() => {
         return groupedArray.reduce((totals, group) => ({
             grandTotalItems: totals.grandTotalItems + group.count,
@@ -291,29 +288,70 @@ const OutletSales = () => {
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
     ], [outlets]);
 
-    // Export to Excel - PERBAIKAN: tambahkan informasi filter
+    // Export to Excel - FIXED: tambahkan informasi filter dan format yang lebih baik
     const exportToExcel = () => {
-        const rows = groupedArray.map(group => ({
+        // Data outlet
+        const rows = groupedArray.map((group, index) => ({
+            'No': index + 1,
             'Outlet': group.outletName || 'Unknown',
             'Jumlah Transaksi': group.count,
-            'Penjualan': group.subtotalTotal,
-            'Rata-Rata': group.count > 0 ? Math.round(group.subtotalTotal / group.count) : 0
+            'Total Penjualan': group.subtotalTotal,
+            'Rata-Rata per Transaksi': group.count > 0 ? Math.round(group.subtotalTotal / group.count) : 0
         }));
 
+        // Tambahkan grand total
         rows.push({
+            'No': '',
             'Outlet': 'GRAND TOTAL',
             'Jumlah Transaksi': grandTotalItems,
-            'Penjualan': grandTotalSubtotal,
-            'Rata-Rata': grandTotalItems > 0 ? Math.round(grandTotalSubtotal / grandTotalItems) : 0
+            'Total Penjualan': grandTotalSubtotal,
+            'Rata-Rata per Transaksi': grandTotalItems > 0 ? Math.round(grandTotalSubtotal / grandTotalItems) : 0
         });
 
         const ws = XLSX.utils.json_to_sheet(rows);
+
+        // Format kolom currency
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = range.s.r + 1; R <= range.e.r; R++) {
+            const cellD = XLSX.utils.encode_cell({ r: R, c: 3 }); // Total Penjualan
+            const cellE = XLSX.utils.encode_cell({ r: R, c: 4 }); // Rata-rata
+
+            if (ws[cellD]) ws[cellD].z = '#,##0';
+            if (ws[cellE]) ws[cellE].z = '#,##0';
+        }
+
+        // Set column widths
+        ws['!cols'] = [
+            { wch: 5 },  // No
+            { wch: 30 }, // Outlet
+            { wch: 18 }, // Jumlah Transaksi
+            { wch: 20 }, // Total Penjualan
+            { wch: 25 }  // Rata-rata
+        ];
+
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Penjualan Per Outlet");
 
+        // Tambahkan sheet info filter
+        const filterInfo = [
+            ['LAPORAN PENJUALAN PER OUTLET'],
+            [''],
+            ['Periode', `${dayjs(dateRange.startDate).format('DD MMMM YYYY')} - ${dayjs(dateRange.endDate).format('DD MMMM YYYY')}`],
+            ['Outlet', selectedOutlet ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet' : 'Semua Outlet'],
+            ['Tanggal Export', dayjs().format('DD MMMM YYYY HH:mm')],
+            [''],
+            ['Total Outlet', groupedArray.length],
+            ['Total Transaksi', grandTotalItems],
+            ['Total Penjualan', grandTotalSubtotal]
+        ];
+
+        const wsInfo = XLSX.utils.aoa_to_sheet(filterInfo);
+        wsInfo['!cols'] = [{ wch: 20 }, { wch: 40 }];
+        XLSX.utils.book_append_sheet(wb, wsInfo, "Info");
+
         const startDate = dayjs(dateRange.startDate).format('DD-MM-YYYY');
         const endDate = dayjs(dateRange.endDate).format('DD-MM-YYYY');
-        const filename = `Penjualan_Per_Outlet_${startDate}_${endDate}.xlsx`;
+        const filename = `Laporan_Penjualan_Per_Outlet_${startDate}_${endDate}.xlsx`;
 
         XLSX.writeFile(wb, filename);
     };
