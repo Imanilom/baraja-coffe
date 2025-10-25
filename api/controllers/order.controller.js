@@ -5328,9 +5328,8 @@ export const getCashierOrderHistory = async (req, res) => {
       return {
         ...order,
         items: updatedItems,
-        paymentStatus,
         payment_details: paymentDetails,
-        payment_status: paymentStatusMap.get(orderIdString)
+        paymentStatus: paymentStatusMap.get(orderIdString)
       };
     });
     // console.log(mappedOrders);
