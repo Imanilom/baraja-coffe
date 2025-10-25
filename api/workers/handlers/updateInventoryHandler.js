@@ -12,9 +12,10 @@ import MenuStock from '../../models/modul_menu/MenuStock.model.js';
  * @returns {Object} result including success status
  */
 export async function updateInventoryHandler({ orderId, items, handledBy }) {
-  console.log('Processing inventory update for order:', orderId);
+  console.log('🔄 Processing inventory update for order:', orderId);
 
   const session = await mongoose.startSession();
+  let failedItems = []; // ✅ DEFINISKAN DI SCOPE TERLUAR
 
   try {
     await session.startTransaction();
@@ -24,11 +25,11 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
     const centralWarehouseId = centralWarehouse?._id;
 
     if (!centralWarehouseId) {
-      throw new Error('Central warehouse (gudang-pusat) not found');
+      throw new Error('❌ Central warehouse (gudang-pusat) not found');
     }
 
     const menuItemIds = items.map(item => new mongoose.Types.ObjectId(item.menuItem));
-    
+
     // Ambil data recipes dan menuStocks sekaligus
     const [recipes, menuStocks] = await Promise.all([
       Recipe.find({ menuItemId: { $in: menuItemIds } }).session(session),
@@ -37,25 +38,24 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
     const bulkProductOps = [];
     const bulkMenuStockOps = [];
-    const failedItems = [];
 
     // Function untuk memproses pengurangan stok dengan prioritas warehouse
     const processIngredientStockReduction = async (ingredient, requiredQty, orderId, noteSuffix, menuItemId) => {
       const productId = ingredient.productId;
       const totalRequired = ingredient.quantity * requiredQty;
-      
-      console.log(`Processing ingredient: ${productId}, required: ${totalRequired}`);
+
+      console.log(`📦 Processing ingredient: ${productId}, required: ${totalRequired}`);
 
       // Cari semua stok produk ini di warehouse selain gudang pusat, urutkan dari stok terbanyak
       const productStocks = await ProductStock.find({
         productId: productId,
         warehouse: { $ne: centralWarehouseId }
       })
-      .sort({ currentStock: -1 }) // Prioritaskan warehouse dengan stok terbanyak
-      .session(session);
+        .sort({ currentStock: -1 })
+        .session(session);
 
       if (productStocks.length === 0) {
-        throw new Error(`No stock available for product ${productId} in any warehouse`);
+        throw new Error(`🚫 No stock available for product ${productId} in any warehouse`);
       }
 
       let remainingRequired = totalRequired;
@@ -81,16 +81,16 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
       // Cek jika stok tidak cukup
       if (remainingRequired > 0) {
         const totalAvailable = warehouseAllocations.reduce((sum, alloc) => sum + alloc.allocatedQty, 0);
-        throw new Error(`Insufficient stock for product ${productId}. Required: ${totalRequired}, Available: ${totalAvailable}`);
+        throw new Error(`❌ Insufficient stock for product ${productId}. Required: ${totalRequired}, Available: ${totalAvailable}`);
       }
 
       // Buat bulk operations untuk setiap alokasi warehouse
       for (const allocation of warehouseAllocations) {
         bulkProductOps.push({
           updateOne: {
-            filter: { 
-              productId: productId, 
-              warehouse: allocation.warehouseId 
+            filter: {
+              productId: productId,
+              warehouse: allocation.warehouseId
             },
             update: {
               $inc: { currentStock: -allocation.allocatedQty },
@@ -120,9 +120,9 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
       try {
         const menuItemObjectId = new mongoose.Types.ObjectId(item.menuItem);
         const recipe = recipes.find(r => r.menuItemId.equals(menuItemObjectId));
-        
+
         if (!recipe) {
-          console.warn(`Recipe not found for menuItem: ${item.menuItem}`);
+          console.warn(`⚠️ Recipe not found for menuItem: ${item.menuItem}`);
           failedItems.push({
             menuItem: item.menuItem,
             quantity: item.quantity,
@@ -133,7 +133,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
         // Cek stok menu item terlebih dahulu
         const menuStock = menuStocks.find(ms => ms.menuItemId.equals(menuItemObjectId));
-        
+
         // Jika menggunakan stok manual, cek ketersediaan
         if (menuStock && menuStock.manualStock !== null) {
           if (menuStock.manualStock < item.quantity) {
@@ -162,10 +162,10 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
         // Process base ingredients
         for (const ing of recipe.baseIngredients || []) {
           await processIngredientStockReduction(
-            ing, 
-            item.quantity, 
-            orderId, 
-            `Order ${orderId} - base ingredient`, 
+            ing,
+            item.quantity,
+            orderId,
+            `Order ${orderId} - base ingredient`,
             menuItemObjectId
           );
         }
@@ -175,16 +175,16 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
           for (const topping of item.toppings) {
             const toppingRecipe = (recipe.toppingOptions || []).find(t => t.toppingName === topping.name);
             if (!toppingRecipe) {
-              console.warn(`Topping recipe not found for: ${topping.name}`);
+              console.warn(`⚠️ Topping recipe not found for: ${topping.name}`);
               continue;
             }
-            
+
             for (const ing of toppingRecipe.ingredients || []) {
               await processIngredientStockReduction(
-                ing, 
-                item.quantity, 
-                orderId, 
-                `Order ${orderId} - topping ${topping.name}`, 
+                ing,
+                item.quantity,
+                orderId,
+                `Order ${orderId} - topping ${topping.name}`,
                 menuItemObjectId
               );
             }
@@ -194,20 +194,20 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
         // Process addons
         if (item.addons?.length > 0) {
           for (const addon of item.addons) {
-            const addonRecipe = (recipe.addonOptions || []).find(a => 
+            const addonRecipe = (recipe.addonOptions || []).find(a =>
               a.addonName === addon.name && a.optionLabel === addon.option
             );
             if (!addonRecipe) {
-              console.warn(`Addon recipe not found for: ${addon.name} - ${addon.option}`);
+              console.warn(`⚠️ Addon recipe not found for: ${addon.name} - ${addon.option}`);
               continue;
             }
-            
+
             for (const ing of addonRecipe.ingredients || []) {
               await processIngredientStockReduction(
-                ing, 
-                item.quantity, 
-                orderId, 
-                `Order ${orderId} - addon ${addon.name}:${addon.option}`, 
+                ing,
+                item.quantity,
+                orderId,
+                `Order ${orderId} - addon ${addon.name}:${addon.option}`,
                 menuItemObjectId
               );
             }
@@ -239,10 +239,10 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
           });
         }
 
-        console.log(`Successfully processed item: ${item.menuItem}, quantity: ${item.quantity}`);
+        console.log(`✅ Successfully processed item: ${item.menuItem}, quantity: ${item.quantity}`);
 
       } catch (error) {
-        console.error(`Failed to process item ${item.menuItem}:`, error);
+        console.error(`❌ Failed to process item ${item.menuItem}:`, error);
         failedItems.push({
           menuItem: item.menuItem,
           quantity: item.quantity,
@@ -253,7 +253,10 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
     // Jika ada failed items, rollback seluruh transaction
     if (failedItems.length > 0) {
-      throw new Error(`Failed to process ${failedItems.length} items: ${failedItems.map(f => f.menuItem).join(', ')}`);
+      const failedMenuItems = failedItems.map(f => f.menuItem).join(', ');
+      const failedReasons = failedItems.map(f => `${f.menuItem}: ${f.reason}`).join('; ');
+
+      throw new Error(`🛑 Failed to process ${failedItems.length} items: ${failedMenuItems}. Reasons: ${failedReasons}`);
     }
 
     // Eksekusi bulk operations hanya jika tidak ada failed items
@@ -262,16 +265,16 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
     if (bulkProductOps.length > 0) {
       productUpdateResult = await ProductStock.bulkWrite(bulkProductOps, { session });
-      console.log(`Product inventory updated for order ${orderId}:`, productUpdateResult.modifiedCount || 0, 'documents modified');
+      console.log(`📊 Product inventory updated for order ${orderId}:`, productUpdateResult.modifiedCount || 0, 'documents modified');
     }
 
     if (bulkMenuStockOps.length > 0) {
       menuStockUpdateResult = await MenuStock.bulkWrite(bulkMenuStockOps, { session });
-      console.log(`Menu stock updated for order ${orderId}:`, menuStockUpdateResult.modifiedCount || 0, 'documents modified');
+      console.log(`🍽️ Menu stock updated for order ${orderId}:`, menuStockUpdateResult.modifiedCount || 0, 'documents modified');
     }
 
     await session.commitTransaction();
-    console.log(`Inventory update completed successfully for order ${orderId}`);
+    console.log(`🎉 Inventory update completed successfully for order ${orderId}`);
 
     return {
       success: true,
@@ -283,14 +286,14 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
   } catch (error) {
     await session.abortTransaction();
-    console.error('Inventory update failed for order', orderId, ':', error);
-    
-    // Return detailed error information
+    console.error('💥 Inventory update failed for order', orderId, ':', error);
+
+    // ✅ SEKARANG failedItems SUDAH TERDEFINISI
     return {
       success: false,
       orderId,
       error: error.message,
-      failedItems: failedItems,
+      failedItems: failedItems || [], // ✅ GUNAKAN failedItems YANG SUDAH TERDEFINISI
       timestamp: new Date()
     };
   } finally {

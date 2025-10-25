@@ -93,18 +93,12 @@ router.post('/login-outlet', async (req, res) => {
 });
 
 // ✅ STEP 2: GET AVAILABLE DEVICES FOR OUTLET
+// ✅ STEP 2: GET AVAILABLE DEVICES FOR OUTLET
 router.get('/devices-all', authMiddleware, async (req, res) => {
   try {
     const { id } = req.user;
-    //find user dengan id di decoded.id
     const outletId = await getUseroutlet(id);
-    // const user = await User.findById(id);
-    // if (!user) {
-    //   return res.status(401).json({ message: 'User tidak ditemukan' });
-    // }
-    // //get outletId pertama dari user
-    // const outletId = user.outlet[0].outletId;
-    // console.log('user outlet id:', outletId);
+    console.log("outlet id:", outletId);
 
     const devices = await Device.find({
       outlet: outletId,
@@ -112,6 +106,8 @@ router.get('/devices-all', authMiddleware, async (req, res) => {
     })
       .select('deviceId outlet deviceName deviceType location assignedAreas assignedTables orderTypes isOnline')
       .sort({ deviceName: 1 });
+
+    console.log('devices found:', devices.length);
 
     // Cek session aktif untuk setiap device
     const devicesWithStatus = await Promise.all(
@@ -121,13 +117,31 @@ router.get('/devices-all', authMiddleware, async (req, res) => {
           isActive: true
         }).populate('user', 'name email');
 
-        return {
-          ...device.toObject(),
-          currentUser: activeSession ? {
+        console.log("active session", activeSession);
+
+        // Handle null user safely
+        let currentUser = null;
+        if (activeSession && activeSession.user) {
+          currentUser = {
             id: activeSession.user._id,
             name: activeSession.user.name,
+            email: activeSession.user.email,
             loginTime: activeSession.loginTime
-          } : null,
+          };
+        } else if (activeSession) {
+          // Session exists but user is null - handle this case
+          console.warn(`Active session found for device ${device.deviceId} but user is null`);
+          currentUser = {
+            id: null,
+            name: 'Unknown User',
+            email: null,
+            loginTime: activeSession.loginTime
+          };
+        }
+
+        return {
+          ...device.toObject(),
+          currentUser: currentUser,
           isAvailable: !activeSession // Available jika tidak ada session aktif
         };
       })
