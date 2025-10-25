@@ -19,11 +19,14 @@ export default function MenuTable({
     statusOptions,
     selectedStatus,
     setSelectedStatus,
+    setSelectedWorkstation,
+    selectedWorkstation,
     checkAll,
     setCheckAll,
     checkedItems,
     setCheckedItems,
     currentItems,
+    workstationOptions,
     formatCurrency,
     setCurrentPage,
     totalPages,
@@ -135,6 +138,14 @@ export default function MenuTable({
                             styles={customStyles}
                             isSearchable
                         />
+
+                        <Select
+                            options={workstationOptions}
+                            value={workstationOptions.find(option => option.value === selectedWorkstation) || workstationOptions[0]}
+                            onChange={(selected) => setSelectedWorkstation(selected.value)}
+                            styles={customStyles}
+                            isSearchable
+                        />
                     </div>
                 </div>
             </div>
@@ -159,6 +170,7 @@ export default function MenuTable({
                                 </th>
                                 <th className="py-[15px] font-normal text-left">Produk</th>
                                 <th className="py-[15px] font-normal text-left">Kategori</th>
+                                <th className="py-[15px] font-normal text-left">Tempat</th>
                                 <th className="py-[15px] font-normal text-left">Status</th>
                                 <th className="py-[15px] font-normal text-right">Harga</th>
                                 <th className="py-[15px] font-normal w-20">
@@ -215,6 +227,12 @@ export default function MenuTable({
                                             {Array.isArray(item.category)
                                                 ? item.category.map((category) => category.name).join(", ")
                                                 : item.category?.name || "-"}
+                                        </td>
+
+                                        <td className="py-2 font-medium text-gray-900 w-1/6">
+                                            <span className={item.workstation === "bar" ? "bg-blue-500 px-2 py-1 rounded text-white" : "bg-green-500 px-2 py-1 rounded text-white"}>
+                                                {item.workstation}
+                                            </span>
                                         </td>
 
                                         <td className="py-2 text-gray-700 w-1/6">

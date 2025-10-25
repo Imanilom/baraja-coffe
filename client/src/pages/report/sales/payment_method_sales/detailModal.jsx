@@ -127,7 +127,7 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
                                 date: order.createdAt,
                                 outlet: order.outlet?.name || 'N/A',
                                 items: order.items?.length || 0,
-                                subtotal: order.subtotal || 0,
+                                subtotal: order.totalBeforeDiscount || 0,
                                 tax: order.totalTax || 0,
                                 serviceCharge: order.totalServiceFee || 0,
                                 discount: (order.discounts?.autoPromoDiscount || 0) +
@@ -237,7 +237,7 @@ const PaymentDetailModal = ({ isOpen, onClose, paymentMethod, dateRange, outletI
                     col4: order.issuer || '-',
                     col5: order.acquirer || '-',
                     col6: order.items,
-                    col7: order.subtotal,
+                    col7: order.totalBeforeDiscount,
                     col8: order.discount,
                     col9: order.serviceCharge,
                     col10: order.tax,
