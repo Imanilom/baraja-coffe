@@ -36,6 +36,10 @@ const OrderItemSchema = new mongoose.Schema({
     price: Number
   }],
   notes: { type: String, default: '' },
+  guestName: {
+    type: String,
+    default: ''
+  },
   batchNumber: { type: Number, default: 1 },
   addedAt: {
     type: Date,

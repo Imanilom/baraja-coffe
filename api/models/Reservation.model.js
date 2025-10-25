@@ -22,6 +22,10 @@ const reservationSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    agenda_description: {
+        type: String,
+        default: ''
+    },
     area_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Area',
@@ -33,6 +37,7 @@ const reservationSchema = new mongoose.Schema({
         required: true
     }],
     table_type:{
+        type: String,
         enum: ['long table', 'class', 'casual', 'theater'],
         default: 'long table'
     },
@@ -40,9 +45,6 @@ const reservationSchema = new mongoose.Schema({
         type: Number,
         required: true,
         min: 1
-    },
-    guest_number: {
-        type: String,
     },
     order_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -136,13 +138,17 @@ const reservationSchema = new mongoose.Schema({
             default: null
         }
     },
-
     notes: {
         type: String,
         default: ''
     },
     serving_food: {
         type: Boolean,
+    },
+    serving_type: {
+        type: String,
+       enum: ['ala carte', 'buffet'], 
+       default: 'ala carte'
     },
     equipment: [{
         type: String,
