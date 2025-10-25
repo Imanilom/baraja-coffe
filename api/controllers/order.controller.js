@@ -2721,6 +2721,18 @@ export const createUnifiedOrder = async (req, res) => {
   }
 };
 
+function calculateCustomAmount(paidAmount, orderTotal) {
+  const excess = paidAmount - orderTotal;
+  if (excess > 0) {
+    return {
+      name: 'Excess Payment',
+      description: 'Additional amount paid beyond order total',
+      amount: excess,
+      dineType: 'custom'
+    };
+  }
+  return null;
+}
 
 // HELPER FUNCTION UNTUK CEK JAM OPERASIONAL OUTLET
 const checkOutletOperatingHours = (outlet) => {
