@@ -20,7 +20,7 @@ const ContentIndex = () => {
 
   const fetchContents = async () => {
     try {
-      const response = await axios.get("/api/contents");
+      const response = await axios.get("/api/content");
       setContents(response.data);
     } catch (error) {
       console.error("Failed to fetch contents:", error);
@@ -80,7 +80,7 @@ const ContentIndex = () => {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Content Management</h1>
-        <a href="/content-create" className="mb-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Create content</a>
+      <a href="/admin/content-create" className="mb-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Create content</a>
       <table className="mt-4 w-full bg-white shadow rounded-lg overflow-hidden">
         <thead>
           <tr className="bg-gray-200 text-left">
