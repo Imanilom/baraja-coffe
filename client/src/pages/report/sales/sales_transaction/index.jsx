@@ -69,9 +69,6 @@ const SalesTransaction = () => {
         documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
     });
 
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
-
     // Initialize from URL params or set default to today
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
@@ -322,7 +319,7 @@ const SalesTransaction = () => {
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
-    // Calculate grand totals for filtered data
+    // PERBAIKAN: Calculate grand totals berdasarkan grandTotal dari setiap order
     const { grandTotalFinal } = useMemo(() => {
         const totals = {
             grandTotalFinal: 0,
@@ -334,11 +331,9 @@ const SalesTransaction = () => {
 
         filteredData.forEach(product => {
             try {
-                const item = product?.items?.[0];
-                if (!item) return;
-
-                const subtotal = Number(item.subtotal) || 0;
-                totals.grandTotalFinal += product?.grandTotal;
+                // PENTING: Pastikan grandTotal adalah number dan tidak undefined/null
+                const grandTotal = Number(product?.grandTotal) || 0;
+                totals.grandTotalFinal += grandTotal;
             } catch (err) {
                 console.error("Error calculating totals for product:", err);
             }
