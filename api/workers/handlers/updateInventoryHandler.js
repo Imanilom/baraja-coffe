@@ -3,6 +3,8 @@ import ProductStock from '../../models/modul_menu/ProductStock.model.js';
 import Recipe from '../../models/modul_menu/Recipe.model.js';
 import Warehouse from '../../models/modul_market/Warehouse.model.js';
 import MenuStock from '../../models/modul_menu/MenuStock.model.js';
+import { MenuItem } from '../../models/MenuItem.model.js';
+import Product from '../../models/modul_market/Product.model.js';
 
 /**
  * Update inventory based on order items with multi-category & multi-warehouse support
@@ -12,10 +14,11 @@ import MenuStock from '../../models/modul_menu/MenuStock.model.js';
  * @returns {Object} result including success status
  */
 export async function updateInventoryHandler({ orderId, items, handledBy }) {
-  console.log('🔄 Processing inventory update for order:', orderId);
+  console.log(`🔄 [ORDER: ${orderId}] Memulai update inventory untuk ${items.length} item`);
 
   const session = await mongoose.startSession();
-  let failedItems = []; // ✅ DEFINISKAN DI SCOPE TERLUAR
+  let failedItems = [];
+  let successItems = [];
 
   try {
     await session.startTransaction();
@@ -25,37 +28,74 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
     const centralWarehouseId = centralWarehouse?._id;
 
     if (!centralWarehouseId) {
-      throw new Error('❌ Central warehouse (gudang-pusat) not found');
+      throw new Error('❌ Gudang pusat tidak ditemukan');
     }
 
     const menuItemIds = items.map(item => new mongoose.Types.ObjectId(item.menuItem));
 
-    // Ambil data recipes dan menuStocks sekaligus
-    const [recipes, menuStocks] = await Promise.all([
-      Recipe.find({ menuItemId: { $in: menuItemIds } }).session(session),
-      MenuStock.find({ menuItemId: { $in: menuItemIds } }).session(session)
+    // Ambil data dengan populate yang benar
+    const [recipes, menuStocks, menuItems, allProducts] = await Promise.all([
+      Recipe.find({ menuItemId: { $in: menuItemIds } })
+        .populate('baseIngredients.productId', 'name sku')
+        .populate('toppingOptions.ingredients.productId', 'name sku')
+        .populate('addonOptions.ingredients.productId', 'name sku')
+        .session(session),
+
+      MenuStock.find({ menuItemId: { $in: menuItemIds } }).session(session),
+
+      // Ambil nama menu items
+      MenuItem.find({ _id: { $in: menuItemIds } })
+        .select('name _id')
+        .session(session),
+
+      // Ambil semua product untuk mapping nama
+      Product.find({})
+        .select('name _id sku')
+        .session(session)
     ]);
+
+    // Buat mapping untuk nama - PASTIKAN menggunakan toString()
+    const menuItemMap = new Map();
+    menuItems.forEach(item => {
+      menuItemMap.set(item._id.toString(), item.name);
+    });
+
+    const productMap = new Map();
+    allProducts.forEach(product => {
+      productMap.set(product._id.toString(), {
+        name: product.name,
+        sku: product.sku
+      });
+    });
+
+    console.log(`📋 Mapping Menu Items:`, Array.from(menuItemMap.entries()));
+    console.log(`📦 Mapping Products:`, Array.from(productMap.entries()).slice(0, 3)); // Log first 3 products
 
     const bulkProductOps = [];
     const bulkMenuStockOps = [];
 
-    // Function untuk memproses pengurangan stok dengan prioritas warehouse
+    // Function untuk memproses pengurangan stok
     const processIngredientStockReduction = async (ingredient, requiredQty, orderId, noteSuffix, menuItemId) => {
       const productId = ingredient.productId;
+      const productIdStr = productId._id ? productId._id.toString() : productId.toString();
+      const productInfo = productMap.get(productIdStr);
+      const productName = productInfo ? productInfo.name : `Unknown Product (${productIdStr})`;
+
       const totalRequired = ingredient.quantity * requiredQty;
 
-      console.log(`📦 Processing ingredient: ${productId}, required: ${totalRequired}`);
+      console.log(`📦 Processing bahan: ${productName}, dibutuhkan: ${totalRequired}`);
 
-      // Cari semua stok produk ini di warehouse selain gudang pusat, urutkan dari stok terbanyak
+      // Cari semua stok produk ini di warehouse selain gudang pusat
       const productStocks = await ProductStock.find({
         productId: productId,
         warehouse: { $ne: centralWarehouseId }
       })
+        .populate('warehouse', 'name code')
         .sort({ currentStock: -1 })
         .session(session);
 
       if (productStocks.length === 0) {
-        throw new Error(`🚫 No stock available for product ${productId} in any warehouse`);
+        throw new Error(`🚫 Stok ${productName} tidak tersedia di gudang manapun`);
       }
 
       let remainingRequired = totalRequired;
@@ -71,6 +111,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
         if (allocatedQty > 0) {
           warehouseAllocations.push({
             warehouseId: stock.warehouse,
+            warehouseName: stock.warehouse?.name || 'Unknown Warehouse',
             allocatedQty: allocatedQty,
             currentStock: availableStock
           });
@@ -81,7 +122,11 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
       // Cek jika stok tidak cukup
       if (remainingRequired > 0) {
         const totalAvailable = warehouseAllocations.reduce((sum, alloc) => sum + alloc.allocatedQty, 0);
-        throw new Error(`❌ Insufficient stock for product ${productId}. Required: ${totalRequired}, Available: ${totalAvailable}`);
+        const warehouseInfo = warehouseAllocations.map(alloc =>
+          `${alloc.warehouseName}: ${alloc.allocatedQty}`
+        ).join(', ');
+
+        throw new Error(`❌ Stok ${productName} tidak mencukupi. Butuh: ${totalRequired}, Tersedia: ${totalAvailable} (${warehouseInfo})`);
       }
 
       // Buat bulk operations untuk setiap alokasi warehouse
@@ -100,7 +145,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
                   category: ingredient.category,
                   type: 'out',
                   referenceId: orderId,
-                  notes: `${noteSuffix} | warehouse: ${allocation.warehouseId}`,
+                  notes: `${noteSuffix} | warehouse: ${allocation.warehouseName}`,
                   handledBy: handledBy || 'system',
                   date: new Date(),
                   sourceWarehouse: allocation.warehouseId,
@@ -117,31 +162,43 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
     // Loop semua item order
     for (const item of items) {
+      const menuItemObjectId = new mongoose.Types.ObjectId(item.menuItem);
+      const menuItemIdStr = item.menuItem.toString();
+      const menuItemName = menuItemMap.get(menuItemIdStr) || `Unknown Menu (${menuItemIdStr})`;
+
+      console.log(`\n📋 Processing item: ${menuItemName} (Qty: ${item.quantity})`);
+
       try {
-        const menuItemObjectId = new mongoose.Types.ObjectId(item.menuItem);
-        const recipe = recipes.find(r => r.menuItemId.equals(menuItemObjectId));
+        const recipe = recipes.find(r => r.menuItemId.toString() === menuItemIdStr);
 
         if (!recipe) {
-          console.warn(`⚠️ Recipe not found for menuItem: ${item.menuItem}`);
+          const errorMsg = `Resep tidak ditemukan untuk menu item: ${menuItemName}`;
+          console.warn(`⚠️ ${errorMsg}`);
           failedItems.push({
-            menuItem: item.menuItem,
+            menuItem: menuItemName,
+            menuItemId: item.menuItem,
             quantity: item.quantity,
-            reason: 'Recipe not found'
+            reason: errorMsg,
+            type: 'RESEP_TIDAK_DITEMUKAN'
           });
           continue;
         }
 
         // Cek stok menu item terlebih dahulu
-        const menuStock = menuStocks.find(ms => ms.menuItemId.equals(menuItemObjectId));
+        const menuStock = menuStocks.find(ms => ms.menuItemId.toString() === menuItemIdStr);
 
         // Jika menggunakan stok manual, cek ketersediaan
         if (menuStock && menuStock.manualStock !== null) {
           if (menuStock.manualStock < item.quantity) {
+            const errorMsg = `Stok manual tidak mencukupi. Butuh: ${item.quantity}, Tersedia: ${menuStock.manualStock}`;
+            console.warn(`⚠️ ${errorMsg}`);
             failedItems.push({
-              menuItem: item.menuItem,
+              menuItem: menuItemName,
+              menuItemId: item.menuItem,
               quantity: item.quantity,
               available: menuStock.manualStock,
-              reason: 'Insufficient manual stock'
+              reason: errorMsg,
+              type: 'STOK_MENU_TIDAK_CUKUP'
             });
             continue;
           }
@@ -149,33 +206,39 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
           // Jika menggunakan calculated stock, cek ketersediaan
           const effectiveStock = menuStock ? menuStock.effectiveStock : 0;
           if (effectiveStock < item.quantity) {
+            const errorMsg = `Stok kalkulasi tidak mencukupi. Butuh: ${item.quantity}, Tersedia: ${effectiveStock}`;
+            console.warn(`⚠️ ${errorMsg}`);
             failedItems.push({
-              menuItem: item.menuItem,
+              menuItem: menuItemName,
+              menuItemId: item.menuItem,
               quantity: item.quantity,
               available: effectiveStock,
-              reason: 'Insufficient calculated stock'
+              reason: errorMsg,
+              type: 'STOK_MENU_TIDAK_CUKUP'
             });
             continue;
           }
         }
 
         // Process base ingredients
+        console.log(`   🧩 Processing ${recipe.baseIngredients?.length || 0} bahan dasar`);
         for (const ing of recipe.baseIngredients || []) {
           await processIngredientStockReduction(
             ing,
             item.quantity,
             orderId,
-            `Order ${orderId} - base ingredient`,
+            `Order ${orderId} - bahan dasar ${menuItemName}`,
             menuItemObjectId
           );
         }
 
         // Process toppings
         if (item.toppings?.length > 0) {
+          console.log(`   🍯 Processing ${item.toppings.length} topping`);
           for (const topping of item.toppings) {
             const toppingRecipe = (recipe.toppingOptions || []).find(t => t.toppingName === topping.name);
             if (!toppingRecipe) {
-              console.warn(`⚠️ Topping recipe not found for: ${topping.name}`);
+              console.warn(`   ⚠️ Resep topping tidak ditemukan: ${topping.name}`);
               continue;
             }
 
@@ -184,7 +247,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
                 ing,
                 item.quantity,
                 orderId,
-                `Order ${orderId} - topping ${topping.name}`,
+                `Order ${orderId} - topping ${topping.name} untuk ${menuItemName}`,
                 menuItemObjectId
               );
             }
@@ -193,12 +256,13 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
         // Process addons
         if (item.addons?.length > 0) {
+          console.log(`   🥗 Processing ${item.addons.length} addon`);
           for (const addon of item.addons) {
             const addonRecipe = (recipe.addonOptions || []).find(a =>
               a.addonName === addon.name && a.optionLabel === addon.option
             );
             if (!addonRecipe) {
-              console.warn(`⚠️ Addon recipe not found for: ${addon.name} - ${addon.option}`);
+              console.warn(`   ⚠️ Resep addon tidak ditemukan: ${addon.name} - ${addon.option}`);
               continue;
             }
 
@@ -207,7 +271,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
                 ing,
                 item.quantity,
                 orderId,
-                `Order ${orderId} - addon ${addon.name}:${addon.option}`,
+                `Order ${orderId} - addon ${addon.name}:${addon.option} untuk ${menuItemName}`,
                 menuItemObjectId
               );
             }
@@ -216,7 +280,6 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
         // Update stok menu item (hanya jika semua bahan tersedia)
         if (menuStock && menuStock.manualStock !== null) {
-          // Jika menggunakan stok manual, kurangi manualStock
           bulkMenuStockOps.push({
             updateOne: {
               filter: { menuItemId: menuItemObjectId },
@@ -227,7 +290,6 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
             }
           });
         } else {
-          // Jika menggunakan calculated stock, kurangi calculatedStock
           bulkMenuStockOps.push({
             updateOne: {
               filter: { menuItemId: menuItemObjectId },
@@ -239,14 +301,22 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
           });
         }
 
-        console.log(`✅ Successfully processed item: ${item.menuItem}, quantity: ${item.quantity}`);
+        console.log(`✅ BERHASIL: ${menuItemName} (Qty: ${item.quantity})`);
+        successItems.push({
+          menuItem: menuItemName,
+          menuItemId: item.menuItem,
+          quantity: item.quantity,
+          type: 'SUCCESS'
+        });
 
       } catch (error) {
-        console.error(`❌ Failed to process item ${item.menuItem}:`, error);
+        console.error(`❌ GAGAL: ${menuItemName} - ${error.message}`);
         failedItems.push({
-          menuItem: item.menuItem,
+          menuItem: menuItemName,
+          menuItemId: item.menuItem,
           quantity: item.quantity,
-          reason: error.message
+          reason: error.message,
+          type: 'BAHAN_TIDAK_CUKUP'
         });
       }
     }
@@ -254,9 +324,9 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
     // Jika ada failed items, rollback seluruh transaction
     if (failedItems.length > 0) {
       const failedMenuItems = failedItems.map(f => f.menuItem).join(', ');
-      const failedReasons = failedItems.map(f => `${f.menuItem}: ${f.reason}`).join('; ');
+      const failedReasons = failedItems.map(f => `\n   - ${f.menuItem}: ${f.reason}`).join('');
 
-      throw new Error(`🛑 Failed to process ${failedItems.length} items: ${failedMenuItems}. Reasons: ${failedReasons}`);
+      throw new Error(`🛑 Gagal memproses ${failedItems.length} item:${failedReasons}`);
     }
 
     // Eksekusi bulk operations hanya jika tidak ada failed items
@@ -265,36 +335,75 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
 
     if (bulkProductOps.length > 0) {
       productUpdateResult = await ProductStock.bulkWrite(bulkProductOps, { session });
-      console.log(`📊 Product inventory updated for order ${orderId}:`, productUpdateResult.modifiedCount || 0, 'documents modified');
+      console.log(`📊 Update inventory produk: ${productUpdateResult.modifiedCount || 0} dokumen diupdate`);
     }
 
     if (bulkMenuStockOps.length > 0) {
       menuStockUpdateResult = await MenuStock.bulkWrite(bulkMenuStockOps, { session });
-      console.log(`🍽️ Menu stock updated for order ${orderId}:`, menuStockUpdateResult.modifiedCount || 0, 'documents modified');
+      console.log(`🍽️ Update stok menu: ${menuStockUpdateResult.modifiedCount || 0} dokumen diupdate`);
     }
 
     await session.commitTransaction();
-    console.log(`🎉 Inventory update completed successfully for order ${orderId}`);
+
+    // SUMMARY REPORT
+    console.log(`\n🎉 ====== LAPORAN AKHIR UPDATE INVENTORY ======`);
+    console.log(`📦 Order ID: ${orderId}`);
+    console.log(`✅ BERHASIL: ${successItems.length} item`);
+    successItems.forEach(item => {
+      console.log(`   ✓ ${item.menuItem} (Qty: ${item.quantity})`);
+    });
+    console.log(`📊 Total update: ${productUpdateResult?.modifiedCount || 0} produk, ${menuStockUpdateResult?.modifiedCount || 0} menu`);
+    console.log(`⏰ Timestamp: ${new Date().toLocaleString('id-ID')}`);
+    console.log(`=============================================\n`);
 
     return {
       success: true,
       orderId,
       productUpdates: productUpdateResult?.modifiedCount || 0,
       menuStockUpdates: menuStockUpdateResult?.modifiedCount || 0,
-      timestamp: new Date()
+      successItems: successItems,
+      failedItems: [],
+      summary: {
+        totalItems: items.length,
+        success: successItems.length,
+        failed: 0,
+        timestamp: new Date()
+      }
     };
 
   } catch (error) {
     await session.abortTransaction();
-    console.error('💥 Inventory update failed for order', orderId, ':', error);
 
-    // ✅ SEKARANG failedItems SUDAH TERDEFINISI
+    // DETAILED ERROR REPORT
+    console.log(`\n💥 ====== LAPORAN KEGAGALAN UPDATE INVENTORY ======`);
+    console.log(`📦 Order ID: ${orderId}`);
+    console.log(`❌ GAGAL: ${failedItems.length} item`);
+    failedItems.forEach(item => {
+      console.log(`   ✗ ${item.menuItem} (Qty: ${item.quantity})`);
+      console.log(`     Alasan: ${item.reason}`);
+    });
+    if (successItems.length > 0) {
+      console.log(`✅ BERHASIL: ${successItems.length} item`);
+      successItems.forEach(item => {
+        console.log(`   ✓ ${item.menuItem} (Qty: ${item.quantity})`);
+      });
+    }
+    console.log(`📝 Error: ${error.message}`);
+    console.log(`⏰ Timestamp: ${new Date().toLocaleString('id-ID')}`);
+    console.log(`================================================\n`);
+
     return {
       success: false,
       orderId,
       error: error.message,
-      failedItems: failedItems || [], // ✅ GUNAKAN failedItems YANG SUDAH TERDEFINISI
-      timestamp: new Date()
+      successItems: successItems,
+      failedItems: failedItems,
+      summary: {
+        totalItems: items.length,
+        success: successItems.length,
+        failed: failedItems.length,
+        timestamp: new Date()
+      }
     };
   } finally {
     await session.endSession();
