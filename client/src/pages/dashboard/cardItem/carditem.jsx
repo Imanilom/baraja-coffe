@@ -11,43 +11,6 @@ const formatRupiah = (amount) =>
 const CardItem = ({ title, icon, percentage, amount, isPositive, average, value, route }) => {
     return (
         <>
-            {/* <Link className="w-full bg-white border py-[25px] px-[30px] cursor-pointer" to={route}>
-                <div className="flex flex-col justify-between h-full">
-                    <div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-[14px] font-semibold text-gray-500">{title}</span>
-                            {icon}
-                        </div>
-
-                        <p className={`text-sm mt-2 flex items-center space-x-1 ${isPositive ? "text-green-600" : "text-red-600"}`}>
-                            {isPositive ? <FaArrowUp /> : <FaArrowDown />}
-                            <span>
-                                {percentage} (
-                                {title === "Transaksi" ? amount : formatRupiah(amount)}
-                                ) Dibanding Kemarin
-                            </span>
-                        </p>
-
-                        <div className="flex justify-between mt-4 text-sm text-gray-600">
-                            <div>
-                                {title === "Penjualan" && (
-                                    <>
-                                        <p>Rata-rata</p>
-                                        <p className="font-medium text-gray-500">{average}</p>
-                                    </>
-                                )}
-                            </div>
-                            <div className="text-right text-[20px]">
-                                <p>{value}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center justify-end space-x-2 text-gray-500 mt-[13px] pt-[20px] border-t-[1px]">
-                        <span>Selengkapnya</span>
-                    </div>
-                </div>
-            </Link> */}
             <Link
                 to={route}
                 className="w-full bg-white border-t-4 border-green-900 rounded-xl p-5 shadow hover:shadow-md transition cursor-pointer"

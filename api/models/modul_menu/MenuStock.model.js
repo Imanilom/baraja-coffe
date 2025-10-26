@@ -46,9 +46,9 @@ const MenuStockSchema = new mongoose.Schema({
     trim: true,
   },
   adjustedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null,
+     type: String,
+      trim: true,
+      default: null,
   },
   handledBy: { 
     type: String, 

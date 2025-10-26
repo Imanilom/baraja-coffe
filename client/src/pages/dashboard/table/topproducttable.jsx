@@ -9,6 +9,9 @@ const formatRupiah = (amount) =>
     }).format(amount);
 
 export default function TopProductTable({ data }) {
+    // Ambil hanya 5 data teratas
+    const topFiveData = data && data.length > 0 ? data.slice(0, 5) : [];
+
     return (
         <div className="mt-6">
             <div className="flex justify-between items-center mb-3">
@@ -17,7 +20,6 @@ export default function TopProductTable({ data }) {
                 <Link to="/admin/product-sales" className="text-sm text-green-700">
                     <span>Selengkapnya</span>
                 </Link>
-
             </div>
             <div className="w-full mt-6">
                 <table className="bg-white min-w-full text-[14px] shadow rounded-lg">
@@ -31,9 +33,9 @@ export default function TopProductTable({ data }) {
                             <th className="py-2 px-[15px] font-semibold text-right">Total</th>
                         </tr>
                     </thead>
-                    {data && data.length > 0 ? (
+                    {topFiveData.length > 0 ? (
                         <tbody>
-                            {data.map((item, i) => (
+                            {topFiveData.map((item, i) => (
                                 <tr key={i} className="hover:bg-gray-50 text-gray-500">
                                     <td className="p-[15px]">{item.productName}</td>
                                     <td className="p-[15px]">{item.category || "N/A"}</td>

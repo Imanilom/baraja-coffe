@@ -74,7 +74,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
     const bulkProductOps = [];
     const bulkMenuStockOps = [];
 
-    // Function untuk memproses pengurangan stok
+    // Function untuk memproses pengurangan stok - DILONGGAKKAN: tidak throw error jika stok kurang
     const processIngredientStockReduction = async (ingredient, requiredQty, orderId, noteSuffix, menuItemId) => {
       const productId = ingredient.productId;
       const productIdStr = productId._id ? productId._id.toString() : productId.toString();
@@ -95,7 +95,8 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
         .session(session);
 
       if (productStocks.length === 0) {
-        throw new Error(`🚫 Stok ${productName} tidak tersedia di gudang manapun`);
+        console.log(`⚠️ Stok ${productName} tidak tersedia di gudang manapun - DILEWATKAN karena validasi dilonggarkan`);
+        return true; // Lanjutkan proses meskipun stok tidak tersedia
       }
 
       let remainingRequired = totalRequired;
@@ -119,14 +120,16 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
         }
       }
 
-      // Cek jika stok tidak cukup
+      // DILONGGAKKAN: Tidak throw error jika stok tidak cukup, cukup log warning
       if (remainingRequired > 0) {
         const totalAvailable = warehouseAllocations.reduce((sum, alloc) => sum + alloc.allocatedQty, 0);
         const warehouseInfo = warehouseAllocations.map(alloc =>
           `${alloc.warehouseName}: ${alloc.allocatedQty}`
         ).join(', ');
 
-        throw new Error(`❌ Stok ${productName} tidak mencukupi. Butuh: ${totalRequired}, Tersedia: ${totalAvailable} (${warehouseInfo})`);
+        console.log(`⚠️ Stok ${productName} tidak mencukupi. Butuh: ${totalRequired}, Tersedia: ${totalAvailable} (${warehouseInfo}) - DIPROSES dengan stok yang ada`);
+
+        // Tetap lanjutkan dengan stok yang tersedia, tidak throw error
       }
 
       // Buat bulk operations untuk setiap alokasi warehouse
@@ -145,7 +148,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
                   category: ingredient.category,
                   type: 'out',
                   referenceId: orderId,
-                  notes: `${noteSuffix} | warehouse: ${allocation.warehouseName}`,
+                  notes: `${noteSuffix} | warehouse: ${allocation.warehouseName} | STOK TIDAK CUKUP: diproses sebagian`,
                   handledBy: handledBy || 'system',
                   date: new Date(),
                   sourceWarehouse: allocation.warehouseId,
@@ -184,41 +187,9 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
           continue;
         }
 
-        // Cek stok menu item terlebih dahulu
+        // DILONGGAKKAN: Skip pengecekan stok menu item
         const menuStock = menuStocks.find(ms => ms.menuItemId.toString() === menuItemIdStr);
-
-        // Jika menggunakan stok manual, cek ketersediaan
-        if (menuStock && menuStock.manualStock !== null) {
-          if (menuStock.manualStock < item.quantity) {
-            const errorMsg = `Stok manual tidak mencukupi. Butuh: ${item.quantity}, Tersedia: ${menuStock.manualStock}`;
-            console.warn(`⚠️ ${errorMsg}`);
-            failedItems.push({
-              menuItem: menuItemName,
-              menuItemId: item.menuItem,
-              quantity: item.quantity,
-              available: menuStock.manualStock,
-              reason: errorMsg,
-              type: 'STOK_MENU_TIDAK_CUKUP'
-            });
-            continue;
-          }
-        } else {
-          // Jika menggunakan calculated stock, cek ketersediaan
-          const effectiveStock = menuStock ? menuStock.effectiveStock : 0;
-          if (effectiveStock < item.quantity) {
-            const errorMsg = `Stok kalkulasi tidak mencukupi. Butuh: ${item.quantity}, Tersedia: ${effectiveStock}`;
-            console.warn(`⚠️ ${errorMsg}`);
-            failedItems.push({
-              menuItem: menuItemName,
-              menuItemId: item.menuItem,
-              quantity: item.quantity,
-              available: effectiveStock,
-              reason: errorMsg,
-              type: 'STOK_MENU_TIDAK_CUKUP'
-            });
-            continue;
-          }
-        }
+        console.log(`ℹ️ Validasi stok menu item dilewati untuk: ${menuItemName}`);
 
         // Process base ingredients
         console.log(`   🧩 Processing ${recipe.baseIngredients?.length || 0} bahan dasar`);
@@ -279,26 +250,28 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
         }
 
         // Update stok menu item (hanya jika semua bahan tersedia)
-        if (menuStock && menuStock.manualStock !== null) {
-          bulkMenuStockOps.push({
-            updateOne: {
-              filter: { menuItemId: menuItemObjectId },
-              update: {
-                $inc: { manualStock: -item.quantity },
-                $set: { lastUpdatedAt: new Date() }
+        if (menuStock) {
+          if (menuStock.manualStock !== null) {
+            bulkMenuStockOps.push({
+              updateOne: {
+                filter: { menuItemId: menuItemObjectId },
+                update: {
+                  $inc: { manualStock: -item.quantity },
+                  $set: { lastUpdatedAt: new Date() }
+                }
               }
-            }
-          });
-        } else {
-          bulkMenuStockOps.push({
-            updateOne: {
-              filter: { menuItemId: menuItemObjectId },
-              update: {
-                $inc: { calculatedStock: -item.quantity },
-                $set: { lastCalculatedAt: new Date() }
+            });
+          } else {
+            bulkMenuStockOps.push({
+              updateOne: {
+                filter: { menuItemId: menuItemObjectId },
+                update: {
+                  $inc: { calculatedStock: -item.quantity },
+                  $set: { lastCalculatedAt: new Date() }
+                }
               }
-            }
-          });
+            });
+          }
         }
 
         console.log(`✅ BERHASIL: ${menuItemName} (Qty: ${item.quantity})`);
@@ -316,20 +289,19 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
           menuItemId: item.menuItem,
           quantity: item.quantity,
           reason: error.message,
-          type: 'BAHAN_TIDAK_CUKUP'
+          type: 'ERROR_PROSES'
         });
       }
     }
 
-    // Jika ada failed items, rollback seluruh transaction
+    // DILONGGAKKAN: Tidak rollback meskipun ada failed items, hanya log warning
     if (failedItems.length > 0) {
       const failedMenuItems = failedItems.map(f => f.menuItem).join(', ');
-      const failedReasons = failedItems.map(f => `\n   - ${f.menuItem}: ${f.reason}`).join('');
-
-      throw new Error(`🛑 Gagal memproses ${failedItems.length} item:${failedReasons}`);
+      console.warn(`⚠️ Terdapat ${failedItems.length} item yang gagal: ${failedMenuItems}`);
+      console.log(`ℹ️ Tetap melanjutkan commit transaction karena validasi dilonggarkan`);
     }
 
-    // Eksekusi bulk operations hanya jika tidak ada failed items
+    // Eksekusi bulk operations meskipun ada failed items
     let productUpdateResult = null;
     let menuStockUpdateResult = null;
 
@@ -352,6 +324,14 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
     successItems.forEach(item => {
       console.log(`   ✓ ${item.menuItem} (Qty: ${item.quantity})`);
     });
+
+    if (failedItems.length > 0) {
+      console.log(`⚠️ GAGAL: ${failedItems.length} item (tetap diproses karena validasi dilonggarkan)`);
+      failedItems.forEach(item => {
+        console.log(`   ✗ ${item.menuItem} (Qty: ${item.quantity}) - ${item.reason}`);
+      });
+    }
+
     console.log(`📊 Total update: ${productUpdateResult?.modifiedCount || 0} produk, ${menuStockUpdateResult?.modifiedCount || 0} menu`);
     console.log(`⏰ Timestamp: ${new Date().toLocaleString('id-ID')}`);
     console.log(`=============================================\n`);
@@ -362,12 +342,13 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
       productUpdates: productUpdateResult?.modifiedCount || 0,
       menuStockUpdates: menuStockUpdateResult?.modifiedCount || 0,
       successItems: successItems,
-      failedItems: [],
+      failedItems: failedItems,
       summary: {
         totalItems: items.length,
         success: successItems.length,
-        failed: 0,
-        timestamp: new Date()
+        failed: failedItems.length,
+        timestamp: new Date(),
+        note: 'Validasi stok dilonggarkan - order diproses meskipun stok tidak mencukupi'
       }
     };
 
