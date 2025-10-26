@@ -2721,6 +2721,18 @@ export const createUnifiedOrder = async (req, res) => {
   }
 };
 
+function calculateCustomAmount(paidAmount, orderTotal) {
+  const excess = paidAmount - orderTotal;
+  if (excess > 0) {
+    return {
+      name: 'Excess Payment',
+      description: 'Additional amount paid beyond order total',
+      amount: excess,
+      dineType: 'custom'
+    };
+  }
+  return null;
+}
 
 // HELPER FUNCTION UNTUK CEK JAM OPERASIONAL OUTLET
 const checkOutletOperatingHours = (outlet) => {
@@ -5798,7 +5810,7 @@ export const processPaymentCashier = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { order_id, selected_payment_id, payment_method, cashier_id } = req.body;
+    const { order_id, selected_payment_id, payment_method, cashier_id, payment_type } = req.body;
 
     // Validasi input
     if (!order_id || !selected_payment_id || !Array.isArray(selected_payment_id)) {
@@ -5860,10 +5872,15 @@ export const processPaymentCashier = async (req, res) => {
       //   payment.amount += payment.remainingAmount;
       //   payment.remainingAmount = 0;
       // }
+      const paymentMethodandtype =
+        [payment_type, payment_method]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
 
       // Update status payment menjadi settlement
       payment.status = 'settlement';
-      payment.method = payment_method;
+      payment.method = paymentMethodandtype;
       payment.paidAt = new Date();
 
       await payment.save({ session });

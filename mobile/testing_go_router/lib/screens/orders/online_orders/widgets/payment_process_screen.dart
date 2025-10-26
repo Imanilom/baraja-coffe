@@ -1251,6 +1251,12 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
             ref.read(paymentProcessProvider).selectedMethod!.methodCode,
           );
       final requestData = ref.watch(processPaymentRequestProvider);
+      final paymentMethodAndType =
+          '${ref.read(paymentProcessProvider).selectedType!.name} ${ref.read(paymentProcessProvider).selectedMethod!.name}';
+      final List<PaymentModel> updatedPayments =
+          (widget.order.payment ?? [])
+              .map((p) => p.copyWith(method: paymentMethodAndType))
+              .toList();
       print('req data: $requestData');
       final result = await ref
           .read(paymentProcessProvider.notifier)
@@ -1262,7 +1268,10 @@ class _PaymentProcessScreenState extends ConsumerState<PaymentProcessScreen> {
       if (mounted) Navigator.pop(context);
       if (result.success) {
         //update paymentStatus pada widget.order
-        final updatedOrder = widget.order.copyWith(paymentStatus: 'settlement');
+        final updatedOrder = widget.order.copyWith(
+          paymentStatus: 'settlement',
+          payment: updatedPayments,
+        );
         final savedPrinter = ref.read(savedPrintersProvider.notifier);
         if (result.data?.orderType?.toLowerCase() != 'reservation') {
           savedPrinter.printToPrinter(

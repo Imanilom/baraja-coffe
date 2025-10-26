@@ -27,8 +27,8 @@ const formatRupiah = (amount) => {
 
 const getTodayRange = () => {
     const today = new Date();
-    const start = new Date(today.setHours(0, 0, 0, 0)); // jam 00:00:00
-    const end = new Date(today.setHours(23, 59, 59, 999)); // jam 23:59:59
+    const start = new Date(today.setHours(0, 0, 0, 0));
+    const end = new Date(today.setHours(23, 59, 59, 999));
     return { startDate: start, endDate: end };
 };
 
@@ -74,8 +74,10 @@ const Dashboard = () => {
 
                 const completedData = productsData.filter(item => item.status === "Completed");
 
+                console.log(completedData)
+
                 setProductSales(completedData);
-                setFilteredData(completedData); // Initialize filtered data with all products
+                setFilteredData(completedData);
 
                 // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
@@ -137,7 +139,7 @@ const Dashboard = () => {
         }));
     };
 
-    // Apply filters
+    // Apply filters - FIXED: Removed 'categories' from dependencies
     useEffect(() => {
         let filtered = productSales;
 
@@ -147,7 +149,7 @@ const Dashboard = () => {
             const end = new Date(filters.date.endDate);
 
             filtered = filtered.filter((product) => {
-                const transactionDate = new Date(product.createdAt); // atau sesuaikan field-nya
+                const transactionDate = new Date(product.createdAt);
                 return transactionDate >= start && transactionDate <= end;
             });
         }
@@ -157,44 +159,48 @@ const Dashboard = () => {
         }
 
         setFilteredData(filtered);
-    }, [filters, productSales, categories]);
+    }, [filters, productSales]); // FIXED: Removed categories
 
+    // FIXED: Group products - handle ALL items in each order
     const groupProducts = (data) => {
         const grouped = {};
-        data.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
+        data.forEach(order => {
+            // FIXED: Loop through ALL items, not just first item
+            if (!order.items || !Array.isArray(order.items)) return;
 
-            const productName = item.menuItem?.name || "Unknown";
-            const mainCategory = item.menuItem?.mainCategory || "Unknown";
-            const categoryObj = categories.find(cat => cat._id === item.menuItem?.category);
-            const category = categoryObj ? categoryObj.name : "Uncategorized";
-            const sku = item.menuItem?.sku || "-";
-            const quantity = Number(item?.quantity) || 0;
-            const subtotal = Number(item?.subtotal) || 0;
-            const discount = Number(item?.discount) || 0;
+            order.items.forEach(item => {
+                if (!item) return;
 
-            if (!grouped[productName]) {
-                grouped[productName] = {
-                    productName,
-                    mainCategory,
-                    category,
-                    sku,
-                    quantity: 0,
-                    discount: 0,
-                    subtotal: 0,
-                    total: 0,
-                };
-            }
+                const productName = item.menuItem?.name || "Unknown";
+                const mainCategory = item.menuItem?.mainCategory || "Unknown";
+                const category = item.menuItem?.category?.name || "Uncategorized";
+                const sku = item.menuItem?.sku || "-";
+                const quantity = Number(item?.quantity) || 0;
+                const subtotal = Number(item?.subtotal) || 0;
+                const discount = Number(item?.discount) || 0;
 
-            grouped[productName].quantity += quantity;
-            grouped[productName].discount += discount;
-            grouped[productName].subtotal += subtotal;
-            grouped[productName].total += subtotal + discount;
+                if (!grouped[productName]) {
+                    grouped[productName] = {
+                        productName,
+                        mainCategory,
+                        category,
+                        sku,
+                        quantity: 0,
+                        discount: 0,
+                        subtotal: 0,
+                        total: 0,
+                    };
+                }
+
+                grouped[productName].quantity += quantity;
+                grouped[productName].discount += discount;
+                grouped[productName].subtotal += subtotal;
+                // FIXED: Total adalah subtotal (sudah setelah discount)
+                grouped[productName].total += subtotal;
+            });
         });
 
-        const g = Object.values(grouped);
-        return g;
+        return Object.values(grouped);
     };
 
     // Hitung range sebelumnya (banding)
@@ -253,18 +259,18 @@ const Dashboard = () => {
         );
     }, [groupedPrevious]);
 
-    // Data untuk card hari ini (current range)
+    // FIXED: Data untuk card - Penjualan dan Laba Kotor dari grandTotal order
     const todayData = {
-        penjualan: grandTotalCurrent.total,
-        transaksi: grandTotalCurrent.quantity,
-        labaKotor: grandTotalCurrent.subtotal,
+        penjualan: filteredData.reduce((sum, order) => sum + (Number(order.grandTotal) || 0), 0),
+        transaksi: filteredData.length,
+        labaKotor: filteredData.reduce((sum, order) => sum + (Number(order.grandTotal) || 0), 0),
     };
 
     // Data untuk card kemarin (previous range)
     const yesterdayData = {
-        penjualan: grandTotalPrevious.total,
-        transaksi: grandTotalPrevious.quantity,
-        labaKotor: grandTotalPrevious.subtotal,
+        penjualan: filteredPreviousRange.reduce((sum, order) => sum + (Number(order.grandTotal) || 0), 0),
+        transaksi: filteredPreviousRange.length,
+        labaKotor: filteredPreviousRange.reduce((sum, order) => sum + (Number(order.grandTotal) || 0), 0),
     };
 
     // Hitung perbandingan untuk tiap kategori
@@ -279,7 +285,8 @@ const Dashboard = () => {
             percentage: penjualanComp.percentage,
             amount: penjualanComp.amount,
             isPositive: penjualanComp.isPositive,
-            average: formatRupiah(todayData.penjualan / todayData.transaksi),
+            // FIXED: Handle division by zero
+            average: todayData.transaksi > 0 ? formatRupiah(todayData.penjualan / todayData.transaksi) : formatRupiah(0),
             value: formatRupiah(todayData.penjualan),
             route: "/admin/transaction-sales",
         },
@@ -318,8 +325,8 @@ const Dashboard = () => {
     // Mapping ke data sales makanan (ambil 5 tertinggi)
     const foodSales = useMemo(() => {
         return foodData
-            .sort((a, b) => b.subtotal - a.subtotal) // urut dari terbesar ke kecil
-            .slice(0, 5) // ambil top 5
+            .sort((a, b) => b.subtotal - a.subtotal)
+            .slice(0, 5)
             .map((item) => ({
                 name: item.productName,
                 value: item.subtotal,
@@ -359,7 +366,7 @@ const Dashboard = () => {
     const dataSales = groupedCurrent.map((item) => ({
         name: item.productName,
         category: item.mainCategory,
-        value: item.subtotal, // ganti '120000' dengan nilai aktual, misalnya 'item.total'
+        value: item.subtotal,
     }));
 
     const category = Object.values(
@@ -373,16 +380,17 @@ const Dashboard = () => {
                 };
             }
 
-            acc[category].value += quantity; // jumlahkan total per kategori
+            acc[category].value += quantity;
             return acc;
         }, {})
     );
 
     const dataCategory = category.map((item) => ({
         name: item.name,
-        value: item.value, // ganti '120000' dengan nilai aktual, misalnya 'item.total'
+        value: item.value,
     }));
 
+    // FIXED: Group by hour - sum grandTotal from orders
     const groupedByHour = useMemo(() => {
         const grouped = {};
 
@@ -395,19 +403,16 @@ const Dashboard = () => {
             };
         });
 
-        // 2. Group berdasarkan jam dari createdAt
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
-
-            const subtotal = Number(item?.subtotal) || 0;
-
-            const date = new Date(product.createdAt);
+        // 2. Group berdasarkan jam dari createdAt dan sum grandTotal
+        filteredData.forEach(order => {
+            const date = new Date(order.createdAt);
             const hour = date.getHours().toString().padStart(2, '0');
             const time = `${hour}:00`;
 
+            // FIXED: Use grandTotal from order
+            const grandTotal = Number(order?.grandTotal) || 0;
             if (grouped[time]) {
-                grouped[time].subtotal += subtotal;
+                grouped[time].subtotal += grandTotal;
             }
         });
 
@@ -415,54 +420,56 @@ const Dashboard = () => {
         return Object.values(grouped);
     }, [filteredData]);
 
-    const groupedPaymnet = useMemo(() => {
+    // FIXED: Group by payment method - sum ALL items
+    const groupedPayment = useMemo(() => {
         const grouped = {};
 
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
+        filteredData.forEach(order => {
+            if (!order.items || !Array.isArray(order.items)) return;
 
-            const paymentMethod = product?.paymentMethod || '';
-            const subtotal = Number(item?.subtotal) || 0;
+            const paymentMethod = order?.paymentMethod || 'Unknown';
 
-            const key = `${paymentMethod}`; // unique key per produk
-
-            if (!grouped[key]) {
-                grouped[key] = {
+            if (!grouped[paymentMethod]) {
+                grouped[paymentMethod] = {
                     paymentMethod,
                     subtotal: 0
                 };
             }
 
-            grouped[key].subtotal += subtotal;
-
+            // FIXED: Sum all items in the order
+            order.items.forEach(item => {
+                if (!item) return;
+                const subtotal = Number(item?.subtotal) || 0;
+                grouped[paymentMethod].subtotal += subtotal;
+            });
         });
 
         return Object.values(grouped);
     }, [filteredData]);
 
+    // FIXED: Group by order type - sum ALL items
     const groupedType = useMemo(() => {
         const grouped = {};
 
-        filteredData.forEach(product => {
-            const item = product?.items?.[0];
-            if (!item) return;
+        filteredData.forEach(order => {
+            if (!order.items || !Array.isArray(order.items)) return;
 
-            const orderType = product?.orderType || '';
-            const subtotal = Number(item?.subtotal) || 0;
+            const orderType = order?.orderType || 'Unknown';
 
-            const key = `${orderType}`; // unique key per produk
-
-            if (!grouped[key]) {
-                grouped[key] = {
+            if (!grouped[orderType]) {
+                grouped[orderType] = {
                     orderType,
                     subtotal: 0,
-                    totalTransaction: 0, // tambahin field counter
+                    totalTransaction: 0,
                 };
             }
 
-            grouped[key].subtotal += subtotal;
-            grouped[key].totalTransaction += 1; // increment tiap transaksi
+            // FIXED: Sum all items in the order
+            const grandTotal = Number(order?.grandTotal) || 0;
+            grouped[orderType].subtotal += grandTotal;
+
+            // Count transaction (satu order = satu transaksi)
+            grouped[orderType].totalTransaction += 1;
         });
 
         return Object.values(grouped);
@@ -478,7 +485,7 @@ const Dashboard = () => {
         );
     }
 
-    // // Show error state
+    // Show error state
     if (error) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -566,27 +573,10 @@ const Dashboard = () => {
                         </div> : ""
                     }
 
-                    {/* Today Performance */}
-                    {/* <div className="bg-white p-4 rounded-lg shadow-sm">
-                        <h3 className="font-semibold mb-2">Today Performance</h3>
-                        <p className="text-lg font-bold">$360</p>
-                        <p className="text-sm text-gray-500">Today Revenue</p>
-                    </div> */}
-
-                    {/* Live Orders */}
-                    {/* <div className="bg-white p-4 rounded-lg shadow-sm">
-                        <h3 className="font-semibold mb-3">Live Orders</h3>
-                        <ul className="space-y-2 text-sm text-gray-600">
-                            <li>Paistudio purchased 1x Choco Chuco Coffee</li>
-                            <li>Today at 12:30</li>
-                        </ul>
-                    </div> */}
-
                     {/* Top Selling Items */}
                     <TotalOrder data={dataSales} />
                     <FoodChart data={foodSales} />
                     <DrinkChart data={drinkSales} />
-                    {/* <PaymentMethod data={groupedPaymnet} /> */}
                     <TransactionType data={groupedType} />
                 </div>
             </main>

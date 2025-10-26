@@ -474,9 +474,9 @@ class PrinterService {
       bytes.addAll(
         await generateOptimizedLogoBytes(
           generator,
-          // 'assets/logo/logo_baraja.svg',
+          'assets/logo/logo_baraja.svg',
           // 'assets/logo/logo_baraja.webp',
-          'assets/logo/logo_baraja.png',
+          // 'assets/logo/logo_baraja.png',
           paperSize,
         ),
       );
@@ -709,47 +709,49 @@ class PrinterService {
     String imagePath,
     PaperSize paperSize,
   ) async {
-    final List<int> out = [];
+    final out = <int>[];
+
+    // Lebar aman untuk 58mm/80mm
+    final int maxWidth = paperSize == PaperSize.mm80 ? 576 : 384;
+    final int targetWidth = (maxWidth * 0.75).floor(); // 75% = aman
 
     try {
-      // 1️⃣ Load asset PNG
-      final bd = await rootBundle.load(imagePath);
+      final bd = await rootBundle.load(imagePath); // PNG/JPG
       final Uint8List raw = bd.buffer.asUint8List();
 
-      // 2️⃣ Decode image
-      img.Image? decodedImage = img.decodeImage(raw);
+      img.Image src = img.decodeImage(raw)!;
 
-      if (decodedImage == null) {
-        throw Exception('Gagal decode image');
-      }
+      // Resize lebih kecil
+      src = img.copyResize(
+        src,
+        width: src.width > targetWidth ? targetWidth : src.width,
+      );
 
-      // 3️⃣ Resize
-      final maxWidth = (paperSize == PaperSize.mm80) ? 576 : 384;
-      final targetWidth = (maxWidth * 0.85).floor();
+      // Ubah ke BW (bukan grayscale) supaya datanya kecil
+      // opsi 1: threshold
+      src = img.grayscale(src);
+      src = img.luminanceThreshold(src, threshold: 160); // sesuaikan 160–200
 
-      img.Image resized = decodedImage;
-      if (decodedImage.width > targetWidth) {
-        resized = img.copyResize(decodedImage, width: targetWidth);
-      }
+      // Penting: pastikan buffer growable
+      final Uint8List grow = Uint8List.fromList(src.toUint8List());
+      final img.Image safe = img.Image.fromBytes(
+        width: src.width,
+        height: src.height,
+        bytes: grow.buffer,
+        numChannels: src.numChannels,
+      );
 
-      // 4️⃣ Convert ke grayscale dan format yang benar
-      // PENTING: image package v3.x memerlukan format yang berbeda
-      final img.Image processedImage = img.grayscale(resized);
-
-      // 5️⃣ Convert ke format yang bisa diproses printer
-      // Pastikan image dalam format 8-bit grayscale
-      final img.Image finalImage = _ensureGrayscale8Bit(processedImage);
-
-      // 6️⃣ Print image dengan raster mode
+      // Raster mode tanpa high density
       out.addAll(
         generator.imageRaster(
-          finalImage,
+          safe,
           align: PosAlign.center,
-          highDensityHorizontal: true,
-          highDensityVertical: true,
+          highDensityHorizontal: false,
+          highDensityVertical: false,
         ),
       );
-      out.addAll(generator.feed(1));
+
+      out.addAll(generator.feed(1)); // nudge head maju
     } catch (e, st) {
       debugPrint('Gagal render logo: $e\n$st');
 
@@ -1378,7 +1380,8 @@ class PrinterService {
           ),
           PosColumn(
             //tampilkan metode pembyaran yang paymentnya statusnya 'settlement'
-            text: orderDetail.paymentType ?? "-",
+            text:
+                "${orderDetail.paymentMethod ?? ""} ${orderDetail.paymentType ?? ""}",
             width: 6,
             styles: const PosStyles(align: PosAlign.right),
           ),
