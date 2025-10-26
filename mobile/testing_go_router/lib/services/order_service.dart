@@ -22,13 +22,15 @@ class OrderService {
     PaymentState paymentData,
   ) async {
     // final requestBody = orderDetail.toJson();
+    final String paymentnMethod =
+        "${paymentData.selectedPaymentType?.name ?? ""} ${paymentData.selectedPaymentMethod?.name ?? "Cash"}";
     try {
       print('start create order...');
-      print('request body: ${createOrderRequest(orderDetail)}');
+      print('request body: ${createOrderRequest(orderDetail, paymentnMethod)}');
       // print('orderDetail: ${orderDetail.payment!.method.toString()}');
       Response response = await _dio.post(
         '/api/unified-order',
-        data: createOrderRequest(orderDetail),
+        data: createOrderRequest(orderDetail, paymentnMethod),
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -40,7 +42,7 @@ class OrderService {
       print('response create order: ${response.data}');
 
       print(
-        'start create charge... orderId: ${createOrderRequest(orderDetail)}',
+        'start create charge... orderId: ${createOrderRequest(orderDetail, paymentnMethod)}',
       );
       // print(
       //   'start charge request: ${createChargeRequest(response.data['orderId'], orderDetail.grandTotal, orderDetail.paymentMethod!)}',
@@ -48,12 +50,13 @@ class OrderService {
       print(
         'paymentData change & amount: ${paymentData.change} ${paymentData.selectedCashAmount}',
       );
+
       Response chargeResponse = await _dio.post(
         '/api/cashierCharge',
         data: createChargeRequest(
           response.data['orderId'],
           orderDetail.grandTotal,
-          orderDetail.paymentMethod!,
+          paymentnMethod,
           paymentData.isDownPayment,
           paymentData.selectedDownPayment ?? 0,
           paymentData.selectedDownPayment != null
@@ -326,7 +329,10 @@ class OrderService {
   }
 }
 
-Map<String, dynamic> createOrderRequest(OrderDetailModel order) {
+Map<String, dynamic> createOrderRequest(
+  OrderDetailModel order,
+  String? paymentMethod,
+) {
   print('order.cashierId: ${order.cashierId}');
   print('order item first: ${order.items.first.menuItem.id}');
   print('username: ${order.user}');
