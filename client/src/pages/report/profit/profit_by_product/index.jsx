@@ -36,15 +36,6 @@ const ProfitByProductManagement = () => {
 
     const dropdownRef = useRef(null);
 
-    // Calculate the total subtotal first
-    const totalSubtotal = selectedTrx && selectedTrx.items ? selectedTrx.items.reduce((acc, item) => acc + item.subtotal, 0) : 0;
-
-    // Calculate PB1 as 10% of the total subtotal
-    const pb1 = 10000;
-
-    // Calculate the final total
-    const finalTotal = totalSubtotal + pb1;
-
     // Initialize filters from URL on component mount
     useEffect(() => {
         const page = parseInt(searchParams.get('page')) || 1;
@@ -63,7 +54,6 @@ const ProfitByProductManagement = () => {
                 endDate: endDate
             });
         } else {
-            // Set today's date as default
             setValue({
                 startDate: dayjs(),
                 endDate: dayjs()
@@ -92,7 +82,6 @@ const ProfitByProductManagement = () => {
         }
 
         if (value?.startDate && value?.endDate) {
-            // Convert to YYYY-MM-DD format
             const formatDate = (dateStr) => {
                 if (dayjs.isDayjs(dateStr)) {
                     return dateStr.format('YYYY-MM-DD');
@@ -113,7 +102,6 @@ const ProfitByProductManagement = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Fetch orders data
                 const orderResponse = await axios.get('/api/orders');
 
                 const orderData = Array.isArray(orderResponse.data) ?
@@ -124,12 +112,10 @@ const ProfitByProductManagement = () => {
                 const completedData = orderData.filter(item => item.status === "Completed");
 
                 setOrders(completedData);
-                setFilteredData(completedData); // Initialize filtered data with all orders
+                setFilteredData(completedData);
 
-                // Fetch outlets data
                 const outletsResponse = await axios.get('/api/outlet');
 
-                // Ensure outletsResponse.data is an array
                 const outletsData = Array.isArray(outletsResponse.data) ?
                     outletsResponse.data :
                     (outletsResponse.data && Array.isArray(outletsResponse.data.data)) ?
@@ -141,7 +127,6 @@ const ProfitByProductManagement = () => {
             } catch (err) {
                 console.error("Error fetching data:", err);
                 setError("Failed to load data. Please try again later.");
-                // Set empty arrays as fallback
                 setOrders([]);
                 setFilteredData([]);
                 setOutlets([]);
@@ -169,51 +154,36 @@ const ProfitByProductManagement = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Paginate the filtered data
-    const paginatedData = useMemo(() => {
-
-        // Ensure filteredData is an array before calling slice
-        if (!Array.isArray(filteredData)) {
-            console.error('filteredData is not an array:', filteredData);
-            return [];
-        }
-
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        const result = filteredData.slice(startIndex, endIndex);
-        return result;
-    }, [currentPage, filteredData]);
-
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
-            borderColor: '#d1d5db', // Tailwind border-gray-300
+            borderColor: '#d1d5db',
             minHeight: '34px',
             fontSize: '13px',
-            color: '#6b7280', // text-gray-500
-            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none', // blue-500 on focus
+            color: '#6b7280',
+            boxShadow: state.isFocused ? '0 0 0 1px #005429' : 'none',
             '&:hover': {
-                borderColor: '#9ca3af', // Tailwind border-gray-400
+                borderColor: '#9ca3af',
             },
         }),
         singleValue: (provided) => ({
             ...provided,
-            color: '#6b7280', // text-gray-500
+            color: '#6b7280',
         }),
         input: (provided) => ({
             ...provided,
-            color: '#6b7280', // text-gray-500 for typed text
+            color: '#6b7280',
         }),
         placeholder: (provided) => ({
             ...provided,
-            color: '#9ca3af', // text-gray-400
+            color: '#9ca3af',
             fontSize: '13px',
         }),
         option: (provided, state) => ({
             ...provided,
             fontSize: '13px',
-            color: '#374151', // gray-700
-            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white', // blue-50
+            color: '#374151',
+            backgroundColor: state.isFocused ? 'rgba(0, 84, 41, 0.1)' : 'white',
             cursor: 'pointer',
         }),
     };
@@ -245,88 +215,27 @@ const ProfitByProductManagement = () => {
         return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     };
 
-    // Calculate total pages based on filtered data
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-
-    // Filter outlets based on search input
-    const filteredOutlets = useMemo(() => {
-        return uniqueOutlets.filter(outlet =>
-            outlet.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [search, uniqueOutlets]);
-
     const options = [
         { value: "", label: "Semua Outlet" },
         ...outlets.map((outlet) => ({
-            value: outlet._id,
+            value: outlet.name, // PERBAIKAN: gunakan name, bukan _id
             label: outlet.name,
         })),
     ];
 
-    // Apply filter function
+    // Apply filter function - PERBAIKAN LOGIC
     const applyFilter = useCallback(() => {
+        let filteredOrders = ensureArray([...orders]);
 
-        // Make sure orders is an array before attempting to filter
-        let filtered = ensureArray([...orders]);
-
-        // Filter by search term (product name, category, or SKU)
-        if (tempSearch) {
-            filtered = filtered.filter(product => {
-                try {
-                    const menuItem = product?.items?.[0]?.menuItem;
-                    if (!menuItem) {
-                        return false;
-                    }
-
-                    const name = (menuItem.name || '').toLowerCase();
-                    const customer = (menuItem.user || '').toLowerCase();
-                    const receipt = (menuItem._id || '').toLowerCase();
-
-                    const searchTerm = tempSearch.toLowerCase();
-                    return name.includes(searchTerm) ||
-                        customer.includes(searchTerm) ||
-                        receipt.includes(searchTerm);
-                } catch (err) {
-                    console.error("Error filtering by search:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by outlet
-        if (tempSelectedOutlet) {
-            filtered = filtered.filter(product => {
-                try {
-                    if (!product?.cashier?.outlet?.length > 0) {
-                        return false;
-                    }
-
-                    const outletName = product.cashier.outlet[0]?.outletId?.name;
-                    const matches = outletName === tempSelectedOutlet;
-
-                    if (!matches) {
-                    }
-
-                    return matches;
-                } catch (err) {
-                    console.error("Error filtering by outlet:", err);
-                    return false;
-                }
-            });
-        }
-
-        // Filter by date range
+        // 1. Filter by date range FIRST
         if (value && value.startDate && value.endDate) {
-            filtered = filtered.filter(product => {
+            filteredOrders = filteredOrders.filter(order => {
                 try {
-                    if (!product.createdAt) {
-                        return false;
-                    }
+                    if (!order.createdAt) return false;
 
-                    const productDate = new Date(product.createdAt);
+                    const orderDate = new Date(order.createdAt);
                     let startDate, endDate;
 
-                    // Handle dayjs objects
                     if (dayjs.isDayjs(value.startDate)) {
                         startDate = value.startDate.toDate();
                         endDate = value.endDate.toDate();
@@ -335,19 +244,14 @@ const ProfitByProductManagement = () => {
                         endDate = new Date(value.endDate);
                     }
 
-                    // Set time to beginning/end of day for proper comparison
                     startDate.setHours(0, 0, 0, 0);
                     endDate.setHours(23, 59, 59, 999);
 
-                    // Check if dates are valid
-                    if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
+                    if (isNaN(orderDate) || isNaN(startDate) || isNaN(endDate)) {
                         return false;
                     }
 
-                    const isInRange = productDate >= startDate && productDate <= endDate;
-                    if (!isInRange) {
-                    }
-                    return isInRange;
+                    return orderDate >= startDate && orderDate <= endDate;
                 } catch (err) {
                     console.error("Error filtering by date:", err);
                     return false;
@@ -355,8 +259,62 @@ const ProfitByProductManagement = () => {
             });
         }
 
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page after filter
+        // 2. Filter by outlet
+        if (tempSelectedOutlet) {
+            filteredOrders = filteredOrders.filter(order => {
+                try {
+                    // PERBAIKAN: cek berbagai kemungkinan struktur data outlet
+                    const outletName =
+                        order.cashier?.outlet?.[0]?.outletId?.name ||
+                        order.cashier?.outlet?.[0]?.name ||
+                        order.outlet?.name ||
+                        order.outletName ||
+                        "";
+
+                    return outletName === tempSelectedOutlet;
+                } catch (err) {
+                    console.error("Error filtering by outlet:", err);
+                    return false;
+                }
+            });
+        }
+
+        // 3. Filter items by product name/category
+        let result = [];
+
+        filteredOrders.forEach(order => {
+            if (!order.items || !Array.isArray(order.items)) return;
+
+            order.items.forEach(item => {
+                try {
+                    const menuItem = item?.menuItem;
+                    if (!menuItem) return;
+
+                    // Check if item matches search filter
+                    let matchesSearch = true;
+                    if (tempSearch) {
+                        const name = (menuItem.name || '').toLowerCase();
+                        const category = (menuItem.category?.name || '').toLowerCase();
+                        const searchTerm = tempSearch.toLowerCase();
+
+                        matchesSearch = name.includes(searchTerm) || category.includes(searchTerm);
+                    }
+
+                    if (matchesSearch) {
+                        // Create new object with order info + item info
+                        result.push({
+                            ...order,
+                            items: [item] // Only include the matching item
+                        });
+                    }
+                } catch (err) {
+                    console.error("Error processing item:", err);
+                }
+            });
+        });
+
+        setFilteredData(result);
+        setCurrentPage(1);
     }, [orders, tempSearch, tempSelectedOutlet, value]);
 
     // Auto-apply filter whenever dependencies change
@@ -366,56 +324,76 @@ const ProfitByProductManagement = () => {
         }
     }, [applyFilter, isInitialized]);
 
+    // Paginate the filtered data
+    const paginatedData = useMemo(() => {
+        if (!Array.isArray(filteredData)) {
+            console.error('filteredData is not an array:', filteredData);
+            return [];
+        }
+
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return filteredData.slice(startIndex, endIndex);
+    }, [currentPage, filteredData]);
+
+    // Calculate total pages based on filtered data
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+
     // Export current data to Excel
     const exportToExcel = () => {
-        // Prepare data for export
-        const dataToExport = filteredData.map(product => {
-            const item = product.items?.[0] || {};
+        const dataToExport = filteredData.map(order => {
+            const item = order.items?.[0] || {};
             const menuItem = item.menuItem || {};
 
             return {
-                "Waktu": new Date(product.createdAt).toLocaleDateString('id-ID'),
-                "Kasir": product.cashier?.username || "-",
-                "ID Struk": product._id,
+                "Waktu": new Date(order.createdAt).toLocaleDateString('id-ID'),
+                "Kasir": order.cashier?.username || "-",
+                "ID Struk": order._id,
                 "Produk": menuItem.name || "-",
-                "Tipe Penjualan": product.orderType,
-                "Total (Rp)": (item.subtotal || 0) + pb1,
+                "Kategori": menuItem.category?.name || "-",
+                "Penjualan Kotor": menuItem.price || 0,
+                "Diskon": menuItem.diskon || 0,
+                "Pembelian": menuItem.pembelian || 0,
+                "Laba Produk": (menuItem.price || 0) - (menuItem.pembelian || 0),
             };
         });
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
 
-        // Set auto width untuk tiap kolom
-        const columnWidths = Object.keys(dataToExport[0]).map(key => ({
-            wch: Math.max(key.length + 2, 20)  // minimal lebar 20 kolom
+        const columnWidths = Object.keys(dataToExport[0] || {}).map(key => ({
+            wch: Math.max(key.length + 2, 20)
         }));
         ws['!cols'] = columnWidths;
 
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Penjualan");
-        XLSX.writeFile(wb, "Data_Transaksi_Penjualan.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Laba Produk");
+        XLSX.writeFile(wb, "Laporan_Laba_Produk.xlsx");
     };
 
+    // Calculate totals - PERBAIKAN: dari filteredData bukan paginatedData
     const calculateTotals = () => {
         let totalPenjualanKotor = 0;
         let totalDiskon = 0;
         let totalPembelian = 0;
         let totalLabaProduk = 0;
 
-        paginatedData.forEach(data => {
-            data.items?.forEach(item => {
-                const { price = 0, diskon = 0, pembelian = 0 } = item.menuItem || {};
-                const labaproduk = price - pembelian;
+        filteredData.forEach(order => {
+            order.items?.forEach(item => {
+                const menuItem = item.menuItem || {};
+                const price = menuItem.price || 0;
+                const diskon = menuItem.diskon || 0;
+                const pembelian = menuItem.pembelian || 0;
+                const quantity = item.quantity || 1; // Jika ada quantity
 
-                totalPenjualanKotor += price;
-                totalDiskon += diskon;
-                totalPembelian += pembelian;
-                totalLabaProduk += labaproduk;
+                totalPenjualanKotor += price * quantity;
+                totalDiskon += diskon * quantity;
+                totalPembelian += pembelian * quantity;
+                totalLabaProduk += (price - pembelian) * quantity;
             });
         });
 
         const totalLabaPersen = totalPenjualanKotor > 0
-            ? ((totalLabaProduk / totalPenjualanKotor) * 100)
+            ? ((totalLabaProduk / totalPenjualanKotor) * 100).toFixed(2)
             : 0;
 
         return {
@@ -428,7 +406,6 @@ const ProfitByProductManagement = () => {
     };
 
     const totals = calculateTotals();
-
 
     // Show loading state
     if (loading) {
@@ -468,7 +445,12 @@ const ProfitByProductManagement = () => {
                     <FaChevronRight />
                     <span>Laba Produk</span>
                 </div>
-                {/* <button className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded">Ekspor</button> */}
+                <button
+                    onClick={exportToExcel}
+                    className="bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                >
+                    Ekspor ke Excel
+                </button>
             </div>
 
             {/* Filters */}
@@ -492,7 +474,7 @@ const ProfitByProductManagement = () => {
                             <FaSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
-                                placeholder="Produk / Kategori"
+                                placeholder="Cari Produk / Kategori"
                                 value={tempSearch}
                                 onChange={(e) => setTempSearch(e.target.value)}
                                 className="text-[13px] border py-2 pl-[30px] pr-[25px] rounded w-full"
@@ -529,80 +511,70 @@ const ProfitByProductManagement = () => {
                                 <th className="px-4 py-3 font-normal text-right">% Laba Produk</th>
                             </tr>
                         </thead>
-                        {console.log(paginatedData)}
                         {paginatedData.length > 0 ? (
                             <tbody className="text-sm text-gray-400">
-                                {paginatedData.flatMap((data, dataIndex) =>
-                                    data.items?.map((item, itemIndex) => {
-                                        try {
-                                            const {
-                                                name,
-                                                category,
-                                                price,
-                                                diskon,
-                                                pembelian,
-                                                labaproduk = price - 0,
-                                                labaprodukpersen = price > 0
-                                                    ? ((labaproduk / price) * 100)
-                                                    : 0
-                                            } = item.menuItem || {};
+                                {paginatedData.map((order, orderIndex) => {
+                                    const item = order.items?.[0];
+                                    if (!item) return null;
 
-                                            return (
-                                                <tr className="text-left text-sm cursor-pointer hover:bg-slate-50" key={`${data._id}-${itemIndex}`}>
-                                                    <td className="px-4 py-3">{name || '-'}</td>
-                                                    <td className="px-4 py-3">{category?.name || '-'}</td>
-                                                    <td className="px-4 py-3 text-right">{formatCurrency(price) || '-'}</td>
-                                                    {/* <td className="px-4 py-3 text-right">{formatCurrency(diskon) || 0}</td> */}
-                                                    <td className="px-4 py-3 text-right">{formatCurrency(0)}</td>
-                                                    <td className="px-4 py-3 text-right">{formatCurrency(0)}</td>
-                                                    <td className="px-4 py-3 text-right">{formatCurrency(labaproduk) || '-'}</td>
-                                                    <td className="px-4 py-3 text-right">{labaprodukpersen || '-'}%</td>
-                                                </tr>
-                                            );
-                                        } catch (err) {
-                                            console.error(`Error rendering item ${dataIndex}-${itemIndex}:`, err, item);
-                                            return (
-                                                <tr className="text-left text-sm" key={`error-${dataIndex}-${itemIndex}`}>
-                                                    <td colSpan="7" className="px-4 py-3 text-red-500">
-                                                        Error rendering product
-                                                    </td>
-                                                </tr>
-                                            );
-                                        }
-                                    }) || []
-                                )}
+                                    const menuItem = item.menuItem || {};
+                                    const price = menuItem.price || 0;
+                                    const diskon = menuItem.diskon || 0;
+                                    const pembelian = menuItem.pembelian || 0;
+                                    const labaproduk = price - pembelian;
+                                    const labaprodukpersen = price > 0
+                                        ? ((labaproduk / price) * 100).toFixed(2)
+                                        : 0;
+
+                                    return (
+                                        <tr
+                                            className="text-left text-sm cursor-pointer hover:bg-slate-50 border-b"
+                                            key={`${order._id}-${orderIndex}`}
+                                        >
+                                            <td className="px-4 py-3">{menuItem.name || '-'}</td>
+                                            <td className="px-4 py-3">{menuItem.category?.name || '-'}</td>
+                                            <td className="px-4 py-3 text-right">{formatCurrency(price)}</td>
+                                            <td className="px-4 py-3 text-right">{formatCurrency(diskon)}</td>
+                                            <td className="px-4 py-3 text-right">{formatCurrency(pembelian)}</td>
+                                            <td className="px-4 py-3 text-right">{formatCurrency(labaproduk)}</td>
+                                            <td className="px-4 py-3 text-right">{labaprodukpersen}%</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         ) : (
                             <tbody>
                                 <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={7}>Tidak ada data ditemukan</td>
+                                    <td colSpan={7} className="text-gray-400">
+                                        Tidak ada data ditemukan
+                                    </td>
                                 </tr>
                             </tbody>
                         )}
                         <tfoot className="border-t font-semibold text-sm">
                             <tr>
                                 <td className="p-[15px]" colSpan={2}>Grand Total</td>
-                                <td className="p-[15px] text-right rounded">
+                                <td className="p-[15px] text-right">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
                                         {formatCurrency(totals.totalPenjualanKotor)}
                                     </p>
                                 </td>
-                                <td className="p-[15px] text-right rounded">
+                                <td className="p-[15px] text-right">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(0)}
+                                        {formatCurrency(totals.totalDiskon)}
                                     </p>
                                 </td>
-                                <td className="p-[15px] text-right rounded">
+                                <td className="p-[15px] text-right">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
-                                        {formatCurrency(0)}
+                                        {formatCurrency(totals.totalPembelian)}
                                     </p>
                                 </td>
-                                <td className="p-[15px] text-right rounded">
+                                <td className="p-[15px] text-right">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
                                         {formatCurrency(totals.totalLabaProduk)}
                                     </p>
                                 </td>
-                                <td className="p-[15px] text-right rounded">
+                                <td className="p-[15px] text-right">
                                     <p className="bg-gray-100 inline-block px-2 py-[2px] rounded-full">
                                         {totals.totalLabaPersen}%
                                     </p>
