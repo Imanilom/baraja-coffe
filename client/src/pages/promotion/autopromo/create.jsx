@@ -24,6 +24,15 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
     isActive: true,
   });
 
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
   const [outlets, setOutlets] = useState([]);
   const [products, setProducts] = useState([]);
   const [loyaltyLevels, setLoyaltyLevels] = useState([]);
@@ -328,6 +337,7 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
                   formData={formData}
                   setFormData={setFormData}
                   errors={errors}
+                  formatCurrency={formatCurrency}
                 />
               )}
 

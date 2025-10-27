@@ -238,7 +238,7 @@ import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import { FaTimes } from 'react-icons/fa';
 
-const DiscountByProductForm = ({ products, formData, setFormData, errors }) => {
+const DiscountByProductForm = ({ products, formData, setFormData, errors, formatCurrency }) => {
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [discountValue, setDiscountValue] = useState('');
 
@@ -338,7 +338,7 @@ const DiscountByProductForm = ({ products, formData, setFormData, errors }) => {
                             <Select
                                 value={selectedProduct}
                                 onChange={setSelectedProduct}
-                                options={products.map(p => ({ value: p.id, label: `${p.name} - ${p.subtotal}` }))}
+                                options={products.map(p => ({ value: p.id, label: `${p.name} - ${formatCurrency(p.originalPrice)}` }))}
                                 styles={customSelectStyles}
                                 placeholder="Pilih produk..."
                                 isClearable
@@ -402,7 +402,7 @@ const DiscountByProductForm = ({ products, formData, setFormData, errors }) => {
 
                                 <div className="ml-10">
                                     <h5 className="text-base font-semibold text-gray-900 mb-1">
-                                        {currentProduct?.name || 'Unknown Product'}
+                                        {`${currentProduct?.name} - ${currentProduct?.originalPrice}` || 'Unknown Product'}
                                     </h5>
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm text-gray-600">Diskon:</span>

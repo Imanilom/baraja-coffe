@@ -5,10 +5,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { FaChevronRight, FaDownload } from "react-icons/fa";
 import ExportFilter from "../export";
 import { useReactToPrint } from "react-to-print";
-import SalesTransactionTable from "./table";
-import SalesTransactionTableSkeleton from "./skeleton";
+import TypeTransactionTable from "./table";
+import TypeTransactionTableSkeleton from "./skeleton";
 
-const SalesTransaction = () => {
+const TypeTransaction = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
     const customSelectStyles = {
@@ -52,6 +52,7 @@ const SalesTransaction = () => {
     const [error, setError] = useState(null);
 
     const [selectedOutlet, setSelectedOutlet] = useState("");
+    const [selectedStatus, setSelectedStatus] = useState(""); // State baru untuk status
     const [dateRange, setDateRange] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [filteredData, setFilteredData] = useState([]);
@@ -69,11 +70,22 @@ const SalesTransaction = () => {
         documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
     });
 
+    // Options untuk status
+    const statusOptions = [
+        { value: "", label: "Semua Status" },
+        { value: "Waiting", label: "Waiting" },
+        { value: "Pending", label: "Pending" },
+        { value: "OnProcess", label: "OnProcess" },
+        { value: "Completed", label: "Completed" },
+        { value: "Cancelled", label: "Cancelled" },
+    ];
+
     // Initialize from URL params or set default to today
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
         const outletParam = searchParams.get('outletId');
+        const statusParam = searchParams.get('status'); // Tambahan untuk status
         const searchParam = searchParams.get('search');
         const pageParam = searchParams.get('page');
 
@@ -93,6 +105,10 @@ const SalesTransaction = () => {
             setSelectedOutlet(outletParam);
         }
 
+        if (statusParam) {
+            setSelectedStatus(statusParam);
+        }
+
         if (searchParam) {
             setSearchTerm(searchParam);
         }
@@ -103,7 +119,7 @@ const SalesTransaction = () => {
     }, []);
 
     // Update URL when filters change
-    const updateURLParams = (newDateRange, newOutlet, newSearch, newPage) => {
+    const updateURLParams = (newDateRange, newOutlet, newStatus, newSearch, newPage) => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
@@ -115,6 +131,10 @@ const SalesTransaction = () => {
 
         if (newOutlet) {
             params.set('outletId', newOutlet);
+        }
+
+        if (newStatus) {
+            params.set('status', newStatus);
         }
 
         if (newSearch) {
@@ -137,10 +157,7 @@ const SalesTransaction = () => {
                 ? response.data
                 : response.data?.data ?? [];
 
-            const completedData = productsData.filter(item => item.status === "Completed");
-
-            setProducts(completedData);
-            // setProducts(productsData);
+            setProducts(productsData);
             setError(null);
         } catch (err) {
             console.error("Error fetching products:", err);
@@ -187,25 +204,32 @@ const SalesTransaction = () => {
     const handleDateRangeChange = (newValue) => {
         setDateRange(newValue);
         setCurrentPage(1);
-        updateURLParams(newValue, selectedOutlet, searchTerm, 1);
+        updateURLParams(newValue, selectedOutlet, selectedStatus, searchTerm, 1);
     };
 
     const handleOutletChange = (selected) => {
         const newOutlet = selected.value;
         setSelectedOutlet(newOutlet);
         setCurrentPage(1);
-        updateURLParams(dateRange, newOutlet, searchTerm, 1);
+        updateURLParams(dateRange, newOutlet, selectedStatus, searchTerm, 1);
+    };
+
+    const handleStatusChange = (selected) => {
+        const newStatus = selected.value;
+        setSelectedStatus(newStatus);
+        setCurrentPage(1);
+        updateURLParams(dateRange, selectedOutlet, newStatus, searchTerm, 1);
     };
 
     const handleSearchChange = (newSearch) => {
         setSearchTerm(newSearch);
         setCurrentPage(1);
-        updateURLParams(dateRange, selectedOutlet, newSearch, 1);
+        updateURLParams(dateRange, selectedOutlet, selectedStatus, newSearch, 1);
     };
 
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
-        updateURLParams(dateRange, selectedOutlet, searchTerm, newPage);
+        updateURLParams(dateRange, selectedOutlet, selectedStatus, searchTerm, newPage);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -251,6 +275,18 @@ const SalesTransaction = () => {
             });
         }
 
+        // Filter by status
+        if (selectedStatus) {
+            filtered = filtered.filter(product => {
+                try {
+                    return product.status === selectedStatus;
+                } catch (err) {
+                    console.error("Error filtering by status:", err);
+                    return false;
+                }
+            });
+        }
+
         // Filter by date range
         if (dateRange && dateRange.startDate && dateRange.endDate) {
             filtered = filtered.filter(product => {
@@ -282,7 +318,7 @@ const SalesTransaction = () => {
         }
 
         setFilteredData(filtered);
-    }, [products, searchTerm, selectedOutlet, dateRange]);
+    }, [products, searchTerm, selectedOutlet, selectedStatus, dateRange]);
 
     // Auto-apply filter whenever dependencies change
     useEffect(() => {
@@ -320,7 +356,7 @@ const SalesTransaction = () => {
     // Calculate total pages based on filtered data
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
-    // PERBAIKAN: Calculate grand totals berdasarkan grandTotal dari setiap order
+    // Calculate grand totals berdasarkan grandTotal dari setiap order
     const { grandTotalFinal } = useMemo(() => {
         const totals = {
             grandTotalFinal: 0,
@@ -332,7 +368,6 @@ const SalesTransaction = () => {
 
         filteredData.forEach(product => {
             try {
-                // PENTING: Pastikan grandTotal adalah number, dibulatkan, dan tidak undefined/null
                 const grandTotal = Math.round(Number(product?.grandTotal) || 0);
                 totals.grandTotalFinal += grandTotal;
             } catch (err) {
@@ -370,7 +405,7 @@ const SalesTransaction = () => {
                     <FaChevronRight />
                     <Link to="/admin/sales-menu">Laporan Penjualan</Link>
                     <FaChevronRight />
-                    <span>Data Transaksi Penjualan</span>
+                    <span>Status Penjualan</span>
                 </h1>
 
                 <ExportFilter
@@ -386,9 +421,9 @@ const SalesTransaction = () => {
 
             {/* Filters & Table */}
             {loading ? (
-                <SalesTransactionTableSkeleton />
+                <TypeTransactionTableSkeleton />
             ) : (
-                <SalesTransactionTable
+                <TypeTransactionTable
                     paginatedData={paginatedData}
                     grandTotalFinal={grandTotalFinal}
                     setSelectedTrx={setSelectedTrx}
@@ -398,6 +433,9 @@ const SalesTransaction = () => {
                     options={options}
                     selectedOutlet={selectedOutlet}
                     handleOutletChange={handleOutletChange}
+                    statusOptions={statusOptions}
+                    selectedStatus={selectedStatus}
+                    handleStatusChange={handleStatusChange}
                     dateRange={dateRange}
                     handleDateRangeChange={handleDateRangeChange}
                     searchTerm={searchTerm}
@@ -415,4 +453,4 @@ const SalesTransaction = () => {
     );
 };
 
-export default SalesTransaction;
+export default TypeTransaction;
