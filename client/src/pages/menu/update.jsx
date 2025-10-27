@@ -389,7 +389,7 @@ const UpdateMenu = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    let imageURL = "";
+    let imageURL = formData.imageURL;
 
     // Upload image ke PHP jika ada
     if (imageFile) {
@@ -529,36 +529,6 @@ const UpdateMenu = () => {
                 />
               </div>
 
-              {/* Sub Category */}
-              {/* <div>
-                <label className="my-2.5 text-xs block font-medium">
-                  SUB KATEGORI
-                </label>
-                <Select
-                  className="w-full text-sm"
-                  options={allCategoryOptions}
-                  value={
-                    formData.subCategory
-                      ? {
-                        value: formData.subCategory._id,
-                        label: formData.subCategory.name,
-                      }
-                      : null
-                  }
-                  onChange={(selectedOption) => {
-                    const selectedSub = allCategories.find(
-                      (sub) => sub._id === selectedOption?.value
-                    );
-                    setFormData((prev) => ({
-                      ...prev,
-                      subCategory: selectedSub,
-                    }));
-                  }}
-                  styles={customStyles}
-                  placeholder="Pilih sub kategori"
-                />
-              </div> */}
-
               {/* Price */}
               <div>
                 <label className="my-2.5 text-xs block font-medium">HARGA</label>
@@ -571,68 +541,6 @@ const UpdateMenu = () => {
                   required
                 />
               </div>
-
-              {/* SKU */}
-              {/* <div>
-                <label className="my-2.5 text-xs block font-medium">SKU</label>
-                <input
-                  type="text"
-                  name="sku"
-                  value={formData.sku}
-                  onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
-                />
-              </div> */}
-
-              {/* Barcode */}
-              {/* <div>
-                <label className="my-2.5 text-xs block font-medium">BARCODE</label>
-                <input
-                  type="text"
-                  name="barcode"
-                  value={formData.barcode}
-                  onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
-                />
-              </div> */}
-
-              {/* Stock unit */}
-              {/* <div>
-                <label className="my-2.5 text-xs block font-medium">
-                  SATUAN STOK
-                </label>
-                <input
-                  type="text"
-                  name="stock"
-                  value={formData.stock}
-                  onChange={handleInputChange}
-                  className="w-full py-2 px-3 border rounded-lg focus:ring focus:ring-green-200"
-                />
-              </div> */}
-
-              {/* Image Upload */}
-              {/* <div className="flex items-center space-x-4 p-4 rounded-lg">
-                <img
-                  src={formData.imageURL}
-                  alt="Uploaded"
-                  className="h-20 w-20 object-cover rounded cursor-pointer"
-                  onClick={() => fileRef.current.click()}
-                />
-                <input
-                  ref={fileRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => setImage(e.target.files[0])}
-                />
-                {imagePercent > 0 && (
-                  <div className="text-sm text-gray-600">
-                    Upload Progress: {imagePercent}%
-                  </div>
-                )}
-                {imageError && (
-                  <div className="text-red-500 text-sm">Image upload failed</div>
-                )}
-              </div> */}
 
               <div className="flex items-center space-x-4 py-4">
                 {compressedImageURL || formData.imageURL ? (
@@ -672,43 +580,6 @@ const UpdateMenu = () => {
                   </button>
                 )}
               </div>
-
-              {/* <div className="flex items-center space-x-4 py-4">
-                {compressedImageURL ? (
-                  <img
-                    src={compressedImageURL}
-                    alt="Preview"
-                    className="h-24 w-24 object-cover rounded cursor-pointer"
-                    onClick={() => fileRef.current.click()}
-                  />
-                ) : (
-                  <div
-                    className="h-24 w-24 flex items-center justify-center bg-gray-200 rounded cursor-pointer"
-                    onClick={() => fileRef.current.click()}
-                  >
-                    <span className="text-gray-500 text-xl">+</span>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                  ref={fileRef}
-                  className="hidden"
-                  onChange={handleImageChange}
-                />
-                {compressedImageURL && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImageFile(null);
-                      setCompressedImageURL(null);
-                    }}
-                    className="text-red-500 text-sm hover:underline"
-                  >
-                    Hapus gambar
-                  </button>
-                )}
-              </div> */}
 
               <div>
                 <label className="block mb-2.5 text-xs font-medium uppercase">Deskripsi</label>

@@ -54,10 +54,10 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const promoTypeOptions = [
-    { value: "discount_on_quantity", label: "Discount on Quantity" },
-    { value: "discount_on_total", label: "Discount on Total" },
-    { value: "discount_by_product", label: "Discount by Product" },
-    { value: "buy_x_get_y", label: "Buy X Get Y" },
+    { value: "discount_on_quantity", label: "Diskon dengan Qty" },
+    { value: "discount_on_total", label: "Diskon dengan Total" },
+    { value: "product_specific", label: "Diskon dengan Produk" },
+    { value: "buy_x_get_y", label: "Beli X Gratis Y" },
     { value: "bundling", label: "Bundling" },
   ];
 
@@ -141,9 +141,9 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
         if (!formData.conditions?.bundleProducts?.length) newErrors.bundleProducts = "Tambahkan minimal 1 produk bundel!";
         if (!formData.bundlePrice || formData.bundlePrice <= 0) newErrors.bundlePrice = "Harga bundel wajib diisi!";
         break;
-      case "discount_by_product":
-        if (!formData.conditions?.discountedProducts?.length)
-          newErrors.discountedProducts = "Tambahkan minimal 1 produk dengan diskon!";
+      case "product_specific":
+        if (!formData.conditions?.products?.length)
+          newErrors.products = "Tambahkan minimal 1 produk dengan diskon!";
         break;
       default:
         break;
@@ -322,7 +322,7 @@ const CreateAutoPromoModal = ({ isOpen, onClose, onSuccess }) => {
                 <BundlingForm products={products} formData={formData} setFormData={setFormData} />
               )}
 
-              {formData.promoType === "discount_by_product" && (
+              {formData.promoType === "product_specific" && (
                 <DiscountByProductForm
                   products={products}
                   formData={formData}
