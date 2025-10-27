@@ -162,6 +162,7 @@ import QRCodeGenerator from "./pages/table/generateQr";
 import AssetManagement from "./pages/aset";
 import CreateDevice from "./pages/device/maindevice/create";
 import ReservationPage from "./pages/reservation";
+import TypeTransaction from "./pages/report/sales/status_transaction";
 
 
 export default function App() {
@@ -235,6 +236,7 @@ export default function App() {
                 {/* Sales */}
                 <Route path="digital-payment" element={<DigitalPayment />} />
                 <Route path="transaction-sales" element={<SalesTransaction />} />
+                <Route path="type-transaction" element={<TypeTransaction />} />
                 <Route path="product-sales" element={<ProductSales />} />
                 <Route path="device-sales" element={<DeviceSales />} />
                 <Route path="daily-sales" element={<DailySales />} />
