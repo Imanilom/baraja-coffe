@@ -145,6 +145,16 @@ const SalesMenu = () => {
                             <h2 className="font-semibold">Tipe Penjualan</h2>
                         </div>
                     </Link>
+
+                    <Link
+                        to="/admin/type-transaction"
+                        className="p-4 text-[#005429] bg-white shadow-sm hover:shadow-2xl hover:bg-[#005429] hover:text-white transition-shadow border-green-900 border rounded"
+                    >
+                        <div className="flex items-center space-x-2">
+                            <FaFileInvoiceDollar className='' size={24} />
+                            <h2 className="font-semibold">Status Transaksi</h2>
+                        </div>
+                    </Link>
                 </div>
             </div>
         </div>
