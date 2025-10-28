@@ -366,16 +366,16 @@ class PrinterService {
       // 2. Siapkan konten
       final List<int> bytes = [];
 
-      // bytes.addAll(
-      //   await generateBasicLogoBytes(
-      //     generator,
-      //     // 'assets/logo/logo_baraja.svg',
-      //     // 'assets/logo/logo_baraja.webp',
-      //     'assets/logo/logo_baraja.png',
-      //     paperSize,
-      //   ),
-      // );
-      // bytes.addAll(generator.feed(1));
+      bytes.addAll(
+        await basiclogo(
+          generator,
+          // 'assets/logo/logo_baraja.svg',
+          // 'assets/logo/logo_baraja.webp',
+          'assets/logo/logo_baraja.png',
+          paperSize,
+        ),
+      );
+      bytes.addAll(generator.feed(1));
 
       bytes.addAll(
         generator.text(
@@ -939,6 +939,28 @@ class PrinterService {
     } catch (e) {
       // Fallback
     }
+
+    return bytes;
+  }
+
+  static Future<List<int>> basiclogo(
+    Generator generator,
+    String imagePath,
+    PaperSize paperSize,
+  ) async {
+    // 1. Siapkan konten
+    final List<int> bytes = [];
+
+    // Header
+    // final ByteData byteData = await rootBundle.load(imagePath);
+    // final Uint8List imageBytes = byteData.buffer.asUint8List();
+    // final image = img.decodeImage(imageBytes)!;
+    final ByteData data = await rootBundle.load(imagePath);
+    final Uint8List byte = data.buffer.asUint8List();
+    final image = img.decodeImage(byte)!;
+
+    bytes.addAll(generator.image(image));
+    bytes.addAll(generator.feed(1));
 
     return bytes;
   }

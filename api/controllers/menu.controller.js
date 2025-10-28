@@ -1,4 +1,5 @@
 import { MenuItem } from '../models/MenuItem.model.js';
+import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import Category from '../models/Category.model.js';
 import { Outlet } from '../models/Outlet.model.js';
 import mongoose from 'mongoose';
@@ -371,62 +372,89 @@ export const getMenuItems = async (req, res) => {
       console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
     }
 
-    // Ambil semua menu items
-    const menuItems = await MenuItem.find()
-      .populate([
-        { path: "toppings" },
-        { path: "availableAt" },
-        {
-          path: "addons",
-          populate: { path: "options" },
-        },
-        {
-          path: "category",
-          select: "name",
-        },
-        {
-          path: "subCategory",
-          select: "name",
-        },
-      ])
-      .sort({ name: 1 });
-
-    // Hitung total dokumen untuk metadata (optional)
-    const totalItems = await MenuItem.countDocuments();
-
-    // Ambil semua rating aktif
-    const ratings = await MenuRating.find({ isActive: true });
-
-    const ratingMap = {};
-    ratings.forEach((rating) => {
-      const menuId = rating.menuItemId.toString();
-      if (!ratingMap[menuId]) ratingMap[menuId] = [];
-      ratingMap[menuId].push(rating.rating);
-    });
+    // Gunakan aggregation untuk join dengan MenuStock
+    const menuItems = await MenuItem.aggregate([
+      {
+        $lookup: {
+          from: "menustocks",
+          localField: "_id",
+          foreignField: "menuItemId",
+          as: "stockInfo"
+        }
+      },
+      {
+        $lookup: {
+          from: "menuratings",
+          let: { menuItemId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$menuItemId", "$$menuItemId"] },
+                isActive: true
+              }
+            }
+          ],
+          as: "ratings"
+        }
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "categoryInfo"
+        }
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "subCategory",
+          foreignField: "_id",
+          as: "subCategoryInfo"
+        }
+      },
+      {
+        $lookup: {
+          from: "toppings",
+          localField: "toppings",
+          foreignField: "_id",
+          as: "toppingsInfo"
+        }
+      },
+      {
+        $lookup: {
+          from: "addons",
+          localField: "addons",
+          foreignField: "_id",
+          as: "addonsInfo"
+        }
+      },
+      {
+        $sort: { name: 1 }
+      }
+    ]);
 
     const formattedMenuItems = menuItems.map((item) => {
-      const itemId = item._id.toString();
-      const itemRatings = ratingMap[itemId] || [];
+      const stockInfo = item.stockInfo && item.stockInfo[0] ? item.stockInfo[0] : {};
+      const effectiveStock = stockInfo.manualStock !== null && stockInfo.manualStock !== undefined 
+        ? stockInfo.manualStock 
+        : (stockInfo.calculatedStock || 0);
 
-      const averageRating =
-        itemRatings.length > 0
-          ? Math.round(
-            (itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) *
-            10
-          ) / 10
-          : null;
-
-      const reviewCount = itemRatings.length;
+      // Hitung average rating
+      const ratings = item.ratings || [];
+      const averageRating = ratings.length > 0
+        ? Math.round((ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length) * 10) / 10
+        : null;
 
       return {
         id: item._id,
         name: item.name,
         mainCategory: item.mainCategory,
-        category: item.category
-          ? { id: item.category._id, name: item.category.name }
+        category: item.categoryInfo && item.categoryInfo[0] 
+          ? { id: item.categoryInfo[0]._id, name: item.categoryInfo[0].name }
           : null,
-        subCategory: item.subCategory
-          ? { id: item.subCategory._id, name: item.subCategory.name }
+        subCategory: item.subCategoryInfo && item.subCategoryInfo[0] 
+          ? { id: item.subCategoryInfo[0]._id, name: item.subCategoryInfo[0].name }
           : null,
         imageUrl: item.imageURL,
         originalPrice: item.price,
@@ -434,21 +462,24 @@ export const getMenuItems = async (req, res) => {
         description: item.description,
         discountPercentage: item.discount ? `${item.discount}%` : null,
         averageRating,
-        reviewCount,
-        toppings: item.toppings.map((topping) => ({
+        reviewCount: ratings.length,
+        stock: {
+          calculatedStock: stockInfo.calculatedStock || 0,
+          manualStock: stockInfo.manualStock,
+          effectiveStock,
+          currentStock: stockInfo.currentStock || 0,
+          isAvailable: effectiveStock > 0
+        },
+        toppings: (item.toppingsInfo || []).map((topping) => ({
           id: topping._id,
           name: topping.name,
           price: topping.price,
         })),
-        addons: item.addons.map((addon) => ({
+        addons: (item.addonsInfo || []).map((addon) => ({
           id: addon._id,
           name: addon.name,
-          options: addon.options.map((opt) => ({
-            id: opt._id,
-            label: opt.label,
-            price: opt.price,
-            isDefault: opt.isDefault,
-          })),
+          // Anda mungkin perlu populate options untuk addons di sini
+          options: addon.options || [],
         })),
         availableAt: item.availableAt,
         workstation: item.workstation,
@@ -459,10 +490,9 @@ export const getMenuItems = async (req, res) => {
     const responsePayload = {
       success: true,
       data: formattedMenuItems,
-      // meta bisa ditambahkan kalau perlu
     };
 
-    // Simpan hasil ke Redis dengan TTL (5 menit = 300 detik)
+    // Simpan ke cache
     try {
       await redis.set(cacheKey, JSON.stringify(responsePayload), "EX", 300);
     } catch (cacheErr) {
@@ -494,60 +524,77 @@ export const getMenuItemsWithRecipes = async (req, res) => {
       console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
     }
 
-    // ✅ MODIFIKASI: Menggunakan aggregation untuk join dengan recipes
+    // Gunakan aggregation pipeline untuk efisiensi
     const menuItems = await MenuItem.aggregate([
       {
+        $match: {
+          isActive: true
+        }
+      },
+      {
         $lookup: {
-          from: 'recipes', // Nama collection Recipe
-          localField: '_id',
-          foreignField: 'menuItemId',
-          as: 'recipe'
+          from: "recipes",
+          localField: "_id",
+          foreignField: "menuItemId",
+          as: "recipe"
         }
       },
       {
         $match: {
-          'recipe.0': { $exists: true }, // Hanya yang memiliki resep
-          'isActive': true // Hanya yang aktif
+          "recipe.0": { $exists: true } // Hanya yang memiliki resep
         }
       },
       {
         $lookup: {
-          from: 'categories', // Populate category
-          localField: 'category',
-          foreignField: '_id',
-          as: 'category'
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category"
         }
       },
       {
         $lookup: {
-          from: 'categories', // Populate subCategory
-          localField: 'subCategory',
-          foreignField: '_id',
-          as: 'subCategory'
+          from: "categories",
+          localField: "subCategory",
+          foreignField: "_id",
+          as: "subCategory"
         }
       },
       {
         $lookup: {
-          from: 'outlets', // Populate availableAt
-          localField: 'availableAt',
-          foreignField: '_id',
-          as: 'availableAt'
+          from: "outlets",
+          localField: "availableAt",
+          foreignField: "_id",
+          as: "availableAt"
         }
       },
       {
         $lookup: {
-          from: 'menuratings', // Join dengan ratings
-          localField: '_id',
-          foreignField: 'menuItemId',
-          as: 'ratings'
+          from: "menustocks",
+          localField: "_id",
+          foreignField: "menuItemId",
+          as: "stockInfo"
+        }
+      },
+      {
+        $lookup: {
+          from: "menuratings",
+          let: { menuItemId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$menuItemId", "$$menuItemId"] },
+                isActive: true
+              }
+            }
+          ],
+          as: "ratings"
         }
       },
       {
         $project: {
           name: 1,
           mainCategory: 1,
-          category: { $arrayElemAt: ['$category', 0] },
-          subCategory: { $arrayElemAt: ['$subCategory', 0] },
           imageURL: 1,
           price: 1,
           discountedPrice: 1,
@@ -558,48 +605,117 @@ export const getMenuItemsWithRecipes = async (req, res) => {
           availableAt: 1,
           workstation: 1,
           isActive: 1,
-          availableStock: 1,
+          category: { $arrayElemAt: ["$category", 0] },
+          subCategory: { $arrayElemAt: ["$subCategory", 0] },
+          recipe: 1,
+          stockData: {
+            $cond: {
+              if: { $gt: [{ $size: "$stockInfo" }, 0] },
+              then: { $arrayElemAt: ["$stockInfo", 0] },
+              else: {
+                calculatedStock: 0,
+                manualStock: 0,
+                currentStock: 0,
+                effectiveStock: 0
+              }
+            }
+          },
           averageRating: {
             $cond: {
-              if: { $gt: [{ $size: '$ratings' }, 0] },
+              if: { $gt: [{ $size: "$ratings" }, 0] },
               then: {
                 $round: [
-                  { $divide: [{ $sum: '$ratings.rating' }, { $size: '$ratings' }] },
+                  { $divide: [{ $sum: "$ratings.rating" }, { $size: "$ratings" }] },
                   1
                 ]
               },
               else: null
             }
           },
-          reviewCount: { $size: '$ratings' },
-          hasRecipe: { $literal: true }
+          reviewCount: { $size: "$ratings" }
         }
       },
       { $sort: { name: 1 } }
     ]);
 
-    // Format hasil aggregation
-    const formattedMenuItems = menuItems.map((item) => ({
-      id: item._id,
-      name: item.name,
-      mainCategory: item.mainCategory,
-      category: item.category ? { id: item.category._id, name: item.category.name } : null,
-      subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
-      imageUrl: item.imageURL,
-      originalPrice: item.price,
-      discountedPrice: item.discountedPrice || item.price,
-      description: item.description,
-      discountPercentage: item.discount ? `${item.discount}%` : null,
-      averageRating: item.averageRating,
-      reviewCount: item.reviewCount,
-      toppings: item.toppings || [],
-      addons: item.addons || [],
-      availableAt: item.availableAt || [],
-      workstation: item.workstation,
-      availableStock: item.availableStock,
-      isActive: item.isActive,
-      hasRecipe: true
-    }));
+    // Populate addons options jika diperlukan
+    const populatedMenuItems = await MenuItem.populate(menuItems, [
+      {
+        path: "addons",
+        populate: { path: "options" }
+      },
+      {
+        path: "toppings"
+      }
+    ]);
+
+    const formattedMenuItems = populatedMenuItems.map((item) => {
+      // ✅ HANDLE NULL/UNDEFINED STOCK - SEMUA JADI 0
+      const safeCalculatedStock = item.stockData?.calculatedStock ?? 0;
+      const safeManualStock = item.stockData?.manualStock ?? 0;
+      
+      // ✅ LOGIC PRIORITAS: manualStock dulu, baru calculatedStock
+      const effectiveStock = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
+        ? safeManualStock 
+        : safeCalculatedStock;
+      
+      // ✅ CurrentStock harus sama dengan effectiveStock (sesuai prioritas)
+      const safeCurrentStock = effectiveStock;
+
+      // ✅ Handle null untuk dates
+      const lastCalculatedAt = item.stockData?.lastCalculatedAt || null;
+      const lastAdjustedAt = item.stockData?.lastAdjustedAt || null;
+
+      // ✅ Tentukan stock source untuk informasi
+      const stockSource = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
+        ? 'manual'
+        : 'calculated';
+
+      return {
+        id: item._id,
+        name: item.name,
+        mainCategory: item.mainCategory,
+        category: item.category ? { id: item.category._id, name: item.category.name } : null,
+        subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
+        imageUrl: item.imageURL,
+        originalPrice: item.price,
+        discountedPrice: item.discountedPrice || item.price,
+        description: item.description,
+        discountPercentage: item.discount ? `${item.discount}%` : null,
+        averageRating: item.averageRating,
+        reviewCount: item.reviewCount,
+        stock: {
+          calculatedStock: safeCalculatedStock,
+          manualStock: safeManualStock,
+          effectiveStock: effectiveStock,
+          currentStock: safeCurrentStock, // ✅ Sama dengan effectiveStock
+          isAvailable: effectiveStock > 0,
+          stockSource: stockSource, // ✅ Tambahan info sumber stok
+          lastCalculatedAt: lastCalculatedAt,
+          lastAdjustedAt: lastAdjustedAt
+        },
+        toppings: item.toppings ? item.toppings.map((topping) => ({
+          id: topping._id,
+          name: topping.name,
+          price: topping.price || 0,
+        })) : [],
+        addons: item.addons ? item.addons.map((addon) => ({
+          id: addon._id,
+          name: addon.name,
+          options: addon.options ? addon.options.map((opt) => ({
+            id: opt._id,
+            label: opt.label,
+            price: opt.price || 0,
+            isDefault: opt.isDefault || false,
+          })) : [],
+        })) : [],
+        availableAt: item.availableAt || [],
+        workstation: item.workstation,
+        isActive: item.isActive,
+        hasRecipe: true,
+        recipeCount: item.recipe ? item.recipe.length : 0
+      };
+    });
 
     const responsePayload = {
       success: true,
@@ -607,7 +723,10 @@ export const getMenuItemsWithRecipes = async (req, res) => {
       meta: {
         total: formattedMenuItems.length,
         hasRecipes: true,
-        message: `Showing ${formattedMenuItems.length} menu items with recipes`
+        withStockInfo: true,
+        message: formattedMenuItems.length > 0 
+          ? `Showing ${formattedMenuItems.length} menu items with recipes`
+          : "No menu items with recipes found"
       }
     };
 
