@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import { Order } from '../models/order.model.js'; // Sesuaikan path
-import Payment from '../models/Payment.model.js'; // Sesuaikan path
+import { Order } from '../models/order.model.js';  
+import Payment from '../models/Payment.model.js'; 
 import cron from 'node-cron';
 // Helper function untuk mendapatkan waktu WIB sekarang
 const getWIBNow = () => {

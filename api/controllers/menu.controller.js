@@ -614,7 +614,7 @@ export const getMenuItemsWithRecipes = async (req, res) => {
               then: { $arrayElemAt: ["$stockInfo", 0] },
               else: {
                 calculatedStock: 0,
-                manualStock: null,
+                manualStock: 0,
                 currentStock: 0,
                 effectiveStock: 0
               }
@@ -650,9 +650,26 @@ export const getMenuItemsWithRecipes = async (req, res) => {
     ]);
 
     const formattedMenuItems = populatedMenuItems.map((item) => {
-      const effectiveStock = item.stockData.manualStock !== null && item.stockData.manualStock !== undefined 
-        ? item.stockData.manualStock 
-        : item.stockData.calculatedStock;
+      // ✅ HANDLE NULL/UNDEFINED STOCK - SEMUA JADI 0
+      const safeCalculatedStock = item.stockData?.calculatedStock ?? 0;
+      const safeManualStock = item.stockData?.manualStock ?? 0;
+      
+      // ✅ LOGIC PRIORITAS: manualStock dulu, baru calculatedStock
+      const effectiveStock = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
+        ? safeManualStock 
+        : safeCalculatedStock;
+      
+      // ✅ CurrentStock harus sama dengan effectiveStock (sesuai prioritas)
+      const safeCurrentStock = effectiveStock;
+
+      // ✅ Handle null untuk dates
+      const lastCalculatedAt = item.stockData?.lastCalculatedAt || null;
+      const lastAdjustedAt = item.stockData?.lastAdjustedAt || null;
+
+      // ✅ Tentukan stock source untuk informasi
+      const stockSource = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
+        ? 'manual'
+        : 'calculated';
 
       return {
         id: item._id,
@@ -668,18 +685,19 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         averageRating: item.averageRating,
         reviewCount: item.reviewCount,
         stock: {
-          calculatedStock: item.stockData.calculatedStock || 0,
-          manualStock: item.stockData.manualStock,
-          effectiveStock,
-          currentStock: item.stockData.currentStock || 0,
+          calculatedStock: safeCalculatedStock,
+          manualStock: safeManualStock,
+          effectiveStock: effectiveStock,
+          currentStock: safeCurrentStock, // ✅ Sama dengan effectiveStock
           isAvailable: effectiveStock > 0,
-          lastCalculatedAt: item.stockData.lastCalculatedAt,
-          lastAdjustedAt: item.stockData.lastAdjustedAt
+          stockSource: stockSource, // ✅ Tambahan info sumber stok
+          lastCalculatedAt: lastCalculatedAt,
+          lastAdjustedAt: lastAdjustedAt
         },
         toppings: item.toppings ? item.toppings.map((topping) => ({
           id: topping._id,
           name: topping.name,
-          price: topping.price,
+          price: topping.price || 0,
         })) : [],
         addons: item.addons ? item.addons.map((addon) => ({
           id: addon._id,
@@ -687,8 +705,8 @@ export const getMenuItemsWithRecipes = async (req, res) => {
           options: addon.options ? addon.options.map((opt) => ({
             id: opt._id,
             label: opt.label,
-            price: opt.price,
-            isDefault: opt.isDefault,
+            price: opt.price || 0,
+            isDefault: opt.isDefault || false,
           })) : [],
         })) : [],
         availableAt: item.availableAt || [],
