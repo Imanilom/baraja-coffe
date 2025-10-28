@@ -39,7 +39,15 @@ import {
   startBeverageOrder,
   updateBarOrderStatus,
   updateBeverageItemStatus,
-  updateKitchenOrderStatus
+  updateKitchenOrderStatus,
+  getPrintStats,
+  getOrderPrintHistory,
+  logPrintAttempt,
+  logPrintSuccess,
+  logPrintFailure,
+  logSkippedItem,
+  logProblematicItem,
+  getProblematicPrintReport
 } from '../controllers/operation.controller.js';
 
 import {
@@ -91,7 +99,7 @@ router.get('/orders', getAllOrders);
 router.get('/orders/kitchen', getKitchenOrder);
 router.put('/orders/:orderId/status', updateKitchenOrderStatus);
 router.put('/orders/kitchen/items/status', updateKitchenItemStatus);
-router.put('/orders/kitchen/items/bulk-update', bulkUpdateKitchenItems);  
+router.put('/orders/kitchen/items/bulk-update', bulkUpdateKitchenItems);
 
 
 router.put('/orders/beverage/:orderId/status', updateBeverageItemStatus);
@@ -100,6 +108,15 @@ router.put('/orders/bar/:orderId/status', updateBarOrderStatus);
 router.get('/orders/bar', getBarOrder);
 router.put('/orders/beverage/:orderId/complete', completeBeverageOrder);
 router.post('/orders/beverage/:orderId/start', startBeverageOrder);
+router.get('/orders/workstation/print-stats', getPrintStats);
+router.get('/orders/workstation/print-history/:orderId', getOrderPrintHistory);
+router.post('/orders/workstation/print-attempt', logPrintAttempt);
+router.post('/orders/workstation/print-success', logPrintSuccess);
+router.post('/orders/workstation/print-failure', logPrintFailure);
+router.post('/orders/workstation/print-skipped', logSkippedItem);
+router.post('/orders/workstation/print-problematic', logProblematicItem);
+// Tambahkan route baru
+router.get('/orders/workstation/problematic-report', getProblematicPrintReport);
 
 
 // TODO: End route untuk mendapatkan order yang belum dicetak di dapur

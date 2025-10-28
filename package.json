@@ -39,6 +39,7 @@
     "mongoose": "^7.4.2",
     "multer": "^2.0.1",
     "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.2",
     "node-thermal-printer": "^4.4.5",
     "nodemon": "^3.0.1",
     "qrcode": "^1.5.4",
@@ -46,7 +47,8 @@
     "socket.io": "^4.8.1",
     "url": "^0.11.4",
     "uuid": "^11.1.0",
-    "websocket": "^1.0.35"
+    "websocket": "^1.0.35",
+    "winston": "^3.18.3"
   },
   "devDependencies": {
     "jest": "^29.7.0"

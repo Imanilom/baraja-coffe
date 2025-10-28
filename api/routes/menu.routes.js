@@ -19,6 +19,8 @@ import {
 } from '../controllers/menu.controller.js';
 
 import { assignMenuItemsToCategory, createCategory, filterMenuByCategory, getCategories } from '../controllers/category.controller.js';
+import MenuStock from '../models/modul_menu/MenuStock.model.js';
+import { PrintLogger } from '../services/print-logger.service.js';
 
 const router = express.Router();
 
@@ -47,5 +49,80 @@ router.post('/categories', adminAccess, createCategory); // Create a new categor
 router.get('/categories', getCategories); // Get all categories
 router.get('/categories/filter', filterMenuByCategory); // Filter menu items by category
 
+router.get('/menu-items/:id/stock-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validasi ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid menu item ID'
+      });
+    }
+
+    const menuItemId = new mongoose.Types.ObjectId(id);
+
+    console.log('🔍 [STOCK API] Checking stock for menuItemId:', menuItemId);
+
+    // Cari MenuStock, jika tidak ada buat default
+    let menuStock = await MenuStock.findOne({ menuItemId })
+      .populate('menuItemId', 'name workstation');
+
+    // Jika tidak ada MenuStock, buat record default
+    if (!menuStock) {
+      console.log(`⚠️ No MenuStock found for ${menuItemId}, creating default record`);
+
+      // Cek apakah menu item exists
+      const menuItem = await mongoose.model('MenuItem').findById(menuItemId);
+      if (!menuItem) {
+        return res.status(404).json({
+          success: false,
+          message: 'Menu item not found'
+        });
+      }
+
+      // Buat MenuStock default
+      menuStock = await MenuStock.create({
+        menuItemId: menuItemId,
+        calculatedStock: 100, // Default stock
+        manualStock: null,
+        type: 'initial_setup',
+        reason: 'auto_created'
+      });
+
+      console.log(`✅ Created default MenuStock for ${menuItem.name}`);
+    }
+
+    // Gunakan method getStockInfo() yang sudah didefinisikan di model
+    const stockInfo = menuStock.getStockInfo();
+
+    // Tambahkan PrintLogger integration
+    const stockStatus = PrintLogger.getStockStatus(stockInfo.effectiveStock);
+
+    console.log('✅ [STOCK API] Stock data returned:', {
+      menuItemId: menuItemId,
+      effectiveStock: stockInfo.effectiveStock,
+      status: stockStatus
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...stockInfo,
+        status: stockStatus,
+        menuItemName: menuStock.menuItemId?.name || 'Unknown Menu'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting menu item stock:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get menu item stock status',
+      error: error.message
+    });
+  }
+});
 
 export default router;

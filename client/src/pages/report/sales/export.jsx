@@ -150,42 +150,41 @@ const ExportFilter = ({ isOpen, onClose }) => {
                 const originalItemsSubtotal = order.items.reduce((acc, item) => acc + (Number(item.subtotal) || 0), 0);
                 const proportion = originalItemsSubtotal > 0 ? filteredItemsSubtotal / originalItemsSubtotal : 0;
 
-                const proportionalTax = (order.tax || 0) * proportion;
-                const proportionalServiceCharge = (order.serviceCharge || 0) * proportion;
+                const proportionalTax = (order.totalTax || 0) * proportion;
+                const proportionalServiceCharge = (order.totalServiceFee || 0) * proportion;
                 const filteredGrandTotal = filteredItemsSubtotal + proportionalTax + proportionalServiceCharge;
 
                 // Map setiap item ke baris Excel
                 return filteredItems.map((item, index) => {
-                    const categoryObj = categories.find(c => c._id === item.menuItem?.category);
 
                     return {
                         "Tanggal & Waktu": formatDateTime(order.createdAt),
-                        "ID Struk": order.order_id || '',
-                        "Status Pembayaran": order.status || '',
+                        "ID Struk": order.order_id || '-',
+                        "Status Pembayaran": order.status || '-',
                         "ID / Kode Outlet": outletCode,
                         "Outlet": outletName,
-                        "Tipe Penjualan": order.orderType || '',
-                        "Kasir": order.cashierId?.username || '',
-                        "No. Hp Pelanggan": '',
-                        "Nama Pelanggan": order.user || '',
-                        "SKU": '',
-                        "Nama Produk": item.menuItem?.name || '',
-                        "Kategori": categoryObj?.name || '',
+                        "Tipe Penjualan": order.orderType || '-',
+                        "Kasir": order.cashierId?.username || '-',
+                        "No. Hp Pelanggan": '-',
+                        "Nama Pelanggan": order.user || '-',
+                        "SKU": '-',
+                        "Nama Produk": item.menuItem?.name || '-',
+                        "Kategori": item.menuItem?.category.name || '-',
                         "Jumlah Produk": item.quantity || 0,
                         "Harga Produk": item.menuItem?.price || 0,
                         "Penjualan Kotor": Number(item.subtotal) || 0,
                         "Diskon Produk": 0,
-                        "Subtotal": index === 0 ? filteredItemsSubtotal : '',
+                        "Subtotal": index === 0 ? filteredItemsSubtotal : '-',
                         "Diskon Transaksi": 0,
-                        "Pajak": index === 0 ? Math.round(proportionalTax) : '',
-                        "Service Charge": index === 0 ? Math.round(proportionalServiceCharge) : '',
+                        "Pajak": index === 0 ? Math.round(proportionalTax) : '-',
+                        "Service Charge": index === 0 ? Math.round(proportionalServiceCharge) : '-',
                         "Pembulatan": 0,
                         "Poin Ditukar": 0,
                         "Biaya Admin": 0,
-                        "Total": index === 0 ? Math.round(filteredGrandTotal) : '',
-                        "Metode Pembayaran": order.paymentMethod || '',
-                        "Pembayaran": index === 0 ? Math.round(filteredGrandTotal) : '',
-                        "Kode Voucher": ''
+                        "Total": index === 0 ? Math.round(filteredGrandTotal) : '-',
+                        "Metode Pembayaran": order.paymentMethod || '-',
+                        "Pembayaran": index === 0 ? Math.round(filteredGrandTotal) : '-',
+                        "Kode Voucher": '-'
                     };
                 });
             });
