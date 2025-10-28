@@ -8,34 +8,51 @@ import MenuStock from '../models/modul_menu/MenuStock.model.js';
 import { calculateMaxPortions } from '../utils/stockCalculator.js';
 
 /**
- * Kalibrasi stok semua menu items dengan optimasi
+ * Kalibrasi stok semua menu items dengan optimasi + auto activate/deactivate + reset minus stock
  */
 export const calibrateAllMenuStocks = async () => {
   let successCount = 0;
   let errorCount = 0;
+  let activatedCount = 0;
+  let deactivatedCount = 0;
+  let resetMinusCount = 0;
   const batchSize = 50;
   const startTime = Date.now();
 
   try {
-    
+    console.log('🔄 Memulai kalibrasi stok semua menu items...');
 
-    // Ambil semua menu items yang aktif
-    const menuItems = await MenuItem.find({ isActive: true })
-      .select('_id name')
-      .lean(); // Gunakan lean() untuk performa lebih baik
+    // Ambil semua menu items (baik aktif maupun nonaktif)
+    const menuItems = await MenuItem.find()
+      .select('_id name isActive')
+      .lean();
+
+    console.log(`📊 Total menu items: ${menuItems.length}`);
 
     // Process in batches dengan concurrency control
     for (let i = 0; i < menuItems.length; i += batchSize) {
       const batch = menuItems.slice(i, i + batchSize);
-      
+      console.log(`🔄 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(menuItems.length/batchSize)}`);
 
       // Process batch dengan concurrency terbatas
       const batchPromises = batch.map(async (menuItem) => {
         try {
-          await calibrateSingleMenuStock(menuItem._id.toString());
+          const result = await calibrateSingleMenuStock(menuItem._id.toString());
+          
+          if (result.statusChange) {
+            if (result.statusChange === 'activated') activatedCount++;
+            if (result.statusChange === 'deactivated') deactivatedCount++;
+          }
+          if (result.manualStockReset) {
+            resetMinusCount++;
+          }
+          
           successCount++;
+          return result;
         } catch (error) {
           errorCount++;
+          console.error(`❌ Gagal mengkalibrasi ${menuItem.name}:`, error.message);
+          return null;
         }
       });
 
@@ -49,31 +66,41 @@ export const calibrateAllMenuStocks = async () => {
 
     const duration = Math.round((Date.now() - startTime) / 1000);
 
+    console.log(`✅ Kalibrasi selesai: ${successCount} berhasil, ${errorCount} gagal`);
+    console.log(`🔄 Status changes: ${activatedCount} diaktifkan, ${deactivatedCount} dinonaktifkan`);
+    console.log(`🔄 Manual stock reset: ${resetMinusCount} direset dari minus ke 0`);
+
     return {
       success: true,
       processed: menuItems.length,
       successCount,
       errorCount,
+      activatedCount,
+      deactivatedCount,
+      resetMinusCount,
       duration: `${duration} seconds`,
       timestamp: new Date()
     };
 
   } catch (error) {
+    console.error('❌ Kalibrasi semua menu items gagal:', error);
     return {
       success: false,
       error: error.message,
       processed: successCount + errorCount,
       successCount,
       errorCount,
+      activatedCount,
+      deactivatedCount,
+      resetMinusCount,
       timestamp: new Date()
     };
   }
 };
 
 /**
- * Kalibrasi stok untuk menu item tertentu dengan optimasi
+ * Kalibrasi stok untuk menu item tertentu dengan auto activate/deactivate + reset minus stock
  */
-
 export const calibrateSingleMenuStock = async (menuItemId) => {
   const session = await mongoose.startSession();
 
@@ -99,18 +126,30 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
     // Cari atau buat MenuStock
     let menuStock = await MenuStock.findOne({ menuItemId: menuItem._id }).session(session);
 
+    // ✅ LOGIC BARU: Reset manualStock yang minus ke 0
+    let manualStockReset = false;
+    let previousManualStock = null;
+
     if (menuStock) {
       // Simpan previousStock sebelum update
       const previousStock = menuStock.currentStock;
+      
+      // ✅ CEK DAN RESET MANUAL STOCK YANG MINUS
+      if (menuStock.manualStock !== null && menuStock.manualStock !== undefined && menuStock.manualStock < 0) {
+        previousManualStock = menuStock.manualStock;
+        menuStock.manualStock = 0;
+        manualStockReset = true;
+        console.log(`🔄 Reset manual stock ${menuItem.name}: ${previousManualStock} → 0`);
+      }
 
       // Only update calculatedStock if manualStock is not set
       if (menuStock.manualStock === null || menuStock.manualStock === undefined) {
         menuStock.calculatedStock = calculatedStock;
         menuStock.currentStock = calculatedStock;
-        menuStock.quantity = calculatedStock - previousStock; // Hitung perubahan quanti
+        menuStock.quantity = calculatedStock - previousStock;
       } else {
         menuStock.currentStock = menuStock.manualStock;
-        menuStock.quantity = 0; // Tidak ada perubahan untuk manual stock
+        menuStock.quantity = 0;
       }
 
       menuStock.lastCalculatedAt = new Date();
@@ -119,28 +158,48 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
       // Buat MenuStock baru dengan semua field required
       menuStock = await MenuStock.create([{
         menuItemId: menuItem._id,
-        type: 'adjustment', // Required field
-        quantity: 0, // Required field - no change for initial creation
-        reason: 'manual_adjustment', // Required for adjustment type
-        previousStock: 0, // Required field
-        currentStock: calculatedStock, // Required field
+        type: 'adjustment',
+        quantity: 0,
+        reason: 'manual_adjustment',
+        previousStock: 0,
+        currentStock: calculatedStock,
         calculatedStock: calculatedStock,
         manualStock: null,
-        handledBy: 'system', // Required field
+        handledBy: 'system',
         notes: 'Initial stock calibration by system',
         lastCalculatedAt: new Date(),
         lastAdjustedAt: new Date()
       }], { session });
-      // console.log(`📦 Menu ${menuItem.name}: new stock record created with ${calculatedStock}`);
+    }
+
+    // Hitung effective stock
+    const effectiveStock = menuStock.manualStock !== null ? menuStock.manualStock : menuStock.calculatedStock;
+    
+    // ✅ LOGIC: Auto activate/deactivate berdasarkan stok
+    let statusChange = null;
+    const previousStatus = menuItem.isActive;
+    
+    if (effectiveStock <= 0) {
+      // ❌ Stok habis - nonaktifkan menu
+      if (menuItem.isActive) {
+        menuItem.isActive = false;
+        statusChange = 'deactivated';
+        console.log(`🔴 Nonaktifkan ${menuItem.name} - stok habis (${effectiveStock})`);
+      }
+    } else {
+      // ✅ Ada stok - aktifkan menu jika sebelumnya nonaktif
+      if (!menuItem.isActive) {
+        menuItem.isActive = true;
+        statusChange = 'activated';
+        console.log(`🟢 Aktifkan ${menuItem.name} - stok tersedia (${effectiveStock})`);
+      }
     }
 
     // Update availableStock di MenuItem
-    const effectiveStock = menuStock.manualStock !== null ? menuStock.manualStock : menuStock.calculatedStock;
     menuItem.availableStock = effectiveStock;
     await menuItem.save({ session });
 
     await session.commitTransaction();
-    // console.log(`✅ ${menuItem.name}: stock updated to ${effectiveStock}`);
 
     return {
       success: true,
@@ -148,15 +207,165 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
       menuItemName: menuItem.name,
       calculatedStock,
       manualStock: menuStock.manualStock,
+      previousManualStock, // Untuk tracking perubahan
       effectiveStock,
+      previousStatus,
+      currentStatus: menuItem.isActive,
+      statusChange,
+      manualStockReset, // Flag untuk tracking reset
       timestamp: new Date()
     };
 
   } catch (error) {
     await session.abortTransaction();
+    console.error(`❌ Gagal mengkalibrasi menu item ${menuItemId}:`, error);
+    
+    // ✅ FALLBACK: Coba reset manual stock yang minus dengan approach berbeda
+    if (error.message.includes('manualStock') && error.message.includes('less than minimum')) {
+      console.log(`🔄 Mencoba fallback reset untuk ${menuItemId}...`);
+      try {
+        await resetMinusManualStock(menuItemId);
+        return {
+          success: true,
+          menuItemId: menuItemId,
+          menuItemName: 'Unknown (fallback)',
+          manualStockReset: true,
+          fallbackUsed: true,
+          timestamp: new Date()
+        };
+      } catch (fallbackError) {
+        console.error(`❌ Fallback reset juga gagal untuk ${menuItemId}:`, fallbackError.message);
+      }
+    }
+    
     throw error;
   } finally {
     await session.endSession();
+  }
+};
+
+/**
+ * ✅ FUNGSI BARU: Reset manual stock yang minus dengan approach langsung ke database
+ */
+export const resetMinusManualStock = async (menuItemId) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    await session.startTransaction();
+    
+    // Update langsung dengan $set untuk menghindari validation error
+    const result = await MenuStock.findOneAndUpdate(
+      { menuItemId: new mongoose.Types.ObjectId(menuItemId) },
+      { 
+        $set: { 
+          manualStock: 0,
+          currentStock: 0,
+          lastAdjustedAt: new Date(),
+          adjustedBy: 'system',
+          notes: 'Auto-reset minus manual stock to 0'
+        }
+      },
+      { session, new: true }
+    );
+    
+    if (result) {
+      console.log(`✅ Berhasil reset manual stock untuk ${menuItemId}: ${result.manualStock} → 0`);
+      
+      // Update juga MenuItem
+      await MenuItem.findByIdAndUpdate(
+        menuItemId,
+        { 
+          $set: { 
+            availableStock: 0,
+            isActive: false 
+          }
+        },
+        { session }
+      );
+    }
+    
+    await session.commitTransaction();
+    return { success: true, reset: true };
+    
+  } catch (error) {
+    await session.abortTransaction();
+    console.error(`❌ Gagal reset manual stock untuk ${menuItemId}:`, error.message);
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+};
+
+/**
+ * ✅ FUNGSI BARU: Bulk reset semua manual stock yang minus
+ */
+export const bulkResetMinusManualStocks = async () => {
+  try {
+    console.log('🔄 Memulai bulk reset manual stock yang minus...');
+    
+    // Cari semua MenuStock dengan manualStock < 0
+    const minusStocks = await MenuStock.find({
+      manualStock: { $lt: 0 }
+    }).populate('menuItemId', 'name');
+    
+    console.log(`📊 Ditemukan ${minusStocks.length} menu dengan manual stock minus`);
+    
+    let resetCount = 0;
+    let errorCount = 0;
+    
+    for (const stock of minusStocks) {
+      try {
+        // Update langsung ke 0
+        await MenuStock.updateOne(
+          { _id: stock._id },
+          { 
+            $set: { 
+              manualStock: 0,
+              currentStock: 0,
+              lastAdjustedAt: new Date(),
+              adjustedBy: 'system',
+              notes: `Bulk reset: ${stock.manualStock} → 0`
+            }
+          }
+        );
+        
+        // Update MenuItem status
+        await MenuItem.updateOne(
+          { _id: stock.menuItemId },
+          { 
+            $set: { 
+              availableStock: 0,
+              isActive: false 
+            }
+          }
+        );
+        
+        resetCount++;
+        console.log(`✅ Reset ${stock.menuItemId?.name || 'Unknown'}: ${stock.manualStock} → 0`);
+        
+      } catch (error) {
+        errorCount++;
+        console.error(`❌ Gagal reset ${stock.menuItemId?.name || 'Unknown'}:`, error.message);
+      }
+    }
+    
+    console.log(`✅ Bulk reset selesai: ${resetCount} berhasil, ${errorCount} gagal`);
+    
+    return {
+      success: true,
+      totalMinus: minusStocks.length,
+      resetCount,
+      errorCount,
+      timestamp: new Date()
+    };
+    
+  } catch (error) {
+    console.error('❌ Bulk reset manual stock gagal:', error);
+    return {
+      success: false,
+      error: error.message,
+      timestamp: new Date()
+    };
   }
 };
 
@@ -166,13 +375,19 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
 export const setupStockCalibrationCron = () => {
   // Jalankan setiap 3 jam pada menit 5
   cron.schedule('5 */3 * * *', async () => {
-    
+    console.log('⏰ Menjalankan scheduled stock calibration...');
 
     try {
       // Cek koneksi database sebelum mulai
       if (mongoose.connection.readyState !== 1) {
-        
+        console.warn('⚠️ Database tidak terkoneksi, skip scheduled calibration');
         return;
+      }
+
+      // ✅ Jalankan bulk reset terlebih dahulu untuk handle minus stocks
+      const resetResult = await bulkResetMinusManualStocks();
+      if (resetResult.success && resetResult.resetCount > 0) {
+        console.log(`🔄 Sebelum kalibrasi: ${resetResult.resetCount} manual stock direset dari minus`);
       }
 
       const result = await calibrateAllMenuStocks();
@@ -182,6 +397,9 @@ export const setupStockCalibrationCron = () => {
           processed: result.processed,
           successCount: result.successCount,
           errorCount: result.errorCount,
+          activatedCount: result.activatedCount,
+          deactivatedCount: result.deactivatedCount,
+          resetMinusCount: result.resetMinusCount,
           duration: result.duration
         });
       } else {
@@ -198,25 +416,30 @@ export const setupStockCalibrationCron = () => {
 
   // Jalankan sekali saat startup dengan delay
   setTimeout(async () => {
-    
+    console.log('🚀 Menjalankan initial stock calibration...');
     try {
+      // ✅ Reset minus stocks terlebih dahulu
+      await bulkResetMinusManualStocks();
       await calibrateAllMenuStocks();
     } catch (error) {
       console.error('Initial calibration failed:', error);
     }
   }, 30000); // Delay 30 detik setelah startup
-
 };
 
 /**
- * Kalibrasi stok untuk menu items tertentu saja
+ * Kalibrasi stok untuk menu items tertentu saja dengan auto activate/deactivate
  */
 export const calibrateSelectedMenuStocks = async (menuItemIds) => {
   let successCount = 0;
   let errorCount = 0;
+  let activatedCount = 0;
+  let deactivatedCount = 0;
+  let resetMinusCount = 0;
 
   try {
-    
+    console.log(`🔄 Memulai kalibrasi ${menuItemIds.length} menu items terpilih...`);
+
     // Validasi input
     if (!Array.isArray(menuItemIds) || menuItemIds.length === 0) {
       throw new Error('menuItemIds harus berupa array yang tidak kosong');
@@ -226,14 +449,26 @@ export const calibrateSelectedMenuStocks = async (menuItemIds) => {
     const concurrencyLimit = 10;
     for (let i = 0; i < menuItemIds.length; i += concurrencyLimit) {
       const batch = menuItemIds.slice(i, i + concurrencyLimit);
+      console.log(`🔄 Processing batch ${Math.floor(i/concurrencyLimit) + 1}/${Math.ceil(menuItemIds.length/concurrencyLimit)}`);
 
       const batchPromises = batch.map(async (menuItemId) => {
         try {
-          await calibrateSingleMenuStock(menuItemId);
+          const result = await calibrateSingleMenuStock(menuItemId);
+          
+          if (result.statusChange) {
+            if (result.statusChange === 'activated') activatedCount++;
+            if (result.statusChange === 'deactivated') deactivatedCount++;
+          }
+          if (result.manualStockReset) {
+            resetMinusCount++;
+          }
+          
           successCount++;
+          return result;
         } catch (error) {
           console.error(`❌ Gagal mengkalibrasi menu item ${menuItemId}:`, error.message);
           errorCount++;
+          return null;
         }
       });
 
@@ -245,12 +480,18 @@ export const calibrateSelectedMenuStocks = async (menuItemIds) => {
       }
     }
 
- 
+    console.log(`✅ Kalibrasi terpilih selesai: ${successCount} berhasil, ${errorCount} gagal`);
+    console.log(`🔄 Status changes: ${activatedCount} diaktifkan, ${deactivatedCount} dinonaktifkan`);
+    console.log(`🔄 Manual stock reset: ${resetMinusCount} direset dari minus ke 0`);
+
     return {
       success: true,
       processed: menuItemIds.length,
       successCount,
       errorCount,
+      activatedCount,
+      deactivatedCount,
+      resetMinusCount,
       timestamp: new Date()
     };
 
@@ -269,10 +510,17 @@ export const calibrateSelectedMenuStocks = async (menuItemIds) => {
  */
 export const manualStockCalibration = async (req, res) => {
   try {
+    console.log('🎛️ Manual stock calibration requested');
 
-    const { type, menuItemIds } = req.body;
+    const { type, menuItemIds, includeStatusFix = true, resetMinusFirst = true } = req.body;
 
     let result;
+
+    // ✅ Reset minus stocks terlebih dahulu jika diminta
+    if (resetMinusFirst) {
+      const resetResult = await bulkResetMinusManualStocks();
+      console.log(`🔄 Pre-reset: ${resetResult.resetCount || 0} manual stock direset`);
+    }
 
     if (type === 'selected' && menuItemIds && Array.isArray(menuItemIds)) {
       if (menuItemIds.length === 0) {
