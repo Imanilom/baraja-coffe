@@ -1,4 +1,4 @@
-// models/print-log.model.js - FIXED
+// models/print-log.model.js - FIXED VERSION
 import mongoose from 'mongoose';
 
 const printLogSchema = new mongoose.Schema({
@@ -23,13 +23,13 @@ const printLogSchema = new mongoose.Schema({
     workstation: {
         type: String,
         required: true,
-        enum: ['kitchen', 'bar_depan', 'bar_belakang', 'bar', 'beverage'],
+        enum: ['kitchen', 'bar_depan', 'bar_belakang', 'bar', 'beverage', 'unknown'],
         index: true
     },
     print_status: {
         type: String,
         required: true,
-        enum: ['pending', 'printing', 'success', 'failed', 'skipped', 'printed_with_issues'],
+        enum: ['pending', 'printing', 'success', 'failed', 'skipped', 'printed_with_issues', 'forced_print'],
         default: 'pending'
     },
     printer_type: {
@@ -64,7 +64,7 @@ const printLogSchema = new mongoose.Schema({
     },
     stock_status: {
         type: String,
-        enum: ['in_stock', 'low_stock', 'out_of_stock', 'unknown', 'critical_stock'],
+        enum: ['in_stock', 'medium_stock', 'low_stock', 'critical_stock', 'out_of_stock', 'no_check', 'unknown'],
         default: 'unknown'
     },
     requires_preparation: {
@@ -88,7 +88,7 @@ const printLogSchema = new mongoose.Schema({
         default: 0
     },
 
-    // Failure Information - FIXED: allow null and add more enum values
+    // Failure Information - FIXED
     failure_reason: {
         type: String,
         enum: [
@@ -106,7 +106,9 @@ const printLogSchema = new mongoose.Schema({
             'retrying',
             'problematic_item',
             'too_many_failures',
-            null // FIXED: allow null for successful prints
+            'no_recipe',
+            'forced_print_success',
+            null
         ],
         default: null
     },
@@ -115,7 +117,7 @@ const printLogSchema = new mongoose.Schema({
         default: ''
     },
     technical_details: {
-        type: String // JSON string of technical issues
+        type: mongoose.Schema.Types.Mixed // Changed to Mixed for flexibility
     },
 
     // Problematic Tracking
@@ -126,7 +128,7 @@ const printLogSchema = new mongoose.Schema({
         type: String
     }],
     problematic_details: {
-        type: String // JSON string
+        type: mongoose.Schema.Types.Mixed // Changed to Mixed
     },
     is_problematic: {
         type: Boolean,
@@ -141,6 +143,10 @@ const printLogSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    is_forced_print: {
+        type: Boolean,
+        default: false
+    },
 
     // Technical Information
     consecutive_failures: {
@@ -149,7 +155,7 @@ const printLogSchema = new mongoose.Schema({
     },
     printer_health: {
         type: String,
-        enum: ['healthy', 'warning', 'offline', 'unknown'],
+        enum: ['healthy', 'warning', 'offline', 'unknown', 'not_configured'], // FIXED: lowercase
         default: 'unknown'
     }
 
@@ -163,14 +169,40 @@ printLogSchema.index({ createdAt: -1 });
 printLogSchema.index({ print_status: 1 });
 printLogSchema.index({ is_problematic: 1 });
 printLogSchema.index({ stock_status: 1 });
+printLogSchema.index({ workstation: 1 });
+
+// Method to mark as successful with issues
+printLogSchema.methods.markAsSuccessfulWithIssues = function (duration, issues) {
+    this.print_status = 'printed_with_issues';
+    this.print_duration = duration;
+    this.printed_at = new Date();
+    this.failure_reason = null;
+    this.failure_details = '';
+    this.is_problematic = true;
+    this.issues = issues;
+    return this.save();
+};
+
+// Method to mark as forced print success
+printLogSchema.methods.markAsForcedPrintSuccess = function (duration, issues) {
+    this.print_status = 'forced_print';
+    this.print_duration = duration;
+    this.printed_at = new Date();
+    this.failure_reason = 'forced_print_success';
+    this.is_forced_print = true;
+    this.is_problematic = true;
+    this.issues = issues;
+    return this.save();
+};
 
 // Method to mark as successful
 printLogSchema.methods.markAsSuccessful = function (duration) {
     this.print_status = 'success';
     this.print_duration = duration;
     this.printed_at = new Date();
-    this.failure_reason = null; // FIXED: explicitly set to null
+    this.failure_reason = null;
     this.failure_details = '';
+    this.is_problematic = false;
     return this.save();
 };
 
@@ -179,7 +211,7 @@ printLogSchema.methods.markAsFailed = function (reason, details = '') {
     this.print_status = 'failed';
     this.failure_reason = reason;
     this.failure_details = details;
-    this.$inc({ print_attempts: 1 });
+    this.print_attempts += 1;
     return this.save();
 };
 
@@ -191,7 +223,11 @@ printLogSchema.statics.getProblematicReport = async function (hours = 24) {
         {
             $match: {
                 createdAt: { $gte: cutoffTime },
-                is_problematic: true
+                $or: [
+                    { is_problematic: true },
+                    { print_status: 'printed_with_issues' },
+                    { print_status: 'forced_print' }
+                ]
             }
         },
         {
@@ -208,7 +244,8 @@ printLogSchema.statics.getProblematicReport = async function (hours = 24) {
                         order_id: '$order_id',
                         stock_quantity: '$stock_quantity',
                         issues: '$issues',
-                        warning_notes: '$warning_notes'
+                        warning_notes: '$warning_notes',
+                        print_status: '$print_status'
                     }
                 }
             }

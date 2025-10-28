@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/providers/printer_providers/printer_provider.dart';
 import 'package:kasirbaraja/services/printer_service.dart';
+import 'package:kasirbaraja/services/printer_service_copy.dart';
 
 class PrinterHomeScreen extends ConsumerStatefulWidget {
   const PrinterHomeScreen({super.key});
@@ -608,7 +609,7 @@ class _PrinterHomeScreenState extends ConsumerState<PrinterHomeScreen>
           printer.address,
         );
       } else {
-        success = await PrinterService.testPrint(printer, printer.address);
+        success = await PrinterServices.newTestPrint(printer, printer.address);
       }
 
       if (mounted) {
