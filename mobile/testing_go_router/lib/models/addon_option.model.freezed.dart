@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AddonOptionModel {
 
-@HiveField(0)@JsonKey(name: '_id') String? get id;@HiveField(1) String? get label;@HiveField(2) bool? get isDefault;@HiveField(3) int? get price;
+@HiveField(0) String? get id;@HiveField(1) String? get label;@HiveField(2) bool? get isDefault;@HiveField(3) int? get price;
 /// Create a copy of AddonOptionModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -49,7 +49,7 @@ abstract mixin class $AddonOptionModelCopyWith<$Res>  {
   factory $AddonOptionModelCopyWith(AddonOptionModel value, $Res Function(AddonOptionModel) _then) = _$AddonOptionModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String? id,@HiveField(1) String? label,@HiveField(2) bool? isDefault,@HiveField(3) int? price
+@HiveField(0) String? id,@HiveField(1) String? label,@HiveField(2) bool? isDefault,@HiveField(3) int? price
 });
 
 
@@ -83,10 +83,10 @@ as int?,
 @JsonSerializable()
 
 class _AddonOptionModel implements AddonOptionModel {
-   _AddonOptionModel({@HiveField(0)@JsonKey(name: '_id') this.id, @HiveField(1) this.label, @HiveField(2) this.isDefault, @HiveField(3) this.price});
+   _AddonOptionModel({@HiveField(0) this.id, @HiveField(1) this.label, @HiveField(2) this.isDefault, @HiveField(3) this.price});
   factory _AddonOptionModel.fromJson(Map<String, dynamic> json) => _$AddonOptionModelFromJson(json);
 
-@override@HiveField(0)@JsonKey(name: '_id') final  String? id;
+@override@HiveField(0) final  String? id;
 @override@HiveField(1) final  String? label;
 @override@HiveField(2) final  bool? isDefault;
 @override@HiveField(3) final  int? price;
@@ -124,7 +124,7 @@ abstract mixin class _$AddonOptionModelCopyWith<$Res> implements $AddonOptionMod
   factory _$AddonOptionModelCopyWith(_AddonOptionModel value, $Res Function(_AddonOptionModel) _then) = __$AddonOptionModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String? id,@HiveField(1) String? label,@HiveField(2) bool? isDefault,@HiveField(3) int? price
+@HiveField(0) String? id,@HiveField(1) String? label,@HiveField(2) bool? isDefault,@HiveField(3) int? price
 });
 
 
