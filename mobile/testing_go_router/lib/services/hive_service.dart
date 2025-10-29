@@ -4,6 +4,7 @@ import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/models/event.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
+import 'package:kasirbaraja/models/menu_stock.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/outlet_info.model.dart';
@@ -34,6 +35,7 @@ class HiveService {
     Hive.registerAdapter(OutletInfoModelAdapter());
     Hive.registerAdapter(EventAdapter());
     Hive.registerAdapter(DeviceModelAdapter());
+    Hive.registerAdapter(MenuStockModelAdapter());
 
     await _openBoxes();
   }

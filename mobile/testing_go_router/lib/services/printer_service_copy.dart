@@ -1,11 +1,9 @@
-// import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:kasirbaraja/models/bluetooth_printer.model.dart';
 import 'package:kasirbaraja/services/network_discovery_service.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image/image.dart' as img;
 import 'dart:typed_data';
-import 'package:esc_pos_printer/esc_pos_printer.dart';
-import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class PrinterServices {

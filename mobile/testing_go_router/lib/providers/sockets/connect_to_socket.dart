@@ -15,8 +15,9 @@ final realtimeOrderProvider = StreamProvider<OrderDetailModel>((ref) {
   void handler(dynamic data) {
     controller.add(OrderDetailModel.fromJson(data));
   }
+
   //
-  socket.on('order:new', handler); 
+  socket.on('order:new', handler);
 
   ref.onDispose(() {
     socket.off('order:new', handler); // ✅ penting
@@ -31,6 +32,10 @@ final testSocket = StreamProvider<String>((ref) {
   final controller = StreamController<String>();
 
   socketService.instance.on('order_created', (data) {
+    controller.add(data);
+  });
+
+  socketService.instance.on('update_stock', (data) {
     controller.add(data);
   });
 

@@ -21,8 +21,8 @@ export const listStaff = async (req, res, next) => {
 
     const staff = await User.find(query)
       .select('-password')
-      .populate('outlet.outletId', 'name address') // Populasi outlet
-      .populate('role', 'name'); // Populasi role
+      .populate('outlet.outletId', 'name address')
+      .populate('role', 'name');
 
     res.status(200).json(staff);
   } catch (error) {
@@ -30,26 +30,25 @@ export const listStaff = async (req, res, next) => {
   }
 };
 
-// Update user (User bisa mengupdate akun sendiri, Admin bisa mengupdate semua)
+// Update user
 export const updateUser = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return next(errorHandler(404, 'User not found'));
 
-    // Otorisasi: Hanya pemilik akun atau admin yang bisa mengupdate
+    // Otorisasi
     if (req.user.id !== req.params.id && req.user.role !== 'admin' && req.user.role !== 'superadmin') {
       return next(errorHandler(401, 'Unauthorized'));
     }
 
-    // Validasi password (jika ada)
+    // Validasi password
     if (req.body.password) {
       req.body.password = bcryptjs.hashSync(req.body.password, 10);
     }
 
-    // Persiapan data yang boleh diupdate
     const updateFields = {};
 
-    // Field yang bisa diubah oleh semua pengguna (termasuk customer)
+    // Field untuk semua user
     if (req.body.username) updateFields.username = req.body.username;
     if (req.body.email) updateFields.email = req.body.email;
     if (req.body.phone) updateFields.phone = req.body.phone;
@@ -57,12 +56,12 @@ export const updateUser = async (req, res, next) => {
     if (req.body.password) updateFields.password = req.body.password;
     if ("isActive" in req.body) updateFields.isActive = req.body.isActive;
 
-    // Hanya Admin yang bisa mengubah field berikut:
+    // Hanya Admin yang bisa mengubah role dan outlet
     if (req.user.role === 'admin' || req.user.role === 'superadmin') {
       if (req.body.role) updateFields.role = req.body.role;
       if (req.body.cashierType) updateFields.cashierType = req.body.cashierType;
 
-      // Format outlet untuk admin
+      // Format outlet untuk admin (jika ada)
       if (req.body.outlet) {
         const formattedOutlets = req.body.outlet.map(id => ({
           outletId: mongoose.Types.ObjectId(id)
@@ -71,28 +70,51 @@ export const updateUser = async (req, res, next) => {
       }
     }
 
-    // Lakukan update
+    // Update user
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       { $set: updateFields },
       { new: true }
-    );
+    )
+      .select('-password')
+      .populate('role', 'name permissions')
+      .populate('outlet.outletId', 'name address city contactNumber openTime closeTime');
 
-    // Hapus password dari respons
-    const { password, ...rest } = updatedUser.toObject();
-    res.status(200).json(rest);
+    // ✅ PERBAIKAN: Handle user tanpa outlet
+    const formattedUser = {
+      ...updatedUser._doc,
+      // Hanya format outlet jika user memiliki outlet
+      outlet: updatedUser.outlet && updatedUser.outlet.length > 0
+        ? updatedUser.outlet.map(outletItem => ({
+          _id: outletItem.outletId?._id,
+          name: outletItem.outletId?.name,
+          address: outletItem.outletId?.address,
+          city: outletItem.outletId?.city,
+          contactNumber: outletItem.outletId?.contactNumber,
+          openTime: outletItem.outletId?.openTime,
+          closeTime: outletItem.outletId?.closeTime
+        }))
+        : [] // Return empty array jika tidak ada outlet
+    };
+
+    console.log("🔍 DEBUG updateUser - Formatted user:", {
+      hasOutlet: formattedUser.outlet.length > 0,
+      outletCount: formattedUser.outlet.length,
+      userRole: formattedUser.role?.name
+    });
+
+    res.status(200).json(formattedUser);
   } catch (error) {
     next(errorHandler(500, error.message));
   }
 };
 
-// Delete User (User bisa menghapus akun sendiri, Admin bisa menghapus semua)
+// Delete User
 export const deleteUser = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return next(errorHandler(404, 'User not found'));
 
-    // Otorisasi: Hanya pemilik akun atau admin yang bisa menghapus
     if (req.user.id !== req.params.id && req.user.role !== 'admin' && req.user.role !== 'superadmin') {
       return next(errorHandler(401, 'Unauthorized'));
     }
@@ -102,7 +124,6 @@ export const deleteUser = async (req, res, next) => {
   } catch (error) {
     next(errorHandler(500, error.message));
   }
-
 };
 
 // Assign Outlets to User (Admin Only)
@@ -120,14 +141,34 @@ export const assignOutlets = async (req, res, next) => {
       outletId: mongoose.Types.ObjectId(id)
     }));
 
-    // Update outlet field
-    await User.findByIdAndUpdate(
+    const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       { $set: { outlet: formattedOutlets } },
       { new: true }
-    );
+    )
+      .select('-password')
+      .populate('outlet.outletId', 'name address city contactNumber openTime closeTime');
 
-    res.status(200).json({ message: 'Outlets assigned successfully' });
+    // ✅ PERBAIKAN: Handle jika user tidak memiliki outlet setelah update
+    const formattedResponse = {
+      ...updatedUser._doc,
+      outlet: updatedUser.outlet && updatedUser.outlet.length > 0
+        ? updatedUser.outlet.map(outletItem => ({
+          _id: outletItem.outletId?._id,
+          name: outletItem.outletId?.name,
+          address: outletItem.outletId?.address,
+          city: outletItem.outletId?.city,
+          contactNumber: outletItem.outletId?.contactNumber,
+          openTime: outletItem.outletId?.openTime,
+          closeTime: outletItem.outletId?.closeTime
+        }))
+        : []
+    };
+
+    res.status(200).json({
+      message: 'Outlets assigned successfully',
+      user: formattedResponse
+    });
   } catch (error) {
     next(errorHandler(500, error.message));
   }
@@ -135,15 +176,38 @@ export const assignOutlets = async (req, res, next) => {
 
 export const getUSerById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
-    const { password, ...rest } = user._doc;
-    res.status(200).json(rest);
+    const user = await User.findById(req.params.id)
+      .select('-password')
+      .populate('role', 'name permissions')
+      .populate('outlet.outletId', 'name address city contactNumber openTime closeTime');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // ✅ PERBAIKAN: Handle user tanpa outlet
+    const formattedUser = {
+      ...user._doc,
+      outlet: user.outlet && user.outlet.length > 0
+        ? user.outlet.map(outletItem => ({
+          _id: outletItem.outletId?._id,
+          name: outletItem.outletId?.name,
+          address: outletItem.outletId?.address,
+          city: outletItem.outletId?.city,
+          contactNumber: outletItem.outletId?.contactNumber,
+          openTime: outletItem.outletId?.openTime,
+          closeTime: outletItem.outletId?.closeTime
+        }))
+        : []
+    };
+
+    res.status(200).json(formattedUser);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 }
 
-
+// ✅ PERBAIKAN UTAMA: getUserProfile dengan handle user tanpa outlet
 export const getUserProfile = async (req, res) => {
   const authHeader = req.headers.authorization;
 
@@ -155,25 +219,69 @@ export const getUserProfile = async (req, res) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password').populate('role', 'name permissions');
 
-    console.log("ini adalah data user yang di dapat dari token:", user);
+    const user = await User.findById(decoded.id)
+      .select('-password')
+      .populate('role', 'name permissions')
+      .populate('outlet.outletId', 'name address city contactNumber openTime closeTime location');
+
+    console.log("🔍 DEBUG getUserProfile - Raw user data:", {
+      userId: user?._id,
+      username: user?.username,
+      role: user?.role?.name,
+      hasOutlet: user?.outlet?.length > 0,
+      outletCount: user?.outlet?.length
+    });
 
     if (!user) {
       return res.status(404).json({ message: 'User tidak ditemukan' });
     }
 
-    res.status(200).json({ user });
+    // ✅ PERBAIKAN PENTING: Handle semua tipe user (dengan dan tanpa outlet)
+    const formattedUser = {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      phone: user.phone,
+      profilePicture: user.profilePicture,
+      role: user.role,
+      authType: user.authType,
+      isActive: user.isActive,
+      // ✅ Outlet hanya untuk karyawan, customer dapat array kosong
+      outlet: user.outlet && user.outlet.length > 0
+        ? user.outlet.map(outletItem => ({
+          _id: outletItem.outletId?._id,
+          name: outletItem.outletId?.name,
+          address: outletItem.outletId?.address,
+          city: outletItem.outletId?.city,
+          location: outletItem.outletId?.location,
+          contactNumber: outletItem.outletId?.contactNumber,
+          openTime: outletItem.outletId?.openTime,
+          closeTime: outletItem.outletId?.closeTime,
+          isActive: outletItem.outletId?.isActive
+        }))
+        : [] // ✅ Customer dan user tanpa outlet dapat array kosong
+    };
+
+    console.log("🔍 DEBUG getUserProfile - Formatted user:", {
+      username: formattedUser.username,
+      role: formattedUser.role?.name,
+      hasOutlet: formattedUser.outlet.length > 0,
+      outletCount: formattedUser.outlet.length
+    });
+
+    res.status(200).json({
+      user: formattedUser
+    });
   } catch (err) {
+    console.error("❌ ERROR getUserProfile:", err);
     res.status(401).json({ message: 'Token tidak valid' });
   }
 };
 
-// Start account setting for user (self)
-
+// Update User Profile
 export const updateUserProfile = async (req, res, next) => {
   try {
-    // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -186,18 +294,14 @@ export const updateUserProfile = async (req, res, next) => {
     const userId = req.user.id;
     const { username, email, phone } = req.body;
 
-    // Find current user
     const currentUser = await User.findById(userId);
     if (!currentUser) {
       return next(errorHandler(404, 'User tidak ditemukan'));
     }
 
-    // Prepare update data
     const updateData = { username };
 
-    // Only update email if user is not Google user
     if (currentUser.password !== '-' && email) {
-      // Check if email is already taken by another user
       const existingUser = await User.findOne({
         email,
         _id: { $ne: userId }
@@ -213,12 +317,10 @@ export const updateUserProfile = async (req, res, next) => {
       updateData.email = email;
     }
 
-    // Add phone if provided
     if (phone !== undefined) {
       updateData.phone = phone || '';
     }
 
-    // Update user
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       updateData,
@@ -226,12 +328,31 @@ export const updateUserProfile = async (req, res, next) => {
         new: true,
         runValidators: true
       }
-    ).select('-password');
+    )
+      .select('-password')
+      .populate('role', 'name permissions')
+      .populate('outlet.outletId', 'name address city contactNumber openTime closeTime');
+
+    // ✅ PERBAIKAN: Handle user tanpa outlet
+    const formattedUser = {
+      ...updatedUser._doc,
+      outlet: updatedUser.outlet && updatedUser.outlet.length > 0
+        ? updatedUser.outlet.map(outletItem => ({
+          _id: outletItem.outletId?._id,
+          name: outletItem.outletId?.name,
+          address: outletItem.outletId?.address,
+          city: outletItem.outletId?.city,
+          contactNumber: outletItem.outletId?.contactNumber,
+          openTime: outletItem.outletId?.openTime,
+          closeTime: outletItem.outletId?.closeTime
+        }))
+        : []
+    };
 
     res.status(200).json({
       success: true,
       message: 'Profil berhasil diperbarui',
-      data: updatedUser
+      data: formattedUser
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -244,10 +365,9 @@ export const updateUserProfile = async (req, res, next) => {
   }
 };
 
-// Change password (for Flutter app)
+// Change password
 export const changeUserPassword = async (req, res, next) => {
   try {
-    // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -260,13 +380,11 @@ export const changeUserPassword = async (req, res, next) => {
     const userId = req.user.id;
     const { currentPassword, newPassword } = req.body;
 
-    // Find user
     const user = await User.findById(userId);
     if (!user) {
       return next(errorHandler(404, 'User tidak ditemukan'));
     }
 
-    // Check if user is Google user
     if (user.password === '-' || !user.password) {
       return res.status(400).json({
         success: false,
@@ -274,7 +392,6 @@ export const changeUserPassword = async (req, res, next) => {
       });
     }
 
-    // Verify current password
     const isCurrentPasswordValid = await bcryptjs.compare(currentPassword, user.password);
     if (!isCurrentPasswordValid) {
       return res.status(400).json({
@@ -283,7 +400,6 @@ export const changeUserPassword = async (req, res, next) => {
       });
     }
 
-    // Check if new password is different from current password
     const isSamePassword = await bcryptjs.compare(newPassword, user.password);
     if (isSamePassword) {
       return res.status(400).json({
@@ -292,10 +408,8 @@ export const changeUserPassword = async (req, res, next) => {
       });
     }
 
-    // Hash new password
     const hashedNewPassword = bcryptjs.hashSync(newPassword, 10);
 
-    // Update password
     await User.findByIdAndUpdate(userId, {
       password: hashedNewPassword
     });
@@ -309,27 +423,40 @@ export const changeUserPassword = async (req, res, next) => {
   }
 };
 
-// Get user authentication type (for Flutter app)
+// Get user authentication type
 export const getUserAuthType = async (req, res) => {
   try {
-    // diasumsikan middleware auth sudah inject req.user.id
     const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized: userId tidak ditemukan" });
     }
 
-    const user = await User.findById(userId).select("authType email username");
+    const user = await User.findById(userId)
+      .select("authType email username")
+      .populate('outlet.outletId', 'name address city contactNumber');
 
     if (!user) {
       return res.status(404).json({ message: "User tidak ditemukan" });
     }
+
+    // ✅ PERBAIKAN: Handle user tanpa outlet
+    const formattedOutlets = user.outlet && user.outlet.length > 0
+      ? user.outlet.map(outletItem => ({
+        _id: outletItem.outletId?._id,
+        name: outletItem.outletId?.name,
+        address: outletItem.outletId?.address,
+        city: outletItem.outletId?.city,
+        contactNumber: outletItem.outletId?.contactNumber
+      }))
+      : [];
 
     return res.json({
       success: true,
       authType: user.authType,
       email: user.email,
       username: user.username,
+      outlets: formattedOutlets
     });
 
   } catch (error) {
@@ -337,9 +464,7 @@ export const getUserAuthType = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 // End account setting for user (self)
-
 
 // 1. Membuat Karyawan Baru (Staff/Cashier)
 export const createEmployee = async (req, res, next) => {
@@ -387,17 +512,31 @@ export const createEmployee = async (req, res, next) => {
 
     await newUser.save();
 
+    // Populasi data setelah save
+    const populatedUser = await User.findById(newUser._id)
+      .select('-password')
+      .populate('outlet.outletId', 'name address city contactNumber');
+
+    // Format response
+    const formattedResponse = {
+      _id: populatedUser._id,
+      name: populatedUser.name,
+      username: populatedUser.username,
+      email: populatedUser.email,
+      role: populatedUser.role,
+      cashierType: populatedUser.cashierType,
+      outlet: populatedUser.outlet?.map(outletItem => ({
+        _id: outletItem.outletId?._id,
+        name: outletItem.outletId?.name,
+        address: outletItem.outletId?.address,
+        city: outletItem.outletId?.city,
+        contactNumber: outletItem.outletId?.contactNumber
+      })) || []
+    };
+
     res.status(201).json({
       message: 'Karyawan berhasil dibuat',
-      employee: {
-        _id: newUser._id,
-        name: newUser.name,
-        username: newUser.username,
-        email: newUser.email,
-        role: newUser.role,
-        cashierType: newUser.cashierType,
-        outlet: newUser.outlet
-      }
+      employee: formattedResponse
     });
   } catch (error) {
     next(errorHandler(500, error.message));
@@ -422,15 +561,31 @@ export const assignOutletsToEmployee = async (req, res, next) => {
       id,
       { $set: { outlet: formattedOutlets } },
       { new: true }
-    ).select('-password');
+    )
+      .select('-password')
+      .populate('outlet.outletId', 'name address city contactNumber openTime closeTime'); // ✅ TAMBAHKAN POPULASI
 
     if (!updatedUser) {
       return next(errorHandler(404, 'Karyawan tidak ditemukan'));
     }
 
+    // ✅ FORMAT ULANG DATA OUTLET
+    const formattedEmployee = {
+      ...updatedUser._doc,
+      outlet: updatedUser.outlet?.map(outletItem => ({
+        _id: outletItem.outletId?._id,
+        name: outletItem.outletId?.name,
+        address: outletItem.outletId?.address,
+        city: outletItem.outletId?.city,
+        contactNumber: outletItem.outletId?.contactNumber,
+        openTime: outletItem.outletId?.openTime,
+        closeTime: outletItem.outletId?.closeTime
+      })) || []
+    };
+
     res.status(200).json({
       message: 'Outlet berhasil diassign',
-      employee: updatedUser
+      employee: formattedEmployee
     });
   } catch (error) {
     next(errorHandler(500, error.message));
@@ -458,15 +613,29 @@ export const updateEmployeeRole = async (req, res, next) => {
       id,
       { $set: updateData },
       { new: true }
-    ).select('-password');
+    )
+      .select('-password')
+      .populate('outlet.outletId', 'name address city contactNumber'); // ✅ TAMBAHKAN POPULASI
 
     if (!updatedUser) {
       return next(errorHandler(404, 'Karyawan tidak ditemukan'));
     }
 
+    // ✅ FORMAT ULANG DATA OUTLET
+    const formattedEmployee = {
+      ...updatedUser._doc,
+      outlet: updatedUser.outlet?.map(outletItem => ({
+        _id: outletItem.outletId?._id,
+        name: outletItem.outletId?.name,
+        address: outletItem.outletId?.address,
+        city: outletItem.outletId?.city,
+        contactNumber: outletItem.outletId?.contactNumber
+      })) || []
+    };
+
     res.status(200).json({
       message: 'Role karyawan berhasil diupdate',
-      employee: updatedUser
+      employee: formattedEmployee
     });
   } catch (error) {
     next(errorHandler(500, error.message));
@@ -495,11 +664,25 @@ export const getAllEmployees = async (req, res, next) => {
   try {
     const employees = await User.find()
       .where('role')
-      .in(['staff', 'cashier junior', 'cashier senior'])
+      .in(['staff', 'cashier junior', 'cashier senior', 'gro', 'operational']) // ✅ TAMBAHKAN ROLE LAIN
       .select('-password')
-      .populate('outlet.outletId', 'name address');
+      .populate('outlet.outletId', 'name address city contactNumber openTime closeTime'); // ✅ POPULASI LENGKAP
 
-    res.status(200).json(employees);
+    // ✅ FORMAT ULANG DATA OUTLET UNTUK SEMUA EMPLOYEE
+    const formattedEmployees = employees.map(employee => ({
+      ...employee._doc,
+      outlet: employee.outlet?.map(outletItem => ({
+        _id: outletItem.outletId?._id,
+        name: outletItem.outletId?.name,
+        address: outletItem.outletId?.address,
+        city: outletItem.outletId?.city,
+        contactNumber: outletItem.outletId?.contactNumber,
+        openTime: outletItem.outletId?.openTime,
+        closeTime: outletItem.outletId?.closeTime
+      })) || []
+    }));
+
+    res.status(200).json(formattedEmployees);
   } catch (error) {
     next(errorHandler(500, error.message));
   }
