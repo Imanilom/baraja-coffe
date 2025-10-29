@@ -11,6 +11,7 @@ const ExportFilter = ({ isOpen, onClose }) => {
     const [subCategories, setSubCategories] = useState([]);
     const [selectedMainTypes, setSelectedMainTypes] = useState([]);
     const [outlets, setOutlets] = useState([]);
+    const [selectedStatuses, setSelectedStatuses] = useState([]); // State untuk multiple status
     const [dateRange, setDateRange] = useState({
         startDate: dayjs(),
         endDate: dayjs(),
@@ -19,16 +20,23 @@ const ExportFilter = ({ isOpen, onClose }) => {
     const mainCategory = [{ name: "makanan", type: "food" }, { name: "minuman", type: "beverage" }];
     const workstation = ["kitchen", "bar"];
 
+    // Status options
+    const statusOptions = [
+        { value: "Waiting", label: "Waiting" },
+        { value: "Pending", label: "Pending" },
+        { value: "OnProcess", label: "OnProcess" },
+        { value: "Completed", label: "Completed" },
+        { value: "Cancelled", label: "Cancelled" },
+    ];
+
     const [selectedCategories, setSelectedCategories] = useState([]);
 
     const fetchOrder = async () => {
         const orderResponse = await axios.get('/api/orders');
         const orderData = orderResponse.data.data || [];
-        // Filter hanya berdasarkan status Completed, TIDAK filter orderType
-        const filteredOrders = orderData.filter(order => order.status === 'Completed');
-        console.log('Total orders fetched:', filteredOrders.length);
-        console.log('Order types:', [...new Set(filteredOrders.map(o => o.orderType))]);
-        setOrders(filteredOrders)
+        // Jangan filter status di sini, biarkan user yang pilih
+        console.log('Total orders fetched:', orderData.length);
+        setOrders(orderData);
     }
 
     const fetchCategory = async () => {
@@ -76,12 +84,21 @@ const ExportFilter = ({ isOpen, onClose }) => {
         );
     };
 
+    const handleStatusChange = (status) => {
+        setSelectedStatuses((prev) =>
+            prev.includes(status)
+                ? prev.filter((s) => s !== status)
+                : [...prev, status]
+        );
+    };
+
     const handleExport = async () => {
         setIsExporting(true);
 
         try {
-            // Filter orders berdasarkan tanggal
+            // Filter orders berdasarkan tanggal dan status
             const filtered = orders.filter((order) => {
+                // Filter tanggal
                 const tanggal = new Date(order.createdAt);
                 const start = dateRange.startDate ? new Date(dateRange.startDate) : null;
                 const end = dateRange.endDate ? new Date(dateRange.endDate) : null;
@@ -89,7 +106,10 @@ const ExportFilter = ({ isOpen, onClose }) => {
                 if (end) end.setHours(23, 59, 59, 999);
                 const inDateRange = (!start || tanggal >= start) && (!end || tanggal <= end);
 
-                return inDateRange;
+                // Filter status - jika tidak ada yang dipilih, ambil semua
+                const statusMatch = selectedStatuses.length === 0 || selectedStatuses.includes(order.status);
+
+                return inDateRange && statusMatch;
             });
 
             const formatDateTime = (isoString) => {
@@ -156,7 +176,6 @@ const ExportFilter = ({ isOpen, onClose }) => {
 
                 // Map setiap item ke baris Excel
                 return filteredItems.map((item, index) => {
-
                     return {
                         "Tanggal & Waktu": formatDateTime(order.createdAt),
                         "ID Struk": order.order_id || '-',
@@ -169,7 +188,7 @@ const ExportFilter = ({ isOpen, onClose }) => {
                         "Nama Pelanggan": order.user || '-',
                         "SKU": '-',
                         "Nama Produk": item.menuItem?.name || '-',
-                        "Kategori": item.menuItem?.category.name || '-',
+                        "Kategori": item.menuItem?.category?.name || '-',
                         "Jumlah Produk": item.quantity || 0,
                         "Harga Produk": item.menuItem?.price || 0,
                         "Penjualan Kotor": Number(item.subtotal) || 0,
@@ -200,12 +219,18 @@ const ExportFilter = ({ isOpen, onClose }) => {
 
             const startLabel = formatDate(dateRange.startDate);
             const endLabel = formatDate(dateRange.endDate);
-            const fileName = `Penjualan ${startLabel} - ${endLabel}.xlsx`;
+            const fileName = `Penjualan_${startLabel}_${endLabel}.xlsx`;
+
+            // Update header info dengan status yang dipilih
+            const statusLabel = selectedStatuses.length === 0
+                ? "Semua Status"
+                : selectedStatuses.join(", ");
 
             const headerInfo = [
                 ["Tanggal", `${startLabel} - ${endLabel}`],
-                ["Status Transaksi", "Completed"],
+                ["Status Transaksi", statusLabel],
                 ["Tipe Penjualan", "Semua Tipe"],
+                ["Total Data", `${exportData.length} baris`],
             ];
 
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -219,12 +244,11 @@ const ExportFilter = ({ isOpen, onClose }) => {
         }
     };
 
-
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-md shadow-2xl p-8 max-w-2xl w-full relative">
+            <div className="bg-white rounded-md shadow-2xl p-8 max-w-2xl w-full relative max-h-[90vh] overflow-y-auto">
                 {/* Tombol Tutup */}
                 <div className="flex justify-between mb-6">
                     {/* Header */}
@@ -241,7 +265,6 @@ const ExportFilter = ({ isOpen, onClose }) => {
 
                 {/* Konten */}
                 <div className="space-y-6">
-
                     {/* Pilih Tanggal */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Tanggal</label>
@@ -254,6 +277,27 @@ const ExportFilter = ({ isOpen, onClose }) => {
                             inputClassName="w-full border border-gray-300 p-2 rounded-lg focus:ring-1 focus:ring-[#005429] focus:outline-none"
                             popoverDirection="down"
                         />
+                    </div>
+
+                    {/* Filter Status */}
+                    <div>
+                        <p className="text-sm font-medium text-gray-700 mb-2">Pilih Status (Opsional)</p>
+                        <div className="flex flex-wrap gap-3">
+                            {statusOptions.map((status) => (
+                                <label
+                                    key={status.value}
+                                    className="inline-flex items-center text-sm text-gray-600"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        className="mr-2 accent-[#005429]"
+                                        checked={selectedStatuses.includes(status.value)}
+                                        onChange={() => handleStatusChange(status.value)}
+                                    />
+                                    {status.label}
+                                </label>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Main Kategori */}
@@ -329,7 +373,7 @@ const ExportFilter = ({ isOpen, onClose }) => {
 
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                         <p className="text-xs text-blue-800">
-                            💡 <strong>Info:</strong> Jika tidak ada filter kategori/tempat yang dipilih, semua data dalam rentang tanggal akan diekspor.
+                            💡 <strong>Info:</strong> Jika tidak ada filter yang dipilih, semua data dalam rentang tanggal akan diekspor.
                         </p>
                     </div>
 

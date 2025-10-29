@@ -236,7 +236,6 @@ export default function DeviceCreateForm() {
                 outlet: tempSelectedOutlet,
                 deviceName: formData.deviceName,
                 deviceType: formData.deviceType,
-                role: null,
                 location: formData.location,
                 assignedAreas: formData.assignedAreas,
                 assignedTables: formData.assignedTables,
