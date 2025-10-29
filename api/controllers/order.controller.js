@@ -2271,7 +2271,9 @@ export const createUnifiedOrder = async (req, res) => {
       delivery_option,
       recipient_data,
       customAmountItems,
-      paymentDetails
+      paymentDetails,
+      user,
+      contact 
     } = req.body;
 
     // Validasi outletId
@@ -2394,7 +2396,6 @@ export const createUnifiedOrder = async (req, res) => {
 
     validated.outletId = outletId;
     validated.outlet = outletId;
-
     // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
     validated.customerId = customerId;
     validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
@@ -2455,9 +2456,9 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     // Add reservation-specific processing if needed
-    if (orderType === 'reservation' && reservationData) {
-      if (!reservationData.reservationTime || !reservationData.guestCount ||
-        !reservationData.areaIds || !reservationData.tableIds) {
+    if (orderType === 'reservation' && Reservation) {
+      if (!Reservation.reservationTime || !Reservation.guestCount ||
+        !Reservation.areaIds || !Reservation.tableIds) {
         return res.status(400).json({
           success: false,
           message: 'Incomplete reservation data'
@@ -2689,8 +2690,14 @@ export const createUnifiedOrder = async (req, res) => {
           })
         });
       } else {
+        const customerData = {
+          name: user || 'Customer', 
+          email: contact?.email || 'example@mail.com', 
+          phone: contact?.phone || '081234567890'
+        };
         const midtransRes = await createMidtransSnapTransaction(
           orderId,
+          customerData,
           validated.paymentDetails.amount,
           validated.paymentDetails.method
         );

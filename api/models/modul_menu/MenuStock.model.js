@@ -20,7 +20,7 @@ const MenuStockSchema = new mongoose.Schema({
   },
   reason: { 
     type: String,
-    enum: ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya', 'manual_adjustment', 'initial_setup'],
+    enum: ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya', 'manual_adjustment', 'initial_setup','order_fulfillment'],
     default: 'initial_setup'
   },
   previousStock: { 

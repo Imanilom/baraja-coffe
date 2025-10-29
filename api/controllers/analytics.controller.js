@@ -8,7 +8,711 @@ import LoyaltyLevel from '../models/LoyaltyLevel.model.js';
 import LoyaltyProgram from '../models/LoyaltyProgram.model.js';
 
 /**
- * Controller untuk Promo & Voucher Analytics dengan insight yang lebih baik
+ * Service class untuk analytics recommendations
+ */
+class AnalyticsRecommendationService {
+  
+  /**
+   * Generate promo recommendations
+   */
+  static generatePromoRecommendations(promos) {
+    const recommendations = [];
+    
+    const lowUsage = promos.filter(p => p.status === 'LOW_USAGE' && p.isActive);
+    const poorPerformance = promos.filter(p => p.status === 'POOR' && p.isActive);
+    const excellentPromos = promos.filter(p => p.status === 'EXCELLENT');
+
+    if (lowUsage.length > 0) {
+      recommendations.push({
+        type: 'LOW_USAGE_ALERT',
+        message: `${lowUsage.length} promos have low usage but are active`,
+        action: 'Consider increasing visibility or extending validity',
+        promos: lowUsage.map(p => ({ id: p.promoId, name: p.name }))
+      });
+    }
+
+    if (poorPerformance.length > 0) {
+      recommendations.push({
+        type: 'POOR_PERFORMANCE',
+        message: `${poorPerformance.length} promos are underperforming`,
+        action: 'Review discount structure or target audience',
+        promos: poorPerformance.map(p => ({ id: p.promoId, name: p.name }))
+      });
+    }
+
+    if (excellentPromos.length > 0) {
+      recommendations.push({
+        type: 'BEST_PRACTICES',
+        message: `${excellentPromos.length} promos are performing excellently`,
+        action: 'Consider replicating these successful strategies',
+        promos: excellentPromos.map(p => ({ id: p.promoId, name: p.name }))
+      });
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Generate voucher alerts
+   */
+  static generateVoucherAlerts(vouchers) {
+    const alerts = [];
+    
+    const expiringSoon = vouchers.filter(v => 
+      v.daysRemaining !== null && v.daysRemaining <= 7 && v.isActive && !v.isExpired
+    );
+    
+    const nearlyDepleted = vouchers.filter(v => v.status === 'NEARLY_DEPLETED');
+    const unusedActive = vouchers.filter(v => v.status === 'UNUSED' && v.isActive);
+
+    if (expiringSoon.length > 0) {
+      alerts.push({
+        type: 'EXPIRING_SOON',
+        message: `${expiringSoon.length} vouchers are expiring within 7 days`,
+        severity: 'MEDIUM',
+        vouchers: expiringSoon.map(v => ({ 
+          id: v.voucherId, 
+          code: v.code, 
+          daysRemaining: v.daysRemaining 
+        }))
+      });
+    }
+
+    if (nearlyDepleted.length > 0) {
+      alerts.push({
+        type: 'LOW_QUOTA',
+        message: `${nearlyDepleted.length} vouchers are nearly depleted`,
+        severity: 'LOW',
+        vouchers: nearlyDepleted.map(v => ({ 
+          id: v.voucherId, 
+          code: v.code, 
+          remainingQuota: v.remainingQuota 
+        }))
+      });
+    }
+
+    if (unusedActive.length > 0) {
+      alerts.push({
+        type: 'UNUSED_ACTIVE',
+        message: `${unusedActive.length} active vouchers have never been used`,
+        severity: 'HIGH',
+        vouchers: unusedActive.map(v => ({ 
+          id: v.voucherId, 
+          code: v.code,
+          validTo: v.validTo
+        }))
+      });
+    }
+
+    return alerts;
+  }
+
+  /**
+   * Generate voucher recommendations
+   */
+  static generateVoucherRecommendations(vouchers) {
+    const recommendations = [];
+    
+    const highPerforming = vouchers.filter(v => v.status === 'HIGH_PERFORMANCE');
+    const lowPerforming = vouchers.filter(v => v.status === 'LOW_PERFORMANCE' && v.isActive);
+    const optimalUtilization = vouchers.filter(v => v.utilizationHealth === 'OPTIMAL');
+
+    if (highPerforming.length > 0) {
+      recommendations.push({
+        type: 'SUCCESSFUL_STRATEGY',
+        message: `Found ${highPerforming.length} high-performing vouchers`,
+        action: 'Consider creating similar vouchers or extending these campaigns',
+        examples: highPerforming.slice(0, 3).map(v => ({
+          code: v.code,
+          redemptionRate: v.redemptionRate,
+          revenueImpact: v.revenueImpact
+        }))
+      });
+    }
+
+    if (lowPerforming.length > 0) {
+      recommendations.push({
+        type: 'OPTIMIZATION_NEEDED',
+        message: `${lowPerforming.length} vouchers have low performance`,
+        action: 'Review discount amounts, eligibility criteria, or promotion channels',
+        vouchers: lowPerforming.map(v => ({
+          code: v.code,
+          redemptionRate: v.redemptionRate,
+          usageCount: v.usedCount
+        }))
+      });
+    }
+
+    if (optimalUtilization.length > 0) {
+      recommendations.push({
+        type: 'BALANCED_UTILIZATION',
+        message: `${optimalUtilization.length} vouchers have optimal utilization`,
+        action: 'Maintain current strategy for these vouchers',
+        vouchers: optimalUtilization.slice(0, 5).map(v => ({
+          code: v.code,
+          utilization: v.utilizationHealth,
+          redemptionRate: v.redemptionRate
+        }))
+      });
+    }
+
+    return recommendations;
+  }
+}
+
+/**
+ * Service class untuk customer segmentation - COMPLETELY FIXED VERSION
+ */
+class CustomerSegmentationService {
+  
+  /**
+   * Segmentasi berdasarkan Loyalty Level yang sudah ada - FIXED
+   */
+  static segmentByLoyaltyLevel(customers, loyaltyLevels) {
+    // Create segments based on loyalty levels
+    const segments = loyaltyLevels.map(level => ({
+      name: level.name,
+      levelId: level._id,
+      requiredPoints: level.requiredPoints,
+      description: level.description,
+      customers: [],
+      levelMetrics: {
+        pointsPerCurrency: level.pointsPerCurrency,
+        currencyUnit: level.currencyUnit,
+        benefits: level.benefits
+      }
+    }));
+
+    // Add customers to their respective loyalty level segments - FIXED LOGIC
+    customers.forEach(customer => {
+      if (!customer._id) {
+        console.log('Skipping customer with null _id:', customer);
+        return; // Skip customers with null _id
+      }
+
+      // Prioritize calculated loyalty level, fallback to customerInfo.loyaltyLevel
+      let customerLevel = customer.calculatedLoyaltyLevel;
+      
+      // If no calculated level, try to get from customerInfo
+      if (!customerLevel && customer.customerInfo && customer.customerInfo.loyaltyLevel) {
+        customerLevel = customer.customerInfo.loyaltyLevel;
+      }
+      
+      // If still no level, determine based on points
+      if (!customerLevel && customer.customerInfo) {
+        const customerPoints = customer.customerInfo.loyaltyPoints || 0;
+        customerLevel = this.determineLoyaltyLevelByPoints(customerPoints, loyaltyLevels);
+      }
+
+      if (customerLevel && customerLevel.levelId) {
+        const segment = segments.find(seg => 
+          seg.levelId && seg.levelId.toString() === customerLevel.levelId.toString()
+        );
+        
+        if (segment) {
+          segment.customers.push(customer);
+        }
+      } else {
+        // Handle customers without loyalty level (assign to bronze)
+        const bronzeSegment = segments.find(seg => seg.name === 'bronze');
+        if (bronzeSegment) {
+          bronzeSegment.customers.push(customer);
+        }
+      }
+    });
+
+    // Add behavioral segments within each loyalty level - FIXED: use static method call
+    segments.forEach(segment => {
+      if (segment.customers.length > 0) {
+        segment.behavioralSegments = CustomerSegmentationService.segmentByBehaviorWithinLevel(segment.customers);
+      }
+    });
+
+    return segments;
+  }
+
+  /**
+   * Segmentasi perilaku dalam setiap loyalty level - FIXED
+   */
+  static segmentByBehaviorWithinLevel(customers) {
+    const behavioralSegments = [
+      { name: 'VIP', description: 'High frequency & high spending', customers: [] },
+      { name: 'Loyal', description: 'Regular customers with good frequency', customers: [] },
+      { name: 'Occasional', description: 'Infrequent but valuable customers', customers: [] },
+      { name: 'At Risk', description: 'Declining activity', customers: [] },
+      { name: 'New', description: 'Recent customers', customers: [] }
+    ];
+
+    customers.forEach(customer => {
+      const spendingScore = (customer.totalSpent || 0) / 1000000; // Normalize spending
+      const frequencyScore = (customer.orderFrequency || 0) * 30; // Normalize to monthly frequency
+      const recencyScore = 30 - Math.min(customer.daysSinceLastOrder || 999, 30); // Recent activity
+      
+      const behaviorScore = (spendingScore * 0.4) + (frequencyScore * 0.3) + (recencyScore * 0.3);
+
+      if (behaviorScore >= 0.7) {
+        behavioralSegments[0].customers.push(customer); // VIP
+      } else if (behaviorScore >= 0.5) {
+        behavioralSegments[1].customers.push(customer); // Loyal
+      } else if (behaviorScore >= 0.3) {
+        behavioralSegments[2].customers.push(customer); // Occasional
+      } else if ((customer.daysSinceLastOrder || 999) > 60) {
+        behavioralSegments[3].customers.push(customer); // At Risk
+      } else {
+        behavioralSegments[4].customers.push(customer); // New
+      }
+    });
+
+    return behavioralSegments;
+  }
+
+  /**
+   * Determine loyalty level based on points
+   */
+  static determineLoyaltyLevelByPoints(points, loyaltyLevels) {
+    // Sort levels by required points ascending
+    const sortedLevels = [...loyaltyLevels].sort((a, b) => a.requiredPoints - b.requiredPoints);
+    
+    let assignedLevel = sortedLevels[0]; // Default to lowest level
+    
+    for (let i = sortedLevels.length - 1; i >= 0; i--) {
+      if (points >= sortedLevels[i].requiredPoints) {
+        assignedLevel = sortedLevels[i];
+        break;
+      }
+    }
+    
+    return {
+      levelId: assignedLevel._id,
+      levelName: assignedLevel.name,
+      requiredPoints: assignedLevel.requiredPoints
+    };
+  }
+
+  /**
+   * Analisis efektivitas program loyalty - FIXED
+   */
+  static analyzeLoyaltyEffectiveness(customers, loyaltyLevels) {
+    const analysis = {
+      levelDistribution: {},
+      spendingByLevel: {},
+      retentionByLevel: {},
+      promotionEffectiveness: {}
+    };
+
+    // Analyze distribution and spending by level
+    loyaltyLevels.forEach(level => {
+      const levelCustomers = customers.filter(customer => {
+        if (!customer._id) return false; // Skip invalid customers
+        
+        const customerLevel = customer.calculatedLoyaltyLevel || customer.customerInfo?.loyaltyLevel;
+        if (!customerLevel) return false;
+        
+        return customerLevel.levelId?.toString() === level._id.toString();
+      });
+
+      analysis.levelDistribution[level.name] = levelCustomers.length;
+      
+      if (levelCustomers.length > 0) {
+        analysis.spendingByLevel[level.name] = {
+          totalSpent: levelCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0),
+          avgSpent: levelCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0) / levelCustomers.length,
+          avgOrderValue: levelCustomers.reduce((sum, c) => sum + (c.avgOrderValue || 0), 0) / levelCustomers.length,
+          avgOrders: levelCustomers.reduce((sum, c) => sum + (c.totalOrders || 0), 0) / levelCustomers.length
+        };
+
+        // Calculate retention rate for this level
+        const activeCustomers = levelCustomers.filter(c => (c.daysSinceLastOrder || 999) <= 30);
+        analysis.retentionByLevel[level.name] = levelCustomers.length > 0 ? 
+          (activeCustomers.length / levelCustomers.length) * 100 : 0;
+      }
+    });
+
+    // Analyze promotion effectiveness across levels
+    loyaltyLevels.forEach(level => {
+      const levelCustomers = customers.filter(customer => {
+        if (!customer._id) return false;
+        
+        const customerLevel = customer.calculatedLoyaltyLevel || customer.customerInfo?.loyaltyLevel;
+        if (!customerLevel) return false;
+        
+        return customerLevel.levelId?.toString() === level._id.toString();
+      });
+
+      if (levelCustomers.length > 0) {
+        analysis.promotionEffectiveness[level.name] = {
+          promoUsageRate: levelCustomers.reduce((sum, c) => {
+            const orders = c.totalOrders || 1;
+            const promoCount = c.promoUsageCount || 0;
+            return sum + (promoCount / orders);
+          }, 0) / levelCustomers.length * 100,
+          
+          voucherUsageRate: levelCustomers.reduce((sum, c) => {
+            const orders = c.totalOrders || 1;
+            const voucherCount = c.voucherUsageCount || 0;
+            return sum + (voucherCount / orders);
+          }, 0) / levelCustomers.length * 100,
+          
+          discountSensitivity: levelCustomers.reduce((sum, c) => {
+            const spent = c.totalSpent || 1;
+            const discount = c.totalDiscountUsed || 0;
+            return sum + (discount / spent);
+          }, 0) / levelCustomers.length * 100
+        };
+      }
+    });
+
+    return analysis;
+  }
+
+  /**
+   * Distribusi loyalty customers - FIXED
+   */
+  static getLoyaltyDistribution(customers, loyaltyLevels) {
+    const distribution = {};
+    
+    // Filter out invalid customers first
+    const validCustomers = customers.filter(c => c._id);
+    
+    loyaltyLevels.forEach(level => {
+      const levelCustomers = validCustomers.filter(customer => {
+        const customerLevel = customer.calculatedLoyaltyLevel || customer.customerInfo?.loyaltyLevel;
+        if (!customerLevel) return false;
+        
+        return customerLevel.levelId?.toString() === level._id.toString();
+      });
+      
+      distribution[level.name] = {
+        count: levelCustomers.length,
+        percentage: validCustomers.length > 0 ? (levelCustomers.length / validCustomers.length) * 100 : 0,
+        requiredPoints: level.requiredPoints
+      };
+    });
+
+    return distribution;
+  }
+
+  /**
+   * Segment customers by different criteria
+   */
+  static segmentCustomers(customers, segmentBy) {
+    switch (segmentBy) {
+      case 'spending':
+        return CustomerSegmentationService.segmentBySpending(customers);
+      case 'frequency':
+        return CustomerSegmentationService.segmentByFrequency(customers);
+      case 'recency':
+        return CustomerSegmentationService.segmentByRecency(customers);
+      default:
+        return CustomerSegmentationService.segmentByRFM(customers);
+    }
+  }
+
+  static segmentBySpending(customers) {
+    const segments = [
+      { name: 'VIP', range: [1000000, Infinity], customers: [] },
+      { name: 'High Value', range: [500000, 1000000], customers: [] },
+      { name: 'Medium Value', range: [200000, 500000], customers: [] },
+      { name: 'Low Value', range: [0, 200000], customers: [] }
+    ];
+
+    customers.forEach(customer => {
+      if (!customer._id) return; // Skip invalid customers
+      
+      const totalSpent = customer.totalSpent || 0;
+      for (const segment of segments) {
+        if (totalSpent >= segment.range[0] && totalSpent < segment.range[1]) {
+          segment.customers.push(customer);
+          break;
+        }
+      }
+    });
+
+    return segments;
+  }
+
+  static segmentByFrequency(customers) {
+    const segments = [
+      { name: 'Very Frequent', range: [10, Infinity], customers: [] },
+      { name: 'Frequent', range: [5, 10], customers: [] },
+      { name: 'Regular', range: [2, 5], customers: [] },
+      { name: 'Occasional', range: [1, 2], customers: [] }
+    ];
+
+    customers.forEach(customer => {
+      if (!customer._id) return; // Skip invalid customers
+      
+      const totalOrders = customer.totalOrders || 0;
+      for (const segment of segments) {
+        if (totalOrders >= segment.range[0] && totalOrders < segment.range[1]) {
+          segment.customers.push(customer);
+          break;
+        }
+      }
+    });
+
+    return segments;
+  }
+
+  static segmentByRecency(customers) {
+    const segments = [
+      { name: 'Active', range: [0, 7], customers: [] },
+      { name: 'Recent', range: [7, 30], customers: [] },
+      { name: 'Dormant', range: [30, 90], customers: [] },
+      { name: 'Inactive', range: [90, Infinity], customers: [] }
+    ];
+
+    customers.forEach(customer => {
+      if (!customer._id) return; // Skip invalid customers
+      
+      const daysSinceLastOrder = customer.daysSinceLastOrder || 999;
+      for (const segment of segments) {
+        if (daysSinceLastOrder >= segment.range[0] && daysSinceLastOrder < segment.range[1]) {
+          segment.customers.push(customer);
+          break;
+        }
+      }
+    });
+
+    return segments;
+  }
+
+  static segmentByRFM(customers) {
+    // Implement RFM segmentation logic here
+    return CustomerSegmentationService.segmentBySpending(customers); // Default to spending for now
+  }
+
+  /**
+   * Calculate segment insights - FIXED
+   */
+  static calculateSegmentInsights(segments) {
+    return segments.map(segment => {
+      // Filter out invalid customers
+      const validCustomers = segment.customers.filter(c => c._id);
+      const customerCount = validCustomers.length;
+      
+      if (customerCount === 0) return { ...segment, insights: {} };
+
+      const totalRevenue = validCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+      const avgOrderValue = validCustomers.reduce((sum, c) => sum + (c.avgOrderValue || 0), 0) / customerCount;
+      const avgOrders = validCustomers.reduce((sum, c) => sum + (c.totalOrders || 0), 0) / customerCount;
+      
+      const promoUsageRate = validCustomers.reduce((sum, c) => {
+        const orders = c.totalOrders || 1;
+        const promoCount = c.promoUsageCount || 0;
+        return sum + (promoCount / orders);
+      }, 0) / customerCount * 100;
+
+      return {
+        ...segment,
+        insights: {
+          customerCount,
+          totalRevenue,
+          avgOrderValue: Math.round(avgOrderValue),
+          avgOrders: Math.round(avgOrders * 100) / 100,
+          promoUsageRate: Math.round(promoUsageRate * 100) / 100,
+          customerValue: customerCount > 0 ? totalRevenue / customerCount : 0
+        }
+      };
+    });
+  }
+
+  /**
+   * Calculate Customer Lifetime Value - FIXED
+   */
+  static calculateCLV(customers) {
+    const validCustomers = customers.filter(c => c._id);
+    
+    if (validCustomers.length === 0) {
+      return {
+        averageCLV: 0,
+        totalCLV: 0,
+        customerCount: 0
+      };
+    }
+
+    const totalCLV = validCustomers.reduce((sum, customer) => {
+      const monthsSinceFirstOrder = customer.firstOrderDate ? 
+        (new Date() - new Date(customer.firstOrderDate)) / (30 * 24 * 60 * 60 * 1000) : 1;
+      return sum + ((customer.totalSpent || 0) / Math.max(1, monthsSinceFirstOrder));
+    }, 0);
+
+    return {
+      averageCLV: Math.round(totalCLV / validCustomers.length),
+      totalCLV: Math.round(totalCLV),
+      customerCount: validCustomers.length
+    };
+  }
+
+  /**
+   * Calculate retention rate - FIXED
+   */
+  static calculateRetentionRate(customers) {
+    const validCustomers = customers.filter(c => c._id);
+    
+    if (validCustomers.length === 0) return 0;
+
+    const recentCustomers = validCustomers.filter(c => {
+      if (!c.lastOrderDate) return false;
+      const daysSinceLastOrder = (new Date() - new Date(c.lastOrderDate)) / (24 * 60 * 60 * 1000);
+      return daysSinceLastOrder <= 30;
+    });
+
+    return (recentCustomers.length / validCustomers.length) * 100;
+  }
+}
+
+/**
+ * Service class untuk loyalty analytics
+ */
+class LoyaltyAnalyticsService {
+  
+  static async getLoyaltyCustomerActivities(period) {
+    // Implementation untuk mendapatkan aktivitas customer loyalty
+    return Order.aggregate([
+      {
+        $lookup: {
+          from: "users",
+          localField: "user_id",
+          foreignField: "_id",
+          as: "user"
+        }
+      },
+      { $unwind: "$user" },
+      {
+        $project: {
+          userId: "$user._id",
+          loyaltyPoints: "$user.loyaltyPoints",
+          loyaltyLevel: "$user.loyaltyLevel",
+          orderAmount: "$grandTotal",
+          pointsEarned: { $divide: ["$grandTotal", 1000] }, // 1 point per Rp1000
+          orderDate: "$createdAt",
+          hasPromo: { $ne: ["$appliedPromos", null] },
+          hasVoucher: { $ne: ["$appliedVoucher", null] }
+        }
+      }
+    ]);
+  }
+
+  static analyzeLevelPerformance(loyaltyLevels, customerActivities) {
+    const performance = {};
+    
+    loyaltyLevels.forEach(level => {
+      const levelCustomers = customerActivities.filter(activity => 
+        activity.loyaltyLevel?.toString() === level._id.toString()
+      );
+      
+      performance[level.name] = {
+        customerCount: levelCustomers.length,
+        totalSpent: levelCustomers.reduce((sum, c) => sum + c.orderAmount, 0),
+        avgOrderValue: levelCustomers.reduce((sum, c) => sum + c.orderAmount, 0) / levelCustomers.length || 0,
+        pointsEarned: levelCustomers.reduce((sum, c) => sum + c.pointsEarned, 0),
+        promotionUsage: {
+          withPromo: levelCustomers.filter(c => c.hasPromo).length,
+          withVoucher: levelCustomers.filter(c => c.hasVoucher).length
+        }
+      };
+    });
+    
+    return performance;
+  }
+
+  static analyzeCustomerJourney(customerActivities, loyaltyLevels) {
+    const journey = {
+      levelProgression: {},
+      upgradePatterns: {},
+      churnRisks: {}
+    };
+
+    // Analyze movement between levels
+    loyaltyLevels.forEach((level, index) => {
+      if (index < loyaltyLevels.length - 1) {
+        const nextLevel = loyaltyLevels[index + 1];
+        const customersNearUpgrade = customerActivities.filter(activity => {
+          const points = activity.loyaltyPoints || 0;
+          return points >= level.requiredPoints && points < nextLevel.requiredPoints;
+        });
+        
+        journey.levelProgression[level.name] = {
+          nextLevel: nextLevel.name,
+          customersNearUpgrade: customersNearUpgrade.length,
+          pointsToUpgrade: nextLevel.requiredPoints - level.requiredPoints,
+          upgradeRate: customersNearUpgrade.length / customerActivities.filter(a => 
+            a.loyaltyLevel?.toString() === level._id.toString()
+          ).length * 100 || 0
+        };
+      }
+    });
+
+    return journey;
+  }
+
+  static analyzePointsEconomics(customerActivities, loyaltyProgram) {
+    const totalPointsEarned = customerActivities.reduce((sum, activity) => sum + (activity.pointsEarned || 0), 0);
+    const totalPointsValue = totalPointsEarned * (loyaltyProgram?.discountValuePerPoint || 50);
+    const totalRevenue = customerActivities.reduce((sum, activity) => sum + activity.orderAmount, 0);
+    
+    return {
+      totalPointsEarned,
+      totalPointsValue,
+      pointsToRevenueRatio: totalPointsEarned / totalRevenue,
+      costOfLoyalty: (totalPointsValue / totalRevenue) * 100,
+      pointsEfficiency: totalRevenue / totalPointsEarned
+    };
+  }
+
+  static generateLoyaltyRecommendations(loyaltyLevels, customerActivities) {
+    const recommendations = [];
+    
+    // Analyze level distribution
+    const levelDistribution = {};
+    loyaltyLevels.forEach(level => {
+      const count = customerActivities.filter(a => 
+        a.loyaltyLevel?.toString() === level._id.toString()
+      ).length;
+      levelDistribution[level.name] = count;
+    });
+
+    // Check if too many customers are stuck in lower levels
+    const lowerLevels = ['bronze', 'silver'];
+    const higherLevels = ['gold', 'platinum', 'black', 'blackChroma'];
+    
+    const lowerLevelCount = lowerLevels.reduce((sum, level) => sum + (levelDistribution[level] || 0), 0);
+    const higherLevelCount = higherLevels.reduce((sum, level) => sum + (levelDistribution[level] || 0), 0);
+    
+    if (lowerLevelCount > higherLevelCount * 2) {
+      recommendations.push({
+        type: 'LEVEL_UP_OPPORTUNITY',
+        message: 'Many customers are in lower loyalty levels',
+        action: 'Consider creating promotions to help customers level up',
+        details: {
+          lowerLevelCustomers: lowerLevelCount,
+          higherLevelCustomers: higherLevelCount
+        }
+      });
+    }
+
+    // Check points accumulation rate
+    const avgPointsPerOrder = customerActivities.reduce((sum, activity) => 
+      sum + (activity.pointsEarned || 0), 0) / customerActivities.length;
+    
+    if (avgPointsPerOrder < 10) {
+      recommendations.push({
+        type: 'POINTS_ACCUMULATION',
+        message: 'Low points accumulation per order',
+        action: 'Consider increasing points per transaction or adding bonus point promotions',
+        details: {
+          avgPointsPerOrder: Math.round(avgPointsPerOrder * 100) / 100
+        }
+      });
+    }
+
+    return recommendations;
+  }
+}
+
+/**
+ * Main Analytics Controller
  */
 const AnalyticsController = {
 
@@ -221,7 +925,7 @@ const AnalyticsController = {
           highestRevenue: [...data].sort((a, b) => b.totalRevenue - a.totalRevenue)[0] || null,
           bestROI: [...data].sort((a, b) => b.revenueLift - a.revenueLift)[0] || null
         },
-        recommendations: this.generatePromoRecommendations(data)
+        recommendations: AnalyticsRecommendationService.generatePromoRecommendations(data)
       };
 
       res.json({ 
@@ -506,8 +1210,8 @@ const AnalyticsController = {
           highestRevenue: [...data].sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 5),
           bestROI: [...data].sort((a, b) => b.revenueImpact - a.revenueImpact).slice(0, 5)
         },
-        alerts: this.generateVoucherAlerts(data),
-        recommendations: this.generateVoucherRecommendations(data)
+        alerts: AnalyticsRecommendationService.generateVoucherAlerts(data),
+        recommendations: AnalyticsRecommendationService.generateVoucherRecommendations(data)
       };
 
       res.json({ 
@@ -530,7 +1234,7 @@ const AnalyticsController = {
   },
 
   /**
-   * 4. Customer Segmentation berdasarkan Loyalty Level dengan insight yang lebih mendalam
+   * 3. Customer Segmentation berdasarkan Loyalty Level dengan insight yang lebih mendalam
    */
   async customerSegmentation(req, res) {
     try {
@@ -539,7 +1243,16 @@ const AnalyticsController = {
       // Get loyalty levels data
       const loyaltyLevels = await LoyaltyLevel.find().sort({ requiredPoints: 1 }).lean();
       
+      // Simplified aggregation pipeline
       const customerData = await Order.aggregate([
+        // Stage 1: Filter orders with valid users
+        {
+          $match: {
+            user_id: { $ne: null, $exists: true }
+          }
+        },
+        
+        // Stage 2: Lookup user data
         {
           $lookup: {
             from: "users",
@@ -548,23 +1261,18 @@ const AnalyticsController = {
             as: "user"
           }
         },
-        { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+        
+        // Stage 3: Unwind and filter valid users
         {
-          $lookup: {
-            from: "loyaltylevels",
-            localField: "user.loyaltyLevel",
-            foreignField: "_id",
-            as: "loyaltyLevel"
-          }
+          $unwind: "$user"
         },
         {
-          $lookup: {
-            from: "roles",
-            localField: "user.role",
-            foreignField: "_id",
-            as: "role"
+          $match: {
+            "user._id": { $ne: null }
           }
         },
+        
+        // Stage 4: Group by user to get customer metrics
         {
           $group: {
             _id: "$user_id",
@@ -574,21 +1282,7 @@ const AnalyticsController = {
                 username: "$user.username",
                 email: "$user.email",
                 phone: "$user.phone",
-                role: { $arrayElemAt: ["$role.name", 0] },
-                loyaltyLevel: { 
-                  $cond: {
-                    if: { $gt: [{ $size: "$loyaltyLevel" }, 0] },
-                    then: { 
-                      levelId: { $arrayElemAt: ["$loyaltyLevel._id", 0] },
-                      levelName: { $arrayElemAt: ["$loyaltyLevel.name", 0] },
-                      requiredPoints: { $arrayElemAt: ["$loyaltyLevel.requiredPoints", 0] },
-                      pointsPerCurrency: { $arrayElemAt: ["$loyaltyLevel.pointsPerCurrency", 0] },
-                      currencyUnit: { $arrayElemAt: ["$loyaltyLevel.currencyUnit", 0] },
-                      benefits: { $arrayElemAt: ["$loyaltyLevel.benefits", 0] }
-                    },
-                    else: null
-                  }
-                },
+                loyaltyLevel: "$user.loyaltyLevel",
                 loyaltyPoints: "$user.loyaltyPoints",
                 profilePicture: "$user.profilePicture",
                 joinDate: "$user.createdAt",
@@ -598,106 +1292,80 @@ const AnalyticsController = {
             },
             totalOrders: { $sum: 1 },
             totalSpent: { $sum: "$grandTotal" },
-            totalPointsEarned: { 
-              $sum: { 
-                $multiply: [
-                  { $divide: ["$grandTotal", 1000] }, // 1 point per Rp1000 spent
-                  1 // pointsPerCurrency (default 1)
-                ]
-              }
-            },
             avgOrderValue: { $avg: "$grandTotal" },
             minOrderValue: { $min: "$grandTotal" },
             maxOrderValue: { $max: "$grandTotal" },
             promoUsageCount: { 
-              $sum: { $cond: [{ $ne: ["$appliedPromos", null] }, 1, 0] }
+              $sum: { 
+                $cond: [
+                  { 
+                    $and: [
+                      { $ne: ["$appliedPromos", null] },
+                      { $ne: ["$appliedPromos", []] }
+                    ]
+                  }, 
+                  1, 
+                  0
+                ]
+              }
             },
             voucherUsageCount: {
-              $sum: { $cond: [{ $ne: ["$appliedVoucher", null] }, 1, 0] }
+              $sum: { 
+                $cond: [
+                  { $ne: ["$appliedVoucher", null] }, 
+                  1, 
+                  0
+                ]
+              }
             },
             totalDiscountUsed: {
               $sum: {
                 $add: [
-                  "$discounts.autoPromoDiscount",
-                  "$discounts.voucherDiscount",
-                  "$discounts.manualDiscount"
+                  { $ifNull: ["$discounts.autoPromoDiscount", 0] },
+                  { $ifNull: ["$discounts.voucherDiscount", 0] },
+                  { $ifNull: ["$discounts.manualDiscount", 0] }
                 ]
               }
             },
-            favoriteOutlets: { $addToSet: "$outlet" },
-            orderSources: { $addToSet: "$source" },
             firstOrderDate: { $min: "$createdAt" },
-            lastOrderDate: { $max: "$createdAt" },
-            orderDays: { $addToSet: { $dayOfWeek: "$createdAt" } },
-            orderTimes: { 
-              $push: { 
-                hour: { $hour: "$createdAt" },
-                date: "$createdAt"
-              } 
-            }
+            lastOrderDate: { $max: "$createdAt" }
           }
         },
-        { $match: { totalOrders: { $gte: parseInt(minOrders) } } },
+        
+        // Stage 5: Filter by minimum orders
         {
-          $lookup: {
-            from: "outlets",
-            localField: "favoriteOutlets",
-            foreignField: "_id",
-            as: "favoriteOutletsInfo"
+          $match: {
+            totalOrders: { $gte: parseInt(minOrders) },
+            _id: { $ne: null }
           }
         },
+        
+        // Stage 6: Add calculated fields
         {
           $addFields: {
-            // Calculate customer's current loyalty level based on points
-            calculatedLoyaltyLevel: {
-              $arrayElemAt: [
-                {
-                  $filter: {
-                    input: loyaltyLevels,
-                    as: "level",
-                    cond: {
-                      $and: [
-                        { $lte: ["$$level.requiredPoints", "$customerInfo.loyaltyPoints"] },
-                        {
-                          $or: [
-                            { $eq: ["$$level.name", "blackChroma"] }, // Highest level
-                            {
-                              $gt: [
-                                { 
-                                  $arrayElemAt: [
-                                    {
-                                      $filter: {
-                                        input: loyaltyLevels,
-                                        as: "nextLevel",
-                                        cond: { $gt: ["$$nextLevel.requiredPoints", "$$level.requiredPoints"] }
-                                      }
-                                    },
-                                    0
-                                  ]
-                                }?.requiredPoints || Infinity,
-                                "$customerInfo.loyaltyPoints"
-                              ]
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  }
-                },
-                -1 // Get the highest matching level
-              ]
-            },
             // Customer behavior metrics
             customerTenure: {
-              $divide: [
-                { $subtract: [new Date(), "$firstOrderDate"] },
-                1000 * 60 * 60 * 24 // Convert to days
+              $cond: [
+                { $ne: ["$firstOrderDate", null] },
+                {
+                  $divide: [
+                    { $subtract: [new Date(), "$firstOrderDate"] },
+                    1000 * 60 * 60 * 24 // Convert to days
+                  ]
+                },
+                0
               ]
             },
             daysSinceLastOrder: {
-              $divide: [
-                { $subtract: [new Date(), "$lastOrderDate"] },
-                1000 * 60 * 60 * 24
+              $cond: [
+                { $ne: ["$lastOrderDate", null] },
+                {
+                  $divide: [
+                    { $subtract: [new Date(), "$lastOrderDate"] },
+                    1000 * 60 * 60 * 24
+                  ]
+                },
+                999 // Large number for customers without orders
               ]
             },
             orderFrequency: {
@@ -711,19 +1379,32 @@ const AnalyticsController = {
         }
       ]);
 
+      console.log(`Processed ${customerData.length} valid customers`);
+      
+      // Calculate loyalty levels for each customer
+      const customersWithLoyalty = customerData.map(customer => {
+        const points = customer.customerInfo.loyaltyPoints || 0;
+        const calculatedLoyaltyLevel = CustomerSegmentationService.determineLoyaltyLevelByPoints(points, loyaltyLevels);
+        
+        return {
+          ...customer,
+          calculatedLoyaltyLevel
+        };
+      });
+
       // Enhanced segmentation based on loyalty levels
       const segments = includeLoyaltyLevels ? 
-        this.segmentByLoyaltyLevel(customerData, loyaltyLevels) : 
-        this.segmentCustomers(customerData, segmentBy);
+        CustomerSegmentationService.segmentByLoyaltyLevel(customersWithLoyalty, loyaltyLevels) : 
+        CustomerSegmentationService.segmentCustomers(customersWithLoyalty, segmentBy);
       
       // Calculate segment insights
-      const segmentInsights = this.calculateSegmentInsights(segments);
+      const segmentInsights = CustomerSegmentationService.calculateSegmentInsights(segments);
       
       // Customer lifetime value calculation
-      const clvAnalysis = this.calculateCLV(customerData);
+      const clvAnalysis = CustomerSegmentationService.calculateCLV(customersWithLoyalty);
 
       // Loyalty program effectiveness
-      const loyaltyEffectiveness = this.analyzeLoyaltyEffectiveness(customerData, loyaltyLevels);
+      const loyaltyEffectiveness = CustomerSegmentationService.analyzeLoyaltyEffectiveness(customersWithLoyalty, loyaltyLevels);
 
       res.json({
         success: true,
@@ -734,11 +1415,11 @@ const AnalyticsController = {
           clvAnalysis,
           loyaltyEffectiveness,
           summary: {
-            totalCustomers: customerData.length,
+            totalCustomers: customersWithLoyalty.length,
             segmentedCustomers: segments.reduce((sum, seg) => sum + seg.customers.length, 0),
             averageCLV: clvAnalysis.averageCLV,
-            retentionRate: this.calculateRetentionRate(customerData),
-            loyaltyDistribution: this.getLoyaltyDistribution(customerData, loyaltyLevels)
+            retentionRate: CustomerSegmentationService.calculateRetentionRate(customersWithLoyalty),
+            loyaltyDistribution: CustomerSegmentationService.getLoyaltyDistribution(customersWithLoyalty, loyaltyLevels)
           }
         }
       });
@@ -753,166 +1434,7 @@ const AnalyticsController = {
   },
 
   /**
-   * Segmentasi berdasarkan Loyalty Level yang sudah ada
-   */
-  segmentByLoyaltyLevel(customers, loyaltyLevels) {
-    // Create segments based on loyalty levels
-    const segments = loyaltyLevels.map(level => ({
-      name: level.name,
-      levelId: level._id,
-      requiredPoints: level.requiredPoints,
-      description: level.description,
-      customers: [],
-      levelMetrics: {
-        pointsPerCurrency: level.pointsPerCurrency,
-        currencyUnit: level.currencyUnit,
-        benefits: level.benefits
-      }
-    }));
-
-    // Add customers to their respective loyalty level segments
-    customers.forEach(customer => {
-      const customerLevel = customer.calculatedLoyaltyLevel || customer.customerInfo.loyaltyLevel;
-      
-      if (customerLevel) {
-        const segment = segments.find(seg => 
-          seg.levelId && seg.levelId.toString() === customerLevel.levelId?.toString()
-        );
-        
-        if (segment) {
-          segment.customers.push(customer);
-        }
-      } else {
-        // Handle customers without loyalty level (assign to bronze)
-        const bronzeSegment = segments.find(seg => seg.name === 'bronze');
-        if (bronzeSegment) {
-          bronzeSegment.customers.push(customer);
-        }
-      }
-    });
-
-    // Add behavioral segments within each loyalty level
-    segments.forEach(segment => {
-      if (segment.customers.length > 0) {
-        segment.behavioralSegments = this.segmentByBehaviorWithinLevel(segment.customers);
-      }
-    });
-
-    return segments;
-  },
-
-  /**
-   * Segmentasi perilaku dalam setiap loyalty level
-   */
-  segmentByBehaviorWithinLevel(customers) {
-    const behavioralSegments = [
-      { name: 'VIP', description: 'High frequency & high spending', customers: [] },
-      { name: 'Loyal', description: 'Regular customers with good frequency', customers: [] },
-      { name: 'Occasional', description: 'Infrequent but valuable customers', customers: [] },
-      { name: 'At Risk', description: 'Declining activity', customers: [] },
-      { name: 'New', description: 'Recent customers', customers: [] }
-    ];
-
-    customers.forEach(customer => {
-      const spendingScore = customer.totalSpent / 1000000; // Normalize spending
-      const frequencyScore = customer.orderFrequency * 30; // Normalize to monthly frequency
-      const recencyScore = 30 - Math.min(customer.daysSinceLastOrder, 30); // Recent activity
-      
-      const behaviorScore = (spendingScore * 0.4) + (frequencyScore * 0.3) + (recencyScore * 0.3);
-
-      if (behaviorScore >= 0.7) {
-        behavioralSegments[0].customers.push(customer); // VIP
-      } else if (behaviorScore >= 0.5) {
-        behavioralSegments[1].customers.push(customer); // Loyal
-      } else if (behaviorScore >= 0.3) {
-        behavioralSegments[2].customers.push(customer); // Occasional
-      } else if (customer.daysSinceLastOrder > 60) {
-        behavioralSegments[3].customers.push(customer); // At Risk
-      } else {
-        behavioralSegments[4].customers.push(customer); // New
-      }
-    });
-
-    return behavioralSegments;
-  },
-
-  /**
-   * Analisis efektivitas program loyalty
-   */
-  analyzeLoyaltyEffectiveness(customers, loyaltyLevels) {
-    const analysis = {
-      levelDistribution: {},
-      spendingByLevel: {},
-      retentionByLevel: {},
-      promotionEffectiveness: {}
-    };
-
-    // Analyze distribution and spending by level
-    loyaltyLevels.forEach(level => {
-      const levelCustomers = customers.filter(customer => {
-        const customerLevel = customer.calculatedLoyaltyLevel || customer.customerInfo.loyaltyLevel;
-        return customerLevel && customerLevel.levelId?.toString() === level._id.toString();
-      });
-
-      analysis.levelDistribution[level.name] = levelCustomers.length;
-      
-      if (levelCustomers.length > 0) {
-        analysis.spendingByLevel[level.name] = {
-          totalSpent: levelCustomers.reduce((sum, c) => sum + c.totalSpent, 0),
-          avgSpent: levelCustomers.reduce((sum, c) => sum + c.totalSpent, 0) / levelCustomers.length,
-          avgOrderValue: levelCustomers.reduce((sum, c) => sum + c.avgOrderValue, 0) / levelCustomers.length,
-          avgOrders: levelCustomers.reduce((sum, c) => sum + c.totalOrders, 0) / levelCustomers.length
-        };
-
-        // Calculate retention rate for this level
-        const activeCustomers = levelCustomers.filter(c => c.daysSinceLastOrder <= 30);
-        analysis.retentionByLevel[level.name] = (activeCustomers.length / levelCustomers.length) * 100;
-      }
-    });
-
-    // Analyze promotion effectiveness across levels
-    loyaltyLevels.forEach(level => {
-      const levelCustomers = customers.filter(customer => {
-        const customerLevel = customer.calculatedLoyaltyLevel || customer.customerInfo.loyaltyLevel;
-        return customerLevel && customerLevel.levelId?.toString() === level._id.toString();
-      });
-
-      if (levelCustomers.length > 0) {
-        analysis.promotionEffectiveness[level.name] = {
-          promoUsageRate: levelCustomers.reduce((sum, c) => sum + (c.promoUsageCount / c.totalOrders), 0) / levelCustomers.length * 100,
-          voucherUsageRate: levelCustomers.reduce((sum, c) => sum + (c.voucherUsageCount / c.totalOrders), 0) / levelCustomers.length * 100,
-          discountSensitivity: levelCustomers.reduce((sum, c) => sum + (c.totalDiscountUsed / c.totalSpent), 0) / levelCustomers.length * 100
-        };
-      }
-    });
-
-    return analysis;
-  },
-
-  /**
-   * Distribusi loyalty customers
-   */
-  getLoyaltyDistribution(customers, loyaltyLevels) {
-    const distribution = {};
-    
-    loyaltyLevels.forEach(level => {
-      const levelCustomers = customers.filter(customer => {
-        const customerLevel = customer.calculatedLoyaltyLevel || customer.customerInfo.loyaltyLevel;
-        return customerLevel && customerLevel.levelId?.toString() === level._id.toString();
-      });
-      
-      distribution[level.name] = {
-        count: levelCustomers.length,
-        percentage: (levelCustomers.length / customers.length) * 100,
-        requiredPoints: level.requiredPoints
-      };
-    });
-
-    return distribution;
-  },
-
-  /**
-   * 5. Loyalty Program Performance Analysis
+   * 4. Loyalty Program Performance Analysis
    */
   async loyaltyPerformance(req, res) {
     try {
@@ -922,15 +1444,15 @@ const AnalyticsController = {
       const [loyaltyLevels, loyaltyProgram, customerActivities] = await Promise.all([
         LoyaltyLevel.find().sort({ requiredPoints: 1 }).lean(),
         LoyaltyProgram.findOne({ isActive: true }).lean(),
-        this.getLoyaltyCustomerActivities(period)
+        LoyaltyAnalyticsService.getLoyaltyCustomerActivities(period)
       ]);
 
       const analysis = {
         programOverview: loyaltyProgram,
-        levelPerformance: this.analyzeLevelPerformance(loyaltyLevels, customerActivities),
-        customerJourney: this.analyzeCustomerJourney(customerActivities, loyaltyLevels),
-        pointsEconomics: this.analyzePointsEconomics(customerActivities, loyaltyProgram),
-        recommendations: this.generateLoyaltyRecommendations(loyaltyLevels, customerActivities)
+        levelPerformance: LoyaltyAnalyticsService.analyzeLevelPerformance(loyaltyLevels, customerActivities),
+        customerJourney: LoyaltyAnalyticsService.analyzeCustomerJourney(customerActivities, loyaltyLevels),
+        pointsEconomics: LoyaltyAnalyticsService.analyzePointsEconomics(customerActivities, loyaltyProgram),
+        recommendations: LoyaltyAnalyticsService.generateLoyaltyRecommendations(loyaltyLevels, customerActivities)
       };
 
       res.json({
@@ -948,373 +1470,8 @@ const AnalyticsController = {
     }
   },
 
-  // Helper Methods
-  async getLoyaltyCustomerActivities(period) {
-    // Implementation untuk mendapatkan aktivitas customer loyalty
-    // Ini adalah placeholder - sesuaikan dengan struktur data Anda
-    return Order.aggregate([
-      {
-        $lookup: {
-          from: "users",
-          localField: "user_id",
-          foreignField: "_id",
-          as: "user"
-        }
-      },
-      { $unwind: "$user" },
-      {
-        $project: {
-          userId: "$user._id",
-          loyaltyPoints: "$user.loyaltyPoints",
-          loyaltyLevel: "$user.loyaltyLevel",
-          orderAmount: "$grandTotal",
-          pointsEarned: { $divide: ["$grandTotal", 1000] }, // 1 point per Rp1000
-          orderDate: "$createdAt",
-          hasPromo: { $ne: ["$appliedPromos", null] },
-          hasVoucher: { $ne: ["$appliedVoucher", null] }
-        }
-      }
-    ]);
-  },
-
-  analyzeLevelPerformance(loyaltyLevels, customerActivities) {
-    const performance = {};
-    
-    loyaltyLevels.forEach(level => {
-      const levelCustomers = customerActivities.filter(activity => 
-        activity.loyaltyLevel?.toString() === level._id.toString()
-      );
-      
-      performance[level.name] = {
-        customerCount: levelCustomers.length,
-        totalSpent: levelCustomers.reduce((sum, c) => sum + c.orderAmount, 0),
-        avgOrderValue: levelCustomers.reduce((sum, c) => sum + c.orderAmount, 0) / levelCustomers.length || 0,
-        pointsEarned: levelCustomers.reduce((sum, c) => sum + c.pointsEarned, 0),
-        promotionUsage: {
-          withPromo: levelCustomers.filter(c => c.hasPromo).length,
-          withVoucher: levelCustomers.filter(c => c.hasVoucher).length
-        }
-      };
-    });
-    
-    return performance;
-  },
-
-  analyzeCustomerJourney(customerActivities, loyaltyLevels) {
-    const journey = {
-      levelProgression: {},
-      upgradePatterns: {},
-      churnRisks: {}
-    };
-
-    // Analyze movement between levels
-    loyaltyLevels.forEach((level, index) => {
-      if (index < loyaltyLevels.length - 1) {
-        const nextLevel = loyaltyLevels[index + 1];
-        const customersNearUpgrade = customerActivities.filter(activity => {
-          const points = activity.loyaltyPoints || 0;
-          return points >= level.requiredPoints && points < nextLevel.requiredPoints;
-        });
-        
-        journey.levelProgression[level.name] = {
-          nextLevel: nextLevel.name,
-          customersNearUpgrade: customersNearUpgrade.length,
-          pointsToUpgrade: nextLevel.requiredPoints - level.requiredPoints,
-          upgradeRate: customersNearUpgrade.length / customerActivities.filter(a => 
-            a.loyaltyLevel?.toString() === level._id.toString()
-          ).length * 100 || 0
-        };
-      }
-    });
-
-    return journey;
-  },
-
-  analyzePointsEconomics(customerActivities, loyaltyProgram) {
-    const totalPointsEarned = customerActivities.reduce((sum, activity) => sum + (activity.pointsEarned || 0), 0);
-    const totalPointsValue = totalPointsEarned * (loyaltyProgram?.discountValuePerPoint || 50);
-    const totalRevenue = customerActivities.reduce((sum, activity) => sum + activity.orderAmount, 0);
-    
-    return {
-      totalPointsEarned,
-      totalPointsValue,
-      pointsToRevenueRatio: totalPointsEarned / totalRevenue,
-      costOfLoyalty: (totalPointsValue / totalRevenue) * 100,
-      pointsEfficiency: totalRevenue / totalPointsEarned
-    };
-  },
-
-  generateLoyaltyRecommendations(loyaltyLevels, customerActivities) {
-    const recommendations = [];
-    
-    // Analyze level distribution
-    const levelDistribution = {};
-    loyaltyLevels.forEach(level => {
-      const count = customerActivities.filter(a => 
-        a.loyaltyLevel?.toString() === level._id.toString()
-      ).length;
-      levelDistribution[level.name] = count;
-    });
-
-    // Check if too many customers are stuck in lower levels
-    const lowerLevels = ['bronze', 'silver'];
-    const higherLevels = ['gold', 'platinum', 'black', 'blackChroma'];
-    
-    const lowerLevelCount = lowerLevels.reduce((sum, level) => sum + (levelDistribution[level] || 0), 0);
-    const higherLevelCount = higherLevels.reduce((sum, level) => sum + (levelDistribution[level] || 0), 0);
-    
-    if (lowerLevelCount > higherLevelCount * 2) {
-      recommendations.push({
-        type: 'LEVEL_UP_OPPORTUNITY',
-        message: 'Many customers are in lower loyalty levels',
-        action: 'Consider creating promotions to help customers level up',
-        details: {
-          lowerLevelCustomers: lowerLevelCount,
-          higherLevelCustomers: higherLevelCount
-        }
-      });
-    }
-
-    // Check points accumulation rate
-    const avgPointsPerOrder = customerActivities.reduce((sum, activity) => 
-      sum + (activity.pointsEarned || 0), 0) / customerActivities.length;
-    
-    if (avgPointsPerOrder < 10) {
-      recommendations.push({
-        type: 'POINTS_ACCUMULATION',
-        message: 'Low points accumulation per order',
-        action: 'Consider increasing points per transaction or adding bonus point promotions',
-        details: {
-          avgPointsPerOrder: Math.round(avgPointsPerOrder * 100) / 100
-        }
-      });
-    }
-
-    return recommendations;
-  },
-
-  // Existing helper methods (keep from previous implementation)
-  generatePromoRecommendations(promos) {
-    const recommendations = [];
-    
-    const lowUsage = promos.filter(p => p.status === 'LOW_USAGE' && p.isActive);
-    const poorPerformance = promos.filter(p => p.status === 'POOR' && p.isActive);
-    const excellentPromos = promos.filter(p => p.status === 'EXCELLENT');
-
-    if (lowUsage.length > 0) {
-      recommendations.push({
-        type: 'LOW_USAGE_ALERT',
-        message: `${lowUsage.length} promos have low usage but are active`,
-        action: 'Consider increasing visibility or extending validity',
-        promos: lowUsage.map(p => ({ id: p.promoId, name: p.name }))
-      });
-    }
-
-    if (poorPerformance.length > 0) {
-      recommendations.push({
-        type: 'POOR_PERFORMANCE',
-        message: `${poorPerformance.length} promos are underperforming`,
-        action: 'Review discount structure or target audience',
-        promos: poorPerformance.map(p => ({ id: p.promoId, name: p.name }))
-      });
-    }
-
-    if (excellentPromos.length > 0) {
-      recommendations.push({
-        type: 'BEST_PRACTICES',
-        message: `${excellentPromos.length} promos are performing excellently`,
-        action: 'Consider replicating these successful strategies',
-        promos: excellentPromos.map(p => ({ id: p.promoId, name: p.name }))
-      });
-    }
-
-    return recommendations;
-  },
-
-  generateVoucherAlerts(vouchers) {
-    const alerts = [];
-    
-    const expiringSoon = vouchers.filter(v => 
-      v.daysRemaining !== null && v.daysRemaining <= 7 && v.isActive && !v.isExpired
-    );
-    
-    const nearlyDepleted = vouchers.filter(v => v.status === 'NEARLY_DEPLETED');
-    const unusedActive = vouchers.filter(v => v.status === 'UNUSED' && v.isActive);
-
-    if (expiringSoon.length > 0) {
-      alerts.push({
-        type: 'EXPIRING_SOON',
-        message: `${expiringSoon.length} vouchers are expiring within 7 days`,
-        severity: 'MEDIUM',
-        vouchers: expiringSoon.map(v => ({ 
-          id: v.voucherId, 
-          code: v.code, 
-          daysRemaining: v.daysRemaining 
-        }))
-      });
-    }
-
-    if (nearlyDepleted.length > 0) {
-      alerts.push({
-        type: 'LOW_QUOTA',
-        message: `${nearlyDepleted.length} vouchers are nearly depleted`,
-        severity: 'LOW',
-        vouchers: nearlyDepleted.map(v => ({ 
-          id: v.voucherId, 
-          code: v.code, 
-          remainingQuota: v.remainingQuota 
-        }))
-      });
-    }
-
-    if (unusedActive.length > 0) {
-      alerts.push({
-        type: 'UNUSED_ACTIVE',
-        message: `${unusedActive.length} active vouchers have never been used`,
-        severity: 'HIGH',
-        vouchers: unusedActive.map(v => ({ 
-          id: v.voucherId, 
-          code: v.code,
-          validTo: v.validTo
-        }))
-      });
-    }
-
-    return alerts;
-  },
-
-  generateVoucherRecommendations(vouchers) {
-    const recommendations = [];
-    
-    const highPerforming = vouchers.filter(v => v.status === 'HIGH_PERFORMANCE');
-    const lowPerforming = vouchers.filter(v => v.status === 'LOW_PERFORMANCE' && v.isActive);
-    const optimalUtilization = vouchers.filter(v => v.utilizationHealth === 'OPTIMAL');
-
-    if (highPerforming.length > 0) {
-      recommendations.push({
-        type: 'SUCCESSFUL_STRATEGY',
-        message: `Found ${highPerforming.length} high-performing vouchers`,
-        action: 'Consider creating similar vouchers or extending these campaigns',
-        examples: highPerforming.slice(0, 3).map(v => ({
-          code: v.code,
-          redemptionRate: v.redemptionRate,
-          revenueImpact: v.revenueImpact
-        }))
-      });
-    }
-
-    if (lowPerforming.length > 0) {
-      recommendations.push({
-        type: 'OPTIMIZATION_NEEDED',
-        message: `${lowPerforming.length} vouchers have low performance`,
-        action: 'Review discount amounts, eligibility criteria, or promotion channels',
-        vouchers: lowPerforming.map(v => ({
-          code: v.code,
-          redemptionRate: v.redemptionRate,
-          usageCount: v.usedCount
-        }))
-      });
-    }
-
-    if (optimalUtilization.length > 0) {
-      recommendations.push({
-        type: 'BALANCED_UTILIZATION',
-        message: `${optimalUtilization.length} vouchers have optimal utilization`,
-        action: 'Maintain current strategy for these vouchers',
-        vouchers: optimalUtilization.slice(0, 5).map(v => ({
-          code: v.code,
-          utilization: v.utilizationHealth,
-          redemptionRate: v.redemptionRate
-        }))
-      });
-    }
-
-    return recommendations;
-  },
-
-  segmentCustomers(customers, segmentBy) {
-    switch (segmentBy) {
-      case 'spending':
-        return this.segmentBySpending(customers);
-      case 'frequency':
-        return this.segmentByFrequency(customers);
-      case 'recency':
-        return this.segmentByRecency(customers);
-      default:
-        return this.segmentByRFM(customers);
-    }
-  },
-
-  segmentBySpending(customers) {
-    const segments = [
-      { name: 'VIP', range: [1000000, Infinity], customers: [] },
-      { name: 'High Value', range: [500000, 1000000], customers: [] },
-      { name: 'Medium Value', range: [200000, 500000], customers: [] },
-      { name: 'Low Value', range: [0, 200000], customers: [] }
-    ];
-
-    customers.forEach(customer => {
-      for (const segment of segments) {
-        if (customer.totalSpent >= segment.range[0] && customer.totalSpent < segment.range[1]) {
-          segment.customers.push(customer);
-          break;
-        }
-      }
-    });
-
-    return segments;
-  },
-
-  calculateSegmentInsights(segments) {
-    return segments.map(segment => {
-      const customerCount = segment.customers.length;
-      if (customerCount === 0) return { ...segment, insights: {} };
-
-      const totalRevenue = segment.customers.reduce((sum, c) => sum + c.totalSpent, 0);
-      const avgOrderValue = segment.customers.reduce((sum, c) => sum + c.avgOrderValue, 0) / customerCount;
-      const avgOrders = segment.customers.reduce((sum, c) => sum + c.totalOrders, 0) / customerCount;
-      const promoUsageRate = segment.customers.reduce((sum, c) => sum + (c.promoUsageCount / c.totalOrders), 0) / customerCount * 100;
-
-      return {
-        ...segment,
-        insights: {
-          customerCount,
-          totalRevenue,
-          avgOrderValue: Math.round(avgOrderValue),
-          avgOrders: Math.round(avgOrders * 100) / 100,
-          promoUsageRate: Math.round(promoUsageRate * 100) / 100,
-          customerValue: totalRevenue / customerCount
-        }
-      };
-    });
-  },
-
-  calculateCLV(customers) {
-    const totalCLV = customers.reduce((sum, customer) => {
-      const monthsSinceFirstOrder = customer.firstOrderDate ? 
-        (new Date() - new Date(customer.firstOrderDate)) / (30 * 24 * 60 * 60 * 1000) : 1;
-      return sum + (customer.totalSpent / Math.max(1, monthsSinceFirstOrder));
-    }, 0);
-
-    return {
-      averageCLV: Math.round(totalCLV / customers.length),
-      totalCLV: Math.round(totalCLV),
-      customerCount: customers.length
-    };
-  },
-
-  calculateRetentionRate(customers) {
-    const recentCustomers = customers.filter(c => {
-      const daysSinceLastOrder = (new Date() - new Date(c.lastOrderDate)) / (24 * 60 * 60 * 1000);
-      return daysSinceLastOrder <= 30;
-    });
-
-    return customers.length > 0 ? (recentCustomers.length / customers.length) * 100 : 0;
-  },
-
-
   /**
-   * 3. Revenue Impact (sebelum & sesudah diskon) dengan breakdown
+   * 5. Revenue Impact Analysis
    */
   async revenueImpact(req, res) {
     try {
@@ -1371,9 +1528,8 @@ const AnalyticsController = {
     }
   },
 
-
   /**
-   * 5. Outlet & Source Effectiveness dengan populate lengkap
+   * 6. Outlet & Source Effectiveness
    */
   async outletAndSource(req, res) {
     try {
@@ -1483,7 +1639,7 @@ const AnalyticsController = {
     }
   },
 
-  /**
+   /**
    * 6. Time Based Promo Performance dengan detail lengkap
    */
   async timePerformance(req, res) {
@@ -1800,7 +1956,6 @@ const AnalyticsController = {
     }
   },
 
-
   // Endpoint: GET /api/analytics/effectiveness
   async effectivenessAnalysis(req, res) {
     try {
@@ -2029,9 +2184,7 @@ const AnalyticsController = {
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }
-  },
-
-
+  }
 };
 
 export default AnalyticsController;
