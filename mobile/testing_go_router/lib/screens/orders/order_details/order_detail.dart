@@ -373,8 +373,10 @@ class OrderDetail extends ConsumerWidget {
                                         .first
                                         .options!
                                         .isNotEmpty)
-                                      Text(
-                                        'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}',
+                                      ...orderItem.selectedAddons.map(
+                                        (addon) => Text(
+                                          '${addon.name!}: ${addon.options == null ? '' : addon.options!.map((e) => e.label!).join(', ')}',
+                                        ),
                                       ),
                                   if (orderItem.notes != null &&
                                       orderItem.notes!.isNotEmpty)

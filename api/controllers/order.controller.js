@@ -2271,7 +2271,9 @@ export const createUnifiedOrder = async (req, res) => {
       delivery_option,
       recipient_data,
       customAmountItems,
-      paymentDetails
+      paymentDetails,
+      user,
+      contact 
     } = req.body;
 
     // Validasi outletId
@@ -2394,7 +2396,6 @@ export const createUnifiedOrder = async (req, res) => {
 
     validated.outletId = outletId;
     validated.outlet = outletId;
-
     // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
     validated.customerId = customerId;
     validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
@@ -2455,9 +2456,9 @@ export const createUnifiedOrder = async (req, res) => {
     }
 
     // Add reservation-specific processing if needed
-    if (orderType === 'reservation' && reservationData) {
-      if (!reservationData.reservationTime || !reservationData.guestCount ||
-        !reservationData.areaIds || !reservationData.tableIds) {
+    if (orderType === 'reservation' && Reservation) {
+      if (!Reservation.reservationTime || !Reservation.guestCount ||
+        !Reservation.areaIds || !Reservation.tableIds) {
         return res.status(400).json({
           success: false,
           message: 'Incomplete reservation data'
@@ -2689,8 +2690,14 @@ export const createUnifiedOrder = async (req, res) => {
           })
         });
       } else {
+        const customerData = {
+          name: user || 'Customer', 
+          email: contact?.email || 'example@mail.com', 
+          phone: contact?.phone || '081234567890'
+        };
         const midtransRes = await createMidtransSnapTransaction(
           orderId,
+          customerData,
           validated.paymentDetails.amount,
           validated.paymentDetails.method
         );
@@ -5312,7 +5319,21 @@ export const getCashierOrderHistory = async (req, res) => {
             // workstation: item.menuItem.workstation,
             // categories: item.menuItem.category, // renamed
           },
-          selectedAddons: item.addons.length > 0 ? item.addons : [],
+          selectedAddons: item.addons.length > 0 ? item.addons.map(
+            addon => {
+              const options = addon.options ? addon.options.length > 0 ? addon.options.map(option => ({
+                id: option._id || option.id,
+                label: option.label,
+                price: option.price
+              })) : [] : [];
+
+              return {
+                name: addon.name,
+                id: addon._id,
+                options: options ?? []
+              }
+            }
+          ) : [],
           selectedToppings: item.toppings.length > 0 ? item.toppings.map(topping => ({
             id: topping._id || topping.id, // fallback if structure changes
             name: topping.name,
@@ -5356,14 +5377,17 @@ export const getCashierOrderHistory = async (req, res) => {
 // test socket
 export const testSocket = async (req, res) => {
   console.log('Emitting order created to cashier room...');
-  // const cashierRoom = io.to('cashier_room').emit('order_created', { message: 'Order created' });
-  const areaRoom = io.to('group_1').emit('order_created', { message: 'Order created' });
-  const areaRoom2 = io.to('group_2').emit('order_created', { message: 'Order created' });
+  const cashierRoom = io.to('cashier_room').emit('order_created', { message: 'Order created' });
+  // const areaRoom = io.to('group_1').emit('order_created', { message: 'Order created' });
+  // const areaRoom2 = io.to('group_2').emit('order_created', { message: 'Order created' });
+  // const updateStock = io.to('cashier_room').emit('update_stock', { message: 'Stock Updated' });
+
   console.log('Emitting order created to cashier room success.');
 
-  res.status(200).json({ success: { areaRoom, areaRoom2 } });
-  // res.status(200).json({ success: { cashierRoom } });
+  // res.status(200).json({ success: { areaRoom, areaRoom2 } });
+  res.status(200).json({ success: { cashierRoom } });
   // res.status(200).json({ success: { cashierRoom, areaRoom } });
+  // res.status(200).json({ success: { updateStock } });
 }
 
 

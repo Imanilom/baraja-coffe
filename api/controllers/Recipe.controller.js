@@ -72,13 +72,13 @@ export const updateMenuAvailableStock = async (req, res) => {
         // Update MenuStock dengan calculatedStock = 0
         await MenuStock.findOneAndUpdate(
           { menuItemId: menuItem._id },
-          { 
+          {
             calculatedStock: 0,
             lastCalculatedAt: new Date()
           },
           { upsert: true, session }
         );
-        
+
         menuItem.availableStock = 0;
         await menuItem.save({ session });
         continue;
@@ -95,14 +95,14 @@ export const updateMenuAvailableStock = async (req, res) => {
       // Update atau buat MenuStock
       const menuStock = await MenuStock.findOneAndUpdate(
         { menuItemId: menuItem._id },
-        { 
+        {
           calculatedStock,
           lastCalculatedAt: new Date()
         },
-        { 
-          upsert: true, 
+        {
+          upsert: true,
           new: true,
-          session 
+          session
         }
       );
 
@@ -265,9 +265,9 @@ export const adjustMenuStock = async (req, res) => {
       const validReasons = ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya'];
       if (!validReasons.includes(reason)) {
         await session.abortTransaction();
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Reason tidak valid. Pilihan: busuk, tidak_bagus, kedaluwarsa, rusak, hilang, lainnya' 
+        return res.status(400).json({
+          success: false,
+          message: 'Reason tidak valid. Pilihan: busuk, tidak_bagus, kedaluwarsa, rusak, hilang, lainnya'
         });
       }
     }
@@ -322,7 +322,7 @@ export const adjustMenuStock = async (req, res) => {
       // Jika belum ada, hitung calculatedStock terlebih dahulu
       const recipe = await Recipe.findOne({ menuItemId }).session(session);
       let calculatedStock = 0;
-      
+
       if (recipe?.baseIngredients?.length) {
         const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
         if (defaultIngredients.length) {
@@ -330,7 +330,7 @@ export const adjustMenuStock = async (req, res) => {
         }
       }
 
-      stockDoc = new MenuStock({ 
+      stockDoc = new MenuStock({
         menuItemId,
         calculatedStock,
         manualStock: manualStock,
@@ -356,10 +356,10 @@ export const adjustMenuStock = async (req, res) => {
     // Handle waste/pengurangan stok dengan ProductStock Movement
     if (reason && wasteQuantity) {
       await handleWasteStockMovement(
-        menuItemId, 
-        wasteQuantity, 
-        reason, 
-        adjustedBy, 
+        menuItemId,
+        wasteQuantity,
+        reason,
+        adjustedBy,
         adjustmentNote,
         previousStock,
         stockDoc.effectiveStock,
@@ -368,6 +368,8 @@ export const adjustMenuStock = async (req, res) => {
     }
 
     await session.commitTransaction();
+    console.log('Stok menu berhasil disesuaikan');
+    io.to('join_cashier_room').emit('update_stock', { message: 'Stock Updated', data: stockDoc });
 
     res.status(200).json({
       success: true,
@@ -388,10 +390,10 @@ export const adjustMenuStock = async (req, res) => {
  * Fungsi untuk menangani waste/pengurangan stok dan mencatat di ProductStock Movement
  */
 const handleWasteStockMovement = async (
-  menuItemId, 
-  wasteQuantity, 
-  reason, 
-  handledBy, 
+  menuItemId,
+  wasteQuantity,
+  reason,
+  handledBy,
   notes,
   previousStock,
   currentStock,
@@ -412,15 +414,15 @@ const handleWasteStockMovement = async (
 
     // Hitung pengurangan bahan berdasarkan waste quantity
     const defaultIngredients = recipe.baseIngredients.filter(ing => ing.isDefault);
-    
+
     for (const ingredient of defaultIngredients) {
       const productId = ingredient.productId;
       const quantityPerPortion = ingredient.quantity;
       const totalWasteQuantity = quantityPerPortion * wasteQuantity;
 
       // Cari atau buat ProductStock untuk product ini
-      let productStock = await ProductStock.findOne({ 
-        productId: productId 
+      let productStock = await ProductStock.findOne({
+        productId: productId
       }).session(session);
 
       if (!productStock) {
@@ -429,7 +431,7 @@ const handleWasteStockMovement = async (
           productId: productId,
           currentStock: 0,
           minStock: 0,
-          warehouse: '68bfb3643cf2055fbfad6a00' 
+          warehouse: '68bfb3643cf2055fbfad6a00'
         });
         await productStock.save({ session });
       }
@@ -491,7 +493,7 @@ const recordMenuStockMovement = async (
     // Jika Anda memiliki schema untuk MenuStockMovement, tambahkan di sini
     // Contoh implementasi:
     const MenuStockMovement = mongoose.model('MenuStockMovement');
-    
+
     const movement = new MenuStockMovement({
       menuItemId: menuItemId,
       type: type,
@@ -505,7 +507,7 @@ const recordMenuStockMovement = async (
     });
 
     await movement.save({ session });
-    
+
   } catch (error) {
     console.error('Error recording menu stock movement:', error);
     // Jangan throw error di sini agar tidak mengganggu proses utama
@@ -540,9 +542,9 @@ export const recordWasteStock = async (req, res) => {
     const validReasons = ['busuk', 'tidak_bagus', 'kedaluwarsa', 'rusak', 'hilang', 'lainnya'];
     if (!validReasons.includes(reason)) {
       await session.abortTransaction();
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Reason tidak valid. Pilihan: busuk, tidak_bagus, kedaluwarsa, rusak, hilang, lainnya' 
+      return res.status(400).json({
+        success: false,
+        message: 'Reason tidak valid. Pilihan: busuk, tidak_bagus, kedaluwarsa, rusak, hilang, lainnya'
       });
     }
 
@@ -559,7 +561,7 @@ export const recordWasteStock = async (req, res) => {
     const newManualStock = Math.max(0, (menuStock.manualStock || menuStock.calculatedStock) - wasteQuantity);
     menuStock.manualStock = newManualStock;
     menuStock.lastAdjustedAt = new Date();
-    
+
     await menuStock.save({ session });
 
     // Update MenuItem
@@ -569,10 +571,10 @@ export const recordWasteStock = async (req, res) => {
 
     // Catat di ProductStock Movement
     await handleWasteStockMovement(
-      menuItemId, 
-      wasteQuantity, 
-      reason, 
-      handledBy, 
+      menuItemId,
+      wasteQuantity,
+      reason,
+      handledBy,
       notes,
       previousStock,
       menuStock.effectiveStock,
@@ -928,9 +930,9 @@ export const getRecipesByProduct = async (req, res) => {
     const { productId } = req.params;
 
     if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'ID Produk tidak valid' 
+      return res.status(400).json({
+        success: false,
+        message: 'ID Produk tidak valid'
       });
     }
 
@@ -942,11 +944,11 @@ export const getRecipesByProduct = async (req, res) => {
         { 'addonOptions.ingredients.productId': productId }
       ]
     })
-    .populate('menuItemId', 'name price category availableStock isActive')
-    .populate('baseIngredients.productId', 'name sku unit suppliers')
-    .populate('toppingOptions.ingredients.productId', 'name sku unit suppliers')
-    .populate('addonOptions.ingredients.productId', 'name sku unit suppliers')
-    .sort({ createdAt: -1 });
+      .populate('menuItemId', 'name price category availableStock isActive')
+      .populate('baseIngredients.productId', 'name sku unit suppliers')
+      .populate('toppingOptions.ingredients.productId', 'name sku unit suppliers')
+      .populate('addonOptions.ingredients.productId', 'name sku unit suppliers')
+      .sort({ createdAt: -1 });
 
     if (!recipesWithProduct.length) {
       return res.status(404).json({
@@ -959,7 +961,7 @@ export const getRecipesByProduct = async (req, res) => {
     // Format response dengan detail penggunaan produk
     const formattedRecipes = recipesWithProduct.map(recipe => {
       const recipeObj = recipe.toObject();
-      
+
       // Cari di baseIngredients
       const inBaseIngredients = recipe.baseIngredients.filter(
         ing => ing.productId && ing.productId._id.toString() === productId
@@ -1043,9 +1045,9 @@ export const getRecipesByProductWithStock = async (req, res) => {
     const { productId } = req.params;
 
     if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'ID Produk tidak valid' 
+      return res.status(400).json({
+        success: false,
+        message: 'ID Produk tidak valid'
       });
     }
 
@@ -1069,11 +1071,11 @@ export const getRecipesByProductWithStock = async (req, res) => {
         { 'addonOptions.ingredients.productId': productId }
       ]
     })
-    .populate('menuItemId', 'name price category availableStock isActive')
-    .populate('baseIngredients.productId', 'name sku unit suppliers')
-    .populate('toppingOptions.ingredients.productId', 'name sku unit suppliers')
-    .populate('addonOptions.ingredients.productId', 'name sku unit suppliers')
-    .sort({ createdAt: -1 });
+      .populate('menuItemId', 'name price category availableStock isActive')
+      .populate('baseIngredients.productId', 'name sku unit suppliers')
+      .populate('toppingOptions.ingredients.productId', 'name sku unit suppliers')
+      .populate('addonOptions.ingredients.productId', 'name sku unit suppliers')
+      .sort({ createdAt: -1 });
 
     if (!recipesWithProduct.length) {
       return res.status(404).json({
@@ -1087,7 +1089,7 @@ export const getRecipesByProductWithStock = async (req, res) => {
     const formattedRecipes = await Promise.all(
       recipesWithProduct.map(async (recipe) => {
         const recipeObj = recipe.toObject();
-        
+
         // Hitung total penggunaan produk dalam recipe
         let totalUsage = 0;
         const usageDetails = [];
@@ -1137,7 +1139,7 @@ export const getRecipesByProductWithStock = async (req, res) => {
         });
 
         // Hitung estimasi porsi yang bisa dibuat berdasarkan stok produk ini
-        const estimatedPortions = productStock?.currentStock 
+        const estimatedPortions = productStock?.currentStock
           ? Math.floor(productStock.currentStock / totalUsage)
           : 0;
 
@@ -1228,11 +1230,11 @@ export const getRecipesByProductName = async (req, res) => {
         { 'addonOptions.ingredients.productId': { $in: productIds } }
       ]
     })
-    .populate('menuItemId', 'name price category availableStock isActive')
-    .populate('baseIngredients.productId', 'name sku unit suppliers')
-    .populate('toppingOptions.ingredients.productId', 'name sku unit suppliers')
-    .populate('addonOptions.ingredients.productId', 'name sku unit suppliers')
-    .sort({ createdAt: -1 });
+      .populate('menuItemId', 'name price category availableStock isActive')
+      .populate('baseIngredients.productId', 'name sku unit suppliers')
+      .populate('toppingOptions.ingredients.productId', 'name sku unit suppliers')
+      .populate('addonOptions.ingredients.productId', 'name sku unit suppliers')
+      .sort({ createdAt: -1 });
 
     if (!recipesWithProducts.length) {
       return res.status(404).json({
@@ -1245,10 +1247,10 @@ export const getRecipesByProductName = async (req, res) => {
     // Format response
     const formattedRecipes = recipesWithProducts.map(recipe => {
       const recipeObj = recipe.toObject();
-      
+
       // Cari semua produk yang match dalam recipe ini
       const matchedProducts = [];
-      
+
       // Base ingredients
       recipe.baseIngredients.forEach(ing => {
         if (ing.productId && productIds.includes(ing.productId._id)) {
@@ -1344,9 +1346,9 @@ export const getProductRecipeUsageSummary = async (req, res) => {
     const { productId } = req.params;
 
     if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'ID Produk tidak valid' 
+      return res.status(400).json({
+        success: false,
+        message: 'ID Produk tidak valid'
       });
     }
 
@@ -1366,7 +1368,7 @@ export const getProductRecipeUsageSummary = async (req, res) => {
         { 'addonOptions.ingredients.productId': productId }
       ]
     })
-    .populate('menuItemId', 'name price category availableStock isActive');
+      .populate('menuItemId', 'name price category availableStock isActive');
 
     const productStock = await ProductStock.findOne({ productId });
 
@@ -1434,7 +1436,7 @@ export const getProductRecipeUsageSummary = async (req, res) => {
           averageUsagePerRecipe: totalRecipes > 0 ? totalUsage / totalRecipes : 0
         },
         stockAnalysis: {
-          estimatedPortions: productStock?.currentStock 
+          estimatedPortions: productStock?.currentStock
             ? Math.floor(productStock.currentStock / totalUsage)
             : 0,
           stockStatus: productStock?.currentStock > 0 ? 'in_stock' : 'out_of_stock',

@@ -82,7 +82,7 @@ class MenuItemCard extends ConsumerWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: _getStockColor(menuItem.stock!),
+                        color: _getStockColor(menuItem.stock?.manualStock ?? 0),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
@@ -93,7 +93,7 @@ class MenuItemCard extends ConsumerWidget {
                         ],
                       ),
                       child: Text(
-                        '${menuItem.stock}',
+                        '${menuItem.stock?.manualStock ?? 0}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 11,

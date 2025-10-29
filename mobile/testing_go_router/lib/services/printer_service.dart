@@ -268,9 +268,13 @@ class PrinterService {
       if (printer.connectionType == 'bluetooth') {
         await connectPrinter(printer);
         for (int i = 0; i < copies; i++) {
-          await PrintBluetoothThermal.writeBytes(bytes);
+          final result = await PrintBluetoothThermal.writeBytes(
+            bytes,
+          ).then((_) => true).catchError((_) => false);
+          if (result) {
+            print('Salinan $i+1 dari $copies untuk $jobType dicetak.');
+          }
         }
-        await disconnectPrinter();
       }
       if (printer.connectionType == 'network') {
         for (int i = 0; i < copies; i++) {
@@ -284,6 +288,12 @@ class PrinterService {
     } catch (e) {
       print('❌ Gagal mencetak $jobType di ${printer.name}: $e');
       return false;
+    } finally {
+      if (printer.connectionType == 'bluetooth') {
+        //delay
+        await Future.delayed(const Duration(seconds: 1));
+        await disconnectPrinter();
+      }
     }
   }
 
@@ -366,16 +376,14 @@ class PrinterService {
       // 2. Siapkan konten
       final List<int> bytes = [];
 
+      // Logo
       bytes.addAll(
-        await basiclogo(
+        await generateOptimizedLogoBytes(
           generator,
-          // 'assets/logo/logo_baraja.svg',
-          // 'assets/logo/logo_baraja.webp',
           'assets/logo/logo_baraja.png',
           paperSize,
         ),
       );
-      bytes.addAll(generator.feed(1));
 
       bytes.addAll(
         generator.text(
@@ -440,14 +448,54 @@ class PrinterService {
 
       bytes.addAll(generator.feed(2));
 
-      final result = await PrintBluetoothThermal.writeBytes(bytes);
-      await disconnectPrinter();
+      final result = await PrintBluetoothThermal.writeBytes(
+        bytes,
+      ).then((_) => true).catchError((_) => false);
+
       return result;
     } catch (e) {
       print('Print error: $e');
-      await disconnectPrinter();
       return false;
+    } finally {
+      //delay
+      await Future.delayed(const Duration(seconds: 1));
+      await disconnectPrinter();
     }
+  }
+
+  static Future<List<int>> printLogo(
+    Generator generator,
+    String assetPath,
+    PaperSize paperSize,
+  ) async {
+    // 1. Baca file sebagai Uint8List
+    final ByteData data = await rootBundle.load(assetPath);
+    final Uint8List imageBytes = data.buffer.asUint8List();
+
+    // 2. Decode gambar menggunakan package 'image'
+    img.Image? image = img.decodeImage(imageBytes);
+    if (image == null) {
+      throw Exception('Gagal mendekode gambar: $assetPath');
+    }
+
+    // 3. Tentukan lebar berdasarkan ukuran kertas
+    int width;
+    switch (paperSize) {
+      case PaperSize.mm58:
+        width = 300;
+        break;
+      case PaperSize.mm80:
+        width = 384; // standar ESC/POS untuk 80mm
+        break;
+      default:
+        width = 300;
+    }
+
+    // 4. Resize gambar agar sesuai (opsional tapi disarankan)
+    image = img.copyResize(image, width: width);
+
+    // 5. Gunakan generator.image()
+    return generator.image(image);
   }
 
   static Future<bool> testNetworkPrint(

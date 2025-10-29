@@ -4,6 +4,7 @@ import Select from "react-select";
 import Datepicker from "react-tailwindcss-datepicker";
 import TransactionModal from "./modal";
 import Paginated from "../../../../components/paginated";
+import StatusCheckboxFilter from "./status_checkbox";
 
 const TypeTransactionTable = ({
     paginatedData,
@@ -88,23 +89,11 @@ const TypeTransactionTable = ({
                             styles={customSelectStyles}
                         />
                     </div>
-                    {/* Status */}
-                    <div className="relative md:w-48 w-full">
-                        <Select
-                            className="text-sm"
-                            classNamePrefix="react-select"
-                            placeholder="Pilih Status"
-                            options={statusOptions}
-                            isSearchable={false}
-                            value={
-                                selectedStatus
-                                    ? statusOptions.find((opt) => opt.value === selectedStatus)
-                                    : statusOptions[0]
-                            }
-                            onChange={handleStatusChange}
-                            styles={customSelectStyles}
-                        />
-                    </div>
+                    {/* Status - Ganti dengan StatusCheckboxFilter */}
+                    <StatusCheckboxFilter
+                        selectedStatus={selectedStatus}
+                        onChange={handleStatusChange}
+                    />
                 </div>
             </div>
             <main className="flex-1 px-6">

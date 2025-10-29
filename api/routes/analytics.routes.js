@@ -1,20 +1,23 @@
 import express from 'express';
 import AnalyticsController from '../controllers/analytics.controller.js';
-import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
-const accountingaccess = verifyToken(['superadmin', 'admin', 'accounting']);
+// Promo & Voucher Analytics
+router.get('/promo-usage', AnalyticsController.promoUsage);
+router.get('/voucher-usage', AnalyticsController.voucherUsage);
+router.get('/revenue-impact', AnalyticsController.revenueImpact);
 
-// router.get('/promo-usage', accountingaccess, AnalyticsController.promoUsage);
-// router.get('/voucher-usage', AnalyticsController.voucherUsage);
-// router.get('/revenue-impact', accountingaccess, AnalyticsController.revenueImpact);
-// router.get('/customer-segmentation', AnalyticsController.customerSegmentation);
-// router.get('/outlet-source', accountingaccess, AnalyticsController.outletAndSource);
-// router.get('/time-performance', accountingaccess, AnalyticsController.timePerformance);
-// router.get('/overview-Metrics', accountingaccess, AnalyticsController.overviewMetrics);
-// router.get('/effectiveness-Analysis', accountingaccess, AnalyticsController.effectivenessAnalysis);
-// router.get('/trend-Analysis', accountingaccess, AnalyticsController.trendAnalysis);
-// router.get('/channel-Performance', accountingaccess, AnalyticsController.channelPerformance);
+// Customer Analytics
+router.get('/customer-segmentation', AnalyticsController.customerSegmentation);
+router.get('/loyalty-performance', AnalyticsController.loyaltyPerformance);
+
+// Business Performance Analytics
+router.get('/outlet-source', AnalyticsController.outletAndSource);
+router.get('/overview-metrics', AnalyticsController.overviewMetrics);
+router.get('/effectiveness', AnalyticsController.effectivenessAnalysis);
+router.get('/trends', AnalyticsController.trendAnalysis);
+router.get('/channel-performance', AnalyticsController.channelPerformance);
+router.get('/time-performance', AnalyticsController.timePerformance);
 
 export default router;
