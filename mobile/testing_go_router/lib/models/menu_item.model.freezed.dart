@@ -27,7 +27,7 @@ mixin _$MenuItemModel {
 @HiveField(12) int? get averageRating;// Tambahkan field baru
 @HiveField(13) int? get reviewCount;// Tambahkan field baru
 @HiveField(14) bool? get isAvailable;// Tambahkan field baru
-@HiveField(15) String? get workstation;@HiveField(16)@JsonKey(name: 'availableStock') int? get stock;
+@HiveField(15) String? get workstation;@HiveField(16) MenuStockModel? get stock;
 /// Create a copy of MenuItemModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -60,11 +60,11 @@ abstract mixin class $MenuItemModelCopyWith<$Res>  {
   factory $MenuItemModelCopyWith(MenuItemModel value, $Res Function(MenuItemModel) _then) = _$MenuItemModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(1) String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? mainCategory,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable,@HiveField(15) String? workstation,@HiveField(16)@JsonKey(name: 'availableStock') int? stock
+@HiveField(1) String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? mainCategory,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable,@HiveField(15) String? workstation,@HiveField(16) MenuStockModel? stock
 });
 
 
-
+$MenuStockModelCopyWith<$Res>? get stock;
 
 }
 /// @nodoc
@@ -95,10 +95,22 @@ as int?,reviewCount: freezed == reviewCount ? _self.reviewCount : reviewCount //
 as int?,isAvailable: freezed == isAvailable ? _self.isAvailable : isAvailable // ignore: cast_nullable_to_non_nullable
 as bool?,workstation: freezed == workstation ? _self.workstation : workstation // ignore: cast_nullable_to_non_nullable
 as String?,stock: freezed == stock ? _self.stock : stock // ignore: cast_nullable_to_non_nullable
-as int?,
+as MenuStockModel?,
   ));
 }
+/// Create a copy of MenuItemModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$MenuStockModelCopyWith<$Res>? get stock {
+    if (_self.stock == null) {
+    return null;
+  }
 
+  return $MenuStockModelCopyWith<$Res>(_self.stock!, (value) {
+    return _then(_self.copyWith(stock: value));
+  });
+}
 }
 
 
@@ -106,7 +118,7 @@ as int?,
 @JsonSerializable()
 
 class _MenuItemModel extends MenuItemModel {
-   _MenuItemModel({@HiveField(1) required this.id, @HiveField(2) this.name = "", @HiveField(3) this.originalPrice = 0, @HiveField(4) this.discountedPrice = 0, @HiveField(5) this.description = "", @HiveField(6) this.mainCategory = "", @HiveField(7) this.subCategory = "", @HiveField(8)@JsonKey(name: 'imageUrl') this.imageURL = "", @HiveField(9) final  List<ToppingModel>? toppings = const [], @HiveField(10) final  List<AddonModel>? addons = const [], @HiveField(11) this.discountPercentage = 0, @HiveField(12) this.averageRating = 0, @HiveField(13) this.reviewCount = 0, @HiveField(14) this.isAvailable = true, @HiveField(15) this.workstation = "", @HiveField(16)@JsonKey(name: 'availableStock') this.stock = 0}): _toppings = toppings,_addons = addons,super._();
+   _MenuItemModel({@HiveField(1) required this.id, @HiveField(2) this.name = "", @HiveField(3) this.originalPrice = 0, @HiveField(4) this.discountedPrice = 0, @HiveField(5) this.description = "", @HiveField(6) this.mainCategory = "", @HiveField(7) this.subCategory = "", @HiveField(8)@JsonKey(name: 'imageUrl') this.imageURL = "", @HiveField(9) final  List<ToppingModel>? toppings = const [], @HiveField(10) final  List<AddonModel>? addons = const [], @HiveField(11) this.discountPercentage = 0, @HiveField(12) this.averageRating = 0, @HiveField(13) this.reviewCount = 0, @HiveField(14) this.isAvailable = true, @HiveField(15) this.workstation = "", @HiveField(16) this.stock = null}): _toppings = toppings,_addons = addons,super._();
   factory _MenuItemModel.fromJson(Map<String, dynamic> json) => _$MenuItemModelFromJson(json);
 
 @override@HiveField(1) final  String id;
@@ -152,7 +164,7 @@ class _MenuItemModel extends MenuItemModel {
 @override@JsonKey()@HiveField(14) final  bool? isAvailable;
 // Tambahkan field baru
 @override@JsonKey()@HiveField(15) final  String? workstation;
-@override@HiveField(16)@JsonKey(name: 'availableStock') final  int? stock;
+@override@JsonKey()@HiveField(16) final  MenuStockModel? stock;
 
 /// Create a copy of MenuItemModel
 /// with the given fields replaced by the non-null parameter values.
@@ -187,11 +199,11 @@ abstract mixin class _$MenuItemModelCopyWith<$Res> implements $MenuItemModelCopy
   factory _$MenuItemModelCopyWith(_MenuItemModel value, $Res Function(_MenuItemModel) _then) = __$MenuItemModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(1) String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? mainCategory,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable,@HiveField(15) String? workstation,@HiveField(16)@JsonKey(name: 'availableStock') int? stock
+@HiveField(1) String id,@HiveField(2) String? name,@HiveField(3) int? originalPrice,@HiveField(4) int? discountedPrice,@HiveField(5) String? description,@HiveField(6) String? mainCategory,@HiveField(7) String? subCategory,@HiveField(8)@JsonKey(name: 'imageUrl') String? imageURL,@HiveField(9) List<ToppingModel>? toppings,@HiveField(10) List<AddonModel>? addons,@HiveField(11) int? discountPercentage,@HiveField(12) int? averageRating,@HiveField(13) int? reviewCount,@HiveField(14) bool? isAvailable,@HiveField(15) String? workstation,@HiveField(16) MenuStockModel? stock
 });
 
 
-
+@override $MenuStockModelCopyWith<$Res>? get stock;
 
 }
 /// @nodoc
@@ -222,11 +234,23 @@ as int?,reviewCount: freezed == reviewCount ? _self.reviewCount : reviewCount //
 as int?,isAvailable: freezed == isAvailable ? _self.isAvailable : isAvailable // ignore: cast_nullable_to_non_nullable
 as bool?,workstation: freezed == workstation ? _self.workstation : workstation // ignore: cast_nullable_to_non_nullable
 as String?,stock: freezed == stock ? _self.stock : stock // ignore: cast_nullable_to_non_nullable
-as int?,
+as MenuStockModel?,
   ));
 }
 
+/// Create a copy of MenuItemModel
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$MenuStockModelCopyWith<$Res>? get stock {
+    if (_self.stock == null) {
+    return null;
+  }
 
+  return $MenuStockModelCopyWith<$Res>(_self.stock!, (value) {
+    return _then(_self.copyWith(stock: value));
+  });
+}
 }
 
 // dart format on

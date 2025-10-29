@@ -367,17 +367,6 @@ class PrinterService {
       final List<int> bytes = [];
 
       bytes.addAll(
-        await basiclogo(
-          generator,
-          // 'assets/logo/logo_baraja.svg',
-          // 'assets/logo/logo_baraja.webp',
-          'assets/logo/logo_baraja.png',
-          paperSize,
-        ),
-      );
-      bytes.addAll(generator.feed(1));
-
-      bytes.addAll(
         generator.text(
           'Bluetooth Printer Test',
           styles: const PosStyles(align: PosAlign.center, bold: true),

@@ -13,6 +13,7 @@ import 'package:kasirbaraja/models/discount.model.dart';
 import 'package:kasirbaraja/models/event.model.dart';
 import 'package:kasirbaraja/models/menu_category.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
+import 'package:kasirbaraja/models/menu_stock.model.dart';
 import 'package:kasirbaraja/models/menu_subcategory.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
@@ -39,6 +40,7 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(EventAdapter());
     registerAdapter(MenuCategoryModelAdapter());
     registerAdapter(MenuItemModelAdapter());
+    registerAdapter(MenuStockModelAdapter());
     registerAdapter(MenuSubCategoryModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());
@@ -67,6 +69,7 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(EventAdapter());
     registerAdapter(MenuCategoryModelAdapter());
     registerAdapter(MenuItemModelAdapter());
+    registerAdapter(MenuStockModelAdapter());
     registerAdapter(MenuSubCategoryModelAdapter());
     registerAdapter(OrderDetailModelAdapter());
     registerAdapter(OrderItemModelAdapter());

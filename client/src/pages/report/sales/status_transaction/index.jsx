@@ -70,9 +70,8 @@ const TypeTransaction = () => {
         documentTitle: `Resi_${selectedTrx?.order_id || "transaksi"}`
     });
 
-    // Options untuk status
+    // Update statusOptions - hapus "Semua Status"
     const statusOptions = [
-        { value: "", label: "Semua Status" },
         { value: "Waiting", label: "Waiting" },
         { value: "Pending", label: "Pending" },
         { value: "OnProcess", label: "OnProcess" },
@@ -80,12 +79,12 @@ const TypeTransaction = () => {
         { value: "Cancelled", label: "Cancelled" },
     ];
 
-    // Initialize from URL params or set default to today
+    // Update initialization dari URL params
     useEffect(() => {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
         const outletParam = searchParams.get('outletId');
-        const statusParam = searchParams.get('status'); // Tambahan untuk status
+        const statusParam = searchParams.get('status');
         const searchParam = searchParams.get('search');
         const pageParam = searchParams.get('page');
 
@@ -105,8 +104,13 @@ const TypeTransaction = () => {
             setSelectedOutlet(outletParam);
         }
 
+        // Update ini untuk handle multiple status dari URL
         if (statusParam) {
-            setSelectedStatus(statusParam);
+            // Jika ada comma, split jadi array, jika tidak jadikan array dengan 1 item
+            const statusArray = statusParam.includes(',')
+                ? statusParam.split(',')
+                : [statusParam];
+            setSelectedStatus(statusArray);
         }
 
         if (searchParam) {
@@ -118,7 +122,7 @@ const TypeTransaction = () => {
         }
     }, []);
 
-    // Update URL when filters change
+    // Update function updateURLParams
     const updateURLParams = (newDateRange, newOutlet, newStatus, newSearch, newPage) => {
         const params = new URLSearchParams();
 
@@ -133,8 +137,9 @@ const TypeTransaction = () => {
             params.set('outletId', newOutlet);
         }
 
-        if (newStatus) {
-            params.set('status', newStatus);
+        // Update ini untuk handle array status
+        if (newStatus && Array.isArray(newStatus) && newStatus.length > 0) {
+            params.set('status', newStatus.join(','));
         }
 
         if (newSearch) {
@@ -147,7 +152,6 @@ const TypeTransaction = () => {
 
         setSearchParams(params);
     };
-
     // Fetch products and outlets data
     const fetchProducts = async () => {
         setLoading(true);
@@ -214,8 +218,19 @@ const TypeTransaction = () => {
         updateURLParams(dateRange, newOutlet, selectedStatus, searchTerm, 1);
     };
 
-    const handleStatusChange = (selected) => {
-        const newStatus = selected.value;
+    const handleStatusChange = (selectedValues) => {
+        let newStatus;
+
+        if (Array.isArray(selectedValues)) {
+            // Dari StatusCheckboxFilter
+            newStatus = selectedValues;
+        } else if (selectedValues && selectedValues.value !== undefined) {
+            // Dari react-select (backward compatibility)
+            newStatus = selectedValues.value ? [selectedValues.value] : [];
+        } else {
+            newStatus = [];
+        }
+
         setSelectedStatus(newStatus);
         setCurrentPage(1);
         updateURLParams(dateRange, selectedOutlet, newStatus, searchTerm, 1);
@@ -233,11 +248,11 @@ const TypeTransaction = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Apply filter function
+    // Update filter logic di applyFilter
     const applyFilter = useCallback(() => {
         let filtered = ensureArray([...products]);
 
-        // Filter by search term (product name, customer, or receipt ID)
+        // Filter by search term
         if (searchTerm) {
             filtered = filtered.filter(product => {
                 try {
@@ -275,11 +290,11 @@ const TypeTransaction = () => {
             });
         }
 
-        // Filter by status
-        if (selectedStatus) {
+        // Update filter by status untuk handle array
+        if (selectedStatus && Array.isArray(selectedStatus) && selectedStatus.length > 0) {
             filtered = filtered.filter(product => {
                 try {
-                    return product.status === selectedStatus;
+                    return selectedStatus.includes(product.status);
                 } catch (err) {
                     console.error("Error filtering by status:", err);
                     return false;
@@ -299,11 +314,9 @@ const TypeTransaction = () => {
                     const startDate = new Date(dateRange.startDate);
                     const endDate = new Date(dateRange.endDate);
 
-                    // Set time to beginning/end of day for proper comparison
                     startDate.setHours(0, 0, 0, 0);
                     endDate.setHours(23, 59, 59, 999);
 
-                    // Check if dates are valid
                     if (isNaN(productDate) || isNaN(startDate) || isNaN(endDate)) {
                         return false;
                     }

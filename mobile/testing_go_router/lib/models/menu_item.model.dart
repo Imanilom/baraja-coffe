@@ -2,6 +2,7 @@
 import 'package:hive_ce/hive.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:kasirbaraja/models/menu_category.model.dart';
+import 'package:kasirbaraja/models/menu_stock.model.dart';
 import 'package:kasirbaraja/models/menu_subcategory.model.dart';
 
 import 'addon.model.dart';
@@ -34,7 +35,7 @@ abstract class MenuItemModel with _$MenuItemModel {
     @HiveField(13) @Default(0) int? reviewCount, // Tambahkan field baru
     @HiveField(14) @Default(true) bool? isAvailable, // Tambahkan field baru
     @HiveField(15) @Default("") String? workstation,
-    @HiveField(16) @Default(0) @JsonKey(name: 'availableStock') int? stock,
+    @HiveField(16) @Default(null) MenuStockModel? stock,
   }) = _MenuItemModel;
 
   MenuItemModel._();
@@ -82,6 +83,9 @@ abstract class MenuItemModel with _$MenuItemModel {
     reviewCount: json['reviewCount'] as int? ?? 0,
     isAvailable: json['isAvailable'] ?? true,
     workstation: json['workstation'] ?? "",
-    stock: json['availableStock'] ?? 0,
+    stock:
+        json['stock'] == null
+            ? null
+            : MenuStockModel.fromJson(json['stock'] as Map<String, dynamic>),
   );
 }

@@ -5363,14 +5363,17 @@ export const getCashierOrderHistory = async (req, res) => {
 // test socket
 export const testSocket = async (req, res) => {
   console.log('Emitting order created to cashier room...');
-  // const cashierRoom = io.to('cashier_room').emit('order_created', { message: 'Order created' });
-  const areaRoom = io.to('group_1').emit('order_created', { message: 'Order created' });
-  const areaRoom2 = io.to('group_2').emit('order_created', { message: 'Order created' });
+  const cashierRoom = io.to('cashier_room').emit('order_created', { message: 'Order created' });
+  // const areaRoom = io.to('group_1').emit('order_created', { message: 'Order created' });
+  // const areaRoom2 = io.to('group_2').emit('order_created', { message: 'Order created' });
+  // const updateStock = io.to('cashier_room').emit('update_stock', { message: 'Stock Updated' });
+
   console.log('Emitting order created to cashier room success.');
 
-  res.status(200).json({ success: { areaRoom, areaRoom2 } });
-  // res.status(200).json({ success: { cashierRoom } });
+  // res.status(200).json({ success: { areaRoom, areaRoom2 } });
+  res.status(200).json({ success: { cashierRoom } });
   // res.status(200).json({ success: { cashierRoom, areaRoom } });
+  // res.status(200).json({ success: { updateStock } });
 }
 
 
