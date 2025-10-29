@@ -36,16 +36,14 @@ dependencies:
   socket_io_client: ^3.1.2
   overlay_support: ^2.1.0
   flutter_local_notifications: ^19.2.1
-  # image: ^4.5.4
-  image: ^3.2.2
+  image: ^4.5.4
+  # image: ^3.2.2
   qr_code_scanner_plus: ^2.0.10+1
   network_info_plus: ^6.1.4
   ping_discover_network_forked: ^0.0.1
   flutter_launcher_icons: ^0.14.4
   fl_chart: ^1.0.0
   uuid: ^4.5.1
-  esc_pos_printer: ^4.1.0
-  esc_pos_utils: ^1.1.0
 
 dependency_overrides:
   image: ^4.5.4

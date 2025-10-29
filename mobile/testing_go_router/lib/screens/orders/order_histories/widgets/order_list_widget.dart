@@ -69,40 +69,17 @@ class OrderListWidget extends ConsumerWidget {
                         elevation: isSelected ? 4 : 1,
                         color: isSelected ? Colors.blue[50] : Colors.white,
                         child: ListTile(
-                          leading: Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: _getStatusColor(order.paymentStatus!),
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: Icon(
-                              _getStatusIcon(order.paymentStatus!),
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                          ),
                           title: Text(
-                            order.orderId!,
+                            order.payment?.map((p) => p.method).join(', ') ??
+                                'No Payment Method',
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${order.user} • ${OrderTypeExtension.orderTypeToJson(order.orderType)}',
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                              Text(
-                                DateFormat(
-                                  'dd MMM yyyy, HH:mm',
-                                ).format(order.createdAt!),
-                                style: TextStyle(
-                                  color: Colors.grey[500],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                          subtitle: Text(
+                            formatRupiah(order.grandTotal),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
                           trailing: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -128,10 +105,12 @@ class OrderListWidget extends ConsumerWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                formatRupiah(order.grandTotal),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green,
+                                DateFormat(
+                                  'dd MMM yyyy, HH:mm',
+                                ).format(order.createdAt!),
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 12,
                                 ),
                               ),
                             ],

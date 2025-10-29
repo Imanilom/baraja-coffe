@@ -609,7 +609,7 @@ class _PrinterHomeScreenState extends ConsumerState<PrinterHomeScreen>
           printer.address,
         );
       } else {
-        success = await PrinterServices.newTestPrint(printer, printer.address);
+        success = await PrinterService.testPrint(printer, printer.address);
       }
 
       if (mounted) {
