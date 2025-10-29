@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AddonModel {
 
-@HiveField(0)@JsonKey(name: '_id') String? get id;@HiveField(1) String? get name;@HiveField(2) String? get type;@HiveField(3) List<AddonOptionModel>? get options;
+@HiveField(0) String? get id;@HiveField(1) String? get name;@HiveField(2) String? get type;@HiveField(3) List<AddonOptionModel>? get options;
 /// Create a copy of AddonModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -49,7 +49,7 @@ abstract mixin class $AddonModelCopyWith<$Res>  {
   factory $AddonModelCopyWith(AddonModel value, $Res Function(AddonModel) _then) = _$AddonModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String? id,@HiveField(1) String? name,@HiveField(2) String? type,@HiveField(3) List<AddonOptionModel>? options
+@HiveField(0) String? id,@HiveField(1) String? name,@HiveField(2) String? type,@HiveField(3) List<AddonOptionModel>? options
 });
 
 
@@ -83,10 +83,10 @@ as List<AddonOptionModel>?,
 @JsonSerializable()
 
 class _AddonModel implements AddonModel {
-   _AddonModel({@HiveField(0)@JsonKey(name: '_id') this.id, @HiveField(1) this.name, @HiveField(2) this.type, @HiveField(3) final  List<AddonOptionModel>? options}): _options = options;
+   _AddonModel({@HiveField(0) this.id, @HiveField(1) this.name, @HiveField(2) this.type, @HiveField(3) final  List<AddonOptionModel>? options}): _options = options;
   factory _AddonModel.fromJson(Map<String, dynamic> json) => _$AddonModelFromJson(json);
 
-@override@HiveField(0)@JsonKey(name: '_id') final  String? id;
+@override@HiveField(0) final  String? id;
 @override@HiveField(1) final  String? name;
 @override@HiveField(2) final  String? type;
  final  List<AddonOptionModel>? _options;
@@ -132,7 +132,7 @@ abstract mixin class _$AddonModelCopyWith<$Res> implements $AddonModelCopyWith<$
   factory _$AddonModelCopyWith(_AddonModel value, $Res Function(_AddonModel) _then) = __$AddonModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String? id,@HiveField(1) String? name,@HiveField(2) String? type,@HiveField(3) List<AddonOptionModel>? options
+@HiveField(0) String? id,@HiveField(1) String? name,@HiveField(2) String? type,@HiveField(3) List<AddonOptionModel>? options
 });
 
 

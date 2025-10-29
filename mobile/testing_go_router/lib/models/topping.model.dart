@@ -10,7 +10,7 @@ part 'topping.model.freezed.dart';
 @HiveType(typeId: 2)
 abstract class ToppingModel with _$ToppingModel {
   const factory ToppingModel({
-    @HiveField(0) @JsonKey(name: '_id') String? id,
+    @HiveField(0) String? id,
     @HiveField(1) String? name,
     @HiveField(2) int? price,
   }) = _ToppingModel;

@@ -54,7 +54,7 @@ class AddonModelAdapter extends TypeAdapter<AddonModel> {
 // **************************************************************************
 
 _AddonModel _$AddonModelFromJson(Map<String, dynamic> json) => _AddonModel(
-  id: json['_id'] as String?,
+  id: json['id'] as String?,
   name: json['name'] as String?,
   type: json['type'] as String?,
   options:
@@ -65,7 +65,7 @@ _AddonModel _$AddonModelFromJson(Map<String, dynamic> json) => _AddonModel(
 
 Map<String, dynamic> _$AddonModelToJson(_AddonModel instance) =>
     <String, dynamic>{
-      '_id': instance.id,
+      'id': instance.id,
       'name': instance.name,
       'type': instance.type,
       'options': instance.options,
