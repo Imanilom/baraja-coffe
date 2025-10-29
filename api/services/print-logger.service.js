@@ -5,17 +5,6 @@ import mongoose from 'mongoose';
 export class PrintLogger {
     static async logPrintAttempt(orderId, item, workstation, printerConfig, stockInfo = {}) {
         try {
-            // // DEBUG: Lihat semua data di item
-            // console.log('🔍 [DEBUG] Full item data received:');
-            // console.log('=========================================');
-            // console.log('Item object:', JSON.stringify(item, null, 2));
-            // console.log('Item keys:', Object.keys(item));
-            // console.log('Item properties:');
-            // for (const key in item) {
-            //     console.log(`  ${key}:`, item[key]);
-            // }
-            // console.log('=========================================');
-
             // FIXED: Gunakan menuItemId untuk mencari stock
             const menuItemId = item.menuItemId || item._id || item.id;
             console.log('🔄 Using menuItemId for stock check:', menuItemId);
@@ -36,19 +25,39 @@ export class PrintLogger {
                 warningNotes = this.generateProblematicWarning(stockInfo.problematic_details, stockStatus);
             }
 
-            // Jika stock tidak available, mark sebagai problematic
+            // Jika stock tidak available, mark sebagai problematic - GUNAKAN manualStock
             if (!stockStatus.available || stockStatus.status === 'out_of_stock') {
                 printStatus = 'printed_with_issues';
                 failureReason = 'stock_unavailable';
                 isProblematic = true;
-                warningNotes = `STOCK ISSUE: Stok efektif ${stockStatus.effectiveStock}, status: ${stockStatus.status}`;
+                warningNotes = `STOCK ISSUE`;
             }
 
-            console.log("menuItemId:", menuItemId, "stockStatus:", stockStatus, "isProblematic:", isProblematic);
+            // Format logging yang konsisten
+            if (isProblematic) {
+                console.log(`⚠️ [PROBLEMATIC PRINT ATTEMPT]
+OrderId: ${orderId}
+menuItemId: ${menuItemId}
+Item: ${item.name}
+Workstation: ${workstation}
+manualStock: ${stockStatus.manualStock}
+effectiveStock: ${stockStatus.effectiveStock}
+Stock Status: ${stockStatus.status}
+Issues: ${warningNotes}`);
+            } else {
+                console.log(`🖨️ [PRINT ATTEMPT]
+OrderId: ${orderId}
+menuItemId: ${menuItemId}
+Item: ${item.name}
+Workstation: ${workstation}
+manualStock: ${stockStatus.manualStock}
+effectiveStock: ${stockStatus.effectiveStock}
+Stock Status: ${stockStatus.status}`);
+            }
 
             const log = new PrintLog({
                 order_id: orderId,
-                item_id: menuItemId, // FIXED: gunakan menuItemId
+                item_id: menuItemId,
                 item_name: item.name,
                 item_quantity: item.qty || item.quantity,
                 workstation: workstation,
@@ -62,7 +71,7 @@ export class PrintLogger {
                 stock_quantity: stockStatus.currentStock,
                 stock_status: stockStatus.status,
                 requires_preparation: stockStatus.requiresPreparation,
-                menu_item_id: menuItemId, // FIXED: gunakan menuItemId
+                menu_item_id: menuItemId,
                 calculated_stock: stockStatus.calculatedStock,
                 manual_stock: stockStatus.manualStock,
                 effective_stock: stockStatus.effectiveStock,
@@ -83,23 +92,13 @@ export class PrintLogger {
             });
 
             const savedLog = await log.save();
-
-            if (isProblematic) {
-                console.log(`⚠️ [PROBLEMATIC PRINT ATTEMPT] Order:${orderId}, Item:${item.name}, ` +
-                    `Workstation:${workstation}, Stock:${stockStatus.effectiveStock} (${stockStatus.status}), Issues:${warningNotes}`);
-            } else {
-                // FIXED: Tampilkan jumlah stok + status
-                console.log(`🖨️ [PRINT ATTEMPT] Order:${orderId}, Item:${item.name}, ` +
-                    `Workstation:${workstation}, Stock:${stockStatus.effectiveStock} (${stockStatus.status})`);
-            }
-
             return savedLog._id;
         } catch (error) {
             console.error('❌ Error logging print attempt:', error);
 
             // Fallback: create minimal log without validation issues
             try {
-                const menuItemId = item.menuItemId || item._id || item.id; // FIXED: di fallback juga
+                const menuItemId = item.menuItemId || item._id || item.id;
                 const fallbackLog = new PrintLog({
                     order_id: orderId,
                     item_id: menuItemId,
@@ -133,7 +132,6 @@ export class PrintLogger {
             if (wasProblematic && log.print_status === 'printed_with_issues') {
                 log.print_duration = duration;
                 log.printed_at = new Date();
-                // Jangan ubah failure_reason untuk problematic items yang berhasil diprint
             } else {
                 // Untuk non-problematic, set sebagai success normal
                 await log.markAsSuccessful(duration);
@@ -142,10 +140,16 @@ export class PrintLogger {
             await log.save();
 
             if (wasProblematic) {
-                console.log(`✅ [PROBLEMATIC PRINT SUCCESS] Order:${log.order_id}, Item:${log.item_name}, ` +
-                    `Duration:${duration}ms - DIPROSES DENGAN CATATAN`);
+                console.log(`✅ [PROBLEMATIC PRINT SUCCESS]
+OrderId: ${log.order_id}
+Item: ${log.item_name}
+Duration: ${duration}ms
+Status: DIPROSES DENGAN CATATAN`);
             } else {
-                console.log(`✅ [PRINT SUCCESS] Order:${log.order_id}, Item:${log.item_name}, Duration:${duration}ms`);
+                console.log(`✅ [PRINT SUCCESS]
+OrderId: ${log.order_id}
+Item: ${log.item_name}
+Duration: ${duration}ms`);
             }
         } catch (error) {
             console.error('❌ Error logging print success:', error);
@@ -165,21 +169,23 @@ export class PrintLogger {
 
             // Tambahkan technical details jika ada
             if (technicalDetails) {
-                updateData.technical_details = JSON.stringify(technicalDetails);
+                updateData.technical_details = technicalDetails;
                 updateData.warning_notes = this.generateTechnicalWarning(technicalDetails);
             }
 
             await PrintLog.findByIdAndUpdate(logId, updateData);
 
-            console.log(`❌ [PRINT FAILURE] ${validReason} - ${details}`,
-                technicalDetails ? `Technical: ${JSON.stringify(technicalDetails)}` : '');
+            console.log(`❌ [PRINT FAILURE]
+Reason: ${validReason}
+Details: ${details}
+Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
         } catch (error) {
             console.error('❌ Error logging print failure:', error);
             throw error;
         }
     }
 
-    // Helper method untuk mapping reason - FIXED: tambahkan lebih banyak mapping
+    // Helper method untuk mapping reason
     static mapToValidFailureReason(reason) {
         const reasonMap = {
             'manual_print_failed': 'manual_print_failed',
@@ -203,77 +209,80 @@ export class PrintLogger {
         const warnings = [];
 
         if (problematicDetails?.issues?.includes('out_of_stock')) {
-            warnings.push(`STOCK KOSONG: Stok efektif ${stockStatus.effectiveStock}, perlu pengecekan manual di dapur`);
+            warnings.push(`STOCK KOSONG`);
         }
 
         if (problematicDetails?.issues?.includes('workstation_mismatch')) {
-            warnings.push(`WORKSTATION MISMATCH: Item mungkin ditujukan untuk workstation lain`);
+            warnings.push(`WORKSTATION MISMATCH`);
         }
 
         if (problematicDetails?.issues?.includes('technical_issue')) {
-            warnings.push(`MASALAH TEKNIS: ${problematicDetails.technicalDetails || 'Periksa koneksi printer'}`);
+            warnings.push(`MASALAH TEKNIS`);
         }
 
-        return warnings.join(' | ') || 'Item bermasalah tetapi tetap diprint';
+        // Tambahkan warning untuk low stock - GUNAKAN manualStock untuk pengecekan
+        if (stockStatus.status === 'low_stock' || stockStatus.status === 'critical_stock') {
+            warnings.push(`STOCK RENDAH`);
+        }
+
+        return warnings.join(', ') || 'Item bermasalah tetapi tetap diprint';
     }
 
     static generateTechnicalWarning(technicalDetails) {
         const warnings = [];
 
         if (technicalDetails.connectionType === 'wifi') {
-            warnings.push(`WIFI ISSUE: IP ${technicalDetails.printerIp}, pastikan printer online`);
+            warnings.push(`WIFI ISSUE: IP ${technicalDetails.printerIp}`);
         }
 
         if (technicalDetails.connectionType === 'bluetooth') {
-            warnings.push(`BLUETOOTH ISSUE: ${technicalDetails.deviceName}, periksa koneksi dan pairing`);
+            warnings.push(`BLUETOOTH ISSUE: ${technicalDetails.deviceName}`);
         }
 
         if (technicalDetails.consecutiveFailures > 0) {
-            warnings.push(`FAILURE COUNT: ${technicalDetails.consecutiveFailures} kali gagal berturut-turut`);
+            warnings.push(`FAILURE COUNT: ${technicalDetails.consecutiveFailures}`);
         }
 
         return warnings.join(' | ');
     }
 
-    // Enhanced stock check method dengan better error handling
+    // Enhanced stock check method dengan better error handling - GUNAKAN manualStock
     static async checkMenuItemStock(menuItemId) {
         try {
-            // console.log('🔍 [STOCK CHECK] Checking stock for menuItemId:', menuItemId);
-
             const menuStock = await mongoose.model('MenuStock').findOne({
                 menuItemId: menuItemId
             });
 
             if (menuStock) {
-                const effectiveStock = menuStock.manualStock !== null ?
-                    menuStock.manualStock : menuStock.calculatedStock;
+                // GUNAKAN manualStock sebagai primary, default ke 0 jika null
+                const manualStock = menuStock.manualStock !== null ? menuStock.manualStock : 0;
+                const calculatedStock = menuStock.calculatedStock || 0;
+
+                // Effective stock sekarang menggunakan manualStock sebagai prioritas
+                const effectiveStock = manualStock !== 0 ? manualStock : calculatedStock;
 
                 const stockStatus = {
                     available: effectiveStock > 0,
                     currentStock: effectiveStock,
-                    status: this.getStockStatus(effectiveStock),
+                    status: this.getStockStatus(manualStock), // GUNAKAN manualStock untuk status
                     requiresPreparation: true,
-                    calculatedStock: menuStock.calculatedStock,
-                    manualStock: menuStock.manualStock,
+                    calculatedStock: calculatedStock,
+                    manualStock: manualStock,
                     effectiveStock: effectiveStock,
                     lastUpdated: menuStock.updatedAt,
-                    isManual: menuStock.manualStock !== null,
-                    needsAttention: effectiveStock <= 5,
-                    critical: effectiveStock === 0
+                    isManual: menuStock.manualStock !== null && menuStock.manualStock !== 0,
+                    needsAttention: manualStock <= 5, // GUNAKAN manualStock untuk pengecekan
+                    critical: manualStock === 0 // GUNAKAN manualStock untuk pengecekan
                 };
 
-                // Log stock status untuk debugging
-                // console.log('✅ [STOCK CHECK] Stock found:', {
-                //     menuItemId: menuItemId,
-                //     effectiveStock: effectiveStock,
-                //     status: stockStatus.status,
-                //     isManual: stockStatus.isManual
-                // });
-
-                if (effectiveStock === 0) {
-                    console.warn(`🚨 CRITICAL STOCK: Menu item ${menuItemId} has 0 effective stock`);
-                } else if (effectiveStock <= 5) {
-                    console.warn(`⚠️ LOW STOCK: Menu item ${menuItemId} has low stock: ${effectiveStock}`);
+                // Log low stock sebagai problematic - GUNAKAN manualStock
+                if (manualStock <= 5) {
+                    console.log(`⚠️ [PROBLEMATIC PRINT ATTEMPT]
+menuItemId: ${menuItemId}
+manualStock: ${stockStatus.manualStock}
+effectiveStock: ${stockStatus.effectiveStock}
+Stock Status: ${stockStatus.status}
+Issues: STOCK RENDAH`);
                 }
 
                 return stockStatus;
@@ -282,12 +291,12 @@ export class PrintLogger {
             // Fallback dengan detailed warning
             console.warn(`⚠️ NO STOCK DATA: No stock data found for menu item: ${menuItemId}`);
             return {
-                available: true, // Default true untuk allow printing
+                available: true,
                 currentStock: 0,
                 status: 'unknown',
                 requiresPreparation: true,
                 calculatedStock: 0,
-                manualStock: null,
+                manualStock: 0, // Default ke 0 bukan null
                 effectiveStock: 0,
                 isManual: false,
                 needsAttention: true,
@@ -298,12 +307,12 @@ export class PrintLogger {
         } catch (error) {
             console.error('❌ Error checking menu item stock:', error);
             return {
-                available: true, // Default true untuk allow printing
+                available: true,
                 currentStock: 0,
                 status: 'error',
                 requiresPreparation: true,
                 calculatedStock: 0,
-                manualStock: null,
+                manualStock: 0, // Default ke 0 bukan null
                 effectiveStock: 0,
                 isManual: false,
                 needsAttention: true,
@@ -313,6 +322,7 @@ export class PrintLogger {
         }
     }
 
+    // Update getStockStatus untuk menggunakan manualStock
     static getStockStatus(stockQuantity) {
         if (stockQuantity === 0) return 'out_of_stock';
         if (stockQuantity <= 2) return 'critical_stock';
@@ -320,6 +330,7 @@ export class PrintLogger {
         if (stockQuantity <= 10) return 'medium_stock';
         return 'in_stock';
     }
+
     // Enhanced analytics untuk problematic items
     static async getProblematicItemsReport(hours = 24) {
         try {

@@ -64,7 +64,7 @@ const printLogSchema = new mongoose.Schema({
     },
     stock_status: {
         type: String,
-        enum: ['in_stock', 'low_stock', 'out_of_stock', 'unknown', 'critical_stock', 'no_check'],
+        enum: ['in_stock', 'medium_stock', 'low_stock', 'critical_stock', 'out_of_stock', 'no_check', 'unknown'],
         default: 'unknown'
     },
     requires_preparation: {

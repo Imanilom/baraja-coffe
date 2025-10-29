@@ -7,13 +7,16 @@ import { MenuItem } from '../../models/MenuItem.model.js';
 import Product from '../../models/modul_market/Product.model.js';
 
 /**
- * UPDATE INVENTORY HANDLER - ENHANCED VERSION
+ * UPDATE INVENTORY HANDLER - ENHANCED VERSION WITH FIXED MENUSTOCK
  * Fitur utama:
  * - ✅ Print semua item meskipun problematic
  * - ✅ Handle stok 0 dengan graceful degradation
  * - ✅ Fix semua jenis error termasuk resep tidak ditemukan
  * - ✅ Optimasi untuk 200+ items
  * - ✅ Enhanced logging dan reporting
+ * - ✅ FIXED: MenuStock currentStock update
+ * - ✅ FIXED: Handle MenuStock yang belum ada
+ * - ✅ FIXED: Validasi stok tidak boleh minus
  */
 export async function updateInventoryHandler({ orderId, items, handledBy }) {
   console.log(`🔄 [ORDER: ${orderId}] Memulai update inventory untuk ${items.length} item`);
@@ -99,8 +102,17 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
         }
       });
 
+      // Buat mapping untuk menu stocks
+      const menuStockMap = new Map();
+      menuStocks.forEach(stock => {
+        if (stock && stock.menuItemId) {
+          menuStockMap.set(stock.menuItemId.toString(), stock);
+        }
+      });
+
       console.log(`📋 Mapping Menu Items: ${menuItemMap.size} items`);
       console.log(`📦 Mapping Products: ${productMap.size} products`);
+      console.log(`🍽️ Mapping Menu Stocks: ${menuStockMap.size} stocks`);
 
       const bulkProductOps = [];
       const bulkMenuStockOps = [];
@@ -270,6 +282,103 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
         }
       };
 
+      // 🔄 ENHANCED MENU STOCK UPDATE FUNCTION
+      const updateMenuStock = (menuItemObjectId, menuItemIdStr, quantity, menuItemName) => {
+        try {
+          const existingStock = menuStockMap.get(menuItemIdStr);
+          const currentManualStock = existingStock?.manualStock ?? null;
+          const currentCalculatedStock = existingStock?.calculatedStock ?? 0;
+          
+          // ✅ VALIDASI STOK TIDAK BOLEH MINUS
+          let newManualStock = currentManualStock;
+          let newCalculatedStock = currentCalculatedStock;
+          let stockReductionType = '';
+
+          if (currentManualStock !== null) {
+            newManualStock = currentManualStock - quantity;
+
+            stockReductionType = 'manual';
+            
+            if (newManualStock < 0) {
+              console.warn(`⚠️ Stok manual ${menuItemName} akan minus, adjust ke 0 (was: ${currentManualStock}, reduce: ${quantity})`);
+              newManualStock = 0;
+            }
+          } else {
+            newCalculatedStock = currentCalculatedStock - quantity;
+
+            stockReductionType = 'calculated';
+            
+            if (newCalculatedStock < 0) {
+              console.warn(`⚠️ Stok calculated ${menuItemName} akan minus, adjust ke 0 (was: ${currentCalculatedStock}, reduce: ${quantity})`);
+              newCalculatedStock = 0;
+            }
+          }
+
+          // ✅ HITUNG EFFECTIVE STOCK BARU
+          const newEffectiveStock = currentManualStock !== null ? newManualStock : newCalculatedStock;
+
+          console.log(`🍽️ Update stok ${menuItemName}: ${stockReductionType} stock, from ${currentManualStock !== null ? currentManualStock : currentCalculatedStock} to ${newEffectiveStock}`);
+
+          // ✅ PREPARE UPDATE OPERATION
+          const updateFields = {
+            $set: {
+              lastAdjustedAt: new Date(),
+              adjustedBy: handledBy || 'system',
+              type: 'sale',
+              reason: 'order_fulfillment'
+            }
+          };
+
+          if (currentManualStock !== null) {
+            updateFields.$set.manualStock = newManualStock;
+            updateFields.$set.currentStock = newManualStock; // ✅ UPDATE CURRENT STOCK
+          } else {
+            updateFields.$set.calculatedStock = newCalculatedStock;
+            updateFields.$set.currentStock = newCalculatedStock; // ✅ UPDATE CURRENT STOCK
+            updateFields.$set.lastCalculatedAt = new Date();
+          }
+
+          // ✅ SETONINSERT FIELDS UNTUK DOKUMEN BARU
+          const setOnInsertFields = {};
+          if (!existingStock) {
+            setOnInsertFields.createdAt = new Date();
+            setOnInsertFields.reason = 'initial_setup';
+            setOnInsertFields.handledBy = 'system';
+            
+            if (currentManualStock === null) {
+              setOnInsertFields.manualStock = null;
+              setOnInsertFields.calculatedStock = newCalculatedStock;
+            }
+          }
+
+          bulkMenuStockOps.push({
+            updateOne: {
+              filter: { menuItemId: menuItemObjectId },
+              update: {
+                ...updateFields,
+                ...(Object.keys(setOnInsertFields).length > 0 && { $setOnInsert: setOnInsertFields })
+              },
+              upsert: true // ✅ BUAT BARU JIKA BELUM ADA
+            }
+          });
+
+          return {
+            success: true,
+            previousStock: currentManualStock !== null ? currentManualStock : currentCalculatedStock,
+            newStock: newEffectiveStock,
+            reductionType: stockReductionType,
+            wasAdjusted: newEffectiveStock < (currentManualStock !== null ? currentManualStock : currentCalculatedStock)
+          };
+
+        } catch (error) {
+          console.error(`❌ Error dalam updateMenuStock untuk ${menuItemName}:`, error.message);
+          return {
+            success: false,
+            error: error.message
+          };
+        }
+      };
+
       // 🔄 PROCESS INDIVIDUAL ITEM - ENHANCED ERROR HANDLING
       for (const item of items) {
         const menuItemObjectId = new mongoose.Types.ObjectId(item.menuItem);
@@ -289,36 +398,11 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
           if (!recipe) {
             console.warn(`⚠️ [SAFE MODE] Resep tidak ditemukan untuk: ${menuItemName} - LANJUTKAN TANPA RESEP`);
 
-            // ✅ TETAP UPDATE STOK MENU MESKIPUN TIDAK ADA RESEP
-            const menuStock = menuStocks.find(ms => ms && ms.menuItemId && ms.menuItemId.toString() === menuItemIdStr);
-            if (menuStock) {
-              if (menuStock.manualStock !== null) {
-                bulkMenuStockOps.push({
-                  updateOne: {
-                    filter: { menuItemId: menuItemObjectId },
-                    update: {
-                      $inc: { manualStock: -item.quantity },
-                      $set: {
-                        lastUpdatedAt: new Date(),
-                        lastNote: 'Updated without recipe - stock only'
-                      }
-                    }
-                  }
-                });
-              } else {
-                bulkMenuStockOps.push({
-                  updateOne: {
-                    filter: { menuItemId: menuItemObjectId },
-                    update: {
-                      $inc: { calculatedStock: -item.quantity },
-                      $set: {
-                        lastCalculatedAt: new Date(),
-                        lastNote: 'Updated without recipe - stock only'
-                      }
-                    }
-                  }
-                });
-              }
+            // ✅ UPDATE STOK MENU MESKIPUN TIDAK ADA RESEP (DENGAN FUNGSI BARU)
+            const stockUpdateResult = updateMenuStock(menuItemObjectId, menuItemIdStr, item.quantity, menuItemName);
+            
+            if (!stockUpdateResult.success) {
+              throw new Error(`Gagal update stok menu: ${stockUpdateResult.error}`);
             }
 
             // ✅ TANDAI SEBAGAI PROBLEMATIC TAPI TETAP SUKSES
@@ -328,7 +412,8 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
               quantity: item.quantity,
               issues: ['RESEP_TIDAK_DITEMUKAN'],
               workstation: workstation,
-              note: 'Diproses tanpa resep - hanya update stok menu'
+              note: 'Diproses tanpa resep - hanya update stok menu',
+              stockUpdate: stockUpdateResult
             });
 
             console.log(`✅ BERHASIL (NO RECIPE): ${menuItemName} - hanya update stok menu`);
@@ -338,7 +423,8 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
               quantity: item.quantity,
               type: 'SUCCESS_WITH_ISSUES',
               workstation: workstation,
-              issues: ['NO_RECIPE']
+              issues: ['NO_RECIPE'],
+              stockUpdate: stockUpdateResult
             });
             continue;
           }
@@ -418,30 +504,11 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
             }
           }
 
-          // ✅ UPDATE STOK MENU ITEM - SELALU DILAKUKAN
-          const menuStock = menuStocks.find(ms => ms && ms.menuItemId && ms.menuItemId.toString() === menuItemIdStr);
-          if (menuStock) {
-            if (menuStock.manualStock !== null) {
-              bulkMenuStockOps.push({
-                updateOne: {
-                  filter: { menuItemId: menuItemObjectId },
-                  update: {
-                    $inc: { manualStock: -item.quantity },
-                    $set: { lastUpdatedAt: new Date() }
-                  }
-                }
-              });
-            } else {
-              bulkMenuStockOps.push({
-                updateOne: {
-                  filter: { menuItemId: menuItemObjectId },
-                  update: {
-                    $inc: { calculatedStock: -item.quantity },
-                    $set: { lastCalculatedAt: new Date() }
-                  }
-                }
-              });
-            }
+          // ✅ UPDATE STOK MENU ITEM - DENGAN FUNGSI BARU YANG LEBIH AMAN
+          const stockUpdateResult = updateMenuStock(menuItemObjectId, menuItemIdStr, item.quantity, menuItemName);
+          
+          if (!stockUpdateResult.success) {
+            throw new Error(`Gagal update stok menu: ${stockUpdateResult.error}`);
           }
 
           // ✅ CHECK JIKA ADA MASALAH DENGAN BAHAN
@@ -456,7 +523,8 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
               quantity: item.quantity,
               issues: ['STOCK_ISSUES'],
               workstation: workstation,
-              note: 'Diproses dengan masalah stok bahan'
+              note: 'Diproses dengan masalah stok bahan',
+              stockUpdate: stockUpdateResult
             });
             console.log(`✅ BERHASIL (WITH STOCK ISSUES): ${menuItemName}`);
             successItems.push({
@@ -465,7 +533,8 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
               quantity: item.quantity,
               type: 'SUCCESS_WITH_ISSUES',
               workstation: workstation,
-              issues: ['STOCK_ISSUES']
+              issues: ['STOCK_ISSUES'],
+              stockUpdate: stockUpdateResult
             });
           } else {
             console.log(`✅ BERHASIL: ${menuItemName} (Qty: ${item.quantity})`);
@@ -474,7 +543,8 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
               menuItemId: item.menuItem,
               quantity: item.quantity,
               type: 'SUCCESS',
-              workstation: workstation
+              workstation: workstation,
+              stockUpdate: stockUpdateResult
             });
           }
 
@@ -508,7 +578,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
       if (bulkMenuStockOps.length > 0) {
         try {
           menuStockUpdateResult = await MenuStock.bulkWrite(bulkMenuStockOps, { session });
-          console.log(`🍽️ Update stok menu: ${menuStockUpdateResult.modifiedCount || 0} dokumen diupdate`);
+          console.log(`🍽️ Update stok menu: ${menuStockUpdateResult.modifiedCount || 0} updated, ${menuStockUpdateResult.upsertedCount || 0} created`);
         } catch (bulkError) {
           console.error('❌ Error dalam bulk menu stock update:', bulkError.message);
           // TETAP LANJUTKAN MESKIPUN ERROR BULK WRITE
@@ -603,7 +673,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
     });
   }
 
-  console.log(`📊 Total update: ${productUpdateResult?.modifiedCount || 0} produk, ${menuStockUpdateResult?.modifiedCount || 0} menu`);
+  console.log(`📊 Total update: ${productUpdateResult?.modifiedCount || 0} produk, ${menuStockUpdateResult?.modifiedCount || 0} menu (${menuStockUpdateResult?.upsertedCount || 0} baru)`);
   console.log(`🔄 Retry attempts: ${retryCount}`);
   console.log(`⏰ Timestamp: ${new Date().toLocaleString('id-ID')}`);
   console.log(`=============================================\n`);
@@ -613,6 +683,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
     orderId,
     productUpdates: productUpdateResult?.modifiedCount || 0,
     menuStockUpdates: menuStockUpdateResult?.modifiedCount || 0,
+    menuStockCreated: menuStockUpdateResult?.upsertedCount || 0,
     successItems: successItems,
     failedItems: failedItems,
     problematicItems: problematicItems,
