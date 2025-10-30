@@ -91,32 +91,19 @@ tableSchema.add({
 
 tableSchema.statics.syncTableStatusWithActiveOrders = async function (outletId) {
   try {
-    const nowWIB = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-    const fourHoursAgo = new Date(nowWIB.getTime() - 4 * 60 * 60 * 1000);
-
-    // ✅ PERBAIKAN: Hanya pertimbangkan order aktif dalam 4 jam terakhir
-    const recentActiveOrders = await mongoose.model('Order').find({
+    // ✅ HAPUS SEMUA FILTER WAKTU - Ambil SEMUA order aktif tanpa batasan
+    const activeOrders = await mongoose.model('Order').find({
       outlet: outletId,
       status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] },
       orderType: { $in: ['Dine-In', 'Reservation'] },
-      tableNumber: { $exists: true, $ne: null },
-      $or: [
-        { createdAtWIB: { $gte: fourHoursAgo } },
-        { updatedAtWIB: { $gte: fourHoursAgo } }
-      ]
+      tableNumber: { $exists: true, $ne: null }
     }).select('tableNumber status orderType order_id');
 
-    const occupiedTableNumbers = recentActiveOrders
+    const occupiedTableNumbers = activeOrders
       .map(order => order.tableNumber?.toUpperCase())
       .filter(Boolean);
 
-    console.log(`📊 Found ${occupiedTableNumbers.length} recently occupied tables:`, occupiedTableNumbers);
-    console.log(`📋 Recent active orders (last 4 hours):`, recentActiveOrders.map(o => ({
-      order_id: o.order_id,
-      table: o.tableNumber,
-      status: o.status,
-      created: o.createdAtWIB
-    })));
+    console.log(`📊 Found ${occupiedTableNumbers.length} occupied tables:`, occupiedTableNumbers);
 
     // Ambil semua meja aktif untuk outlet ini
     const areas = await mongoose.model('Area').find({ outlet_id: outletId }).select('_id');
@@ -137,12 +124,8 @@ tableSchema.statics.syncTableStatusWithActiveOrders = async function (outletId) 
       const shouldBeOccupied = occupiedTableNumbers.includes(tableNumberUpper);
       const currentStatus = table.status;
 
-      // Debug info
-      console.log(`🔍 Table ${table.table_number}: current=${currentStatus}, shouldBeOccupied=${shouldBeOccupied}`);
-
-      // ✅ PERBAIKAN: Hanya update berdasarkan order terbaru
       if (shouldBeOccupied && currentStatus !== 'occupied') {
-        console.log(`🔄 Updating table ${table.table_number} from ${currentStatus} to occupied (has recent active order)`);
+        console.log(`🔄 Updating table ${table.table_number} from ${currentStatus} to occupied`);
 
         table.status = 'occupied';
         table.is_available = false;
@@ -154,8 +137,8 @@ tableSchema.statics.syncTableStatusWithActiveOrders = async function (outletId) 
           fromStatus: currentStatus,
           toStatus: 'occupied',
           updatedBy: 'System Sync',
-          notes: `Auto-sync: Recent active order found`,
-          updatedAt: nowWIB
+          notes: `Auto-sync: Active order found`,
+          updatedAt: new Date()
         });
 
         await table.save();
@@ -164,11 +147,11 @@ tableSchema.statics.syncTableStatusWithActiveOrders = async function (outletId) 
           table: table.table_number,
           from: currentStatus,
           to: 'occupied',
-          reason: 'Recent active order found'
+          reason: 'Active order found'
         });
 
       } else if (!shouldBeOccupied && currentStatus !== 'available') {
-        console.log(`🔄 Updating table ${table.table_number} from ${currentStatus} to available (no recent active orders)`);
+        console.log(`🔄 Updating table ${table.table_number} from ${currentStatus} to available`);
 
         table.status = 'available';
         table.is_available = true;
@@ -180,8 +163,8 @@ tableSchema.statics.syncTableStatusWithActiveOrders = async function (outletId) 
           fromStatus: currentStatus,
           toStatus: 'available',
           updatedBy: 'System Sync',
-          notes: 'Auto-sync: No recent active orders found',
-          updatedAt: nowWIB
+          notes: 'Auto-sync: No active orders found',
+          updatedAt: new Date()
         });
 
         await table.save();
@@ -190,14 +173,12 @@ tableSchema.statics.syncTableStatusWithActiveOrders = async function (outletId) 
           table: table.table_number,
           from: currentStatus,
           to: 'available',
-          reason: 'No recent active orders'
+          reason: 'No active orders'
         });
       }
     }
 
     console.log(`✅ Successfully updated ${updatedCount} tables`);
-    console.log(`📝 Update results:`, updateResults);
-
     return {
       totalTables: allTables.length,
       occupiedTables: occupiedTableNumbers.length,
@@ -211,7 +192,6 @@ tableSchema.statics.syncTableStatusWithActiveOrders = async function (outletId) 
   }
 };
 
-// ✅ METHOD BARU: Force reset table status ke available - IGNORE OLD ORDERS
 tableSchema.statics.forceResetTableStatus = async function (tableNumber, outletId) {
   try {
     console.log(`🔄 Force resetting table ${tableNumber} to available for outlet ${outletId}`);
@@ -230,33 +210,8 @@ tableSchema.statics.forceResetTableStatus = async function (tableNumber, outletI
       throw new Error(`Table ${tableNumber} not found in outlet ${outletId}`);
     }
 
-    // ✅ PERBAIKAN: Cek hanya order aktif dalam 4 jam terakhir
-    const nowWIB = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-    const fourHoursAgo = new Date(nowWIB.getTime() - 4 * 60 * 60 * 1000);
-
-    const recentActiveOrders = await mongoose.model('Order').find({
-      outlet: outletId,
-      tableNumber: tableNumber.toUpperCase(),
-      status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] },
-      orderType: { $in: ['Dine-In', 'Reservation'] },
-      $or: [
-        { createdAtWIB: { $gte: fourHoursAgo } },
-        { updatedAtWIB: { $gte: fourHoursAgo } }
-      ]
-    });
-
-    console.log(`📊 Found ${recentActiveOrders.length} recent active orders for table ${tableNumber}`);
-
+    // ✅ HAPUS CEK ORDER AKTIF - GRO bisa reset kapan saja
     const oldStatus = table.status;
-
-    // ✅ JIKA ADA ORDER AKTIF TERBARU, TOLAK RESET
-    if (recentActiveOrders.length > 0) {
-      console.log(`❌ Cannot reset table ${tableNumber} - has ${recentActiveOrders.length} recent active orders`);
-      throw new Error(`Meja ${tableNumber} memiliki ${recentActiveOrders.length} pesanan aktif dalam 4 jam terakhir. Tidak dapat direset.`);
-    }
-
-    // ✅ JIKA TIDAK ADA ORDER AKTIF TERBARU, LANJUTKAN RESET
-    console.log(`✅ No recent active orders found for table ${tableNumber}, proceeding with reset`);
 
     // Reset ke available
     table.status = 'available';
@@ -268,9 +223,9 @@ tableSchema.statics.forceResetTableStatus = async function (tableNumber, outletI
     table.statusHistory.push({
       fromStatus: oldStatus,
       toStatus: 'available',
-      updatedBy: 'System Force Reset',
-      notes: 'Manual reset by GRO: No recent active orders found',
-      updatedAt: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }))
+      updatedBy: 'GRO Manual Reset',
+      notes: 'Manual reset by GRO - no time restrictions',
+      updatedAt: new Date()
     });
 
     await table.save();
@@ -291,7 +246,6 @@ tableSchema.statics.forceResetTableStatus = async function (tableNumber, outletI
     throw error;
   }
 };
-
 
 const Table = mongoose.model('Table', tableSchema);
 export default Table;

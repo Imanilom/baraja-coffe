@@ -52,14 +52,14 @@ class ToppingModelAdapter extends TypeAdapter<ToppingModel> {
 
 _ToppingModel _$ToppingModelFromJson(Map<String, dynamic> json) =>
     _ToppingModel(
-      id: json['_id'] as String?,
+      id: json['id'] as String?,
       name: json['name'] as String?,
       price: (json['price'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$ToppingModelToJson(_ToppingModel instance) =>
     <String, dynamic>{
-      '_id': instance.id,
+      'id': instance.id,
       'name': instance.name,
       'price': instance.price,
     };

@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ToppingModel {
 
-@HiveField(0)@JsonKey(name: '_id') String? get id;@HiveField(1) String? get name;@HiveField(2) int? get price;
+@HiveField(0) String? get id;@HiveField(1) String? get name;@HiveField(2) int? get price;
 /// Create a copy of ToppingModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -49,7 +49,7 @@ abstract mixin class $ToppingModelCopyWith<$Res>  {
   factory $ToppingModelCopyWith(ToppingModel value, $Res Function(ToppingModel) _then) = _$ToppingModelCopyWithImpl;
 @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String? id,@HiveField(1) String? name,@HiveField(2) int? price
+@HiveField(0) String? id,@HiveField(1) String? name,@HiveField(2) int? price
 });
 
 
@@ -82,10 +82,10 @@ as int?,
 @JsonSerializable()
 
 class _ToppingModel implements ToppingModel {
-  const _ToppingModel({@HiveField(0)@JsonKey(name: '_id') this.id, @HiveField(1) this.name, @HiveField(2) this.price});
+  const _ToppingModel({@HiveField(0) this.id, @HiveField(1) this.name, @HiveField(2) this.price});
   factory _ToppingModel.fromJson(Map<String, dynamic> json) => _$ToppingModelFromJson(json);
 
-@override@HiveField(0)@JsonKey(name: '_id') final  String? id;
+@override@HiveField(0) final  String? id;
 @override@HiveField(1) final  String? name;
 @override@HiveField(2) final  int? price;
 
@@ -122,7 +122,7 @@ abstract mixin class _$ToppingModelCopyWith<$Res> implements $ToppingModelCopyWi
   factory _$ToppingModelCopyWith(_ToppingModel value, $Res Function(_ToppingModel) _then) = __$ToppingModelCopyWithImpl;
 @override @useResult
 $Res call({
-@HiveField(0)@JsonKey(name: '_id') String? id,@HiveField(1) String? name,@HiveField(2) int? price
+@HiveField(0) String? id,@HiveField(1) String? name,@HiveField(2) int? price
 });
 
 

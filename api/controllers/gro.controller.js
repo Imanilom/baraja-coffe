@@ -294,11 +294,15 @@ export const getTableOrderDetail = async (req, res) => {
 
 // ✅ PUT /api/gro/tables/:tableNumber/force-reset - Force reset table status
 export const forceResetTableStatus = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { tableNumber } = req.params;
     const { outletId } = req.body;
 
     if (!outletId) {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         message: 'Outlet ID is required'
@@ -307,21 +311,87 @@ export const forceResetTableStatus = async (req, res) => {
 
     console.log(`🔄 Force resetting table ${tableNumber} for outlet ${outletId}`);
 
-    const result = await Table.forceResetTableStatus(tableNumber, outletId);
+    // ✅ 1. Cari dan batalkan order aktif yang terkait dengan meja ini
+    const activeOrders = await Order.find({
+      tableNumber: tableNumber.toUpperCase(),
+      outlet: outletId,
+      status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] }
+    }).session(session);
+
+    console.log(`📋 Found ${activeOrders.length} active orders for table ${tableNumber}`);
+
+    // ✅ 2. Batalkan semua order aktif
+    for (const order of activeOrders) {
+      order.status = 'Canceled';
+      order.updatedAtWIB = getWIBNow();
+
+      const cancelNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Order dibatalkan secara paksa oleh sistem saat membebaskan meja`;
+      order.notes = (order.notes || '') + cancelNote;
+
+      await order.save({ session });
+      console.log(`✅ Cancelled order: ${order.order_id}`);
+    }
+
+    // ✅ 3. Reset status meja
+    const table = await Table.findOne({
+      table_number: tableNumber.toUpperCase(),
+      is_active: true
+    }).session(session);
+
+    if (!table) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: `Table ${tableNumber} not found`
+      });
+    }
+
+    const oldStatus = table.status;
+    table.status = 'available';
+    table.updatedAt = new Date();
+
+    // Add to status history
+    if (!table.statusHistory) {
+      table.statusHistory = [];
+    }
+
+    table.statusHistory.push({
+      fromStatus: oldStatus,
+      toStatus: 'available',
+      updatedBy: 'System Force Reset',
+      notes: `Table force reset - ${activeOrders.length} orders cancelled`,
+      updatedAt: getWIBNow()
+    });
+
+    await table.save({ session });
+
+    await session.commitTransaction();
+
+    console.log(`✅ Table ${tableNumber} force reset completed. Status: ${oldStatus} → available`);
 
     res.json({
       success: true,
-      message: `Table ${tableNumber} berhasil direset ke status available`,
-      data: result
+      message: `Table ${tableNumber} berhasil direset ke status available. ${activeOrders.length} orders dibatalkan.`,
+      data: {
+        table: {
+          table_number: table.table_number,
+          old_status: oldStatus,
+          new_status: 'available'
+        },
+        cancelled_orders: activeOrders.length
+      }
     });
 
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error force resetting table:', error);
     res.status(500).json({
       success: false,
       message: 'Error resetting table status',
       error: error.message
     });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -2242,7 +2312,6 @@ export const closeOpenBill = async (req, res) => {
   }
 };
 
-// ✅ GET /api/gro/tables/available - Get semua meja tersedia di semua area
 export const getAllAvailableTables = async (req, res) => {
   try {
     const { outletId } = req.query;
@@ -2254,25 +2323,13 @@ export const getAllAvailableTables = async (req, res) => {
       });
     }
 
-    // Ambil semua pesanan aktif
-    const nowWIB = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-    // ✅ PERBAIKAN: Ambil hanya pesanan aktif dalam 4 jam terakhir
-    const fourHoursAgo = new Date(new Date().getTime() - 4 * 60 * 60 * 1000);
-
-    const orderFilter = {
+    // ✅ HAPUS FILTER WAKTU - Ambil semua order aktif
+    const activeOrders = await Order.find({
       outlet: outletId,
-      orderType: { $in: ['Dine-In', 'Reservation'] },
       status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] },
-      tableNumber: { $exists: true, $ne: null, $ne: '' },
-      $or: [
-        { createdAtWIB: { $gte: fourHoursAgo } },
-        { updatedAtWIB: { $gte: fourHoursAgo } }
-      ]
-    };
-
-    const activeOrders = await Order.find(orderFilter)
-      .select('tableNumber status orderType order_id user createdAtWIB updatedAtWIB')
-      .lean();
+      orderType: { $in: ['Dine-In', 'Reservation'] },
+      tableNumber: { $exists: true, $ne: null, $ne: '' }
+    }).select('tableNumber status orderType order_id user');
 
     const occupiedTableNumbers = new Set(
       activeOrders.map(order => order.tableNumber?.toUpperCase()).filter(Boolean)
@@ -2417,32 +2474,13 @@ export const getTableAvailability = async (req, res) => {
 
     console.log(`📅 Found ${reservations.length} reservations for the date`);
 
-    // ✅ PERBAIKAN: Ambil SEMUA pesanan aktif (dengan filter yang lebih akurat)
-    const orderFilter = {
+    // ✅ PERBAIKAN: Ambil SEMUA pesanan aktif TANPA FILTER WAKTU
+    const activeOrders = await Order.find({
       outlet: outletId,
-      orderType: { $in: ['Dine-In', 'Reservation'] },
       status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] },
+      orderType: { $in: ['Dine-In', 'Reservation'] },
       tableNumber: { $exists: true, $ne: null, $ne: '' }
-    };
-
-    // Filter by date range untuk orders
-    const dateFilter = {
-      $or: [
-        { createdAtWIB: { $gte: startOfDay, $lte: endOfDay } },
-        { updatedAtWIB: { $gte: startOfDay, $lte: endOfDay } },
-        {
-          // Untuk orders yang masih aktif dari hari sebelumnya
-          status: { $in: ['OnProcess', 'Reserved'] },
-          createdAtWIB: { $lt: startOfDay }
-        }
-      ]
-    };
-
-    orderFilter.$and = [dateFilter];
-
-    const activeOrders = await Order.find(orderFilter)
-      .select('tableNumber status orderType order_id user createdAtWIB updatedAtWIB')
-      .lean();
+    }).select('tableNumber status orderType order_id user createdAtWIB updatedAtWIB');
 
     console.log(`🍽️ Found ${activeOrders.length} active orders`);
 
@@ -2610,7 +2648,7 @@ export const getTableAvailability = async (req, res) => {
                 toStatus: inc.expected_status,
                 updatedBy: 'System Auto-Repair',
                 notes: `Auto-repair: ${inc.active_orders.length} active orders found`,
-                updatedAt: getWIBNow()
+                updatedAt: new Date()
               });
 
               await table.save();
