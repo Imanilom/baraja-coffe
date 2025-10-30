@@ -7,24 +7,19 @@ import { MenuItem } from '../../models/MenuItem.model.js';
 import Product from '../../models/modul_market/Product.model.js';
 
 /**
- * UPDATE INVENTORY HANDLER - ENHANCED VERSION WITH FIXED MENUSTOCK
- * Fitur utama:
- * - ✅ Print semua item meskipun problematic
- * - ✅ Handle stok 0 dengan graceful degradation
- * - ✅ Fix semua jenis error termasuk resep tidak ditemukan
- * - ✅ Optimasi untuk 200+ items
- * - ✅ Enhanced logging dan reporting
- * - ✅ FIXED: MenuStock currentStock update
- * - ✅ FIXED: Handle MenuStock yang belum ada
- * - ✅ FIXED: Validasi stok tidak boleh minus
+ * UPDATE INVENTORY HANDLER - ENHANCED VERSION WITH FIXED VARIABLE SCOPE
  */
 export async function updateInventoryHandler({ orderId, items, handledBy }) {
   console.log(`🔄 [ORDER: ${orderId}] Memulai update inventory untuk ${items.length} item`);
 
   const session = await mongoose.startSession();
+  
+  // ✅ PERBAIKAN: Deklarasi variabel di scope yang tepat
   let failedItems = [];
   let successItems = [];
   let problematicItems = [];
+  let productUpdateResult = null; // ✅ DIPINDAH KE SCOPE YANG LEBIH LUAS
+  let menuStockUpdateResult = null; // ✅ DIPINDAH KE SCOPE YANG LEBIH LUAS
 
   // Retry mechanism untuk handle write conflicts
   const MAX_RETRIES = 3;
@@ -562,9 +557,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
       }
 
       // ✅ EXECUTE BULK OPERATIONS MESKIPUN ADA FAILED ITEMS
-      let productUpdateResult = null;
-      let menuStockUpdateResult = null;
-
+      // ✅ PERBAIKAN: Variabel sudah dideklarasikan di scope yang lebih luas
       if (bulkProductOps.length > 0) {
         try {
           productUpdateResult = await ProductStock.bulkWrite(bulkProductOps, { session });
@@ -673,6 +666,7 @@ export async function updateInventoryHandler({ orderId, items, handledBy }) {
     });
   }
 
+  // ✅ PERBAIKAN: Sekarang variabel bisa diakses karena di scope yang sama
   console.log(`📊 Total update: ${productUpdateResult?.modifiedCount || 0} produk, ${menuStockUpdateResult?.modifiedCount || 0} menu (${menuStockUpdateResult?.upsertedCount || 0} baru)`);
   console.log(`🔄 Retry attempts: ${retryCount}`);
   console.log(`⏰ Timestamp: ${new Date().toLocaleString('id-ID')}`);

@@ -188,10 +188,25 @@ export async function createMidtransCoreTransaction(orderId, amount, paymentMeth
  * Buat transaksi Midtrans untuk Web (Snap API)
  */
 export async function createMidtransSnapTransaction(orderId, amount, customer, paymentMethod) {
+  // Validasi dan konversi amount ke number
+  if (typeof amount !== 'number') {
+    console.warn('Amount is not number, converting:', typeof amount, amount);
+    amount = Number(amount);
+    
+    if (isNaN(amount)) {
+      throw new Error(`Invalid amount value: ${amount}`);
+    }
+  }
+
+  // Validasi amount minimal
+  if (amount <= 0) {
+    throw new Error(`Amount must be greater than 0: ${amount}`);
+  }
+
   const parameter = {
     transaction_details: {
       order_id: orderId,
-      gross_amount: amount
+      gross_amount: amount // HARUS number
     },
     customer_details: {
       first_name: customer.name || 'Customer',
@@ -201,23 +216,16 @@ export async function createMidtransSnapTransaction(orderId, amount, customer, p
     credit_card: {
       secure: true
     },
-    // ✅ PERBAIKAN: Konfigurasi untuk menampilkan QR Code
     enabled_payments: getMidtransPaymentMethods(paymentMethod),
-
-    // ✅ TAMBAHAN: Konfigurasi khusus untuk QRIS/GoPay/OVO
     gopay: {
       enable_callback: true,
       callback_url: `${process.env.BASE_URL}/api/payment/callback`
     },
-
-    // ✅ TAMBAHAN: Custom expiry untuk QR Code
     custom_expiry: {
       order_time: new Date().toISOString(),
-      expiry_duration: 30, // 30 menit
+      expiry_duration: 30,
       unit: "minute"
     },
-
-    // ✅ TAMBAHAN: Callbacks untuk update status
     callbacks: {
       finish: `https://order.barajacoffee.com/order-status.php`,
       error: `https://order.barajacoffee.com/order-status.php`,
@@ -225,13 +233,29 @@ export async function createMidtransSnapTransaction(orderId, amount, customer, p
     }
   };
 
+  // Log parameter untuk debugging
+  console.log('Midtrans SNAP Parameters:', {
+    orderId,
+    gross_amount: parameter.transaction_details.gross_amount,
+    gross_amount_type: typeof parameter.transaction_details.gross_amount,
+    customer: parameter.customer_details,
+    enabled_payments: parameter.enabled_payments
+  });
+
   try {
     const snapResponse = await snap.createTransaction(parameter);
-    console.log('✅ Midtrans SNAP created:', snapResponse);
-    return snapResponse; // HARUS mengandung: { token, redirect_url }
+    console.log('✅ Midtrans SNAP created successfully:', {
+      token: snapResponse.token ? 'YES' : 'NO',
+      redirect_url: snapResponse.redirect_url ? 'YES' : 'NO'
+    });
+    return snapResponse;
   } catch (error) {
-    console.error('❌ Midtrans SNAP Error:', error);
-    throw new Error('Failed to create Midtrans payment');
+    console.error('❌ Midtrans SNAP Error:', {
+      message: error.message,
+      httpStatusCode: error.httpStatusCode,
+      apiResponse: error.ApiResponse
+    });
+    throw new Error(`Failed to create Midtrans payment: ${error.message}`);
   }
 }
 
