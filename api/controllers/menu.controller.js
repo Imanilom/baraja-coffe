@@ -885,84 +885,260 @@ export const getMenuItemById = async (req, res) => {
   }
 };
 
-// Get menu items by category
+// Get menu items by category (only those with recipes)
 export const getMenuItemsByCategory = async (req, res) => {
+  const { categoryId } = req.params;
+  const cacheKey = `menu_items_category_${categoryId}_with_recipes`;
+
   try {
-    const { categoryId } = req.params;
+    // Validasi categoryId
     if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-      return res.status(400).json({ success: false, message: 'Invalid category ID' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid category ID' 
+      });
     }
 
-    const menuItems = await MenuItem.find({
-      $or: [
-        { category: categoryId },
-        { subCategory: categoryId }
-      ]
-    })
-      .populate([
-        { path: 'category', select: 'name' },
-        { path: 'subCategory', select: 'name' },
-        { path: 'availableAt' },
-        { path: 'toppings' },
-        {
-          path: 'addons',
-          populate: { path: 'options' }
+    // Cek cache terlebih dahulu
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return res.status(200).json(JSON.parse(cached));
+      }
+    } catch (cacheErr) {
+      console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
+    }
+
+    // Gunakan aggregation pipeline untuk efisiensi
+    const menuItems = await MenuItem.aggregate([
+      {
+        $match: {
+          isActive: true,
+          $or: [
+            { category: new mongoose.Types.ObjectId(categoryId) },
+            { subCategory: new mongoose.Types.ObjectId(categoryId) }
+          ]
         }
-      ]);
+      },
+      {
+        $lookup: {
+          from: "recipes",
+          localField: "_id",
+          foreignField: "menuItemId",
+          as: "recipe"
+        }
+      },
+      {
+        $match: {
+          "recipe.0": { $exists: true } // Hanya yang memiliki resep
+        }
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category"
+        }
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "subCategory",
+          foreignField: "_id",
+          as: "subCategory"
+        }
+      },
+      {
+        $lookup: {
+          from: "outlets",
+          localField: "availableAt",
+          foreignField: "_id",
+          as: "availableAt"
+        }
+      },
+      {
+        $lookup: {
+          from: "menustocks",
+          localField: "_id",
+          foreignField: "menuItemId",
+          as: "stockInfo"
+        }
+      },
+      {
+        $lookup: {
+          from: "menuratings",
+          let: { menuItemId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$menuItemId", "$$menuItemId"] },
+                isActive: true
+              }
+            }
+          ],
+          as: "ratings"
+        }
+      },
+      {
+        $project: {
+          name: 1,
+          mainCategory: 1,
+          imageURL: 1,
+          price: 1,
+          discountedPrice: 1,
+          description: 1,
+          discount: 1,
+          toppings: 1,
+          addons: 1,
+          availableAt: 1,
+          workstation: 1,
+          isActive: 1,
+          category: { $arrayElemAt: ["$category", 0] },
+          subCategory: { $arrayElemAt: ["$subCategory", 0] },
+          recipe: 1,
+          stockData: {
+            $cond: {
+              if: { $gt: [{ $size: "$stockInfo" }, 0] },
+              then: { $arrayElemAt: ["$stockInfo", 0] },
+              else: {
+                calculatedStock: 0,
+                manualStock: 0,
+                currentStock: 0,
+                effectiveStock: 0
+              }
+            }
+          },
+          averageRating: {
+            $cond: {
+              if: { $gt: [{ $size: "$ratings" }, 0] },
+              then: {
+                $round: [
+                  { $divide: [{ $sum: "$ratings.rating" }, { $size: "$ratings" }] },
+                  1
+                ]
+              },
+              else: null
+            }
+          },
+          reviewCount: { $size: "$ratings" }
+        }
+      },
+      { $sort: { name: 1 } }
+    ]);
 
-    if (!menuItems || menuItems.length === 0) {
-      return res.status(404).json({ success: false, message: 'No menu items found for this category' });
-    }
+    // Populate addons options dan toppings
+    const populatedMenuItems = await MenuItem.populate(menuItems, [
+      {
+        path: "addons",
+        populate: { path: "options" }
+      },
+      {
+        path: "toppings"
+      }
+    ]);
 
-    const menuItemIds = menuItems.map(mi => mi._id.toString());
-    const ratings = await MenuRating.find({
-      menuItemId: { $in: menuItemIds },
-      isActive: true
-    });
+    const formattedMenuItems = populatedMenuItems.map((item) => {
+      // ✅ HANDLE NULL/UNDEFINED STOCK - SEMUA JADI 0
+      const safeCalculatedStock = item.stockData?.calculatedStock ?? 0;
+      const safeManualStock = item.stockData?.manualStock ?? 0;
+      
+      // ✅ LOGIC PRIORITAS: manualStock dulu, baru calculatedStock
+      const effectiveStock = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
+        ? safeManualStock 
+        : safeCalculatedStock;
+      
+      // ✅ CurrentStock harus sama dengan effectiveStock (sesuai prioritas)
+      const safeCurrentStock = effectiveStock;
 
-    const ratingMap = {};
-    ratings.forEach(r => {
-      const id = r.menuItemId.toString();
-      if (!ratingMap[id]) ratingMap[id] = [];
-      ratingMap[id].push(r.rating);
-    });
+      // ✅ Handle null untuk dates
+      const lastCalculatedAt = item.stockData?.lastCalculatedAt || null;
+      const lastAdjustedAt = item.stockData?.lastAdjustedAt || null;
 
-    const formattedData = menuItems.map(item => {
-      const itemId = item._id.toString();
-      const itemRatings = ratingMap[itemId] || [];
-
-      const averageRating = itemRatings.length > 0
-        ? Math.round((itemRatings.reduce((sum, r) => sum + r, 0) / itemRatings.length) * 10) / 10
-        : null;
-
-      const reviewCount = itemRatings.length;
+      // ✅ Tentukan stock source untuk informasi
+      const stockSource = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
+        ? 'manual'
+        : 'calculated';
 
       return {
         id: item._id,
         name: item.name,
-        price: item.price,
-        description: item.description,
+        mainCategory: item.mainCategory,
         category: item.category ? { id: item.category._id, name: item.category.name } : null,
         subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
-        imageURL: item.imageURL,
-        averageRating,
-        reviewCount,
-        toppings: item.toppings,
-        addons: item.addons,
-        availableAt: item.availableAt.map(outlet => outlet.toObject())
+        imageUrl: item.imageURL,
+        originalPrice: item.price,
+        discountedPrice: item.discountedPrice || item.price,
+        description: item.description,
+        discountPercentage: item.discount ? `${item.discount}%` : null,
+        averageRating: item.averageRating,
+        reviewCount: item.reviewCount,
+        stock: {
+          calculatedStock: safeCalculatedStock,
+          manualStock: safeManualStock,
+          effectiveStock: effectiveStock,
+          currentStock: safeCurrentStock, // ✅ Sama dengan effectiveStock
+          isAvailable: effectiveStock > 0,
+          stockSource: stockSource, // ✅ Tambahan info sumber stok
+          lastCalculatedAt: lastCalculatedAt,
+          lastAdjustedAt: lastAdjustedAt
+        },
+        toppings: item.toppings ? item.toppings.map((topping) => ({
+          id: topping._id,
+          name: topping.name,
+          price: topping.price || 0,
+        })) : [],
+        addons: item.addons ? item.addons.map((addon) => ({
+          id: addon._id,
+          name: addon.name,
+          options: addon.options ? addon.options.map((opt) => ({
+            id: opt._id,
+            label: opt.label,
+            price: opt.price || 0,
+            isDefault: opt.isDefault || false,
+          })) : [],
+        })) : [],
+        availableAt: item.availableAt || [],
+        workstation: item.workstation,
+        isActive: item.isActive,
+        hasRecipe: true,
+        recipeCount: item.recipe ? item.recipe.length : 0
       };
     });
 
-    res.status(200).json({ success: true, data: formattedData });
+    const responsePayload = {
+      success: true,
+      data: formattedMenuItems,
+      meta: {
+        total: formattedMenuItems.length,
+        categoryId: categoryId,
+        hasRecipes: true,
+        withStockInfo: true,
+        message: formattedMenuItems.length > 0 
+          ? `Found ${formattedMenuItems.length} menu items with recipes in this category`
+          : "No menu items with recipes found for this category"
+      }
+    };
+
+    // Simpan hasil ke Redis
+    try {
+      await redis.set(cacheKey, JSON.stringify(responsePayload), "EX", 300);
+    } catch (cacheErr) {
+      console.warn("⚠️ Redis write error:", cacheErr.message);
+    }
+
+    return res.status(200).json(responsePayload);
+
   } catch (error) {
-    console.error('Error fetching menu by category:', error);
-    res.status(500).json({
+    console.error('❌ Error fetching menu by category with recipes:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Failed to fetch menu by category',
+      message: 'Failed to fetch menu items by category with recipes',
       error: error.message,
     });
   }
 };
+
 
 // Update menu item
 export const updateMenuItem = async (req, res) => {

@@ -712,6 +712,573 @@ class LoyaltyAnalyticsService {
 }
 
 /**
+ * Service class untuk category analytics
+ */
+class CategoryAnalyticsService {
+  
+  /**
+   * Analytics berdasarkan main kategori
+   */
+  static async getMainCategoryAnalytics(req, res) {
+    try {
+      const { startDate, endDate, outletId, groupBy = 'mainCategory' } = req.query;
+      
+      const matchStage = {};
+      
+      // Filter berdasarkan tanggal
+      if (startDate || endDate) {
+        matchStage.createdAt = {};
+        if (startDate) matchStage.createdAt.$gte = new Date(startDate);
+        if (endDate) matchStage.createdAt.$lte = new Date(endDate);
+      }
+      
+      if (outletId) matchStage.outlet = outletId;
+
+      const analytics = await Order.aggregate([
+        { $match: matchStage },
+        { $unwind: "$items" },
+        {
+          $lookup: {
+            from: "menuitems",
+            localField: "items.menuItem",
+            foreignField: "_id",
+            as: "menuItemData"
+          }
+        },
+        { $unwind: "$menuItemData" },
+        {
+          $group: {
+            _id: `$${groupBy === 'subCategory' ? 'menuItemData.subCategory' : 'menuItemData.mainCategory'}`,
+            totalQuantity: { $sum: "$items.quantity" },
+            totalRevenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } },
+            totalOrders: { $addToSet: "$_id" },
+            uniqueCustomers: { $addToSet: "$user_id" },
+            avgPrice: { $avg: "$items.price" },
+            minPrice: { $min: "$items.price" },
+            maxPrice: { $max: "$items.price" },
+            totalCost: {
+              $sum: {
+                $multiply: [
+                  "$items.quantity",
+                  { $ifNull: ["$menuItemData.costPrice", 0] }
+                ]
+              }
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: groupBy === 'subCategory' ? "categories" : "menuitems",
+            localField: "_id",
+            foreignField: groupBy === 'subCategory' ? "_id" : "mainCategory",
+            as: "categoryInfo"
+          }
+        },
+        {
+          $project: {
+            categoryId: "$_id",
+            categoryName: {
+              $cond: {
+                if: { $eq: [groupBy, 'subCategory'] },
+                then: { $arrayElemAt: ["$categoryInfo.name", 0] },
+                else: "$_id"
+              }
+            },
+            mainCategory: {
+              $cond: {
+                if: { $eq: [groupBy, 'subCategory'] },
+                then: { $arrayElemAt: ["$categoryInfo.mainCategory", 0] },
+                else: "$_id"
+              }
+            },
+            totalQuantity: 1,
+            totalRevenue: 1,
+            totalCost: 1,
+            totalOrders: { $size: "$totalOrders" },
+            uniqueCustomers: { $size: "$uniqueCustomers" },
+            avgPrice: { $round: ["$avgPrice", 2] },
+            priceRange: {
+              min: { $round: ["$minPrice", 2] },
+              max: { $round: ["$maxPrice", 2] }
+            },
+            // Profit calculations
+            grossProfit: { $subtract: ["$totalRevenue", "$totalCost"] },
+            profitMargin: {
+              $cond: [
+                { $eq: ["$totalRevenue", 0] },
+                0,
+                { $multiply: [{ $divide: [{ $subtract: ["$totalRevenue", "$totalCost"] }, "$totalRevenue"] }, 100] }
+              ]
+            },
+            // Performance metrics
+            revenuePerOrder: {
+              $cond: [
+                { $eq: [{ $size: "$totalOrders" }, 0] },
+                0,
+                { $divide: ["$totalRevenue", { $size: "$totalOrders" }] }
+              ]
+            },
+            avgQuantityPerOrder: {
+              $cond: [
+                { $eq: [{ $size: "$totalOrders" }, 0] },
+                0,
+                { $divide: ["$totalQuantity", { $size: "$totalOrders" }] }
+              ]
+            }
+          }
+        },
+        { $sort: { totalRevenue: -1 } }
+      ]);
+
+      // Generate insights
+      const insights = this.generateCategoryInsights(analytics, groupBy);
+
+      res.json({
+        success: true,
+        data: analytics,
+        insights,
+        metadata: {
+          totalCategories: analytics.length,
+          period: { startDate, endDate },
+          filters: { outletId, groupBy }
+        }
+      });
+
+    } catch (err) {
+      console.error('Main Category Analytics Error:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Trend analysis untuk kategori
+   */
+  static async getCategoryTrends(req, res) {
+    try {
+      const { period = 'monthly', mainCategory, limit = 10 } = req.query;
+      
+      const format = period === 'weekly' ? '%Y-%U' : '%Y-%m';
+      
+      const matchStage = {};
+      if (mainCategory) matchStage["menuItemData.mainCategory"] = mainCategory;
+
+      const trends = await Order.aggregate([
+        { $unwind: "$items" },
+        {
+          $lookup: {
+            from: "menuitems",
+            localField: "items.menuItem",
+            foreignField: "_id",
+            as: "menuItemData"
+          }
+        },
+        { $unwind: "$menuItemData" },
+        { $match: matchStage },
+        {
+          $group: {
+            _id: {
+              period: { $dateToString: { format, date: "$createdAt" } },
+              mainCategory: "$menuItemData.mainCategory"
+            },
+            totalQuantity: { $sum: "$items.quantity" },
+            totalRevenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } },
+            totalOrders: { $addToSet: "$_id" },
+            avgPrice: { $avg: "$items.price" }
+          }
+        },
+        {
+          $group: {
+            _id: "$_id.period",
+            categories: {
+              $push: {
+                mainCategory: "$_id.mainCategory",
+                totalQuantity: "$totalQuantity",
+                totalRevenue: "$totalRevenue",
+                orderCount: { $size: "$totalOrders" },
+                avgPrice: "$avgPrice"
+              }
+            },
+            totalPeriodRevenue: { $sum: "$totalRevenue" },
+            totalPeriodQuantity: { $sum: "$totalQuantity" }
+          }
+        },
+        {
+          $project: {
+            period: "$_id",
+            categories: {
+              $map: {
+                input: "$categories",
+                as: "cat",
+                in: {
+                  mainCategory: "$$cat.mainCategory",
+                  totalQuantity: "$$cat.totalQuantity",
+                  totalRevenue: "$$cat.totalRevenue",
+                  orderCount: "$$cat.orderCount",
+                  avgPrice: { $round: ["$$cat.avgPrice", 2] },
+                  revenueShare: {
+                    $multiply: [
+                      { $divide: ["$$cat.totalRevenue", "$totalPeriodRevenue"] },
+                      100
+                    ]
+                  },
+                  quantityShare: {
+                    $multiply: [
+                      { $divide: ["$$cat.totalQuantity", "$totalPeriodQuantity"] },
+                      100
+                    ]
+                  }
+                }
+              }
+            },
+            totalPeriodRevenue: 1,
+            totalPeriodQuantity: 1
+          }
+        },
+        { $sort: { period: 1 } },
+        { $limit: parseInt(limit) }
+      ]);
+
+      res.json({
+        success: true,
+        data: trends,
+        period
+      });
+
+    } catch (err) {
+      console.error('Category Trends Analytics Error:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Top performing items dalam setiap kategori
+   */
+  static async getTopItemsByCategory(req, res) {
+    try {
+      const { mainCategory, limit = 5, sortBy = 'revenue' } = req.query;
+      
+      const matchStage = {};
+      if (mainCategory) matchStage["menuItemData.mainCategory"] = mainCategory;
+
+      const sortStage = {};
+      sortStage[sortBy === 'quantity' ? 'totalQuantity' : 'totalRevenue'] = -1;
+
+      const topItems = await Order.aggregate([
+        { $unwind: "$items" },
+        {
+          $lookup: {
+            from: "menuitems",
+            localField: "items.menuItem",
+            foreignField: "_id",
+            as: "menuItemData"
+          }
+        },
+        { $unwind: "$menuItemData" },
+        { $match: matchStage },
+        {
+          $group: {
+            _id: "$items.menuItem",
+            mainCategory: { $first: "$menuItemData.mainCategory" },
+            itemName: { $first: "$menuItemData.name" },
+            itemPrice: { $first: "$menuItemData.price" },
+            totalQuantity: { $sum: "$items.quantity" },
+            totalRevenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } },
+            totalOrders: { $addToSet: "$_id" },
+            uniqueCustomers: { $addToSet: "$user_id" },
+            costPrice: { $first: "$menuItemData.costPrice" }
+          }
+        },
+        {
+          $project: {
+            itemId: "$_id",
+            mainCategory: 1,
+            itemName: 1,
+            itemPrice: 1,
+            totalQuantity: 1,
+            totalRevenue: 1,
+            totalOrders: { $size: "$totalOrders" },
+            uniqueCustomers: { $size: "$uniqueCustomers" },
+            costPrice: 1,
+            grossProfit: { $subtract: ["$totalRevenue", { $multiply: ["$totalQuantity", "$costPrice"] }] },
+            profitMargin: {
+              $cond: [
+                { $eq: ["$totalRevenue", 0] },
+                0,
+                { $multiply: [{ $divide: [{ $subtract: ["$totalRevenue", { $multiply: ["$totalQuantity", "$costPrice"] }] }, "$totalRevenue"] }, 100] }
+              ]
+            },
+            popularityScore: {
+              $add: [
+                { $multiply: [{ $divide: ["$totalQuantity", 100] }, 40] },
+                { $multiply: [{ $divide: ["$totalRevenue", 10000] }, 30] },
+                { $multiply: [{ $divide: [{ $size: "$uniqueCustomers" }, 10] }, 30] }
+              ]
+            }
+          }
+        },
+        { $sort: sortStage },
+        { $limit: parseInt(limit) }
+      ]);
+
+      res.json({
+        success: true,
+        data: topItems,
+        metadata: {
+          mainCategory,
+          limit,
+          sortBy
+        }
+      });
+
+    } catch (err) {
+      console.error('Top Items Analytics Error:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Category performance comparison
+   */
+  static async getCategoryComparison(req, res) {
+    try {
+      const { startDate, endDate, metrics = 'revenue' } = req.query;
+      
+      const matchStage = {};
+      if (startDate || endDate) {
+        matchStage.createdAt = {};
+        if (startDate) matchStage.createdAt.$gte = new Date(startDate);
+        if (endDate) matchStage.createdAt.$lte = new Date(endDate);
+      }
+
+      const comparison = await Order.aggregate([
+        { $match: matchStage },
+        { $unwind: "$items" },
+        {
+          $lookup: {
+            from: "menuitems",
+            localField: "items.menuItem",
+            foreignField: "_id",
+            as: "menuItemData"
+          }
+        },
+        { $unwind: "$menuItemData" },
+        {
+          $group: {
+            _id: "$menuItemData.mainCategory",
+            totalQuantity: { $sum: "$items.quantity" },
+            totalRevenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } },
+            totalCost: {
+              $sum: {
+                $multiply: [
+                  "$items.quantity",
+                  { $ifNull: ["$menuItemData.costPrice", 0] }
+                ]
+              }
+            },
+            totalOrders: { $addToSet: "$_id" },
+            uniqueCustomers: { $addToSet: "$user_id" },
+            avgOrderValue: { $avg: "$grandTotal" }
+          }
+        },
+        {
+          $project: {
+            mainCategory: "$_id",
+            totalQuantity: 1,
+            totalRevenue: 1,
+            totalCost: 1,
+            grossProfit: { $subtract: ["$totalRevenue", "$totalCost"] },
+            profitMargin: {
+              $cond: [
+                { $eq: ["$totalRevenue", 0] },
+                0,
+                { $multiply: [{ $divide: [{ $subtract: ["$totalRevenue", "$totalCost"] }, "$totalRevenue"] }, 100] }
+              ]
+            },
+            totalOrders: { $size: "$totalOrders" },
+            uniqueCustomers: { $size: "$uniqueCustomers" },
+            avgOrderValue: { $round: ["$avgOrderValue", 2] },
+            revenuePerCustomer: {
+              $cond: [
+                { $eq: [{ $size: "$uniqueCustomers" }, 0] },
+                0,
+                { $divide: ["$totalRevenue", { $size: "$uniqueCustomers" }] }
+              ]
+            },
+            ordersPerCustomer: {
+              $cond: [
+                { $eq: [{ $size: "$uniqueCustomers" }, 0] },
+                0,
+                { $divide: [{ $size: "$totalOrders" }, { $size: "$uniqueCustomers" }] }
+              ]
+            },
+            // Performance scores
+            performanceScore: {
+              $add: [
+                { $multiply: [{ $divide: ["$totalRevenue", 1000000] }, 35] },
+                { $multiply: ["$profitMargin", 0.4] },
+                { $multiply: [{ $divide: [{ $size: "$uniqueCustomers" }, 100] }, 25] }
+              ]
+            }
+          }
+        },
+        { $sort: { performanceScore: -1 } }
+      ]);
+
+      const insights = this.generateComparisonInsights(comparison);
+
+      res.json({
+        success: true,
+        data: comparison,
+        insights,
+        metadata: {
+          totalCategories: comparison.length,
+          period: { startDate, endDate }
+        }
+      });
+
+    } catch (err) {
+      console.error('Category Comparison Analytics Error:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Generate insights untuk kategori analytics
+   */
+  static generateCategoryInsights(analytics, groupBy) {
+    if (!analytics || analytics.length === 0) {
+      return {
+        summary: {},
+        topPerformers: {},
+        recommendations: []
+      };
+    }
+
+    const totalRevenue = analytics.reduce((sum, cat) => sum + cat.totalRevenue, 0);
+    const totalQuantity = analytics.reduce((sum, cat) => sum + cat.totalQuantity, 0);
+    const totalProfit = analytics.reduce((sum, cat) => sum + cat.grossProfit, 0);
+
+    return {
+      summary: {
+        totalCategories: analytics.length,
+        totalRevenue,
+        totalQuantity,
+        totalProfit,
+        avgProfitMargin: analytics.reduce((sum, cat) => sum + cat.profitMargin, 0) / analytics.length,
+        bestPerformingCategory: analytics[0],
+        mostProfitableCategory: [...analytics].sort((a, b) => b.profitMargin - a.profitMargin)[0]
+      },
+      topPerformers: {
+        byRevenue: analytics.slice(0, 3),
+        byQuantity: [...analytics].sort((a, b) => b.totalQuantity - a.totalQuantity).slice(0, 3),
+        byProfit: [...analytics].sort((a, b) => b.grossProfit - a.grossProfit).slice(0, 3)
+      },
+      recommendations: this.generateCategoryRecommendations(analytics)
+    };
+  }
+
+  /**
+   * Generate comparison insights
+   */
+  static generateComparisonInsights(comparison) {
+    if (!comparison || comparison.length === 0) {
+      return {
+        summary: {},
+        opportunities: [],
+        alerts: []
+      };
+    }
+
+    const highMarginCategories = comparison.filter(cat => cat.profitMargin > 50);
+    const lowMarginCategories = comparison.filter(cat => cat.profitMargin < 20);
+    const highGrowthCategories = comparison.filter(cat => cat.uniqueCustomers > 100);
+
+    return {
+      summary: {
+        totalCategories: comparison.length,
+        highMarginCategories: highMarginCategories.length,
+        lowMarginCategories: lowMarginCategories.length,
+        highGrowthCategories: highGrowthCategories.length,
+        averagePerformanceScore: comparison.reduce((sum, cat) => sum + cat.performanceScore, 0) / comparison.length
+      },
+      opportunities: highMarginCategories.map(cat => ({
+        category: cat.mainCategory,
+        type: 'HIGH_MARGIN',
+        message: `${cat.mainCategory} has high profit margin (${cat.profitMargin.toFixed(1)}%)`,
+        action: 'Consider increasing promotion and visibility'
+      })),
+      alerts: lowMarginCategories.map(cat => ({
+        category: cat.mainCategory,
+        type: 'LOW_MARGIN',
+        message: `${cat.mainCategory} has low profit margin (${cat.profitMargin.toFixed(1)}%)`,
+        action: 'Review pricing strategy or cost structure'
+      }))
+    };
+  }
+
+  /**
+   * Generate category recommendations
+   */
+  static generateCategoryRecommendations(analytics) {
+    const recommendations = [];
+    
+    const lowVolumeHighMargin = analytics.filter(cat => 
+      cat.totalQuantity < 100 && cat.profitMargin > 40
+    );
+    
+    const highVolumeLowMargin = analytics.filter(cat => 
+      cat.totalQuantity > 500 && cat.profitMargin < 20
+    );
+
+    if (lowVolumeHighMargin.length > 0) {
+      recommendations.push({
+        type: 'UNDER_PROMOTED',
+        message: `${lowVolumeHighMargin.length} categories have high margins but low volume`,
+        action: 'Increase marketing and promotion for these categories',
+        categories: lowVolumeHighMargin.map(cat => ({
+          name: cat.categoryName,
+          profitMargin: cat.profitMargin,
+          volume: cat.totalQuantity
+        }))
+      });
+    }
+
+    if (highVolumeLowMargin.length > 0) {
+      recommendations.push({
+        type: 'PRICING_OPTIMIZATION',
+        message: `${highVolumeLowMargin.length} categories have high volume but low margins`,
+        action: 'Review pricing or reduce costs for these categories',
+        categories: highVolumeLowMargin.map(cat => ({
+          name: cat.categoryName,
+          profitMargin: cat.profitMargin,
+          volume: cat.totalQuantity
+        }))
+      });
+    }
+
+    // Find categories with high customer engagement
+    const highEngagement = analytics.filter(cat => 
+      cat.uniqueCustomers > 50 && cat.avgQuantityPerOrder > 2
+    );
+
+    if (highEngagement.length > 0) {
+      recommendations.push({
+        type: 'CUSTOMER_FAVORITE',
+        message: `${highEngagement.length} categories show high customer engagement`,
+        action: 'Leverage these categories for cross-selling and bundling',
+        categories: highEngagement.map(cat => ({
+          name: cat.categoryName,
+          engagement: cat.avgQuantityPerOrder,
+          customers: cat.uniqueCustomers
+        }))
+      });
+    }
+
+    return recommendations;
+  }
+}
+
+/**
  * Main Analytics Controller
  */
 const AnalyticsController = {
@@ -2183,6 +2750,67 @@ const AnalyticsController = {
       res.json({ success: true, data: performance });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  async mainCategoryAnalytics(req, res) {
+    try {
+      await CategoryAnalyticsService.getMainCategoryAnalytics(req, res);
+    } catch (err) {
+      console.error('Main Category Analytics Error:', err);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to analyze main categories',
+        error: err.message
+      });
+    }
+  },
+
+  /**
+   * 9. Category Trends Analysis
+   */
+  async categoryTrends(req, res) {
+    try {
+      await CategoryAnalyticsService.getCategoryTrends(req, res);
+    } catch (err) {
+      console.error('Category Trends Analytics Error:', err);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to analyze category trends',
+        error: err.message
+      });
+    }
+  },
+
+  /**
+   * 10. Top Items by Category
+   */
+  async topItemsByCategory(req, res) {
+    try {
+      await CategoryAnalyticsService.getTopItemsByCategory(req, res);
+    } catch (err) {
+      console.error('Top Items Analytics Error:', err);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to analyze top items by category',
+        error: err.message
+      });
+    }
+  },
+
+  /**
+   * 11. Category Performance Comparison
+   */
+  async categoryComparison(req, res) {
+    try {
+      await CategoryAnalyticsService.getCategoryComparison(req, res);
+    } catch (err) {
+      console.error('Category Comparison Analytics Error:', err);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to analyze category comparison',
+        error: err.message
+      });
     }
   }
 };
