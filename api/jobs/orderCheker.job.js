@@ -2,18 +2,20 @@ import mongoose from 'mongoose';
 import { Order } from '../models/order.model.js';  
 import Payment from '../models/Payment.model.js'; 
 import cron from 'node-cron';
+
 // Helper function untuk mendapatkan waktu WIB sekarang
 const getWIBNow = () => {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
 };
 
 /**
- * Fungsi untuk membatalkan order yang belum dibayar setelah 30 menit
+ * Fungsi untuk membatalkan order REGULER yang belum dibayar setelah 30 menit
+ * HANYA untuk order reguler, BUKAN open bill atau reservasi
  */
 export const autoCancelUnpaidOrders = async () => {
   let connection;
   try {
-    console.log(`[${getWIBNow().toISOString()}] Memulai auto-cancel unpaid orders...`);
+    console.log(`[${getWIBNow().toISOString()}] Memulai auto-cancel unpaid REGULAR orders...`);
 
     // Connect to database jika belum connected
     if (mongoose.connection.readyState !== 1) {
@@ -26,16 +28,21 @@ export const autoCancelUnpaidOrders = async () => {
     // Waktu threshold: 30 menit yang lalu dalam WIB
     const thirtyMinutesAgo = new Date(getWIBNow().getTime() - 30 * 60 * 1000);
 
-    console.log(`Mencari orders yang dibuat sebelum: ${thirtyMinutesAgo}`);
+    console.log(`Mencari REGULAR orders yang dibuat sebelum: ${thirtyMinutesAgo}`);
 
-    // Cari orders yang memenuhi kriteria:
+    // KRITERIA ORDER YANG AKAN DI-CANCEL:
     // 1. Status masih Pending atau Waiting
-    // 2. Dibuat lebih dari 30 menit yang lalu
-    // 3. Bukan open bill
-    // 4. Belum memiliki payment yang success/settlement
+    // 2. Dibuat lebih dari 30 menit yang lalu  
+    // 3. BUKAN open bill (isOpenBill: false)
+    // 4. BUKAN order reservasi (orderType bukan 'Reservation')
+    // 5. Order type harus reguler (Dine-In, Take Away, Pickup, Delivery)
+    // 6. Belum memiliki payment yang success/settlement
     const unpaidOrders = await Order.find({
       status: { $in: ['Pending', 'Waiting'] },
-      isOpenBill: false,
+      isOpenBill: false, // TIDAK termasuk open bill
+      orderType: { 
+        $in: ['Dine-In', 'Take Away', 'Pickup', 'Delivery'] // HANYA order reguler
+      },
       createdAtWIB: { $lte: thirtyMinutesAgo },
       $or: [
         { paymentMethod: { $exists: false } },
@@ -43,14 +50,28 @@ export const autoCancelUnpaidOrders = async () => {
       ]
     }).populate('items.menuItem');
 
-    console.log(`Ditemukan ${unpaidOrders.length} orders yang belum dibayar`);
+    console.log(`Ditemukan ${unpaidOrders.length} REGULAR orders yang belum dibayar`);
 
     let canceledCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
 
     // Process each unpaid order
     for (const order of unpaidOrders) {
       try {
+        // DOUBLE CHECK: Pastikan ini bukan open bill atau reservasi
+        if (order.isOpenBill === true) {
+          console.log(`⏩ Skip: Order ${order.order_id} adalah open bill`);
+          skippedCount++;
+          continue;
+        }
+
+        if (order.orderType === 'Reservation' || order.orderType === 'Event') {
+          console.log(`⏩ Skip: Order ${order.order_id} adalah ${order.orderType}`);
+          skippedCount++;
+          continue;
+        }
+
         // Cek apakah order sudah memiliki payment yang success
         const existingPayments = await Payment.find({
           order_id: order.order_id,
@@ -59,7 +80,8 @@ export const autoCancelUnpaidOrders = async () => {
 
         // Jika sudah ada payment yang success, skip
         if (existingPayments.length > 0) {
-          console.log(`Order ${order.order_id} sudah memiliki payment, skip cancel`);
+          console.log(`⏩ Skip: Order ${order.order_id} sudah memiliki payment success`);
+          skippedCount++;
           continue;
         }
 
@@ -76,7 +98,8 @@ export const autoCancelUnpaidOrders = async () => {
             const expiryTime = new Date(payment.expiry_time);
             if (expiryTime > getWIBNow()) {
               shouldCancel = false;
-              console.log(`Order ${order.order_id} memiliki payment yang belum expired, skip cancel`);
+              console.log(`⏩ Skip: Order ${order.order_id} memiliki payment yang belum expired`);
+              skippedCount++;
               break;
             }
           }
@@ -86,10 +109,22 @@ export const autoCancelUnpaidOrders = async () => {
           continue;
         }
 
+        // DOUBLE CHECK: Pastikan order memiliki reservation reference
+        // Jika ada reservation ID, skip karena ini order dari reservasi
+        if (order.reservation || order.originalReservationId) {
+          console.log(`⏩ Skip: Order ${order.order_id} terkait dengan reservasi`);
+          skippedCount++;
+          continue;
+        }
+
+        // ✅ SEMUA KRITERIA TERPENUHI - LANJUTKAN CANCEL
+        console.log(`✅ Memproses cancel untuk REGULAR order: ${order.order_id}`);
+
         // Update order status to Canceled
         await Order.findByIdAndUpdate(order._id, {
           status: 'Canceled',
-          updatedAtWIB: getWIBNow()
+          updatedAtWIB: getWIBNow(),
+          cancellationReason: 'Auto-cancel: Tidak ada pembayaran dalam 30 menit'
         });
 
         // Juga update via order_id untuk konsistensi
@@ -97,14 +132,15 @@ export const autoCancelUnpaidOrders = async () => {
           { order_id: order.order_id },
           {
             status: 'Canceled',
-            updatedAtWIB: getWIBNow()
+            updatedAtWIB: getWIBNow(),
+            cancellationReason: 'Auto-cancel: Tidak ada pembayaran dalam 30 menit'
           }
         );
 
         canceledCount++;
-        console.log(`✅ Order ${order.order_id} berhasil di-cancel (created at: ${order.createdAtWIB})`);
+        console.log(`✅ Order REGULER ${order.order_id} berhasil di-cancel (created at: ${order.createdAtWIB})`);
 
-        // Optional: Tambahkan log atau notifikasi di sini
+        // Log auto-cancel activity
         await logAutoCancel(order);
 
       } catch (error) {
@@ -113,13 +149,16 @@ export const autoCancelUnpaidOrders = async () => {
       }
     }
 
-    console.log(`[${getWIBNow().toISOString()}] Auto-cancel selesai. Berhasil: ${canceledCount}, Gagal: ${errorCount}`);
+    console.log(`[${getWIBNow().toISOString()}] Auto-cancel REGULAR orders selesai.`);
+    console.log(`📊 Hasil: Berhasil: ${canceledCount}, Gagal: ${errorCount}, Skip: ${skippedCount}, Total: ${unpaidOrders.length}`);
 
     return {
       success: true,
       canceledCount,
       errorCount,
-      totalProcessed: unpaidOrders.length
+      skippedCount,
+      totalProcessed: unpaidOrders.length,
+      message: `Auto-cancel completed: ${canceledCount} regular orders canceled, ${skippedCount} skipped (open bill/reservation)`
     };
 
   } catch (error) {
@@ -136,7 +175,6 @@ export const autoCancelUnpaidOrders = async () => {
  */
 const logAutoCancel = async (order) => {
   try {
-    // Anda bisa menyimpan log ke database atau external service
     const logEntry = {
       orderId: order.order_id,
       orderType: order.orderType,
@@ -144,7 +182,9 @@ const logAutoCancel = async (order) => {
       totalAmount: order.grandTotal,
       createdAt: order.createdAtWIB,
       canceledAt: getWIBNow(),
-      reason: 'Auto-cancel: Tidak ada pembayaran dalam 30 menit'
+      reason: 'Auto-cancel: Tidak ada pembayaran dalam 30 menit',
+      isOpenBill: order.isOpenBill,
+      isReservation: order.orderType === 'Reservation' || !!order.reservation
     };
 
     console.log('📝 Auto-cancel log:', logEntry);
@@ -161,18 +201,76 @@ const logAutoCancel = async (order) => {
  * Fungsi untuk manual trigger (testing purposes)
  */
 export const manualTriggerAutoCancel = async () => {
-  console.log('🚀 Manual trigger auto-cancel...');
+  console.log('🚀 Manual trigger auto-cancel REGULAR orders...');
   return await autoCancelUnpaidOrders();
 };
 
+/**
+ * Fungsi khusus untuk melihat order yang akan di-cancel (debugging)
+ */
+export const previewAutoCancel = async () => {
+  try {
+    const thirtyMinutesAgo = new Date(getWIBNow().getTime() - 30 * 60 * 1000);
+
+    const potentialOrders = await Order.find({
+      status: { $in: ['Pending', 'Waiting'] },
+      createdAtWIB: { $lte: thirtyMinutesAgo }
+    }).select('order_id orderType isOpenBill status createdAtWIB paymentMethod reservation');
+
+    console.log('📋 Preview orders yang akan dicek:');
+    
+    const regularOrders = potentialOrders.filter(order => 
+      !order.isOpenBill && 
+      order.orderType !== 'Reservation' && 
+      order.orderType !== 'Event' &&
+      !order.reservation
+    );
+
+    const skipOrders = potentialOrders.filter(order => 
+      order.isOpenBill || 
+      order.orderType === 'Reservation' || 
+      order.orderType === 'Event' ||
+      order.reservation
+    );
+
+    console.log(`✅ Akan diproses (REGULAR): ${regularOrders.length} orders`);
+    regularOrders.forEach(order => {
+      console.log(`   - ${order.order_id} (${order.orderType}) - ${order.createdAtWIB}`);
+    });
+
+    console.log(`⏩ Akan di-skip: ${skipOrders.length} orders`);
+    skipOrders.forEach(order => {
+      const skipReason = order.isOpenBill ? 'Open Bill' : 
+                        order.orderType === 'Reservation' ? 'Reservation' :
+                        order.orderType === 'Event' ? 'Event' :
+                        order.reservation ? 'Has Reservation' : 'Other';
+      console.log(`   - ${order.order_id} (${order.orderType}) - ${skipReason}`);
+    });
+
+    return {
+      regularOrders,
+      skipOrders,
+      total: potentialOrders.length
+    };
+
+  } catch (error) {
+    console.error('Error in preview:', error);
+    return { error: error.message };
+  }
+};
+
+/**
+ * Scheduler untuk auto-cancel
+ */
 export const startAutoCancelScheduler = () => {
-  console.log('🕐 Starting auto-cancel scheduler...');
+  console.log('🕐 Starting auto-cancel scheduler for REGULAR orders only...');
 
   // Run every 5 minutes
-cron.schedule('*/5 * * * *', async () => {
-    console.log('⏰ Running scheduled auto-cancel job...');
+  cron.schedule('*/5 * * * *', async () => {
+    console.log('⏰ Running scheduled auto-cancel job for REGULAR orders...');
     try {
-      await autoCancelUnpaidOrders();
+      const result = await autoCancelUnpaidOrders();
+      console.log('📊 Scheduled job result:', result);
     } catch (error) {
       console.error('❌ Scheduled auto-cancel job failed:', error);
     }
@@ -180,7 +278,13 @@ cron.schedule('*/5 * * * *', async () => {
 
   // Optional: Run immediately on startup untuk handle orders yang tertinggal
   setTimeout(() => {
-    console.log('🚀 Running initial auto-cancel check...');
+    console.log('🚀 Running initial auto-cancel check for REGULAR orders...');
     autoCancelUnpaidOrders();
   }, 10000); // Run 10 detik setelah startup
+
+  // Juga jalankan preview untuk debugging
+  setTimeout(() => {
+    console.log('👀 Running preview of auto-cancel candidates...');
+    previewAutoCancel();
+  }, 15000);
 };

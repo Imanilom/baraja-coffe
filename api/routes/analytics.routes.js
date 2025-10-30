@@ -20,4 +20,11 @@ router.get('/trends', AnalyticsController.trendAnalysis);
 router.get('/channel-performance', AnalyticsController.channelPerformance);
 router.get('/time-performance', AnalyticsController.timePerformance);
 
+// Category Analytics Routes
+router.get('/main-categories', AnalyticsController.mainCategoryAnalytics);
+router.get('/category-trends', AnalyticsController.categoryTrends);
+router.get('/top-items', AnalyticsController.topItemsByCategory);
+router.get('/category-comparison', AnalyticsController.categoryComparison);
+
+
 export default router;
