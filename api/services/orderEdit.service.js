@@ -555,10 +555,19 @@ export async function allocateDeltaToPayments({
     revisionId,
     reason,
 }) {
+    console.log(`[allocateDeltaToPayments] Mulai proses`, {
+        orderId: orderDoc.order_id,
+        grandDelta,
+        revisionId,
+        reason
+    });
+
     // ambil semua payment order ini
     const payments = await Payment.find({ order_id: orderDoc.order_id })
         .session(session)
         .sort({ createdAt: 1 });
+
+    console.log(`[allocateDeltaToPayments] Ditemukan ${payments.length} payment`);
 
     const effects = {
         pendingPaymentAdjusted: [],
@@ -568,12 +577,14 @@ export async function allocateDeltaToPayments({
         voidedRefunds: [],
         settledDecreased: [],
         settledIncreased: [],
-        uncoveredDecrease: 0, // kalau settle kurang buat diturunin
+        uncoveredDecrease: 0,
     };
 
     const hasAnyPayment = payments.length > 0;
     const hasSettled = payments.some((p) => p.status === "settlement");
     const pending = payments.find((p) => p.status === "pending");
+
+    console.log(`[allocateDeltaToPayments] Status - hasAnyPayment: ${hasAnyPayment}, hasSettled: ${hasSettled}, pending: ${!!pending}`);
 
     // semua refund adjustment yang pernah kita buat (cash keluar)
     const refundAdjustments = payments
@@ -587,6 +598,8 @@ export async function allocateDeltaToPayments({
         // pakai yang terbaru dulu
         .sort((a, b) => b.createdAt - a.createdAt);
 
+    console.log(`[allocateDeltaToPayments] Ditemukan ${refundAdjustments.length} refund adjustments`);
+
     // ================== helpers ==================
 
     async function createAdjustment({
@@ -596,6 +609,14 @@ export async function allocateDeltaToPayments({
         amount,
         note,
     }) {
+        console.log(`[createAdjustment] Membuat adjustment`, {
+            paymentId,
+            kind,
+            direction,
+            amount,
+            note
+        });
+
         const [adj] = await PaymentAdjustment.create(
             [
                 {
@@ -614,6 +635,8 @@ export async function allocateDeltaToPayments({
     }
 
     async function createNewPendingCharge(amount) {
+        console.log(`[createNewPendingCharge] Membuat pending charge baru`, { amount });
+
         // kalau sebelumnya ada DP settled → pending ini Final Payment
         const dp = payments.find(
             (p) => p.paymentType === "Down Payment" && p.status === "settlement"
@@ -630,7 +653,7 @@ export async function allocateDeltaToPayments({
                     status: "pending",
                     paymentType,
                     amount: Math.max(0, amount),
-                    totalAmount:
+                    totalAmount: Math.max(0, amount) ||
                         dp?.totalAmount ||
                         payments[0]?.totalAmount ||
                         orderDoc.grandTotal ||
@@ -653,17 +676,22 @@ export async function allocateDeltaToPayments({
             note: reason || "add_after_payment",
         });
 
+        console.log(`[createNewPendingCharge] Pending charge baru berhasil dibuat`, { paymentId: p._id });
         return p;
     }
 
     // turunkan payment settled utama (bukan yang adjustment)
     async function decreaseSettledPayments(amountToDecrease) {
+        console.log(`[decreaseSettledPayments] Mulai decrease settled payments`, { amountToDecrease });
+
         let remaining = amountToDecrease;
 
         // ambil semua settled yg bukan adjustment, terbaru dulu
         const settled = payments
             .filter((p) => p.status === "settlement" && !p.isAdjustment)
             .sort((a, b) => b.createdAt - a.createdAt);
+
+        console.log(`[decreaseSettledPayments] ${settled.length} settled payment tersedia`);
 
         for (const pay of settled) {
             if (remaining <= 0) break;
@@ -672,6 +700,13 @@ export async function allocateDeltaToPayments({
             if (cur <= 0) continue;
 
             const cut = Math.min(cur, remaining);
+
+            console.log(`[decreaseSettledPayments] Menurunkan settled payment`, {
+                paymentId: pay._id,
+                amountSebelum: cur,
+                amountDipangkas: cut,
+                amountSesudah: cur - cut
+            });
 
             pay.amount = cur - cut;
             // totalAmount juga diturunkan supaya konsisten
@@ -692,18 +727,32 @@ export async function allocateDeltaToPayments({
             });
 
             remaining -= cut;
+            console.log(`[decreaseSettledPayments] Sisa amount yang perlu dikurangi: ${remaining}`);
         }
 
+        console.log(`[decreaseSettledPayments] Selesai decrease settled payments`, { remaining });
         return remaining; // kalau >0 berarti gak cukup nurunin settled
     }
 
     // naikin settled paling baru
     async function increaseLatestSettled(amountToIncrease) {
+        console.log(`[increaseLatestSettled] Menaikkan latest settled`, { amountToIncrease });
+
         const settled = payments
             .filter((p) => p.status === "settlement" && !p.isAdjustment)
             .sort((a, b) => b.createdAt - a.createdAt);
         const target = settled[0];
-        if (!target) return false;
+        if (!target) {
+            console.log(`[increaseLatestSettled] Tidak ada settled payment yang bisa dinaikkan`);
+            return false;
+        }
+
+        console.log(`[increaseLatestSettled] Menaikkan settled payment`, {
+            paymentId: target._id,
+            amountSebelum: target.amount,
+            amountDitambahkan: amountToIncrease,
+            amountSesudah: Number(target.amount || 0) + amountToIncrease
+        });
 
         target.amount = Number(target.amount || 0) + amountToIncrease;
         target.totalAmount =
@@ -724,11 +773,14 @@ export async function allocateDeltaToPayments({
             amount: amountToIncrease,
         });
 
+        console.log(`[increaseLatestSettled] Berhasil menaikkan settled payment`);
         return true;
     }
 
     // bikin payment refund (cash out)
     async function createRefundPayment(amountAbs) {
+        console.log(`[createRefundPayment] Membuat refund payment`, { amountAbs });
+
         // pakai payment settled pertama sebagai referensi tipe
         const settledRef =
             payments.find((p) => p.status === "settlement") || payments[0];
@@ -743,7 +795,7 @@ export async function allocateDeltaToPayments({
                     status: "settlement",
                     paymentType: settledRef?.paymentType || "Full",
                     amount: Math.max(0, amountAbs),
-                    totalAmount:
+                    totalAmount: Math.max(0, amountAbs) ||
                         settledRef?.totalAmount || orderDoc.grandTotal || 0,
                     remainingAmount: 0,
                     relatedPaymentId: settledRef?._id || null,
@@ -763,21 +815,34 @@ export async function allocateDeltaToPayments({
             note: reason || "reduce_after_settlement",
         });
 
+        console.log(`[createRefundPayment] Refund payment berhasil dibuat`, { paymentId: p._id });
         return p;
     }
 
     // ================== CASE 0: belum ada payment ==================
     if (!hasAnyPayment) {
+        console.log(`[CASE 0] Belum ada payment sama sekali`);
         if (grandDelta > 0) {
+            console.log(`[CASE 0] Membuat pending charge baru karena grandDelta > 0`);
             const newP = await createNewPendingCharge(grandDelta);
             effects.newPendingPaymentId = newP._id;
+        } else {
+            console.log(`[CASE 0] GrandDelta <= 0, tidak ada yang dilakukan`);
         }
+        console.log(`[CASE 0] Selesai`, { effects });
         return effects;
     }
 
     // ================== CASE 1: hanya pending (belum dibayar) ==================
     if (!hasSettled) {
+        console.log(`[CASE 1] Hanya ada pending payment (belum settlement)`);
         if (pending) {
+            console.log(`[CASE 1] Adjust existing pending payment`, {
+                paymentId: pending._id,
+                amountSebelum: pending.amount,
+                delta: grandDelta
+            });
+
             const newAmount = Math.max(0, Number(pending.amount) + grandDelta);
 
             pending.amount = newAmount;
@@ -803,21 +868,33 @@ export async function allocateDeltaToPayments({
                 amount: Math.abs(grandDelta),
                 note: reason || "edit_before_pay",
             });
+
+            console.log(`[CASE 1] Pending payment berhasil diadjust`, {
+                paymentId: pending._id,
+                amountSesudah: pending.amount
+            });
         } else if (grandDelta > 0) {
+            console.log(`[CASE 1] Tidak ada pending, buat baru karena grandDelta > 0`);
             const newP = await createNewPendingCharge(grandDelta);
             effects.newPendingPaymentId = newP._id;
+        } else {
+            console.log(`[CASE 1] Tidak ada pending dan grandDelta <= 0, tidak ada yang dilakukan`);
         }
+        console.log(`[CASE 1] Selesai`, { effects });
         return effects;
     }
 
     // ================== CASE 2: SUDAH ADA settlement ==================
+    console.log(`[CASE 2] Ada settlement payment`);
 
     // ---- A. TAMBAH ITEM (grandDelta > 0) ----
     if (grandDelta > 0) {
+        console.log(`[CASE 2A] GrandDelta > 0 (Tambah item)`);
         let remainingToCharge = grandDelta;
         let consumedFromRefund = 0;
 
         // 1) serap refund adjustment dulu
+        console.log(`[CASE 2A] Langkah 1 - Serap refund adjustments`);
         for (const refund of refundAdjustments) {
             if (remainingToCharge <= 0) break;
 
@@ -826,8 +903,17 @@ export async function allocateDeltaToPayments({
 
             const absorb = Math.min(refundAmount, remainingToCharge);
 
+            console.log(`[CASE 2A] Menyerap refund adjustment`, {
+                refundId: refund._id,
+                amountSebelum: refundAmount,
+                diserap: absorb,
+                sisaRefund: refundAmount - absorb
+            });
+
             // kurangi refund
             refund.amount = refundAmount - absorb;
+            refund.totalAmount = refund.totalAmount - absorb;
+            refund.remainingAmount = 0;
             await refund.save({ session });
 
             consumedFromRefund += absorb;
@@ -853,19 +939,31 @@ export async function allocateDeltaToPayments({
                 refund.status = "void";
                 await refund.save({ session });
                 effects.voidedRefunds.push(refund._id);
+                console.log(`[CASE 2A] Refund di-void karena amount menjadi 0`, { refundId: refund._id });
             }
         }
 
+        console.log(`[CASE 2A] Setelah serap refund - consumedFromRefund: ${consumedFromRefund}, remainingToCharge: ${remainingToCharge}`);
+
         // 2) kalau memang ada refund yg dipakai → balikin ke payment settled paling baru
         if (consumedFromRefund > 0) {
+            console.log(`[CASE 2A] Langkah 2 - Balikkan ke settled payment`);
             await increaseLatestSettled(consumedFromRefund);
         }
 
         // 3) kalau masih ada sisa → ini benar2 tagihan baru → ke pending
         if (remainingToCharge > 0) {
+            console.log(`[CASE 2A] Langkah 3 - Tambah ke pending`, { remainingToCharge });
             if (pending) {
+                console.log(`[CASE 2A] Adjust existing pending payment`, {
+                    paymentId: pending._id,
+                    amountSebelum: pending.amount,
+                    amountDitambahkan: remainingToCharge
+                });
+
                 pending.amount =
                     Number(pending.amount || 0) + remainingToCharge;
+                pending.totalAmount = Number(pending.totalAmount || 0) + remainingToCharge;
                 await pending.save({ session });
 
                 effects.pendingPaymentAdjusted.push({
@@ -880,22 +978,37 @@ export async function allocateDeltaToPayments({
                     amount: remainingToCharge,
                     note: reason || "add_after_fullpay",
                 });
+
+                console.log(`[CASE 2A] Pending payment berhasil diadjust`, {
+                    paymentId: pending._id,
+                    amountSesudah: pending.amount
+                });
             } else {
+                console.log(`[CASE 2A] Buat pending payment baru`);
                 const newP = await createNewPendingCharge(remainingToCharge);
                 effects.newPendingPaymentId = newP._id;
             }
         }
 
+        console.log(`[CASE 2A] Selesai`, { effects });
         return effects;
     }
 
     // ---- B. KURANGI ITEM (grandDelta < 0) ----
     if (grandDelta < 0) {
+        console.log(`[CASE 2B] GrandDelta < 0 (Kurangi item)`, { grandDelta });
         let remaining = Math.abs(grandDelta);
 
         // 1) kurangi pending dulu
+        console.log(`[CASE 2B] Langkah 1 - Kurangi pending payment`);
         if (pending && pending.amount > 0) {
             const canReduce = Math.min(Number(pending.amount), remaining);
+            console.log(`[CASE 2B] Mengurangi pending payment`, {
+                paymentId: pending._id,
+                amountSebelum: pending.amount,
+                dikurangi: canReduce
+            });
+
             if (canReduce > 0) {
                 pending.amount = Math.max(0, Number(pending.amount) - canReduce);
                 pending.totalAmount = Math.max(
@@ -923,22 +1036,35 @@ export async function allocateDeltaToPayments({
                 });
 
                 remaining -= canReduce;
+
+                console.log(`[CASE 2B] Pending payment berhasil dikurangi`, {
+                    paymentId: pending._id,
+                    amountSesudah: pending.amount,
+                    sisaYangHarusDikurangi: remaining
+                });
             }
             //hapus pending ketika 0
             if (pending.amount === 0) {
                 pending.status = "void";
                 await pending.save({ session });
                 effects.voidedPendingPaymentId = pending._id;
+                console.log(`[CASE 2B] Pending payment di-void karena amount 0`, { paymentId: pending._id });
             }
+        } else {
+            console.log(`[CASE 2B] Tidak ada pending payment yang bisa dikurangi`);
         }
 
         // 2) sisa → turunkan settled
         if (remaining > 0) {
+            console.log(`[CASE 2B] Langkah 2 - Turunkan settled payments`, { remaining });
             const notCovered = await decreaseSettledPayments(remaining);
             const actuallyDecreased = remaining - notCovered;
 
+            console.log(`[CASE 2B] Hasil turunkan settled - actuallyDecreased: ${actuallyDecreased}, notCovered: ${notCovered}`);
+
             // 3) hanya bagian yg benar2 diturunin dari settled yg kita refund-kan
             if (actuallyDecreased > 0) {
+                console.log(`[CASE 2B] Langkah 3 - Buat refund payment`, { actuallyDecreased });
                 const refund = await createRefundPayment(actuallyDecreased);
                 effects.refundPaymentId = refund._id;
             }
@@ -946,14 +1072,18 @@ export async function allocateDeltaToPayments({
             // kalau notCovered > 0 artinya settle-nya kurang buat diturunin
             if (notCovered > 0) {
                 effects.uncoveredDecrease = notCovered;
-                // terserah kamu mau apa: bisa bikin refund kecil juga, atau lempar error
-                // di sini aku biarkan aja
+                console.warn(`[CASE 2B] Peringatan: Ada uncovered decrease`, { uncoveredDecrease: notCovered });
             }
+        } else {
+            console.log(`[CASE 2B] Tidak ada sisa yang perlu diturunkan dari settled`);
         }
 
+        console.log(`[CASE 2B] Selesai`, { effects });
         return effects;
     }
 
     // grandDelta == 0
+    console.log(`[CASE 2C] GrandDelta == 0, tidak ada perubahan`);
+    console.log(`[allocateDeltaToPayments] Selesai tanpa perubahan`, { effects });
     return effects;
 }
