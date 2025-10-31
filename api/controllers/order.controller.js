@@ -21,7 +21,7 @@ import { getAreaGroup } from '../utils/areaGrouping.js';
 import { Outlet } from '../models/Outlet.model.js';
 import dayjs from 'dayjs'
 import { processGoSendDelivery } from '../helpers/deliveryHelper.js';
-import { editOrderAndAllocate } from '../services/orderEdit.service.js';
+import { replaceOrderItemsAndAllocate } from '../services/orderEdit.service.js';
 
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
@@ -2273,7 +2273,7 @@ export const createUnifiedOrder = async (req, res) => {
       customAmountItems,
       paymentDetails,
       user,
-      contact 
+      contact
     } = req.body;
 
     // Validasi outletId
@@ -2701,8 +2701,8 @@ export const createUnifiedOrder = async (req, res) => {
       } else {
         // PERBAIKAN: Urutan parameter yang benar untuk Web
         const customerData = {
-          name: user || 'Customer', 
-          email: contact?.email || 'example@mail.com', 
+          name: user || 'Customer',
+          email: contact?.email || 'example@mail.com',
           phone: contact?.phone || '081234567890'
         };
 
@@ -6455,28 +6455,19 @@ export function toOrderDTO(orderDoc, paymentDocs = []) {
 }
 
 export async function patchEditOrder(req, res) {
+  const { orderId } = req.params;
+  const { reason, items: incomingItems = [] } = req.body;
+
   try {
-    const { orderId } = req.params;
-    const { operations, reason } = req.body || {};
-    if (!Array.isArray(operations) || operations.length === 0) {
-      return res.status(400).json({ message: 'operations required (array)' });
-    }
-
-    const idempotencyKey = req.header('Idempotency-Key') || null;
-    const userId = req.user?._id || null;
-
-    const result = await editOrderAndAllocate({
-      orderId,
-      operations,
+    const result = await replaceOrderItemsAndAllocate({
+      orderId: orderId,
+      incomingItems,
       reason,
-      userId,
-      idempotencyKey,
+      userId: req.user?.id,
+      idempotencyKey: req.headers['x-idempotency-key'],
     });
 
-    return res.status(result.reused ? 200 : 201).json({
-      message: result.reused ? 'idempotent: revision reused' : 'order edited',
-      revision: result.revision,
-    });
+    res.status(200).json({ success: true, message: 'Order updated', data: result });
   } catch (err) {
     console.error('patchEditOrder error:', err);
     return res.status(500).json({ message: err.message || 'internal error' });

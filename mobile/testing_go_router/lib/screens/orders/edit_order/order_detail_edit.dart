@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kasirbaraja/models/edit_order_ops.model.dart';
+import 'package:kasirbaraja/models/edit_order_request.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/reservation_order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
@@ -144,6 +146,57 @@ class OrderDetailEdit extends ConsumerWidget {
                                     ),
                               );
                             },
+                          );
+                        },
+                      ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Expanded(
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.only(right: 4),
+              child:
+                  onlineOrderEditDetail.order == null ||
+                          onlineOrderEditDetail.order!.items.isEmpty
+                      ? Center(child: Text(onNull, textAlign: TextAlign.center))
+                      : ListView.builder(
+                        itemCount: onlineOrderEditDetail.pendingOps.length,
+                        // urutan terbalik
+                        // reverse: true,
+                        physics: const BouncingScrollPhysics(),
+                        //selalu scroll ke atas,
+                        // controller: ScrollController(),
+                        controller: ScrollController(
+                          initialScrollOffset: 0,
+                          keepScrollOffset: true,
+                          debugLabel: 'ScrollController',
+                          onAttach:
+                              (position) => debugPrint(
+                                'ScrollController attached to $position',
+                              ),
+                        ),
+
+                        itemBuilder: (context, index) {
+                          final orderItemEdit =
+                              onlineOrderEditDetail.pendingOps[index];
+
+                          print(orderItemEdit);
+                          return ListTile(
+                            horizontalTitleGap: 4,
+                            visualDensity: const VisualDensity(
+                              vertical: -4,
+                              horizontal: 0,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 0,
+                              horizontal: 4,
+                            ),
+                            dense: true,
+                            leading: CircleAvatar(child: Text('op')),
+                            title: Text(orderItemEdit.op),
+
+                            onTap: () {},
                           );
                         },
                       ),
