@@ -2767,9 +2767,9 @@ const calculateCustomAmount = (paymentAmount, orderTotalFromItems) => {
   if (paymentAmount <= orderTotalFromItems) {
     return null;
   }
-  
+
   const excessAmount = paymentAmount - orderTotalFromItems;
-  
+
   // Hanya buat custom amount jika kelebihan signifikan (lebih dari 1000)
   if (excessAmount > 1000) {
     return {
@@ -2779,7 +2779,7 @@ const calculateCustomAmount = (paymentAmount, orderTotalFromItems) => {
       dineType: "Dine-In"
     };
   }
-  
+
   return null;
 };
 
@@ -4390,9 +4390,25 @@ export const getPendingOrders = async (req, res) => {
 
     // Ambil order pending / reserved dari outlet tertentu
     const pendingOrders = await Order.find({
-      status: { $in: ['Pending', 'Reserved', 'OnProcess'] }, //OnProcess
-      source: { $in: sources },
-      outlet: outletObjectId
+      $and: [
+        {
+          source: { $in: sources },
+          outlet: outletObjectId
+        },
+        {
+          $or: [
+            // Status selain OnProcess
+            { status: { $in: ['Pending', 'Reserved'] } },
+            // Status OnProcess tapi hanya untuk Reservation
+            {
+              $and: [
+                { status: 'OnProcess' },
+                { orderType: 'Reservation' }
+              ]
+            }
+          ]
+        }
+      ]
     })
       .lean()
       .sort({ createdAt: -1 });
@@ -4405,7 +4421,8 @@ export const getPendingOrders = async (req, res) => {
 
     // Enhanced: Ambil semua payment details untuk orders
     const payments = await Payment.find({
-      order_id: { $in: orderIds }
+      order_id: { $in: orderIds },
+      status: { $ne: "void" }
     })
       .lean()
       .sort({ createdAt: -1 }); // Sort by latest payment first
@@ -5261,9 +5278,10 @@ export const getCashierOrderHistory = async (req, res) => {
 
     const orderIds = orders.map(order => order.order_id);
 
-    // Enhanced: Ambil semua payment details untuk orders
+    // Enhanced: Ambil semua payment details untuk orders kecuali status void
     const payments = await Payment.find({
-      order_id: { $in: orderIds }
+      order_id: { $in: orderIds },
+      status: { $ne: 'void' }
     })
       .lean()
       .sort({ createdAt: -1 });

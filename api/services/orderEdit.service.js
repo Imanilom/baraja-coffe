@@ -711,6 +711,7 @@ export async function allocateDeltaToPayments({
             pay.amount = cur - cut;
             // totalAmount juga diturunkan supaya konsisten
             pay.totalAmount = Math.max(0, Number(pay.totalAmount || 0) - cut);
+            pay.remainingAmount = 0;
             await pay.save({ session });
 
             await createAdjustment({
