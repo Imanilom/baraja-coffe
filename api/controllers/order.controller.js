@@ -21,7 +21,7 @@ import { getAreaGroup } from '../utils/areaGrouping.js';
 import { Outlet } from '../models/Outlet.model.js';
 import dayjs from 'dayjs'
 import { processGoSendDelivery } from '../helpers/deliveryHelper.js';
-import { editOrderAndAllocate } from '../services/orderEdit.service.js';
+import { replaceOrderItemsAndAllocate } from '../services/orderEdit.service.js';
 
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
@@ -2273,7 +2273,7 @@ export const createUnifiedOrder = async (req, res) => {
       customAmountItems,
       paymentDetails,
       user,
-      contact 
+      contact
     } = req.body;
 
     // Validasi outletId
@@ -2366,11 +2366,20 @@ export const createUnifiedOrder = async (req, res) => {
       }
     }
 
-    // Auto calculate custom amount items jika ada kelebihan pembayaran
-    let finalCustomAmountItems = customAmountItems || [];
+    // PERBAIKAN: Handle customAmountItems dengan benar
+    let finalCustomAmountItems = [];
 
-    // Jika ada paymentDetails dan ada kelebihan pembayaran, hitung custom amount otomatis
-    if (paymentDetails && paymentDetails.amount && req.body.items) {
+    // Hanya tambahkan customAmountItems jika ada dan tidak kosong
+    if (customAmountItems && customAmountItems.length > 0) {
+      finalCustomAmountItems = [...customAmountItems];
+      console.log('Manual custom amount items included:', {
+        count: finalCustomAmountItems.length,
+        items: finalCustomAmountItems
+      });
+    }
+
+    // HITUNG custom amount otomatis HANYA JIKA tidak ada customAmountItems manual
+    if (paymentDetails && paymentDetails.amount && req.body.items && finalCustomAmountItems.length === 0) {
       // Hitung total order dari items saja (tanpa custom amount)
       const orderTotalFromItems = req.body.items.reduce((total, item) => {
         return total + (item.price || 0) * (item.quantity || 1);
@@ -2380,18 +2389,13 @@ export const createUnifiedOrder = async (req, res) => {
       const autoCustomAmount = calculateCustomAmount(paymentDetails.amount, orderTotalFromItems);
       if (autoCustomAmount) {
         console.log('Auto-calculated custom amount:', autoCustomAmount);
-        // Jika sudah ada customAmountItems manual, tambahkan yang auto, otherwise buat array baru
-        if (finalCustomAmountItems.length > 0) {
-          finalCustomAmountItems.push(autoCustomAmount);
-        } else {
-          finalCustomAmountItems = [autoCustomAmount];
-        }
+        finalCustomAmountItems = [autoCustomAmount];
       }
     }
 
     const validated = validateOrderData({
       ...req.body,
-      customAmountItems: finalCustomAmountItems // UBAH: customAmount menjadi customAmountItems
+      customAmountItems: finalCustomAmountItems
     }, source);
 
     validated.outletId = outletId;
@@ -2408,7 +2412,7 @@ export const createUnifiedOrder = async (req, res) => {
 
     // Log custom amount items information
     if (finalCustomAmountItems.length > 0) {
-      console.log('Custom amount items included:', {
+      console.log('Final custom amount items:', {
         count: finalCustomAmountItems.length,
         items: finalCustomAmountItems.map(item => ({
           amount: item.amount,
@@ -2510,7 +2514,7 @@ export const createUnifiedOrder = async (req, res) => {
         source,
         outletId,
         paymentDetails: validated.paymentDetails,
-        hasCustomAmountItems: finalCustomAmountItems.length > 0 // UBAH: hasCustomAmount menjadi hasCustomAmountItems
+        hasCustomAmountItems: finalCustomAmountItems.length > 0
       });
 
     } catch (queueErr) {
@@ -2529,8 +2533,8 @@ export const createUnifiedOrder = async (req, res) => {
       status: '',
       orderId,
       jobId: job.id,
-      hasCustomAmountItems: finalCustomAmountItems.length > 0, // UBAH: hasCustomAmount menjadi hasCustomAmountItems
-      customAmountItems: finalCustomAmountItems // UBAH: customAmount menjadi customAmountItems
+      hasCustomAmountItems: finalCustomAmountItems.length > 0,
+      customAmountItems: finalCustomAmountItems
     };
 
     // Handle payment based on source
@@ -2540,7 +2544,7 @@ export const createUnifiedOrder = async (req, res) => {
         tableNumber,
         orderData: validated,
         outletId,
-        hasCustomAmountItems: finalCustomAmountItems.length > 0 // UBAH
+        hasCustomAmountItems: finalCustomAmountItems.length > 0
       });
 
       return res.status(200).json({
@@ -2588,7 +2592,7 @@ export const createUnifiedOrder = async (req, res) => {
           outletId,
           isAppOrder: true,
           deliveryOption: delivery_option,
-          hasCustomAmountItems: finalCustomAmountItems.length > 0 // UBAH
+          hasCustomAmountItems: finalCustomAmountItems.length > 0
         });
 
         return res.status(200).json({
@@ -2615,9 +2619,14 @@ export const createUnifiedOrder = async (req, res) => {
           })
         });
       } else {
+        // PERBAIKAN: Validasi amount sebelum kirim ke Midtrans
+        if (!validated.paymentDetails?.amount || isNaN(validated.paymentDetails.amount)) {
+          throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
+        }
+
         const midtransRes = await createMidtransCoreTransaction(
           orderId,
-          validated.paymentDetails.amount,
+          Number(validated.paymentDetails.amount), // Pastikan number
           validated.paymentDetails.method
         );
 
@@ -2675,7 +2684,7 @@ export const createUnifiedOrder = async (req, res) => {
           orderData: validated,
           outletId,
           isWebOrder: true,
-          hasCustomAmountItems: finalCustomAmountItems.length > 0 // UBAH
+          hasCustomAmountItems: finalCustomAmountItems.length > 0
         });
 
         return res.status(200).json({
@@ -2690,16 +2699,32 @@ export const createUnifiedOrder = async (req, res) => {
           })
         });
       } else {
+        // PERBAIKAN: Urutan parameter yang benar untuk Web
         const customerData = {
-          name: user || 'Customer', 
-          email: contact?.email || 'example@mail.com', 
+          name: user || 'Customer',
+          email: contact?.email || 'example@mail.com',
           phone: contact?.phone || '081234567890'
         };
+
+        // PERBAIKAN: Validasi amount sebelum kirim ke Midtrans
+        console.log('Payment details for Midtrans SNAP:', {
+          orderId,
+          amount: validated.paymentDetails?.amount,
+          amountType: typeof validated.paymentDetails?.amount,
+          customer: customerData,
+          paymentMethod: validated.paymentDetails?.method
+        });
+
+        if (!validated.paymentDetails?.amount || isNaN(validated.paymentDetails.amount)) {
+          throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
+        }
+
+        // PERBAIKAN: Urutan parameter yang benar
         const midtransRes = await createMidtransSnapTransaction(
           orderId,
-          customerData,
-          validated.paymentDetails.amount,
-          validated.paymentDetails.method
+          Number(validated.paymentDetails.amount), // Parameter 2: amount (number)
+          customerData,                            // Parameter 3: customer (object)
+          validated.paymentDetails.method          // Parameter 4: paymentMethod (string)
         );
 
         return res.status(200).json({
@@ -2728,18 +2753,35 @@ export const createUnifiedOrder = async (req, res) => {
   }
 };
 
-function calculateCustomAmount(paidAmount, orderTotal) {
-  const excess = paidAmount - orderTotal;
-  if (excess > 0) {
+const calculateCustomAmount = (paymentAmount, orderTotalFromItems) => {
+  // Validasi input
+  if (typeof paymentAmount !== 'number' || typeof orderTotalFromItems !== 'number') {
+    console.warn('Invalid input types for calculateCustomAmount:', {
+      paymentAmount: typeof paymentAmount,
+      orderTotalFromItems: typeof orderTotalFromItems
+    });
+    return null;
+  }
+
+  // Jika payment amount kurang dari atau sama dengan order total, tidak perlu custom amount
+  if (paymentAmount <= orderTotalFromItems) {
+    return null;
+  }
+  
+  const excessAmount = paymentAmount - orderTotalFromItems;
+  
+  // Hanya buat custom amount jika kelebihan signifikan (lebih dari 1000)
+  if (excessAmount > 1000) {
     return {
-      name: 'Excess Payment',
-      description: 'Additional amount paid beyond order total',
-      amount: excess,
-      dineType: 'custom'
+      amount: excessAmount,
+      name: "Excess Payment",
+      description: "Additional amount paid beyond order total",
+      dineType: "Dine-In"
     };
   }
+  
   return null;
-}
+};
 
 // HELPER FUNCTION UNTUK CEK JAM OPERASIONAL OUTLET
 const checkOutletOperatingHours = (outlet) => {
@@ -6413,28 +6455,19 @@ export function toOrderDTO(orderDoc, paymentDocs = []) {
 }
 
 export async function patchEditOrder(req, res) {
+  const { orderId } = req.params;
+  const { reason, items: incomingItems = [] } = req.body;
+
   try {
-    const { orderId } = req.params;
-    const { operations, reason } = req.body || {};
-    if (!Array.isArray(operations) || operations.length === 0) {
-      return res.status(400).json({ message: 'operations required (array)' });
-    }
-
-    const idempotencyKey = req.header('Idempotency-Key') || null;
-    const userId = req.user?._id || null;
-
-    const result = await editOrderAndAllocate({
-      orderId,
-      operations,
+    const result = await replaceOrderItemsAndAllocate({
+      orderId: orderId,
+      incomingItems,
       reason,
-      userId,
-      idempotencyKey,
+      userId: req.user?.id,
+      idempotencyKey: req.headers['x-idempotency-key'],
     });
 
-    return res.status(result.reused ? 200 : 201).json({
-      message: result.reused ? 'idempotent: revision reused' : 'order edited',
-      revision: result.revision,
-    });
+    res.status(200).json({ success: true, message: 'Order updated', data: result });
   } catch (err) {
     console.error('patchEditOrder error:', err);
     return res.status(500).json({ message: err.message || 'internal error' });

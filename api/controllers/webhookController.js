@@ -13,7 +13,7 @@ export const midtransWebhook = async (req, res) => {
     const notificationJson = req.body;
     let {
       transaction_status,
-      order_id, // This is your payment_code
+      order_id, // This could be order_id OR payment_code
       fraud_status,
       payment_type,
       gross_amount,
@@ -38,15 +38,38 @@ export const midtransWebhook = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // ✅ FIX: Search by payment_code since Midtrans order_id = your payment_code
-    const existingPayment = await Payment.findOne({ order_id: order_id });
+    // ✅ PERBAIKAN: Cari payment record dengan multiple criteria
+    let existingPayment = await Payment.findOne({ 
+      $or: [
+        { order_id: order_id },           // Untuk order reguler
+        { payment_code: order_id },       // Untuk reservation order
+        { transaction_id: order_id }      // Fallback
+      ]
+    });
 
     if (!existingPayment) {
-      console.error(`[WEBHOOK ${requestId}] Payment record not found for payment_code: ${order_id}`);
+      console.error(`[WEBHOOK ${requestId}] Payment record not found for: ${order_id}`);
+      
+      // ✅ TAMBAHAN: Coba cari order langsung untuk debugging
+      const orderCheck = await Order.findOne({ order_id: order_id });
+      if (orderCheck) {
+        console.log(`[WEBHOOK ${requestId}] Order found but payment record missing:`, {
+          order_id: orderCheck.order_id,
+          order_type: orderCheck.orderType,
+          status: orderCheck.status
+        });
+      }
+      
       return res.status(404).json({ message: 'Payment record not found' });
     }
 
-    console.log(`[WEBHOOK ${requestId}] Processing webhook for payment:`, existingPayment._id);
+    console.log(`[WEBHOOK ${requestId}] Processing webhook for payment:`, {
+      payment_id: existingPayment._id,
+      payment_code: existingPayment.payment_code,
+      order_id: existingPayment.order_id,
+      payment_type: existingPayment.paymentType,
+      current_status: existingPayment.status
+    });
 
     // Update payment record
     const paymentUpdateData = {
@@ -65,12 +88,19 @@ export const midtransWebhook = async (req, res) => {
     const rawResponseUpdate = {
       ...existingPayment.raw_response,
       ...notificationJson,
-      webhook_received_at: new Date()
+      webhook_received_at: new Date(),
+      webhook_request_id: requestId
     };
 
-    // ✅ FIX: Update by payment_code (which matches Midtrans order_id)
+    // ✅ PERBAIKAN: Update payment dengan criteria yang sama
     const updatedPayment = await Payment.findOneAndUpdate(
-      { order_id: order_id },  
+      { 
+        $or: [
+          { order_id: order_id },
+          { payment_code: order_id },
+          { transaction_id: order_id }
+        ]
+      },
       {
         ...paymentUpdateData,
         raw_response: rawResponseUpdate
@@ -79,51 +109,79 @@ export const midtransWebhook = async (req, res) => {
     );
 
     if (!updatedPayment) {
-      console.error(`[WEBHOOK ${requestId}] Failed to update payment for payment_code ${order_id}`);
+      console.error(`[WEBHOOK ${requestId}] Failed to update payment for: ${order_id}`);
       return res.status(404).json({ message: 'Payment update failed' });
     }
 
-    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully for payment_code ${order_id}`);
+    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully:`, {
+      payment_id: updatedPayment._id,
+      new_status: updatedPayment.status,
+      payment_type: updatedPayment.paymentType
+    });
 
-    // ✅ FIX: Also fix this reference - change payment_order to order
-    const order = await Order.findOne({ order_id })
+    // ✅ PERBAIKAN: Cari order berdasarkan order_id dari payment record
+    const targetOrderId = updatedPayment.order_id; // Selalu gunakan order_id dari payment
+    
+    const order = await Order.findOne({ order_id: targetOrderId })
       .populate('user_id', 'name email phone')
       .populate('cashierId', 'name')
       .populate({
         path: 'items.menuItem',
         select: 'name price image mainCategory workstation category description'
       })
-      .populate('outlet', 'name address');
-
-    console.log("order:", order);
+      .populate('outlet', 'name address')
+      .populate('reservation'); // ✅ TAMBAHAN: Populate reservation untuk reservation orders
 
     if (!order) {
-      console.warn(`[WEBHOOK ${requestId}] Order with ID ${order_id} not found`);
+      console.warn(`[WEBHOOK ${requestId}] Order with ID ${targetOrderId} not found`);
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    console.log(`[WEBHOOK ${requestId}] Order ${order_id} found. Current status: ${order.status}, Payment status: ${order.paymentStatus}`);
+    console.log(`[WEBHOOK ${requestId}] Order found:`, {
+      order_id: order.order_id,
+      order_type: order.orderType,
+      current_status: order.status,
+      payment_status: order.paymentStatus,
+      has_reservation: !!order.reservation
+    });
 
-    // Handle transaction status
+    // Handle transaction status - PERBAIKAN UNTUK RESERVATION ORDER
     let orderUpdateData = {};
     let shouldUpdateOrder = false;
+    let shouldUpdateReservation = false;
 
     switch (transaction_status) {
       case 'capture':
       case 'settlement':
         if (fraud_status === 'accept') {
-          orderUpdateData = {
-            paymentStatus: 'Paid',
-            status: order.status === 'Pending' ? 'Pending' : order.status
-          };
+          // ✅ PERBAIKAN: Handle berbeda untuk reservation vs regular order
+          if (order.orderType === 'Reservation' && updatedPayment.paymentType === 'Down Payment') {
+            // Untuk reservation dengan DP berhasil
+            orderUpdateData = {
+              paymentStatus: 'Paid',
+              status: 'Confirmed' // ✅ Ubah status order reservation jadi Confirmed
+            };
+            
+            // Tandai untuk update reservation juga
+            shouldUpdateReservation = true;
+            console.log(`[WEBHOOK ${requestId}] Down Payment successful for reservation order ${targetOrderId}`);
+            
+          } else {
+            // Untuk order reguler
+            orderUpdateData = {
+              paymentStatus: 'Paid',
+              status: order.status === 'Pending' ? 'Pending' : order.status
+            };
+            console.log(`[WEBHOOK ${requestId}] Payment successful for regular order ${targetOrderId}`);
+          }
           shouldUpdateOrder = true;
-          console.log(`[WEBHOOK ${requestId}] Payment successful for order ${order_id}`);
+          
         } else if (fraud_status === 'challenge') {
           orderUpdateData = {
             paymentStatus: 'Challenged'
           };
           shouldUpdateOrder = true;
-          console.log(`[WEBHOOK ${requestId}] Payment challenged for order ${order_id}`);
+          console.log(`[WEBHOOK ${requestId}] Payment challenged for order ${targetOrderId}`);
         }
         break;
 
@@ -135,7 +193,7 @@ export const midtransWebhook = async (req, res) => {
           status: 'Canceled'
         };
         shouldUpdateOrder = true;
-        console.log(`[WEBHOOK ${requestId}] Payment failed for order ${order_id}: ${transaction_status}`);
+        console.log(`[WEBHOOK ${requestId}] Payment failed for order ${targetOrderId}: ${transaction_status}`);
         break;
 
       case 'pending':
@@ -143,7 +201,7 @@ export const midtransWebhook = async (req, res) => {
           paymentStatus: 'Pending'
         };
         shouldUpdateOrder = true;
-        console.log(`[WEBHOOK ${requestId}] Payment pending for order ${order_id}`);
+        console.log(`[WEBHOOK ${requestId}] Payment pending for order ${targetOrderId}`);
         break;
 
       default:
@@ -154,45 +212,95 @@ export const midtransWebhook = async (req, res) => {
     if (shouldUpdateOrder) {
       Object.assign(order, orderUpdateData);
       await order.save();
-      console.log(`[WEBHOOK ${requestId}] Order ${order_id} updated:`, orderUpdateData);
+      console.log(`[WEBHOOK ${requestId}] Order ${targetOrderId} updated:`, orderUpdateData);
     }
 
-    // ✅ FIX: Change payment_order to order
+    // ✅ PERBAIKAN: Update reservation status jika DP berhasil
+    if (shouldUpdateReservation && order.reservation) {
+      try {
+        const reservation = await Reservation.findById(order.reservation._id);
+        if (reservation) {
+          reservation.status = 'confirmed';
+          reservation.confirm_by = {
+            employee_id: null,
+            employee_name: 'System (Midtrans)',
+            confirmed_at: new Date()
+          };
+          await reservation.save();
+          console.log(`[WEBHOOK ${requestId}] Reservation ${reservation.reservation_code} confirmed`);
+        }
+      } catch (reservationError) {
+        console.error(`[WEBHOOK ${requestId}] Failed to update reservation:`, reservationError);
+      }
+    }
+
+    // ✅ PERBAIKAN: Update payment remaining amount untuk reservation
+    if (transaction_status === 'settlement' && fraud_status === 'accept' && 
+        order.orderType === 'Reservation' && updatedPayment.paymentType === 'Down Payment') {
+      try {
+        // Mark down payment as settled
+        updatedPayment.remainingAmount = updatedPayment.totalAmount - updatedPayment.amount;
+        await updatedPayment.save();
+        console.log(`[WEBHOOK ${requestId}] Down Payment settled, remaining amount: ${updatedPayment.remainingAmount}`);
+      } catch (paymentError) {
+        console.error(`[WEBHOOK ${requestId}] Failed to update payment remaining amount:`, paymentError);
+      }
+    }
+
+    // Emit events
     const emitData = {
-      order_id: order.order_id,  // ✅ Fixed reference
+      order_id: order.order_id,
       status: order.status,
       paymentStatus: order.paymentStatus,
       transaction_status,
       fraud_status,
       payment_type,
       gross_amount,
+      order_type: order.orderType,
+      is_reservation: order.orderType === 'Reservation',
       timestamp: new Date()
     };
 
-    io.to(`order_${order_id}`).emit('payment_status_update', emitData);
-    io.to(`order_${order_id}`).emit('order_status_update', emitData);
+    // Emit ke room order
+    io.to(`order_${targetOrderId}`).emit('payment_status_update', emitData);
+    io.to(`order_${targetOrderId}`).emit('order_status_update', emitData);
 
-    console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${order_id}`);
+    console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${targetOrderId}`);
 
-    // JIKA PEMBAYARAN BERHASIL: Broadcast ke device yang sesuai
-    if (transaction_status === 'settlement' && fraud_status === 'accept') {
+    // ✅ PERBAIKAN: Broadcast ke device HANYA untuk order reguler yang berhasil
+    // Untuk reservation order, kita tidak perlu broadcast ke kitchen
+    if (transaction_status === 'settlement' && fraud_status === 'accept' && order.orderType !== 'Reservation') {
       const mappedOrder = mapOrderForCashier(order);
 
       console.log(`[WEBHOOK ${requestId}] 🎯 Processing order broadcast for table: ${order.tableNumber}`);
 
-      // ✅ BROADCAST KE DEVICE YANG SESUAI DENGAN AREA & TABLE
+      // Broadcast ke device yang sesuai dengan area & table
       await broadcastOrderToTargetDevices(order, mappedOrder);
 
-      // ✅ Update status meja
+      // Update status meja
       await updateTableStatusAfterPayment(order);
     }
 
-    console.log(`[WEBHOOK ${requestId}] Webhook processed successfully`);
+    // ✅ TAMBAHAN: Untuk reservation order yang berhasil, log saja
+    if (transaction_status === 'settlement' && fraud_status === 'accept' && order.orderType === 'Reservation') {
+      console.log(`[WEBHOOK ${requestId}] ✅ Reservation order ${targetOrderId} down payment completed successfully`);
+      
+      // Bisa tambahkan notifikasi khusus untuk reservation di sini
+      io.to(`reservation_${order.reservation?._id}`).emit('reservation_payment_completed', {
+        reservation_code: order.reservation?.reservation_code,
+        order_id: order.order_id,
+        payment_amount: gross_amount,
+        remaining_amount: updatedPayment.remainingAmount
+      });
+    }
+
+    console.log(`[WEBHOOK ${requestId}] Webhook processed successfully for ${targetOrderId}`);
     res.status(200).json({
       status: 'ok',
       message: 'Webhook processed successfully',
-      order_id,
-      transaction_status
+      order_id: targetOrderId,
+      transaction_status,
+      order_type: order.orderType
     });
 
   } catch (error) {
