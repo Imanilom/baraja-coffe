@@ -511,7 +511,7 @@ export const getMenuItems = async (req, res) => {
 };
 
 export const getMenuItemsWithRecipes = async (req, res) => {
-  const cacheKey = "menu_items_with_recipes_aggregation";
+  const cacheKey = "menu_items_with_recipes_and_manual_stock";
 
   try {
     // cek cache
@@ -574,6 +574,16 @@ export const getMenuItemsWithRecipes = async (req, res) => {
           localField: "_id",
           foreignField: "menuItemId",
           as: "stockInfo"
+        }
+      },
+      {
+        // FILTER BARU: Hanya yang memiliki manual stock
+        $match: {
+          "stockInfo.0": { $exists: true }, // Pastikan ada stockInfo
+          $or: [
+            { "stockInfo.manualStock": { $gt: 0 } }, // Manual stock lebih dari 0
+            { "stockInfo.manualStock": { $ne: null } } // Atau manual stock tidak null
+          ]
         }
       },
       {
@@ -713,7 +723,8 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         workstation: item.workstation,
         isActive: item.isActive,
         hasRecipe: true,
-        recipeCount: item.recipe ? item.recipe.length : 0
+        recipeCount: item.recipe ? item.recipe.length : 0,
+        hasManualStock: safeManualStock > 0 || safeManualStock !== null // ✅ Flag tambahan
       };
     });
 
@@ -724,9 +735,10 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         total: formattedMenuItems.length,
         hasRecipes: true,
         withStockInfo: true,
+        withManualStock: true, // ✅ Flag baru
         message: formattedMenuItems.length > 0 
-          ? `Showing ${formattedMenuItems.length} menu items with recipes`
-          : "No menu items with recipes found"
+          ? `Showing ${formattedMenuItems.length} menu items with recipes AND manual stock`
+          : "No menu items with recipes and manual stock found"
       }
     };
 
@@ -739,10 +751,10 @@ export const getMenuItemsWithRecipes = async (req, res) => {
 
     return res.status(200).json(responsePayload);
   } catch (error) {
-    console.error("❌ Error fetching menu items with recipes:", error);
+    console.error("❌ Error fetching menu items with recipes and manual stock:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch menu items with recipes.",
+      message: "Failed to fetch menu items with recipes and manual stock.",
       error: error.message,
     });
   }

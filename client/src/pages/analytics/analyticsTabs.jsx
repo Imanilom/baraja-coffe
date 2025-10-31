@@ -3,6 +3,7 @@ import VoucherAnalytics from "./voucherAnalytics";
 import PromoAnalytics from "./promoAnalytics";
 import EventAnalytics from "./eventAnalytics";
 import CustomerSegmentDashboard from "./analyticsSegment";
+import CategoryAnalyticsDashboard from "./analyticsCategory";
 
 export default function AnalyticsTabs() {
     const tabs = [
@@ -10,6 +11,7 @@ export default function AnalyticsTabs() {
         { label: "Promo", value: "promo" },
         { label: "Event", value: "event" },
         { label: "Poin", value: "poin" },
+        { label: "Kategori", value: "category" },
     ];
 
     const [selectedTab, setSelectedTab] = useState("voucher");
@@ -38,6 +40,7 @@ export default function AnalyticsTabs() {
                 {selectedTab === "promo" && <PromoAnalytics />}
                 {selectedTab === "event" && <EventAnalytics />}
                 {selectedTab === "poin" && <CustomerSegmentDashboard />}
+                {selectedTab === "category" && <CategoryAnalyticsDashboard />}
             </div>
 
             {/* CSS Scrollbar */}

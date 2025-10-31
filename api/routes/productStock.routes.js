@@ -1,9 +1,11 @@
 import express from 'express';
 import { insertInitialStocks, getProductStock, addStockMovement, getAllStock, getStockMovements, updateMinStock } from '../controllers/ProductStock.controller.js';
-import { getMenuStockDetails, updateMenuAvailableStock, updateSingleMenuStock, 
-    adjustMenuStock, createRecipe, deleteRecipe, getAllRecipes, getRecipeById, 
+import {
+    getMenuStockDetails, updateMenuAvailableStock, updateSingleMenuStock,
+    adjustMenuStock, createRecipe, deleteRecipe, getAllRecipes, getRecipeById,
     getRecipeByMenuId, updateRecipe, getMenuStocks, calculateCostPrice, getProductRecipeUsageSummary, getRecipesByProduct, getRecipesByProductName,
-    getRecipesByProductWithStock, recordWasteStock} from '../controllers/Recipe.controller.js';
+    getRecipesByProductWithStock, recordWasteStock
+} from '../controllers/Recipe.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 const router = express.Router();
 const inventoryAccess = verifyToken(['superadmin', 'admin', 'inventory', 'accounting']);
@@ -22,7 +24,7 @@ router.put('/menu/:menuItemId/update-stock', updateSingleMenuStock);
 router.put('/menu/:menuItemId/adjust-stock', adjustMenuStock);
 router.get('/menu/:menuItemId/details', getMenuStockDetails);
 
-router.post('/recipes', inventoryAccess, createRecipe);
+router.post('/recipes', createRecipe);
 router.get('/recipes', getAllRecipes);
 router.get('/recipes/:id', getRecipeById);
 router.put('/recipes/:id', inventoryAccess, updateRecipe);
