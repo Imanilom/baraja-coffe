@@ -28,6 +28,12 @@ router.get('/payment-methods-and-types', (req, res) => {
             name: 'Bank Transfer',
             icon: 'bank-transfer.png',
             isActive: true,
+        },
+        {
+            id: 'qris',
+            name: 'QRIS',
+            icon: 'qris.png',
+            isActive: true
         }
     ]
     const paymentMethods = [
@@ -37,14 +43,6 @@ router.get('/payment-methods-and-types', (req, res) => {
             payment_method: 'Cash',
             typeId: ['cash'],
             isDigital: false,
-            isActive: true
-        },
-        {
-            id: 'qris',
-            name: 'QRIS',
-            payment_method: 'Qris',
-            typeId: ['ewallet'],
-            isDigital: true,
             isActive: true
         },
         {
@@ -59,7 +57,7 @@ router.get('/payment-methods-and-types', (req, res) => {
             id: 'bni',
             name: 'BNI',
             payment_method: 'BNI',
-            typeId: ['debit', 'banktransfer'],
+            typeId: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
             isActive: true
         },
@@ -67,7 +65,7 @@ router.get('/payment-methods-and-types', (req, res) => {
             id: 'bri',
             name: 'BRI',
             payment_method: 'BRI',
-            typeId: ['debit', 'banktransfer'],
+            typeId: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
             isActive: true
         },
@@ -75,7 +73,7 @@ router.get('/payment-methods-and-types', (req, res) => {
             id: 'bca',
             name: 'BCA',
             payment_method: 'BCA',
-            typeId: ['debit', 'banktransfer'],
+            typeId: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
             isActive: true
         },
@@ -83,7 +81,7 @@ router.get('/payment-methods-and-types', (req, res) => {
             id: 'mandiri',
             name: 'Mandiri',
             payment_method: 'Mandiri',
-            typeId: ['debit', 'banktransfer'],
+            typeId: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
             isActive: true
         },
@@ -91,50 +89,50 @@ router.get('/payment-methods-and-types', (req, res) => {
             id: 'bsi',
             name: 'BSI',
             payment_method: 'BSI',
-            typeId: ['debit', 'banktransfer'],
+            typeId: ['debit', 'banktransfer', 'qris'],
             isDigital: false,
             isActive: true
         },
-        {
-            id: 'qrisbni',
-            name: 'Qris BNI',
-            payment_method: 'Qris',
-            typeId: ['debit'],
-            isDigital: false,
-            isActive: true
-        },
-        {
-            id: 'qrisbri',
-            name: 'Qris BRI',
-            payment_method: 'Qris',
-            typeId: ['debit'],
-            isDigital: false,
-            isActive: true
-        },
-        {
-            id: 'qrisbca',
-            name: 'Qris BCA',
-            payment_method: 'Qris',
-            typeId: ['debit'],
-            isDigital: false,
-            isActive: true
-        },
-        {
-            id: 'qrismandiri',
-            name: 'Qris Mandiri',
-            payment_method: 'Qris',
-            typeId: ['debit'],
-            isDigital: false,
-            isActive: true
-        },
-        {
-            id: 'qrisbsi',
-            name: 'Qris BSI',
-            payment_method: 'Qris',
-            typeId: ['debit'],
-            isDigital: false,
-            isActive: true
-        },
+        // {
+        //     id: 'qrisbni',
+        //     name: 'Qris BNI',
+        //     payment_method: 'Qris',
+        //     typeId: ['qris'],
+        //     isDigital: false,
+        //     isActive: true
+        // },
+        // {
+        //     id: 'qrisbri',
+        //     name: 'Qris BRI',
+        //     payment_method: 'Qris',
+        //     typeId: ['qris'],
+        //     isDigital: false,
+        //     isActive: true
+        // },
+        // {
+        //     id: 'qrisbca',
+        //     name: 'Qris BCA',
+        //     payment_method: 'Qris',
+        //     typeId: ['qris'],
+        //     isDigital: false,
+        //     isActive: true
+        // },
+        // {
+        //     id: 'qrismandiri',
+        //     name: 'Qris Mandiri',
+        //     payment_method: 'Qris',
+        //     typeId: ['qris'],
+        //     isDigital: false,
+        //     isActive: true
+        // },
+        // {
+        //     id: 'qrisbsi',
+        //     name: 'Qris BSI',
+        //     payment_method: 'Qris',
+        //     typeId: ['qris'],
+        //     isDigital: false,
+        //     isActive: true
+        // },
     ];
 
 
