@@ -2537,28 +2537,82 @@ export const createUnifiedOrder = async (req, res) => {
       customAmountItems: finalCustomAmountItems
     };
 
+    // Cashier Helper function yang lebih flexible
+    const processCashierPayment = async (orderId, paymentDetails, baseResponse, result) => {
+      const chargeRequest = {
+        body: {
+          // Ambil dari paymentDetails atau gunakan default
+          payment_type: paymentDetails?.method || paymentDetails?.payment_type || 'cash',
+          order_id: orderId,
+          gross_amount: paymentDetails?.amount || paymentDetails?.gross_amount || 0,
+          is_down_payment: paymentDetails?.isDownPayment || paymentDetails?.is_down_payment || false,
+          down_payment_amount: paymentDetails?.downPaymentAmount || paymentDetails?.down_payment_amount,
+          remaining_payment: paymentDetails?.remainingPayment || paymentDetails?.remaining_payment,
+          tendered_amount: paymentDetails?.tenderedAmount || paymentDetails?.tendered_amount,
+          change_amount: paymentDetails?.changeAmount || paymentDetails?.change_amount,
+        }
+      };
+
+      return new Promise((resolve, reject) => {
+        const mockRes = {
+          status: (code) => ({
+            json: (data) => {
+              if (code === 200 && data.success) {
+                resolve(data);
+              } else {
+                reject(new Error(data.message || 'Payment failed'));
+              }
+            }
+          })
+        };
+
+        cashierCharge(chargeRequest, mockRes).catch(reject);
+      });
+    };
+
+    // Handle payment based on source
     // Handle payment based on source
     if (source === 'Cashier') {
-      await broadcastCashOrderToKitchen({
-        orderId,
-        tableNumber,
-        orderData: validated,
-        outletId,
-        hasCustomAmountItems: finalCustomAmountItems.length > 0
-      });
+      try {
+        // Langsung pakai req.body tanpa mapping
+        const paymentResult = await processCashierPayment(
+          orderId,
+          req.body.paymentDetails, // Langsung kirim paymentDetails dari req.body
+          baseResponse,
+          result
+        );
 
-      return res.status(200).json({
-        ...baseResponse,
-        status: 'Completed',
-        message: 'Cashier order processed and paid',
-        ...(result.loyalty?.isApplied && {
-          loyalty: {
-            pointsEarned: result.loyalty.pointsEarned,
-            pointsUsed: result.loyalty.pointsUsed,
-            discountAmount: result.loyalty.discountAmount
-          }
-        })
-      });
+        await broadcastCashOrderToKitchen({
+          orderId,
+          tableNumber,
+          orderData: validated,
+          outletId,
+          hasCustomAmountItems: finalCustomAmountItems.length > 0
+        });
+
+        return res.status(200).json({
+          ...baseResponse,
+          status: 'Completed',
+          message: 'Cashier order processed and paid',
+          paymentData: paymentResult.data,
+          paymentStatus: paymentResult.data.payment_status,
+          ...(result.loyalty?.isApplied && {
+            loyalty: {
+              pointsEarned: result.loyalty.pointsEarned,
+              pointsUsed: result.loyalty.pointsUsed,
+              discountAmount: result.loyalty.discountAmount
+            }
+          })
+        });
+
+      } catch (paymentError) {
+        console.error('Cashier payment failed:', paymentError);
+        return res.status(400).json({
+          success: false,
+          message: `Payment processing failed: ${paymentError.message}`,
+          orderId: orderId
+        });
+      }
     }
 
     if (source === 'App') {
@@ -5627,7 +5681,7 @@ export const cashierCharge = async (req, res) => {
       method: payment_type,
       status: 'settlement',                 // dari kasir: langsung settled
       paymentType: 'Full',
-      amount: amount,
+      amount: orderTotal,
       totalAmount: orderTotal,
       remainingAmount: 0,                   // ← tidak digunakan lagi, set 0
       relatedPaymentId: null,
