@@ -177,17 +177,36 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
     let statusChange = null;
     const previousStatus = menuItem.isActive;
     
-    if (effectiveStock <= 0) {
-      if (menuItem.isActive) {
-        menuItem.isActive = false;
-        statusChange = 'deactivated';
-        console.log(`🔴 Nonaktifkan ${menuItem.name} - stok habis (${effectiveStock})`);
+    // 🔴 PERUBAHAN: Nonaktifkan menu jika stok manual di bawah 5
+    if (menuStock.manualStock !== null && menuStock.manualStock !== undefined) {
+      // Jika menggunakan stok manual
+      if (menuStock.manualStock < 5) {
+        if (menuItem.isActive) {
+          menuItem.isActive = false;
+          statusChange = 'deactivated';
+          console.log(`🔴 Nonaktifkan ${menuItem.name} - stok manual di bawah 5 (${menuStock.manualStock})`);
+        }
+      } else {
+        if (!menuItem.isActive) {
+          menuItem.isActive = true;
+          statusChange = 'activated';
+          console.log(`🟢 Aktifkan ${menuItem.name} - stok manual mencukupi (${menuStock.manualStock})`);
+        }
       }
     } else {
-      if (!menuItem.isActive) {
-        menuItem.isActive = true;
-        statusChange = 'activated';
-        console.log(`🟢 Aktifkan ${menuItem.name} - stok tersedia (${effectiveStock})`);
+      // Jika menggunakan stok kalkulasi (default behavior)
+      if (effectiveStock <= 0) {
+        if (menuItem.isActive) {
+          menuItem.isActive = false;
+          statusChange = 'deactivated';
+          console.log(`🔴 Nonaktifkan ${menuItem.name} - stok habis (${effectiveStock})`);
+        }
+      } else {
+        if (!menuItem.isActive) {
+          menuItem.isActive = true;
+          statusChange = 'activated';
+          console.log(`🟢 Aktifkan ${menuItem.name} - stok tersedia (${effectiveStock})`);
+        }
       }
     }
 
