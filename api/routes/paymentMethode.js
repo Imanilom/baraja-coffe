@@ -7,7 +7,7 @@ router.get('/payment-methods-and-types', (req, res) => {
         //Cash, E-wallet, Debit
         {
             id: 'cash',
-            name: 'Tunai',
+            name: 'Cash',
             icon: 'cash.png',
             isActive: true,
         },
