@@ -12,8 +12,6 @@ import { calculateMaxPortions } from '../utils/stockCalculator.js';
  */
 // services/stockCalibration.service.js 
 
-// services/stockCalibration.service.js 
-
 export const calibrateAllMenuStocks = async () => {
   let successCount = 0;
   let errorCount = 0;
@@ -21,22 +19,18 @@ export const calibrateAllMenuStocks = async () => {
   let deactivatedCount = 0;
   let resetMinusCount = 0;
   const batchSize = 25; // KECILKAN batch size
-  const batchSize = 25; // KECILKAN batch size
   const startTime = Date.now();
 
   try {
     console.log('🔄 Memulai kalibrasi stok semua menu items...');
 
     // Ambil hanya ID dan name saja
-    // Ambil hanya ID dan name saja
     const menuItems = await MenuItem.find()
-      .select('_id name')
       .select('_id name')
       .lean();
 
     console.log(`📊 Total menu items: ${menuItems.length}`);
 
-    // Process in batches dengan sequential processing
     // Process in batches dengan sequential processing
     for (let i = 0; i < menuItems.length; i += batchSize) {
       const batch = menuItems.slice(i, i + batchSize);
@@ -44,36 +38,29 @@ export const calibrateAllMenuStocks = async () => {
 
       // Process batch secara SEQUENTIAL untuk hindari database overload
       for (const menuItem of batch) {
-        // Process batch secara SEQUENTIAL untuk hindari database overload
-        for (const menuItem of batch) {
-          try {
-            const result = await calibrateSingleMenuStock(menuItem._id.toString());
+        try {
+          const result = await calibrateSingleMenuStock(menuItem._id.toString());
 
-            if (result.statusChange) {
-              if (result.statusChange === 'activated') activatedCount++;
-              if (result.statusChange === 'deactivated') deactivatedCount++;
-            }
-            if (result.manualStockReset) {
-              resetMinusCount++;
-            }
-
-            successCount++;
-          } catch (error) {
-            errorCount++;
-            console.error(`❌ Gagal mengkalibrasi ${menuItem.name}:`, error.message);
+          if (result.statusChange) {
+            if (result.statusChange === 'activated') activatedCount++;
+            if (result.statusChange === 'deactivated') deactivatedCount++;
+          }
+          if (result.manualStockReset) {
+            resetMinusCount++;
           }
 
-          // Tambahkan delay kecil antara setiap item
-          await new Promise(resolve => setTimeout(resolve, 100));
+          successCount++;
+        } catch (error) {
+          errorCount++;
+          console.error(`❌ Gagal mengkalibrasi ${menuItem.name}:`, error.message);
         }
+
         // Tambahkan delay kecil antara setiap item
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       // Delay antara batch
-      // Delay antara batch
       if (i + batchSize < menuItems.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
@@ -114,19 +101,15 @@ export const calibrateAllMenuStocks = async () => {
 
 /**
  * Kalibrasi stok untuk menu item tertentu TANPA transaction
- * Kalibrasi stok untuk menu item tertentu TANPA transaction
  */
 export const calibrateSingleMenuStock = async (menuItemId) => {
   // HAPUS session dan transaction untuk operasi single
-  // HAPUS session dan transaction untuk operasi single
   try {
-    const menuItem = await MenuItem.findById(menuItemId);
     const menuItem = await MenuItem.findById(menuItemId);
     if (!menuItem) {
       throw new Error('Menu item tidak ditemukan');
     }
 
-    const recipe = await Recipe.findOne({ menuItemId: menuItem._id });
     const recipe = await Recipe.findOne({ menuItemId: menuItem._id });
     let calculatedStock = 0;
 
@@ -140,9 +123,7 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
 
     // Cari atau buat MenuStock
     let menuStock = await MenuStock.findOne({ menuItemId: menuItem._id });
-    let menuStock = await MenuStock.findOne({ menuItemId: menuItem._id });
 
-    // ✅ Reset manualStock yang minus ke 0
     // ✅ Reset manualStock yang minus ke 0
     let manualStockReset = false;
     let previousManualStock = null;
@@ -171,25 +152,21 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
 
       menuStock.lastCalculatedAt = new Date();
       await menuStock.save();
-      await menuStock.save();
     } else {
       // Buat MenuStock baru
       menuStock = await MenuStock.create({
-        // Buat MenuStock baru
-        menuStock = await MenuStock.create({
-          menuItemId: menuItem._id,
-          type: 'adjustment',
-          quantity: 0,
-          reason: 'manual_adjustment',
-          previousStock: 0,
-          currentStock: calculatedStock,
-          calculatedStock: calculatedStock,
-          manualStock: null,
-          handledBy: 'system',
-          notes: 'Initial stock calibration by system',
-          lastCalculatedAt: new Date(),
-          lastAdjustedAt: new Date()
-        });
+        menuItemId: menuItem._id,
+        type: 'adjustment',
+        quantity: 0,
+        reason: 'manual_adjustment',
+        previousStock: 0,
+        currentStock: calculatedStock,
+        calculatedStock: calculatedStock,
+        manualStock: null,
+        handledBy: 'system',
+        notes: 'Initial stock calibration by system',
+        lastCalculatedAt: new Date(),
+        lastAdjustedAt: new Date()
       });
     }
 
@@ -236,7 +213,6 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
     // Update availableStock di MenuItem
     menuItem.availableStock = effectiveStock;
     await menuItem.save();
-    await menuItem.save();
 
     return {
       success: true,
@@ -245,12 +221,10 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
       calculatedStock,
       manualStock: menuStock.manualStock,
       previousManualStock,
-      previousManualStock,
       effectiveStock,
       previousStatus,
       currentStatus: menuItem.isActive,
       statusChange,
-      manualStockReset,
       manualStockReset,
       timestamp: new Date()
     };
