@@ -227,7 +227,176 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
 
         return warnings.join(', ') || 'Item bermasalah tetapi tetap diprint';
     }
+    // Add this method to the PrintLogger class
+    static async logProblematicItem(orderId, item, workstation, issues, details = '', stockInfo = {}) {
+        try {
+            const menuItemId = item.menuItemId || item._id || item.id;
+            console.log('⚠️ [PROBLEMATIC ITEM LOG]', {
+                orderId,
+                menuItemId,
+                itemName: item.name,
+                workstation,
+                issues,
+                details
+            });
 
+            // Check stock status for additional context
+            const stockStatus = await this.checkMenuItemStock(menuItemId);
+
+            const log = new PrintLog({
+                order_id: orderId,
+                item_id: menuItemId,
+                item_name: item.name,
+                item_quantity: item.qty || item.quantity,
+                workstation: workstation,
+                print_status: 'problematic_reported',
+
+                // Problematic tracking
+                is_problematic: true,
+                failure_reason: 'manual_report',
+                failure_details: JSON.stringify({
+                    reported_issues: issues,
+                    user_details: details,
+                    stock_info: stockInfo,
+                    stock_status: stockStatus
+                }),
+                warning_notes: `MANUALLY REPORTED: ${issues.join ? issues.join(', ') : issues}`,
+
+                // Stock context
+                stock_available: stockStatus.available,
+                stock_quantity: stockStatus.currentStock,
+                stock_status: stockStatus.status,
+                menu_item_id: menuItemId,
+                calculated_stock: stockStatus.calculatedStock,
+                manual_stock: stockStatus.manualStock,
+                effective_stock: stockStatus.effectiveStock,
+
+                // Additional context
+                menu_workstation: item.workstation,
+                requires_preparation: stockStatus.requiresPreparation
+            });
+
+            const savedLog = await log.save();
+            return savedLog._id;
+        } catch (error) {
+            console.error('❌ Error logging problematic item:', error);
+
+            // Fallback logging
+            try {
+                const fallbackLog = new PrintLog({
+                    order_id: orderId,
+                    item_id: item.menuItemId || item._id || item.id,
+                    item_name: item.name,
+                    workstation: workstation,
+                    print_status: 'problematic_reported',
+                    is_problematic: true,
+                    failure_reason: 'manual_report',
+                    failure_details: `Fallback: ${error.message}`,
+                    warning_notes: `ISSUES: ${issues}`
+                });
+                await fallbackLog.save();
+                return fallbackLog._id;
+            } catch (fallbackError) {
+                console.error('❌ Even fallback logging failed:', fallbackError);
+                return null;
+            }
+        }
+    }
+    // Add this method to the PrintLogger class as well
+    static async logSkippedItem(orderId, item, workstation, reason, details = '') {
+        try {
+            const menuItemId = item.menuItemId || item._id || item.id;
+            console.log('⏭️ [SKIPPED ITEM LOG]', {
+                orderId,
+                menuItemId,
+                itemName: item.name,
+                workstation,
+                reason
+            });
+
+            const log = new PrintLog({
+                order_id: orderId,
+                item_id: menuItemId,
+                item_name: item.name,
+                item_quantity: item.qty || item.quantity,
+                workstation: workstation,
+                print_status: 'skipped',
+
+                // Skip tracking
+                is_problematic: true,
+                failure_reason: 'skipped',
+                failure_details: JSON.stringify({
+                    skip_reason: reason,
+                    skip_details: details,
+                    skipped_at: new Date()
+                }),
+                warning_notes: `SKIPPED: ${reason}`,
+
+                // Additional context
+                menu_workstation: item.workstation,
+                menu_item_id: menuItemId
+            });
+
+            const savedLog = await log.save();
+            return savedLog._id;
+        } catch (error) {
+            console.error('❌ Error logging skipped item:', error);
+            return null;
+        }
+    }
+    // Add these methods to the PrintLogger class
+    static async getPrintSummary(hours = 24) {
+        try {
+            const cutoffTime = new Date(Date.now() - (hours * 60 * 60 * 1000));
+
+            const stats = await PrintLog.aggregate([
+                {
+                    $match: {
+                        createdAt: { $gte: cutoffTime }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$print_status',
+                        count: { $sum: 1 },
+                        avg_duration: { $avg: '$print_duration' }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        status: '$_id',
+                        count: 1,
+                        avg_duration: 1
+                    }
+                }
+            ]);
+
+            return stats;
+        } catch (error) {
+            console.error('❌ Error getting print summary:', error);
+            return [];
+        }
+    }
+
+    static async getRecentFailures(hours = 6, limit = 10) {
+        try {
+            const cutoffTime = new Date(Date.now() - (hours * 60 * 60 * 1000));
+
+            const failures = await PrintLog.find({
+                createdAt: { $gte: cutoffTime },
+                print_status: { $in: ['failed', 'printed_with_issues'] }
+            })
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .lean();
+
+            return failures;
+        } catch (error) {
+            console.error('❌ Error getting recent failures:', error);
+            return [];
+        }
+    }
     static generateTechnicalWarning(technicalDetails) {
         const warnings = [];
 
