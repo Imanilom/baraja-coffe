@@ -66,9 +66,10 @@ const createReservationWithOrderSchema = Joi.object({
     guestName: Joi.string().optional().allow('')
   })).optional(),
   total_amount: Joi.number().min(0).optional(),
-  payment_type: Joi.string().valid('full', 'partial').default('partial'),
+  payment_type: Joi.string().valid('full', 'partial', 'none').default('partial'), // TAMBAH OPTION 'none'
   down_payment_amount: Joi.number().min(0).optional(),
-  payment_method: Joi.string().valid('E-Wallet', 'Bank Transfer', 'Credit Card', 'Cash').default('E-Wallet')
+  payment_method: Joi.string().valid('E-Wallet', 'Bank Transfer', 'Credit Card', 'Cash', 'None').default('E-Wallet'), // TAMBAH OPTION 'None'
+  require_dp: Joi.boolean().default(true) // FIELD BARU: menentukan apakah perlu DP atau tidak
 });
 
 
@@ -287,7 +288,7 @@ const parseFoodServingTime = (dateString, reservationDate, reservationTime) => {
 };
 
 
-// Create reservation with order and DP payment - VERSI DENGAN PAYMENT RECORD
+// Create reservation with order - VERSI TANPA DP OPSIONAL
 export const createReservationWithOrder = async (req, res) => {
   const session = await mongoose.startSession();
   
@@ -364,7 +365,8 @@ export const createReservationWithOrder = async (req, res) => {
       total_amount,
       payment_type,
       down_payment_amount,
-      payment_method
+      payment_method,
+      require_dp // FIELD BARU
     } = value;
 
     console.log('✅ Processed reservation data:', {
@@ -378,7 +380,9 @@ export const createReservationWithOrder = async (req, res) => {
       total_amount,
       down_payment_amount,
       customer_name,
-      customer_phone
+      customer_phone,
+      require_dp, // LOG FIELD BARU
+      payment_type
     });
 
     // Validate area exists and is active
@@ -480,6 +484,9 @@ export const createReservationWithOrder = async (req, res) => {
     
     const reservationCode = `RSV-${dateString}-${sequence.toString().padStart(3, '0')}`;
 
+    // TENTUKAN STATUS RESERVASI BERDASARKAN REQUIRE_DP
+    const reservationStatus = require_dp ? 'pending' : 'confirmed';
+
     // Prepare reservation data dengan semua field required
     const reservationData = {
       reservation_code: reservationCode,
@@ -498,7 +505,7 @@ export const createReservationWithOrder = async (req, res) => {
       equipment: equipment || [],
       notes: notes || '',
       serving_type: serving_type || 'ala carte',
-      status: 'pending',
+      status: reservationStatus, // GUNAKAN STATUS YANG SUDAH DITENTUKAN
       food_serving_option: 'scheduled',
       created_by: {
         employee_id: null,
@@ -542,38 +549,52 @@ export const createReservationWithOrder = async (req, res) => {
 
       // Calculate totals
       const orderTotal = order_items.reduce((sum, item) => sum + item.subtotal, 0);
-      const dpAmount = down_payment_amount || Math.round(orderTotal * 0.30);
-      const remainingAmount = orderTotal - dpAmount;
-
-      console.log('💰 Order calculations:', {
-        order_total: orderTotal,
-        down_payment: dpAmount,
-        calculated_dp: Math.round(orderTotal * 0.30),
-        remaining_amount: remainingAmount
-      });
-
-      // Create order dengan semua field required
-      order = new Order({
-        order_id: orderId,
-        user: customer_name || 'Guest',
-        items: formattedOrderItems,
-        customAmountItems: [{
+      
+      // TENTUKAN APAKAH PERLU DP ATAU TIDAK
+      let dpAmount = 0;
+      let remainingAmount = orderTotal;
+      let customAmountItems = [];
+      
+      if (require_dp) {
+        // JIKA PERLU DP
+        dpAmount = down_payment_amount || Math.round(orderTotal * 0.30);
+        remainingAmount = orderTotal - dpAmount;
+        
+        customAmountItems = [{
           amount: dpAmount,
           name: 'Down Payment (30%)',
           description: `DP untuk reservasi ${reservation.reservation_code}`,
           dineType: 'Dine-In',
           appliedAt: getWIBNow(),
           discountApplied: 0
-        }],
-        status: 'Pending',
-        paymentMethod: payment_method || 'E-Wallet',
+        }];
+        
+        console.log('💰 With DP calculations:', {
+          order_total: orderTotal,
+          down_payment: dpAmount,
+          calculated_dp: Math.round(orderTotal * 0.30),
+          remaining_amount: remainingAmount
+        });
+      } else {
+        // JIKA TIDAK PERLU DP
+        console.log('💰 No DP required - full amount will be paid later');
+      }
+
+      // Create order dengan semua field required
+      order = new Order({
+        order_id: orderId,
+        user: customer_name || 'Guest',
+        items: formattedOrderItems,
+        customAmountItems: customAmountItems, // KOSONGKAN JIKA TIDAK ADA DP
+        status: require_dp ? 'Pending' : 'OnProcess', // STATUS ORDER BERBEDA
+        paymentMethod: payment_method || (require_dp ? 'E-Wallet' : 'Cash'),
         orderType: 'Reservation',
         tableNumber: tables.map(t => t.table_number).join(', '),
         type: 'Indoor',
         outlet: '67cbc9560f025d897d69f889',
         totalBeforeDiscount: orderTotal,
         totalAfterDiscount: orderTotal,
-        totalCustomAmount: dpAmount,
+        totalCustomAmount: dpAmount, // 0 JIKA TIDAK ADA DP
         grandTotal: orderTotal + dpAmount,
         source: 'Web',
         reservation: reservation._id,
@@ -603,24 +624,91 @@ export const createReservationWithOrder = async (req, res) => {
 
       await order.save({ session });
 
-      // ✅ BUAT PAYMENT RECORD DENGAN STATUS PENDING
-      const paymentCode = `PAY-${reservation.reservation_code}-${Date.now()}`;
-      
-      paymentRecord = new Payment({
-        order_id: order.order_id,
-        payment_code: paymentCode,
-        method: payment_method || 'E-Wallet',
-        status: 'pending', // Status awal pending
-        paymentType: 'Down Payment',
-        amount: dpAmount,
-        totalAmount: orderTotal,
-        remainingAmount: remainingAmount,
-        phone: customer_phone || '',
-        currency: 'IDR'
-      });
+      // BUAT PAYMENT RECORD HANYA JIKA PERLU DP
+      if (require_dp) {
+        const paymentCode = `PAY-${reservation.reservation_code}-${Date.now()}`;
+        
+        paymentRecord = new Payment({
+          order_id: order.order_id,
+          payment_code: paymentCode,
+          method: payment_method || 'E-Wallet',
+          status: 'pending', // Status awal pending
+          paymentType: 'Down Payment',
+          amount: dpAmount,
+          totalAmount: orderTotal,
+          remainingAmount: remainingAmount,
+          phone: customer_phone || '',
+          currency: 'IDR'
+        });
 
-      await paymentRecord.save({ session });
-      console.log('✅ Payment record created with status pending:', paymentRecord.payment_code);
+        await paymentRecord.save({ session });
+        console.log('✅ Payment record created with status pending:', paymentRecord.payment_code);
+
+        // Create Midtrans transaction HANYA JIKA PERLU DP
+        try {
+          console.log('🔄 Creating Midtrans transaction for DP...');
+          
+          // Persiapan data customer untuk Midtrans
+          const customerData = {
+            first_name: customer_name ? customer_name.split(' ')[0] : 'Customer',
+            last_name: customer_name ? customer_name.split(' ').slice(1).join(' ') : '',
+            email: customer_email || 'customer@example.com',
+            phone: customer_phone || '081234567890'
+          };
+
+          // Pastikan amount adalah number
+          const paymentAmount = Number(dpAmount);
+          if (isNaN(paymentAmount) || paymentAmount <= 0) {
+            throw new Error(`Invalid payment amount: ${dpAmount}`);
+          }
+
+          console.log('💰 Midtrans payment details:', {
+            orderId: order.order_id,
+            amount: paymentAmount,
+            customer: customerData
+          });
+
+          // Panggil Midtrans function dengan parameter yang benar
+          midtransResponse = await createMidtransSnapTransaction(
+            order.order_id,    // Parameter 1: orderId
+            paymentAmount,     // Parameter 2: amount (number)
+            customerData,      // Parameter 3: customer
+            payment_method     // Parameter 4: paymentMethod
+          );
+
+          console.log('✅ Midtrans transaction created:', {
+            token: midtransResponse.token ? 'YES' : 'NO',
+            redirect_url: midtransResponse.redirect_url ? 'YES' : 'NO'
+          });
+
+          // UPDATE PAYMENT RECORD DENGAN DATA MIDTRANS JIKA BERHASIL
+          if (midtransResponse && midtransResponse.token) {
+            paymentRecord.transaction_id = midtransResponse.transaction_id || `MID-${Date.now()}`;
+            paymentRecord.midtransRedirectUrl = midtransResponse.redirect_url;
+            paymentRecord.raw_response = midtransResponse;
+            
+            await paymentRecord.save({ session });
+            console.log('✅ Payment record updated with Midtrans data');
+          }
+
+        } catch (midtransError) {
+          console.error('❌ Midtrans error:', midtransError);
+          // Simpan error response di payment record
+          paymentRecord.raw_response = {
+            error: midtransError.message,
+            status: 'failed'
+          };
+          await paymentRecord.save({ session });
+          
+          midtransResponse = {
+            success: false,
+            error: midtransError.message,
+            status: 'failed'
+          };
+        }
+      } else {
+        console.log('ℹ️ No DP required, skipping payment record and Midtrans');
+      }
 
       // Update reservation with order reference
       reservation.order_id = order._id;
@@ -629,73 +717,11 @@ export const createReservationWithOrder = async (req, res) => {
       console.log('✅ Order created successfully:', {
         order_id: order.order_id,
         total: order.grandTotal,
+        dp_required: require_dp,
         dp_amount: dpAmount,
         item_count: order.items.length,
-        payment_record: paymentRecord.payment_code
+        payment_record: paymentRecord ? paymentRecord.payment_code : 'none'
       });
-
-      // Create Midtrans transaction HANYA JIKA order berhasil dibuat
-      try {
-        console.log('🔄 Creating Midtrans transaction...');
-        
-        // Persiapan data customer untuk Midtrans
-        const customerData = {
-          first_name: customer_name ? customer_name.split(' ')[0] : 'Customer',
-          last_name: customer_name ? customer_name.split(' ').slice(1).join(' ') : '',
-          email: customer_email || 'customer@example.com',
-          phone: customer_phone || '081234567890'
-        };
-
-        // Pastikan amount adalah number
-        const paymentAmount = Number(dpAmount);
-        if (isNaN(paymentAmount) || paymentAmount <= 0) {
-          throw new Error(`Invalid payment amount: ${dpAmount}`);
-        }
-
-        console.log('💰 Midtrans payment details:', {
-          orderId: order.order_id,
-          amount: paymentAmount,
-          customer: customerData
-        });
-
-        // Panggil Midtrans function dengan parameter yang benar
-        midtransResponse = await createMidtransSnapTransaction(
-          order.order_id,    // Parameter 1: orderId
-          paymentAmount,     // Parameter 2: amount (number)
-          customerData,      // Parameter 3: customer
-          payment_method     // Parameter 4: paymentMethod
-        );
-
-        console.log('✅ Midtrans transaction created:', {
-          token: midtransResponse.token ? 'YES' : 'NO',
-          redirect_url: midtransResponse.redirect_url ? 'YES' : 'NO'
-        });
-
-        // ✅ UPDATE PAYMENT RECORD DENGAN DATA MIDTRANS JIKA BERHASIL
-        if (midtransResponse && midtransResponse.token) {
-          paymentRecord.transaction_id = midtransResponse.transaction_id || `MID-${Date.now()}`;
-          paymentRecord.midtransRedirectUrl = midtransResponse.redirect_url;
-          paymentRecord.raw_response = midtransResponse;
-          
-          await paymentRecord.save({ session });
-          console.log('✅ Payment record updated with Midtrans data');
-        }
-
-      } catch (midtransError) {
-        console.error('❌ Midtrans error:', midtransError);
-        // Simpan error response di payment record
-        paymentRecord.raw_response = {
-          error: midtransError.message,
-          status: 'failed'
-        };
-        await paymentRecord.save({ session });
-        
-        midtransResponse = {
-          success: false,
-          error: midtransError.message,
-          status: 'failed'
-        };
-      }
     } else {
       console.log('ℹ️ No order items provided, creating reservation only');
     }
@@ -713,7 +739,9 @@ export const createReservationWithOrder = async (req, res) => {
     // Prepare SUCCESS response data
     const responseData = {
       success: true,
-      message: 'Reservation created successfully',
+      message: require_dp ? 
+        'Reservation created successfully. Please complete the down payment.' : 
+        'Reservation created successfully. No down payment required.',
       data: {
         reservation: {
           id: populatedReservation._id,
@@ -751,11 +779,12 @@ export const createReservationWithOrder = async (req, res) => {
         order_id: order.order_id,
         status: order.status,
         grandTotal: order.grandTotal,
-        down_payment_amount: down_payment_amount || Math.round(total_amount * 0.30),
-        payment_method: payment_method || 'E-Wallet'
+        down_payment_required: require_dp,
+        down_payment_amount: require_dp ? (down_payment_amount || Math.round(total_amount * 0.30)) : 0,
+        payment_method: payment_method || (require_dp ? 'E-Wallet' : 'Cash')
       };
       
-      // Add payment record info
+      // Add payment record info hanya jika ada DP
       if (paymentRecord) {
         responseData.data.payment_record = {
           id: paymentRecord._id,
@@ -767,27 +796,25 @@ export const createReservationWithOrder = async (req, res) => {
         };
       }
       
-      // Add Midtrans response jika berhasil
-      if (midtransResponse && midtransResponse.token) {
+      // Add Midtrans response hanya jika perlu DP dan berhasil
+      if (require_dp && midtransResponse && midtransResponse.token) {
         responseData.data.payment = {
           token: midtransResponse.token,
           redirect_url: midtransResponse.redirect_url,
           status: 'waiting_payment'
         };
-        responseData.message = 'Reservation and order created successfully. Please complete the down payment.';
         
         // Tambahkan redirect_url di root level untuk kompatibilitas
         responseData.redirect_url = midtransResponse.redirect_url;
         responseData.payment_url = midtransResponse.redirect_url;
         
-      } else {
-        // Jika Midtrans gagal, beri informasi untuk bayar nanti
+      } else if (require_dp) {
+        // Jika perlu DP tapi Midtrans gagal
         responseData.data.payment = {
           status: 'payment_pending',
           message: 'Payment gateway temporarily unavailable. Please complete payment at the venue.',
           error: midtransResponse?.error || 'Payment initialization failed'
         };
-        responseData.message = 'Reservation created successfully. Payment can be completed at the venue.';
       }
     }
 
@@ -795,6 +822,7 @@ export const createReservationWithOrder = async (req, res) => {
     console.log('📊 Final response:', {
       reservation_code: populatedReservation.reservation_code,
       has_order: !!order,
+      require_dp: require_dp,
       has_payment_record: !!paymentRecord,
       has_midtrans: !!midtransResponse?.token,
       guest_count: populatedReservation.guest_count,
@@ -847,7 +875,6 @@ export const createReservationWithOrder = async (req, res) => {
     });
   }
 };
-
 
 
 // Get all reservations

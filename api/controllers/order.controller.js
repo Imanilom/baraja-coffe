@@ -2479,10 +2479,12 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    // Create job for order processing
-    const job = await orderQueue.add('create_order', {
-      type: 'create_order',
-      payload: {
+    // PERBAIKAN: Buat order langsung tanpa queue untuk menghindari timing issue
+    console.log('🔄 Creating order directly without queue...');
+    
+    try {
+      // Create order langsung
+      const orderResult = await createOrderHandler({
         orderId,
         orderData: validated,
         source,
@@ -2490,24 +2492,15 @@ export const createUnifiedOrder = async (req, res) => {
         isReservation: orderType === 'reservation',
         requiresDelivery: source === 'App' && delivery_option === 'delivery',
         recipientData: source === 'App' && delivery_option === 'delivery' ? recipient_data : null
-      }
-    }, {
-      jobId: orderId,
-      removeOnComplete: true,
-      removeOnFail: false,
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 1000
-      }
-    });
+      });
 
-    // Wait for job completion dengan timeout
-    let result;
-    try {
-      result = await job.waitUntilFinished(queueEvents, 30000);
-      console.log(`Job ${job.id} completed successfully`);
+      console.log('✅ Order created successfully:', {
+        orderId,
+        orderNumber: orderResult.orderNumber,
+        grandTotal: orderResult.grandTotal
+      });
 
+      // Broadcast setelah order berhasil dibuat
       await broadcastOrderCreation(orderId, {
         ...validated,
         tableNumber,
@@ -2517,286 +2510,249 @@ export const createUnifiedOrder = async (req, res) => {
         hasCustomAmountItems: finalCustomAmountItems.length > 0
       });
 
-    } catch (queueErr) {
-      console.error(`Job ${job.id} failed:`, queueErr);
-      const jobState = await job.getState();
-      return res.status(500).json({
-        success: false,
-        message: `Order processing failed: ${queueErr.message}`,
-        jobState: jobState,
-        orderId: orderId
-      });
-    }
-
-    // Base response
-    const baseResponse = {
-      status: '',
-      orderId,
-      jobId: job.id,
-      hasCustomAmountItems: finalCustomAmountItems.length > 0,
-      customAmountItems: finalCustomAmountItems
-    };
-
-    // Cashier Helper function yang lebih flexible
-    const processCashierPayment = async (orderId, paymentDetails, baseResponse, result) => {
-      const chargeRequest = {
-        body: {
-          // Ambil dari paymentDetails atau gunakan default
-          payment_type: paymentDetails?.method || paymentDetails?.payment_type || 'cash',
-          order_id: orderId,
-          gross_amount: paymentDetails?.amount || paymentDetails?.gross_amount || 0,
-          is_down_payment: paymentDetails?.isDownPayment || paymentDetails?.is_down_payment || false,
-          down_payment_amount: paymentDetails?.downPaymentAmount || paymentDetails?.down_payment_amount,
-          remaining_payment: paymentDetails?.remainingPayment || paymentDetails?.remaining_payment,
-          tendered_amount: paymentDetails?.tenderedAmount || paymentDetails?.tendered_amount,
-          change_amount: paymentDetails?.changeAmount || paymentDetails?.change_amount,
-        }
+      // Base response
+      const baseResponse = {
+        status: '',
+        orderId,
+        hasCustomAmountItems: finalCustomAmountItems.length > 0,
+        customAmountItems: finalCustomAmountItems,
+        orderNumber: orderResult.orderNumber,
+        grandTotal: orderResult.grandTotal
       };
 
-      return new Promise((resolve, reject) => {
-        const mockRes = {
-          status: (code) => ({
-            json: (data) => {
-              if (code === 200 && data.success) {
-                resolve(data);
-              } else {
-                reject(new Error(data.message || 'Payment failed'));
-              }
-            }
-          })
-        };
-
-        cashierCharge(chargeRequest, mockRes).catch(reject);
-      });
-    };
-
-    // Handle payment based on source
-    // Handle payment based on source
-    if (source === 'Cashier') {
-      try {
-        // Langsung pakai req.body tanpa mapping
-        const paymentResult = await processCashierPayment(
-          orderId,
-          req.body.paymentDetails, // Langsung kirim paymentDetails dari req.body
-          baseResponse,
-          result
-        );
-
-        await broadcastCashOrderToKitchen({
-          orderId,
-          tableNumber,
-          orderData: validated,
-          outletId,
-          hasCustomAmountItems: finalCustomAmountItems.length > 0
-        });
-
-        return res.status(200).json({
-          ...baseResponse,
-          status: 'Completed',
-          message: 'Cashier order processed and paid',
-          paymentData: paymentResult.data,
-          paymentStatus: paymentResult.data.payment_status,
-          ...(result.loyalty?.isApplied && {
-            loyalty: {
-              pointsEarned: result.loyalty.pointsEarned,
-              pointsUsed: result.loyalty.pointsUsed,
-              discountAmount: result.loyalty.discountAmount
-            }
-          })
-        });
-
-      } catch (paymentError) {
-        console.error('Cashier payment failed:', paymentError);
-        return res.status(400).json({
-          success: false,
-          message: `Payment processing failed: ${paymentError.message}`,
-          orderId: orderId
-        });
+      // PERBAIKAN: Cari order yang baru dibuat untuk memastikan ada di database
+      const newOrder = await Order.findOne({ order_id: orderId });
+      if (!newOrder) {
+        throw new Error(`Order ${orderId} not found after creation`);
       }
-    }
 
-    if (source === 'App') {
-      let deliveryResult = null;
-      if (delivery_option === 'delivery' && recipient_data) {
+      // Handle payment based on source
+      if (source === 'Cashier') {
         try {
-          deliveryResult = await processGoSendDelivery({
+          // Langsung pakai req.body tanpa mapping
+          const paymentResult = await processCashierPayment(
             orderId,
-            outlet,
-            recipient_data,
-            orderData: validated
+            req.body.paymentDetails,
+            baseResponse,
+            orderResult
+          );
+
+          await broadcastCashOrderToKitchen({
+            orderId,
+            tableNumber,
+            orderData: validated,
+            outletId,
+            hasCustomAmountItems: finalCustomAmountItems.length > 0
           });
-          console.log('GoSend delivery created for App:', deliveryResult);
-        } catch (deliveryError) {
-          console.error('Failed to create GoSend delivery for App:', deliveryError);
-          return res.status(500).json({
+
+          return res.status(200).json({
+            ...baseResponse,
+            status: 'Completed',
+            message: 'Cashier order processed and paid',
+            paymentData: paymentResult.data,
+            paymentStatus: paymentResult.data.payment_status,
+            ...(orderResult.loyalty?.isApplied && {
+              loyalty: {
+                pointsEarned: orderResult.loyalty.pointsEarned,
+                pointsUsed: orderResult.loyalty.pointsUsed,
+                discountAmount: orderResult.loyalty.discountAmount
+              }
+            })
+          });
+
+        } catch (paymentError) {
+          console.error('Cashier payment failed:', paymentError);
+          return res.status(400).json({
             success: false,
-            message: `Gagal membuat pesanan delivery: ${deliveryError.message}`,
+            message: `Payment processing failed: ${paymentError.message}`,
             orderId: orderId
           });
         }
       }
 
-      const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
-
-      if (isCashPayment) {
-        await broadcastCashOrderToKitchen({
-          orderId,
-          tableNumber,
-          orderData: validated,
-          outletId,
-          isAppOrder: true,
-          deliveryOption: delivery_option,
-          hasCustomAmountItems: finalCustomAmountItems.length > 0
-        });
-
-        return res.status(200).json({
-          ...baseResponse,
-          status: 'Pending',
-          message: 'App cash order processed and paid',
-          delivery_option: delivery_option || 'pickup',
-          ...(result.loyalty?.isApplied && {
-            loyalty: {
-              pointsEarned: result.loyalty.pointsEarned,
-              pointsUsed: result.loyalty.pointsUsed,
-              discountAmount: result.loyalty.discountAmount
-            }
-          }),
-          ...(deliveryResult && {
-            delivery: {
-              provider: 'GoSend',
-              status: 'Pending',
-              tracking_number: deliveryResult.goSend_order_no,
-              estimated_price: deliveryResult.estimated_price,
-              live_tracking_url: deliveryResult.live_tracking_url,
-              shipment_method: deliveryResult.shipment_method
-            }
-          })
-        });
-      } else {
-        // PERBAIKAN: Validasi amount sebelum kirim ke Midtrans
-        if (!validated.paymentDetails?.amount || isNaN(validated.paymentDetails.amount)) {
-          throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
+      if (source === 'App') {
+        let deliveryResult = null;
+        if (delivery_option === 'delivery' && recipient_data) {
+          try {
+            deliveryResult = await processGoSendDelivery({
+              orderId,
+              outlet,
+              recipient_data,
+              orderData: validated
+            });
+            console.log('GoSend delivery created for App:', deliveryResult);
+          } catch (deliveryError) {
+            console.error('Failed to create GoSend delivery for App:', deliveryError);
+            return res.status(500).json({
+              success: false,
+              message: `Gagal membuat pesanan delivery: ${deliveryError.message}`,
+              orderId: orderId
+            });
+          }
         }
 
-        const midtransRes = await createMidtransCoreTransaction(
-          orderId,
-          Number(validated.paymentDetails.amount), // Pastikan number
-          validated.paymentDetails.method
-        );
+        const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
 
-        return res.status(200).json({
-          ...baseResponse,
-          status: 'waiting_payment',
-          midtrans: midtransRes,
-          delivery_option: delivery_option || 'pickup',
-          ...(result.loyalty?.isApplied && {
-            loyalty: {
-              pointsEarned: result.loyalty.pointsEarned,
-              pointsUsed: result.loyalty.pointsUsed,
-              discountAmount: result.loyalty.discountAmount
-            }
-          }),
-          ...(deliveryResult && {
-            delivery: {
-              provider: 'GoSend',
-              status: 'Pending',
-              tracking_number: deliveryResult.goSend_order_no,
-              estimated_price: deliveryResult.estimated_price,
-              live_tracking_url: deliveryResult.live_tracking_url,
-              shipment_method: deliveryResult.shipment_method
-            }
-          })
-        });
+        if (isCashPayment) {
+          await broadcastCashOrderToKitchen({
+            orderId,
+            tableNumber,
+            orderData: validated,
+            outletId,
+            isAppOrder: true,
+            deliveryOption: delivery_option,
+            hasCustomAmountItems: finalCustomAmountItems.length > 0
+          });
+
+          return res.status(200).json({
+            ...baseResponse,
+            status: 'Pending',
+            message: 'App cash order processed and paid',
+            delivery_option: delivery_option || 'pickup',
+            ...(orderResult.loyalty?.isApplied && {
+              loyalty: {
+                pointsEarned: orderResult.loyalty.pointsEarned,
+                pointsUsed: orderResult.loyalty.pointsUsed,
+                discountAmount: orderResult.loyalty.discountAmount
+              }
+            }),
+            ...(deliveryResult && {
+              delivery: {
+                provider: 'GoSend',
+                status: 'Pending',
+                tracking_number: deliveryResult.goSend_order_no,
+                estimated_price: deliveryResult.estimated_price,
+                live_tracking_url: deliveryResult.live_tracking_url,
+                shipment_method: deliveryResult.shipment_method
+              }
+            })
+          });
+        } else {
+          // PERBAIKAN: Validasi amount sebelum kirim ke Midtrans
+          if (!validated.paymentDetails?.amount || isNaN(validated.paymentDetails.amount)) {
+            throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
+          }
+
+          const midtransRes = await createMidtransCoreTransaction(
+            orderId,
+            Number(validated.paymentDetails.amount),
+            validated.paymentDetails.method
+          );
+
+          return res.status(200).json({
+            ...baseResponse,
+            status: 'waiting_payment',
+            midtrans: midtransRes,
+            delivery_option: delivery_option || 'pickup',
+            ...(orderResult.loyalty?.isApplied && {
+              loyalty: {
+                pointsEarned: orderResult.loyalty.pointsEarned,
+                pointsUsed: orderResult.loyalty.pointsUsed,
+                discountAmount: orderResult.loyalty.discountAmount
+              }
+            }),
+            ...(deliveryResult && {
+              delivery: {
+                provider: 'GoSend',
+                status: 'Pending',
+                tracking_number: deliveryResult.goSend_order_no,
+                estimated_price: deliveryResult.estimated_price,
+                live_tracking_url: deliveryResult.live_tracking_url,
+                shipment_method: deliveryResult.shipment_method
+              }
+            })
+          });
+        }
       }
-    }
 
-    if (source === 'Web') {
-      const order = await Order.findOne({ order_id: orderId });
-      if (!order) {
-        throw new Error(`Order ${orderId} not found after job completion`);
-      }
-
-      const paymentData = {
-        order_id: order.order_id,
-        payment_code: generatePaymentCode(),
-        transaction_id: generateTransactionId(),
-        method: validated.paymentDetails?.method || 'Cash',
-        status: 'pending',
-        paymentType: validated.paymentDetails?.paymentType || 'Full',
-        amount: validated.paymentDetails?.amount || order.grandTotal,
-        totalAmount: order.grandTotal,
-        remainingAmount: order.grandTotal,
-      };
-      const payment = await Payment.create(paymentData);
-
-      const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
-
-      if (isCashPayment) {
-        await broadcastCashOrderToKitchen({
-          orderId,
-          tableNumber,
-          orderData: validated,
-          outletId,
-          isWebOrder: true,
-          hasCustomAmountItems: finalCustomAmountItems.length > 0
-        });
-
-        return res.status(200).json({
-          ...baseResponse,
+      if (source === 'Web') {
+        // PERBAIKAN: Gunakan newOrder yang sudah dicari sebelumnya
+        const paymentData = {
+          order_id: newOrder.order_id,
+          payment_code: generatePaymentCode(),
+          transaction_id: generateTransactionId(),
+          method: validated.paymentDetails?.method || 'Cash',
           status: 'pending',
-          message: 'Web cash order processed and paid',
-          ...(result.loyalty?.isApplied && {
-            loyalty: {
-              pointsEarned: result.loyalty.pointsEarned,
-              pointsUsed: result.loyalty.pointsUsed
-            }
-          })
-        });
-      } else {
-        // PERBAIKAN: Urutan parameter yang benar untuk Web
-        const customerData = {
-          name: user || 'Customer',
-          email: contact?.email || 'example@mail.com',
-          phone: contact?.phone || '081234567890'
+          paymentType: validated.paymentDetails?.paymentType || 'Full',
+          amount: validated.paymentDetails?.amount || newOrder.grandTotal,
+          totalAmount: newOrder.grandTotal,
+          remainingAmount: newOrder.grandTotal,
         };
+        const payment = await Payment.create(paymentData);
 
-        // PERBAIKAN: Validasi amount sebelum kirim ke Midtrans
-        console.log('Payment details for Midtrans SNAP:', {
-          orderId,
-          amount: validated.paymentDetails?.amount,
-          amountType: typeof validated.paymentDetails?.amount,
-          customer: customerData,
-          paymentMethod: validated.paymentDetails?.method
-        });
+        const isCashPayment = validated.paymentDetails?.method?.toLowerCase() === 'cash';
 
-        if (!validated.paymentDetails?.amount || isNaN(validated.paymentDetails.amount)) {
-          throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
+        if (isCashPayment) {
+          await broadcastCashOrderToKitchen({
+            orderId,
+            tableNumber,
+            orderData: validated,
+            outletId,
+            isWebOrder: true,
+            hasCustomAmountItems: finalCustomAmountItems.length > 0
+          });
+
+          return res.status(200).json({
+            ...baseResponse,
+            status: 'pending',
+            message: 'Web cash order processed and paid',
+            ...(orderResult.loyalty?.isApplied && {
+              loyalty: {
+                pointsEarned: orderResult.loyalty.pointsEarned,
+                pointsUsed: orderResult.loyalty.pointsUsed
+              }
+            })
+          });
+        } else {
+          // PERBAIKAN: Urutan parameter yang benar untuk Web
+          const customerData = {
+            name: user || 'Customer',
+            email: contact?.email || 'example@mail.com',
+            phone: contact?.phone || '081234567890'
+          };
+
+          // PERBAIKAN: Validasi amount sebelum kirim ke Midtrans
+          console.log('Payment details for Midtrans SNAP:', {
+            orderId,
+            amount: validated.paymentDetails?.amount,
+            amountType: typeof validated.paymentDetails?.amount,
+            customer: customerData,
+            paymentMethod: validated.paymentDetails?.method
+          });
+
+          if (!validated.paymentDetails?.amount || isNaN(validated.paymentDetails.amount)) {
+            throw new Error(`Invalid payment amount: ${validated.paymentDetails?.amount}`);
+          }
+
+          // PERBAIKAN: Urutan parameter yang benar
+          const midtransRes = await createMidtransSnapTransaction(
+            orderId,
+            Number(validated.paymentDetails.amount),
+            customerData,
+            validated.paymentDetails.method
+          );
+
+          return res.status(200).json({
+            ...baseResponse,
+            status: 'waiting_payment',
+            snapToken: midtransRes.token,
+            redirectUrl: midtransRes.redirect_url,
+            ...(orderResult.loyalty?.isApplied && {
+              loyalty: {
+                pointsEarned: orderResult.loyalty.pointsEarned,
+                pointsUsed: orderResult.loyalty.pointsUsed
+              }
+            })
+          });
         }
-
-        // PERBAIKAN: Urutan parameter yang benar
-        const midtransRes = await createMidtransSnapTransaction(
-          orderId,
-          Number(validated.paymentDetails.amount), // Parameter 2: amount (number)
-          customerData,                            // Parameter 3: customer (object)
-          validated.paymentDetails.method          // Parameter 4: paymentMethod (string)
-        );
-
-        return res.status(200).json({
-          ...baseResponse,
-          status: 'waiting_payment',
-          snapToken: midtransRes.token,
-          redirectUrl: midtransRes.redirect_url,
-          ...(result.loyalty?.isApplied && {
-            loyalty: {
-              pointsEarned: result.loyalty.pointsEarned,
-              pointsUsed: result.loyalty.pointsUsed
-            }
-          })
-        });
       }
-    }
 
-    throw new Error('Invalid order source');
+      throw new Error('Invalid order source');
+
+    } catch (directError) {
+      console.error('❌ Direct order creation failed:', directError);
+      throw directError;
+    }
 
   } catch (err) {
     console.error('Error in createUnifiedOrder:', err);

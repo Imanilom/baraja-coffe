@@ -429,6 +429,14 @@ export const getMenuItems = async (req, res) => {
           as: "addonsInfo"
         }
       },
+       {
+        $lookup: {
+          from: "outlets",
+          localField: "availableAt",
+          foreignField: "_id",
+          as: "availableAt"
+        }
+      },
       {
         $sort: { name: 1 }
       }
