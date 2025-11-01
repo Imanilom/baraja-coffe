@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
@@ -22,49 +23,29 @@ class OrderService {
     PaymentState paymentData,
   ) async {
     // final requestBody = orderDetail.toJson();
-    final String paymentnMethod =
+    final String paymentMethod =
         "${paymentData.selectedPaymentType?.name ?? ""} ${paymentData.selectedPaymentMethod?.name ?? "Cash"}";
-    try {
-      print('start create order...');
-      print('request body: ${createOrderRequest(orderDetail, paymentnMethod)}');
-      // print('orderDetail: ${orderDetail.payment!.method.toString()}');
-      Response response = await _dio.post(
-        '/api/unified-order',
-        data: createOrderRequest(orderDetail, paymentnMethod),
-        options: Options(
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'ngrok-skip-browser-warning': 'true',
-          },
-        ),
-      );
-      print('response create order: ${response.data}');
-
-      print(
-        'start create charge... orderId: ${createOrderRequest(orderDetail, paymentnMethod)}',
-      );
-      // print(
-      //   'start charge request: ${createChargeRequest(response.data['orderId'], orderDetail.grandTotal, orderDetail.paymentMethod!)}',
-      // );
-      print(
-        'paymentData change & amount: ${paymentData.change} ${paymentData.selectedCashAmount}',
-      );
-
-      Response chargeResponse = await _dio.post(
-        '/api/cashierCharge',
-        data: createChargeRequest(
-          response.data['orderId'],
-          orderDetail.grandTotal,
-          paymentnMethod,
-          paymentData.isDownPayment,
-          paymentData.selectedDownPayment ?? 0,
+    final Map<String, dynamic> paymentDetails = {
+      'grand_total': orderDetail.grandTotal,
+      'payment_type': paymentMethod,
+      'is_down_payment': paymentData.isDownPayment,
+      'down_payment_amount': paymentData.selectedDownPayment ?? 0,
+      'remaining_payment':
           paymentData.selectedDownPayment != null
               ? orderDetail.grandTotal - (paymentData.selectedDownPayment ?? 0)
               : 0,
-          paymentData.selectedCashAmount ?? 0,
-          paymentData.change ?? 0,
-        ),
+      'tendered_amount': paymentData.selectedCashAmount ?? 0,
+      'change_amount': paymentData.change ?? 0,
+    };
+
+    try {
+      debugPrint(
+        'start create order...request body: ${createOrderRequest(orderDetail, paymentDetails)}',
+      );
+
+      Response response = await _dio.post(
+        '/api/unified-order',
+        data: createOrderRequest(orderDetail, paymentDetails),
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -73,19 +54,44 @@ class OrderService {
           },
         ),
       );
-      print('response charge: ${chargeResponse.data}');
-      if (chargeResponse.statusCode != 200) {
-        throw Exception('Failed to create charge');
-      }
+      debugPrint('response create order: ${response.data}');
 
-      print('response status code create order: ${response.statusCode}');
+      // Response chargeResponse = await _dio.post(
+      //   '/api/cashierCharge',
+      //   data: createChargeRequest(
+      //     response.data['orderId'],
+      //     orderDetail.grandTotal,
+      //     paymentMethod,
+      //     paymentData.isDownPayment,
+      //     paymentData.selectedDownPayment ?? 0,
+      //     paymentData.selectedDownPayment != null
+      //         ? orderDetail.grandTotal - (paymentData.selectedDownPayment ?? 0)
+      //         : 0,
+      //     paymentData.selectedCashAmount ?? 0,
+      //     paymentData.change ?? 0,
+      //   ),
+      //   options: Options(
+      //     headers: {
+      //       'Content-Type': 'application/json',
+      //       'Accept': 'application/json',
+      //       'ngrok-skip-browser-warning': 'true',
+      //     },
+      //   ),
+      // );
+
+      // debugPrint('response charge: ${chargeResponse.data}');
+      // if (chargeResponse.statusCode != 200) {
+      //   throw Exception('Failed to create charge');
+      // }
+
       return {
         'orderId': response.data['orderId'],
         'orderNumber': response.data['orderNumber'],
-        'paymentStatus': chargeResponse.data['paymentStatus'],
+        'paymentStatus': 'settlement',
+        // 'paymentStatus': chargeResponse.data['paymentStatus'],
       };
     } on DioException catch (e) {
-      print('error create order: $e');
+      debugPrint('error create order: $e');
       throw ApiResponseHandler.handleError(e);
     }
   }
@@ -331,17 +337,11 @@ class OrderService {
 
 Map<String, dynamic> createOrderRequest(
   OrderDetailModel order,
-  String? paymentMethod,
+  Map<String, dynamic> paymentDetails,
 ) {
-  print('order.cashierId: ${order.cashierId}');
-  print('order item first: ${order.items.first.menuItem.id}');
-  print('username: ${order.user}');
-  print('payment method: ${order.paymentMethod}');
-
   final box = Hive.box('userBox');
   final user = box.get('user') as UserModel;
-  final now = DateTime.now().toUtc().add(Duration(hours: 7));
-  print(now);
+
   return {
     'order_id': order.orderId,
     'user_id': order.userId ?? "",
@@ -392,8 +392,7 @@ Map<String, dynamic> createOrderRequest(
               };
             }).toList()
             : [],
-    // 'createdAtWIB': now,
-    // 'updatedAtWIB' : now
+    'paymentDetails': paymentDetails,
   };
 }
 

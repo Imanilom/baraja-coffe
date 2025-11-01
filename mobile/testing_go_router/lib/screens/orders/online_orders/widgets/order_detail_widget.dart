@@ -256,10 +256,10 @@ class OrderDetailWidget extends ConsumerWidget {
                 if (confirm == true) {
                   //fitur belum tersedia
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Maaf Fitur Belum Jadi!!')),
-                  );
-                  // context.push('/${order.id}/edit-order-item', extra: order);
+                  // ScaffoldMessenger.of(context).showSnackBar(
+                  //   const SnackBar(content: Text('Maaf Fitur Belum Jadi!!')),
+                  // );
+                  context.push('/${order.id}/edit-order-item', extra: order);
                 }
               },
             ),
@@ -284,7 +284,7 @@ class OrderDetailWidget extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  '${item.menuItem.name!} ${item.menuItem.workstation}',
+                  item.menuItem.name ?? 'Unnamed Item',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -308,23 +308,8 @@ class OrderDetailWidget extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          // Text(
-          //   item.menuItem.description!,
-          //   style: TextStyle(color: Colors.grey[600], fontSize: 12),
-          //   maxLines: 2,
-          //   overflow: TextOverflow.ellipsis,
-          // ),
           if (item.selectedToppings.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Toppings:',
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
-              ),
-            ),
+            const SizedBox(height: 4),
             ...item.selectedToppings.map(
               (topping) => Padding(
                 padding: const EdgeInsets.only(left: 8, top: 2),
@@ -336,20 +321,12 @@ class OrderDetailWidget extends ConsumerWidget {
             ),
           ],
           if (item.selectedAddons.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Options:',
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
-              ),
-            ),
+            const SizedBox(height: 4),
             ...item.selectedAddons.map(
               (addon) => Padding(
                 padding: const EdgeInsets.only(left: 8, top: 2),
                 child: Text(
-                  addon.name!,
+                  '${addon.name!}: ${addon.options?.map((o) => '${o.label} (+ ${formatPrice(o.price!)})').join(', ')}',
                   style: TextStyle(color: Colors.grey[600], fontSize: 11),
                 ),
               ),

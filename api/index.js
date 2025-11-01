@@ -41,6 +41,7 @@ import GroRoutes from './routes/gro.routes.js';
 import RefundRoutes from './routes/refund.routes.js';
 // import reservationRoutes from './routes/reservation_backup.routes.js';
 import reservationRoutes from './routes/reservation.routes.js';
+import reservationGroRoutes from './routes/reservation_gro.routes.js';
 import marketListRoutes from './routes/marketlist.routes.js';
 import ratingRoutes from './routes/rating.routes.js';
 import taxAndServiceRoutes from './routes/taxAndService.routes.js';
@@ -127,6 +128,7 @@ app.use('/api/gro', GroRoutes);
 // app.use('/api/table-layout', tableLayoutRoutes);
 app.use('/api/tables', tableRoutes);
 app.use('/api/reservations', reservationRoutes);
+app.use('/api/reservations-gro', reservationGroRoutes);
 app.use('/api/marketlist', marketListRoutes);
 app.use('/api/tax-service', taxAndServiceRoutes);
 app.use('/api/receipt-setting', ReceiptSetting);
@@ -188,7 +190,11 @@ const startServer = async () => {
     await mongoose.connect(process.env.MONGO_PROD, {
       serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
     });
-    // console.log('✅ Connected to MongoDB');
+    console.log('✅ Connected to MongoDB TEST');
+    // await mongoose.connect(process.env.MONGO_PROD, {
+    //   serverSelectionTimeoutMS: 10000, // 10 detik max nunggu Atlas
+    // });
+    // console.log('warning : Connected to MongoDB PROD ✅');
 
     setupStockCalibrationCron();
     startAutoCancelScheduler();

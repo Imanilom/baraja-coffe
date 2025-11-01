@@ -138,11 +138,11 @@ router.post('/', adminAccess, async (req, res) => {
     } = req.body;
 
     // Validation
-    if (!deviceId || !outlet || !role || !location) {
+    if (!deviceId || !outlet || !location) {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: deviceId, outlet, role, location'
+        message: 'Missing required fields: deviceId, outlet, location'
       });
     }
 

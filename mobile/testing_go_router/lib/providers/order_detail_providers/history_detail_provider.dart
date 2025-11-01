@@ -10,13 +10,6 @@ class HistoryDetailProvider extends StateNotifier<OrderDetailModel?> {
     state = orderDetail;
   }
 
-  //memindahkan state history detail provider ke order detail provider
-  void moveToOrderDetail() {
-    if (state != null) {
-      // state = state;
-    }
-  }
-
   void removeItem(String menuItemId) {
     if (state != null && state!.items.isNotEmpty) {
       state = state!.copyWith(

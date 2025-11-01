@@ -55,7 +55,7 @@ class AddonOptionModelAdapter extends TypeAdapter<AddonOptionModel> {
 
 _AddonOptionModel _$AddonOptionModelFromJson(Map<String, dynamic> json) =>
     _AddonOptionModel(
-      id: json['_id'] as String?,
+      id: json['id'] as String?,
       label: json['label'] as String?,
       isDefault: json['isDefault'] as bool?,
       price: (json['price'] as num?)?.toInt(),
@@ -63,7 +63,7 @@ _AddonOptionModel _$AddonOptionModelFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$AddonOptionModelToJson(_AddonOptionModel instance) =>
     <String, dynamic>{
-      '_id': instance.id,
+      'id': instance.id,
       'label': instance.label,
       'isDefault': instance.isDefault,
       'price': instance.price,

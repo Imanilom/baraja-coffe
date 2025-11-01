@@ -52,7 +52,7 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
           fields[25] == null
               ? null
               : (fields[25] as List?)?.cast<PaymentModel>(),
-      paymentStatus: fields[26] == null ? '' : fields[26] as String?,
+      paymentStatus: fields[26] == null ? null : fields[26] as String?,
       id: fields[27] == null ? null : fields[27] as String?,
       isOpenBill: fields[28] == null ? false : fields[28] as bool,
       paymentAmount: fields[29] == null ? 0 : (fields[29] as num).toInt(),
@@ -226,7 +226,7 @@ _OrderDetailModel _$OrderDetailModelFromJson(
           ?.map((e) => PaymentModel.fromJson(e as Map<String, dynamic>))
           .toList() ??
       null,
-  paymentStatus: json['paymentStatus'] as String? ?? '',
+  paymentStatus: json['paymentStatus'] as String? ?? null,
   id: json['_id'] as String? ?? null,
   isOpenBill: json['isOpenBill'] as bool? ?? false,
   paymentAmount: (json['paymentAmount'] as num?)?.toInt() ?? 0,

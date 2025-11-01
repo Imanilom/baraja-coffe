@@ -281,7 +281,14 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                       //   ref.read(currentPageIndexProvider.notifier).setIndex(2);
                       // }
                       // Navigator.pop(context);
-                      context.pushNamed('sales-report');
+                      // context.pushNamed('sales-report');
+                      //fitur belum tersedia
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Fitur rekap kasir belum tersedia.'),
+                        ),
+                      );
+                      Navigator.pop(context);
                     },
                   ),
                 ],

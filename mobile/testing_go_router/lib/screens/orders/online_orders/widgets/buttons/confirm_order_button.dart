@@ -76,10 +76,13 @@ class _ConfirmOrderButtonState extends ConsumerState<ConfirmOrderButton> {
       }
     });
 
+    debugPrint('Confirmation State: $confirmationState');
+
     return ElevatedButton(
       onPressed: () {
+        debugPrint('Confirm Order Button Pressed');
         _confirmOrder(context, ref);
-        Navigator.of(context).pop();
+        // Navigator.of(context).pop();
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.blue,
@@ -110,6 +113,7 @@ class _ConfirmOrderButtonState extends ConsumerState<ConfirmOrderButton> {
 
   void _confirmOrder(BuildContext context, WidgetRef ref) {
     final confirmationState = ref.watch(orderConfirmationProvider);
+    debugPrint('Preparing to show confirmation dialog');
     showDialog(
       context: context,
       builder: (BuildContext context) {

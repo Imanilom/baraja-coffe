@@ -21,7 +21,9 @@ import {
     cancelDineInOrder,
     debugTableStatus,
     syncTableStatus,
-    forceResetTableStatus
+    forceResetTableStatus,
+    getAllAvailableTables,
+    transferOrderToTable
 } from '../controllers/gro.controller.js';
 import { authMiddleware } from '../utils/verifyUser.js';
 
@@ -45,7 +47,7 @@ router.put('/reservations/:id/check-out', authMiddleware, checkOutReservation);
 router.get('/tables/:tableNumber/order', authMiddleware, getTableOrderDetail);
 router.put('/orders/:orderId/complete', authMiddleware, completeTableOrder);
 // Di routes/gro.js - Tambahkan routes baru
-router.post('/tables/:tableNumber/force-reset ', authMiddleware, forceResetTableStatus);
+router.put('/tables/:tableNumber/force-reset', forceResetTableStatus);
 router.post('/tables/sync-status', authMiddleware, syncTableStatus);
 router.post('/tables/debug-status', authMiddleware, debugTableStatus);
 
@@ -62,7 +64,11 @@ router.get('/orders/:orderId', authMiddleware, getOrderDetail);
 // Table Availability
 router.get('/tables/availability', authMiddleware, getTableAvailability);
 
+// routes/gro.js
+router.get('/tables/available', getAllAvailableTables);
+router.put('/orders/:orderId/transfer-table', transferOrderToTable);
+
 // Transfer table (note: seharusnya PUT, bukan GET — diperbaiki di sini)
-router.put('/reservations/:id/transfer-table', authMiddleware, transferTable);
+// router.put('/reservations/:id/transfer-table', authMiddleware, transferTable);
 
 export default router;

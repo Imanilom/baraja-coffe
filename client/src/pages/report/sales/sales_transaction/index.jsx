@@ -140,6 +140,7 @@ const SalesTransaction = () => {
             const completedData = productsData.filter(item => item.status === "Completed");
 
             setProducts(completedData);
+            // setProducts(productsData);
             setError(null);
         } catch (err) {
             console.error("Error fetching products:", err);
@@ -331,8 +332,8 @@ const SalesTransaction = () => {
 
         filteredData.forEach(product => {
             try {
-                // PENTING: Pastikan grandTotal adalah number dan tidak undefined/null
-                const grandTotal = Number(product?.grandTotal) || 0;
+                // PENTING: Pastikan grandTotal adalah number, dibulatkan, dan tidak undefined/null
+                const grandTotal = Math.round(Number(product?.grandTotal) || 0);
                 totals.grandTotalFinal += grandTotal;
             } catch (err) {
                 console.error("Error calculating totals for product:", err);
@@ -361,7 +362,7 @@ const SalesTransaction = () => {
     }
 
     return (
-        <div className="">
+        <div className="mb-[50px]">
             {/* Breadcrumb */}
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">

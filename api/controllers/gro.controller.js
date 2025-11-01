@@ -294,32 +294,104 @@ export const getTableOrderDetail = async (req, res) => {
 
 // ✅ PUT /api/gro/tables/:tableNumber/force-reset - Force reset table status
 export const forceResetTableStatus = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { tableNumber } = req.params;
     const { outletId } = req.body;
 
     if (!outletId) {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         message: 'Outlet ID is required'
       });
     }
 
-    const result = await Table.forceResetTableStatus(tableNumber, outletId);
+    console.log(`🔄 Force resetting table ${tableNumber} for outlet ${outletId}`);
+
+    // ✅ 1. Cari dan batalkan order aktif yang terkait dengan meja ini
+    const activeOrders = await Order.find({
+      tableNumber: tableNumber.toUpperCase(),
+      outlet: outletId,
+      status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] }
+    }).session(session);
+
+    console.log(`📋 Found ${activeOrders.length} active orders for table ${tableNumber}`);
+
+    // ✅ 2. Batalkan semua order aktif
+    for (const order of activeOrders) {
+      order.status = 'Canceled';
+      order.updatedAtWIB = getWIBNow();
+
+      const cancelNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Order dibatalkan secara paksa oleh sistem saat membebaskan meja`;
+      order.notes = (order.notes || '') + cancelNote;
+
+      await order.save({ session });
+      console.log(`✅ Cancelled order: ${order.order_id}`);
+    }
+
+    // ✅ 3. Reset status meja
+    const table = await Table.findOne({
+      table_number: tableNumber.toUpperCase(),
+      is_active: true
+    }).session(session);
+
+    if (!table) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: `Table ${tableNumber} not found`
+      });
+    }
+
+    const oldStatus = table.status;
+    table.status = 'available';
+    table.updatedAt = new Date();
+
+    // Add to status history
+    if (!table.statusHistory) {
+      table.statusHistory = [];
+    }
+
+    table.statusHistory.push({
+      fromStatus: oldStatus,
+      toStatus: 'available',
+      updatedBy: 'System Force Reset',
+      notes: `Table force reset - ${activeOrders.length} orders cancelled`,
+      updatedAt: getWIBNow()
+    });
+
+    await table.save({ session });
+
+    await session.commitTransaction();
+
+    console.log(`✅ Table ${tableNumber} force reset completed. Status: ${oldStatus} → available`);
 
     res.json({
       success: true,
-      message: `Table ${tableNumber} berhasil direset ke status available`,
-      data: result
+      message: `Table ${tableNumber} berhasil direset ke status available. ${activeOrders.length} orders dibatalkan.`,
+      data: {
+        table: {
+          table_number: table.table_number,
+          old_status: oldStatus,
+          new_status: 'available'
+        },
+        cancelled_orders: activeOrders.length
+      }
     });
 
   } catch (error) {
+    await session.abortTransaction();
     console.error('Error force resetting table:', error);
     res.status(500).json({
       success: false,
       message: 'Error resetting table status',
       error: error.message
     });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -2240,6 +2312,97 @@ export const closeOpenBill = async (req, res) => {
   }
 };
 
+export const getAllAvailableTables = async (req, res) => {
+  try {
+    const { outletId } = req.query;
+
+    if (!outletId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Outlet ID is required'
+      });
+    }
+
+    // ✅ HAPUS FILTER WAKTU - Ambil semua order aktif
+    const activeOrders = await Order.find({
+      outlet: outletId,
+      status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] },
+      orderType: { $in: ['Dine-In', 'Reservation'] },
+      tableNumber: { $exists: true, $ne: null, $ne: '' }
+    }).select('tableNumber status orderType order_id user');
+
+    const occupiedTableNumbers = new Set(
+      activeOrders.map(order => order.tableNumber?.toUpperCase()).filter(Boolean)
+    );
+
+    // Ambil semua meja aktif
+    const areas = await Area.find({ outlet_id: outletId }).select('_id');
+    const areaIds = areas.map(area => area._id);
+
+    const allTables = await Table.find({
+      area_id: { $in: areaIds },
+      is_active: true
+    })
+      .populate('area_id', 'area_name area_code')
+      .sort({ area_id: 1, table_number: 1 });
+
+    // Filter meja yang benar-benar tersedia
+    const availableTables = allTables.filter(table => {
+      const tableNumberUpper = table.table_number.toUpperCase();
+      const isOccupiedByOrder = occupiedTableNumbers.has(tableNumberUpper);
+      const isAvailableInDB = table.status === 'available';
+
+      return !isOccupiedByOrder && isAvailableInDB;
+    });
+
+    // Format response
+    const formattedTables = availableTables.map(table => ({
+      _id: table._id,
+      table_number: table.table_number,
+      seats: table.seats,
+      table_type: table.table_type,
+      area: {
+        _id: table.area_id._id,
+        area_name: table.area_id.area_name,
+        area_code: table.area_id.area_code
+      },
+      status: table.status,
+      is_available: true
+    }));
+
+    // Group by area untuk kemudahan frontend
+    const tablesByArea = {};
+    formattedTables.forEach(table => {
+      const areaName = table.area.area_name;
+      if (!tablesByArea[areaName]) {
+        tablesByArea[areaName] = [];
+      }
+      tablesByArea[areaName].push(table);
+    });
+
+    res.json({
+      success: true,
+      data: {
+        tables: formattedTables,
+        tablesByArea: tablesByArea,
+        summary: {
+          total_available: formattedTables.length,
+          total_tables: allTables.length,
+          occupied_tables: allTables.length - formattedTables.length
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching available tables:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching available tables',
+      error: error.message
+    });
+  }
+};
+
 export const getTableAvailability = async (req, res) => {
   try {
     const { date, time, area_id, outletId } = req.query;
@@ -2253,7 +2416,7 @@ export const getTableAvailability = async (req, res) => {
 
     console.log(`🔄 Fetching table availability for outlet: ${outletId}`);
 
-    // ✅ PERBAIKAN UTAMA: Selalu sinkronkan status meja terlebih dahulu
+    // ✅ PERBAIKAN: Selalu sinkronkan status meja terlebih dahulu
     let syncResult;
     try {
       syncResult = await Table.syncTableStatusWithActiveOrders(outletId);
@@ -2311,32 +2474,13 @@ export const getTableAvailability = async (req, res) => {
 
     console.log(`📅 Found ${reservations.length} reservations for the date`);
 
-    // ✅ PERBAIKAN: Ambil SEMUA pesanan aktif (dengan filter yang lebih akurat)
-    const orderFilter = {
+    // ✅ PERBAIKAN: Ambil SEMUA pesanan aktif TANPA FILTER WAKTU
+    const activeOrders = await Order.find({
       outlet: outletId,
-      orderType: { $in: ['Dine-In', 'Reservation'] },
       status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] },
+      orderType: { $in: ['Dine-In', 'Reservation'] },
       tableNumber: { $exists: true, $ne: null, $ne: '' }
-    };
-
-    // Filter by date range untuk orders
-    const dateFilter = {
-      $or: [
-        { createdAtWIB: { $gte: startOfDay, $lte: endOfDay } },
-        { updatedAtWIB: { $gte: startOfDay, $lte: endOfDay } },
-        {
-          // Untuk orders yang masih aktif dari hari sebelumnya
-          status: { $in: ['OnProcess', 'Reserved'] },
-          createdAtWIB: { $lt: startOfDay }
-        }
-      ]
-    };
-
-    orderFilter.$and = [dateFilter];
-
-    const activeOrders = await Order.find(orderFilter)
-      .select('tableNumber status orderType order_id user createdAtWIB updatedAtWIB')
-      .lean();
+    }).select('tableNumber status orderType order_id user createdAtWIB updatedAtWIB');
 
     console.log(`🍽️ Found ${activeOrders.length} active orders`);
 
@@ -2413,8 +2557,12 @@ export const getTableAvailability = async (req, res) => {
 
     console.log(`🪑 Found ${allTables.length} active tables`);
 
-    // ✅ PERBAIKAN: Format response dengan data yang akurat
-    const tablesWithStatus = allTables.map(table => {
+    // ✅ PERBAIKAN: Deteksi inconsistencies dan format response
+    const tablesWithStatus = [];
+    const inconsistencies = [];
+    const consistentTables = [];
+
+    allTables.forEach(table => {
       const tableNumberUpper = table.table_number.toUpperCase();
       const isOccupiedInSystem = table.status === 'occupied';
       const hasActiveOrder = occupiedTableNumbers.has(tableNumberUpper);
@@ -2424,31 +2572,43 @@ export const getTableAvailability = async (req, res) => {
       // Check consistency between table status and actual orders
       const statusConsistent = isOccupiedInSystem === hasActiveOrder;
 
-      // Log warnings for inconsistent status
+      // Determine final availability status
+      const finalIsAvailable = table.status === 'available' && !hasActiveOrder;
+
+      // Deteksi inconsistencies untuk auto-repair
       if (!statusConsistent) {
-        console.warn(`⚠️ Table ${table.table_number} status inconsistent:`, {
-          tableStatus: table.status,
-          hasActiveOrder: hasActiveOrder,
-          occupancyInfo: occupancyInfo
+        inconsistencies.push({
+          table_number: table.table_number,
+          area: table.area_id?.area_name,
+          current_status: table.status,
+          expected_status: hasActiveOrder ? 'occupied' : 'available',
+          active_orders: activeOrders.filter(order =>
+            order.tableNumber?.toUpperCase() === tableNumberUpper
+          ).map(order => ({
+            order_id: order.order_id,
+            status: order.status,
+            customer: order.user
+          }))
+        });
+      } else {
+        consistentTables.push({
+          table_number: table.table_number,
+          area: table.area_id?.area_name,
+          status: table.status,
+          consistent: true
         });
       }
 
-      // Determine final availability status
-      // Jika status di table adalah 'available' DAN tidak ada order aktif → available
-      // Jika status di table adalah 'occupied' ATAU ada order aktif → occupied
-      const finalIsAvailable = table.status === 'available' && !hasActiveOrder;
-
-      return {
+      tablesWithStatus.push({
         _id: table._id,
         table_number: table.table_number,
         seats: table.seats,
         table_type: table.table_type,
         area: table.area_id,
-        is_available: finalIsAvailable, // ✅ Status final yang akurat
+        is_available: finalIsAvailable,
         is_active: table.is_active,
-        status: table.status, // ✅ Status dari Table collection
+        status: table.status,
         occupancy_info: occupancyInfo,
-        // ✅ Debug info untuk troubleshooting
         debug: {
           table_status: table.status,
           has_active_order: hasActiveOrder,
@@ -2456,8 +2616,61 @@ export const getTableAvailability = async (req, res) => {
           occupied_by: occupancyInfo?.by || 'none',
           final_calculation: `table:${table.status} + order:${hasActiveOrder} = available:${finalIsAvailable}`
         }
-      };
+      });
     });
+
+    // ✅ PERBAIKAN: Auto-repair inconsistencies yang ditemukan
+    let repairResults = [];
+    if (inconsistencies.length > 0) {
+      console.log(`🛠️ Auto-repairing ${inconsistencies.length} inconsistent tables`);
+
+      // Ambil areaIds untuk repair
+      const areas = await Area.find({ outlet_id: outletId }).select('_id');
+      const areaIds = areas.map(area => area._id);
+
+      repairResults = await Promise.all(
+        inconsistencies.map(async (inc) => {
+          try {
+            const table = await Table.findOne({
+              table_number: inc.table_number,
+              area_id: { $in: areaIds }
+            });
+
+            if (table) {
+              const oldStatus = table.status;
+              table.status = inc.expected_status;
+              table.is_available = inc.expected_status === 'available';
+              table.updatedAt = new Date();
+
+              if (!table.statusHistory) table.statusHistory = [];
+              table.statusHistory.push({
+                fromStatus: oldStatus,
+                toStatus: inc.expected_status,
+                updatedBy: 'System Auto-Repair',
+                notes: `Auto-repair: ${inc.active_orders.length} active orders found`,
+                updatedAt: new Date()
+              });
+
+              await table.save();
+
+              console.log(`✅ Repaired table ${inc.table_number}: ${oldStatus} → ${inc.expected_status}`);
+              return {
+                table_number: inc.table_number,
+                repaired: true,
+                from: oldStatus,
+                to: inc.expected_status
+              };
+            }
+            return { table_number: inc.table_number, repaired: false, error: 'Table not found' };
+          } catch (error) {
+            console.error(`❌ Error repairing table ${inc.table_number}:`, error);
+            return { table_number: inc.table_number, repaired: false, error: error.message };
+          }
+        })
+      );
+
+      console.log(`📊 Repair results:`, repairResults.filter(r => r.repaired).length, 'successful');
+    }
 
     // ✅ Hitung summary berdasarkan status final
     const availableTables = tablesWithStatus.filter(t => t.is_available);
@@ -2467,8 +2680,8 @@ export const getTableAvailability = async (req, res) => {
     const occupiedCount = occupiedTables.length;
 
     // ✅ Hitung consistency metrics
-    const consistentTables = tablesWithStatus.filter(t => t.debug.status_consistent).length;
-    const inconsistentTables = tablesWithStatus.length - consistentTables;
+    const consistentTablesCount = tablesWithStatus.filter(t => t.debug.status_consistent).length;
+    const inconsistentTablesCount = tablesWithStatus.length - consistentTablesCount;
 
     const response = {
       success: true,
@@ -2482,9 +2695,11 @@ export const getTableAvailability = async (req, res) => {
           sync_info: syncResult
         },
         consistency: {
-          consistent_tables: consistentTables,
-          inconsistent_tables: inconsistentTables,
-          consistency_rate: allTables.length > 0 ? ((consistentTables / allTables.length) * 100).toFixed(1) : 0
+          consistent_tables: consistentTablesCount,
+          inconsistent_tables: inconsistentTablesCount,
+          consistency_rate: allTables.length > 0 ? ((consistentTablesCount / allTables.length) * 100).toFixed(1) : 0,
+          repaired_tables: repairResults.filter(r => r.repaired).length,
+          repair_details: repairResults
         },
         filters: {
           date: date || 'today',
@@ -2492,7 +2707,6 @@ export const getTableAvailability = async (req, res) => {
           area_id: area_id || 'all',
           outletId: outletId
         },
-        // ✅ Info tambahan untuk debugging
         metadata: {
           total_reservations: reservations.length,
           total_active_orders: activeOrders.length,
@@ -2509,7 +2723,8 @@ export const getTableAvailability = async (req, res) => {
 
     console.log(`✅ Table availability fetched successfully.`);
     console.log(`📊 Summary: ${availableCount} available, ${occupiedCount} occupied`);
-    console.log(`📈 Consistency: ${consistentTables} consistent, ${inconsistentTables} inconsistent`);
+    console.log(`📈 Consistency: ${consistentTablesCount} consistent, ${inconsistentTablesCount} inconsistent`);
+    console.log(`🔧 Repair: ${repairResults.filter(r => r.repaired).length} tables repaired`);
 
     res.json(response);
   } catch (error) {
@@ -2524,6 +2739,321 @@ export const getTableAvailability = async (req, res) => {
         query: req.query
       }
     });
+  }
+};
+
+// ✅ PUT /api/gro/orders/:orderId/transfer-table - Transfer order to different table
+export const transferOrderToTable = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { orderId } = req.params;
+    const { newTableNumber, reason, transferredBy } = req.body;
+    const userId = req.user?.id;
+
+    console.log('🔄 Transferring order to new table:', {
+      orderId,
+      newTableNumber,
+      reason,
+      transferredBy,
+      userId
+    });
+
+    // Validasi input
+    if (!newTableNumber || !transferredBy) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Nomor meja baru dan nama GRO yang mentransfer diperlukan'
+      });
+    }
+
+    // Cari pesanan
+    const order = await Order.findById(orderId)
+      .populate('user_id', 'name phone')
+      .session(session);
+
+    if (!order) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Pesanan tidak ditemukan'
+      });
+    }
+
+    // Validasi order type
+    if (order.orderType !== 'Dine-In' && order.orderType !== 'Reservation') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Hanya pesanan Dine-In atau Reservation yang bisa dipindahkan meja'
+      });
+    }
+
+    // Validasi status order
+    if (!['Pending', 'Waiting', 'OnProcess', 'Reserved'].includes(order.status)) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Tidak dapat memindahkan order dengan status ${order.status}. Order harus dalam status aktif.`
+      });
+    }
+
+    const oldTableNumber = order.tableNumber;
+    const outletId = order.outlet;
+
+    console.log('📋 Order details:', {
+      orderId: order.order_id,
+      currentTable: oldTableNumber,
+      outletId: outletId,
+      status: order.status
+    });
+
+    // Cek apakah meja baru tersedia
+    const newTable = await Table.findOne({
+      table_number: newTableNumber.toUpperCase(),
+      is_active: true
+    }).populate('area_id').session(session);
+
+    if (!newTable) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Meja ${newTableNumber} tidak ditemukan atau tidak aktif`
+      });
+    }
+
+    // Cek status meja baru
+    if (newTable.status !== 'available') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Meja ${newTableNumber} sedang tidak tersedia (status: ${newTable.status})`
+      });
+    }
+
+    // Cek apakah meja baru sudah ada pesanan aktif
+    const existingOrderOnNewTable = await Order.findOne({
+      tableNumber: newTableNumber.toUpperCase(),
+      status: { $in: ['Pending', 'Waiting', 'OnProcess', 'Reserved'] },
+      outlet: outletId,
+      _id: { $ne: orderId } // Exclude current order
+    }).session(session);
+
+    if (existingOrderOnNewTable) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Meja ${newTableNumber} sudah memiliki pesanan aktif (Order: ${existingOrderOnNewTable.order_id})`
+      });
+    }
+
+    // Get employee info
+    const employee = await User.findById(userId).select('username').session(session);
+
+    // ✅ UPDATE 1: Update status meja baru menjadi occupied
+    newTable.status = 'occupied';
+    newTable.updatedAt = new Date();
+
+    // Tambahkan history untuk meja baru
+    if (!newTable.statusHistory) {
+      newTable.statusHistory = [];
+    }
+
+    newTable.statusHistory.push({
+      fromStatus: 'available',
+      toStatus: 'occupied',
+      updatedBy: transferredBy,
+      notes: `Order ${order.order_id} dipindahkan dari meja ${oldTableNumber}`,
+      updatedAt: getWIBNow()
+    });
+
+    await newTable.save({ session });
+
+    console.log('✅ New table status updated to occupied:', newTableNumber);
+
+    // ✅ UPDATE 2: Jika meja lama ada, update statusnya menjadi available
+    if (oldTableNumber && oldTableNumber !== newTableNumber) {
+      const oldTable = await Table.findOne({
+        table_number: oldTableNumber.toUpperCase()
+      }).session(session);
+
+      if (oldTable) {
+        oldTable.status = 'available';
+        oldTable.updatedAt = new Date();
+
+        // Tambahkan history untuk meja lama
+        if (!oldTable.statusHistory) {
+          oldTable.statusHistory = [];
+        }
+
+        oldTable.statusHistory.push({
+          fromStatus: 'occupied',
+          toStatus: 'available',
+          updatedBy: transferredBy,
+          notes: `Order ${order.order_id} dipindahkan ke meja ${newTableNumber}`,
+          updatedAt: getWIBNow()
+        });
+
+        await oldTable.save({ session });
+
+        console.log('✅ Old table status updated to available:', oldTableNumber);
+      }
+    }
+
+    // ✅ UPDATE 3: Update order dengan table baru
+    order.tableNumber = newTableNumber.toUpperCase();
+    order.updatedAtWIB = getWIBNow();
+
+    // Tambahkan catatan transfer
+    const transferNote = `\n[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Dipindahkan dari meja ${oldTableNumber} ke meja ${newTableNumber} oleh ${transferredBy}${reason ? ` - Alasan: ${reason}` : ''}`;
+    order.notes = (order.notes || '') + transferNote;
+
+    // Simpan history transfer
+    if (!order.transferHistory) {
+      order.transferHistory = [];
+    }
+
+    order.transferHistory.push({
+      fromTable: oldTableNumber,
+      toTable: newTableNumber,
+      transferredBy: transferredBy,
+      reason: reason || 'Table transfer by GRO',
+      transferredAt: getWIBNow()
+    });
+
+    await order.save({ session });
+
+    // ✅ UPDATE 4: Jika ini adalah reservation, update juga table_id di reservation
+    if (order.reservation) {
+      const reservation = await Reservation.findById(order.reservation).session(session);
+      if (reservation) {
+        // Cari table berdasarkan table_number baru
+        const newTableForReservation = await Table.findOne({
+          table_number: newTableNumber.toUpperCase()
+        }).session(session);
+
+        if (newTableForReservation) {
+          // Update table_id di reservation (replace dengan table baru)
+          reservation.table_id = [newTableForReservation._id];
+
+          // Tambahkan catatan
+          const reservationTransferNote = `[${getWIBNow().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Meja dipindahkan dari ${oldTableNumber} ke ${newTableNumber} oleh ${transferredBy}`;
+          reservation.notes = reservation.notes
+            ? `${reservationTransferNote}\n${reservation.notes}`
+            : reservationTransferNote;
+
+          await reservation.save({ session });
+          console.log('✅ Reservation table updated:', order.reservation);
+        }
+      }
+    }
+
+    await session.commitTransaction();
+
+    console.log(`✅ Table transfer completed: Order ${order.order_id} from ${oldTableNumber} to ${newTableNumber}`);
+
+    // ✅ EMIT SOCKET EVENTS UNTUK REAL-TIME UPDATE
+    const transferData = {
+      orderId: order._id,
+      order_id: order.order_id,
+      oldTable: oldTableNumber,
+      newTable: newTableNumber,
+      customerName: order.user_id?.name || order.user,
+      customerPhone: order.user_id?.phone,
+      transferredBy: transferredBy,
+      reason: reason,
+      area: newTable.area_id?.area_code,
+      timestamp: new Date()
+    };
+
+    // Emit ke berbagai room untuk real-time update
+    if (typeof io !== 'undefined' && io) {
+      // Emit ke room order
+      io.to(`order_${order.order_id}`).emit('table_transferred', transferData);
+
+      // Emit ke cashier room
+      io.to('cashier_room').emit('order_table_changed', transferData);
+
+      // Emit ke GRO room
+      io.to('gro_room').emit('order_table_changed', transferData);
+
+      // Emit table status update untuk area baru
+      io.to(`area_${newTable.area_id?.area_code}`).emit('table_status_updated', {
+        tableId: newTable._id,
+        tableNumber: newTable.table_number,
+        oldStatus: 'available',
+        newStatus: 'occupied',
+        updatedBy: transferredBy,
+        timestamp: new Date(),
+        orderId: order.order_id
+      });
+
+      // Emit table status update untuk area lama (jika ada)
+      if (oldTableNumber && oldTableNumber !== newTableNumber) {
+        const oldTable = await Table.findOne({ table_number: oldTableNumber });
+        if (oldTable && oldTable.area_id) {
+          io.to(`area_${oldTable.area_id?.area_code}`).emit('table_status_updated', {
+            tableId: oldTable._id,
+            tableNumber: oldTable.table_number,
+            oldStatus: 'occupied',
+            newStatus: 'available',
+            updatedBy: transferredBy,
+            timestamp: new Date()
+          });
+        }
+      }
+    }
+
+    // Response sukses
+    res.json({
+      success: true,
+      message: `Pesanan berhasil dipindahkan dari meja ${oldTableNumber} ke meja ${newTableNumber}`,
+      data: {
+        order: {
+          id: order._id,
+          order_id: order.order_id,
+          tableNumber: order.tableNumber,
+          customerName: order.user_id?.name || order.user,
+          status: order.status
+        },
+        transfer: {
+          from: oldTableNumber,
+          to: newTableNumber,
+          transferredBy: transferredBy,
+          reason: reason || 'No reason provided',
+          timestamp: getWIBNow()
+        },
+        tables: {
+          oldTable: oldTableNumber ? {
+            number: oldTableNumber,
+            newStatus: 'available'
+          } : null,
+          newTable: {
+            number: newTableNumber,
+            area: newTable.area_id?.area_name,
+            newStatus: 'occupied'
+          }
+        }
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('❌ Error transferring order table:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Gagal memindahkan pesanan ke meja baru',
+      error: error.message,
+      debug: {
+        orderId: req.params.orderId,
+        newTableNumber: req.body.newTableNumber,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } finally {
+    session.endSession();
   }
 };
 

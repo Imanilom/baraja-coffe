@@ -2,8 +2,287 @@ import { Order } from '../models/order.model.js';
 import { io } from '../index.js';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-
+import { PrintLogger } from '../services/print-logger.service.js';
 dotenv.config();
+
+
+// Tambahkan function print tracking di operation controller
+export const trackPrintAttempt = async (orderId, workstation, printerConfig) => {
+  try {
+    // Untuk sekarang, kita log order secara keseluruhan dulu
+    // Bisa dikembangkan untuk log per item jika diperlukan
+    const logId = await PrintLogger.logPrintAttempt(
+      orderId,
+      null, // itemId - bisa diisi jika perlu tracking per item
+      workstation,
+      printerConfig
+    );
+
+    return logId;
+  } catch (error) {
+    console.error('Error in trackPrintAttempt:', error);
+    return null;
+  }
+};
+
+export const trackPrintSuccess = async (logId, duration) => {
+  await PrintLogger.logPrintSuccess(logId, duration);
+};
+
+export const trackPrintFailure = async (logId, reason, details = '') => {
+  await PrintLogger.logPrintFailure(logId, reason, details);
+};
+
+// di operation.controller.js
+export const logProblematicItem = async (req, res) => {
+  try {
+    const { order_id, item, workstation, issues, details, stock_info } = req.body;
+
+    if (!order_id || !item || !issues) {
+      return res.status(400).json({
+        success: false,
+        message: 'order_id, item, and issues are required'
+      });
+    }
+
+    const logId = await PrintLogger.logProblematicItem(
+      order_id,
+      item,
+      workstation,
+      issues,
+      details,
+      stock_info
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        log_id: logId
+      }
+    });
+  } catch (error) {
+    console.error('Error logging problematic item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to log problematic item'
+    });
+  }
+};
+
+// Enhanced logPrintAttempt endpoint
+// Di operation.controller.js - perbaiki endpoint logPrintAttempt
+export const logPrintAttempt = async (req, res) => {
+  try {
+    const {
+      order_id,
+      item,
+      workstation,
+      printer_config,
+      stock_info
+    } = req.body;
+
+    if (!order_id || !item || !workstation) {
+      return res.status(400).json({
+        success: false,
+        message: 'order_id, item, and workstation are required'
+      });
+    }
+
+    // Enhanced logging dengan problematic details
+    const logId = await PrintLogger.logPrintAttempt(
+      order_id,
+      item,
+      workstation,
+      printer_config,
+      stock_info
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        log_id: logId,
+        logged_at: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Error logging print attempt:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to log print attempt'
+    });
+  }
+};
+
+// New endpoint untuk problematic reports
+export const getProblematicPrintReport = async (req, res) => {
+  try {
+    const { hours = 24, workstation } = req.query;
+
+    const problematicReport = await PrintLogger.getProblematicItemsReport(parseInt(hours));
+    const technicalReport = await PrintLogger.getTechnicalIssuesReport(parseInt(hours));
+
+    // Filter by workstation jika provided
+    let filteredProblematic = problematicReport;
+    let filteredTechnical = technicalReport;
+
+    if (workstation) {
+      filteredProblematic = problematicReport.filter(item =>
+        item.workstation === workstation
+      );
+      filteredTechnical = technicalReport.filter(item =>
+        item.workstation === workstation
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        problematic_items: filteredProblematic,
+        technical_issues: filteredTechnical,
+        summary: {
+          total_problematic: filteredProblematic.reduce((sum, item) => sum + item.count, 0),
+          total_technical: filteredTechnical.reduce((sum, item) => sum + item.count, 0),
+          time_range: `${hours} hours`,
+          workstation: workstation || 'all'
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error getting problematic print report:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get problematic print report'
+    });
+  }
+};
+// Endpoint untuk log print success
+export const logPrintSuccess = async (req, res) => {
+  try {
+    const { log_id, duration } = req.body;
+
+    if (!log_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'log_id is required'
+      });
+    }
+
+    await trackPrintSuccess(log_id, duration);
+
+    res.status(200).json({
+      success: true,
+      message: 'Print success logged'
+    });
+  } catch (error) {
+    console.error('Error logging print success:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to log print success'
+    });
+  }
+};
+
+// di operation.controller.js
+export const logSkippedItem = async (req, res) => {
+  try {
+    const { order_id, item, workstation, reason, details } = req.body;
+
+    if (!order_id || !item || !reason) {
+      return res.status(400).json({
+        success: false,
+        message: 'order_id, item, and reason are required'
+      });
+    }
+
+    await PrintLogger.logSkippedItem(order_id, item, workstation, reason, details);
+
+    res.status(200).json({
+      success: true,
+      message: 'Skipped item logged'
+    });
+  } catch (error) {
+    console.error('Error logging skipped item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to log skipped item'
+    });
+  }
+};
+
+// Endpoint untuk log print failure
+export const logPrintFailure = async (req, res) => {
+  try {
+    const { log_id, reason, details } = req.body;
+
+    if (!log_id || !reason) {
+      return res.status(400).json({
+        success: false,
+        message: 'log_id and reason are required'
+      });
+    }
+
+    await trackPrintFailure(log_id, reason, details);
+
+    res.status(200).json({
+      success: true,
+      message: 'Print failure logged'
+    });
+  } catch (error) {
+    console.error('Error logging print failure:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to log print failure'
+    });
+  }
+};
+
+// Tambahkan endpoint untuk print monitoring
+export const getPrintStats = async (req, res) => {
+  try {
+    const { hours = 24 } = req.query;
+
+    const stats = await PrintLogger.getPrintSummary(parseInt(hours));
+    const failures = await PrintLogger.getRecentFailures(6, 10);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        statistics: stats,
+        recent_failures: failures
+      }
+    });
+  } catch (error) {
+    console.error('Error getting print stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get print statistics'
+    });
+  }
+};
+
+export const getOrderPrintHistory = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const printHistory = await PrintLog.find({ order_id: orderId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        order_id: orderId,
+        print_history: printHistory
+      }
+    });
+  } catch (error) {
+    console.error('Error getting order print history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get print history'
+    });
+  }
+};
 
 export const getKitchenOrder = async (req, res) => {
   try {
@@ -71,23 +350,23 @@ export const updateKitchenOrderStatus = async (req, res) => {
     if (status === 'Completed' && order.reservation) {
       // Cek apakah reservasi masih aktif (belum selesai)
       const reservation = order.reservation;
-      
+
       // Asumsi: reservasi memiliki field status yang menandakan aktif/tidak
       // Sesuaikan dengan struktur data reservasi Anda
       if (reservation.status && ['confirmed', 'checked-in', 'in-progress'].includes(reservation.status)) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Cannot complete order with active reservation. Reservation might have OTS or additional orders.' 
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot complete order with active reservation. Reservation might have OTS or additional orders.'
         });
       }
-      
+
       // Atau cek berdasarkan waktu reservasi
       const now = new Date();
       const reservationEnd = new Date(reservation.reservation_end || reservation.end_time);
       if (reservationEnd > now) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Cannot complete order while reservation is still active. Customer might add more orders.' 
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot complete order while reservation is still active. Customer might add more orders.'
         });
       }
     }
@@ -117,11 +396,11 @@ export const updateKitchenOrderStatus = async (req, res) => {
     // Emit ke kitchen room juga kalau perlu broadcast antar kitchen
     io.to('kitchen_room').emit('kitchen_order_updated', updateData);
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       data: updatedOrder,
-      message: status === 'Completed' && order.reservation 
-        ? 'Order completed but reservation is still active' 
+      message: status === 'Completed' && order.reservation
+        ? 'Order completed but reservation is still active'
         : 'Order status updated successfully'
     });
   } catch (error) {
@@ -135,27 +414,27 @@ export const updateKitchenItemStatus = async (req, res) => {
   const { kitchenStatus, kitchenId, kitchenName } = req.body;
 
   console.log('Updating kitchen item status for orderId:', orderId, 'itemId:', itemId, 'to status:', kitchenStatus);
-  
+
   if (!orderId || !itemId || !kitchenStatus) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'orderId, itemId, and kitchenStatus are required' 
+    return res.status(400).json({
+      success: false,
+      message: 'orderId, itemId, and kitchenStatus are required'
     });
   }
 
   // Validasi kitchenStatus
   const validStatuses = ['pending', 'printed', 'cooking', 'ready', 'served'];
   if (!validStatuses.includes(kitchenStatus)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: `Invalid kitchenStatus. Must be one of: ${validStatuses.join(', ')}` 
+    return res.status(400).json({
+      success: false,
+      message: `Invalid kitchenStatus. Must be one of: ${validStatuses.join(', ')}`
     });
   }
 
   try {
     // 🔍 Cek order dan item
     const order = await Order.findOne({ order_id: orderId });
-    
+
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
@@ -168,10 +447,10 @@ export const updateKitchenItemStatus = async (req, res) => {
 
     // Simpan status sebelumnya untuk tracking
     const previousStatus = itemToUpdate.kitchenStatus;
-    
+
     // ✅ Update kitchenStatus item
     itemToUpdate.kitchenStatus = kitchenStatus;
-    
+
     // Jika status diubah menjadi 'served', set isPrinted menjadi true
     if (kitchenStatus === 'served') {
       itemToUpdate.isPrinted = true;
@@ -221,8 +500,8 @@ export const updateKitchenItemStatus = async (req, res) => {
     //   io.to('waiter_room').emit('item_ready_for_serving', updateData);
     // }
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       data: {
         order: updatedOrder,
         updatedItem: updatedItem
@@ -232,9 +511,9 @@ export const updateKitchenItemStatus = async (req, res) => {
 
   } catch (error) {
     console.error('Error updating kitchen item status:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to update kitchen item status' 
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update kitchen item status'
     });
   }
 };
@@ -244,17 +523,17 @@ export const bulkUpdateKitchenItems = async (req, res) => {
   const { items, kitchenId, kitchenName } = req.body;
 
   console.log('Bulk updating kitchen items for orderId:', orderId, 'items:', items);
-  
+
   if (!orderId || !items || !Array.isArray(items)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'orderId and items array are required' 
+    return res.status(400).json({
+      success: false,
+      message: 'orderId and items array are required'
     });
   }
 
   try {
     const order = await Order.findOne({ order_id: orderId });
-    
+
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
@@ -265,7 +544,7 @@ export const bulkUpdateKitchenItems = async (req, res) => {
     // Update setiap item
     for (const itemUpdate of items) {
       const { itemId, kitchenStatus } = itemUpdate;
-      
+
       if (!itemId || !kitchenStatus) {
         updateResults.push({
           itemId,
@@ -331,10 +610,10 @@ export const bulkUpdateKitchenItems = async (req, res) => {
     io.to('cashier_room').emit('kitchen_items_bulk_updated', bulkUpdateData);
 
     // Cek jika ada items yang ready/served untuk notifikasi waiter
-    const servedItems = updateResults.filter(result => 
+    const servedItems = updateResults.filter(result =>
       result.success && ['ready', 'served'].includes(result.newStatus)
     );
-    
+
     if (servedItems.length > 0) {
       io.to('waiter_room').emit('items_ready_for_serving', {
         ...bulkUpdateData,
@@ -342,8 +621,8 @@ export const bulkUpdateKitchenItems = async (req, res) => {
       });
     }
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       data: {
         order: updatedOrder,
         updateResults: updateResults
@@ -353,9 +632,9 @@ export const bulkUpdateKitchenItems = async (req, res) => {
 
   } catch (error) {
     console.error('Error in bulk updating kitchen items:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to bulk update kitchen items' 
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk update kitchen items'
     });
   }
 };

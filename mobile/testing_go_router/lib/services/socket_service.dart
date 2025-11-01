@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/providers/global_provider/provider.dart';
 import 'package:kasirbaraja/providers/orders/online_order_provider.dart';
+import 'package:kasirbaraja/repositories/menu_item_repository.dart';
 import 'package:kasirbaraja/services/hive_service.dart';
 import 'package:kasirbaraja/services/notification_service.dart';
 import 'package:kasirbaraja/services/order_history_service.dart';
@@ -75,6 +76,15 @@ class SocketService {
       _debounce = Timer(const Duration(milliseconds: 500), () {
         ref.invalidate(onlineOrderProvider);
       });
+    });
+
+    socket.on('update_stock', (data) {
+      print('update_stock: $data');
+      NotificationService.showSystemNotification(
+        'Stok Menu Diperbarui',
+        "Stok menu telah diperbarui.",
+      );
+      MenuItemRepository().getMenuItem();
     });
 
     socket.connect();

@@ -113,6 +113,10 @@ const OrderSchema = new mongoose.Schema({
   tableNumber: { type: String },
   pickupTime: { type: String },
   type: { type: String, enum: ['Indoor', 'Outdoor'], default: 'Indoor' },
+  cancellationReason: {
+    type: String,
+    default: null
+  }, 
   isOpenBill: { type: Boolean, default: false },
   originalReservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
 

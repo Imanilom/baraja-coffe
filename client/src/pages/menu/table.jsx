@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import MenuSkeleton from "./skeleton";
 import ConfirmationModalActive from "./confirmationModalAction";
 import axios from "axios";
+import Paginated from "../../components/paginated";
 
 export default function MenuTable({
     categoryOptions,
@@ -139,13 +140,15 @@ export default function MenuTable({
                             isSearchable
                         />
 
-                        <Select
-                            options={workstationOptions}
-                            value={workstationOptions.find(option => option.value === selectedWorkstation) || workstationOptions[0]}
-                            onChange={(selected) => setSelectedWorkstation(selected.value)}
-                            styles={customStyles}
-                            isSearchable
-                        />
+                        {location.pathname === '/admin/menu' && (
+                            <Select
+                                options={workstationOptions}
+                                value={workstationOptions.find(option => option.value === selectedWorkstation) || workstationOptions[0]}
+                                onChange={(selected) => setSelectedWorkstation(selected.value)}
+                                styles={customStyles}
+                                isSearchable
+                            />
+                        )}
                     </div>
                 </div>
             </div>
@@ -316,7 +319,7 @@ export default function MenuTable({
             </div>
 
             {/* Pagination Controls */}
-            {totalPages > 1 && (
+            {/* {totalPages > 1 && (
                 <div className="flex px-6 justify-between items-center mt-4 text-sm text-white">
                     <button
                         onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
@@ -336,7 +339,16 @@ export default function MenuTable({
                         Selanjutnya <FaChevronRight />
                     </button>
                 </div>
-            )}
+            )} */}
+
+            <div className="px-6">
+                <Paginated
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                />
+            </div>
+
 
             <ConfirmationModalActive
                 isOpen={isConfirmOpen}

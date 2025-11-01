@@ -12,7 +12,7 @@ part 'addon.model.g.dart';
 @HiveType(typeId: 1)
 abstract class AddonModel with _$AddonModel {
   factory AddonModel({
-    @HiveField(0) @JsonKey(name: '_id') String? id,
+    @HiveField(0) String? id,
     @HiveField(1) String? name,
     @HiveField(2) String? type,
     @HiveField(3) List<AddonOptionModel>? options,
