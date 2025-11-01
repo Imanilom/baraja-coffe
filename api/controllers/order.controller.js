@@ -22,6 +22,7 @@ import { Outlet } from '../models/Outlet.model.js';
 import dayjs from 'dayjs'
 import { processGoSendDelivery } from '../helpers/deliveryHelper.js';
 import { replaceOrderItemsAndAllocate } from '../services/orderEdit.service.js';
+import { createOrderHandler } from '../workers/handlers/createOrderHandler.js';
 
 
 const calculateTaxAndService = async (subtotal, outlet, isReservation, isOpenBill) => {
@@ -2481,7 +2482,7 @@ export const createUnifiedOrder = async (req, res) => {
 
     // PERBAIKAN: Buat order langsung tanpa queue untuk menghindari timing issue
     console.log('🔄 Creating order directly without queue...');
-    
+
     try {
       // Create order langsung
       const orderResult = await createOrderHandler({
