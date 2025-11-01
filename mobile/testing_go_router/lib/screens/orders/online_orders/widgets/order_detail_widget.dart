@@ -179,33 +179,33 @@ class OrderDetailWidget extends ConsumerWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              TextButton(
-                style: TextButton.styleFrom(backgroundColor: Colors.red[50]),
-                child: Text(
-                  'Stok Habis ?',
-                  style: TextStyle(color: Colors.red),
-                ),
-                onPressed: () {
-                  //snackbar fitur blm jadi
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Maaf Fitur Belum Jadi!!')),
-                  );
+              // TextButton(
+              //   style: TextButton.styleFrom(backgroundColor: Colors.red[50]),
+              //   child: Text(
+              //     'Stok Habis ?',
+              //     style: TextStyle(color: Colors.red),
+              //   ),
+              //   onPressed: () {
+              //     //snackbar fitur blm jadi
+              //     ScaffoldMessenger.of(context).showSnackBar(
+              //       const SnackBar(content: Text('Maaf Fitur Belum Jadi!!')),
+              //     );
 
-                  // showModalBottomSheet(
-                  //   context: context,
-                  //   isScrollControlled: true,
-                  //   backgroundColor: Colors.transparent,
-                  //   builder: (ctx) => DeleteOrderItemSheet(order: order),
-                  // );
-                },
-              ),
+              //     // showModalBottomSheet(
+              //     //   context: context,
+              //     //   isScrollControlled: true,
+              //     //   backgroundColor: Colors.transparent,
+              //     //   builder: (ctx) => DeleteOrderItemSheet(order: order),
+              //     // );
+              //   },
+              // ),
             ],
           ),
           const SizedBox(height: 12),
           ...order.items.map((item) => _buildItemCard(item)),
           const SizedBox(height: 12),
 
-          //tombol edit order item hanyamuncul ketika payment detailnya belu sepenuhnya dibayar,
+          //tombol edit order item hanya muncul ketika payment detailnya belum sepenuhnya dibayar,
           if (order.items.isEmpty ||
               order.payment!.isEmpty ||
               order.payment!.any((p) => p.status!.toLowerCase() == "pending"))
@@ -216,10 +216,6 @@ class OrderDetailWidget extends ConsumerWidget {
                 color: Colors.green,
               ),
               label: Text(
-                // label tidak pakai style manual: warna ikut TextButton
-                // kalau mau hijau, atur via styleFrom(foregroundColor: ...)
-                // 'Edit Order Item',
-                // Kalau mau dinamis:
                 order.items.isEmpty ? 'Add Order Item' : 'Edit Order Item',
               ),
               onPressed: () async {
@@ -256,10 +252,10 @@ class OrderDetailWidget extends ConsumerWidget {
                 if (confirm == true) {
                   //fitur belum tersedia
                   if (!context.mounted) return;
-                  // ScaffoldMessenger.of(context).showSnackBar(
-                  //   const SnackBar(content: Text('Maaf Fitur Belum Jadi!!')),
-                  // );
-                  context.push('/${order.id}/edit-order-item', extra: order);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Maaf Fitur Belum Jadi!!')),
+                  );
+                  // context.push('/${order.id}/edit-order-item', extra: order);
                 }
               },
             ),
