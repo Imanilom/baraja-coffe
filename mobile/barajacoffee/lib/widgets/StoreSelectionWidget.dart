@@ -11,10 +11,10 @@ class StoreSelectionWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Pilih Toko Terdekat", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        SizedBox(height: 10),
+        const Text("Pilih Toko Terdekat", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
         DropdownButton<String>(
-          hint: Text("Pilih Toko"),
+          hint: const Text("Pilih Toko"),
           items: stores.map((store) {
             return DropdownMenuItem<String>(
               value: store,
@@ -38,8 +38,8 @@ class UserAddressWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(Icons.location_on, color: Colors.green),
-      title: Text("Alamat Pengiriman"),
+      leading: const Icon(Icons.location_on, color: Colors.green),
+      title: const Text("Alamat Pengiriman"),
       subtitle: Text(address, style: TextStyle(color: Colors.grey[700])),
     );
   }
