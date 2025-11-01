@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kasirbaraja/models/edit_order_ops.model.dart';
-import 'package:kasirbaraja/models/edit_order_request.model.dart';
 import 'package:kasirbaraja/providers/order_detail_providers/online_order_detail_provider.dart';
-import 'package:kasirbaraja/providers/order_detail_providers/reservation_order_detail_provider.dart';
 import 'package:kasirbaraja/utils/format_rupiah.dart';
 import 'package:kasirbaraja/widgets/dialogs/edit_order_item_dialog.dart';
 
@@ -12,61 +9,63 @@ class OrderDetailEdit extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    String onNull = 'Pilih detail pesanan';
-    final onlineOrderEditDetail = ref.watch(onlineOrderEditorProvider);
+    const onNull = 'Pilih Pesanan';
+    final editState = ref.watch(onlineOrderEditorProvider);
+    final notifier = ref.read(onlineOrderEditorProvider.notifier);
+
+    final order = editState.order;
+    final items = order?.items ?? const [];
+
+    final hasChanges = notifier.hasItemChanges; // <- ini kuncinya
 
     return Padding(
       padding: const EdgeInsets.only(right: 8, left: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // header
           Container(
             color: Colors.white,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 TextButton.icon(
                   onPressed: () {},
-                  label:
-                      onlineOrderEditDetail.order != null
-                          ? Text(
-                            'Order id: ${onlineOrderEditDetail.order!.orderId}',
-                          )
-                          : const Text('No Order Selected'),
                   icon: const Icon(Icons.receipt_long),
+                  label: Text(
+                    order?.orderId?.isNotEmpty == true
+                        ? 'Order ID: ${order!.orderId}'
+                        : 'No Order Selected',
+                  ),
                 ),
+                if ((editState.reason ?? '').isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Text(
+                      'Alasan: ${editState.reason}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ),
               ],
             ),
           ),
           const SizedBox(height: 4),
+
+          // daftar item
           Expanded(
             child: Container(
               color: Colors.white,
               padding: const EdgeInsets.only(right: 4),
               child:
-                  onlineOrderEditDetail.order == null ||
-                          onlineOrderEditDetail.order!.items.isEmpty
-                      ? Center(child: Text(onNull, textAlign: TextAlign.center))
+                  items.isEmpty
+                      ? const Center(
+                        child: Text(onNull, textAlign: TextAlign.center),
+                      )
                       : ListView.builder(
-                        itemCount: onlineOrderEditDetail.order!.items.length,
-                        // urutan terbalik
-                        // reverse: true,
+                        itemCount: items.length,
                         physics: const BouncingScrollPhysics(),
-                        //selalu scroll ke atas,
-                        // controller: ScrollController(),
-                        controller: ScrollController(
-                          initialScrollOffset: 0,
-                          keepScrollOffset: true,
-                          debugLabel: 'ScrollController',
-                          onAttach:
-                              (position) => debugPrint(
-                                'ScrollController attached to $position',
-                              ),
-                        ),
-
                         itemBuilder: (context, index) {
-                          final orderItem =
-                              onlineOrderEditDetail.order!.items[index];
+                          final orderItem = items[index];
                           return ListTile(
                             horizontalTitleGap: 4,
                             visualDensity: const VisualDensity(
@@ -81,31 +80,31 @@ class OrderDetailEdit extends ConsumerWidget {
                             leading: CircleAvatar(
                               child: Text(orderItem.quantity.toString()),
                             ),
-                            title: Text(orderItem.menuItem.name.toString()),
+                            title: Text(orderItem.menuItem.name ?? '-'),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'workstation: ${orderItem.menuItem.workstation}',
+                                  'workstation: ${orderItem.menuItem.workstation ?? '-'}',
                                 ),
                                 if (orderItem.selectedToppings.isNotEmpty)
                                   Text(
                                     'Topping: ${orderItem.selectedToppings.map((t) => t.name).join(', ')}',
                                   ),
                                 if (orderItem.selectedAddons.isNotEmpty)
-                                  //mengambil nama addons dan lable pada opsions
-                                  if (orderItem
-                                      .selectedAddons
-                                      .first
-                                      .options!
-                                      .isNotEmpty)
+                                  if (orderItem.selectedAddons.first.options !=
+                                          null &&
+                                      orderItem
+                                          .selectedAddons
+                                          .first
+                                          .options!
+                                          .isNotEmpty)
                                     Text(
                                       'Addons: ${orderItem.selectedAddons.map((a) => a.options!.map((o) => o.label).join(', ')).join(', ')}',
                                     ),
-                                if (orderItem.notes != null &&
-                                    orderItem.notes!.isNotEmpty)
+                                if ((orderItem.notes ?? '').isNotEmpty)
                                   Text(
-                                    'Catatan: ${orderItem.notes!}',
+                                    'Catatan: ${orderItem.notes}',
                                     style: const TextStyle(
                                       fontStyle: FontStyle.italic,
                                       color: Colors.grey,
@@ -115,7 +114,6 @@ class OrderDetailEdit extends ConsumerWidget {
                             ),
                             trailing: Text(formatRupiah(orderItem.subtotal)),
                             onTap: () {
-                              //membuka drawer untuk edit order item
                               showModalBottomSheet(
                                 context: context,
                                 isScrollControlled: true,
@@ -124,25 +122,18 @@ class OrderDetailEdit extends ConsumerWidget {
                                     (context) => EditOrderItemDialog(
                                       orderItem: orderItem,
                                       onEditOrder: (editedOrderItem) {
-                                        ref
-                                            .read(
-                                              onlineOrderEditorProvider
-                                                  .notifier,
-                                            )
-                                            .editOrderItem(
-                                              orderItem,
-                                              editedOrderItem,
-                                            );
+                                        notifier.editOrderItem(
+                                          orderItem,
+                                          editedOrderItem,
+                                        );
+                                      },
+                                      onDeleteOrderItem: () {
+                                        notifier.removeItemById(
+                                          orderItem.menuItem.id,
+                                        );
+                                        Navigator.pop(context);
                                       },
                                       onClose: () => Navigator.pop(context),
-                                      onDeleteOrderItem: () {
-                                        // ref
-                                        //     .read(
-                                        //       onlineOrderEditorProvider
-                                        //           .notifier,
-                                        //     )
-                                        //     .removeItem(orderItem);
-                                      },
                                     ),
                               );
                             },
@@ -151,97 +142,68 @@ class OrderDetailEdit extends ConsumerWidget {
                       ),
             ),
           ),
-          const SizedBox(height: 2),
-          Expanded(
-            child: Container(
+
+          const SizedBox(height: 4),
+
+          // ringkasan
+          if (order != null && items.isNotEmpty)
+            Container(
               color: Colors.white,
-              padding: const EdgeInsets.only(right: 4),
-              child:
-                  onlineOrderEditDetail.order == null ||
-                          onlineOrderEditDetail.order!.items.isEmpty
-                      ? Center(child: Text(onNull, textAlign: TextAlign.center))
-                      : ListView.builder(
-                        itemCount: onlineOrderEditDetail.pendingOps.length,
-                        // urutan terbalik
-                        // reverse: true,
-                        physics: const BouncingScrollPhysics(),
-                        //selalu scroll ke atas,
-                        // controller: ScrollController(),
-                        controller: ScrollController(
-                          initialScrollOffset: 0,
-                          keepScrollOffset: true,
-                          debugLabel: 'ScrollController',
-                          onAttach:
-                              (position) => debugPrint(
-                                'ScrollController attached to $position',
-                              ),
-                        ),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _OrderSummaryRow(
+                    label: 'Subtotal',
+                    value: formatRupiah(order.totalAfterDiscount),
+                  ),
+                  _OrderSummaryRow(
+                    label: 'Tax',
+                    value: formatRupiah(order.totalTax),
+                  ),
+                  const Divider(),
+                  _OrderSummaryRow(
+                    label: 'Total Harga',
+                    value: formatRupiah(order.grandTotal),
+                    isBold: true,
+                  ),
+                ],
+              ),
+            ),
 
-                        itemBuilder: (context, index) {
-                          final orderItemEdit =
-                              onlineOrderEditDetail.pendingOps[index];
-
-                          print(orderItemEdit);
-                          return ListTile(
-                            horizontalTitleGap: 4,
-                            visualDensity: const VisualDensity(
-                              vertical: -4,
-                              horizontal: 0,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 0,
-                              horizontal: 4,
-                            ),
-                            dense: true,
-                            leading: CircleAvatar(child: Text('op')),
-                            title: Text(orderItemEdit.op),
-
-                            onTap: () {},
-                          );
-                        },
+          // tombol update (selalu tampil tapi disable kalau belum ada perubahan)
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed:
+                        hasChanges
+                            ? () async {
+                              // TODO: panggil notifier.submit / kirim ke backend di sini
+                              // setelah sukses:
+                              // notifier.markSynced(orderDariServer);
+                            }
+                            : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          hasChanges ? Colors.green : Colors.grey[300],
+                      foregroundColor:
+                          hasChanges ? Colors.white : Colors.grey[700],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
+                      minimumSize: const Size.fromHeight(40),
+                      elevation: 0,
+                    ),
+                    child: Text(hasChanges ? 'Update' : 'Tidak ada perubahan'),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          onlineOrderEditDetail.order == null ||
-                  onlineOrderEditDetail.order!.items.isEmpty
-              ? const SizedBox.shrink()
-              : Container(
-                color: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 16,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Subtotal
-                    _OrderSummaryRow(
-                      label: 'Subtotal',
-                      value: formatRupiah(
-                        onlineOrderEditDetail.order!.totalAfterDiscount.toInt(),
-                      ),
-                    ),
-                    // Tax (assuming 10%)
-                    _OrderSummaryRow(
-                      label: 'Tax 10%',
-                      value: formatRupiah(
-                        onlineOrderEditDetail.order!.totalTax.toInt().round(),
-                      ),
-                    ),
-                    const Divider(),
-                    // Total Harga
-                    _OrderSummaryRow(
-                      label: 'Total Harga',
-                      value: formatRupiah(
-                        onlineOrderEditDetail.order!.grandTotal.toInt().round(),
-                      ),
-                      isBold: true,
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
         ],
       ),
     );

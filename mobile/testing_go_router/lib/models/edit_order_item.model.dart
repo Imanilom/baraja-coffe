@@ -1,39 +1,22 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:kasirbaraja/models/order_detail.model.dart';
 import 'package:kasirbaraja/models/order_item.model.dart';
 
-enum ItemChangeType { original, added, modified, removed }
+part 'edit_order_item.model.freezed.dart';
+part 'edit_order_item.model.g.dart';
 
-class EditableOrderItem {
-  final OrderItemModel item;
-  final ItemChangeType changeType;
-  final bool isOriginal; // Apakah item ini berasal dari order awal?
+@freezed
+@HiveType(typeId: 26)
+abstract class EditOrderItemModel with _$EditOrderItemModel {
+  factory EditOrderItemModel({
+    @HiveField(0) @Default(null) String? reason,
+    @HiveField(1) @Default(null) OrderDetailModel? order,
+    @HiveField(2) @Default([]) List<OrderItemModel>? originalItems,
+    @HiveField(3) @Default(false) bool isSubmitting,
+    @HiveField(4) @Default(null) String? error,
+  }) = _EditOrderItemModel;
 
-  EditableOrderItem({
-    required this.item,
-    required this.changeType,
-    required this.isOriginal,
-  });
-
-  // Getter untuk ID unik item dalam konteks edit ini
-  // Gabungan dari menuItem.id, addon.id, topping.id, notes, orderType
-  String get uniqueId {
-    // Urutkan addon dan topping untuk konsistensi hash
-    final addonIds = (item.selectedAddons.map((a) => a.id).toList()..sort())
-        .join('-');
-    final toppingIds = (item.selectedToppings.map((t) => t.id).toList()..sort())
-        .join('-');
-    // Pastikan notes dan orderType juga masuk ke hash
-    return '${item.menuItem.id}-$addonIds-$toppingIds-${item.notes ?? ''}-${item.orderType.name}';
-  }
-
-  EditableOrderItem copyWith({
-    OrderItemModel? item,
-    ItemChangeType? changeType,
-    bool? isOriginal,
-  }) {
-    return EditableOrderItem(
-      item: item ?? this.item,
-      changeType: changeType ?? this.changeType,
-      isOriginal: isOriginal ?? this.isOriginal,
-    );
-  }
+  factory EditOrderItemModel.fromJson(Map<String, dynamic> json) =>
+      _$EditOrderItemModelFromJson(json);
 }
