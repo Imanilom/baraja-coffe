@@ -5998,6 +5998,7 @@ export const processPaymentCashier = async (req, res) => {
     }
     // Update status order jika semua pembayaran sudah lunas
     order.cashierId = cashier._id;
+    order.method = payment_type;
     await order.save({ session });
     console.log('is fully paid:', isFullyPaid);
     if (isFullyPaid) {
