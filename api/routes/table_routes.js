@@ -52,7 +52,7 @@ router.get('/check/:tableNumber', async (req, res) => {
             success: true,
             table: table,
             isAvailable: isAvailable,
-            message: isAvailable ? 'Meja tersedia' : `Meja sedang ${table.status}`
+            message: isAvailable ? 'Meja tersedia' : `Meja sedang tidak tersedia`
         });
     } catch (error) {
         res.status(500).json({
