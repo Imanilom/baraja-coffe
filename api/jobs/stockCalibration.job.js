@@ -177,14 +177,14 @@ export const calibrateSingleMenuStock = async (menuItemId) => {
     let statusChange = null;
     const previousStatus = menuItem.isActive;
     
-    // 🔴 PERUBAHAN: Nonaktifkan menu jika stok manual di bawah 5
+    // 🔴 PERUBAHAN: Nonaktifkan menu jika stok manual di bawah 1
     if (menuStock.manualStock !== null && menuStock.manualStock !== undefined) {
       // Jika menggunakan stok manual
-      if (menuStock.manualStock < 5) {
+      if (menuStock.manualStock < 1) {
         if (menuItem.isActive) {
           menuItem.isActive = false;
           statusChange = 'deactivated';
-          console.log(`🔴 Nonaktifkan ${menuItem.name} - stok manual di bawah 5 (${menuStock.manualStock})`);
+          console.log(`🔴 Nonaktifkan ${menuItem.name} - stok manual di bawah 1 (${menuStock.manualStock})`);
         }
       } else {
         if (!menuItem.isActive) {
