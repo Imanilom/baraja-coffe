@@ -228,9 +228,12 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
         return warnings.join(', ') || 'Item bermasalah tetapi tetap diprint';
     }
     // Add this method to the PrintLogger class
+    // Di services/print-logger.service.js - PERBAIKI method logProblematicItem:
+
     static async logProblematicItem(orderId, item, workstation, issues, details = '', stockInfo = {}) {
         try {
             const menuItemId = item.menuItemId || item._id || item.id;
+
             console.log('⚠️ [PROBLEMATIC ITEM LOG]', {
                 orderId,
                 menuItemId,
@@ -247,18 +250,19 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
                 order_id: orderId,
                 item_id: menuItemId,
                 item_name: item.name,
-                item_quantity: item.qty || item.quantity,
+                item_quantity: item.qty || item.quantity || 1, // DEFAULT VALUE
                 workstation: workstation,
-                print_status: 'problematic_reported',
+                print_status: 'printed_with_issues', // GUNAKAN VALUE YANG VALID
 
                 // Problematic tracking
                 is_problematic: true,
-                failure_reason: 'manual_report',
+                failure_reason: 'problematic_item', // GUNAKAN VALUE YANG VALID
                 failure_details: JSON.stringify({
                     reported_issues: issues,
                     user_details: details,
                     stock_info: stockInfo,
-                    stock_status: stockStatus
+                    stock_status: stockStatus,
+                    report_type: 'manual'
                 }),
                 warning_notes: `MANUALLY REPORTED: ${issues.join ? issues.join(', ') : issues}`,
 
@@ -278,24 +282,28 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
 
             const savedLog = await log.save();
             return savedLog._id;
+
         } catch (error) {
             console.error('❌ Error logging problematic item:', error);
 
-            // Fallback logging
+            // FALLBACK YANG LEBIH AMAN
             try {
                 const fallbackLog = new PrintLog({
                     order_id: orderId,
                     item_id: item.menuItemId || item._id || item.id,
-                    item_name: item.name,
-                    workstation: workstation,
-                    print_status: 'problematic_reported',
+                    item_name: item.name || 'Unknown Item',
+                    item_quantity: item.qty || item.quantity || 1, // PASTIKAN ADA VALUE
+                    workstation: workstation || 'unknown',
+                    print_status: 'printed_with_issues', // VALID VALUE
                     is_problematic: true,
-                    failure_reason: 'manual_report',
+                    failure_reason: 'problematic_item', // VALID VALUE
                     failure_details: `Fallback: ${error.message}`,
                     warning_notes: `ISSUES: ${issues}`
                 });
+
                 await fallbackLog.save();
                 return fallbackLog._id;
+
             } catch (fallbackError) {
                 console.error('❌ Even fallback logging failed:', fallbackError);
                 return null;
@@ -318,7 +326,7 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
                 order_id: orderId,
                 item_id: menuItemId,
                 item_name: item.name,
-                item_quantity: item.qty || item.quantity,
+                item_quantity: item.qty || item.quantity || 1,
                 workstation: workstation,
                 print_status: 'skipped',
 
@@ -339,6 +347,7 @@ Technical: ${technicalDetails ? JSON.stringify(technicalDetails) : 'None'}`);
 
             const savedLog = await log.save();
             return savedLog._id;
+
         } catch (error) {
             console.error('❌ Error logging skipped item:', error);
             return null;
