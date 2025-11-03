@@ -104,7 +104,7 @@ export async function createOrderHandler({
         items: orderItems,
         customAmountItems: processedCustomAmountItems,
         status: initialStatus,
-        paymentMethod: paymentDetails?.method || 'Cash',
+        paymentMethod: (paymentDetails?.method || 'Cash').toUpperCase(),
         orderType: orderType || 'Dine-In',
         tableNumber: tableNumber || '',
         type: type || 'Indoor',

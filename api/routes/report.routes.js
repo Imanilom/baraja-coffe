@@ -13,6 +13,7 @@ import {
 
 import {
   generateSalesReport,
+  getPaymentMethodDetailReport,
   getAvailablePaymentMethods,
   getPaymentDetails
 } from '../controllers/report/payment.report.controller.js';
@@ -40,6 +41,12 @@ router.get('/sales/export-to-cvs', exportToCSV);
 router.get('/sales/cashier-list', getCashiersList);
 
 router.get('/sales-report', generateSalesReport);
+
+router.get('/sales-report/payment-method-detail', getPaymentMethodDetailReport);
+
+router.get('/sales-report/payment-detail', getPaymentDetails);
+
+router.get('/sales-report/payment-methods', getAvailablePaymentMethods);
 
 // router.get('/sales-report/export', exportSalesReport);
 // router.get('/sales-report/payment-detail', getPaymentMethodDetail);
