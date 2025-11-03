@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:hive_ce_flutter/adapters.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/enums/payment_method.dart';
+import 'package:kasirbaraja/models/edit_order_item.model.dart';
 import 'package:kasirbaraja/models/edit_order_ops.model.dart';
 import 'package:kasirbaraja/models/order_detail.model.dart';
+import 'package:kasirbaraja/models/order_item.model.dart';
 import 'package:kasirbaraja/models/payments/payment_model.dart';
 import 'package:kasirbaraja/models/user.model.dart';
 import 'package:kasirbaraja/providers/auth_provider.dart';
@@ -308,20 +310,27 @@ class OrderService {
   }
 
   //patchOrder,
-  Future<Map<String, dynamic>> patchOrder({
-    required String orderId,
-    required Map<String, dynamic> patchData,
+  Future<Map<String, dynamic>> patchOrderEdit({
+    required EditOrderItemModel patchData,
   }) async {
-    try {
-      if (orderId.isEmpty || patchData.isEmpty) {
-        throw Exception("orderId atau patchData tidak boleh kosong");
-      }
+    final orderId = patchData.order?.id ?? '';
+    if (orderId.isEmpty) {
+      throw Exception("orderId tidak boleh kosong");
+    }
 
-      print('orderId: $orderId, patchData: $patchData');
+    print('orderId: $orderId, patchData: $patchData');
+
+    try {
+      final patchEditData = updateEditOrderRequest(
+        patchData.reason ?? 'Update_Order_After_Payment',
+        patchData.order?.items ?? [],
+      );
+
+      print('patchEditData on order service: $patchEditData');
 
       final res = await _dio.patch(
         '/api/orders/$orderId/edit',
-        data: patchData,
+        data: patchEditData,
       );
 
       if (res.data['success'] == true) {
@@ -329,6 +338,8 @@ class OrderService {
       } else {
         throw Exception('Failed to patch order: ${res.data['message']}');
       }
+
+      // return {'success': true, 'message': 'Order updated successfully'};
     } catch (e) {
       throw Exception('Failed to patch order: $e');
     }
@@ -419,5 +430,37 @@ Map<String, dynamic> createChargeRequest(
     'gross_amount': grandTotal,
     'tendered_amount': tenderedAmount,
     'change_amount': changeAmount,
+  };
+}
+
+Map<String, dynamic> updateEditOrderRequest(
+  String reason,
+  List<OrderItemModel> orderItems,
+) {
+  return {
+    'reason': reason,
+    'items':
+        orderItems.map((item) {
+          return {
+            'id': item.menuItem.id, // Ambil id menu aja
+            'quantity': item.quantity,
+            'selectedAddons':
+                item.selectedAddons.map((addon) {
+                  return {
+                    'id': addon.id,
+                    'options':
+                        addon.options
+                            ?.map((option) => {'id': option.id})
+                            .toList(),
+                  };
+                }).toList(),
+            'selectedToppings':
+                item.selectedToppings
+                    .map((topping) => {'id': topping.id})
+                    .toList(),
+            'notes': item.notes,
+            'dineType': OrderTypeExtension.orderTypeToJson(item.orderType),
+          };
+        }).toList(),
   };
 }

@@ -252,10 +252,10 @@ class OrderDetailWidget extends ConsumerWidget {
                 if (confirm == true) {
                   //fitur belum tersedia
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Maaf Fitur Belum Jadi!!')),
-                  );
-                  // context.push('/${order.id}/edit-order-item', extra: order);
+                  // ScaffoldMessenger.of(context).showSnackBar(
+                  //   const SnackBar(content: Text('Maaf Fitur Belum Jadi!!')),
+                  // );
+                  context.push('/${order.id}/edit-order-item', extra: order);
                 }
               },
             ),

@@ -4,7 +4,7 @@ import { processOrderItems } from '../../services/order.service.js';
 import { orderQueue } from '../../queues/order.queue.js';
 import { runWithTransactionRetry } from '../../utils/transactionHandler.js';
 import { updateTableStatusAfterPayment } from '../../controllers/webhookController.js';
-  
+
 export async function createOrderHandler({
   orderId,
   orderData,
@@ -19,10 +19,10 @@ export async function createOrderHandler({
     session = await mongoose.startSession();
 
     const orderResult = await runWithTransactionRetry(async () => {
-      const { 
-        customerId, 
-        loyaltyPointsToRedeem, 
-        orderType, 
+      const {
+        customerId,
+        loyaltyPointsToRedeem,
+        orderType,
         customAmountItems = [],
         outletId,
         voucherCode,
@@ -37,6 +37,7 @@ export async function createOrderHandler({
         isSplitPayment = false,
         delivery_option,
         recipient_data,
+        cashierId,
         ...cleanOrderData
       } = orderData;
 
@@ -101,10 +102,11 @@ export async function createOrderHandler({
       const baseOrderData = {
         order_id: orderId,
         user: user || 'Customer',
+        cashierId: cashierId || null,
         items: orderItems,
         customAmountItems: processedCustomAmountItems,
         status: initialStatus,
-        paymentMethod: paymentDetails?.method || 'Cash',
+        paymentMethod: (paymentDetails?.method || 'Cash').toUpperCase(),
         orderType: orderType || 'Dine-In',
         tableNumber: tableNumber || '',
         type: type || 'Indoor',
@@ -209,6 +211,7 @@ export async function createOrderHandler({
       // Log data sebelum save untuk debugging
       console.log('Order data before save:', {
         orderId,
+        cashierId: baseOrderData.cashierId,
         orderType: baseOrderData.orderType,
         source: baseOrderData.source,
         status: baseOrderData.status,
@@ -284,7 +287,7 @@ export async function createOrderHandler({
     // PERBAIKAN: Tunggu sebentar dan verifikasi order tersimpan
     console.log('🔄 Verifying order in database...');
     await new Promise(resolve => setTimeout(resolve, 100));
-    
+
     // Verifikasi order ada di database
     const verifiedOrder = await Order.findOne({ order_id: orderId });
     if (!verifiedOrder) {
@@ -363,7 +366,7 @@ export async function createOrderHandler({
 // Helper function untuk memverifikasi order exists dengan retry
 export async function verifyOrderExists(orderId, maxRetries = 5, initialDelay = 100) {
   let delay = initialDelay;
-  
+
   for (let i = 0; i < maxRetries; i++) {
     try {
       const order = await Order.findOne({ order_id: orderId });
@@ -371,7 +374,7 @@ export async function verifyOrderExists(orderId, maxRetries = 5, initialDelay = 
         console.log(`✅ Order ${orderId} verified successfully (attempt ${i + 1})`);
         return order;
       }
-      
+
       if (i < maxRetries - 1) {
         console.log(`🔄 Order ${orderId} not found, retrying in ${delay}ms... (attempt ${i + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -385,7 +388,7 @@ export async function verifyOrderExists(orderId, maxRetries = 5, initialDelay = 
       }
     }
   }
-  
+
   throw new Error(`Order ${orderId} not found after ${maxRetries} retries`);
 }
 
