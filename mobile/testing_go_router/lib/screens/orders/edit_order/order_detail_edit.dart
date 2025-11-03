@@ -17,6 +17,7 @@ class OrderDetailEdit extends ConsumerWidget {
     final items = order?.items ?? const [];
 
     final hasChanges = notifier.hasItemChanges; // <- ini kuncinya
+    final isSubmitting = editState.isSubmitting;
 
     return Padding(
       padding: const EdgeInsets.only(right: 8, left: 8),
@@ -128,10 +129,7 @@ class OrderDetailEdit extends ConsumerWidget {
                                         );
                                       },
                                       onDeleteOrderItem: () {
-                                        notifier.removeItemById(
-                                          orderItem.menuItem.id,
-                                        );
-                                        Navigator.pop(context);
+                                        notifier.removeItem(orderItem);
                                       },
                                       onClose: () => Navigator.pop(context),
                                     ),
@@ -180,25 +178,87 @@ class OrderDetailEdit extends ConsumerWidget {
                 Expanded(
                   child: ElevatedButton(
                     onPressed:
-                        hasChanges
-                            ? () async {
-                              // TODO: panggil notifier.submit / kirim ke backend di sini
-                              // setelah sukses:
-                              // notifier.markSynced(orderDariServer);
-                            }
-                            : null,
+                        (!hasChanges || isSubmitting)
+                            ? null
+                            : () async {
+                              final ok = await showDialog<bool>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder:
+                                    (ctx) => AlertDialog(
+                                      title: const Text('Konfirmasi'),
+                                      content: const Text(
+                                        'Apakah kamu yakin ingin mengupdate pesanan ini?',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed:
+                                              () => Navigator.pop(ctx, false),
+                                          child: const Text('Batal'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed:
+                                              () => Navigator.pop(ctx, true),
+                                          child: const Text('Lanjut'),
+                                        ),
+                                      ],
+                                    ),
+                              );
+
+                              if (ok != true) return;
+
+                              // jalankan submit
+                              final success =
+                                  await notifier.submitEditedOrder();
+
+                              if (context.mounted) {
+                                if (success) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Order berhasil diupdate'),
+                                    ),
+                                  );
+                                  Navigator.pop(context);
+                                  ref
+                                      .read(onlineOrderDetailProvider.notifier)
+                                      .clearOnlineOrderDetail();
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        editState.error ?? 'Gagal update order',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
-                          hasChanges ? Colors.green : Colors.grey[300],
+                          isSubmitting
+                              ? Colors.grey[300]
+                              : hasChanges
+                              ? Colors.green
+                              : Colors.grey[300],
                       foregroundColor:
-                          hasChanges ? Colors.white : Colors.grey[700],
+                          isSubmitting
+                              ? Colors.grey[700]
+                              : hasChanges
+                              ? Colors.white
+                              : Colors.grey[700],
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                       minimumSize: const Size.fromHeight(40),
                       elevation: 0,
                     ),
-                    child: Text(hasChanges ? 'Update' : 'Tidak ada perubahan'),
+                    child: Text(
+                      isSubmitting
+                          ? 'Process...'
+                          : hasChanges
+                          ? 'Update'
+                          : 'Tidak ada perubahan',
+                    ),
                   ),
                 ),
               ],
