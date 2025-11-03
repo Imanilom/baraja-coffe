@@ -18,22 +18,32 @@ export const generateSalesReport = async (req, res) => {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
+    // Validasi tanggal
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Format tanggal tidak valid'
+      });
+    }
+
+    if (start > end) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date tidak boleh lebih besar dari end date'
+      });
+    }
+
     // Get all successful payments dalam periode
     const payments = await Payment.find({
       createdAt: { $gte: start, $lte: end },
-      status: { $in: ['settlement', 'paid', 'capture'] }
+      status: { $in: ['settlement', 'paid', 'capture'] },
+      isAdjustment: { $ne: true } // Exclude adjustment payments dari laporan utama
     });
 
     // Get order_ids from payments
     const orderIds = payments.map(p => p.order_id).filter(id => id);
 
-    // Find orders separately since order_id is string, not ObjectId
-    // const orders = await Order.find({
-    //   order_id: { $in: orderIds },
-    //   status: { $in: ['Completed', 'OnProcess', 'Waiting'] },
-    //   ...(outletId && { outlet: new mongoose.Types.ObjectId(outletId) })
-    // });
-
+    // Find orders yang completed
     const orders = await Order.find({
       order_id: { $in: orderIds },
       status: { $in: ['Completed'] },
@@ -46,17 +56,21 @@ export const generateSalesReport = async (req, res) => {
       orderMap.set(order.order_id, order);
     });
 
-    // Combine payments with their orders
-    const validPayments = payments.map(payment => {
-      const order = orderMap.get(payment.order_id);
-      return {
-        ...payment.toObject(),
-        order_data: order // Attach order data
-      };
-    }).filter(payment => payment.order_data); // Only include payments with valid orders
+    // Combine payments with their orders dan filter hanya yang valid
+    const validPayments = payments
+      .map(payment => {
+        const order = orderMap.get(payment.order_id);
+        if (!order) return null;
 
-    // Group by payment method secara dinamis
-    const paymentMethodSummary = generateDynamicPaymentSummary(validPayments);
+        return {
+          ...payment.toObject(),
+          order_data: order // Attach order data
+        };
+      })
+      .filter(payment => payment !== null && payment.order_data);
+
+    // Generate detailed payment method breakdown
+    const paymentMethodBreakdown = generateDetailedPaymentMethodBreakdown(validPayments);
 
     // Group by period (daily/weekly/monthly)
     const periodSummary = generatePeriodSummary(validPayments, groupBy);
@@ -76,7 +90,7 @@ export const generateSalesReport = async (req, res) => {
         averageTransaction: validPayments.length > 0 ?
           validPayments.reduce((sum, payment) => sum + payment.amount, 0) / validPayments.length : 0
       },
-      paymentMethods: paymentMethodSummary,
+      paymentMethods: paymentMethodBreakdown,
       periodBreakdown: periodSummary,
       rawDataCount: validPayments.length
     };
@@ -88,6 +102,246 @@ export const generateSalesReport = async (req, res) => {
 
   } catch (error) {
     console.error('Error generating sales report:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Helper function untuk breakdown payment method yang detail
+const generateDetailedPaymentMethodBreakdown = (payments) => {
+  const paymentMethodMap = new Map();
+  
+  payments.forEach(payment => {
+    const method = payment.method || 'Unknown';
+    const amount = payment.amount || 0;
+    const orderId = payment.order_id;
+    
+    if (!paymentMethodMap.has(method)) {
+      paymentMethodMap.set(method, {
+        method: method,
+        totalAmount: 0,
+        transactionCount: 0,
+        orderCount: new Set(),
+        averageTransaction: 0,
+        percentageOfTotal: 0,
+        transactions: []
+      });
+    }
+    
+    const methodData = paymentMethodMap.get(method);
+    methodData.totalAmount += amount;
+    methodData.transactionCount += 1;
+    methodData.orderCount.add(orderId);
+    methodData.transactions.push({
+      order_id: orderId,
+      amount: amount,
+      paymentType: payment.paymentType,
+      transaction_time: payment.transaction_time,
+      settlement_time: payment.settlement_time
+    });
+  });
+
+  // Calculate totals for percentage
+  const totalRevenue = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  const totalTransactions = payments.length;
+  const totalOrders = new Set(payments.map(p => p.order_id)).size;
+
+  // Convert Map to Array and calculate additional metrics
+  const result = Array.from(paymentMethodMap.values()).map(methodData => {
+    const orderCount = methodData.orderCount.size;
+    methodData.orderCount = orderCount; // Convert Set to count
+    methodData.averageTransaction = methodData.transactionCount > 0 ? 
+      methodData.totalAmount / methodData.transactionCount : 0;
+    methodData.percentageOfTotal = totalRevenue > 0 ? 
+      (methodData.totalAmount / totalRevenue) * 100 : 0;
+    
+    // Remove detailed transactions from final output to reduce response size
+    delete methodData.transactions;
+    
+    return methodData;
+  });
+
+  // Sort by total amount descending
+  return result.sort((a, b) => b.totalAmount - a.totalAmount);
+};
+
+// Helper function untuk summary berdasarkan periode
+const generatePeriodSummary = (payments, groupBy) => {
+  const periodMap = new Map();
+  
+  payments.forEach(payment => {
+    const date = new Date(payment.createdAt);
+    let periodKey;
+    
+    switch (groupBy) {
+      case 'daily':
+        periodKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+        break;
+      case 'weekly':
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+        periodKey = `Week-${weekStart.toISOString().split('T')[0]}`;
+        break;
+      case 'monthly':
+        periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+        break;
+      default:
+        periodKey = date.toISOString().split('T')[0];
+    }
+    
+    if (!periodMap.has(periodKey)) {
+      periodMap.set(periodKey, {
+        period: periodKey,
+        totalRevenue: 0,
+        transactionCount: 0,
+        orderCount: new Set(),
+        paymentMethods: new Map()
+      });
+    }
+    
+    const periodData = periodMap.get(periodKey);
+    const method = payment.method || 'Unknown';
+    
+    periodData.totalRevenue += payment.amount || 0;
+    periodData.transactionCount += 1;
+    periodData.orderCount.add(payment.order_id);
+    
+    // Track payment methods within period
+    if (!periodData.paymentMethods.has(method)) {
+      periodData.paymentMethods.set(method, {
+        method: method,
+        amount: 0,
+        count: 0
+      });
+    }
+    
+    const methodData = periodData.paymentMethods.get(method);
+    methodData.amount += payment.amount || 0;
+    methodData.count += 1;
+  });
+
+  // Convert Map to Array and format
+  return Array.from(periodMap.values()).map(periodData => {
+    periodData.orderCount = periodData.orderCount.size;
+    
+    // Convert paymentMethods Map to Array
+    periodData.paymentMethods = Array.from(periodData.paymentMethods.values())
+      .sort((a, b) => b.amount - a.amount);
+    
+    periodData.averageTransaction = periodData.transactionCount > 0 ?
+      periodData.totalRevenue / periodData.transactionCount : 0;
+    
+    return periodData;
+  }).sort((a, b) => a.period.localeCompare(b.period));
+};
+
+// Fungsi tambahan untuk mendapatkan laporan payment method yang lebih detail
+export const getPaymentMethodDetailReport = async (req, res) => {
+  try {
+    const { startDate, endDate, outletId, paymentMethod } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date dan end date harus diisi'
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    // Build query
+    const paymentQuery = {
+      createdAt: { $gte: start, $lte: end },
+      status: { $in: ['settlement', 'paid', 'capture'] },
+      isAdjustment: { $ne: true }
+    };
+
+    if (paymentMethod && paymentMethod !== 'All') {
+      paymentQuery.method = paymentMethod;
+    }
+
+    const payments = await Payment.find(paymentQuery);
+    const orderIds = payments.map(p => p.order_id).filter(id => id);
+
+    const orderQuery = {
+      order_id: { $in: orderIds },
+      status: { $in: ['Completed'] }
+    };
+
+    if (outletId) {
+      orderQuery.outlet = new mongoose.Types.ObjectId(outletId);
+    }
+
+    const orders = await Order.find(orderQuery);
+    const orderMap = new Map(orders.map(order => [order.order_id, order]));
+
+    const validPayments = payments
+      .map(payment => {
+        const order = orderMap.get(payment.order_id);
+        return order ? { ...payment.toObject(), order_data: order } : null;
+      })
+      .filter(payment => payment !== null);
+
+    // Group by payment method
+    const methodGroups = {};
+    validPayments.forEach(payment => {
+      const method = payment.method || 'Unknown';
+      if (!methodGroups[method]) {
+        methodGroups[method] = [];
+      }
+      methodGroups[method].push(payment);
+    });
+
+    // Calculate statistics for each method
+    const methodStats = Object.entries(methodGroups).map(([method, methodPayments]) => {
+      const totalAmount = methodPayments.reduce((sum, p) => sum + p.amount, 0);
+      const transactionCount = methodPayments.length;
+      const orderCount = new Set(methodPayments.map(p => p.order_id)).size;
+
+      return {
+        method,
+        totalAmount,
+        transactionCount,
+        orderCount,
+        averageTransaction: transactionCount > 0 ? totalAmount / transactionCount : 0,
+        percentageOfTotal: validPayments.reduce((sum, p) => sum + p.amount, 0) > 0 ?
+          (totalAmount / validPayments.reduce((sum, p) => sum + p.amount, 0)) * 100 : 0,
+        transactions: methodPayments.map(p => ({
+          order_id: p.order_id,
+          amount: p.amount,
+          paymentType: p.paymentType,
+          transaction_time: p.transaction_time,
+          settlement_time: p.settlement_time,
+          order_type: p.order_data?.orderType,
+          outlet: p.order_data?.outlet
+        }))
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        period: {
+          startDate: start.toISOString().split('T')[0],
+          endDate: end.toISOString().split('T')[0]
+        },
+        summary: {
+          totalMethods: Object.keys(methodGroups).length,
+          totalRevenue: validPayments.reduce((sum, p) => sum + p.amount, 0),
+          totalTransactions: validPayments.length,
+          totalOrders: new Set(validPayments.map(p => p.order_id)).size
+        },
+        paymentMethods: methodStats.sort((a, b) => b.totalAmount - a.totalAmount)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error generating payment method detail report:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -149,54 +403,6 @@ const generateDynamicPaymentSummary = (payments) => {
   return result.sort((a, b) => b.totalAmount - a.totalAmount);
 };
 
-// Generate summary berdasarkan periode
-const generatePeriodSummary = (payments, groupBy) => {
-  const periodMap = new Map();
-
-  payments.forEach(payment => {
-    const periodKey = getPeriodKey(payment.createdAt, groupBy);
-
-    if (!periodMap.has(periodKey)) {
-      periodMap.set(periodKey, {
-        period: periodKey,
-        totalAmount: 0,
-        totalTransactions: 0,
-        orders: new Set(),
-        paymentMethods: new Map()
-      });
-    }
-
-    const periodData = periodMap.get(periodKey);
-    periodData.totalAmount += payment.amount;
-    periodData.totalTransactions += 1;
-    periodData.orders.add(payment.order_id);
-
-    // Group by payment method dalam periode
-    const method = normalizePaymentMethod(payment);
-    const methodKey = method.category;
-
-    if (!periodData.paymentMethods.has(methodKey)) {
-      periodData.paymentMethods.set(methodKey, {
-        category: method.category,
-        displayName: method.displayName,
-        totalAmount: 0,
-        count: 0
-      });
-    }
-
-    const methodData = periodData.paymentMethods.get(methodKey);
-    methodData.totalAmount += payment.amount;
-    methodData.count += 1;
-  });
-
-  // Convert to array
-  return Array.from(periodMap.values()).map(period => ({
-    ...period,
-    totalOrders: period.orders.size,
-    paymentMethods: Array.from(period.paymentMethods.values()),
-    date: period.period
-  })).sort((a, b) => a.date.localeCompare(b.date));
-};
 
 // Controller untuk mendapatkan detail transaksi - FIXED
 export const getPaymentDetails = async (req, res) => {

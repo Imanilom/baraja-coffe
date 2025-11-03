@@ -1,43 +1,36 @@
 import mongoose from 'mongoose';
 
 const FingerprintSchema = new mongoose.Schema({
-  user: {
+  employee: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  noid: {
-    type: Number, // noid dari device fingerprint (1-1000 biasanya)
+    ref: 'Employee',
     required: true
   },
   fingerprintData: {
-    type: String, // template fingerprint (bisa string atau buffer)
-    default: null
-  },
-  deviceId: {
-    type: String, // ID device fingerprint
+    type: String, // atau Buffer untuk template fingerprint
     required: true
   },
-  deviceType: {
-    type: String, // tipe device fingerprint
-    default: 'ESP-Fingerprint'
+  fingerprintIndex: {
+    type: Number, // index jari (1-10)
+    required: true
   },
-  isRegistered: {
-    type: Boolean, // status registrasi fingerprint
-    default: false
+  deviceId: {
+    type: String // ID device fingerprint
   },
-  registeredAt: {
-    type: Date,
-    default: Date.now
+  deviceUserId: {
+    type: String, // ID user yang terdaftar di device fingerprint
+    required: true,
+    unique: true
+  },
+  isActive: {
+    type: Boolean,
+    default: true
   },
   lastSynced: {
-    type: Date, // terakhir sync dengan device
+    type: Date,
     default: Date.now
   }
 }, { timestamps: true });
-
-// Index untuk memastikan noid unik per device
-FingerprintSchema.index({ noid: 1, deviceId: 1 }, { unique: true });
 
 const Fingerprint = mongoose.model('Fingerprint', FingerprintSchema);
 export default Fingerprint;

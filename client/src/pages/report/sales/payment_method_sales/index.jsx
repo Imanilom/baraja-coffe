@@ -23,6 +23,15 @@ const PaymentMethodSales = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 50;
 
+    // Fungsi helper untuk format tanggal lokal tanpa timezone offset
+    const formatDateLocal = (date) => {
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     const customStyles = {
         control: (provided, state) => ({
             ...provided,
@@ -91,8 +100,8 @@ const PaymentMethodSales = () => {
         const params = new URLSearchParams();
 
         if (newDateRange?.startDate && newDateRange?.endDate) {
-            const startDate = new Date(newDateRange.startDate).toISOString().split('T')[0];
-            const endDate = new Date(newDateRange.endDate).toISOString().split('T')[0];
+            const startDate = formatDateLocal(newDateRange.startDate);
+            const endDate = formatDateLocal(newDateRange.endDate);
             params.set('startDate', startDate);
             params.set('endDate', endDate);
         }
@@ -128,8 +137,8 @@ const PaymentMethodSales = () => {
         setLoading(true);
         try {
             const params = {
-                startDate: new Date(dateRange.startDate).toISOString().split('T')[0],
-                endDate: new Date(dateRange.endDate).toISOString().split('T')[0],
+                startDate: formatDateLocal(dateRange.startDate),
+                endDate: formatDateLocal(dateRange.endDate),
                 groupBy: 'daily'
             };
 
