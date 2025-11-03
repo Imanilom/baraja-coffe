@@ -68,9 +68,9 @@ class _EditOrderScreenState extends ConsumerState<EditOrderScreen> {
         ),
       ),
       body: Row(
-        children: const [
+        children: [
           Expanded(flex: 4, child: ListMenu()),
-          Expanded(flex: 2, child: OrderDetailEdit()),
+          Expanded(flex: 2, child: OrderDetailEdit()), // Placeholder null
         ],
       ),
     );

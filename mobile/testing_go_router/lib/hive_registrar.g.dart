@@ -10,6 +10,7 @@ import 'package:kasirbaraja/models/cashier.model.dart';
 import 'package:kasirbaraja/models/custom_amount_items.model.dart';
 import 'package:kasirbaraja/models/device.model.dart';
 import 'package:kasirbaraja/models/discount.model.dart';
+import 'package:kasirbaraja/models/edit_order_item.model.dart';
 import 'package:kasirbaraja/models/event.model.dart';
 import 'package:kasirbaraja/models/menu_category.model.dart';
 import 'package:kasirbaraja/models/menu_item.model.dart';
@@ -37,6 +38,7 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(CustomAmountItemsModelAdapter());
     registerAdapter(DeviceModelAdapter());
     registerAdapter(DiscountModelAdapter());
+    registerAdapter(EditOrderItemModelAdapter());
     registerAdapter(EventAdapter());
     registerAdapter(MenuCategoryModelAdapter());
     registerAdapter(MenuItemModelAdapter());
@@ -66,6 +68,7 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(CustomAmountItemsModelAdapter());
     registerAdapter(DeviceModelAdapter());
     registerAdapter(DiscountModelAdapter());
+    registerAdapter(EditOrderItemModelAdapter());
     registerAdapter(EventAdapter());
     registerAdapter(MenuCategoryModelAdapter());
     registerAdapter(MenuItemModelAdapter());

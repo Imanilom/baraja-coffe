@@ -320,7 +320,7 @@ class OrderService {
       print('orderId: $orderId, patchData: $patchData');
 
       final res = await _dio.patch(
-        '/api/order/patch-order/$orderId',
+        '/api/orders/$orderId/edit',
         data: patchData,
       );
 

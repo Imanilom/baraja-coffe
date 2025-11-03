@@ -29,7 +29,7 @@ const printLogSchema = new mongoose.Schema({
     print_status: {
         type: String,
         required: true,
-        enum: ['pending', 'printing', 'success', 'failed', 'skipped', 'printed_with_issues', 'forced_print'],
+        enum: ['pending', 'printing', 'success', 'failed', 'skipped', 'printed_with_issues', 'forced_print', 'problematic_reported'],
         default: 'pending'
     },
     printer_type: {
@@ -108,6 +108,8 @@ const printLogSchema = new mongoose.Schema({
             'too_many_failures',
             'no_recipe',
             'forced_print_success',
+            'manual_report',
+            'skipped',
             null
         ],
         default: null

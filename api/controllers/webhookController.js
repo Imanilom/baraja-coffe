@@ -5,6 +5,7 @@ import Table from '../models/Table.model.js';
 import { socketManagement } from '../utils/socketManagement.js';
 import GoSendBooking from '../models/GoSendBooking.js';
 import { MenuItem } from '../models/MenuItem.model.js';
+import { LockUtil } from '../utils/lock.util.js';
 
 export const midtransWebhook = async (req, res) => {
   let requestId = Math.random().toString(36).substr(2, 9);
@@ -38,269 +39,290 @@ export const midtransWebhook = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // ✅ PERBAIKAN: Cari payment record dengan multiple criteria
-    let existingPayment = await Payment.findOne({ 
-      $or: [
-        { order_id: order_id },           // Untuk order reguler
-        { payment_code: order_id },       // Untuk reservation order
-        { transaction_id: order_id }      // Fallback
-      ]
-    });
+    // ✅ IMPLEMENTASI ATOMIC LOCK UNTUK WEBHOOK PROCESSING
+    const result = await LockUtil.withOrderLock(`webhook-${order_id}`, async () => {
+      // ✅ PERBAIKAN: Cari payment record dengan multiple criteria
+      let existingPayment = await Payment.findOne({ 
+        $or: [
+          { order_id: order_id },           // Untuk order reguler
+          { payment_code: order_id },       // Untuk reservation order
+          { transaction_id: order_id }      // Fallback
+        ]
+      });
 
-    if (!existingPayment) {
-      console.error(`[WEBHOOK ${requestId}] Payment record not found for: ${order_id}`);
+      if (!existingPayment) {
+        console.error(`[WEBHOOK ${requestId}] Payment record not found for: ${order_id}`);
+        
+        // ✅ TAMBAHAN: Coba cari order langsung untuk debugging
+        const orderCheck = await Order.findOne({ order_id: order_id });
+        if (orderCheck) {
+          console.log(`[WEBHOOK ${requestId}] Order found but payment record missing:`, {
+            order_id: orderCheck.order_id,
+            order_type: orderCheck.orderType,
+            status: orderCheck.status
+          });
+        }
+        
+        throw new Error('Payment record not found');
+      }
+
+      console.log(`[WEBHOOK ${requestId}] Processing webhook for payment:`, {
+        payment_id: existingPayment._id,
+        payment_code: existingPayment.payment_code,
+        order_id: existingPayment.order_id,
+        payment_type: existingPayment.paymentType,
+        current_status: existingPayment.status
+      });
+
+      // Update payment record
+      const paymentUpdateData = {
+        status: transaction_status,
+        fraud_status: fraud_status,
+        payment_type: payment_type,
+        gross_amount: parseFloat(gross_amount) || existingPayment.amount,
+        transaction_time: transaction_time,
+        settlement_time: settlement_time,
+        signature_key: signature_key,
+        merchant_id: merchant_id,
+        paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : existingPayment.paidAt,
+        updatedAt: new Date()
+      };
+
+      const rawResponseUpdate = {
+        ...existingPayment.raw_response,
+        ...notificationJson,
+        webhook_received_at: new Date(),
+        webhook_request_id: requestId
+      };
+
+      // ✅ PERBAIKAN: Update payment dengan criteria yang sama
+      const updatedPayment = await Payment.findOneAndUpdate(
+        { 
+          $or: [
+            { order_id: order_id },
+            { payment_code: order_id },
+            { transaction_id: order_id }
+          ]
+        },
+        {
+          ...paymentUpdateData,
+          raw_response: rawResponseUpdate
+        },
+        { new: true, runValidators: true }
+      );
+
+      if (!updatedPayment) {
+        console.error(`[WEBHOOK ${requestId}] Failed to update payment for: ${order_id}`);
+        throw new Error('Payment update failed');
+      }
+
+      console.log(`[WEBHOOK ${requestId}] Payment record updated successfully:`, {
+        payment_id: updatedPayment._id,
+        new_status: updatedPayment.status,
+        payment_type: updatedPayment.paymentType
+      });
+
+      // ✅ PERBAIKAN: Cari order berdasarkan order_id dari payment record
+      const targetOrderId = updatedPayment.order_id; // Selalu gunakan order_id dari payment
       
-      // ✅ TAMBAHAN: Coba cari order langsung untuk debugging
-      const orderCheck = await Order.findOne({ order_id: order_id });
-      if (orderCheck) {
-        console.log(`[WEBHOOK ${requestId}] Order found but payment record missing:`, {
-          order_id: orderCheck.order_id,
-          order_type: orderCheck.orderType,
-          status: orderCheck.status
+      const order = await Order.findOne({ order_id: targetOrderId })
+        .populate('user_id', 'name email phone')
+        .populate('cashierId', 'name')
+        .populate({
+          path: 'items.menuItem',
+          select: 'name price image mainCategory workstation category description'
+        })
+        .populate('outlet', 'name address')
+        .populate('reservation'); // ✅ TAMBAHAN: Populate reservation untuk reservation orders
+
+      if (!order) {
+        console.warn(`[WEBHOOK ${requestId}] Order with ID ${targetOrderId} not found`);
+        throw new Error('Order not found');
+      }
+
+      console.log(`[WEBHOOK ${requestId}] Order found:`, {
+        order_id: order.order_id,
+        order_type: order.orderType,
+        current_status: order.status,
+        payment_status: order.paymentStatus,
+        has_reservation: !!order.reservation
+      });
+
+      // Handle transaction status - PERBAIKAN UNTUK RESERVATION ORDER
+      let orderUpdateData = {};
+      let shouldUpdateOrder = false;
+      let shouldUpdateReservation = false;
+
+      switch (transaction_status) {
+        case 'capture':
+        case 'settlement':
+          if (fraud_status === 'accept') {
+            // ✅ PERBAIKAN: Handle berbeda untuk reservation vs regular order
+            if (order.orderType === 'Reservation' && updatedPayment.paymentType === 'Down Payment') {
+              // Untuk reservation dengan DP berhasil
+              orderUpdateData = {
+                paymentStatus: 'Paid',
+                status: 'Confirmed' // ✅ Ubah status order reservation jadi Confirmed
+              };
+              
+              // Tandai untuk update reservation juga
+              shouldUpdateReservation = true;
+              console.log(`[WEBHOOK ${requestId}] Down Payment successful for reservation order ${targetOrderId}`);
+              
+            } else {
+              // Untuk order reguler
+              orderUpdateData = {
+                paymentStatus: 'Paid',
+                status: order.status === 'Pending' ? 'Pending' : order.status
+              };
+              console.log(`[WEBHOOK ${requestId}] Payment successful for regular order ${targetOrderId}`);
+            }
+            shouldUpdateOrder = true;
+            
+          } else if (fraud_status === 'challenge') {
+            orderUpdateData = {
+              paymentStatus: 'Challenged'
+            };
+            shouldUpdateOrder = true;
+            console.log(`[WEBHOOK ${requestId}] Payment challenged for order ${targetOrderId}`);
+          }
+          break;
+
+        case 'deny':
+        case 'cancel':
+        case 'expire':
+          orderUpdateData = {
+            paymentStatus: 'Failed',
+            status: 'Canceled'
+          };
+          shouldUpdateOrder = true;
+          console.log(`[WEBHOOK ${requestId}] Payment failed for order ${targetOrderId}: ${transaction_status}`);
+          break;
+
+        case 'pending':
+          orderUpdateData = {
+            paymentStatus: 'Pending'
+          };
+          shouldUpdateOrder = true;
+          console.log(`[WEBHOOK ${requestId}] Payment pending for order ${targetOrderId}`);
+          break;
+
+        default:
+          console.warn(`[WEBHOOK ${requestId}] Unhandled transaction status: ${transaction_status}`);
+      }
+
+      // Update order jika diperlukan
+      if (shouldUpdateOrder) {
+        Object.assign(order, orderUpdateData);
+        await order.save();
+        console.log(`[WEBHOOK ${requestId}] Order ${targetOrderId} updated:`, orderUpdateData);
+      }
+
+      // ✅ PERBAIKAN: Update reservation status jika DP berhasil
+      if (shouldUpdateReservation && order.reservation) {
+        try {
+          const reservation = await Reservation.findById(order.reservation._id);
+          if (reservation) {
+            reservation.status = 'confirmed';
+            reservation.confirm_by = {
+              employee_id: null,
+              employee_name: 'System (Midtrans)',
+              confirmed_at: new Date()
+            };
+            await reservation.save();
+            console.log(`[WEBHOOK ${requestId}] Reservation ${reservation.reservation_code} confirmed`);
+          }
+        } catch (reservationError) {
+          console.error(`[WEBHOOK ${requestId}] Failed to update reservation:`, reservationError);
+        }
+      }
+
+      // ✅ PERBAIKAN: Update payment remaining amount untuk reservation
+      if (transaction_status === 'settlement' && fraud_status === 'accept' && 
+          order.orderType === 'Reservation' && updatedPayment.paymentType === 'Down Payment') {
+        try {
+          // Mark down payment as settled
+          updatedPayment.remainingAmount = updatedPayment.totalAmount - updatedPayment.amount;
+          await updatedPayment.save();
+          console.log(`[WEBHOOK ${requestId}] Down Payment settled, remaining amount: ${updatedPayment.remainingAmount}`);
+        } catch (paymentError) {
+          console.error(`[WEBHOOK ${requestId}] Failed to update payment remaining amount:`, paymentError);
+        }
+      }
+
+      // Emit events
+      const emitData = {
+        order_id: order.order_id,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        transaction_status,
+        fraud_status,
+        payment_type,
+        gross_amount,
+        order_type: order.orderType,
+        is_reservation: order.orderType === 'Reservation',
+        timestamp: new Date()
+      };
+
+      // Emit ke room order
+      io.to(`order_${targetOrderId}`).emit('payment_status_update', emitData);
+      io.to(`order_${targetOrderId}`).emit('order_status_update', emitData);
+
+      console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${targetOrderId}`);
+
+      // ✅ PERBAIKAN: Broadcast ke device HANYA untuk order reguler yang berhasil
+      // Untuk reservation order, kita tidak perlu broadcast ke kitchen
+      if (transaction_status === 'settlement' && fraud_status === 'accept' && order.orderType !== 'Reservation') {
+        const mappedOrder = mapOrderForCashier(order);
+
+        console.log(`[WEBHOOK ${requestId}] 🎯 Processing order broadcast for table: ${order.tableNumber}`);
+
+        // Broadcast ke device yang sesuai dengan area & table
+        await broadcastOrderToTargetDevices(order, mappedOrder);
+
+        // Update status meja
+        await updateTableStatusAfterPayment(order);
+      }
+
+      // ✅ TAMBAHAN: Untuk reservation order yang berhasil, log saja
+      if (transaction_status === 'settlement' && fraud_status === 'accept' && order.orderType === 'Reservation') {
+        console.log(`[WEBHOOK ${requestId}] ✅ Reservation order ${targetOrderId} down payment completed successfully`);
+        
+        // Bisa tambahkan notifikasi khusus untuk reservation di sini
+        io.to(`reservation_${order.reservation?._id}`).emit('reservation_payment_completed', {
+          reservation_code: order.reservation?.reservation_code,
+          order_id: order.order_id,
+          payment_amount: gross_amount,
+          remaining_amount: updatedPayment.remainingAmount
         });
       }
-      
-      return res.status(404).json({ message: 'Payment record not found' });
-    }
 
-    console.log(`[WEBHOOK ${requestId}] Processing webhook for payment:`, {
-      payment_id: existingPayment._id,
-      payment_code: existingPayment.payment_code,
-      order_id: existingPayment.order_id,
-      payment_type: existingPayment.paymentType,
-      current_status: existingPayment.status
+      return {
+        success: true,
+        order_id: targetOrderId,
+        transaction_status,
+        order_type: order.orderType,
+        message: 'Webhook processed successfully'
+      };
+
+    }, {
+      owner: `webhook-${process.pid}`,
+      ttlMs: 60000, // 1 minute lock untuk webhook processing
+      retryDelayMs: 200,
+      maxRetries: 5,
+      onRetry: (attempt) => {
+        console.log(`[WEBHOOK ${requestId}] 🔄 Retrying webhook lock acquisition, attempt ${attempt}`);
+      }
     });
 
-    // Update payment record
-    const paymentUpdateData = {
-      status: transaction_status,
-      fraud_status: fraud_status,
-      payment_type: payment_type,
-      gross_amount: parseFloat(gross_amount) || existingPayment.amount,
-      transaction_time: transaction_time,
-      settlement_time: settlement_time,
-      signature_key: signature_key,
-      merchant_id: merchant_id,
-      paidAt: ['settlement', 'capture'].includes(transaction_status) ? new Date() : existingPayment.paidAt,
-      updatedAt: new Date()
-    };
-
-    const rawResponseUpdate = {
-      ...existingPayment.raw_response,
-      ...notificationJson,
-      webhook_received_at: new Date(),
-      webhook_request_id: requestId
-    };
-
-    // ✅ PERBAIKAN: Update payment dengan criteria yang sama
-    const updatedPayment = await Payment.findOneAndUpdate(
-      { 
-        $or: [
-          { order_id: order_id },
-          { payment_code: order_id },
-          { transaction_id: order_id }
-        ]
-      },
-      {
-        ...paymentUpdateData,
-        raw_response: rawResponseUpdate
-      },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedPayment) {
-      console.error(`[WEBHOOK ${requestId}] Failed to update payment for: ${order_id}`);
-      return res.status(404).json({ message: 'Payment update failed' });
-    }
-
-    console.log(`[WEBHOOK ${requestId}] Payment record updated successfully:`, {
-      payment_id: updatedPayment._id,
-      new_status: updatedPayment.status,
-      payment_type: updatedPayment.paymentType
-    });
-
-    // ✅ PERBAIKAN: Cari order berdasarkan order_id dari payment record
-    const targetOrderId = updatedPayment.order_id; // Selalu gunakan order_id dari payment
+    console.log(`[WEBHOOK ${requestId}] Webhook processed successfully dengan LOCK untuk ${order_id}`);
     
-    const order = await Order.findOne({ order_id: targetOrderId })
-      .populate('user_id', 'name email phone')
-      .populate('cashierId', 'name')
-      .populate({
-        path: 'items.menuItem',
-        select: 'name price image mainCategory workstation category description'
-      })
-      .populate('outlet', 'name address')
-      .populate('reservation'); // ✅ TAMBAHAN: Populate reservation untuk reservation orders
-
-    if (!order) {
-      console.warn(`[WEBHOOK ${requestId}] Order with ID ${targetOrderId} not found`);
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
-    console.log(`[WEBHOOK ${requestId}] Order found:`, {
-      order_id: order.order_id,
-      order_type: order.orderType,
-      current_status: order.status,
-      payment_status: order.paymentStatus,
-      has_reservation: !!order.reservation
-    });
-
-    // Handle transaction status - PERBAIKAN UNTUK RESERVATION ORDER
-    let orderUpdateData = {};
-    let shouldUpdateOrder = false;
-    let shouldUpdateReservation = false;
-
-    switch (transaction_status) {
-      case 'capture':
-      case 'settlement':
-        if (fraud_status === 'accept') {
-          // ✅ PERBAIKAN: Handle berbeda untuk reservation vs regular order
-          if (order.orderType === 'Reservation' && updatedPayment.paymentType === 'Down Payment') {
-            // Untuk reservation dengan DP berhasil
-            orderUpdateData = {
-              paymentStatus: 'Paid',
-              status: 'Confirmed' // ✅ Ubah status order reservation jadi Confirmed
-            };
-            
-            // Tandai untuk update reservation juga
-            shouldUpdateReservation = true;
-            console.log(`[WEBHOOK ${requestId}] Down Payment successful for reservation order ${targetOrderId}`);
-            
-          } else {
-            // Untuk order reguler
-            orderUpdateData = {
-              paymentStatus: 'Paid',
-              status: order.status === 'Pending' ? 'Pending' : order.status
-            };
-            console.log(`[WEBHOOK ${requestId}] Payment successful for regular order ${targetOrderId}`);
-          }
-          shouldUpdateOrder = true;
-          
-        } else if (fraud_status === 'challenge') {
-          orderUpdateData = {
-            paymentStatus: 'Challenged'
-          };
-          shouldUpdateOrder = true;
-          console.log(`[WEBHOOK ${requestId}] Payment challenged for order ${targetOrderId}`);
-        }
-        break;
-
-      case 'deny':
-      case 'cancel':
-      case 'expire':
-        orderUpdateData = {
-          paymentStatus: 'Failed',
-          status: 'Canceled'
-        };
-        shouldUpdateOrder = true;
-        console.log(`[WEBHOOK ${requestId}] Payment failed for order ${targetOrderId}: ${transaction_status}`);
-        break;
-
-      case 'pending':
-        orderUpdateData = {
-          paymentStatus: 'Pending'
-        };
-        shouldUpdateOrder = true;
-        console.log(`[WEBHOOK ${requestId}] Payment pending for order ${targetOrderId}`);
-        break;
-
-      default:
-        console.warn(`[WEBHOOK ${requestId}] Unhandled transaction status: ${transaction_status}`);
-    }
-
-    // Update order jika diperlukan
-    if (shouldUpdateOrder) {
-      Object.assign(order, orderUpdateData);
-      await order.save();
-      console.log(`[WEBHOOK ${requestId}] Order ${targetOrderId} updated:`, orderUpdateData);
-    }
-
-    // ✅ PERBAIKAN: Update reservation status jika DP berhasil
-    if (shouldUpdateReservation && order.reservation) {
-      try {
-        const reservation = await Reservation.findById(order.reservation._id);
-        if (reservation) {
-          reservation.status = 'confirmed';
-          reservation.confirm_by = {
-            employee_id: null,
-            employee_name: 'System (Midtrans)',
-            confirmed_at: new Date()
-          };
-          await reservation.save();
-          console.log(`[WEBHOOK ${requestId}] Reservation ${reservation.reservation_code} confirmed`);
-        }
-      } catch (reservationError) {
-        console.error(`[WEBHOOK ${requestId}] Failed to update reservation:`, reservationError);
-      }
-    }
-
-    // ✅ PERBAIKAN: Update payment remaining amount untuk reservation
-    if (transaction_status === 'settlement' && fraud_status === 'accept' && 
-        order.orderType === 'Reservation' && updatedPayment.paymentType === 'Down Payment') {
-      try {
-        // Mark down payment as settled
-        updatedPayment.remainingAmount = updatedPayment.totalAmount - updatedPayment.amount;
-        await updatedPayment.save();
-        console.log(`[WEBHOOK ${requestId}] Down Payment settled, remaining amount: ${updatedPayment.remainingAmount}`);
-      } catch (paymentError) {
-        console.error(`[WEBHOOK ${requestId}] Failed to update payment remaining amount:`, paymentError);
-      }
-    }
-
-    // Emit events
-    const emitData = {
-      order_id: order.order_id,
-      status: order.status,
-      paymentStatus: order.paymentStatus,
-      transaction_status,
-      fraud_status,
-      payment_type,
-      gross_amount,
-      order_type: order.orderType,
-      is_reservation: order.orderType === 'Reservation',
-      timestamp: new Date()
-    };
-
-    // Emit ke room order
-    io.to(`order_${targetOrderId}`).emit('payment_status_update', emitData);
-    io.to(`order_${targetOrderId}`).emit('order_status_update', emitData);
-
-    console.log(`[WEBHOOK ${requestId}] Emitted updates to room: order_${targetOrderId}`);
-
-    // ✅ PERBAIKAN: Broadcast ke device HANYA untuk order reguler yang berhasil
-    // Untuk reservation order, kita tidak perlu broadcast ke kitchen
-    if (transaction_status === 'settlement' && fraud_status === 'accept' && order.orderType !== 'Reservation') {
-      const mappedOrder = mapOrderForCashier(order);
-
-      console.log(`[WEBHOOK ${requestId}] 🎯 Processing order broadcast for table: ${order.tableNumber}`);
-
-      // Broadcast ke device yang sesuai dengan area & table
-      await broadcastOrderToTargetDevices(order, mappedOrder);
-
-      // Update status meja
-      await updateTableStatusAfterPayment(order);
-    }
-
-    // ✅ TAMBAHAN: Untuk reservation order yang berhasil, log saja
-    if (transaction_status === 'settlement' && fraud_status === 'accept' && order.orderType === 'Reservation') {
-      console.log(`[WEBHOOK ${requestId}] ✅ Reservation order ${targetOrderId} down payment completed successfully`);
-      
-      // Bisa tambahkan notifikasi khusus untuk reservation di sini
-      io.to(`reservation_${order.reservation?._id}`).emit('reservation_payment_completed', {
-        reservation_code: order.reservation?.reservation_code,
-        order_id: order.order_id,
-        payment_amount: gross_amount,
-        remaining_amount: updatedPayment.remainingAmount
-      });
-    }
-
-    console.log(`[WEBHOOK ${requestId}] Webhook processed successfully for ${targetOrderId}`);
     res.status(200).json({
       status: 'ok',
       message: 'Webhook processed successfully',
-      order_id: targetOrderId,
-      transaction_status,
-      order_type: order.orderType
+      order_id: result.order_id,
+      transaction_status: result.transaction_status,
+      order_type: result.order_type
     });
 
   } catch (error) {
@@ -311,6 +333,23 @@ export const midtransWebhook = async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
+    // Handle lock-specific errors
+    if (error.message.includes('Failed to acquire lock')) {
+      return res.status(429).json({
+        message: 'Webhook sedang diproses, silakan coba lagi',
+        error: 'LOCK_ACQUISITION_FAILED'
+      });
+    }
+
+    // Handle other specific errors
+    if (error.message.includes('Payment record not found')) {
+      return res.status(404).json({ message: error.message });
+    }
+
+    if (error.message.includes('Order not found')) {
+      return res.status(404).json({ message: error.message });
+    }
+
     res.status(500).json({
       message: 'Failed to process webhook',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
@@ -319,10 +358,12 @@ export const midtransWebhook = async (req, res) => {
 };
 
 export const handleGoSendWebhook = async (req, res) => {
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
   try {
     const webhookData = req.body;
     
-    console.log('📩 Received GoSend webhook:', {
+    console.log(`[GOSEND WEBHOOK ${requestId}] Received GoSend webhook:`, {
       booking_id: webhookData.booking_id,
       status: webhookData.status,
       timestamp: new Date().toISOString()
@@ -333,7 +374,7 @@ export const handleGoSendWebhook = async (req, res) => {
     const expectedToken = process.env.GOSEND_WEBHOOK_SECRET;
 
     if (!receivedToken) {
-      console.warn('❌ X-Callback-Token header missing');
+      console.warn(`[GOSEND WEBHOOK ${requestId}] ❌ X-Callback-Token header missing`);
       return res.status(401).json({ 
         success: false, 
         message: 'X-Callback-Token header required' 
@@ -341,18 +382,18 @@ export const handleGoSendWebhook = async (req, res) => {
     }
 
     if (receivedToken !== expectedToken) {
-      console.warn('❌ Invalid X-Callback-Token received:', receivedToken);
+      console.warn(`[GOSEND WEBHOOK ${requestId}] ❌ Invalid X-Callback-Token received:`, receivedToken);
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid token' 
       });
     }
 
-    console.log('✅ X-Callback-Token validation passed');
+    console.log(`[GOSEND WEBHOOK ${requestId}] ✅ X-Callback-Token validation passed`);
 
     // 2. VALIDASI PAYLOAD WAJIB
     if (!webhookData.booking_id || !webhookData.status) {
-      console.warn('⚠️ Incomplete webhook payload:', webhookData);
+      console.warn(`[GOSEND WEBHOOK ${requestId}] ⚠️ Incomplete webhook payload:`, webhookData);
       // Tetap return 200 ke GoSend tapi log warning
       return res.status(200).json({ 
         success: true, 
@@ -360,88 +401,104 @@ export const handleGoSendWebhook = async (req, res) => {
       });
     }
 
-    // 3. CARI BOOKING DI DATABASE
-    const goSendBooking = await GoSendBooking.findOne({ 
-      goSend_order_no: webhookData.booking_id 
-    });
-
-    if (!goSendBooking) {
-      console.warn(`❌ GoSend booking not found: ${webhookData.booking_id}`);
-      // Tetap return 200 ke GoSend untuk avoid retry
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Booking not found in system' 
+    // ✅ IMPLEMENTASI ATOMIC LOCK UNTUK GOSEND WEBHOOK
+    const result = await LockUtil.withOrderLock(`gosend-${webhookData.booking_id}`, async () => {
+      // 3. CARI BOOKING DI DATABASE
+      const goSendBooking = await GoSendBooking.findOne({ 
+        goSend_order_no: webhookData.booking_id 
       });
-    }
 
-    console.log(`✅ Found booking: ${goSendBooking.order_id}`);
+      if (!goSendBooking) {
+        console.warn(`[GOSEND WEBHOOK ${requestId}] ❌ GoSend booking not found: ${webhookData.booking_id}`);
+        throw new Error('Booking not found in system');
+      }
 
-    // 4. UPDATE GOSEND BOOKING RECORD
-    const updateData = {
-      status: webhookData.status,
-      ...(webhookData.driver_name && {
-        'driver_info.driver_name': webhookData.driver_name
-      }),
-      ...(webhookData.driver_phone && {
-        'driver_info.driver_phone': webhookData.driver_phone
-      }),
-      ...(webhookData.driver_photo_url && {
-        'driver_info.driver_photo': webhookData.driver_photo_url
-      }),
-      ...(webhookData.live_tracking_url && {
-        live_tracking_url: webhookData.live_tracking_url
-      })
-    };
+      console.log(`[GOSEND WEBHOOK ${requestId}] ✅ Found booking: ${goSendBooking.order_id}`);
 
-    await GoSendBooking.findOneAndUpdate(
-      { goSend_order_no: webhookData.booking_id },
-      updateData
-    );
+      // 4. UPDATE GOSEND BOOKING RECORD
+      const updateData = {
+        status: webhookData.status,
+        ...(webhookData.driver_name && {
+          'driver_info.driver_name': webhookData.driver_name
+        }),
+        ...(webhookData.driver_phone && {
+          'driver_info.driver_phone': webhookData.driver_phone
+        }),
+        ...(webhookData.driver_photo_url && {
+          'driver_info.driver_photo': webhookData.driver_photo_url
+        }),
+        ...(webhookData.live_tracking_url && {
+          live_tracking_url: webhookData.live_tracking_url
+        })
+      };
 
-    // 5. UPDATE ORDER STATUS
-    const orderUpdateData = {
-      'deliveryTracking.status': webhookData.status,
-      ...(webhookData.driver_name && {
-        'deliveryTracking.driver_name': webhookData.driver_name
-      }),
-      ...(webhookData.driver_phone && {
-        'deliveryTracking.driver_phone': webhookData.driver_phone
-      }),
-      ...(webhookData.live_tracking_url && {
-        'deliveryTracking.live_tracking_url': webhookData.live_tracking_url
-      })
-    };
+      await GoSendBooking.findOneAndUpdate(
+        { goSend_order_no: webhookData.booking_id },
+        updateData
+      );
 
-    // Map GoSend status ke internal delivery status
-    const deliveryStatus = mapGoSendStatus(webhookData.status);
-    if (deliveryStatus) {
-      orderUpdateData.deliveryStatus = deliveryStatus;
-    }
+      // 5. UPDATE ORDER STATUS
+      const orderUpdateData = {
+        'deliveryTracking.status': webhookData.status,
+        ...(webhookData.driver_name && {
+          'deliveryTracking.driver_name': webhookData.driver_name
+        }),
+        ...(webhookData.driver_phone && {
+          'deliveryTracking.driver_phone': webhookData.driver_phone
+        }),
+        ...(webhookData.live_tracking_url && {
+          'deliveryTracking.live_tracking_url': webhookData.live_tracking_url
+        })
+      };
 
-    // Jika delivered, update order status jadi completed
-    if (webhookData.status === 'delivered') {
-      orderUpdateData.status = 'completed';
-    }
+      // Map GoSend status ke internal delivery status
+      const deliveryStatus = mapGoSendStatus(webhookData.status);
+      if (deliveryStatus) {
+        orderUpdateData.deliveryStatus = deliveryStatus;
+      }
 
-    await Order.findOneAndUpdate(
-      { order_id: goSendBooking.order_id },
-      orderUpdateData
-    );
+      // Jika delivered, update order status jadi completed
+      if (webhookData.status === 'delivered') {
+        orderUpdateData.status = 'completed';
+      }
 
-    // 6. REALTIME NOTIFICATION
-    const io = req.app.get('io');
-    io.to(`order_${goSendBooking.order_id}`).emit('delivery_status_update', {
-      order_id: goSendBooking.order_id,
-      status: webhookData.status,
-      driver_info: {
-        name: webhookData.driver_name,
-        phone: webhookData.driver_phone
-      },
-      live_tracking_url: webhookData.live_tracking_url,
-      timestamp: new Date().toISOString()
+      await Order.findOneAndUpdate(
+        { order_id: goSendBooking.order_id },
+        orderUpdateData
+      );
+
+      // 6. REALTIME NOTIFICATION
+      const io = req.app.get('io');
+      io.to(`order_${goSendBooking.order_id}`).emit('delivery_status_update', {
+        order_id: goSendBooking.order_id,
+        status: webhookData.status,
+        driver_info: {
+          name: webhookData.driver_name,
+          phone: webhookData.driver_phone
+        },
+        live_tracking_url: webhookData.live_tracking_url,
+        timestamp: new Date().toISOString()
+      });
+
+      return {
+        success: true,
+        booking_id: webhookData.booking_id,
+        order_id: goSendBooking.order_id,
+        status: webhookData.status,
+        message: 'Webhook processed successfully'
+      };
+
+    }, {
+      owner: `gosend-webhook-${process.pid}`,
+      ttlMs: 45000, // 45 seconds lock untuk GoSend webhook
+      retryDelayMs: 150,
+      maxRetries: 3,
+      onRetry: (attempt) => {
+        console.log(`[GOSEND WEBHOOK ${requestId}] 🔄 Retrying GoSend lock acquisition, attempt ${attempt}`);
+      }
     });
 
-    console.log(`✅ Webhook processed successfully for ${webhookData.booking_id}`);
+    console.log(`[GOSEND WEBHOOK ${requestId}] ✅ Webhook processed successfully dengan LOCK untuk ${webhookData.booking_id}`);
 
     // 7. SELALU RETURN 200 KE GOSEND
     return res.status(200).json({ 
@@ -450,9 +507,28 @@ export const handleGoSendWebhook = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error handling GoSend webhook:', error);
+    console.error(`[GOSEND WEBHOOK ${requestId}] ❌ Error handling GoSend webhook:`, error);
     
-    // IMPORTANT: Tetap return 200 ke GoSend meskipun error
+    // Handle lock-specific errors
+    if (error.message.includes('Failed to acquire lock')) {
+      console.log(`[GOSEND WEBHOOK ${requestId}] 🔄 GoSend webhook sedang diproses, skip processing`);
+      // Tetap return 200 ke GoSend untuk menghindari retry
+      return res.status(200).json({ 
+        success: true,
+        message: 'Webhook sedang diproses'
+      });
+    }
+
+    // Handle other errors
+    if (error.message.includes('Booking not found')) {
+      // Tetap return 200 ke GoSend meskipun booking tidak ditemukan
+      return res.status(200).json({ 
+        success: true,
+        message: 'Webhook received (booking not found)'
+      });
+    }
+
+    // IMPORTANT: Tetap return 200 ke GoSend meskipun error lainnya
     // Untuk menghindari retry mechanism GoSend
     return res.status(200).json({ 
       success: true,
@@ -478,6 +554,61 @@ const mapGoSendStatus = (goSendStatus) => {
   
   return statusMap[goSendStatus];
 };
+
+// FUNCTION: UPDATE TABLE STATUS AFTER PAYMENT dengan LOCK
+export async function updateTableStatusAfterPayment(order) {
+  try {
+    if (order.tableNumber && order.orderType.toLowerCase() === 'dine-in') {
+      console.log(`[TABLE UPDATE] Updating table status for table: ${order.tableNumber}, order: ${order.order_id}`);
+
+      // ✅ IMPLEMENTASI LOCK UNTUK TABLE UPDATE
+      await LockUtil.withOrderLock(`table-${order.tableNumber}`, async () => {
+        const table = await Table.findOne({
+          table_number: order.tableNumber.toUpperCase()
+        }).populate('area_id');
+
+        if (!table) {
+          console.warn(`[TABLE UPDATE] Table not found: ${order.tableNumber}`);
+          return;
+        }
+
+        table.status = 'occupied';
+        table.is_available = false;
+        table.updatedAt = new Date();
+
+        await table.save();
+
+        // Emit update status meja ke frontend
+        io.to('table_management_room').emit('table_status_updated', {
+          table_id: table._id,
+          table_number: table.table_number,
+          area_id: table.area_id,
+          status: table.status,
+          is_available: table.is_available,
+          order_id: order.order_id,
+          updatedAt: table.updatedAt
+        });
+
+        console.log(`[TABLE UPDATE] Emitted table status update for table: ${order.tableNumber} dengan LOCK`);
+      }, {
+        owner: `table-update-${process.pid}`,
+        ttlMs: 30000, // 30 seconds untuk table update
+        retryDelayMs: 100,
+        maxRetries: 3
+      });
+
+    } else {
+      console.log(`[TABLE UPDATE] No table update needed - tableNumber: ${order.tableNumber}, orderType: ${order.orderType}`);
+    }
+  } catch (error) {
+    console.error(`[TABLE UPDATE] Error updating table status:`, {
+      error: error.message,
+      tableNumber: order.tableNumber,
+      order_id: order.order_id
+    });
+  }
+}
+
 
 // FUNCTION: BROADCAST ORDER KE TARGET DEVICES
 async function broadcastOrderToTargetDevices(order, mappedOrder) {
@@ -758,52 +889,6 @@ function getOrderPriority(orderType, items) {
   }
 
   return priority;
-}
-
-// FUNCTION: UPDATE TABLE STATUS AFTER PAYMENT
-export async function updateTableStatusAfterPayment(order) {
-  try {
-    if (order.tableNumber && order.orderType.toLowerCase() === 'dine-in') {
-      console.log(`[TABLE UPDATE] Updating table status for table: ${order.tableNumber}, order: ${order.order_id}`);
-
-      const table = await Table.findOne({
-        table_number: order.tableNumber.toUpperCase()
-      }).populate('area_id');
-
-      if (!table) {
-        console.warn(`[TABLE UPDATE] Table not found: ${order.tableNumber}`);
-        return;
-      }
-
-      table.status = 'occupied';
-      table.is_available = false;
-      table.updatedAt = new Date();
-
-      await table.save();
-
-      // Emit update status meja ke frontend
-      io.to('table_management_room').emit('table_status_updated', {
-        table_id: table._id,
-        table_number: table.table_number,
-        area_id: table.area_id,
-        status: table.status,
-        is_available: table.is_available,
-        order_id: order.order_id,
-        updatedAt: table.updatedAt
-      });
-
-      console.log(`[TABLE UPDATE] Emitted table status update for table: ${order.tableNumber}`);
-
-    } else {
-      console.log(`[TABLE UPDATE] No table update needed - tableNumber: ${order.tableNumber}, orderType: ${order.orderType}`);
-    }
-  } catch (error) {
-    console.error(`[TABLE UPDATE] Error updating table status:`, {
-      error: error.message,
-      tableNumber: order.tableNumber,
-      order_id: order.order_id
-    });
-  }
 }
 
 // FUNCTION: MAP ORDER FOR CASHIER - DIPERBAIKI
