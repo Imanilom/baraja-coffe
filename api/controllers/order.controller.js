@@ -2526,6 +2526,38 @@ export const createUnifiedOrder = async (req, res) => {
       if (!newOrder) {
         throw new Error(`Order ${orderId} not found after creation`);
       }
+      // Helper function yang lebih flexible
+      const processCashierPayment = async (orderId, paymentDetails, baseResponse, result) => {
+        const chargeRequest = {
+          body: {
+            // Ambil dari paymentDetails atau gunakan default
+            payment_type: paymentDetails?.payment_type || 'Cash',
+            order_id: orderId,
+            gross_amount: paymentDetails?.gross_amount || 0,
+            is_down_payment: paymentDetails?.is_down_payment || false,
+            down_payment_amount: paymentDetails?.down_payment_amount,
+            remaining_payment: paymentDetails?.remaining_payment,
+            tendered_amount: paymentDetails?.tendered_amount,
+            change_amount: paymentDetails?.change_amount,
+          }
+        };
+
+        return new Promise((resolve, reject) => {
+          const mockRes = {
+            status: (code) => ({
+              json: (data) => {
+                if (code === 200 && data.success) {
+                  resolve(data);
+                } else {
+                  reject(new Error(data.message || 'Payment failed'));
+                }
+              }
+            })
+          };
+
+          cashierCharge(chargeRequest, mockRes).catch(reject);
+        });
+      };
 
       // Handle payment based on source
       if (source === 'Cashier') {
