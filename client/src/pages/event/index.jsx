@@ -93,7 +93,7 @@ const EventManagement = () => {
             const allMenuItems = menuResponse.data.data;
 
             // Filter hanya menu dengan category name "Event"
-            const eventMenuItems = allMenuItems.filter(item => item.category?.name === "Event");
+            const eventMenuItems = allMenuItems.filter(item => item.category?.name === "event");
 
             setMenuItems(eventMenuItems);
 

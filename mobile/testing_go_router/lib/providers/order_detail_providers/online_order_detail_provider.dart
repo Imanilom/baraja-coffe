@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kasirbaraja/enums/order_type.dart';
 import 'package:kasirbaraja/models/addon.model.dart';
@@ -165,13 +166,20 @@ class EditOrderItemNotifier extends StateNotifier<EditOrderItemModel> {
     _recalc();
   }
 
-  void removeItemById(String itemId) {
-    final order = state.order;
-    if (order == null) return;
+  void removeItem(OrderItemModel menuItem) {
+    final index = state.order!.items.indexOf(menuItem);
 
-    final items = order.items.where((it) => it.menuItem.id != itemId).toList();
+    if (index != -1) {
+      final updatedItems = [...state.order!.items]; // clone list
+      updatedItems.removeAt(index);
 
-    state = state.copyWith(order: order.copyWith(items: items));
+      state = state.copyWith(order: state.order!.copyWith(items: updatedItems));
+
+      print('Item order berhasil dihapus.');
+    } else {
+      print('Item tidak ditemukan, tidak ada yang dihapus.');
+    }
+
     _recalc();
   }
 
@@ -295,6 +303,40 @@ class EditOrderItemNotifier extends StateNotifier<EditOrderItemModel> {
 
   void clearAll() {
     state = state.copyWith(order: null, originalItems: const []);
+  }
+
+  //submit update order
+  Future<bool> submitEditedOrder() async {
+    state = state.copyWith(isSubmitting: true, error: null);
+
+    final editedOrder = {
+      'reason': state.reason,
+      'items': state.order?.items ?? [],
+    };
+
+    if (editedOrder['items'] == []) return false;
+
+    debugPrint('submitEditedOrder: $editedOrder');
+
+    try {
+      final result = await OrderService().patchOrderEdit(patchData: state);
+      // final updated = await api.patchOrder(...);
+      // delay
+      await Future.delayed(const Duration(seconds: 3));
+
+      if (result['success'] == true) {
+        state = state.copyWith(
+          order: null,
+          isSubmitting: false,
+          originalItems: const [],
+        );
+      }
+
+      return true;
+    } catch (e) {
+      state = state.copyWith(isSubmitting: false, error: e.toString());
+      return false;
+    }
   }
 }
 
