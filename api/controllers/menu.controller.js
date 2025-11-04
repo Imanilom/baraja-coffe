@@ -429,7 +429,7 @@ export const getMenuItems = async (req, res) => {
           as: "addonsInfo"
         }
       },
-       {
+      {
         $lookup: {
           from: "outlets",
           localField: "availableAt",
@@ -444,8 +444,8 @@ export const getMenuItems = async (req, res) => {
 
     const formattedMenuItems = menuItems.map((item) => {
       const stockInfo = item.stockInfo && item.stockInfo[0] ? item.stockInfo[0] : {};
-      const effectiveStock = stockInfo.manualStock !== null && stockInfo.manualStock !== undefined 
-        ? stockInfo.manualStock 
+      const effectiveStock = stockInfo.manualStock !== null && stockInfo.manualStock !== undefined
+        ? stockInfo.manualStock
         : (stockInfo.calculatedStock || 0);
 
       // Hitung average rating
@@ -456,12 +456,12 @@ export const getMenuItems = async (req, res) => {
 
       return {
         id: item._id,
-        name: item.name,
+        name: item.name.toString(),
         mainCategory: item.mainCategory,
-        category: item.categoryInfo && item.categoryInfo[0] 
+        category: item.categoryInfo && item.categoryInfo[0]
           ? { id: item.categoryInfo[0]._id, name: item.categoryInfo[0].name }
           : null,
-        subCategory: item.subCategoryInfo && item.subCategoryInfo[0] 
+        subCategory: item.subCategoryInfo && item.subCategoryInfo[0]
           ? { id: item.subCategoryInfo[0]._id, name: item.subCategoryInfo[0].name }
           : null,
         imageUrl: item.imageURL,
@@ -671,12 +671,12 @@ export const getMenuItemsWithRecipes = async (req, res) => {
       // ✅ HANDLE NULL/UNDEFINED STOCK - SEMUA JADI 0
       const safeCalculatedStock = item.stockData?.calculatedStock ?? 0;
       const safeManualStock = item.stockData?.manualStock ?? 0;
-      
+
       // ✅ LOGIC PRIORITAS: manualStock dulu, baru calculatedStock
       const effectiveStock = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
-        ? safeManualStock 
+        ? safeManualStock
         : safeCalculatedStock;
-      
+
       // ✅ CurrentStock harus sama dengan effectiveStock (sesuai prioritas)
       const safeCurrentStock = effectiveStock;
 
@@ -744,7 +744,7 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         hasRecipes: true,
         withStockInfo: true,
         withManualStock: true, // ✅ Flag baru
-        message: formattedMenuItems.length > 0 
+        message: formattedMenuItems.length > 0
           ? `Showing ${formattedMenuItems.length} menu items with recipes AND manual stock`
           : "No menu items with recipes and manual stock found"
       }
@@ -913,9 +913,9 @@ export const getMenuItemsByCategory = async (req, res) => {
   try {
     // Validasi categoryId
     if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid category ID' 
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid category ID'
       });
     }
 
@@ -1062,12 +1062,12 @@ export const getMenuItemsByCategory = async (req, res) => {
       // ✅ HANDLE NULL/UNDEFINED STOCK - SEMUA JADI 0
       const safeCalculatedStock = item.stockData?.calculatedStock ?? 0;
       const safeManualStock = item.stockData?.manualStock ?? 0;
-      
+
       // ✅ LOGIC PRIORITAS: manualStock dulu, baru calculatedStock
       const effectiveStock = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
-        ? safeManualStock 
+        ? safeManualStock
         : safeCalculatedStock;
-      
+
       // ✅ CurrentStock harus sama dengan effectiveStock (sesuai prioritas)
       const safeCurrentStock = effectiveStock;
 
@@ -1134,7 +1134,7 @@ export const getMenuItemsByCategory = async (req, res) => {
         categoryId: categoryId,
         hasRecipes: true,
         withStockInfo: true,
-        message: formattedMenuItems.length > 0 
+        message: formattedMenuItems.length > 0
           ? `Found ${formattedMenuItems.length} menu items with recipes in this category`
           : "No menu items with recipes found for this category"
       }

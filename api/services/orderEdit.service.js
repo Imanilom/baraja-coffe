@@ -336,9 +336,9 @@ function isLockedItem(it) {
 
 // normalize dari payload Flutter → ke bentuk order.items kamu
 async function normalizeIncomingItem(raw) {
-    const menu = await MenuItem.findById(raw.menuItem).lean();
+    const menu = await MenuItem.findById(raw.id).lean();
     if (!menu) {
-        throw new Error(`Menu ${raw.menuItem} tidak ditemukan`);
+        throw new Error(`Menu ${raw.id} tidak ditemukan`);
     }
 
     // bikin addons dari id
@@ -390,7 +390,7 @@ async function normalizeIncomingItem(raw) {
     const subtotal = each * qty;
 
     return {
-        menuItem: raw.menuItem,
+        menuItem: raw.id,
         quantity: qty,
         subtotal,
         addons,
@@ -409,7 +409,7 @@ async function normalizeIncomingItem(raw) {
 
 export async function replaceOrderItemsAndAllocate({
     orderId,
-    incomingItems,
+    items,
     reason,
     userId,
     idempotencyKey,
@@ -443,7 +443,8 @@ export async function replaceOrderItemsAndAllocate({
 
         // 2. normalisasi semua incoming
         const normalizedIncoming = [];
-        for (const r of incomingItems) {
+        for (const r of items) {
+            console.log('normalizing items', r);
             const n = await normalizeIncomingItem(r);
             normalizedIncoming.push(n);
         }
@@ -851,10 +852,7 @@ export async function allocateDeltaToPayments({
                 0,
                 Number(pending.totalAmount || 0) + grandDelta
             );
-            pending.remainingAmount = Math.max(
-                0,
-                Number(pending.remainingAmount || 0) + grandDelta
-            );
+            pending.remainingAmount = 0;
             await pending.save({ session });
 
             effects.pendingPaymentAdjusted.push({

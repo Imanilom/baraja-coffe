@@ -190,7 +190,7 @@ class EditOrderItemNotifier extends StateNotifier<EditOrderItemModel> {
     final items = [...order.items];
 
     // kalau item sama → tambah qty, kalau beda → tambah baru
-    final idx = items.indexWhere((it) => _sameSignature(it, item));
+    final idx = items.indexWhere((it) => _sameItem(it, item));
     if (idx != -1) {
       final merged = items[idx].copyWith(
         quantity: items[idx].quantity + item.quantity,
