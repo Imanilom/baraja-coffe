@@ -23,7 +23,7 @@ const PaymentMethodSales = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 50;
 
-    // Fungsi helper untuk format tanggal lokal tanpa timezone offset
+    // Format tanggal lokal tanpa timezone offset
     const formatDateLocal = (date) => {
         const d = new Date(date);
         const year = d.getFullYear();
@@ -93,7 +93,7 @@ const PaymentMethodSales = () => {
         if (pageParam) {
             setCurrentPage(parseInt(pageParam, 10));
         }
-    }, []);
+    }, [searchParams]);
 
     // Update URL when filters change
     const updateURLParams = (newDateRange, newOutlet, newPage) => {
@@ -130,11 +130,13 @@ const PaymentMethodSales = () => {
         }
     };
 
-    // Fetch sales report data dari API baru
+    // Fetch sales report data
     const fetchSalesReport = async () => {
         if (!dateRange?.startDate || !dateRange?.endDate) return;
 
         setLoading(true);
+        setError(null);
+
         try {
             const params = {
                 startDate: formatDateLocal(dateRange.startDate),
@@ -150,13 +152,12 @@ const PaymentMethodSales = () => {
 
             if (response.data?.success && response.data?.data) {
                 setReportData(response.data.data);
-                setError(null);
             } else {
-                setError("Invalid data format received");
+                setError("Format data tidak valid");
             }
         } catch (err) {
             console.error("Error fetching sales report:", err);
-            setError("Failed to load data. Please try again later.");
+            setError(err.response?.data?.message || "Gagal memuat data. Silakan coba lagi.");
             setReportData(null);
         } finally {
             setLoading(false);
@@ -175,14 +176,16 @@ const PaymentMethodSales = () => {
 
     // Handle date range change
     const handleDateRangeChange = (newValue) => {
-        setDateRange(newValue);
-        setCurrentPage(1);
-        updateURLParams(newValue, selectedOutlet, 1);
+        if (newValue?.startDate && newValue?.endDate) {
+            setDateRange(newValue);
+            setCurrentPage(1);
+            updateURLParams(newValue, selectedOutlet, 1);
+        }
     };
 
     // Handle outlet change
     const handleOutletChange = (selected) => {
-        const newOutlet = selected.value;
+        const newOutlet = selected?.value || "";
         setSelectedOutlet(newOutlet);
         setCurrentPage(1);
         updateURLParams(dateRange, newOutlet, 1);
@@ -195,20 +198,22 @@ const PaymentMethodSales = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const options = [
+    const options = useMemo(() => [
         { value: "", label: "Semua Outlet" },
         ...outlets.map((o) => ({ value: o._id, label: o.name })),
-    ];
+    ], [outlets]);
 
-    // Process payment data dari struktur API baru
+    // Process payment data dari struktur API
     const paymentMethodData = useMemo(() => {
-        if (!reportData?.paymentMethods) return [];
+        if (!reportData?.paymentMethods || !Array.isArray(reportData.paymentMethods)) {
+            return [];
+        }
 
         return reportData.paymentMethods.map(method => ({
-            paymentMethod: method.method,
-            count: method.totalTransactions,
-            subtotal: method.totalAmount,
-            percentage: method.percentage,
+            paymentMethod: method.method || 'Unknown',
+            count: method.transactionCount || 0,
+            subtotal: method.totalAmount || 0,
+            percentage: method.percentageOfTotal?.toFixed(2) || '0.00',
             orderIds: method.orderIds || []
         }));
     }, [reportData]);
@@ -238,18 +243,23 @@ const PaymentMethodSales = () => {
             currency: 'IDR',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0
-        }).format(amount);
+        }).format(amount || 0);
     };
 
     const exportToExcel = () => {
+        if (paymentMethodData.length === 0) {
+            alert("Tidak ada data untuk diekspor");
+            return;
+        }
+
         setIsExporting(true);
+
         try {
-            // Header info
             const outletName = selectedOutlet
                 ? outlets.find(o => o._id === selectedOutlet)?.name || 'Semua Outlet'
                 : 'Semua Outlet';
 
-            const dateRangeText = dateRange && dateRange.startDate && dateRange.endDate
+            const dateRangeText = dateRange?.startDate && dateRange?.endDate
                 ? `${new Date(dateRange.startDate).toLocaleDateString('id-ID')} - ${new Date(dateRange.endDate).toLocaleDateString('id-ID')}`
                 : 'Semua Tanggal';
 
@@ -262,7 +272,6 @@ const PaymentMethodSales = () => {
                 { col1: 'Metode Pembayaran', col2: 'Jumlah Transaksi', col3: 'Total', col4: 'Persentase' },
             ];
 
-            // Add data rows
             paymentMethodData.forEach(group => {
                 rows.push({
                     col1: group.paymentMethod,
@@ -272,7 +281,6 @@ const PaymentMethodSales = () => {
                 });
             });
 
-            // Add summary row
             rows.push({ col1: '', col2: '', col3: '', col4: '' });
             rows.push({
                 col1: 'GRAND TOTAL',
@@ -286,7 +294,6 @@ const PaymentMethodSales = () => {
                 skipHeader: true
             });
 
-            // Set column widths
             ws['!cols'] = [
                 { wch: 25 },
                 { wch: 20 },
@@ -297,7 +304,6 @@ const PaymentMethodSales = () => {
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Metode Pembayaran");
 
-            // Generate filename with date range
             const startDate = new Date(dateRange.startDate).toLocaleDateString('id-ID').replace(/\//g, '-');
             const endDate = new Date(dateRange.endDate).toLocaleDateString('id-ID').replace(/\//g, '-');
             const filename = `Metode_Pembayaran_${outletName}_${startDate}_${endDate}.xlsx`;
@@ -322,7 +328,7 @@ const PaymentMethodSales = () => {
     };
 
     const renderPageNumbers = () => {
-        let pages = [];
+        const pages = [];
         const maxVisiblePages = 5;
         let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
         let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
@@ -336,7 +342,7 @@ const PaymentMethodSales = () => {
                 <button
                     key={1}
                     onClick={() => handlePageChange(1)}
-                    className="px-3 py-1 border border-green-900 rounded text-green-900 hover:bg-green-900 hover:text-white"
+                    className="px-3 py-1 border border-green-900 rounded text-green-900 hover:bg-green-900 hover:text-white transition-colors"
                 >
                     1
                 </button>
@@ -351,9 +357,9 @@ const PaymentMethodSales = () => {
                 <button
                     key={i}
                     onClick={() => handlePageChange(i)}
-                    className={`px-3 py-1 border border-green-900 rounded ${currentPage === i
-                        ? "bg-green-900 text-white border-green-900"
-                        : "text-green-900 hover:bg-green-900 hover:text-white"
+                    className={`px-3 py-1 border border-green-900 rounded transition-colors ${currentPage === i
+                            ? "bg-green-900 text-white"
+                            : "text-green-900 hover:bg-green-900 hover:text-white"
                         }`}
                 >
                     {i}
@@ -369,7 +375,7 @@ const PaymentMethodSales = () => {
                 <button
                     key={totalPages}
                     onClick={() => handlePageChange(totalPages)}
-                    className="px-3 py-1 border border-green-900 rounded text-green-900 hover:bg-green-900 hover:text-white"
+                    className="px-3 py-1 border border-green-900 rounded text-green-900 hover:bg-green-900 hover:text-white transition-colors"
                 >
                     {totalPages}
                 </button>
@@ -398,7 +404,7 @@ const PaymentMethodSales = () => {
                     <p>{error}</p>
                     <button
                         onClick={fetchSalesReport}
-                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded"
+                        className="mt-4 bg-[#005429] text-white text-[13px] px-[15px] py-[7px] rounded hover:bg-[#003d1f] transition-colors"
                     >
                         Coba Lagi
                     </button>
@@ -408,20 +414,20 @@ const PaymentMethodSales = () => {
     }
 
     return (
-        <div className="">
+        <div className="min-h-screen bg-gray-50">
             {/* Breadcrumb */}
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
                     <span>Laporan</span>
-                    <FaChevronRight />
-                    <Link to="/admin/sales-menu">Laporan Penjualan</Link>
-                    <FaChevronRight />
+                    <FaChevronRight className="text-sm" />
+                    <Link to="/admin/sales-menu" className="hover:underline">Laporan Penjualan</Link>
+                    <FaChevronRight className="text-sm" />
                     <span>Metode Pembayaran</span>
                 </h1>
                 <button
                     onClick={exportToExcel}
                     disabled={isExporting || paymentMethodData.length === 0}
-                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-green-900 text-white text-[13px] px-[15px] py-[7px] rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-800 transition-colors"
                 >
                     {isExporting ? (
                         <>
@@ -438,28 +444,22 @@ const PaymentMethodSales = () => {
 
             {/* Filters */}
             <div className="px-6">
-                <div className="flex justify-between py-3 gap-2">
-                    <div className="flex flex-col col-span-3 w-2/5">
-                        <div className="relative text-gray-500">
-                            <Datepicker
-                                showFooter
-                                showShortcuts
-                                value={dateRange}
-                                onChange={handleDateRangeChange}
-                                displayFormat="DD-MM-YYYY"
-                                inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer"
-                                popoverDirection="down"
-                            />
-                        </div>
+                <div className="flex justify-between py-3 gap-4">
+                    <div className="w-2/5">
+                        <Datepicker
+                            showFooter
+                            showShortcuts
+                            value={dateRange}
+                            onChange={handleDateRangeChange}
+                            displayFormat="DD-MM-YYYY"
+                            inputClassName="w-full text-[13px] border py-2 pr-[25px] pl-[12px] rounded cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-900"
+                            popoverDirection="down"
+                        />
                     </div>
-                    <div className="flex flex-col col-span-3">
+                    <div className="w-1/3">
                         <Select
                             options={options}
-                            value={
-                                selectedOutlet
-                                    ? options.find((opt) => opt.value === selectedOutlet)
-                                    : options[0]
-                            }
+                            value={options.find((opt) => opt.value === selectedOutlet) || options[0]}
                             onChange={handleOutletChange}
                             placeholder="Pilih outlet..."
                             className="text-[13px]"
@@ -474,19 +474,25 @@ const PaymentMethodSales = () => {
                 {reportData?.summary && (
                     <div className="grid grid-cols-4 gap-4 mb-4">
                         <div className="bg-white p-4 rounded shadow">
-                            <p className="text-gray-500 text-xs">Total Transaksi</p>
-                            <p className="text-2xl font-bold text-green-900">{reportData.summary.totalTransactions}</p>
+                            <p className="text-gray-500 text-xs mb-1">Total Transaksi</p>
+                            <p className="text-2xl font-bold text-green-900">
+                                {reportData.summary.totalTransactions?.toLocaleString() || 0}
+                            </p>
                         </div>
                         <div className="bg-white p-4 rounded shadow">
-                            <p className="text-gray-500 text-xs">Total Order</p>
-                            <p className="text-2xl font-bold text-green-900">{reportData.summary.totalOrders}</p>
+                            <p className="text-gray-500 text-xs mb-1">Total Order</p>
+                            <p className="text-2xl font-bold text-green-900">
+                                {reportData.summary.totalOrders?.toLocaleString() || 0}
+                            </p>
                         </div>
                         <div className="bg-white p-4 rounded shadow">
-                            <p className="text-gray-500 text-xs">Total Pendapatan</p>
-                            <p className="text-2xl font-bold text-green-900">{formatCurrency(reportData.summary.totalRevenue)}</p>
+                            <p className="text-gray-500 text-xs mb-1">Total Pendapatan</p>
+                            <p className="text-2xl font-bold text-green-900">
+                                {formatCurrency(reportData.summary.totalRevenue)}
+                            </p>
                         </div>
                         <div className="bg-white p-4 rounded shadow">
-                            <p className="text-gray-500 text-xs">Rata-rata per Transaksi</p>
+                            <p className="text-gray-500 text-xs mb-1">Rata-rata per Transaksi</p>
                             <p className="text-2xl font-bold text-green-900">
                                 {formatCurrency(reportData.summary.averageTransaction)}
                             </p>
@@ -495,7 +501,7 @@ const PaymentMethodSales = () => {
                 )}
 
                 {/* Table */}
-                <div className="overflow-x-auto rounded shadow-md bg-white shadow-slate-200">
+                <div className="overflow-x-auto rounded shadow-md bg-white">
                     <table className="min-w-full table-auto">
                         <thead className="text-gray-400 bg-gray-50">
                             <tr className="text-left text-[13px]">
@@ -505,10 +511,10 @@ const PaymentMethodSales = () => {
                                 <th className="px-4 py-3 font-normal text-center">Aksi</th>
                             </tr>
                         </thead>
-                        {paginatedData.length > 0 ? (
-                            <tbody className="text-sm text-gray-400">
-                                {paginatedData.map((group, index) => (
-                                    <tr key={index} className="text-left text-sm hover:bg-gray-50 border-t">
+                        <tbody className="text-sm text-gray-400">
+                            {paginatedData.length > 0 ? (
+                                paginatedData.map((group, index) => (
+                                    <tr key={index} className="text-left text-sm hover:bg-gray-50 border-t transition-colors">
                                         <td className="px-4 py-3 font-medium text-gray-700">
                                             {group.paymentMethod}
                                         </td>
@@ -529,41 +535,43 @@ const PaymentMethodSales = () => {
                                             </button>
                                         </td>
                                     </tr>
-                                ))}
-                            </tbody>
-                        ) : (
-                            <tbody>
-                                <tr className="py-6 text-center w-full h-96">
-                                    <td colSpan={5}>Tidak ada data ditemukan</td>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={4} className="py-12 text-center text-gray-400">
+                                        Tidak ada data ditemukan
+                                    </td>
                                 </tr>
-                            </tbody>
+                            )}
+                        </tbody>
+                        {paginatedData.length > 0 && (
+                            <tfoot className="border-t-2 font-semibold text-sm bg-gray-50">
+                                <tr>
+                                    <td className="px-4 py-3 text-gray-700">Grand Total</td>
+                                    <td className="px-4 py-3 text-right">
+                                        <span className="bg-green-100 text-green-900 inline-block px-3 py-1 rounded-full">
+                                            {grandTotal.count.toLocaleString()}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                        <span className="bg-green-100 text-green-900 inline-block px-3 py-1 rounded-full">
+                                            {formatCurrency(grandTotal.subtotal)}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3"></td>
+                                </tr>
+                            </tfoot>
                         )}
-                        <tfoot className="border-t-2 font-semibold text-sm bg-gray-50">
-                            <tr>
-                                <td className="px-4 py-3">Grand Total</td>
-                                <td className="px-4 py-3 text-right">
-                                    <p className="bg-green-100 text-green-900 inline-block px-3 py-1 rounded-full">
-                                        {grandTotal.count.toLocaleString()}
-                                    </p>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                    <p className="bg-green-100 text-green-900 inline-block px-3 py-1 rounded-full">
-                                        {formatCurrency(grandTotal.subtotal)}
-                                    </p>
-                                </td>
-                                <td className="px-4 py-3"></td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
 
                 {/* Pagination Controls */}
                 {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-4 text-sm text-white">
+                    <div className="flex justify-between items-center mt-4 text-sm">
                         <button
                             onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
                             disabled={currentPage === 1}
-                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-2 px-4 py-2 border rounded bg-green-900 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-800 transition-colors"
                         >
                             <FaChevronLeft /> Sebelumnya
                         </button>
@@ -573,7 +581,7 @@ const PaymentMethodSales = () => {
                         <button
                             onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
                             disabled={currentPage === totalPages}
-                            className="flex items-center gap-2 px-3 py-1 border rounded bg-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-2 px-4 py-2 border rounded bg-green-900 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-800 transition-colors"
                         >
                             Selanjutnya <FaChevronRight />
                         </button>
