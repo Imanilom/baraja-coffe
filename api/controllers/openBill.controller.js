@@ -26,7 +26,7 @@ const addOrderItemSchema = Joi.object({
 // Schema untuk close order
 const closeOrderSchema = Joi.object({
   final_notes: Joi.string().optional().allow(''),
-  payment_method: Joi.string().valid('Cash', 'E-Wallet', 'Bank Transfer', 'Credit Card').required(),
+  payment_method: Joi.string().valid('Cash', 'E-Wallet', 'Bank Transfer', 'Credit Card', 'QRIS', 'Debit').required(),
   amount_paid: Joi.number().min(0).required(),
   change: Joi.number().min(0).optional().default(0)
 });
@@ -466,7 +466,7 @@ export const removeItemFromOpenBill = async (req, res) => {
   }
 };
 
-// Close open bill (complete order and process payment) - FIXED VERSION
+// controllers/openBill.controller.js - Close Open Bill (Pending Payment)
 export const closeOpenBill = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -498,7 +498,12 @@ export const closeOpenBill = async (req, res) => {
 
     const { final_notes, payment_method, amount_paid, change } = value;
 
-    console.log('💰 Closing open bill:', { orderId: id, payment_method, amount_paid });
+    console.log('💰 Closing open bill (Pending Payment):', { 
+      orderId: id, 
+      payment_method, 
+      amount_paid,
+      status: 'Pending' 
+    });
 
     const order = await Order.findById(id).session(session);
     if (!order) {
@@ -547,9 +552,9 @@ export const closeOpenBill = async (req, res) => {
       });
     }
 
-    // Update order status
-    order.status = 'Completed';
-    order.isOpenBill = false;
+    // ✅ PERBAIKAN: Update order status menjadi "Pending" saja, bukan "Completed"
+    order.status = 'Pending'; // Customer bayar di kasir
+    order.isOpenBill = false; // Tetap tutup open bill
     order.paymentMethod = payment_method;
     order.change = change || 0;
     
@@ -557,31 +562,36 @@ export const closeOpenBill = async (req, res) => {
       order.notes = order.notes ? `${order.notes}\n${final_notes}` : final_notes;
     }
 
-    // Update reservation status jika exists
+    // ✅ PERBAIKAN: Jangan update reservation status ke 'completed'
+    // Biarkan reservation status sesuai dengan flow reservation
     if (order.reservation) {
       const reservation = await Reservation.findById(order.reservation).session(session);
       if (reservation) {
-        reservation.status = 'completed';
+        // Hanya update check_out_time jika diperlukan
+        // Tapi status reservation tetap sesuai business flow
         reservation.check_out_time = getWIBNow();
         await reservation.save({ session });
       }
     }
 
-    // Create payment record
+    // ✅ PERBAIKAN: Create payment record dengan status 'pending'
     const paymentCode = `PAY-${order.order_id}-${Date.now()}`;
     const paymentRecord = new Payment({
       order_id: order.order_id,
       payment_code: paymentCode,
       method: payment_method,
-      status: 'completed',
-      paymentType: 'Full Payment',
+      status: 'pending', // Status payment pending - customer bayar di kasir
+      paymentType: 'Full', // Gunakan 'Full' sesuai enum Payment model
       amount: order.grandTotal,
       totalAmount: order.grandTotal,
       remainingAmount: 0,
       phone: '',
       currency: 'IDR',
       amount_paid: amount_paid,
-      change: change || 0
+      change: change || 0,
+      // Tambahan field untuk struk
+      tendered_amount: amount_paid,
+      change_amount: change || 0
     });
 
     await paymentRecord.save({ session });
@@ -589,18 +599,18 @@ export const closeOpenBill = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    console.log(`✅ Order ${order.order_id} closed successfully`);
+    console.log(`✅ Order ${order.order_id} closed successfully with Pending status`);
 
-    // Populate the completed order
-    const completedOrder = await Order.findById(id)
+    // Populate the updated order
+    const updatedOrder = await Order.findById(id)
       .populate('reservation')
       .populate('items.menuItem');
 
     res.json({
       success: true,
-      message: 'Order completed successfully',
+      message: 'Order closed successfully. Customer will pay at cashier.',
       data: {
-        order: completedOrder,
+        order: updatedOrder,
         payment: paymentRecord
       }
     });
