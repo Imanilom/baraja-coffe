@@ -9,7 +9,7 @@ import {
   getUserOrderHistory,
   getCashierOrderHistory,
   charge,
-  createAppOrder,
+  // createAppOrder,
   createUnifiedOrder,
   getOrderById,
   getOrderId,
@@ -61,7 +61,8 @@ import {
 
 import { verifyToken } from '../utils/verifyUser.js';
 import { midtransWebhook } from '../controllers/webhookController.js';
-import { chargeWithLocking, createAppOrderWithLocking } from '../controllers/testapporder.controller.js';
+import { createAppOrder } from '../controllers/testapporder.controller.js';
+// import { chargeWithLocking, createAppOrderWithLocking } from '../controllers/testapporder.controller.js';
 
 const router = express.Router();
 
