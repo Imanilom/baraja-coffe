@@ -84,7 +84,10 @@ class SocketService {
         'Stok Menu Diperbarui',
         "Stok menu telah diperbarui.",
       );
-      MenuItemRepository().getMenuItem();
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 500), () async {
+        await MenuItemRepository().getMenuItem();
+      });
     });
 
     socket.connect();

@@ -59,6 +59,10 @@ import { fileURLToPath } from "url";
 import revisionRoutes from './routes/orderRevision.routes.js';
 import { generateWebhookSecret } from './utils/tokenGenerator.js';
 
+// attendance routes
+import attendanceRoutes from './routes/attendance.route.js';
+import hrRoutes from './routes/hr.route.js';
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -147,6 +151,9 @@ app.use('/api/analytics', AnalyticsRoutes);
 app.use('/api/assets', AssetRoutes);
 app.use('/api/refunds', RefundRoutes);
 app.use('/api/revision', revisionRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/hr', hrRoutes);
+
 
 // 🔹 Static files (frontend build)
 app.use(express.static(path.join(__dirname, "../client/dist")));

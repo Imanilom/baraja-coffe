@@ -2262,7 +2262,7 @@ const confirmOrderHelper = async (orderId) => {
 
 export const createUnifiedOrder = async (req, res) => {
   let orderId = null;
-  
+
   try {
     const {
       order_id,
@@ -2306,7 +2306,7 @@ export const createUnifiedOrder = async (req, res) => {
     // Execute dengan atomic lock untuk mencegah race condition
     const result = await LockUtil.withOrderLock(orderId, async () => {
       // ✅ SEMUA LOGIC ORDER CREATION DI DALAM LOCK
-      
+
       // Cek jam buka/tutup outlet 
       const outlet = await Outlet.findById(outletId);
       if (!outlet) {
@@ -2406,8 +2406,8 @@ export const createUnifiedOrder = async (req, res) => {
       // Tambahkan customerId dan loyaltyPointsToRedeem ke validated data
       validated.customerId = customerId;
       validated.loyaltyPointsToRedeem = loyaltyPointsToRedeem;
-      validated.cashierId = cashierId; 
-      
+      validated.cashierId = cashierId;
+
       // Hanya tambahkan delivery info untuk App JIKA delivery_option ada
       if (source === 'App') {
         validated.delivery_option = delivery_option || 'pickup';
@@ -2809,7 +2809,7 @@ export const createUnifiedOrder = async (req, res) => {
 
   } catch (err) {
     console.error('Error in createUnifiedOrder:', err);
-    
+
     // Specific error handling untuk lock-related errors
     if (err.message.includes('Failed to acquire lock')) {
       return res.status(429).json({
@@ -2827,10 +2827,10 @@ export const createUnifiedOrder = async (req, res) => {
       });
     }
 
-    if (err.message.includes('Outlet sedang tutup') || 
-        err.message.includes('Fitur delivery hanya tersedia') ||
-        err.message.includes('Data penerima diperlukan') ||
-        err.message.includes('Koordinat lokasi penerima diperlukan')) {
+    if (err.message.includes('Outlet sedang tutup') ||
+      err.message.includes('Fitur delivery hanya tersedia') ||
+      err.message.includes('Data penerima diperlukan') ||
+      err.message.includes('Koordinat lokasi penerima diperlukan')) {
       return res.status(400).json({
         success: false,
         message: err.message
@@ -5522,17 +5522,17 @@ export const getCashierOrderHistory = async (req, res) => {
 // test socket
 export const testSocket = async (req, res) => {
   console.log('Emitting order created to cashier room...');
-  const cashierRoom = io.to('cashier_room').emit('order_created', { message: 'Order created' });
+  // const cashierRoom = io.to('cashier_room').emit('order_created', { message: 'Order created' });
   // const areaRoom = io.to('group_1').emit('order_created', { message: 'Order created' });
   // const areaRoom2 = io.to('group_2').emit('order_created', { message: 'Order created' });
-  // const updateStock = io.to('cashier_room').emit('update_stock', { message: 'Stock Updated' });
+  const updateStock = io.to('cashier_rooms').emit('update_stock', { message: 'Stock Updated' });
 
   console.log('Emitting order created to cashier room success.');
 
   // res.status(200).json({ success: { areaRoom, areaRoom2 } });
-  res.status(200).json({ success: { cashierRoom } });
+  // res.status(200).json({ success: { cashierRoom } });
   // res.status(200).json({ success: { cashierRoom, areaRoom } });
-  // res.status(200).json({ success: { updateStock } });
+  res.status(200).json({ success: { updateStock } });
 }
 
 export const cashierCharge = async (req, res) => {
@@ -6559,12 +6559,12 @@ export function toOrderDTO(orderDoc, paymentDocs = []) {
 
 export async function patchEditOrder(req, res) {
   const { orderId } = req.params;
-  const { reason, items: incomingItems = [] } = req.body;
-
+  const { reason, items } = req.body;
+  console.log('items at edit order', items);
   try {
     const result = await replaceOrderItemsAndAllocate({
-      orderId: orderId,
-      incomingItems,
+      orderId,
+      items,
       reason,
       userId: req.user?.id,
       idempotencyKey: req.headers['x-idempotency-key'],
