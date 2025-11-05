@@ -19,7 +19,10 @@ export const employeeController = {
         employmentType,
         basicSalary,
         bankAccount,
-        supervisor
+        supervisor,
+        // New fields for deductions and allowances
+        deductions = {},
+        allowances = {}
       } = req.body;
 
       // Check if user exists
@@ -59,7 +62,25 @@ export const employeeController = {
         employmentType,
         basicSalary,
         bankAccount,
-        supervisor
+        supervisor,
+        // Include new fields
+        deductions: {
+          bpjsKesehatanEmployee: deductions.bpjsKesehatanEmployee || 0,
+          bpjsKesehatanEmployer: deductions.bpjsKesehatanEmployer || 0,
+          bpjsKetenagakerjaanEmployee: deductions.bpjsKetenagakerjaanEmployee || 0,
+          bpjsKetenagakerjaanEmployer: deductions.bpjsKetenagakerjaanEmployer || 0,
+          tax: deductions.tax || 0,
+          other: deductions.other || 0
+        },
+        allowances: {
+          childcare: allowances.childcare || 0,
+          departmental: allowances.departmental || 0,
+          housing: allowances.housing || 0,
+          transport: allowances.transport || 0,
+          meal: allowances.meal || 0,
+          health: allowances.health || 0,
+          other: allowances.other || 0
+        }
       });
 
       await employee.save();
@@ -85,6 +106,8 @@ export const employeeController = {
         department,
         position,
         employmentStatus,
+        employmentType,
+        isActive,
         search
       } = req.query;
 
@@ -93,11 +116,15 @@ export const employeeController = {
       if (department) filter.department = department;
       if (position) filter.position = position;
       if (employmentStatus) filter.employmentStatus = employmentStatus;
+      if (employmentType) filter.employmentType = employmentType;
+      if (isActive !== undefined) filter.isActive = isActive === 'true';
+      
       if (search) {
         filter.$or = [
           { employeeId: { $regex: search, $options: 'i' } },
           { nik: { $regex: search, $options: 'i' } },
-          { position: { $regex: search, $options: 'i' } }
+          { position: { $regex: search, $options: 'i' } },
+          { department: { $regex: search, $options: 'i' } }
         ];
       }
 
@@ -112,7 +139,7 @@ export const employeeController = {
       res.json({
         data: employees,
         totalPages: Math.ceil(total / limit),
-        currentPage: page,
+        currentPage: parseInt(page),
         total
       });
     } catch (error) {
@@ -155,9 +182,25 @@ export const employeeController = {
   // Update employee
   updateEmployee: async (req, res) => {
     try {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      // Handle nested objects for deductions and allowances
+      if (updateData.deductions) {
+        updateData.$set = updateData.$set || {};
+        updateData.$set.deductions = updateData.deductions;
+        delete updateData.deductions;
+      }
+
+      if (updateData.allowances) {
+        updateData.$set = updateData.$set || {};
+        updateData.$set.allowances = updateData.allowances;
+        delete updateData.allowances;
+      }
+
       const employee = await Employee.findByIdAndUpdate(
-        req.params.id,
-        req.body,
+        id,
+        updateData,
         { new: true, runValidators: true }
       ).populate('user supervisor');
 
@@ -174,13 +217,98 @@ export const employeeController = {
     }
   },
 
+  // Update employee deductions
+  updateEmployeeDeductions: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deductions = req.body;
+
+      const employee = await Employee.findByIdAndUpdate(
+        id,
+        { deductions },
+        { new: true, runValidators: true }
+      ).populate('user supervisor');
+
+      if (!employee) {
+        return res.status(404).json({ message: 'Employee not found' });
+      }
+
+      res.json({
+        message: 'Employee deductions updated successfully',
+        data: employee
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  },
+
+  // Update employee allowances
+  updateEmployeeAllowances: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const allowances = req.body;
+
+      const employee = await Employee.findByIdAndUpdate(
+        id,
+        { allowances },
+        { new: true, runValidators: true }
+      ).populate('user supervisor');
+
+      if (!employee) {
+        return res.status(404).json({ message: 'Employee not found' });
+      }
+
+      res.json({
+        message: 'Employee allowances updated successfully',
+        data: employee
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  },
+
+  // Calculate total salary components
+  getSalarySummary: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const employee = await Employee.findById(id);
+      if (!employee) {
+        return res.status(404).json({ message: 'Employee not found' });
+      }
+
+      // Calculate total allowances
+      const totalAllowances = Object.values(employee.allowances).reduce((sum, amount) => sum + amount, 0);
+
+      // Calculate total deductions
+      const totalDeductions = Object.values(employee.deductions).reduce((sum, amount) => sum + amount, 0);
+
+      // Calculate net salary
+      const netSalary = employee.basicSalary + totalAllowances - totalDeductions;
+
+      const salarySummary = {
+        basicSalary: employee.basicSalary,
+        totalAllowances,
+        totalDeductions,
+        netSalary,
+        allowances: employee.allowances,
+        deductions: employee.deductions
+      };
+
+      res.json(salarySummary);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  },
+
   // Deactivate employee
   deactivateEmployee: async (req, res) => {
     try {
+      const { id } = req.params;
       const { resignationDate, resignationReason } = req.body;
 
       const employee = await Employee.findByIdAndUpdate(
-        req.params.id,
+        id,
         {
           isActive: false,
           resignationDate,
@@ -205,8 +333,10 @@ export const employeeController = {
   // Reactivate employee
   reactivateEmployee: async (req, res) => {
     try {
+      const { id } = req.params;
+
       const employee = await Employee.findByIdAndUpdate(
-        req.params.id,
+        id,
         {
           isActive: true,
           resignationDate: null,
@@ -223,6 +353,51 @@ export const employeeController = {
         message: 'Employee reactivated successfully',
         data: employee
       });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  },
+
+  // Get employees by department
+  getEmployeesByDepartment: async (req, res) => {
+    try {
+      const { department } = req.params;
+      const { isActive = true } = req.query;
+
+      const employees = await Employee.find({ 
+        department,
+        isActive: isActive === 'true'
+      })
+      .populate('user supervisor')
+      .sort({ position: 1 });
+
+      res.json({
+        department,
+        total: employees.length,
+        data: employees
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  },
+
+  // Get supervisors list
+  getSupervisors: async (req, res) => {
+    try {
+      const supervisors = await Employee.find({
+        isActive: true,
+        $or: [
+          { position: { $regex: 'manager', $options: 'i' } },
+          { position: { $regex: 'supervisor', $options: 'i' } },
+          { position: { $regex: 'head', $options: 'i' } },
+          { position: { $regex: 'lead', $options: 'i' } }
+        ]
+      })
+      .populate('user')
+      .select('employeeId position department user')
+      .sort({ position: 1 });
+
+      res.json(supervisors);
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
