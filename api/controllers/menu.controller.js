@@ -375,6 +375,11 @@ export const getMenuItems = async (req, res) => {
     // Gunakan aggregation untuk join dengan MenuStock
     const menuItems = await MenuItem.aggregate([
       {
+        $match: {
+          isActive: true
+        }
+      },
+      {
         $lookup: {
           from: "menustocks",
           localField: "_id",
@@ -438,66 +443,153 @@ export const getMenuItems = async (req, res) => {
         }
       },
       {
+        $lookup: {
+          from: "recipes",
+          localField: "_id",
+          foreignField: "menuItemId",
+          as: "recipe"
+        }
+      },
+      {
+        $project: {
+          name: 1,
+          mainCategory: 1,
+          imageURL: 1,
+          price: 1,
+          discountedPrice: 1,
+          description: 1,
+          discount: 1,
+          toppings: 1,
+          addons: 1,
+          availableAt: 1,
+          workstation: 1,
+          isActive: 1,
+          categoryInfo: { $arrayElemAt: ["$categoryInfo", 0] },
+          subCategoryInfo: { $arrayElemAt: ["$subCategoryInfo", 0] },
+          toppingsInfo: 1,
+          addonsInfo: 1,
+          recipe: 1,
+          stockData: {
+            $cond: {
+              if: { $gt: [{ $size: "$stockInfo" }, 0] },
+              then: { $arrayElemAt: ["$stockInfo", 0] },
+              else: {
+                calculatedStock: 0,
+                manualStock: 0,
+                currentStock: 0,
+                effectiveStock: 0,
+                lastCalculatedAt: null,
+                lastAdjustedAt: null
+              }
+            }
+          },
+          averageRating: {
+            $cond: {
+              if: { $gt: [{ $size: "$ratings" }, 0] },
+              then: {
+                $round: [
+                  { $divide: [{ $sum: "$ratings.rating" }, { $size: "$ratings" }] },
+                  1
+                ]
+              },
+              else: null
+            }
+          },
+          reviewCount: { $size: "$ratings" }
+        }
+      },
+      {
         $sort: { name: 1 }
       }
     ]);
 
-    const formattedMenuItems = menuItems.map((item) => {
-      const stockInfo = item.stockInfo && item.stockInfo[0] ? item.stockInfo[0] : {};
-      const effectiveStock = stockInfo.manualStock !== null && stockInfo.manualStock !== undefined
-        ? stockInfo.manualStock
-        : (stockInfo.calculatedStock || 0);
+    // Populate addons options
+    const populatedMenuItems = await MenuItem.populate(menuItems, [
+      {
+        path: "addonsInfo",
+        populate: { path: "options" }
+      }
+    ]);
 
-      // Hitung average rating
-      const ratings = item.ratings || [];
-      const averageRating = ratings.length > 0
-        ? Math.round((ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length) * 10) / 10
-        : null;
+    const formattedMenuItems = populatedMenuItems.map((item) => {
+      // ✅ HANDLE NULL/UNDEFINED STOCK - SEMUA JADI 0
+      const safeCalculatedStock = item.stockData?.calculatedStock ?? 0;
+      const safeManualStock = item.stockData?.manualStock ?? 0;
+
+      // ✅ LOGIC PRIORITAS: manualStock dulu, baru calculatedStock
+      const effectiveStock = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
+        ? safeManualStock
+        : safeCalculatedStock;
+
+      // ✅ CurrentStock harus sama dengan effectiveStock (sesuai prioritas)
+      const safeCurrentStock = effectiveStock;
+
+      // ✅ Handle null untuk dates
+      const lastCalculatedAt = item.stockData?.lastCalculatedAt || null;
+      const lastAdjustedAt = item.stockData?.lastAdjustedAt || null;
+
+      // ✅ Tentukan stock source untuk informasi
+      const stockSource = (safeManualStock !== null && safeManualStock !== undefined && safeManualStock !== 0)
+        ? 'manual'
+        : 'calculated';
 
       return {
         id: item._id,
-        name: item.name.toString(),
+        name: item.name,
         mainCategory: item.mainCategory,
-        category: item.categoryInfo && item.categoryInfo[0]
-          ? { id: item.categoryInfo[0]._id, name: item.categoryInfo[0].name }
-          : null,
-        subCategory: item.subCategoryInfo && item.subCategoryInfo[0]
-          ? { id: item.subCategoryInfo[0]._id, name: item.subCategoryInfo[0].name }
-          : null,
+        category: item.categoryInfo ? { id: item.categoryInfo._id, name: item.categoryInfo.name } : null,
+        subCategory: item.subCategoryInfo ? { id: item.subCategoryInfo._id, name: item.subCategoryInfo.name } : null,
         imageUrl: item.imageURL,
         originalPrice: item.price,
         discountedPrice: item.discountedPrice || item.price,
         description: item.description,
         discountPercentage: item.discount ? `${item.discount}%` : null,
-        averageRating,
-        reviewCount: ratings.length,
+        averageRating: item.averageRating,
+        reviewCount: item.reviewCount,
         stock: {
-          calculatedStock: stockInfo.calculatedStock || 0,
-          manualStock: stockInfo.manualStock,
-          effectiveStock,
-          currentStock: stockInfo.currentStock || 0,
-          isAvailable: effectiveStock > 0
+          calculatedStock: safeCalculatedStock,
+          manualStock: safeManualStock,
+          effectiveStock: effectiveStock,
+          currentStock: safeCurrentStock, // ✅ Sama dengan effectiveStock
+          isAvailable: effectiveStock > 0,
+          stockSource: stockSource, // ✅ Tambahan info sumber stok
+          lastCalculatedAt: lastCalculatedAt,
+          lastAdjustedAt: lastAdjustedAt
         },
         toppings: (item.toppingsInfo || []).map((topping) => ({
           id: topping._id,
           name: topping.name,
-          price: topping.price,
+          price: topping.price || 0,
         })),
         addons: (item.addonsInfo || []).map((addon) => ({
           id: addon._id,
           name: addon.name,
-          // Anda mungkin perlu populate options untuk addons di sini
-          options: addon.options || [],
+          options: addon.options ? addon.options.map((opt) => ({
+            id: opt._id,
+            label: opt.label,
+            price: opt.price || 0,
+            isDefault: opt.isDefault || false,
+          })) : [],
         })),
-        availableAt: item.availableAt,
+        availableAt: item.availableAt || [],
         workstation: item.workstation,
         isActive: item.isActive,
+        hasRecipe: (item.recipe && item.recipe.length > 0) || false,
+        recipeCount: item.recipe ? item.recipe.length : 0,
+        hasManualStock: safeManualStock > 0 || safeManualStock !== null // ✅ Flag tambahan
       };
     });
 
     const responsePayload = {
       success: true,
       data: formattedMenuItems,
+      meta: {
+        total: formattedMenuItems.length,
+        hasRecipes: formattedMenuItems.some(item => item.hasRecipe),
+        withStockInfo: true,
+        withManualStock: formattedMenuItems.some(item => item.hasManualStock),
+        message: `Showing ${formattedMenuItems.length} menu items`
+      }
     };
 
     // Simpan ke cache
