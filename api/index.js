@@ -61,6 +61,7 @@ import { generateWebhookSecret } from './utils/tokenGenerator.js';
 
 // attendance routes
 import attendanceRoutes from './routes/attendance.route.js';
+import hrRoutes from './routes/hr.route.js';
 
 dotenv.config();
 
@@ -151,6 +152,8 @@ app.use('/api/assets', AssetRoutes);
 app.use('/api/refunds', RefundRoutes);
 app.use('/api/revision', revisionRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/hr', hrRoutes);
+
 
 // 🔹 Static files (frontend build)
 app.use(express.static(path.join(__dirname, "../client/dist")));
