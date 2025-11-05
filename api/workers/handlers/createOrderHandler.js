@@ -81,6 +81,39 @@ export async function createOrderHandler({
         taxesAndFees
       } = processed;
 
+        const formattedAppliedPromos = (promotions.appliedPromos || []).map(promo => ({
+          promoId: promo.promoId,
+          promoName: promo.promoName,
+          promoType: promo.promoType,
+          discount: promo.discount,
+          affectedItems: (promo.affectedItems || []).map(item => ({
+            menuItem: item.menuItem,
+            menuItemName: item.menuItemName,
+            quantity: item.quantity,
+            originalSubtotal: item.originalSubtotal,
+            discountAmount: item.discountAmount,
+            discountedSubtotal: item.discountedSubtotal,
+            discountPercentage: item.discountPercentage
+          })),
+          freeItems: (promo.freeItems || []).map(freeItem => ({
+            menuItem: freeItem.menuItem,
+            menuItemName: freeItem.menuItemName,
+            quantity: freeItem.quantity,
+            price: freeItem.price,
+            isFree: freeItem.isFree || true
+          }))
+        }));
+
+        console.log('📊 Formatted Applied Promos:', {
+          count: formattedAppliedPromos.length,
+          promos: formattedAppliedPromos.map(p => ({
+            name: p.promoName,
+            discount: p.discount,
+            affectedItemsCount: p.affectedItems.length
+          }))
+        });
+
+
       // Determine initial status based on source and payment method
       let initialStatus = 'Pending';
       if (source === 'Cashier') {
@@ -99,7 +132,7 @@ export async function createOrderHandler({
       });
 
       // Prepare base order data
-      const baseOrderData = {
+            const baseOrderData = {
         order_id: orderId,
         user: user || 'Customer',
         cashierId: cashierId || null,
@@ -128,7 +161,8 @@ export async function createOrderHandler({
           customAmountDiscount: discounts.customAmountDiscount || 0,
           total: discounts.total || 0
         },
-        appliedPromos: promotions.appliedPromos || [],
+        // PERBAIKAN: Gunakan formattedAppliedPromos
+        appliedPromos: formattedAppliedPromos,
         appliedManualPromo: promotions.appliedManualPromo || null,
         appliedVoucher: promotions.appliedVoucher || null,
         taxAndServiceDetails: taxesAndFees || [],
@@ -147,6 +181,7 @@ export async function createOrderHandler({
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+
 
       // Tambahkan customer data jika ada
       if (customerId) {

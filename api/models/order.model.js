@@ -126,7 +126,33 @@ const OrderSchema = new mongoose.Schema({
     manualDiscount: { type: Number, default: 0 },
     voucherDiscount: { type: Number, default: 0 }
   },
-  appliedPromos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Promo' }],
+  appliedPromos: [{
+    promoId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'AutoPromo',
+      required: true
+    },
+    promoName: String,
+    promoType: String,
+    discount: Number,
+    affectedItems: [{
+      menuItem: mongoose.Schema.Types.ObjectId,
+      menuItemName: String,
+      quantity: Number,
+      originalSubtotal: Number,
+      discountAmount: Number,
+      discountedSubtotal: Number,
+      discountPercentage: Number
+    }],
+    freeItems: [{
+      menuItem: mongoose.Schema.Types.ObjectId,
+      menuItemName: String,
+      quantity: Number,
+      price: Number,
+      isFree: Boolean
+    }]
+  }],
+
   appliedManualPromo: { type: mongoose.Schema.Types.ObjectId, ref: 'Promo' },
   appliedVoucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
 
