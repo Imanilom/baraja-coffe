@@ -566,7 +566,8 @@ class EditOrderItemDialogState extends State<EditOrderItemDialog> {
   }
 
   Widget _buildToppingItem(ToppingModel topping) {
-    final isSelected = selectedToppings.contains(topping);
+    final selectedTopIds = selectedToppings.map((t) => t.id).toSet();
+    final isSelected = selectedTopIds.contains(topping.id);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 4),

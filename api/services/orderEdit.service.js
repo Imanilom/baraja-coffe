@@ -520,6 +520,10 @@ export async function replaceOrderItemsAndAllocate({
         );
 
         // 8. simpan order
+        if (orderDoc.status.toLowerCase() == 'cancled') {
+            orderDoc.status = 'Pending';
+        }
+
         await orderDoc.save({ session });
 
         result = {

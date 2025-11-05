@@ -5505,6 +5505,7 @@ export const getCashierOrderHistory = async (req, res) => {
 
       return {
         ...order,
+        // appliedPromos: [],
         items: updatedItems,
         payment_details: paymentDetails,
         paymentStatus: paymentStatusMap.get(orderIdString)
