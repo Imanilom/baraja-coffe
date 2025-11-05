@@ -2132,41 +2132,78 @@ export async function generateOrderId(tableNumber) {
 
 const confirmOrderHelper = async (orderId) => {
   try {
-    // 1. Find order and update status
-    let order = await Order.findOne({ order_id: orderId })
-      .populate('items.menuItem')
-      .populate('outlet')
-      .populate('user_id', 'name email phone');
+    console.log('🔍 confirmOrderHelper - Searching for order:', orderId);
+
+    // PERBAIKAN 1: Cari order dengan query yang lebih aman
+    let order = await Order.findOne({ 
+      $or: [
+        { order_id: orderId },
+        { _id: orderId }
+      ]
+    })
+    .populate('items.menuItem', 'name price')
+    .populate('outlet', 'name address')
+    .populate('user_id', 'name email phone')
+    .populate('cashierId', 'name email') // PERBAIKAN: Populate cashierId
+    .lean(); // PERBAIKAN: Gunakan lean() untuk avoid mongoose document issues
 
     if (!order) {
-      throw new Error('Order not found');
+      console.error('❌ confirmOrderHelper - Order not found:', orderId);
+      throw new Error(`Order ${orderId} not found`);
     }
 
-    // 🔧 Hanya update kalau status BUKAN Reserved
+    console.log('✅ confirmOrderHelper - Order found:', {
+      orderId: order.order_id,
+      status: order.status,
+      hasUser: !!order.user_id,
+      hasCashier: !!order.cashierId,
+      source: order.source
+    });
+
+    // PERBAIKAN 2: Update order status dengan findByIdAndUpdate (lebih safe)
+    let updatedOrder;
     if (order.status !== 'Reserved') {
-      order.status = 'Waiting';
-      await order.save();
+      updatedOrder = await Order.findByIdAndUpdate(
+        order._id,
+        { 
+          $set: { 
+            status: 'Waiting',
+            updatedAt: new Date()
+          }
+        },
+        { new: true, runValidators: true }
+      ).lean();
+    } else {
+      updatedOrder = order;
     }
 
-    if (!order) {
-      throw new Error('Order not found');
+    if (!updatedOrder) {
+      throw new Error('Failed to update order status');
     }
 
-    // 2. Update payment status
-    const payment = await Payment.findOne({ order_id: orderId });
+    // PERBAIKAN 3: Cari payment dengan query yang lebih aman
+    const payment = await Payment.findOne({ 
+      $or: [
+        { order_id: orderId },
+        { order_id: order.order_id }
+      ]
+    });
 
     if (!payment) {
-      throw new Error('Payment not found for this order');
+      console.error('❌ confirmOrderHelper - Payment not found for order:', orderId);
+      throw new Error(`Payment not found for order ${orderId}`);
     }
 
-    // 🔧 Tentukan status pembayaran (DP / Partial / Settlement)
+    console.log('✅ confirmOrderHelper - Payment found:', {
+      paymentId: payment._id,
+      status: payment.status,
+      paymentType: payment.paymentType
+    });
+
+    // PERBAIKAN 4: Tentukan status pembayaran dengan logic yang lebih aman
     let updatedStatus = 'settlement';
-    if (payment?.paymentType === 'Down Payment') {
-      if (payment?.remainingAmount !== 0) {
-        updatedStatus = 'partial';
-      } else {
-        updatedStatus = 'settlement';
-      }
+    if (payment.paymentType === 'Down Payment') {
+      updatedStatus = payment.remainingAmount > 0 ? 'partial' : 'settlement';
     }
 
     // Update payment document
@@ -2174,41 +2211,64 @@ const confirmOrderHelper = async (orderId) => {
     payment.paidAt = new Date();
     await payment.save();
 
-    // 🔥 EMIT STATUS UPDATE KE CLIENT
+    // PERBAIKAN 5: Handle cashier data dengan safe access
+    const cashierData = order.cashierId ? {
+      id: order.cashierId._id?.toString() || order.cashierId.toString(),
+      name: order.cashierId.name || 'Kasir'
+    } : {
+      id: 'unknown',
+      name: 'Kasir'
+    };
+
+    console.log('👤 Cashier data:', cashierData);
+
+    // PERBAIKAN 6: Prepare status update data
     const statusUpdateData = {
-      order_id: orderId,  // Gunakan string order_id
+      order_id: order.order_id, // PERBAIKAN: Gunakan order.order_id yang sudah dipopulate
       orderStatus: 'Waiting',
       paymentStatus: updatedStatus,
       message: 'Pesanan dikonfirmasi kasir, menunggu kitchen',
       timestamp: new Date(),
-      cashier: {
-        id: 'kasir123',  // Ganti dengan ID kasir yang sebenarnya
-        name: 'Kasir' // Ganti dengan nama kasir yang sebenarnya
-      }
+      cashier: cashierData
     };
 
-    // Emit ke room spesifik untuk order tracking
-    io.to(`order_${orderId}`).emit('order_status_update', statusUpdateData);
+    // PERBAIKAN 7: Get io instance dengan safe check
+    const io = getIO();
+    if (io) {
+      // Emit ke room spesifik untuk order tracking
+      io.to(`order_${order.order_id}`).emit('order_status_update', statusUpdateData);
 
-    // Emit event khusus untuk konfirmasi kasir
-    io.to(`order_${orderId}`).emit('order_confirmed', {
-      orderId: orderId,
-      orderStatus: 'Waiting',
-      paymentStatus: updatedStatus,
-      cashier: statusUpdateData.cashier,
-      message: 'Your order is now being prepared',
-      timestamp: new Date()
+      // Emit event khusus untuk konfirmasi kasir
+      io.to(`order_${order.order_id}`).emit('order_confirmed', {
+        orderId: order.order_id,
+        orderStatus: 'Waiting',
+        paymentStatus: updatedStatus,
+        cashier: cashierData,
+        message: 'Your order is now being prepared',
+        timestamp: new Date()
+      });
+
+      console.log(`🔔 Emitted order status update to room: order_${order.order_id}`, {
+        order_id: statusUpdateData.order_id,
+        orderStatus: statusUpdateData.orderStatus,
+        paymentStatus: statusUpdateData.paymentStatus
+      });
+    } else {
+      console.warn('⚠️ Socket.IO not available for emitting order status update');
+    }
+
+    // PERBAIKAN 8: FCM Notification dengan safe user check
+    console.log('📱 Preparing FCM notification:', {
+      user: order.user,
+      userId: order.user_id?._id,
+      hasUser: !!order.user_id
     });
 
-    console.log(`🔔 Emitted order status update to room: order_${orderId}`, statusUpdateData);
-
-    // 3. Send FCM notification to customer
-    console.log('📱 Sending FCM notification to customer:', order.user, order.user_id._id);
-    if (order.user && order.user_id._id) {
+    if (order.user_id && order.user_id._id) {
       try {
         const orderData = {
           orderId: order.order_id,
-          cashier: statusUpdateData.cashier
+          cashier: cashierData
         };
 
         const notificationResult = await FCMNotificationService.sendOrderConfirmationNotification(
@@ -2219,43 +2279,62 @@ const confirmOrderHelper = async (orderId) => {
         console.log('📱 FCM Notification result:', notificationResult);
       } catch (notificationError) {
         console.error('❌ Failed to send FCM notification:', notificationError);
+        // Jangan throw error, lanjutkan proses
       }
+    } else {
+      console.log('ℹ️ No user data available for FCM notification');
     }
 
-    // 4. Send notification to cashier dashboard if order is from Web/App
+    // PERBAIKAN 9: Broadcast to cashier dashboard dengan safe checks
     if (order.source === 'Web' || order.source === 'App') {
       const orderData = {
         orderId: order.order_id,
         source: order.source,
         orderType: order.orderType,
         tableNumber: order.tableNumber || null,
-        items: order.items.map(item => ({
+        items: (order.items || []).map(item => ({
           name: item.menuItem?.name || 'Unknown Item',
-          quantity: item.quantity
+          quantity: item.quantity || 1
         })),
         createdAt: order.createdAt,
         paymentMethod: order.paymentMethod,
         totalAmount: order.grandTotal,
-        outletId: order.outlet._id
+        outletId: order.outlet?._id || order.outletId
       };
 
       try {
+        // PERBAIKAN: Check if broadcastNewOrder exists dan panggil dengan safe
         if (typeof broadcastNewOrder === 'function') {
-          broadcastNewOrder(order.outlet._id.toString(), orderData);
+          const outletId = order.outlet?._id?.toString() || order.outletId?.toString();
+          if (outletId) {
+            broadcastNewOrder(outletId, orderData);
+            console.log('📢 Broadcasted new order to outlet:', outletId);
+          } else {
+            console.warn('⚠️ No outlet ID available for broadcasting');
+          }
+        } else {
+          console.warn('⚠️ broadcastNewOrder function not available');
         }
       } catch (broadcastError) {
-        console.error('Failed to broadcast new order:', broadcastError);
+        console.error('❌ Failed to broadcast new order:', broadcastError);
+        // Jangan throw error, lanjutkan proses
       }
     }
 
+    // PERBAIKAN 10: Return response yang konsisten
     return {
       success: true,
-      order,
-      payment
+      order: updatedOrder,
+      payment: payment,
+      message: 'Order confirmed successfully'
     };
 
   } catch (error) {
-    console.error('Error in confirmOrderHelper:', error);
+    console.error('❌ Error in confirmOrderHelper:', {
+      orderId,
+      error: error.message,
+      stack: error.stack
+    });
     throw error;
   }
 };
@@ -2349,23 +2428,41 @@ export const createUnifiedOrder = async (req, res) => {
       }
 
       // Check if order already exists (double-check dalam lock)
-      const existingOrder = await Order.findOne({ order_id: order_id });
+      const existingOrder = await Order.findOne({ 
+        order_id: orderId,
+        outletId: outletId 
+      });
+
       if (existingOrder) {
-        console.log('Order already exists in the database, confirming order...');
+        console.log('🔄 Order already exists in the database, confirming order...', {
+          orderId,
+          existingOrderId: existingOrder._id,
+          existingStatus: existingOrder.status
+        });
+        
         try {
-          const result = await confirmOrderHelper(order_id);
+          const result = await confirmOrderHelper(orderId);
           return {
             type: 'existing_order',
             data: {
               status: 'Completed',
-              orderId: order_id,
+              orderId: orderId,
               message: 'Cashier order processed and paid',
               order: result.order
             }
           };
         } catch (confirmError) {
-          console.error('Failed to confirm existing order:', confirmError);
-          throw new Error(`Failed to confirm order: ${confirmError.message}`);
+          console.error('❌ Failed to confirm existing order:', confirmError);
+          
+          // PERBAIKAN: Jangan langsung throw, beri fallback
+          return {
+            type: 'existing_order_error',
+            data: {
+              success: false,
+              error: `Failed to confirm order: ${confirmError.message}`,
+              orderId: orderId
+            }
+          };
         }
       }
 
