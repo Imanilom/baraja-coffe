@@ -1,6 +1,6 @@
 import Salary from '../../models/model_hr/Salary.model.js';
 import Employee from '../../models/model_hr/Employee.model.js';
-import Attendance from '../.../models/model_hr/Attendance.model.js';
+import Attendance from '../../models/model_hr/Attendance.model.js';
 
 export const salaryController = {
   // Calculate salary for period
