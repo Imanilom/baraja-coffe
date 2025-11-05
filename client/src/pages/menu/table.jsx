@@ -49,7 +49,10 @@ export default function MenuTable({
             setTimeout(async () => {
                 try {
                     await axios.put(`/api/menu/menu-items/activated/${itemId}`, { isActive: newStatus });
-                    navigate("/admin/menu", {
+                    // navigate("/admin/menu", {
+                    //     state: { success: `Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
+                    // });
+                    navigate(window.location.pathname === "/admin/menu" ? "/admin/menu" : "/admin/event", {
                         state: { success: `Menu berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}` },
                     });
                     fetchData();
