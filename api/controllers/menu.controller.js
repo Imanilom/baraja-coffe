@@ -6,6 +6,9 @@ import mongoose from 'mongoose';
 import { MenuRating } from '../models/MenuRating.model.js';
 import IORedis from "ioredis";
 import Recipe from '../models/modul_menu/Recipe.model.js';
+import AutoPromo from '../models/AutoPromo.model.js';
+import Promo from '../models/Promo.model.js';
+
 
 
 // Create a new menu item
@@ -359,7 +362,7 @@ export const getMenuItemsBackOffice = async (req, res) => {
 };
 
 export const getMenuItems = async (req, res) => {
-  const cacheKey = "menu_items_full";
+  const cacheKey = "menu_items_full_with_promos";
 
   try {
     // cek cache
@@ -371,6 +374,143 @@ export const getMenuItems = async (req, res) => {
     } catch (cacheErr) {
       console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
     }
+
+    // Dapatkan promo yang aktif
+    const currentDate = new Date();
+    
+    // Ambil semua promo yang aktif dan valid
+    const [activeAutoPromos, activePromos] = await Promise.all([
+      // Auto Promo - Perbaikan populate
+      AutoPromo.find({
+        isActive: true,
+        validFrom: { $lte: currentDate },
+        validTo: { $gte: currentDate }
+      }).populate([
+        {
+          path: 'conditions.products',
+          model: 'MenuItem'
+        },
+        {
+          path: 'conditions.buyProduct',
+          model: 'MenuItem'
+        },
+        {
+          path: 'conditions.getProduct', 
+          model: 'MenuItem'
+        },
+        {
+          path: 'conditions.bundleProducts.product',
+          model: 'MenuItem'
+        }
+      ]),
+      
+      // Regular Promo
+      Promo.find({
+        isActive: true,
+        validFrom: { $lte: currentDate },
+        validTo: { $gte: currentDate }
+      })
+    ]);
+
+    console.log('🔍 Active Auto Promos:', activeAutoPromos.length);
+    activeAutoPromos.forEach(promo => {
+      console.log(`📢 Promo: ${promo.name}, Type: ${promo.promoType}`);
+      if (promo.promoType === 'product_specific' && promo.conditions.products) {
+        console.log(`   Products:`, promo.conditions.products.map(p => p?._id?.toString()));
+      }
+    });
+
+    // Buat map untuk promo per product
+    const productPromoMap = new Map();
+    const productBundleMap = new Map();
+    const productBuyXGetYMap = new Map();
+
+    // Process Auto Promos dengan debugging
+    activeAutoPromos.forEach(promo => {
+      console.log(`🔄 Processing promo: ${promo.name} (${promo.promoType})`);
+      
+      switch (promo.promoType) {
+        case 'product_specific':
+          // Promo untuk produk spesifik
+          if (promo.conditions && promo.conditions.products) {
+            console.log(`   Found ${promo.conditions.products.length} products in promo`);
+            
+            promo.conditions.products.forEach(product => {
+              if (product && product._id) {
+                const productId = product._id.toString();
+                console.log(`   Adding promo to product: ${productId}`);
+                
+                if (!productPromoMap.has(productId)) {
+                  productPromoMap.set(productId, []);
+                }
+                productPromoMap.get(productId).push({
+                  type: 'auto_promo',
+                  promoId: promo._id,
+                  promoType: promo.promoType,
+                  name: promo.name,
+                  discount: promo.discount,
+                  discountType: 'percentage',
+                  validFrom: promo.validFrom,
+                  validTo: promo.validTo
+                });
+              } else {
+                console.log('   ❌ Invalid product found in promo');
+              }
+            });
+          } else {
+            console.log('   ❌ No products found in promo conditions');
+          }
+          break;
+
+        case 'bundling':
+          // Bundle promo
+          if (promo.conditions && promo.conditions.bundleProducts) {
+            promo.conditions.bundleProducts.forEach(bundleItem => {
+              if (bundleItem.product && bundleItem.product._id) {
+                const productId = bundleItem.product._id.toString();
+                if (!productBundleMap.has(productId)) {
+                  productBundleMap.set(productId, []);
+                }
+                productBundleMap.get(productId).push({
+                  type: 'bundle',
+                  promoId: promo._id,
+                  promoType: promo.promoType,
+                  name: promo.name,
+                  bundlePrice: promo.bundlePrice,
+                  bundleProducts: promo.conditions.bundleProducts,
+                  validFrom: promo.validFrom,
+                  validTo: promo.validTo
+                });
+              }
+            });
+          }
+          break;
+
+        case 'buy_x_get_y':
+          // Buy X Get Y promo
+          if (promo.conditions && promo.conditions.buyProduct && promo.conditions.getProduct) {
+            const buyProductId = promo.conditions.buyProduct._id.toString();
+            if (!productBuyXGetYMap.has(buyProductId)) {
+              productBuyXGetYMap.set(buyProductId, []);
+            }
+            productBuyXGetYMap.get(buyProductId).push({
+              type: 'buy_x_get_y',
+              promoId: promo._id,
+              promoType: promo.promoType,
+              name: promo.name,
+              buyProduct: promo.conditions.buyProduct,
+              getProduct: promo.conditions.getProduct,
+              minQuantity: promo.conditions.minQuantity,
+              validFrom: promo.validFrom,
+              validTo: promo.validTo
+            });
+          }
+          break;
+      }
+    });
+
+    console.log('📊 Product Promo Map size:', productPromoMap.size);
+    console.log('📊 Product IDs in map:', Array.from(productPromoMap.keys()));
 
     // Gunakan aggregation untuk join dengan MenuStock
     const menuItems = await MenuItem.aggregate([
@@ -533,6 +673,62 @@ export const getMenuItems = async (req, res) => {
         ? 'manual'
         : 'calculated';
 
+      // ✅ Cek promo untuk produk ini
+      const productId = item._id.toString();
+      const autoPromos = productPromoMap.get(productId) || [];
+      const bundlePromos = productBundleMap.get(productId) || [];
+      const buyXGetYPromos = productBuyXGetYMap.get(productId) || [];
+      
+      console.log(`🔍 Checking promos for product: ${productId} - ${item.name}`);
+      console.log(`   Found auto promos: ${autoPromos.length}`);
+      console.log(`   Found bundle promos: ${bundlePromos.length}`);
+      console.log(`   Found buyXGetY promos: ${buyXGetYPromos.length}`);
+      
+      // Hitung harga setelah promo
+      let finalPrice = item.discountedPrice || item.price;
+      let appliedPromos = [];
+
+      // Apply auto promos (product specific)
+      if (autoPromos.length > 0) {
+        const bestAutoPromo = autoPromos[0]; // Ambil promo pertama untuk sekarang
+        const discountAmount = (item.price * bestAutoPromo.discount) / 100;
+        finalPrice = Math.max(0, item.price - discountAmount);
+        appliedPromos.push({
+          type: 'auto_promo',
+          name: bestAutoPromo.name,
+          discountPercentage: bestAutoPromo.discount,
+          originalPrice: item.price,
+          finalPrice: finalPrice,
+          savings: discountAmount
+        });
+        console.log(`   💰 Applied promo: ${bestAutoPromo.name} - Discount: ${bestAutoPromo.discount}%`);
+        console.log(`   💰 Price: ${item.price} -> ${finalPrice}`);
+      }
+
+      // Check bundle promos
+      if (bundlePromos.length > 0) {
+        bundlePromos.forEach(bundlePromo => {
+          appliedPromos.push({
+            type: 'bundle',
+            name: bundlePromo.name,
+            bundlePrice: bundlePromo.bundlePrice,
+            productsInBundle: bundlePromo.bundleProducts
+          });
+        });
+      }
+
+      // Check buy x get y promos
+      if (buyXGetYPromos.length > 0) {
+        buyXGetYPromos.forEach(buyXGetYPromo => {
+          appliedPromos.push({
+            type: 'buy_x_get_y',
+            name: buyXGetYPromo.name,
+            minQuantity: buyXGetYPromo.minQuantity,
+            getProduct: buyXGetYPromo.getProduct
+          });
+        });
+      }
+
       return {
         id: item._id,
         name: item.name,
@@ -541,7 +737,7 @@ export const getMenuItems = async (req, res) => {
         subCategory: item.subCategoryInfo ? { id: item.subCategoryInfo._id, name: item.subCategoryInfo.name } : null,
         imageUrl: item.imageURL,
         originalPrice: item.price,
-        discountedPrice: item.discountedPrice || item.price,
+        discountedPrice: finalPrice, // Harga setelah promo
         description: item.description,
         discountPercentage: item.discount ? `${item.discount}%` : null,
         averageRating: item.averageRating,
@@ -550,9 +746,9 @@ export const getMenuItems = async (req, res) => {
           calculatedStock: safeCalculatedStock,
           manualStock: safeManualStock,
           effectiveStock: effectiveStock,
-          currentStock: safeCurrentStock, // ✅ Sama dengan effectiveStock
+          currentStock: safeCurrentStock,
           isAvailable: effectiveStock > 0,
-          stockSource: stockSource, // ✅ Tambahan info sumber stok
+          stockSource: stockSource,
           lastCalculatedAt: lastCalculatedAt,
           lastAdjustedAt: lastAdjustedAt
         },
@@ -576,8 +772,21 @@ export const getMenuItems = async (req, res) => {
         isActive: item.isActive,
         hasRecipe: (item.recipe && item.recipe.length > 0) || false,
         recipeCount: item.recipe ? item.recipe.length : 0,
-        hasManualStock: safeManualStock > 0 || safeManualStock !== null // ✅ Flag tambahan
+        hasManualStock: safeManualStock > 0 || safeManualStock !== null,
+        // ✅ Informasi promo
+        promotions: {
+          hasPromo: appliedPromos.length > 0,
+          activePromos: appliedPromos,
+          promoCount: appliedPromos.length
+        }
       };
+    });
+
+    // Debug: Cek produk yang seharusnya dapat promo
+    const productsWithPromo = formattedMenuItems.filter(item => item.promotions.hasPromo);
+    console.log(`🎯 Products with promo: ${productsWithPromo.length}`);
+    productsWithPromo.forEach(item => {
+      console.log(`   ✅ ${item.name}: ${item.originalPrice} -> ${item.discountedPrice}`);
     });
 
     const responsePayload = {
@@ -588,7 +797,11 @@ export const getMenuItems = async (req, res) => {
         hasRecipes: formattedMenuItems.some(item => item.hasRecipe),
         withStockInfo: true,
         withManualStock: formattedMenuItems.some(item => item.hasManualStock),
-        message: `Showing ${formattedMenuItems.length} menu items`
+        withPromotions: formattedMenuItems.some(item => item.promotions.hasPromo),
+        activeAutoPromos: activeAutoPromos.length,
+        activeRegularPromos: activePromos.length,
+        productsWithPromo: productsWithPromo.length,
+        message: `Showing ${formattedMenuItems.length} menu items with promotions`
       }
     };
 
@@ -611,7 +824,7 @@ export const getMenuItems = async (req, res) => {
 };
 
 export const getMenuItemsWithRecipes = async (req, res) => {
-  const cacheKey = "menu_items_with_recipes_and_manual_stock";
+  const cacheKey = "menu_items_with_recipes_manual_stock_and_promos";
 
   try {
     // cek cache
@@ -623,6 +836,99 @@ export const getMenuItemsWithRecipes = async (req, res) => {
     } catch (cacheErr) {
       console.warn("⚠️ Redis read error, lanjut DB:", cacheErr.message);
     }
+
+    // Dapatkan promo yang aktif
+    const currentDate = new Date();
+    
+    // Ambil semua promo yang aktif dan valid
+    const [activeAutoPromos, activePromos] = await Promise.all([
+      // Auto Promo
+      AutoPromo.find({
+        isActive: true,
+        validFrom: { $lte: currentDate },
+        validTo: { $gte: currentDate }
+      }).populate('conditions.products conditions.buyProduct conditions.getProduct conditions.bundleProducts.product'),
+      
+      // Regular Promo
+      Promo.find({
+        isActive: true,
+        validFrom: { $lte: currentDate },
+        validTo: { $gte: currentDate }
+      })
+    ]);
+
+    // Buat map untuk promo per product
+    const productPromoMap = new Map();
+    const productBundleMap = new Map();
+    const productBuyXGetYMap = new Map();
+
+    // Process Auto Promos
+    activeAutoPromos.forEach(promo => {
+      switch (promo.promoType) {
+        case 'product_specific':
+          // Promo untuk produk spesifik
+          if (promo.conditions && promo.conditions.products) {
+            promo.conditions.products.forEach(product => {
+              if (!productPromoMap.has(product._id.toString())) {
+                productPromoMap.set(product._id.toString(), []);
+              }
+              productPromoMap.get(product._id.toString()).push({
+                type: 'auto_promo',
+                promoId: promo._id,
+                promoType: promo.promoType,
+                name: promo.name,
+                discount: promo.discount,
+                discountType: 'percentage',
+                validFrom: promo.validFrom,
+                validTo: promo.validTo
+              });
+            });
+          }
+          break;
+
+        case 'bundling':
+          // Bundle promo
+          if (promo.conditions && promo.conditions.bundleProducts) {
+            promo.conditions.bundleProducts.forEach(bundleItem => {
+              if (!productBundleMap.has(bundleItem.product._id.toString())) {
+                productBundleMap.set(bundleItem.product._id.toString(), []);
+              }
+              productBundleMap.get(bundleItem.product._id.toString()).push({
+                type: 'bundle',
+                promoId: promo._id,
+                promoType: promo.promoType,
+                name: promo.name,
+                bundlePrice: promo.bundlePrice,
+                bundleProducts: promo.conditions.bundleProducts,
+                validFrom: promo.validFrom,
+                validTo: promo.validTo
+              });
+            });
+          }
+          break;
+
+        case 'buy_x_get_y':
+          // Buy X Get Y promo
+          if (promo.conditions && promo.conditions.buyProduct && promo.conditions.getProduct) {
+            const buyProductId = promo.conditions.buyProduct._id.toString();
+            if (!productBuyXGetYMap.has(buyProductId)) {
+              productBuyXGetYMap.set(buyProductId, []);
+            }
+            productBuyXGetYMap.get(buyProductId).push({
+              type: 'buy_x_get_y',
+              promoId: promo._id,
+              promoType: promo.promoType,
+              name: promo.name,
+              buyProduct: promo.conditions.buyProduct,
+              getProduct: promo.conditions.getProduct,
+              minQuantity: promo.conditions.minQuantity,
+              validFrom: promo.validFrom,
+              validTo: promo.validTo
+            });
+          }
+          break;
+      }
+    });
 
     // Gunakan aggregation pipeline untuk efisiensi
     const menuItems = await MenuItem.aggregate([
@@ -726,7 +1032,9 @@ export const getMenuItemsWithRecipes = async (req, res) => {
                 calculatedStock: 0,
                 manualStock: 0,
                 currentStock: 0,
-                effectiveStock: 0
+                effectiveStock: 0,
+                lastCalculatedAt: null,
+                lastAdjustedAt: null
               }
             }
           },
@@ -781,6 +1089,54 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         ? 'manual'
         : 'calculated';
 
+      // ✅ Cek promo untuk produk ini
+      const productId = item._id.toString();
+      const autoPromos = productPromoMap.get(productId) || [];
+      const bundlePromos = productBundleMap.get(productId) || [];
+      const buyXGetYPromos = productBuyXGetYMap.get(productId) || [];
+      
+      // Hitung harga setelah promo
+      let finalPrice = item.discountedPrice || item.price;
+      let appliedPromos = [];
+
+      // Apply auto promos (product specific)
+      if (autoPromos.length > 0) {
+        const bestAutoPromo = autoPromos[0]; // Ambil promo pertama untuk sekarang
+        const discountAmount = (item.price * bestAutoPromo.discount) / 100;
+        finalPrice = Math.max(0, item.price - discountAmount);
+        appliedPromos.push({
+          type: 'auto_promo',
+          name: bestAutoPromo.name,
+          discountPercentage: bestAutoPromo.discount,
+          originalPrice: item.price,
+          finalPrice: finalPrice
+        });
+      }
+
+      // Check bundle promos
+      if (bundlePromos.length > 0) {
+        bundlePromos.forEach(bundlePromo => {
+          appliedPromos.push({
+            type: 'bundle',
+            name: bundlePromo.name,
+            bundlePrice: bundlePromo.bundlePrice,
+            productsInBundle: bundlePromo.bundleProducts
+          });
+        });
+      }
+
+      // Check buy x get y promos
+      if (buyXGetYPromos.length > 0) {
+        buyXGetYPromos.forEach(buyXGetYPromo => {
+          appliedPromos.push({
+            type: 'buy_x_get_y',
+            name: buyXGetYPromo.name,
+            minQuantity: buyXGetYPromo.minQuantity,
+            getProduct: buyXGetYPromo.getProduct
+          });
+        });
+      }
+
       return {
         id: item._id,
         name: item.name,
@@ -789,7 +1145,7 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         subCategory: item.subCategory ? { id: item.subCategory._id, name: item.subCategory.name } : null,
         imageUrl: item.imageURL,
         originalPrice: item.price,
-        discountedPrice: item.discountedPrice || item.price,
+        discountedPrice: finalPrice, // Harga setelah promo
         description: item.description,
         discountPercentage: item.discount ? `${item.discount}%` : null,
         averageRating: item.averageRating,
@@ -824,7 +1180,13 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         isActive: item.isActive,
         hasRecipe: true,
         recipeCount: item.recipe ? item.recipe.length : 0,
-        hasManualStock: safeManualStock > 0 || safeManualStock !== null // ✅ Flag tambahan
+        hasManualStock: safeManualStock > 0 || safeManualStock !== null, // ✅ Flag tambahan
+        // ✅ Informasi promo
+        promotions: {
+          hasPromo: appliedPromos.length > 0,
+          activePromos: appliedPromos,
+          promoCount: appliedPromos.length
+        }
       };
     });
 
@@ -835,9 +1197,12 @@ export const getMenuItemsWithRecipes = async (req, res) => {
         total: formattedMenuItems.length,
         hasRecipes: true,
         withStockInfo: true,
-        withManualStock: true, // ✅ Flag baru
+        withManualStock: true,
+        withPromotions: formattedMenuItems.some(item => item.promotions.hasPromo),
+        activeAutoPromos: activeAutoPromos.length,
+        activeRegularPromos: activePromos.length,
         message: formattedMenuItems.length > 0
-          ? `Showing ${formattedMenuItems.length} menu items with recipes AND manual stock`
+          ? `Showing ${formattedMenuItems.length} menu items with recipes, manual stock AND promotions`
           : "No menu items with recipes and manual stock found"
       }
     };

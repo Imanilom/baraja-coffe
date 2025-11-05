@@ -5,6 +5,14 @@ import mongoose from 'mongoose';
 
 export async function checkAutoPromos(orderItems, outlet, orderType) {
   const now = new Date();
+  
+  console.log('🔍 Auto Promos - Searching for active promos:', {
+    outlet,
+    orderType,
+    now: now.toISOString(),
+    orderItemsCount: orderItems.length
+  });
+
   const autoPromos = await AutoPromo.find({
     outlet,
     isActive: true,
@@ -14,26 +22,71 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
   .populate('conditions.buyProduct')
   .populate('conditions.getProduct')
   .populate('conditions.bundleProducts.product')
-  .populate('conditions.products'); // <-- Tambahkan ini untuk product_specific
+  .populate('conditions.products');
+
+  console.log('🔍 Auto Promos - Found promos:', {
+    count: autoPromos.length,
+    promos: autoPromos.map(p => ({
+      name: p.name,
+      promoType: p.promoType,
+      conditions: p.conditions
+    }))
+  });
 
   let totalDiscount = 0;
   let appliedPromos = [];
 
   for (const promo of autoPromos) {
+    console.log('🔍 Processing promo:', promo.name);
     const promoResult = await applyAutoPromo(promo, orderItems, orderType);
     
     if (promoResult.applied && promoResult.discount > 0) {
-      totalDiscount += promoResult.discount;
-      appliedPromos.push({
-        promoId: promo._id,
+      // PERBAIKAN: Format applied promo dengan structure yang benar
+      const appliedPromo = {
+        promoId: promo._id, // ObjectId
         promoName: promo.name,
         promoType: promo.promoType,
         discount: promoResult.discount,
-        affectedItems: promoResult.affectedItems,
-        freeItems: promoResult.freeItems || []
+        affectedItems: (promoResult.affectedItems || []).map(item => ({
+          menuItem: item.menuItem,
+          menuItemName: item.menuItemName,
+          quantity: item.quantity,
+          originalSubtotal: item.originalSubtotal,
+          discountAmount: item.discountAmount || item.discountShare || 0,
+          discountedSubtotal: item.discountedSubtotal,
+          discountPercentage: item.discountPercentage
+        })),
+        freeItems: (promoResult.freeItems || []).map(freeItem => ({
+          menuItem: freeItem.menuItem,
+          menuItemName: freeItem.menuItemName,
+          quantity: freeItem.quantity,
+          price: freeItem.price,
+          isFree: freeItem.isFree || true
+        }))
+      };
+
+      totalDiscount += promoResult.discount;
+      appliedPromos.push(appliedPromo);
+      
+      console.log('✅ Promo applied successfully:', promo.name);
+    } else {
+      console.log('❌ Promo not applied:', {
+        name: promo.name,
+        reason: promoResult.applied ? 'No discount' : 'Conditions not met'
       });
     }
   }
+
+  console.log('🎯 FINAL AUTO PROMO RESULT:', {
+    totalDiscount,
+    appliedPromosCount: appliedPromos.length,
+    appliedPromos: appliedPromos.map(p => ({
+      name: p.promoName,
+      discount: p.discount,
+      type: p.promoType
+    }))
+  });
+
 
   return {
     totalDiscount: Number(totalDiscount) || 0,
@@ -43,28 +96,38 @@ export async function checkAutoPromos(orderItems, outlet, orderType) {
 
 // Fungsi untuk apply berbagai jenis auto promo
 async function applyAutoPromo(promo, orderItems, orderType) {
+  console.log('🔍 APPLY AUTO PROMO - Detailed Check:', {
+    promoName: promo.name,
+    promoType: promo.promoType,
+    consumerType: promo.consumerType,
+    orderType: orderType,
+    conditions: promo.conditions
+  });
+
   // Cek consumer type
-  if (promo.consumerType !== 'all' && promo.consumerType !== orderType) {
+  if (promo.consumerType && promo.consumerType !== '' && promo.consumerType !== 'all' && promo.consumerType !== orderType) {
+    console.log('❌ PROMO SKIPPED - Consumer type mismatch:', {
+      required: promo.consumerType,
+      actual: orderType
+    });
     return { applied: false, discount: 0, affectedItems: [] };
   }
+
+  console.log('✅ PROMO PASSED CONSUMER TYPE CHECK');
 
   switch (promo.promoType) {
     case 'discount_on_quantity':
       return applyDiscountOnQuantity(promo, orderItems);
-      
     case 'discount_on_total':
       return applyDiscountOnTotal(promo, orderItems);
-      
     case 'buy_x_get_y':
       return applyBuyXGetY(promo, orderItems);
-      
     case 'bundling':
       return applyBundling(promo, orderItems);
-      
     case 'product_specific':
-      return applyProductSpecific(promo, orderItems);
-      
+      return applyProductSpecific(promo, orderItems, orderType); // PERBAIKAN: Tambahkan orderType
     default:
+      console.log('❌ UNKNOWN PROMO TYPE:', promo.promoType);
       return { applied: false, discount: 0, affectedItems: [] };
   }
 }
@@ -247,35 +310,147 @@ function applyBundling(promo, orderItems) {
 }
 
 // 5. Product Specific Discount
-function applyProductSpecific(promo, orderItems) {
-  const { conditions, discount } = promo;
-  const promoProducts = (conditions.products || []).map(p => p._id?.toString() || p.toString());
+function applyProductSpecific(promo, orderItems, orderType) {
+  const { conditions, discount, consumerType } = promo;
+  
+  // PERBAIKAN 1: Cek consumer type
+  if (consumerType && consumerType !== '' && consumerType !== 'all' && consumerType !== orderType) {
+    console.log('❌ Promo skipped - consumer type mismatch:', {
+      promoConsumerType: consumerType,
+      orderType: orderType
+    });
+    return { applied: false, discount: 0, affectedItems: [] };
+  }
+
+  // PERBAIKAN 2: Normalize promo products dengan berbagai format
+  const promoProducts = (conditions.products || []).map(p => {
+    console.log('🔍 Raw promo product:', p);
+    
+    // Handle berbagai format
+    if (typeof p === 'object') {
+      if (p.$oid) return p.$oid.toString();
+      if (p._id) return p._id.toString();
+      if (p.id) return p.id.toString();
+      return p.toString();
+    }
+    return p.toString();
+  });
+
+  console.log('🔍 Normalized promo products:', promoProducts);
+
   let totalDiscount = 0;
   const affectedItems = [];
 
+  console.log('🔍 Product Specific Promo Detailed Check:', {
+    promoName: promo.name,
+    promoType: promo.promoType,
+    discountPercentage: discount,
+    consumerType: consumerType,
+    orderType: orderType,
+    promoProducts: promoProducts,
+    orderItems: orderItems.map(item => ({
+      rawMenuItem: item.menuItem,
+      menuItemType: typeof item.menuItem,
+      menuItemName: item.menuItemName,
+      quantity: item.quantity,
+      subtotal: item.subtotal
+    }))
+  });
+
   for (const item of orderItems) {
-    const itemId = item.menuItem?._id?.toString() || item.menuItem?.toString() || '';
+    // PERBAIKAN 3: Normalize item ID dengan comprehensive approach
+    let itemId;
     
-    if (promoProducts.includes(itemId)) {
-      // Asumsi: discount adalah persentase (misal: 20 = 20%)
-      const itemTotal = (item.price || 0) * (item.quantity || 1);
-      const itemDiscount = (discount / 100) * itemTotal;
+    if (item.menuItem === null || item.menuItem === undefined) {
+      console.log('❌ Item has no menuItem:', item);
+      continue;
+    }
+    
+    if (typeof item.menuItem === 'object') {
+      itemId = item.menuItem._id?.toString() || 
+               item.menuItem.id?.toString() || 
+               item.menuItem.toString();
+    } else {
+      itemId = item.menuItem.toString();
+    }
+
+    // PERBAIKAN 4: Bersihkan ID dari berbagai prefix
+    const cleanItemId = itemId
+      .replace('$oid:', '')
+      .replace('ObjectId(', '')
+      .replace(')', '');
+
+    console.log('🔍 Detailed Item Check:', {
+      menuItemName: item.menuItemName,
+      rawItemId: item.menuItem,
+      normalizedItemId: itemId,
+      cleanItemId: cleanItemId,
+      promoProducts: promoProducts,
+      isExactMatch: promoProducts.includes(itemId),
+      isCleanMatch: promoProducts.includes(cleanItemId),
+      isAnyMatch: promoProducts.some(promoId => 
+        promoId.includes(itemId) || itemId.includes(promoId) ||
+        promoId.includes(cleanItemId) || cleanItemId.includes(promoId)
+      )
+    });
+
+    // PERBAIKAN 5: Gunakan matching yang lebih flexible
+    const isMatch = promoProducts.some(promoId => {
+      const cleanPromoId = promoId
+        .replace('$oid:', '')
+        .replace('ObjectId(', '')
+        .replace(')', '');
+      
+      return cleanPromoId === cleanItemId;
+    });
+
+    if (isMatch) {
+      // Hitung discount berdasarkan subtotal aktual
+      const itemDiscount = (discount / 100) * item.subtotal;
       
       totalDiscount += itemDiscount;
       affectedItems.push({
-        menuItemId: itemId,
+        menuItem: item.menuItem,
+        menuItemName: item.menuItemName,
         quantity: item.quantity,
-        originalPrice: item.price,
-        discountAmount: itemDiscount
+        originalSubtotal: item.subtotal,
+        discountAmount: itemDiscount,
+        discountedSubtotal: item.subtotal - itemDiscount,
+        discountPercentage: discount
+      });
+
+      console.log('✅ PROMO APPLIED SUCCESSFULLY:', {
+        itemName: item.menuItemName,
+        originalPrice: item.subtotal,
+        discountPercentage: discount + '%',
+        discountAmount: itemDiscount,
+        finalPrice: item.subtotal - itemDiscount
+      });
+    } else {
+      console.log('❌ ITEM NOT IN PROMO - Detailed comparison:', {
+        itemName: item.menuItemName,
+        itemId: cleanItemId,
+        promoProductIds: promoProducts.map(id => id.replace('$oid:', '').replace('ObjectId(', '').replace(')', '')),
+        matchAttempt: 'No matching ID found'
       });
     }
   }
 
-  return {
+  const result = {
     applied: affectedItems.length > 0,
     discount: totalDiscount,
     affectedItems
   };
+
+  console.log('📊 PRODUCT SPECIFIC PROMO FINAL RESULT:', {
+    promoName: promo.name,
+    applied: result.applied,
+    totalDiscount: result.discount,
+    affectedItemsCount: result.affectedItems.length,
+    affectedItems: result.affectedItems
+  });
+
+  return result;
 }
 
 export async function checkVoucher(voucherCode, totalAmount, outlet) {
@@ -290,18 +465,36 @@ export async function checkVoucher(voucherCode, totalAmount, outlet) {
         voucher.applicableOutlets.some(outletId => outletId.equals(outlet));
 
       if (isValidDate && isValidOutlet && voucher.quota > 0) {
-        // Hitung diskon
+        // PERBAIKAN: Voucher dihitung dari amount SETELAH diskon lain
         if (voucher.discountType === 'percentage') {
           discount = (totalAmount * voucher.discountAmount) / 100;
         } else if (voucher.discountType === 'fixed') {
-          discount = voucher.discountAmount;
+          discount = Math.min(voucher.discountAmount, totalAmount);
         }
+
+        console.log('🎫 VOUCHER APPLICATION:', {
+          code: voucherCode,
+          discountType: voucher.discountType,
+          discountAmount: voucher.discountAmount,
+          calculatedDiscount: discount,
+          applicableAmount: totalAmount,
+          remainingAfterDiscount: totalAmount - discount
+        });
 
         // Update kuota voucher
         voucher.quota -= 1;
         if (voucher.quota === 0) voucher.isActive = false;
         await voucher.save();
+      } else {
+        console.log('❌ VOUCHER NOT VALID:', {
+          code: voucherCode,
+          isValidDate,
+          isValidOutlet,
+          quota: voucher?.quota
+        });
       }
+    } else {
+      console.log('❌ VOUCHER NOT FOUND OR INACTIVE:', voucherCode);
     }
   }
 
