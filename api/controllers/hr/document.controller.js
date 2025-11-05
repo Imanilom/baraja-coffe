@@ -1,7 +1,7 @@
 import Document from '../../models/model_hr/Documents.model.js';
 import Employee from '../../models/model_hr/Employee.model.js';
 
-export const documentController = {
+export const DocumentController = {
   // Create document
   createDocument: async (req, res) => {
     try {
