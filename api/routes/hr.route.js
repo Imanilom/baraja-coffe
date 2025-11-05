@@ -2,9 +2,9 @@ import express from 'express';
 import { verifyToken } from '../utils/verifyUser.js';
 import { employeeController } from '../controllers/hr/employee.controller.js';
 import { attendanceController } from '../controllers/hr/attendance.controller.js';
-import { DocumentController } from '../controllers/hr/document.controller.js';
+
 import { fingerprintController } from '../controllers/hr/fingerprint.controller.js';
-import { SalaryController } from '../controllers/hr/salary.controller.js';
+
 
 const router = express.Router();
 
@@ -86,5 +86,8 @@ router.delete('/fingerprints/:id', fingerprintController.deleteFingerprint);
 
 // Deactivate fingerprint
 router.patch('/fingerprints/:id/deactivate', fingerprintController.deactivateFingerprint);
+
+export default router;
+
 
 
