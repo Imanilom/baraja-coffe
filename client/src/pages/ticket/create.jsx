@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 import ConfirmationModal from "../menu/confirmmodal";
 import AddonForm from "../menu/opsimodal";
 
-const CreateEvent = () => {
+const CreateTicket = () => {
     const [allCategories, setAllCategories] = useState([]);
     const [categories, setCategories] = useState([]);
     const [subCategories, setSubCategories] = useState([]);
@@ -551,4 +551,4 @@ const CreateEvent = () => {
     );
 };
 
-export default CreateEvent;
+export default CreateTicket;
