@@ -33,9 +33,12 @@ class OrderDetailModelAdapter extends TypeAdapter<OrderDetailModel> {
           fields[10] == null ? LocationType.indoor : fields[10] as LocationType,
       outlet: fields[11] as String?,
       discounts: fields[12] as DiscountModel?,
-      appliedPromos: (fields[13] as List?)?.cast<String>(),
-      appliedManualPromo: fields[14] as String?,
-      appliedVoucher: fields[15] as String?,
+      appliedPromos:
+          fields[13] == null
+              ? []
+              : (fields[13] as List?)?.cast<AppliedPromosModel>(),
+      appliedManualPromo: fields[14] == null ? null : fields[14] as String?,
+      appliedVoucher: fields[15] == null ? null : fields[15] as String?,
       taxAndServiceDetails:
           fields[16] == null
               ? []
@@ -196,10 +199,11 @@ _OrderDetailModel _$OrderDetailModelFromJson(
           : DiscountModel.fromJson(json['discounts'] as Map<String, dynamic>),
   appliedPromos:
       (json['appliedPromos'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList(),
-  appliedManualPromo: json['appliedManualPromo'] as String?,
-  appliedVoucher: json['appliedVoucher'] as String?,
+          ?.map((e) => AppliedPromosModel.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
+  appliedManualPromo: json['appliedManualPromo'] as String? ?? null,
+  appliedVoucher: json['appliedVoucher'] as String? ?? null,
   taxAndServiceDetails:
       (json['taxAndServiceDetails'] as List<dynamic>?)
           ?.map(

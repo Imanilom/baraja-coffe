@@ -2135,17 +2135,17 @@ const confirmOrderHelper = async (orderId) => {
     console.log('🔍 confirmOrderHelper - Searching for order:', orderId);
 
     // PERBAIKAN 1: Cari order dengan query yang lebih aman
-    let order = await Order.findOne({ 
+    let order = await Order.findOne({
       $or: [
         { order_id: orderId },
         { _id: orderId }
       ]
     })
-    .populate('items.menuItem', 'name price')
-    .populate('outlet', 'name address')
-    .populate('user_id', 'name email phone')
-    .populate('cashierId', 'name email') // PERBAIKAN: Populate cashierId
-    .lean(); // PERBAIKAN: Gunakan lean() untuk avoid mongoose document issues
+      .populate('items.menuItem', 'name price')
+      .populate('outlet', 'name address')
+      .populate('user_id', 'name email phone')
+      .populate('cashierId', 'name email') // PERBAIKAN: Populate cashierId
+      .lean(); // PERBAIKAN: Gunakan lean() untuk avoid mongoose document issues
 
     if (!order) {
       console.error('❌ confirmOrderHelper - Order not found:', orderId);
@@ -2165,8 +2165,8 @@ const confirmOrderHelper = async (orderId) => {
     if (order.status !== 'Reserved') {
       updatedOrder = await Order.findByIdAndUpdate(
         order._id,
-        { 
-          $set: { 
+        {
+          $set: {
             status: 'Waiting',
             updatedAt: new Date()
           }
@@ -2182,7 +2182,7 @@ const confirmOrderHelper = async (orderId) => {
     }
 
     // PERBAIKAN 3: Cari payment dengan query yang lebih aman
-    const payment = await Payment.findOne({ 
+    const payment = await Payment.findOne({
       $or: [
         { order_id: orderId },
         { order_id: order.order_id }
@@ -2428,9 +2428,9 @@ export const createUnifiedOrder = async (req, res) => {
       }
 
       // Check if order already exists (double-check dalam lock)
-      const existingOrder = await Order.findOne({ 
+      const existingOrder = await Order.findOne({
         order_id: orderId,
-        outletId: outletId 
+        outletId: outletId
       });
 
       if (existingOrder) {
@@ -2439,7 +2439,7 @@ export const createUnifiedOrder = async (req, res) => {
           existingOrderId: existingOrder._id,
           existingStatus: existingOrder.status
         });
-        
+
         try {
           const result = await confirmOrderHelper(orderId);
           return {
@@ -2453,7 +2453,7 @@ export const createUnifiedOrder = async (req, res) => {
           };
         } catch (confirmError) {
           console.error('❌ Failed to confirm existing order:', confirmError);
-          
+
           // PERBAIKAN: Jangan langsung throw, beri fallback
           return {
             type: 'existing_order_error',
@@ -6673,4 +6673,33 @@ export async function patchEditOrder(req, res) {
     console.error('patchEditOrder error:', err);
     return res.status(500).json({ message: err.message || 'internal error' });
   }
+}
+
+// POST /payments/:id/refund-settle
+export async function markRefundPaid({ paymentId, method, reference, session, cashierId }) {
+  const p = await Payment.findById(paymentId).session(session);
+  if (!p) throw new Error("Payment not found");
+  if (!(p.status === "refund" && p.direction === "refund")) {
+    throw new Error("Payment is not a refund liability");
+  }
+
+  p.status = "settlement";        // <-- sekarang dianggap sudah diserahkan ke customer
+  p.method = method || p.method;  // opsional update cara bayar refund
+  p.refundReference = reference;  // opsional catat referensi (no transfer, dsb.)
+  p.refundPaidAt = new Date();    // opsional timestamp
+  p.refundPaidBy = cashierId || p.refundPaidBy; // opsional
+
+  await p.save({ session });
+
+  await PaymentAdjustment.create([{
+    orderId: p.order_id,
+    paymentId: p._id,
+    revisionId: null,
+    kind: "refund_paid",
+    direction: "refund",
+    amount: p.amount,
+    note: `refund paid ${method || ""} ${reference || ""}`.trim(),
+  }], { session });
+
+  return p;
 }
