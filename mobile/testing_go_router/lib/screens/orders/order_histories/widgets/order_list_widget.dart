@@ -17,8 +17,8 @@ class OrderListWidget extends ConsumerWidget {
 
     // 1) Sort DESC by createdAt
     final sorted = [...orders]..sort(
-      (a, b) => (b.createdAt ?? DateTime(1970)).compareTo(
-        a.createdAt ?? DateTime(1970),
+      (a, b) => (b.updatedAt ?? DateTime(1970)).compareTo(
+        a.updatedAt ?? DateTime(1970),
       ),
     );
 
@@ -137,7 +137,7 @@ class OrderListWidget extends ConsumerWidget {
                                   Text(
                                     DateFormat(
                                       'dd MMM yyyy, HH:mm',
-                                    ).format(order.createdAt ?? DateTime.now()),
+                                    ).format(order.updatedAt ?? DateTime.now()),
                                     style: TextStyle(
                                       color: Colors.grey[500],
                                       fontSize: 12,

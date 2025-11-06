@@ -5452,7 +5452,7 @@ export const getCashierOrderHistory = async (req, res) => {
       // const orders = await Order.find();
       .populate('items.menuItem') // Mengisi detail menu item (opsional)
       // .populate('voucher')
-      .sort({ createdAt: -1 }); // Mengisi detail voucher (opsional)
+      .sort({ updatedAt: -1 }); // Mengisi detail voucher (opsional)
     console.log(orders.length);
     if (!orders || orders.length === 0) {
       return res.status(200).json({ message: 'No order history found for this cashier.', orders });
