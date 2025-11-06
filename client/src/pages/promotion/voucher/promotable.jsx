@@ -2,9 +2,12 @@ import axios from "axios";
 import React, { useEffect, useState } from "react";
 import ConfirmationModalActive from "../confirmationModalActive";
 import Paginated from "../../../components/paginated";
+import UpdateVoucher from "./update";
+import { FaPencilAlt, FaTrash } from "react-icons/fa";
 
 const PromoTable = ({ vouchers, fetchVouchers, currentPage, setCurrentPage }) => {
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const [selectedVoucher, setSelectedVoucher] = useState(null);
     const [newStatus, setNewStatus] = useState(null);
     const promosPerPage = 50;
@@ -57,8 +60,10 @@ const PromoTable = ({ vouchers, fetchVouchers, currentPage, setCurrentPage }) =>
                         <th className="px-4 py-3 text-left">Nama Voucher</th>
                         <th className="px-4 py-3 text-right">Kuota</th>
                         <th className="px-4 py-3 text-right">Nilai</th>
-                        <th className="px-4 py-3 text-left">Tanggal Berlaku</th>
+                        <th className="px-4 py-3 text-left">Tanggal Mulai</th>
+                        <th className="px-4 py-3 text-left">Tanggal Selesai</th>
                         <th className="px-4 py-3 text-center">Status</th>
+                        <th>#</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -73,7 +78,10 @@ const PromoTable = ({ vouchers, fetchVouchers, currentPage, setCurrentPage }) =>
                                         : formatCurrency(voucher.discountAmount)}
                                 </td>
                                 <td className="px-4 py-3 text-left truncate">
-                                    {formatTanggal(voucher.validFrom)} s/d {formatTanggal(voucher.validTo)}
+                                    {formatTanggal(voucher.validFrom)}
+                                </td>
+                                <td className="px-4 py-3 text-left truncate">
+                                    {formatTanggal(voucher.validTo)}
                                 </td>
                                 <td className="px-4 py-3 flex justify-center items-center">
                                     <label className="relative inline-flex items-center cursor-pointer">
@@ -90,6 +98,30 @@ const PromoTable = ({ vouchers, fetchVouchers, currentPage, setCurrentPage }) =>
                                         <div className="w-11 h-6 bg-gray-300 peer-checked:bg-green-500 rounded-full transition-colors"></div>
                                         <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
                                     </label>
+                                </td>
+                                <td className="px-6 py-3">
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setSelectedVoucher(voucher);
+                                                setIsUpdateModalOpen(true);
+                                            }}
+                                            className="flex items-center gap-2 px-3 py-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                        >
+                                            <FaPencilAlt size={14} />
+                                            <span>Edit</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setItemToDelete(voucher._id);
+                                                setIsModalOpen(true);
+                                            }}
+                                            className="flex items-center gap-2 px-3 py-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                        >
+                                            <FaTrash size={14} />
+                                            <span>Hapus</span>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))
@@ -111,6 +143,16 @@ const PromoTable = ({ vouchers, fetchVouchers, currentPage, setCurrentPage }) =>
                     totalPages={totalPages}
                 />
             )}
+
+            <UpdateVoucher
+                isOpen={isUpdateModalOpen}
+                onClose={() => {
+                    setIsUpdateModalOpen(false);
+                    setSelectedVoucher(null);
+                }}
+                fetchVouchers={fetchVouchers}
+                voucherData={selectedVoucher}
+            />
 
             <ConfirmationModalActive
                 isOpen={isConfirmOpen}

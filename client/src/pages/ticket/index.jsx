@@ -227,7 +227,7 @@ const TicketManagement = () => {
 
             <div className="flex justify-between items-center px-6 py-3 my-3">
                 <h1 className="flex gap-2 items-center text-xl text-green-900 font-semibold">
-                    Event
+                    Ticket
                 </h1>
                 <div className="flex items-center gap-3">
                     {/* <button
@@ -238,7 +238,7 @@ const TicketManagement = () => {
           </button> */}
 
                     <Link
-                        to="/admin/event/create-event"
+                        to="/admin/ticket/create-ticket"
                         className="bg-[#005429] text-white px-4 py-2 rounded flex items-center gap-2 text-sm"
                     >
                         <FaPlus /> Tambah
